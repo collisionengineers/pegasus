@@ -99,6 +99,33 @@ public sealed partial class OrganizationAdministrationWebTests
         principalIndex.EnsureSuccessStatusCode();
         Assert.Contains("WEBP", principalIndexHtml, StringComparison.Ordinal);
         Assert.Contains("Replace", principalIndexHtml, StringComparison.Ordinal);
+        Assert.Contains("EVA API", principalIndexHtml, StringComparison.Ordinal);
+
+        var evaSubmissionPath =
+            $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}";
+        using var evaSubmissionGet = await client.GetAsync(evaSubmissionPath);
+        var evaSubmissionHtml = await evaSubmissionGet.Content.ReadAsStringAsync();
+        evaSubmissionGet.EnsureSuccessStatusCode();
+        Assert.Contains("EVA API submission for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
+        var evaSubmissionForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(
+                evaSubmissionHtml,
+                "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(evaSubmissionHtml, "OperationKey"),
+            ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
+            ["EvaManualSubmission"] = bool.TrueString,
+            ["EvaAutomaticSubmission"] = bool.FalseString,
+            ["Reason"] = "Web caller EVA submission proof"
+        };
+        using var evaSubmissionPost = await client.PostAsync(
+            $"{evaSubmissionPath}?handler=Update",
+            new FormUrlEncodedContent(evaSubmissionForm));
+        Assert.Equal(HttpStatusCode.Redirect, evaSubmissionPost.StatusCode);
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                $"SELECT CASE WHEN EvaManualSubmission = 1 AND EvaAutomaticSubmission = 0 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
         var replacePath =
             $"/Administration/Principals/Replace/{organizationId:D}/{principalId:D}";
@@ -162,7 +189,8 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Organizations/Edit/{id:D}",
             "/Administration/Principals",
             "/Administration/Principals/Create",
-            $"/Administration/Principals/Replace/{id:D}/{id:D}"
+            $"/Administration/Principals/Replace/{id:D}/{id:D}",
+            $"/Administration/Principals/EvaSubmission/{id:D}/{id:D}"
         ];
         foreach (var route in routes)
         {
