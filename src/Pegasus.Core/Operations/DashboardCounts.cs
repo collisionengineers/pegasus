@@ -20,7 +20,12 @@ namespace Pegasus.Core.Operations;
 /// or <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReport"/>: the
 /// operator reads both as "With Engineer" (EPIC-011 D3).
 /// </param>
-public sealed record CaseStageCounts(int NotReady, int Review, int Held, int WithEngineer);
+/// <param name="Complete">
+/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReportComplete"/>,
+/// the one terminal outcome the Cases rail lists (EPIC-011 D3); the other
+/// terminals are excluded from the rail and never counted here.
+/// </param>
+public sealed record CaseStageCounts(int NotReady, int Review, int Held, int WithEngineer, int Complete = 0);
 
 /// <summary>
 /// What moved today and this week.

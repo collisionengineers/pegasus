@@ -31,17 +31,14 @@ namespace Pegasus.Core.Reports;
 /// evidence" the domain has today.
 /// </para>
 /// <para>
-/// <see cref="Costs"/> is deliberately nullable and supplied by the caller,
-/// not derived here. <c>AssessmentPolicy</c> already documents that estimate
-/// derivation (totals, worklists) is "deliberately absent until its formulas
-/// hold accepted authority (EXT-09, open decision D2)", and the assessment
-/// screen's own rate-card section states the labour/paint rate is "published
-/// reference data with their own dates and caveat, not a Pegasus tariff" — no
-/// numeric hourly rate or paint-materials figure is accepted anywhere in the
-/// domain today. Inventing one here would fabricate a legal-report money
-/// figure, which is exactly what this projection must not do. Until EXT-09
-/// lands, every production caller passes <c>Costs: null</c> and the report
-/// draft fails closed with that reason named.
+/// Repair costs come from the case's <see cref="CurrentEstimate"/> through
+/// <see cref="EstimateTotals"/> — the one owner of estimate money (EXT-09,
+/// FRD-11 § Estimate VAT on the rendered report). The production source
+/// supplies the Current estimate and never a hand-typed <see cref="Costs"/>;
+/// <see cref="Costs"/> remains for a caller that has figures without an
+/// estimate, where <see cref="ReportRepairCosts"/>'s built-in repairer-VAT
+/// rule then applies. With neither, the draft fails closed naming the
+/// missing Current estimate.
 /// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
@@ -53,7 +50,8 @@ public sealed record AssessmentReportProjectionInput(
     DateOnly ReportDate,
     IReadOnlyList<ReportImageEvidence> Photos,
     IReadOnlyList<AcceptedReportSource> Sources,
-    ReportRepairCosts? Costs);
+    ReportRepairCosts? Costs,
+    RepairSpecificationVersion? CurrentEstimate = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -77,11 +75,32 @@ public sealed record AssessmentReportProjectionResult(
 /// </summary>
 public static class AssessmentReportProjection
 {
-    public const string RepairCostRequirement = "Repair cost figures";
+    public const string RepairCostRequirement = "Current estimate required";
+    public const string LabourRateRequirement = "Current estimate labour rate";
+
+    /// <summary>
+    /// The Current estimate's figures as the report's cost block. Labour and
+    /// paint hours are the estimate's own; the paint bucket carries paint
+    /// labour plus materials; VAT is the estimate's, so the built-in rule in
+    /// <see cref="ReportRepairCosts"/> never runs for an estimate.
+    /// </summary>
+    public static ReportRepairCosts CostsOf(RepairSpecificationVersion estimate)
+    {
+        var totals = EstimateTotals.Compute(estimate);
+        return new(
+            LabourHours: estimate.Lines.Sum(line => line.WorkUnits ?? 0m),
+            HourlyRate: estimate.Details.LabourRate ?? 0m,
+            Parts: totals.Parts,
+            PaintMaterials: totals.Paint,
+            SpecialistOther: totals.Other,
+            RepairerVatRegistered: totals.VatPercent > 0,
+            VatOverride: totals.Vat);
+    }
 
     public static AssessmentReportDraftPreparation Prepare(
         CaseAssessmentProjection assessment,
-        ReportRepairCosts? costs)
+        ReportRepairCosts? costs,
+        RepairSpecificationVersion? currentEstimate = null)
     {
         ArgumentNullException.ThrowIfNull(assessment);
         var reasons = new List<AssessmentReadinessItem>(
@@ -111,17 +130,19 @@ public static class AssessmentReportProjection
                 "Record the exact accepted engineer name, qualifications and signature.");
         }
 
-        // The rate-card / paint-materials formula the report needs has no
-        // accepted authority anywhere in the domain yet (EXT-09, open
-        // decision D2) — see the remarks on AssessmentReportProjectionInput.
-        // A production caller never supplies Costs, so this fires for every
-        // case today; that is the honest state of the capability, not a bug.
+        // The report's repair cost is the Current estimate's total (EXT-09,
+        // FRD-11 § Estimate VAT on the rendered report). Costs handed in
+        // without an estimate are accepted for callers that have them.
         Require(
-            costs is not null,
-            RepairCostRequirement, "Estimate lines and rate card",
-            "No accepted formula exists yet to convert recorded estimate lines and the "
-                + "chosen rate card into a labour rate and repair cost (EXT-09, open decision D2).",
-            "This becomes available once EXT-09's estimate-derivation formula is accepted.");
+            currentEstimate is not null || costs is not null,
+            RepairCostRequirement, "Estimates",
+            "No estimate is marked Current on the case (EXT-09).",
+            "Use an estimate on the Assessment page.");
+        Require(
+            currentEstimate is null || currentEstimate.Details.LabourRate is > 0,
+            LabourRateRequirement, "Estimates",
+            "The Current estimate has no labour rate, and the report prints the hourly rate.",
+            "Record the labour rate on the Current estimate.");
 
         return new(reasons);
     }
@@ -130,11 +151,13 @@ public static class AssessmentReportProjection
     {
         ArgumentNullException.ThrowIfNull(input);
         var assessment = input.Assessment;
-        var preparation = Prepare(assessment, input.Costs);
+        var preparation = Prepare(assessment, input.Costs, input.CurrentEstimate);
         if (!preparation.CanGenerate)
         {
             return new(null, preparation.Reasons);
         }
+        var costs = input.CurrentEstimate is { } estimate ? CostsOf(estimate) : input.Costs!;
+        var lines = input.CurrentEstimate?.Lines ?? assessment.EstimateLines;
 
         var claimantName = RequiredReviewValue(input.ClaimantName, "claimant name");
         var yourReference = RequiredReviewValue(input.YourReference, "claim number");
@@ -173,11 +196,11 @@ public static class AssessmentReportProjection
             TradeValue: ParseMoney(Field(assessment, AssessmentVocabulary.ValueTrade)) ?? 0m,
             SalvageCategory: Field(assessment, AssessmentVocabulary.SalvageCategory),
             SalvageValue: ParseMoney(Field(assessment, AssessmentVocabulary.SalvageValue)),
-            Costs: input.Costs!,
-            NewParts: LinesOfType(assessment, "new_part"),
-            Repairs: LinesOfType(assessment, "repair"),
+            Costs: costs,
+            NewParts: LinesOfType(lines, "new_part"),
+            Repairs: LinesOfType(lines, "repair"),
             Operations: LinesOfType(
-                assessment,
+                lines,
                 "check_labour", "paint_new", "paint_repair", "paint_blend", "paint_prep",
                 "specialist_fixed", "specialist_wu"),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
@@ -226,17 +249,17 @@ public static class AssessmentReportProjection
     }
 
     /// <summary>
-    /// Groups confirmed line descriptions for the report's parts/repairs/
-    /// operations lists. Every estimate line is already confirmed by the
-    /// time this runs — <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
+    /// Groups the Current estimate's line descriptions for the report's
+    /// parts/repairs/operations lists. Every estimate line is already
+    /// confirmed by the time this runs — <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
     /// blocks the whole draft on the first unconfirmed line, of any type —
     /// so this only has to group by type and drop blank descriptions.
     /// </summary>
     private static string[] LinesOfType(
-        CaseAssessmentProjection assessment, params ReadOnlySpan<string> types)
+        IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<string> types)
     {
         var typeSet = new HashSet<string>(types.ToArray(), StringComparer.Ordinal);
-        return assessment.EstimateLines
+        return lines
             .Where(line => typeSet.Contains(line.Type) && !string.IsNullOrWhiteSpace(line.Description))
             .OrderBy(line => line.Position)
             .Select(line => line.Description!)

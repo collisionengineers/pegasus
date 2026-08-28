@@ -326,6 +326,14 @@ public static class DependencyInjection
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
+        // the import dialog selects the parser by the chosen source route.
+        services.AddSingleton<JsonEstimateParser>();
+        services.AddScoped<ISaveEstimate, SaveEstimate>();
+        services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
+        services.AddScoped<IDiscardEstimate, DiscardEstimate>();
+        services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
+        services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();
