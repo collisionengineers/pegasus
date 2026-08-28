@@ -159,3 +159,90 @@ computation read twice per render); extracting reason-dialog ViewData blocks
 (dictionary initializers cannot spread a partial without more machinery than
 they save). Efficiency: the Engineer list and EVA submission state are
 queried only in Review; the Engineer name only when one is assigned.
+
+## Continuation — round 3, the rest of lane E1 (2026-08-28)
+
+Branch `task/case-012-eva-send-salvage`, worktree
+`../pegasus-worktrees/case-012-eva-send-salvage`, from `origin/dev` 9868cf58.
+
+The plan above scoped round 1 to "frame + Overview only". `EPIC-011/waves.md`
+gives lane E1 four more files, and PR #599 left all four at base == dev:
+`Create.*`, `Eva/Send.*`, `Workflow.*`, `Closure.*`. This continuation closes
+them, so the ticket returns to `implementing` until it does.
+
+### Steps
+
+1. **`docs/design/test-ui/catalogue.json`** — rewrite both `case-details`
+   branch texts. They still described the pre-redesign page, so UIIMP-005's
+   gate would have compared the redesigned workspace against the wrong claim.
+   Reuse: the parallel branch's identical two-line fix.
+2. **`Cases/Create.cshtml`** — port to the shipped design system. Reuse:
+   `page-header`/`page-title`/`page-actions`, `panel`/`panel-head`/
+   `panel-body`, `definition-list`/`definition`, `field`/`field-error`/`req`,
+   `notice--warning`/`notice--danger`, `cluster`, `stack`, `provenance`, and
+   `grid grid-2` with `label.choice` — the idiom the merged `_CaseWorkflow`
+   already uses in this lane. Reuse the existing `Shared/_ErrorSummary`
+   partial (an orphan until now) instead of the ad-hoc validation summary, and
+   keep `_InstructionDraftFields` unchanged. `form-grid`, `form-column`,
+   `status-card`, `detail-list`, `section-label` and `prov` are all
+   legacy-block classes and are dropped; `page-heading` has no CSS at all.
+   Drop the explanatory copy the design authority bans; keep the state
+   statements, including the one `CaseCreateWebTests` pins.
+3. **`Cases/Eva/Send.cshtml(.cs)`** — port the same way. Reuse
+   `OperatorLabels.OfficeTime` for both times (the page kept its own copy of
+   the office format) and `Shared/_StatusChip` for the recorded outcome.
+   Correct the class summary, which still claimed the case bar opens this
+   page. Keep the page rather than reduce it to a handler: with script off the
+   bar's `data-dialog-open` control is inert, so this route is the only way to
+   the handoff, and `OperatorJourneyTests` depends on it.
+4. **`Cases/Workflow.cshtml`, `Cases/Closure.cshtml`** — verified, nothing to
+   port. Both are two-line `@page`/`@model` files with no markup, already
+   classified `redirect` in the catalogue, and their handlers are the live POST
+   targets of the lifecycle dialogs round 1 shipped. Not subsumed, not
+   deletable. Reported; the deletion question is UIIMP-009's, not this
+   ticket's.
+5. **Tests** — salvage the parallel branch's three pins by retargeting them
+   onto dev's model rather than copying its files: the handoff is a dialog not
+   a link, the report-sent control is gated on the edit authority too and is
+   labelled "Mark report sent", and dev has no `?tab=` alias. Add
+   `AvailableReportSentEvidence` to the fixture store and one
+   `CurrentSectionLabel` helper scoped to the section nav.
+
+### Deliberate drops, each with its reason
+
+- The parallel branch's Engineer-assignment form on the Send page: the merged
+  handoff dialog already carries that selector and posts the same
+  `Workflow/AssignEngineer` handler. A second copy is a duplicate
+  implementation of one control.
+- Its widened Send state gate: the shipped bar and the salvaged
+  `SendToEvaRendersOnlyInReview` pin both say Review only, and Core refuses the
+  export outside Review.
+- Its `?tab=` section aliases: no link in the product writes one, and
+  AGENTS.md forbids a compatibility path with no caller. The retargeted pin
+  records `?tab=` landing on Case Overview instead.
+- `_CaseVehicle.cshtml` and `_CaseFiles.cshtml`: lane E2 (CASE-027). Noted
+  there as prior art rather than absorbed.
+
+### Acceptance
+
+- Release build green; `CaseDetailsWebTests` and `CaseCreateWebTests` green.
+- Every control maps to an existing named handler; no new CSS, script, package
+  or abstraction.
+- No class used that wave 5's `site.css` deletion would unstyle, except where
+  this lane's own merged code already uses it (recorded as a finding).
+- No explanatory copy beyond labels, values and state statements.
+
+### Simplification pass — 2026-08-28 (round 3)
+
+Applied: `Create.cshtml`'s six near-identical read rows plus its separate
+`Prov` local function became one `Row` local function; its ad-hoc validation
+summary became `Shared/_ErrorSummary`; `Eva/Send.cshtml`'s own copy of the
+office time format became `OperatorLabels.OfficeTime` and its bare outcome
+text became `_StatusChip`.
+
+Considered and rejected, with reasons: dropping `data-word` from the
+provenance glyph — it renders no tooltip on the new `.provenance` class, but
+the merged `Mail/Message.cshtml` writes it and the existing convention wins;
+the two-convention split is reported instead. Folding `SendModel`'s
+`CanSubmitToApi` into `DetailsModel.CanSubmitToEva` — both ask the same Core
+policy for their own render, which is composition, not a second rule.

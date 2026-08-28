@@ -1,6 +1,107 @@
-# Post-implementation report — CASE-012 (parallel run, branch `task/case-012-case-workspace-parallel`)
+# Post-implementation reports — CASE-012
 
-## Stop condition: two implementations of one ticket
+Three runs took this ticket. Read them as follows, and do not mistake one for
+another:
+
+| Record | Branch | Status |
+| --- | --- | --- |
+| `report.md` in this folder | `task/case-012-case-workspace` (PR #599) | **merged to dev** — the Case workspace frame and Overview that are in the product |
+| §1 below | `task/case-012-eva-send-salvage` | **current** — round 3, the rest of lane E1 |
+| §2 below | `task/case-012-case-workspace-parallel` | **superseded** — never merged, must not be merged |
+
+`report.md` is the shipped record. This file's §2 is not: it describes a
+parallel run that lost. Neither file is deleted, because §2 is still the only
+description of two partials CASE-027 may want as prior art.
+
+## 1. Round 3 — the rest of lane E1 (`task/case-012-eva-send-salvage`)
+
+### Why there was a round 3
+
+The ticket sat at `verifying`, but `EPIC-011/waves.md` gives lane E1 four more
+files than PR #599 touched. `Create.*`, `Eva/Send.*`, `Workflow.*` and
+`Closure.*` were all still at base == dev. Create and Eva/Send were drawn in
+the pre-EPIC-011 vocabulary, and Create's outer wrapper used `page-heading`,
+which wave 1 defines nowhere in `site.css`, so the page rendered unstyled.
+Done means wired, so the ticket went back to `implementing`.
+
+### What shipped
+
+| File | Change |
+| --- | --- |
+| `docs/design/test-ui/catalogue.json` | both `case-details` branch texts rewritten; they still described the pre-redesign page and would have misreported the workspace to UIIMP-005's gate |
+| `Pages/Cases/Create.cshtml` | ported to the shipped design system; six read rows and their provenance glyphs reduced to one `Row` local function; explanatory copy removed |
+| `Pages/Cases/Eva/Send.cshtml` | ported to the design system; outcome shown through `_StatusChip`, times through `OperatorLabels.OfficeTime` |
+| `Pages/Cases/Eva/Send.cshtml.cs` | class summary corrected — it claimed the bar opens this page, which stopped being true at PR #599 |
+| `tests/…/CaseDetailsWebTests.cs` | the three salvaged pins, retargeted; fixture store gains `AvailableReportSentEvidence` |
+
+`Workflow.cshtml` and `Closure.cshtml` needed no port: both are two-line
+`@page`/`@model` files with no markup, already classified `redirect` in the
+catalogue, and their handlers are the live POST targets of the lifecycle
+dialogs PR #599 shipped. They are not subsumed and must not be deleted. That
+finding is reported rather than acted on; the deletion question, if any, is
+UIIMP-009's.
+
+### Reuse
+
+`_ErrorSummary` (previously an orphan partial, now with its first caller),
+`_InstructionDraftFields`, `_StatusChip`, `OperatorLabels.OfficeTime`, and the
+design-system classes `page-header`, `panel`/`panel-head`/`panel-body`,
+`definition-list`/`definition`, `field`, `notice`, `cluster`, `stack`,
+`provenance`, and `grid grid-2` with `label.choice` — the last two being the
+idiom the merged `_CaseWorkflow.cshtml` already uses in this lane. No new CSS,
+no new script, no new package, no new abstraction.
+
+### Salvage ruling
+
+The full ruling on `task/case-012-case-workspace-parallel` is in the ticket
+scratch. In short: superseded for the Case workspace, must not be merged (9
+predicted conflicts, and merging it would revert MAIL-025, CASE-025, ENG-026
+and PLAT-023). Only `Eva/Send.*`, `Create.cshtml` and the catalogue text were
+salvaged. Its Engineer-assignment form on the Send page, its widened Send
+state gate, its `?tab=` aliases, and its `_CaseVehicle`/`_CaseFiles` partials
+(lane E2) were each dropped for a stated reason.
+
+### Verification
+
+`dotnet build ./Pegasus.slnx --configuration Release` — succeeded, 0 warnings,
+0 errors. `dotnet test … --filter "FullyQualifiedName~CaseDetailsWebTests"` —
+42 passed, 0 failed; the three new pins alone are 15 of those. `dotnet test …
+--filter "FullyQualifiedName~CaseCreateWebTests"` — 17 passed, 0 failed. The
+Browser journey that exercises the Send page was not run: the orchestrator
+owns that gate.
+
+### Simplification pass — 2026-08-28
+
+Applied: the six near-identical read rows and the separate `Prov` local
+function in `Create.cshtml` became one `Row` function; the page's ad-hoc
+validation summary became the shared `_ErrorSummary` partial; the Send page's
+own copy of the office time format became `OperatorLabels.OfficeTime` and its
+bare outcome text became `_StatusChip`.
+
+Considered and rejected: dropping `data-word` from the provenance glyph, which
+renders no tooltip on the new `.provenance` class — kept because the merged
+`Mail/Message.cshtml` writes it and the existing convention wins; the split is
+reported instead. Also rejected: folding `Eva/Send`'s `CanSubmitToApi` into
+`DetailsModel.CanSubmitToEva` — both ask the same Core policy
+(`EvaSubmissionPolicy.AllowsManualSubmission`) for their own render, which is
+composition, not a second rule.
+
+### Out-of-scope findings
+
+Eight, listed in the ticket scratch under "Reported out of scope". The two
+that most affect other lanes: `Eva/Send.cshtml` has no catalogue entry at all
+(a `Test-UiCatalogue.ps1` failure that needs a captured prototype), and with
+script off nothing on the workspace links to the EVA handoff — the reason this
+round kept and ported the Send page rather than reducing it to a handler.
+
+## 2. SUPERSEDED — parallel run (`task/case-012-case-workspace-parallel`)
+
+**This section records a run that was never merged and must not be merged. It
+is kept only because it is the sole description of the `_CaseVehicle` and
+`_CaseFiles` partials CASE-027 may read as prior art. Nothing below describes
+what is in the product; `report.md` does.**
+
+### Stop condition: two implementations of one ticket
 
 This run took CASE-012 at 15:14 (board showed it untaken, `preparing`) and
 implemented it on the worktree `../pegasus-worktrees/case-012-case-workspace`
@@ -19,7 +120,7 @@ after the merge; `Test-UiCatalogue.ps1` reports only the pre-existing
 `Administration/Principals/EvaSubmission.cshtml` gap (PLAT-029 noted it).
 Tests not run by the implementer (orchestrator wave loop).
 
-## What this run shipped (differences from PR #599 worth comparing)
+### What this run shipped (differences from PR #599 worth comparing)
 
 - `Details.cshtml(.cs)`: `?section=` with `?tab=` aliases; `page-header`
   (Back to Cases + `_FreshnessBanner` with `section` refresh field);
@@ -76,7 +177,7 @@ Tests not run by the implementer (orchestrator wave loop).
   approval test posts its own `approvalId` and asserts no `artifactSha256`
   input; `OperatorJourneyTests` retargeted ("Edit Case", files section).
 
-## What CASE-027 / CASE-029 / CASE-030 / ENG-025 must know
+### What CASE-027 / CASE-029 / CASE-030 / ENG-025 must know
 
 - Valuations is accepted as `?section=valuations` but has no nav item until
   it has content (group rule: no inert control). CASE-027 adds the nav row
