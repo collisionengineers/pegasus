@@ -75,7 +75,7 @@ Header "Operations"; partial-data notice; **AI Job List** panel (meta "n jobs", 
 ### 1.12 Administration `/admin[/{area}]`
 Admin-layout: panel nav — **Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports** | content panel (h2 area label, description, meta).
 - Accounts: table Name, Username, Role (inline select), State, Save (disabled until changed; reason prompt), Account (Disable danger / Review); Create staff account.
-- Principals: table Name, Principal Code, Roles, State, Settings; Create Principal; Settings dialog: route e-mail addresses (read-only), EVA API policy (API manual / API automatic / ZIP only), Pegasus API key (masked, Show/Hide), Generate new key (danger → reason), Save.
+- Principals: table Name, Principal Code, Roles, State, Settings; Create Principal; Settings dialog: route e-mail addresses (read-only), EVA API submission settings (the two independent toggles owned by FRD-07/ADR-0034: Manual API submission, Automatic API submission; ZIP export needs no setting), Pegasus API key (masked, Show/Hide), Generate new key (danger → reason), Save.
 - Workflow configuration: Instruction completeness (2 checkboxes), Review (2 checkboxes), Due work (chase interval); Save configuration.
 - Mail settings: Approved mailboxes table (Mailbox, Scope, Last update, State, Review folders/Refresh) + Mail categories table (+ Add category).
 - Automation & AI: Automation panel (status, Registered clients, Active jobs, Failed jobs, Stop/Start automation danger → reason) + AI settings (Proposal, Timeout, enabled checkbox, Save).
@@ -110,4 +110,4 @@ Undefined icons `activity/spark/reply/flag/sort` (use Lucide activity/sparkles/r
 | D12 | Engineer Report "Queries received" = retained messages classified post-report-emails associated with the Engineer's cases in the period. |
 | D13 | Vendor Inter Variable (+Italic) woff2 with OFL licence + SHA-256 in the design README. |
 
-Routine calls: EVA note dropped; "No EVA" policy dropped (manual / automatic / ZIP only); route e-mail addresses read-only; account dialog "Session started" via an `auth_time` claim; wave-1 `site.css` carries a delimited legacy block for not-yet-ported page classes, deleted in wave 5; `main` is promoted only after wave 5.
+Routine calls: EVA note dropped; "No EVA" policy dropped; the dialog exposes the two ADR-0034 toggles rather than a three-value select (PLAT-047 review, 2026-08-28); route e-mail addresses read-only; account dialog "Session started" via an `auth_time` claim; wave-1 `site.css` carries a delimited legacy block for not-yet-ported page classes, deleted in wave 5; `main` is promoted only after wave 5.

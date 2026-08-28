@@ -25,17 +25,18 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 commits:
   - 47d9144af70005f97efb8f1540b400dee3905646
+  - b65081db010c27df8dab93fe78f9f43765bfdaaf
 prs:
   - '584'
 archived: false
 created: '2026-08-28T08:05:30.146Z'
-updated: '2026-08-28T08:15:21.870Z'
+updated: '2026-08-28T08:20:27.169Z'
 ---
 
 ## What
 
 - New `docs/adr/0036-outbound-mail-via-approved-mailbox.md` (one decision): staff-initiated Reply/Forward/Compose send through Microsoft Graph `Mail.Send` as the approved mailbox identity; the resulting Sent item is the evidence FRD-08 already defines and is auto-linked to the Case; Flag and Delete (to Deleted Items, with reason) are Outlook mutations; production activation is an explicit configuration switch approved separately; local alpha never mutates a mailbox (D4).
-- FRD-08: outbound correspondence rules (who may send, from which mailbox, what is retained), and EVA-sent report detection (D10): a report mail matching a Case reference with a PDF attachment is detected in the approved mailbox, the PDF attached to the Case, Sent evidence linked, the Case completed.
+- FRD-08: outbound correspondence rules (who may send, from which mailbox, what is retained), and EVA-sent report detection (D10): a report mail matching a Case reference with a PDF attachment is detected in the approved mailbox, the PDF attached to the Case, Sent evidence linked, and the Case enters post-report work; closure remains a separate reasoned step.
 - `docs/boundaries.md`: the automated-correspondence row is rewritten to state what is now in scope (staff send) and what remains excluded (autonomous send).
 
 ## Owns

@@ -27,3 +27,11 @@ PLAT-029, which records them).
 4. Run `pwsh ./scripts/Test-DocumentationLinks.ps1`; open the PR to `dev`.
 
 Reuse: existing README structure and headings; no new file.
+
+## Simplification pass — 2026-08-28
+
+n/a — docs-only.
+
+Actual diff: 1 file, +1,079 / −942 (README now 1,476 lines; the verbatim
+sections, the marks/icon checksum tables and the transcribed per-page
+contract account for the excess over the ~950 estimate).
