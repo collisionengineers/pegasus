@@ -44,8 +44,13 @@ One additive nullable column; `Down` drops it. No backfill, default or check
 constraint: the old Web revision keeps writing null kinds until the new
 package activates, and the new runtime treats a kind-less unexpired lease as
 nobody's (unclaimable via `IsHeld`, unusable via `IsHolder`) until it
-expires within five minutes. Production census on 2026-08-28: zero retained
-holders. Existing table-level grants cover the column (research §Azure).
+expires within five minutes. Cutover consequence: a staff editor whose lease
+was claimed by the previous revision will have heartbeat and save refused as
+"held by another" for at most the remaining ≤5-minute lease once the new
+revision serves requests (single replica, hard switch); they re-enter edit
+mode after it lapses, and no persisted data is lost. Production census on
+2026-08-28: zero retained holders. Existing table-level grants cover the
+column (research §Azure).
 
 ## Verification
 
@@ -82,7 +87,8 @@ Ticket verification bullets → tests:
 - The historical incident cannot be reconstructed (research §Azure); tests
   prove the invariant directly.
 - Wave-3 rule "one unmerged migration at a time": this PR carries one
-  migration; TICK-061 is next in the recorded order.
+  migration; TICK-061 (PR #592) merges ahead of it and this branch rebases
+  its snapshot and census over that migration before merge.
 
 ## Out of scope / follow-ups
 
