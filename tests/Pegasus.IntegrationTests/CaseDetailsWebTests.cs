@@ -905,7 +905,11 @@ public sealed partial class CaseDetailsWebTests
     public async Task AnAutomationHolderIsNamedAsAiAndNeverAsAMemberOfStaff()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { LeaseHolder = "pegasus-automation" };
+        var store = new RecordingCaseDetailsStore
+        {
+            LeaseHolder = "pegasus-automation",
+            LeaseHolderKind = ActorKind.Automation
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -1073,10 +1077,67 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", RegexOptions.CultureInvariant)]
     private static partial Regex GuidRegex();
 
+    /// <summary>
+    /// KANMER-005: while the Automation Actor holds the lease, the workspace is read-only to
+    /// staff — the holder is disclosed from its retained kind through the real descriptor, no
+    /// claim control is rendered, and a claim posted anyway is refused without the page
+    /// pretending edit mode was entered. The refusal is the shared owner's own conflict.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHeldCaseIsReadOnlyToStaffAndAPostedClaimIsRefused()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            LeaseHolder = "pegasus-automation",
+            LeaseHolderKind = ActorKind.Automation
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("Case locked - AI is editing", EditAuthorityNote(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Edit case<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
+
+        store.NextFailure = new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion);
+        using var claimResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(html),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", Guid.NewGuid().ToString("N"))));
+        AssertPrg(claimResponse, store.CaseId);
+
+        Assert.Empty(store.Claims);
+        Assert.Equal("pegasus-automation", store.LeaseHolder);
+        Assert.Equal(ActorKind.Automation, store.LeaseHolderKind);
+        var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("Edit mode could not be entered", afterRefusal, StringComparison.Ordinal);
+        Assert.Contains("Case locked - AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
+    }
+
     private sealed class StubEditAuthorityHolders(string? displayName, bool isAutomation = false)
         : IDescribeCaseEditAuthorityHolder
     {
         public Task<CaseEditAuthorityHolder> ExecuteAsync(
+            ActorKind? holderKind,
             string holderSubjectId,
             ActionActor actor,
             CancellationToken cancellationToken)
@@ -1111,6 +1172,7 @@ public sealed partial class CaseDetailsWebTests
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private CaseDueWork _dueWork;
         private string? _leaseHolder;
+        private ActorKind? _leaseHolderKind = ActorKind.Staff;
         private string? _leaseOperationKey;
 
         public RecordingCaseDetailsStore()
@@ -1147,6 +1209,12 @@ public sealed partial class CaseDetailsWebTests
             set => _leaseHolder = value;
         }
 
+        public ActorKind? LeaseHolderKind
+        {
+            get => _leaseHolderKind;
+            set => _leaseHolderKind = value;
+        }
+
         public List<SaveCaseRequest> Saves { get; } = [];
         public List<ConfirmCompletenessRequest> CompletenessConfirmations { get; } = [];
         public List<ManualChaseRecord> ManualChases { get; } = [];
@@ -1175,7 +1243,9 @@ public sealed partial class CaseDetailsWebTests
             CaseDetails details = new(
                 summary,
                 workflow,
-                _leaseHolder is null ? null : new(_leaseHolder, _now.AddMinutes(5), _leaseOperationKey!),
+                _leaseHolder is null
+                    ? null
+                    : new(_leaseHolder, _leaseHolderKind, _now.AddMinutes(5), _leaseOperationKey!),
                 [],
                 null,
                 CaseCustodyState.Pending,
@@ -1263,7 +1333,9 @@ public sealed partial class CaseDetailsWebTests
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {
+            ThrowNextFailure();
             _leaseHolder = request.Actor.SubjectId;
+            _leaseHolderKind = request.Actor.Kind;
             _leaseOperationKey = request.OperationKey;
             Claims.Add(request);
             return Task.FromResult(
