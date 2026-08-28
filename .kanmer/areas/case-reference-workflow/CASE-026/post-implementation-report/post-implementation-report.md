@@ -1,3 +1,9 @@
+# Post-implementation report — CASE-026 review-fix pass
+
+Second pass on the same branch and PR (#606), after review. The first
+report is `report.md` in this folder; this file is only what changed after
+it.
+
 ## Review-fix pass (2026-08-28)
 
 `origin/dev` merged into the branch (clean, no conflicts: Operations page,
