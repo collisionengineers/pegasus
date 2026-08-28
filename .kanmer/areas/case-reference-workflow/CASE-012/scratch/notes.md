@@ -92,3 +92,48 @@ and must not be deleted; deleting them would break every one of those dialogs.
 Three of their handlers (`StartWork`, `ReturnToReview`, `Archive`) are reached
 only from `_CaseWorkflow.cshtml`, which `Details.cshtml` still renders, so
 those have callers too.
+
+## Reported out of scope — 2026-08-28 (round 3)
+
+Found while working the four remaining lane-E1 files. None fixed here; each
+belongs to another owner.
+
+1. **`docs/design/test-ui/catalogue.json` has no entry for
+   `src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml`.** It is a routed Razor page
+   (`@page "/Cases/{caseId:guid}/Eva/Send"`), so `Test-UiCatalogue.ps1` reports
+   "Routed Razor source is not classified". A `visual` entry needs a prototype
+   under `docs/design/test-ui/pages/`, which only the snapshot capture
+   produces — orchestrator / UIIMP-005 (#588).
+2. **Nothing sets `ViewData["WorkspaceRecord"]`.** `_Layout.cshtml:43` reads it
+   to build the workspace tab strip (EPIC-011 §1.1); no page in the product
+   writes it, so the strip never carries a case tab. PLAT-029 / UIIMP-009.
+3. **Classes used by ported wave-2 pages live only in the wave-5 LEGACY block
+   of `site.css`** (`site.css:851` onward): `.form-grid` (used by
+   `Search/Index.cshtml`, `Cases/Assessment/Index.cshtml`), `.choice` and
+   `.role-choices` (used by the merged `_CaseWorkflow.cshtml`), `.prov` (used
+   by `Shared/_Provenance.cshtml`). Deleting the block in wave 5 unstyles them.
+   UIIMP-009 / PLAT-029.
+4. **`Shared/_Provenance.cshtml` still emits `class="prov"`** while the merged
+   `Mail/Message.cshtml` emits `class="provenance"`. Two glyph conventions for
+   one concept; `data-word` only renders a tooltip on the legacy `.prov`.
+   PLAT-029 / UIIMP-009.
+5. **`InstructionDraftFieldsView.ProvenanceWord` is a second, coarser copy of
+   the provenance word table** in `OperatorLabels.Provenance` (Extracted/Staff
+   only). One list per concept — `Presentation/` owner.
+6. **§1.8's "Download EVA package (With Engineer or Complete, exported)" is
+   still not offered.** `Details.cshtml` gates the control on Review alone and
+   only switches its label once exported, so the With Engineer and Complete
+   states have no route to the package. PR #599's plan reported this; it is
+   still open, and the salvaged `SendToEvaRendersOnlyInReview` pin now records
+   Review-only as the shipped behaviour. Needs an operator ruling between the
+   contract and FRD-07.
+7. **With script off, nothing on the workspace links to the EVA handoff.** The
+   bar control is `data-dialog-open`, which is inert without `site.js`;
+   `OperatorJourneyTests.ExportByKeyboardAsync` only works because it navigates
+   straight to `/Cases/{id}/Eva/Send` by URL. PR #599 recorded the same finding.
+   The Send page is kept and ported for exactly this reason, but the workspace
+   still needs either a no-script link to it or a no-script dialog fallback.
+   PLAT-029 (`site.js`, shell) with `Details.cshtml`.
+8. **`docs/current-architecture.md:525` is stale**: it says the Send to EVA
+   control "opens `/Cases/{caseId}/Eva/Send`". Since PR #599 it opens a dialog.
+   DELIV-030 (wave 5 current-state docs).

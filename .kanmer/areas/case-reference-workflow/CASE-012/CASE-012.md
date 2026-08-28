@@ -2,17 +2,17 @@
 id: CASE-012
 type: ticket
 title: Redesign the Case page workspace
-status: verifying
+status: implementing
 area: case-reference-workflow
-assignee: zcode
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:40.733Z'
   review: '2026-08-28T14:44:23.561Z'
   verifying: '2026-08-28T18:20:41.637Z'
-taken_at: '2026-08-28T13:52:16.537Z'
-branch: task/case-012-case-workspace
-worktree: ../pegasus-worktrees/case-012-case-workspace
+taken_at: '2026-08-28T22:09:10.833Z'
+branch: task/case-012-eva-send-salvage
+worktree: ../pegasus-worktrees/case-012-eva-send-salvage
 labels:
   - ui
   - case
@@ -25,7 +25,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T18:20:41.637Z'
+updated: '2026-08-28T22:09:10.833Z'
 ---
 
 ## What
