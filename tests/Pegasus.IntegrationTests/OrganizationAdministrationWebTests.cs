@@ -106,11 +106,12 @@ public sealed partial class OrganizationAdministrationWebTests
         var replaceHtml = await replaceGet.Content.ReadAsStringAsync();
         replaceGet.EnsureSuccessStatusCode();
         Assert.Contains("cases, references, and reference ownership will not be edited", replaceHtml, StringComparison.Ordinal);
-        // EXT-04 settings page for the same principal; GetHtmlAsync so a Test
+        // EXT-04 settings page for the same principal, on the route its relative
+        // @page template yields (like Replace above); GetHtmlAsync so a Test
         // UI capture records it.
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
-            $"/Administration/Principals/{organizationId:D}/{principalId:D}/EvaSubmission");
+            $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}/EvaSubmission");
         Assert.Contains("EVA API submission for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
 
         var replacementOperationKey = InputValue(replaceHtml, "OperationKey");
