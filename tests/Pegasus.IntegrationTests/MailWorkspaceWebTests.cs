@@ -542,6 +542,58 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The ported list's new surface: the scope rail with one count per scope,
+    /// the Unread scope as a real query, the sort toggle as a server-side
+    /// flip, and the preview pane rendered from the selected row.
+    /// </summary>
+    [Fact]
+    public async Task TheScopeRailCountsEachScopeUnreadFiltersAndTheSortToggleFlipsOrder()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        // Every drawn scope renders once, with its count.
+        Assert.Contains(">All incoming</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Unread</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Receiving work</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Case updates</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Pre-instructions</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Unidentified</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Sent Items</span>", html, StringComparison.Ordinal);
+        Assert.Equal(7, CountOccurrences(html, "class=\"scope-button\""));
+        // Three retained inbox messages, none read.
+        Assert.Contains("<span class=\"tabular\">3</span>", html, StringComparison.Ordinal);
+
+        // The preview pane renders server-side for the newest row, and the
+        // pane's full-detail entry carries the list context.
+        Assert.Contains("data-mail-preview-facts", html, StringComparison.Ordinal);
+        Assert.Contains("Message 2 from instructions", html, StringComparison.Ordinal);
+        Assert.Contains("Open full message", html, StringComparison.Ordinal);
+
+        // The Unread scope is a real query, not a client filter.
+        var unread = await GetHtmlAsync(client, "/Inbox?unread=true");
+        Assert.Contains("Message 2 from instructions", unread, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"true\"", unread, StringComparison.Ordinal);
+
+        // The sort toggle flips the received order server-side.
+        var oldest = await GetHtmlAsync(client, "/Inbox?sort=oldest");
+        var newestIndex = oldest.IndexOf("Message 2 from instructions", StringComparison.Ordinal);
+        var middleIndex = oldest.IndexOf("Message 1 from instructions", StringComparison.Ordinal);
+        Assert.True(newestIndex > middleIndex, "sort=oldest must list the newest message last.");
+        Assert.Contains(">Received ↑", oldest, StringComparison.Ordinal);
+        Assert.Contains("sort=oldest", oldest, StringComparison.Ordinal);
+
+        // An unknown sort or unread value is refused, like an unknown folder.
+        using var badSort = await client.GetAsync("/Inbox?sort=newest-first");
+        using var badUnread = await client.GetAsync("/Inbox?folder=sent&unread=true");
+        Assert.Equal(HttpStatusCode.NotFound, badSort.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, badUnread.StatusCode);
+    }
+
     [Fact]
     public async Task ScopingAndPagingCarryTheMailboxFolderAndPageForward()
     {
@@ -810,12 +862,13 @@ public sealed class MailWorkspaceWebTests
         using var client = CreateClient(factory);
 
         var receiving = await GetHtmlAsync(client, "/Inbox?queue=receiving-work");
-        Assert.Contains("<label for=\"mail-view\">Queue or detailed classification</label>", receiving, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"queue-filter\">Queue</label>", receiving, StringComparison.Ordinal);
         Assert.Contains("<optgroup label=\"Operational queues\">", receiving, StringComparison.Ordinal);
         Assert.Contains("<optgroup label=\"Detailed classifications\">", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("Current view:", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"field-hint\"", receiving, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(receiving, " selected=\"selected\""));
+        // One selected option per filter-bar select: mailbox, folder, queue.
+        Assert.Equal(3, CountOccurrences(receiving, " selected=\"selected\""));
         Assert.Contains($"/Inbox/{ids[5]:D}?queue=receiving-work", receiving, StringComparison.Ordinal);
         Assert.Contains("New instruction &#xB7; Inspection", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("Message 1 from instructions", receiving, StringComparison.Ordinal);
@@ -1025,7 +1078,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("intake@collisionengineers.co.uk", message, StringComparison.Ordinal);
         // Nothing was processed, so the state strip says so rather than blanking.
         Assert.Contains("Not yet processed", message, StringComparison.Ordinal);
-        Assert.Contains(">No case</dd>", message, StringComparison.Ordinal);
+        Assert.Contains(">No case</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
         // A viewer: the layout's sign-out is still the only POST on the screen.
@@ -1056,10 +1109,10 @@ public sealed class MailWorkspaceWebTests
 
         // An unavailable recommendation renders nothing: the Decision card
         // shows only populated rows, and no folder prose reaches the page.
-        Assert.Contains("<h2>Decision</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Folder recommendation", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Folder</dt>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Folder</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("no current classification decision", html, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
     }
@@ -1076,9 +1129,10 @@ public sealed class MailWorkspaceWebTests
 
         // The Decision card carries the decision in operator words; policy
         // keys, versions, predicate rows and prose never reach the page.
-        Assert.Contains("<h2>Decision</h2>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Classification</dt>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Destination</dt><dd>Unidentified</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Classification</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Destination</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<strong>Unidentified</strong>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("shared-mail-policy", html, StringComparison.Ordinal);
         Assert.DoesNotContain("sender-domain", html, StringComparison.Ordinal);
         Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
@@ -1094,7 +1148,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-word=\"Automatic\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("system-worker:approved-inbox-poller", html, StringComparison.Ordinal);
         // No corrections yet, so no Corrections card.
-        Assert.DoesNotContain("<h2>Corrections</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Corrections<", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1110,7 +1164,8 @@ public sealed class MailWorkspaceWebTests
         // The retained-mail viewer is the real production caller of
         // MailOperationalDestinationPolicy.Map: this must not silently
         // regress to no destination, or the wrong one, for a known category.
-        Assert.Contains("<dt>Destination</dt><dd>Receiving work</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Destination</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<strong>Receiving work</strong>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
     }
 
@@ -1129,7 +1184,7 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
-        Assert.Contains("<dt>Folder</dt>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Folder</span>", html, StringComparison.Ordinal);
         Assert.Contains("Instructions — not moved", html, StringComparison.Ordinal);
         Assert.DoesNotContain("mail_logical_folder", html, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
