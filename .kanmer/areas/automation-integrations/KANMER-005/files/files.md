@@ -13,7 +13,7 @@ and the regression evidence around the existing shared lease.*
 | `src/Pegasus.Infrastructure/Persistence/CaseWorkflowEntities.cs` and `CaseWorkflowModelConfiguration.cs` | Persist the live holder kind beside `EditLeaseHolder` and enforce the same null/non-null lifecycle for the holder identity. |
 | `src/Pegasus.Infrastructure/Persistence/EfCaseWorkflowStore.cs` and `CaseMutationGuard.cs` | Write, replay, require, renew, release, and clear the complete holder identity while retaining the existing serializable workflow-row lock and claim ordering. |
 | `src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs` and `EfOperationsStore.cs` | Project the recorded holder kind into case and operations views, including active-lease consistency checks. |
-| `src/Pegasus.Infrastructure/Persistence/Migrations/` | Add one migration and update the EF model snapshot for the existing workflow table. The production census found no retained holder rows, so no fabricated holder-kind backfill is needed; nullable inactive rows remain inactive. |
+| `src/Pegasus.Infrastructure/Persistence/Migrations/` | Add one migration and update the EF model snapshot for the existing workflow table. Before enforcing holder-kind consistency, clear any complete ephemeral lease tuple that exists; actor kind cannot be reconstructed safely from subject text. The research-time census found none, but the migration must remain safe if a lease exists later. |
 | `src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs` and the Details/Assessment edit-mode models after [[CASE-024]] | Restore or display edit ownership only when actor kind and subject both match, and keep a competing holder's page read-only with no claim action. Reuse CASE-024's shared handlers. |
 | `tests/Pegasus.Core.Tests/Workflow/CaseEditAuthorityTests.cs` | Pin same-subject/different-kind refusal and kind-driven holder description. |
 | `tests/Pegasus.IntegrationTests/CaseWorkflowPersistenceTests.cs` | Add the real-store staff/Automation claim, renew, release, write-refusal, state-preservation, expiry, and synchronized-race matrix. |
@@ -40,8 +40,9 @@ and the regression evidence around the existing shared lease.*
   Web display helpers, MCP responses where the lease result is serialized, and
   test fakes that construct those records.
 - The migration, model configuration, and model snapshot must ship together.
-  Lease claim must set kind; every clear path must clear it; consistency checks
-  must reject partial holder identity rather than guessing.
+  It clears any pre-existing ephemeral lease tuple rather than fabricating a
+  holder kind. Lease claim must set kind; every later clear path must clear it;
+  consistency checks must reject partial holder identity rather than guessing.
 - Rejected cross-actor claims and writes must be proved to leave holder kind,
   subject, token, request/operation keys, expiry, version, and concurrency state
   unchanged.

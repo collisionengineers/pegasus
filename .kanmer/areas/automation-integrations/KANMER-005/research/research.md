@@ -100,6 +100,10 @@ need without changing the settled save lifecycle?
 - Implementation must wait for [[CASE-024]] to merge and then use its shared
   `CaseMutationPageModel` handlers. Reworking the pre-CASE-024 page copies would
   create avoidable conflicts and duplicate the convention.
+- The migration must not infer kind from a pre-existing subject. Clear the
+  complete ephemeral lease tuple on any row that still holds one before
+  enforcing holder-kind consistency; the research-time zero-holder census does
+  not guarantee deploy-time emptiness.
 - No new runtime, store, package, governing behavior, or architecture boundary
   is needed. A persisted holder-kind field belongs to the existing workflow
   schema and migration stream.
