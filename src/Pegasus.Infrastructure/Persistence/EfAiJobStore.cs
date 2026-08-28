@@ -116,7 +116,7 @@ public sealed class EfAiJobStore(
         }
         if (current == AiJobState.Taken
             && transition.TargetState == AiJobState.Taken
-            && string.IsNullOrWhiteSpace(transition.ProgressNote))
+            && transition.ProgressNote is null)
         {
             // A take is a claim on a queued job; a held job is renewed
             // through progress, never taken again.
