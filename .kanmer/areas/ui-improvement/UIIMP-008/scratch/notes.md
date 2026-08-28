@@ -91,3 +91,46 @@ For the orchestrator: `waves.md` allocates `DashboardCounts.cs` to
 wave-2 lane A (this ticket), but CASE-025 (lane C1) edited it in
 `95f69958` and also edited `TriageQueuesWebTests.cs`. That breach caused
 this conflict.
+
+## CI run 33212916874 — one failure, out of lane (2026-08-28)
+
+First real CI on this head. Everything green except `sql-integration (2)`:
+Failed 1 / Passed 329 / Skipped 2 / Total 332. `unit`, `browser`,
+`sql-integration` 1 and 3, `sql-integration-coverage`, `changes`,
+`documentation`, `local-development-scripts` and `reference-data` all
+pass.
+
+The single failure is
+`PrincipalCredentialPersistenceTests.IssueResetPauseResumeRevokeAreHash
+OnlyReplaySafeAndFailClosed` at `PrincipalCredentialPersistenceTests.cs`
+line 62 — TICK-061's test file, arrived on this branch from `origin/dev`
+in commit `4aec2703`. This lane never touched that test, nor
+`Core/Cases/PrincipalCredentials.cs`, nor
+`Infrastructure/Persistence/EfPrincipalCredentialStore.cs`, and nothing
+this lane owns is reachable from it.
+
+**It is a flake, and the rate is computable.** Line 62 is:
+
+    Assert.Null(await authenticate.ExecuteAsync(
+        firstKeyId, firstSecret[..^1] + "A", default));
+
+It builds a "corrupted" secret by replacing the last character with
+`"A"` — but when the real secret already ends in `A`, that expression
+reconstructs the *correct* secret, authentication rightly succeeds, and
+the assertion fails. The failure output shows exactly that: expected
+null, actual `PrincipalCredentialAuthentication { State = Active,
+MaySubmit = True }`.
+
+Rate: `GenerateSecret` ends in `Base64Url(RandomNumberGenerator
+.GetBytes(32))` (`PrincipalCredentialPolicy`, `SecretBytes = 32`). 32
+bytes = 256 bits; the first 42 base64url characters carry 252, so the
+43rd and last character encodes the remaining 4 bits in its high bits
+and takes one of 16 values, of which `A` is one. **The test fails about
+1 run in 16 (~6 %).**
+
+Fix belongs to TICK-061's owner, not here — mutate to a character
+guaranteed to differ, e.g. `firstSecret[..^1] + (firstSecret[^1] == 'A'
+? 'B' : 'A')`. Reported, not fixed: outside this lane's files.
+
+Re-ran the failed job only (`gh run rerun 33212916874 --failed`) to
+confirm the flake.

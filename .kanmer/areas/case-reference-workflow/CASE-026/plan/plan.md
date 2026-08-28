@@ -106,3 +106,110 @@ dispositions:
    the query from running (`ViewData.ModelState.IsValid` guard).
 7. Efficiency: the staff-name resolve runs only when the page's rows name
    an Engineer; no per-row queries anywhere.
+
+## Review findings — dispositions (2026-08-28)
+
+Codex review of PR #606, plus the three real test failures on
+sql-integration shard 2. Every finding has a disposition; nothing is
+silenced.
+
+### P1 — `Index.cshtml:24` primary CTA returns NotFound
+
+**Fixed.** `CreateModel.OnGetAsync` refuses an empty `receiptId`
+(`Create.cshtml.cs:218`), so `/Cases/Create` with no receipt is a 404: the
+page is the second half of one operator action whose first half is
+`/Upload` (its own header links back there as "Upload another"). The
+header action now targets `/Upload`; the contracted label stays.
+
+Reported, not fixed (PLAT-029's files, identical dead link):
+`Pages/Shared/_ShellDialogs.cshtml:64` (the Add dialog's Create Case card)
+and `wwwroot/js/site.js:1364` (Ctrl N). A receipt-less `/Cases/Create`
+entry point would settle all three in one place.
+
+### P1 — `Index.cshtml:249` Copy Case/PO copies the previous selection
+
+**Fixed.** Each result row now carries `data-copy-reference`, and a
+page-scoped `@section Scripts` moves the copy source — and the refresh
+form's hidden `selected` field — onto the row the shell selects. Both
+controls have to live outside `[data-preview-target]` (site.js resolves
+`[data-copy-target]` once at load, then the row-selection module replaces
+the pane's children), so the page keeps the two values it owns in step
+rather than duplicating the clipboard or the selection, which stay the
+shell's. The durable fix is still site.js binding `[data-copy-target]` by
+delegation so any control inside a swapped region works; that file is
+PLAT-029's and is reported, not touched.
+
+### P1 — `Index.cshtml.cs` drops the image record's lifecycle state
+
+**Fixed.** `LoadImageIntakeResultsAsync`'s `GetByReferenceAsync` branch now
+passes `byReference.State` and `byReference.ClosureReason`. Omitting them
+took `ImageIntakeSummary`'s `AwaitingInstruction` default, so an exact
+reference hit on a merged or closed record showed the wrong chip while the
+registration search beside it showed the right one. Covered by
+`ExactImageReferenceResultCarriesItsRecordedLifecycleState`.
+
+### P2 — refresh's hidden `selected` goes stale
+
+**Fixed** by the same selection-sync script; refresh reruns the row the
+operator is reading.
+
+### P2 — an image-query failure renders an empty result
+
+**Fixed.** Both reads run inside the one guarded load, so the failure
+notice is now rendered once, above both sections, and neither the
+"Vehicle images" empty line nor the two panes (with their "0 results"
+count) render on a failed load. Covered by
+`UnavailableImageQueryRendersTheFailureNoticeNotAnEmptyList`.
+
+### P2 — `ResolveStaffNamesAsync` loops per account
+
+**Rejected for this lane, and the claim corrected.**
+`Core/Actors/ActorDisplayNames.cs` and `IStaffAccountQueries` are outside
+CASE-026's files, and a batched read is a new Core port, not a page
+change. The page does make one shared resolve for every Engineer on the
+page rather than one per row, which is what the PR body now says; the
+round-trip count is the shared helper's and belongs to a Core ticket.
+
+### The three shard-2 failures
+
+1. and 2. `CasesIndexWebTests` asserted `"Closed · Created in error"` and
+   `"QDOS3100043 · AB12CDE"` — text that never appears in the response.
+   The framework's HTML encoder writes non-ASCII as numeric references, so
+   the bytes are `Closed &#xB7; Created in error`. Both assertions now
+   pin the rendered bytes (the convention MAIL-025 settled at
+   `MailWorkspaceWebTests.cs:897`). No assertion weakened: the chip and
+   the heading are still required, character for character.
+3. `QdosCustodialWebTests` asserts the `/Search` filter form still has its
+   accessible name; the port dropped the pre-port `<h2 class="vh">Filter
+   cases</h2>`. Restored as `aria-label="Filter cases"` on the form —
+   the naming MAIL-025 uses for its filter form, and no visible copy.
+
+### Out of scope, found while working (do not fix here)
+
+- `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs:29` —
+  `StateMatches["cases--unavailable"]` requires
+  `<h2>Cases are unavailable</h2>`, which is the pre-port `status-card`
+  markup. The ported notice renders `<strong>`, so snapshot generation
+  reports `cases--unavailable (/Search)` as missing in both update and
+  verify modes. UIIMP-005's file; a one-line constant change.
+- One `dotnet test` run over `Pegasus.slnx` aborted with "Test host
+  process crashed" before any test reported; the identical command
+  re-run passed 5/5. Not reproduced, recorded rather than ignored.
+
+## Simplification pass (2026-08-28, review-fix diff)
+
+Lenses over this branch's own additional diff: reuse, simplification,
+efficiency, altitude.
+
+1. Reuse: the failure notice, `[data-copy-target]`, `[data-refresh-form]`
+   and the row-selection contract are all the shell's existing pieces; the
+   only new thing is a page script that moves two values, and it calls no
+   clipboard and no selection code of its own.
+2. Simplification: hoisting the one failure notice removed a nested
+   branch and made the "0 results" count unreachable on a failed load;
+   the results pane's state chain is one condition shorter.
+3. Efficiency: no new queries, no new per-row work; the image branch
+   gained two constructor arguments.
+4. Altitude: the copy/refresh sync sits on the page that owns those two
+   controls. The general fix (delegated binding) belongs to the shell and
+   is reported above rather than reimplemented here.
