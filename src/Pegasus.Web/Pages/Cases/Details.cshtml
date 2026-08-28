@@ -494,7 +494,7 @@
             {
                 ["id"] = workflow.CaseId.ToString(),
                 ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-                ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
                 ["editLeaseToken"] = Model.LeaseToken
             }
         })" />
@@ -510,13 +510,18 @@
             {
                 ["id"] = workflow.CaseId.ToString(),
                 ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-                ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
                 ["editLeaseToken"] = Model.LeaseToken
             }
         })" />
     }
     @if (!isComplete)
     {
+        @* Two ways to close: a named terminal outcome, and — for the wrong
+           principal — the atomic Created-in-error closure, which Core permits
+           only together with the linked replacement (FRD-01; ValidateClose
+           refuses a bare CreatedInError outcome). The consequence sentence is
+           from the design authority's closed necessary-copy list. *@
         <div class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
             <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
                 <div class="dialog-head">
@@ -547,6 +552,30 @@
                     <div class="dialog-foot">
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
                         <button type="submit" class="btn btn--danger">Close Case</button>
+                    </div>
+                </form>
+                <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
+                      asp-page-handler="CreateLinkedReplacement">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <div class="dialog-body stack">
+                        <div class="notice notice--warning">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>Created in error cannot be reopened. Create and link the replacement case.</span>
+                        </div>
+                        <div class="field">
+                            <label class="req" for="case-replacement-principal">Replacement principal code</label>
+                            <input id="case-replacement-principal" name="replacementPrincipalCode" required maxlength="100" />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="case-replacement-reason">Reason for action</label>
+                            <textarea id="case-replacement-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="submit" class="btn btn--danger">Create linked replacement</button>
                     </div>
                 </form>
             </section>
@@ -609,7 +638,7 @@
         {
             ["id"] = workflow.CaseId.ToString(),
             ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-            ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
+            ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
             ["editLeaseToken"] = Model.LeaseToken,
             ["destination"] = nameof(CaseReopenDestination.ReportPreparation),
             ["instructionsComplete"] = details.Data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString(),
