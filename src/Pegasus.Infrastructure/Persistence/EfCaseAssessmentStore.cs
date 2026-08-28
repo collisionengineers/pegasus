@@ -123,8 +123,10 @@ public sealed class EfCaseAssessmentStore(
                 throw new InvalidOperationException(
                     "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
             }
+            var version = await EfRepairSpecificationStore.NextVersionAsync(
+                context, request.CaseId, cancellationToken);
             specification = EfRepairSpecificationStore.NewLegacyDraft(
-                request.CaseId, workflow.Case, request.Actor.SubjectId, request.OperationKey, now);
+                request.CaseId, workflow.Case, version, request.Actor.SubjectId, request.OperationKey, now);
             context.CaseRepairSpecifications.Add(specification);
         }
         var specificationId = specification?.Id;
@@ -236,6 +238,8 @@ public sealed class EfCaseAssessmentStore(
                     GuideCode = line.GuideCode,
                     Description = line.Description,
                     WorkUnits = line.WorkUnits,
+                    PaintWorkUnits = line.PaintWorkUnits,
+                    Quantity = line.Quantity,
                     Price = line.Price,
                     Unpriced = line.Unpriced,
                     PartNumber = line.PartNumber,
@@ -445,7 +449,9 @@ public sealed class EfCaseAssessmentStore(
                 item.RecordedBy,
                 item.RecordedAtUtc,
                 item.ConfirmedBy,
-                item.ConfirmedAtUtc))
+                item.ConfirmedAtUtc,
+                item.PaintWorkUnits,
+                item.Quantity))
             .ToArray(),
         MapCaseOwned(caseDataFields));
 
@@ -517,6 +523,8 @@ public sealed class EfCaseAssessmentStore(
         line.GuideCode,
         line.Description,
         line.WorkUnits,
+        line.PaintWorkUnits,
+        line.Quantity,
         line.Price,
         line.Unpriced,
         line.PartNumber,
