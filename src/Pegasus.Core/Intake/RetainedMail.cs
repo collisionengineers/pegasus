@@ -64,13 +64,9 @@ public sealed record RetainedMailSummary(
     IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
     MailLogicalFolderType? CurrentFolderType = null,
     MailClassificationResult? Classification = null,
-    MailOperationalDestinationResult? OperationalDestination = null,
-    IReadOnlyList<string>? AttachmentFileNames = null)
+    MailOperationalDestinationResult? OperationalDestination = null)
 {
     public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
-
-    /// <summary>The attachment names in ordinal order; the list preview draws them as chips.</summary>
-    public IReadOnlyList<string> AttachmentNames => AttachmentFileNames ?? [];
 }
 
 /// <summary>
