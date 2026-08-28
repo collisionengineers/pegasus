@@ -25,6 +25,13 @@ namespace Pegasus.Web.Pages.Cases.Assessment;
 /// through the same store as the rest of this page — it does not depend on
 /// those unbound forms.
 /// </summary>
+/// <remarks>
+/// CASE-024: the save paths this page does have now run under edit mode the
+/// operator enters, the same one server-owned lease the case workspace claims,
+/// instead of each handler claiming a lease of its own for the length of one
+/// save. An engineer working an assessment is therefore visible to other staff
+/// as the case's editor, which is what the lease is for.
+/// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
@@ -38,11 +45,21 @@ public sealed class IndexModel(
     IEstimateDocumentParser estimateParser,
     IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
+    IHeartbeatCaseEditLease heartbeatLease,
+    IReleaseCaseEditLease releaseLease,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     ISaveAssessment saveAssessment,
-    TimeProvider timeProvider) : StaffPageModel
+    TimeProvider timeProvider,
+    ILogger<IndexModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
     private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Refused before the save reaches Core, so the operator is told what to do rather than shown
+    /// a refusal about a lease token they never had.
+    /// </summary>
+    private const string NotInEditMode = "Enter edit mode to change the assessment.";
 
     public AssessmentWorkspace? Case { get; private set; }
 
@@ -176,13 +193,14 @@ public sealed class IndexModel(
 
     /// <summary>
     /// ENG-006: one click on a damage region saves it as the case's impact
-    /// location through the assessment save seam, under a lease this handler
-    /// acquires — the same value the report prints and the Impact location
-    /// dropdown edits.
+    /// location through the assessment save seam, under the edit mode the
+    /// operator entered — the same value the report prints and the Impact
+    /// location dropdown edits.
     /// </summary>
     public async Task<IActionResult> OnPostSaveDamageAsync(
         Guid id,
         string operationKey,
+        string? editLeaseToken,
         string? impactLocation,
         CancellationToken cancellationToken)
     {
@@ -204,6 +222,11 @@ public sealed class IndexModel(
             TempData["AssessmentError"] = "Choose where the damage is.";
             return RedirectToPage(new { id, section = "report" });
         }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["AssessmentError"] = NotInEditMode;
+            return RedirectToPage(new { id, section = "report" });
+        }
 
         var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
         if (details is null)
@@ -213,9 +236,6 @@ public sealed class IndexModel(
 
         try
         {
-            var lease = await acquireLease.ExecuteAsync(
-                new(id, details.Workflow.Version, actor, NewOperationKey()),
-                cancellationToken);
             await saveAssessment.ExecuteAsync(
                 new(
                     id,
@@ -223,7 +243,7 @@ public sealed class IndexModel(
                     actor,
                     operationKey,
                     "Damage location marked on the assessment diagram.",
-                    lease.Token,
+                    editLeaseToken,
                     new Dictionary<string, string?>
                     {
                         [AssessmentVocabulary.ImpactLocation] = impactLocation
@@ -236,15 +256,83 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["AssessmentError"] = exception.Message;
             return RedirectToPage(new { id, section = "report" });
         }
 
+        // The save ended edit mode inside its own transaction, as every case mutation does, so
+        // this browser forgets a token the server has already cleared.
+        ClearLeaseState();
         TempData["AssessmentStatus"] = "Damage location saved.";
         return RedirectToPage(new { id, section = "report" });
     }
 
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
+
+    /// <summary>
+    /// The holder disclosure other staff see. The workspace projection carries the lease and the
+    /// assessment projection does not, so this page reads it from the same
+    /// <see cref="IGetCase"/> it already uses rather than widening
+    /// <see cref="AssessmentWorkspace"/> with a second copy of it. The case version is not read
+    /// that way — the assessment header already carries it.
+    /// </summary>
+    public CaseEditAuthorityHolder? EditAuthorityHolder { get; private set; }
+
+    public bool ViewerHoldsEditAuthority { get; private set; }
+
+    public bool CaseIsArchived { get; private set; }
+
+    /// <summary>This page's messages are rendered by its own panels, not the workspace's.</summary>
+    protected override string StatusTempDataKey => "AssessmentStatus";
+
+    protected override string ErrorTempDataKey => "AssessmentError";
+
+    public async Task<IActionResult> OnPostClaimLeaseAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? section,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        return await ClaimLeaseAsync(
+            acquireLease,
+            id,
+            expectedVersion,
+            operationKey,
+            () => RedirectToPage(new { id, section }),
+            cancellationToken);
+    }
+
+    public Task<IActionResult> OnPostHeartbeatLeaseAsync(
+        Guid id,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        HeartbeatLeaseAsync(heartbeatLease, id, editLeaseToken, cancellationToken);
+
+    public Task<IActionResult> OnPostReleaseLeaseAsync(
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        string? section,
+        CancellationToken cancellationToken) =>
+        ReleaseLeaseAsync(
+            releaseLease,
+            id,
+            operationKey,
+            editLeaseToken,
+            () => RedirectToPage(new { id, section }),
+            cancellationToken);
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -259,6 +347,7 @@ public sealed class IndexModel(
             return NotFound();
         }
 
+        await RestoreEditModeAsync(id, actor, cancellationToken);
         Assessment = Case.Assessment;
         DraftSpecification = Case.DraftSpecification;
         AcceptedSpecification = Case.AcceptedSpecification;
@@ -333,6 +422,7 @@ public sealed class IndexModel(
     public async Task<IActionResult> OnPostImportEstimateAsync(
         Guid id,
         string operationKey,
+        string? editLeaseToken,
         string? reason,
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
@@ -401,14 +491,17 @@ public sealed class IndexModel(
             return RedirectToEstimate(id);
         }
 
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["AssessmentError"] = NotInEditMode;
+            return RedirectToEstimate(id);
+        }
+
         var caseVersion = details.Workflow.Version;
         var artifactIdentity = $"estimate-import:{operationKey}";
         AddCaseDocumentResult retained;
         try
         {
-            var documentLease = await acquireLease.ExecuteAsync(
-                new(id, caseVersion, actor, NewOperationKey()),
-                cancellationToken);
             retained = await addCaseDocument.ExecuteAsync(
                 new(
                     id,
@@ -421,7 +514,7 @@ public sealed class IndexModel(
                     actor,
                     $"{operationKey}-document",
                     caseVersion,
-                    documentLease.Token),
+                    editLeaseToken),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -430,6 +523,7 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["AssessmentError"] = MutationRefusalMessage(
                 exception,
                 "The estimate was not imported because the case changed or another editor holds it. "
@@ -439,9 +533,13 @@ public sealed class IndexModel(
 
         try
         {
+            // Retaining the document was itself a case mutation, so it ended edit mode and moved
+            // the version. The draft is the second half of one operator action, so this re-enters
+            // edit mode on their behalf rather than making them do it between two halves.
             var draftLease = await acquireLease.ExecuteAsync(
                 new(id, caseVersion + 1, actor, NewOperationKey()),
                 cancellationToken);
+            StoreLeaseAuthority(id, draftLease.Token);
             await repairSpecifications.StartDraftAsync(
                 new(
                     id,
@@ -454,6 +552,7 @@ public sealed class IndexModel(
                     accepted?.SpecificationId,
                     parsed.Lines),
                 cancellationToken);
+            ClearLeaseState();
             TempData["AssessmentStatus"] =
                 $"The estimate was imported as a draft with {parsed.Lines.Count} lines for your review. "
                 + "The original document is kept on the case.";
@@ -464,6 +563,9 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            // Whatever this leaves behind, the retained-document half already committed and the
+            // lease state is whatever the failure made it — never a token this page invented.
+            HandleLeaseFailure(id, PeekLeaseToken(), exception);
             TempData["AssessmentError"] = MutationRefusalMessage(
                 exception,
                 "The original document was kept on the case, but the estimate lines were not "
@@ -483,6 +585,7 @@ public sealed class IndexModel(
     public async Task<IActionResult> OnPostAcceptSpecificationAsync(
         Guid id,
         string operationKey,
+        string? editLeaseToken,
         Guid specificationId,
         int specificationVersion,
         decimal labour,
@@ -517,6 +620,11 @@ public sealed class IndexModel(
             TempData["AssessmentError"] = "Answer whether the repairer is VAT registered.";
             return RedirectToEstimate(id);
         }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["AssessmentError"] = NotInEditMode;
+            return RedirectToEstimate(id);
+        }
 
         var draft = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
         if (draft is null || draft.SpecificationId != specificationId)
@@ -532,9 +640,6 @@ public sealed class IndexModel(
 
         try
         {
-            var lease = await acquireLease.ExecuteAsync(
-                new(id, details.Workflow.Version, actor, NewOperationKey()),
-                cancellationToken);
             var basis = new RepairCalculationBasis(
                 labour,
                 parts,
@@ -555,8 +660,9 @@ public sealed class IndexModel(
                     actor,
                     operationKey,
                     string.IsNullOrWhiteSpace(reason) ? "Repair specification accepted" : reason.Trim(),
-                    lease.Token),
+                    editLeaseToken),
                 cancellationToken);
+            ClearLeaseState();
             TempData["AssessmentStatus"] = "The repair specification was accepted.";
         }
         catch (StaffAuthorizationException)
@@ -565,6 +671,7 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["AssessmentError"] = MutationRefusalMessage(
                 exception,
                 "The repair specification was not accepted because the case changed or another "
@@ -590,6 +697,41 @@ public sealed class IndexModel(
 
     private RedirectToPageResult RedirectToEstimate(Guid id) =>
         RedirectToPage(new { id, section = "estimate" });
+
+
+    /// <summary>
+    /// Loads the case's edit authority for this render. The assessment projection does not carry
+    /// the lease, so it comes from the workspace query this page already depends on.
+    /// </summary>
+    private async Task RestoreEditModeAsync(
+        Guid id,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return;
+        }
+
+        CaseIsArchived = details.Workflow.Archive is not null;
+        RestoreLeaseState(id, actor, details.ActiveEditLease);
+        if (details.ActiveEditLease is not { } activeLease)
+        {
+            return;
+        }
+
+        ViewerHoldsEditAuthority = string.Equals(
+            activeLease.Holder,
+            actor.SubjectId,
+            StringComparison.Ordinal);
+        EditAuthorityHolder = ViewerHoldsEditAuthority
+            ? CaseEditAuthorityHolder.Unnamed
+            : await describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.Holder,
+                actor,
+                cancellationToken);
+    }
 
     public async Task<IActionResult> OnPostSendAsync(
         Guid id,

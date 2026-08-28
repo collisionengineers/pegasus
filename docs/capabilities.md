@@ -7,12 +7,13 @@ roadmap, not an implementation-status ledger.
 
 ## Historical allocation provenance
 
-The active inventory contains 231 stable IDs. It was reconciled from a 213-row
+The active inventory contains 233 stable IDs. It was reconciled from a 213-row
 allocation worksheet and its normalized maturity map; those deleted source rows
 are provenance, not a second allocation table. On 2026-08-02, `DOC-06` was
 merged into `INT-31` — both recorded the same request-scoped in-house
 upload-link outcome under one canonical owner — and the `DOC-06` ID is retired,
-never reused.
+never reused. On 2026-08-28, `UI-16` was added for the Integrated Operations
+Workspace shell (EPIC-011).
 
 | Pre-consolidation source | Baseline SHA-256 | Preserved meaning |
 | --- | --- | --- |
@@ -21,7 +22,7 @@ never reused.
 
 The additional stable IDs split compound outcomes or explicit boundaries; they
 do not invent a second product scope. Active timing uses `Now`, `Next`, `Later`,
-or `Not planned`. All 203 planned capabilities have an exact first-introduction
+or `Not planned`. All 204 planned capabilities have an exact first-introduction
 target; the 29 permanent boundaries remain `unallocated`. Allocation,
 implementation, registration, build, deployment, live verification, and
 acceptance remain separate states.
@@ -30,25 +31,25 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 132 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Now | 140 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
-| Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
+| Later | 35 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
-Total: **231 capabilities; 231 unique IDs**.
+Total: **233 capabilities; 233 unique IDs** (mechanical recount 2026-08-28).
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 132 |
+| `0.1.0-alpha.1` | 140 |
 | `0.2.0` | 5 |
-| `0.3.0` | 20 |
+| `0.3.0` | 19 |
 | `0.4.0` | 5 |
 | `0.5.0` | 5 |
 | `0.6.0` | 5 |
-| `0.7.0` | 1 |
-| `1.0.0` | 13 |
+| `0.7.0` | 0 |
+| `1.0.0` | 10 |
 | `1.1.0` | 5 |
-| `1.2.0` | 5 |
+| `1.2.0` | 4 |
 | `1.3.0` | 3 |
 | `1.4.0` | 3 |
 | `unallocated` | 29 permanent boundaries |
@@ -148,7 +149,7 @@ callers.
 | CASE-24 | Post-report completion, provider cancellation, and Collision Engineers rejection outcomes | Now | 0.1.0-alpha.1 | [Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence) | Required and accepted before 0.1.0-alpha.1. |
 | CASE-25 | Reasoned reopening into a valid nonterminal state | Now | 0.1.0-alpha.1 | [Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence) | Required and accepted before 0.1.0-alpha.1. |
 | CASE-26 | Archive without permanent case deletion | Now | 0.1.0-alpha.1 | [Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence) | Required and accepted before 0.1.0-alpha.1. |
-| CASE-27 | Exclusive edit lease and stale-write protection | Now | 0.1.0-alpha.1 | [Case edit authority and recovery](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) | Required and accepted before 0.1.0-alpha.1. The guard and the expiry rule are consolidated onto one Core owner (behaviour unchanged; the projections already treated an expired lease as free); non-holders are now shown who is editing, by staff account name, and when editing becomes available; a refused editor now keeps the submitted values for comparison, with no apply, merge, or force. |
+| CASE-27 | Exclusive edit lease and stale-write protection | Now | 0.1.0-alpha.1 | [Case edit authority and recovery](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) | Required and accepted before 0.1.0-alpha.1. The guard and the expiry rule are consolidated onto one Core owner (behaviour unchanged; the projections already treated an expired lease as free); non-holders are now shown who is editing, by staff account name; a refused editor now keeps the submitted values for comparison, with no apply, merge, or force. An open editing session holds the lease for as long as it stays open, so an editor is never timed out mid-edit, and the assessment surface enters the same edit mode over the same lease; a save still ends editing as it commits. Because editing no longer lapses under a present holder, no copy names when it becomes available. |
 | CASE-28 | Independent Roadworthiness and Assessment findings with reasoned correction, preserved versions, reopen-before-revision, and no inferred fee/invoice change | Now | 0.1.0-alpha.1 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Required and accepted before 0.1.0-alpha.1. |
 | CASE-29 | Provider-determined inspection mode: the Principal's persisted setting autofills exact `Image Based Assessment` at Case creation or requires an operator-confirmed physical address, with reasoned per-Case staff override | Now | 0.1.0-alpha.1 | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) | Required and accepted before 0.1.0-alpha.1; outcome restated 2026-08-03 with product authority (ADR-0018). |
 | CASE-30 | Track the QDOS-alpha inspection/report stage and EVA export without replacing EVA engineering work | Now | 0.1.0-alpha.1 | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) | Review-gated download, action history and first-export proxy are caller-proved locally; no EVA network call exists. |
@@ -163,6 +164,7 @@ callers.
 | UI-09 | Full case workspace | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-11 | Accounts, principals, mailbox allowlist, and configuration workspace | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
+| UI-16 | Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts, Work Centre needs-attention work, Cases queue groups, workspace tabs, command palette, keyboard map and breakpoints | Now | 0.1.0-alpha.1 | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) | Allocated 2026-08-28 for the next alpha release (EPIC-011); replaces the Dashboard/Queues/Cases route set and removes the `/VehicleImages` list. Design authority is [design § Authenticated shell](design/README.md#authenticated-shell); delivery, snapshot and browser-walk evidence remain separate. |
 | DOC-01 | Automatic Box case-folder creation using the Case/PO name | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Immutable Case/PO naming, response-loss-safe binding, fail-closed conflict handling and human reasoned recovery are caller-proved locally. Live controlled Box target proof, migration, deployment and operator acceptance remain pending. |
 | DOC-02 | Store source emails, instruction documents, images, correspondence, and reports in Box | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Day-one accepted Case custody requirement. Blob is temporary hot staging only; preserve the approved test-target scope for local and non-production deployment evidence. |
 | DOC-03 | Retained document versions | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Stable business-readable occurrence/version custody and replay verification are caller-proved locally; live Box proof remains pending. |
@@ -170,7 +172,7 @@ callers.
 | DOC-05 | Logical file removal without destroying history | Now | 0.1.0-alpha.1 | [Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-07 | Staff upload, view, download, and export actions | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
 | DOC-08 | Private transient file staging for Worker processing | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Required and accepted before 0.1.0-alpha.1. |
-| EXT-01 | DVLA/DVSA make, model, manufacture year, engine capacity, fuel type, MOT chronology, mileage evidence, and operator-confirmed reconciliation | Now | 0.1.0-alpha.1 | [Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment) | Live adapter/provider contract remains unresolved; approved local replay returns explicit unavailable when evidence is absent. |
+| EXT-01 | DVLA/DVSA make, model, manufacture year, engine capacity, fuel type, MOT chronology, mileage evidence, and operator-confirmed reconciliation | Now | 0.1.0-alpha.1 | [Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment) | Live adapter/provider contract remains unresolved; approved local replay returns explicit unavailable when evidence is absent. The Case workspace's Experian check is a disabled seam under a named ticket (ENG-001, operator decision D7 2026-08-28); no Experian caller exists. |
 | EXT-02 | MOT chronology and mileage evidence with supplied-versus-external-versus-estimated classification | Now | 0.1.0-alpha.1 | [Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment) | Never invent mileage; live adapter/provider contract remains unresolved. |
 | EXT-03 | Review-gated deterministic UTF-8 EVA export with the exact ordered 13-key JSON and every eligible retained Case-vehicle image; no EVA network call or Pegasus-owned image ordering | Now | 0.1.0-alpha.1 | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) | The authenticated Case caller is proved locally. Suggested values are allowed, VAT and mileage are optional, and the export date defaults a blank Inspection Date. Deployment and operator import acceptance remain pending. |
 | EXT-14 | Manual addition of relevant WhatsApp material | Now | 0.1.0-alpha.1 | [Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody) | Required and accepted before 0.1.0-alpha.1. |
@@ -247,18 +249,18 @@ callers.
 | EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Depends on an accepted estimating route, caller, recovery, and Engineer approval evidence. |
 | EXT-07 | Replace EVA valuation while preserving separate dated/versioned source evidence and explicit Engineer selection | Later | 1.0.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | No source or adapter selects the Engineer value; contracts, caller, and acceptance remain required. |
 | EXT-08 | Activate deterministic report generation from accepted Core-owned data through the approved renderer contract | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Imported renderer source is not activation; versioning, correction, caller, validation, recovery, and acceptance remain required. |
-| EXT-09 | Versioned repair-estimate lines, source versions, approvals, original-versus-assessed comparison, and savings | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Allocation only; formulas and permissions require accepted authority. |
-| EXT-10 | Versioned vehicle-valuation evidence, explicit Engineer acceptance/adjustments/rationale, and revaluation history | Later | 1.0.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | Allocation only; accepted estimate, valuation, and salvage versions drive computed figures. |
+| EXT-09 | Versioned repair-estimate lines, source versions, approvals, original-versus-assessed comparison, and savings | Now | 0.1.0-alpha.1 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Brought forward 2026-08-28 (EPIC-011) as the Assessment estimate editor: named estimates with a free VAT percentage per estimate, one Current estimate driving the report ([FRD-12 § Assessment](frd/frd-12-operator-experience.md#assessment)). Rate-card and paint-materials formula authority remains an open decision; delivery evidence is separate. |
+| EXT-10 | Versioned vehicle-valuation evidence, explicit Engineer acceptance/adjustments/rationale, and revaluation history | Now | 0.1.0-alpha.1 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | Brought forward 2026-08-28 (EPIC-011) as the Case workspace Valuations section (source, date, time, mileage, retail and trade values). Accepted estimate, valuation, and salvage versions drive computed figures; delivery evidence is separate. |
 | EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and role-restricted visibility | Later | 1.2.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; a finding/report correction never infers an invoice change; invoice generation consumes separately accepted events and rules. |
 | EXT-12 | Audatex/PDF repair-estimate ingestion with retained source artifact, mapped version, and variant proof | Now | 0.1.0-alpha.1 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | First variant delivered (ENG-002): a staff Engineer drops an Audatex full-report PDF on the assessment page; a deterministic coordinate parser verifies the lines against the document's own printed section totals and rejects the whole import on any mismatch or ambiguity, the original file is retained through case-document custody, and the lines land as a draft repair specification carrying route, source version, and the retained file's hash until Engineer acceptance. Glass's export parsing waits on a real sample; estimate-to-report cost derivation stays with EXT-09. |
-| EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | Later | 1.0.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | CAP, Glass's, and Cazana are candidates; access/terms and each adapter require separate acceptance. |
+| EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | Later | 1.0.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | CAP, Glass's, and Cazana are candidates; access/terms and each adapter require separate acceptance. The Cazana valuation source is a disabled seam under named tickets (ENG-008/ENG-009, operator decision D7 2026-08-28); no vendor caller exists. |
 | AI-07 | Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow; it owns no button, queue, model, or transport | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; AI-09 separately owns vendor-neutral work transport. |
 | MAIL-12 | Authenticated staff compose, reply, forward, and send email in Pegasus | Later | 0.5.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; does not weaken the separately gated MAIL-17 report-send transaction or CASE-23 post-report lifecycle. |
 | EXT-16 | Collision Engineers guided mobile image capture | Later | 1.4.0 | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) | Conditionally allocated; a later direct decision, separate capture/data contract, and the normal activation evidence remain required. |
 | EXT-17 | Tractable or Ravin guided-capture integration | Later | 1.4.0 | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) | Conditionally allocated; candidate evidence only; a later direct decision, vendor contract, and the normal activation evidence remain required. |
 | EXT-19 | Collision Engineers custom application domain | Later | 1.4.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | Conditionally allocated; a later direct decision and the normal activation evidence remain required. |
 | CASE-31 | One accepted structured case/engineering record is the source for every deterministic report, fee note, addendum, query document, invoice input, and statistic | Later | 1.0.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Source-of-data outcome only; downstream capabilities retain their own authority. |
-| ENG-01 | One canonical repair specification with route provenance for Glass's, Audatex PDF, or an approved AI proposal | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Each route requires its own accepted source, mapping, caller, and Engineer review. |
+| ENG-01 | One canonical repair specification with route provenance for Glass's, Audatex PDF, or an approved AI proposal | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Each route requires its own accepted source, mapping, caller, and Engineer review. The Assessment Glass's and Audatex controls are disabled seams under named tickets (ENG-008/ENG-009, operator decision D7 2026-08-28); Audatex PDF import is separately delivered by EXT-12. |
 | ENG-02 | Engineer-owned final value/deductions, outcome, salvage category/value, and roadworthiness/reason drive derived figures and narratives without retyping | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Only accepted source versions and explicit named-Engineer decisions may drive outputs. |
 | UI-15 | One case-centred progressive Engineer workbench for inspection, vehicle/damage, valuation, estimate/repairer, report, media, salvage, text, and administration | Later | 1.0.0 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Arrangement only; it does not copy EVA navigation or duplicate data/calculation owners. |
 | RPT-01 | Deterministic renderer validates accepted data, computes each figure once, and applies the fixed Collision Engineers design | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Imported renderer source is non-caller evidence until separately activated. |
@@ -268,9 +270,9 @@ callers.
 | RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; amendment identity, approval, and recovery remain required. |
 | AI-08 | Intended Microsoft Foundry candidate proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; Foundry remains subject to evaluation, and the proposal cannot mutate accepted case truth or send autonomously. |
 | AI-09 | Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to an immutable case/version stamp; the hand-off carries a pointer only, and the scoped worker returns its work as attributed unconfirmed Automation Actor writes reviewed by the Engineer taking the work, with delivery status and visible failure on the tracking record | Now | 0.1.0-alpha.1 | [Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals) | Implemented behind `Features:SendToAi` (DevelopmentOffline evidence runs only; ADR-0031 carries the direct-writing contract): duplicate, expired, or cancelled requests never mutate accepted data, findings stay staff-Engineer-confirmable only, the channels transport is a research preview that carries local evidence runs only, and production activation needs a separate non-preview transport decision. |
-| AI-10 | Extensible named AI job catalogue beginning with Case assessment, with durable lifecycle and an operator-visible AI Viewer for request state and eventual live work events | Later | 0.3.0 | [Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals) | Future and unimplemented. Operations currently shows informational copy only; no job request, live viewer, transport, or production activation is present. |
+| AI-10 | Extensible named AI job catalogue beginning with Case assessment, with durable lifecycle and an operator-visible AI Viewer for request state and eventual live work events | Now | 0.1.0-alpha.1 | [FRD-11](frd/frd-11-reports-correspondence-and-reviewed-proposals.md) § AI Job List (AUTO-009) | Brought forward 2026-08-28 (EPIC-011): the catalogue is Estimate, Unidentified resolution, Query response and Unidentified-queue pass, on the shared AI job ledger (ADR-0035, AUTO-009), shown as the Operations AI Job List ([FRD-12 § Operations](frd/frd-12-operator-experience.md#operations)). Transport and production activation remain separate evidence. |
 | MCP-07 | Administration-configurable Send to AI channel connector setup: base URL, token entry/rotation, and timeout configured from Administration, with connector health/status display, replacing the current configuration/user-secrets-only setup | Later | 1.3.0 | [Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals) | Implemented at release 14 behind the closed `Features:SendToAi` composition gate: the Administration Automation page configures base URL and timeout within `AiChannelConnectorRules` bounds and holds the channel token write-only under DataProtection (entry, rotation, removal — never displayed back). The surface composes only where Send to AI composes, which today is DevelopmentOffline; production activation still needs the AI-09 transport/gate decision and activation evidence. |
-| MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Later | 1.2.0 | [Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence) | Allocation only; coaching access and measures require accepted definitions. |
+| MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence) | Brought forward 2026-08-28 (EPIC-011) as the Administration Engineer Report ([FRD-12 § Administration](frd/frd-12-operator-experience.md#administration)): per Engineer and period, reports and queries received, where a query is a retained message classified post-report and associated with the Engineer's Cases (operator decision D12). Audit uplift and coaching access remain unallocated within the row. |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | Later | 1.2.0 | [Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence) | Allocation only; consumes accepted report events and fee rules. |
 | MI-03 | Holding-pen age and instruction-to-images, ready-to-sent, and overall turnaround measures consuming accepted workflow events | Later | 1.2.0 | [Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence) | Allocation only; MAIL-17 owns report-send/completion event recording; measure definitions and visibility require acceptance. |
 | ACC-12 | External/customer application accounts | Not planned | unallocated | [Permanent boundaries](prd/pegasus-product.md#permanent-boundaries) | Permanent boundary; not backlog. |
@@ -329,20 +331,20 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 132 |
+| 01 | `0.1.0-alpha.1` | QDOS-alpha scope plus the Integrated Operations Workspace bring-forwards (`UI-16`, `AI-10`, `EXT-09`, `EXT-10`, `MI-01`, 2026-08-28); not a completion claim | 140 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 5 |
-| 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 20 |
+| 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
 | 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
 | 06 | `0.6.0` | Individually approved operator AI assistance | 5 |
-| 07 | `0.7.0` | Optional direct EVA API coexistence before replacement | 1 |
-| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 13 |
-| 09 | `1.1.0` | Deterministic report and fee-note rendering | 6 |
-| 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 5 |
+| 07 | `0.7.0` | Optional direct EVA API coexistence before replacement (`EXT-04` brought forward to `0.1.0-alpha.1`; entry retained) | 0 |
+| 08 | `1.0.0` | Pegasus-owned engineering record/workbench and transfer of EVA assignment, estimating, valuation and report-preparation authority | 10 |
+| 09 | `1.1.0` | Deterministic report and fee-note rendering | 5 |
+| 10 | `1.2.0` | Targeted report distribution, accounts/invoicing and management information | 4 |
 | 11 | `1.3.0` | Engineer-reviewed query proposals, staff-selected AI Assessor, and conditional Automation/Send-to-AI administration | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 203 planned capabilities use these twelve targets; 29 permanent boundaries
+The 204 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:
@@ -353,11 +355,18 @@ Sequence constraints:
   2026-08-03); `INT-28` evidence precedes `INT-32` pairing visibility;
 - accepted `CASE-31`, `ENG-01`, and `ENG-02` data/workflow precede
   `EXT-08` and `RPT-01`–`RPT-05` rendering;
-- accepted report events/rendering precede `MAIL-17` and the `MI-*`
-  consumption path;
+- accepted report events/rendering precede `MAIL-17` and the `MI-02`/`MI-03`
+  consumption path; `MI-01`'s Engineer Report consumes retained post-report
+  messages (D12) and case-linked Sent evidence, not rendered-report events,
+  so it is not bound to that ordering;
 - the `AI-09` transport, hand-off, and recovery evidence (implemented gated at
   `0.1.0-alpha.1`, ADR-0031) precedes any `1.3.0` AI proposal caller, and
   `AI-07` remains blocked on assignment authority;
+- `AI-10`, `EXT-09`, `EXT-10` and `MI-01` were brought forward to
+  `0.1.0-alpha.1` on 2026-08-28 for the Integrated Operations Workspace
+  (`UI-16`); rate-card/formula authority (`EXT-09`), valuation-source
+  adapters (`EXT-13`) and the `1.0.0` engineering record remain where
+  allocated, and the bring-forward proves no caller;
 - `AI-02`–`AI-04` and `AI-06` remain blocked until evidence shows deterministic
   rules are insufficient;
 - `0.7.0` / `EXT-04` was brought forward to `0.1.0-alpha.1` on 2026-08-27;

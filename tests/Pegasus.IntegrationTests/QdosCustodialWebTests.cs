@@ -99,7 +99,7 @@ public sealed class QdosCustodialWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync("/Cases");
+        using var response = await client.GetAsync("/Search");
         var body = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
