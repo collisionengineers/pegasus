@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 @*
-    The navless shell for screens that are not a place in the application:
-    sign in, signed out, access denied, and the error/not-found family.
-
-    Rendering the primary navigation around these screens shows an
-    unauthenticated visitor the internal structure of the product and offers an
-    authenticated one a menu of destinations the page has just refused. One
-    calm card with a single exit is the honest shape.
+    The external frame (§1.13) for screens that are not a place in the
+    application: sign in, signed out, access denied, and the error/not-found
+    family. One card on the dark ground, the company logo and the product
+    name, and no navigation — a refusal must not offer a menu of destinations
+    it has just declined.
 *@
 <html lang="en">
 <head>
@@ -17,9 +15,15 @@
 </head>
 <body>
     <partial name="Shared/_LucideSprite" />
-    <div class="auth-shell">
+    <div class="external-shell">
         <main id="main-content" tabindex="-1">
-            @RenderBody()
+            <section class="auth-card">
+                <div class="auth-brand">
+                    <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="" />
+                    <strong>PEGASUS</strong>
+                </div>
+                @RenderBody()
+            </section>
         </main>
     </div>
     <script src="~/js/site.js" asp-append-version="true"></script>
