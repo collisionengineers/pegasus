@@ -86,8 +86,8 @@
         "success" => "green",
         "unknown" => "neutral",
 
-        // Every other terminal case outcome is "Closed · <outcome>" (D3)
-        _ when key.StartsWith("closed", StringComparison.Ordinal) => "neutral",
+        // Every other state, including the D3 "Closed · <outcome>" terminals,
+        // is settled or absent and reads neutral.
         _ => "neutral"
     };
 

@@ -118,7 +118,7 @@
             </div>
             @if (User.Identity?.IsAuthenticated == true)
             {
-                <div class="rail-user">
+                <div class="rail-user" role="group" aria-label="User">
                     <span class="avatar" aria-hidden="true">@OperatorLabels.Initials(userName)</span>
                     <div><strong>@userName</strong><small>@role</small></div>
                     <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">

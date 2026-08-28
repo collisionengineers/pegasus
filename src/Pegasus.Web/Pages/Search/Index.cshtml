@@ -1,9 +1,9 @@
 @page
-@model Pegasus.Web.Pages.Cases.IndexModel
+@model Pegasus.Web.Pages.Search.IndexModel
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
 @{
-    ViewData["Title"] = "Cases";
+    ViewData["Title"] = "Search";
     var hasAdvancedFilter =
         !string.IsNullOrWhiteSpace(Model.Registration)
         || !string.IsNullOrWhiteSpace(Model.Claimant)
@@ -21,7 +21,7 @@
    as if it were guidance. The filter bar is one line, with everything that is
    used rarely behind a disclosure. *@
 <header class="page-heading">
-    <h1>Cases</h1>
+    <h1>Search</h1>
 </header>
 
 <section class="panel filterbar" aria-labelledby="case-filters-title">
@@ -49,7 +49,7 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
                 Search
             </button>
-            <a asp-page="/Cases/Index" class="btn">Clear</a>
+            <a asp-page="/Search/Index" class="btn">Clear</a>
         </div>
 
         <details class="filterbar__more" open="@(hasAdvancedFilter ? "open" : null)">
@@ -140,7 +140,7 @@ else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count ==
         {
             <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
                 <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
+                <span><strong>@Pegasus.Web.Pages.Search.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
             </a>
         }
     </div>

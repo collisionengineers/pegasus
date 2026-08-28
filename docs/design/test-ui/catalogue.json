@@ -154,19 +154,6 @@
     ]
   },
   {
-    "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
-    "route": "/Administration/Mailboxes",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-mailboxes--default.html",
-        "branch": "One approved identity-bound mailbox before its first poll.",
-        "scenario": "administration-mailboxes--default"
-      }
-    ]
-  },
-  {
     "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
     "route": "/Administration/MailCategories",
     "classification": "visual",
@@ -176,6 +163,19 @@
         "file": "pages/administration-mail-categories--default.html",
         "branch": "No existing categories plus add-category form.",
         "scenario": "administration-mail-categories--default"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
+    "route": "/Administration/Mailboxes",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-mailboxes--default.html",
+        "branch": "One approved identity-bound mailbox before its first poll.",
+        "scenario": "administration-mailboxes--default"
       }
     ]
   },
@@ -339,21 +339,15 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/cases--default.html",
-        "branch": "Successful populated case results.",
-        "scenario": "cases--default"
+        "file": "pages/queues--default.html",
+        "branch": "Triage tab with populated results.",
+        "scenario": "queues--default"
       },
       {
         "state": "empty",
-        "file": "pages/cases--empty.html",
-        "branch": "The case query succeeds and Model.Results.Count is zero.",
-        "scenario": "cases--empty"
-      },
-      {
-        "state": "unavailable",
-        "file": "pages/cases--unavailable.html",
-        "branch": "The case query is unavailable and no false empty result is rendered.",
-        "scenario": "cases--unavailable"
+        "file": "pages/queues--empty.html",
+        "branch": "The selected tab query succeeds and its result collection is empty.",
+        "scenario": "queues--empty"
       }
     ]
   },
@@ -411,25 +405,6 @@
         "file": "pages/vehicle-images-details--default.html",
         "branch": "Awaiting-instruction image case with no registered images.",
         "scenario": "vehicle-images-details--default"
-      }
-    ]
-  },
-  {
-    "source": "src/Pegasus.Web/Pages/ImageIntake/Index.cshtml",
-    "route": "/VehicleImages",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/vehicle-images--default.html",
-        "branch": "Populated vehicle-image results.",
-        "scenario": "vehicle-images--default"
-      },
-      {
-        "state": "empty",
-        "file": "pages/vehicle-images--empty.html",
-        "branch": "The query succeeds and Model.Results.Count is zero.",
-        "scenario": "vehicle-images--empty"
       }
     ]
   },
@@ -537,8 +512,27 @@
   {
     "source": "src/Pegasus.Web/Pages/Search/Index.cshtml",
     "route": "/Search",
-    "classification": "redirect",
-    "reason": "Redirects to Cases because search was merged into that screen."
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/cases--default.html",
+        "branch": "Successful populated case results.",
+        "scenario": "cases--default"
+      },
+      {
+        "state": "empty",
+        "file": "pages/cases--empty.html",
+        "branch": "The case query succeeds and Model.Results.Count is zero.",
+        "scenario": "cases--empty"
+      },
+      {
+        "state": "unavailable",
+        "file": "pages/cases--unavailable.html",
+        "branch": "The case query is unavailable and no false empty result is rendered.",
+        "scenario": "cases--unavailable"
+      }
+    ]
   },
   {
     "source": "src/Pegasus.Web/Pages/StatusCode.cshtml",
@@ -569,21 +563,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Triage/Index.cshtml",
     "route": "/Triage",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/queues--default.html",
-        "branch": "Triage queue tab with populated results.",
-        "scenario": "queues--default"
-      },
-      {
-        "state": "empty",
-        "file": "pages/queues--empty.html",
-        "branch": "The selected queue query succeeds and its result collection is empty.",
-        "scenario": "queues--empty"
-      }
-    ]
+    "classification": "redirect",
+    "reason": "Redirects permanently to /Cases, carrying the queue through as the tab (EPIC-011)."
   },
   {
     "source": "src/Pegasus.Web/Pages/Unidentified/Details.cshtml",
@@ -602,7 +583,7 @@
     "source": "src/Pegasus.Web/Pages/Unidentified/Index.cshtml",
     "route": "/Unidentified",
     "classification": "redirect",
-    "reason": "Redirects to the Unidentified tab on Queues."
+    "reason": "Redirects permanently to the Unidentified tab on Cases."
   },
   {
     "source": "src/Pegasus.Web/Pages/Upload.cshtml",
@@ -649,25 +630,6 @@
     ]
   },
   {
-    "source": "src/Pegasus.Web/Pages/Uploads/Request.cshtml",
-    "route": "/Uploads/{token}",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/upload-request--default.html",
-        "branch": "Valid external upload policy and initial form.",
-        "scenario": "upload-request--default"
-      },
-      {
-        "state": "validation",
-        "file": "pages/upload-request--validation.html",
-        "branch": "ModelState is invalid under a valid upload policy.",
-        "scenario": "upload-request--validation"
-      }
-    ]
-  },
-  {
     "source": "src/Pegasus.Web/Pages/UploadStatus.cshtml",
     "route": "/Upload/Status/{id:guid}",
     "classification": "visual",
@@ -689,6 +651,25 @@
         "file": "pages/upload-status--needs-decision.html",
         "branch": "The completed upload requires a staff decision.",
         "scenario": "upload-status--needs-decision"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Uploads/Request.cshtml",
+    "route": "/Uploads/{token}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-request--default.html",
+        "branch": "Valid external upload policy and initial form.",
+        "scenario": "upload-request--default"
+      },
+      {
+        "state": "validation",
+        "file": "pages/upload-request--validation.html",
+        "branch": "ModelState is invalid under a valid upload policy.",
+        "scenario": "upload-request--validation"
       }
     ]
   }

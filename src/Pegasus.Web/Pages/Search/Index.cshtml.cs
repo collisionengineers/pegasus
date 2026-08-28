@@ -6,7 +6,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Workflow;
 
-namespace Pegasus.Web.Pages.Cases;
+namespace Pegasus.Web.Pages.Search;
 
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -241,7 +241,7 @@ public sealed partial class IndexModel(
     }
 
     public string PageUrl(int pageNumber) =>
-        QueryHelpers.AddQueryString("/Cases", RouteValues(pageNumber));
+        QueryHelpers.AddQueryString("/Search", RouteValues(pageNumber));
 
     private static void AddIfPresent(
         Dictionary<string, string?> values,

@@ -1,14 +1,14 @@
-@page "/Triage"
+@page
 @using Pegasus.Web.Presentation
-@model Pegasus.Web.Pages.Triage.IndexModel
+@model Pegasus.Web.Pages.Cases.IndexModel
 @{
-    ViewData["Title"] = "Queues";
+    ViewData["Title"] = "Cases";
 
     // Refreshing reruns the queue, its filter, and the page the operator is
     // on, not page one of everything.
     ViewData["RefreshFields"] = new Dictionary<string, string?>
     {
-        ["queue"] = Model.Queue,
+        ["tab"] = Model.Queue,
         ["state"] = Model.StateFilter,
         ["kind"] = Model.ShowingUnidentified ? Model.UnidentifiedKind : null,
         ["origin"] = Model.ShowingNotReady ? Model.NotReadyOrigin : null,
@@ -23,29 +23,29 @@
    Unidentified — unresolved retained material, not a case stage, but queue
    work the same way the other four are. *@
 <header class="page-heading">
-    <h1>Queues</h1>
+    <h1>Cases</h1>
     @* Every count on this screen says when it was last read. *@
     <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
 </header>
 
-<nav class="tabs" aria-label="Queues">
-    <a asp-page="/Triage/Index" asp-route-queue="not_ready"
+<nav class="tabs" aria-label="Case workflow">
+    <a asp-page="/Cases/Index" asp-route-tab="not_ready"
        aria-current="@(Model.Queue == "not_ready" ? "page" : null)">
         Not ready <span class="count">@Model.StageCounts.NotReady</span>
     </a>
-    <a asp-page="/Triage/Index" asp-route-queue="review"
+    <a asp-page="/Cases/Index" asp-route-tab="review"
        aria-current="@(Model.Queue == "review" ? "page" : null)">
         Review <span class="count">@Model.StageCounts.Review</span>
     </a>
-    <a asp-page="/Triage/Index" asp-route-queue="held"
+    <a asp-page="/Cases/Index" asp-route-tab="held"
        aria-current="@(Model.Queue == "held" ? "page" : null)">
         Held <span class="count">@Model.StageCounts.Held</span>
     </a>
-    <a asp-page="/Triage/Index" asp-route-queue="triage"
+    <a asp-page="/Cases/Index" asp-route-tab="triage"
        aria-current="@(Model.ShowingTriage ? "page" : null)">
         Triage <span class="count">@Model.Results.TotalCount</span>
     </a>
-    <a asp-page="/Triage/Index" asp-route-queue="unidentified"
+    <a asp-page="/Cases/Index" asp-route-tab="unidentified"
        aria-current="@(Model.ShowingUnidentified ? "page" : null)">
         Unidentified <span class="count">@Model.UnidentifiedCount</span>
     </a>
@@ -56,17 +56,17 @@
     @* The triage record's own lifecycle, as sub-states of this tab. At page
        level these read as case stages, which they are not. *@
     <nav class="subtabs section-gap" aria-label="Triage states">
-        <a asp-page="/Triage/Index" asp-route-queue="triage"
+        <a asp-page="/Cases/Index" asp-route-tab="triage"
            aria-current="@(Model.StateFilter is null ? "page" : null)">All open</a>
-        <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="open"
+        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="open"
            aria-current="@(Model.StateFilter == "open" ? "page" : null)">Open</a>
-        <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="awaiting_information"
+        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="awaiting_information"
            aria-current="@(Model.StateFilter == "awaiting_information" ? "page" : null)">Awaiting information</a>
-        <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="finding_recorded"
+        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="finding_recorded"
            aria-current="@(Model.StateFilter == "finding_recorded" ? "page" : null)">Finding recorded</a>
-        <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="completed"
+        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="completed"
            aria-current="@(Model.StateFilter == "completed" ? "page" : null)">Completed</a>
-        <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="cancelled"
+        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="cancelled"
            aria-current="@(Model.StateFilter == "cancelled" ? "page" : null)">Cancelled</a>
     </nav>
 
@@ -101,7 +101,7 @@
                            reference most rows will not have. *@
                         <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
                         <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
-                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(item.State)" /></td>
+                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Cases.IndexModel.StateLabel(item.State)" /></td>
                         <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
                     </tr>
                 }
@@ -115,11 +115,11 @@ else if (Model.ShowingUnidentified)
     @* Images vs. e-mails is the operator's own split: "the material behind
        this row" not "the record type behind this row". *@
     <nav class="subtabs section-gap" aria-label="Unidentified filters">
-        <a asp-page="/Triage/Index" asp-route-queue="unidentified"
+        <a asp-page="/Cases/Index" asp-route-tab="unidentified"
            aria-current="@(Model.UnidentifiedKind == "all" ? "page" : null)">All</a>
-        <a asp-page="/Triage/Index" asp-route-queue="unidentified" asp-route-kind="images"
+        <a asp-page="/Cases/Index" asp-route-tab="unidentified" asp-route-kind="images"
            aria-current="@(Model.UnidentifiedKind == "images" ? "page" : null)">Images</a>
-        <a asp-page="/Triage/Index" asp-route-queue="unidentified" asp-route-kind="emails"
+        <a asp-page="/Cases/Index" asp-route-tab="unidentified" asp-route-kind="emails"
            aria-current="@(Model.UnidentifiedKind == "emails" ? "page" : null)">E-mails</a>
     </nav>
 
@@ -149,10 +149,10 @@ else if (Model.ShowingUnidentified)
                 {
                     <tr>
                         <td><a asp-page="/Unidentified/Details" asp-route-id="@row.Id">@row.Reference</a></td>
-                        <td>@Pegasus.Web.Pages.Triage.IndexModel.UnidentifiedKindLabel(row)</td>
-                        <td>@Pegasus.Web.Pages.Triage.IndexModel.UnidentifiedHandle(row)</td>
+                        <td>@Pegasus.Web.Pages.Cases.IndexModel.UnidentifiedKindLabel(row)</td>
+                        <td>@Pegasus.Web.Pages.Cases.IndexModel.UnidentifiedHandle(row)</td>
                         <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
-                        <td>@Pegasus.Web.Pages.Triage.IndexModel.UnidentifiedReasonLabel(row)</td>
+                        <td>@Pegasus.Web.Pages.Cases.IndexModel.UnidentifiedReasonLabel(row)</td>
                     </tr>
                 }
                 </tbody>
@@ -168,7 +168,7 @@ else
            (what the case is waiting for), and the principals present in the
            queue. Selects submit on change; the button is the no-script path. *@
         <form method="get" class="filter-row section-gap" data-auto-submit>
-            <input type="hidden" name="queue" value="not_ready" />
+            <input type="hidden" name="tab" value="not_ready" />
             @if (!string.IsNullOrEmpty(Model.SortParam))
             {
                 <input type="hidden" name="sort" value="@Model.SortParam" />
@@ -206,12 +206,12 @@ else
                     <caption class="vh">Cases waiting, both origins in one table</caption>
                     <thead>
                         <tr>
-                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("reference")'>Reference</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("reference")'>Reference</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
                             <th scope="col">Status</th>
-                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
                             <th scope="col">Chase</th>
                         </tr>
                     </thead>
@@ -267,11 +267,11 @@ else
                     <caption class="vh">Cases in this queue</caption>
                     <thead>
                         <tr>
-                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("reference")'>Case</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("reference")'>Case</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -297,12 +297,12 @@ else
     <nav class="pager" aria-label="Pages">
         @if (Model.Results.Page > 1)
         {
-            <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
+            <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
         }
         <span class="pager__context">Page @Model.Results.Page of @Model.Results.TotalPages</span>
         @if (Model.Results.Page < Model.Results.TotalPages)
         {
-            <a asp-page="/Triage/Index" asp-route-queue="triage" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
+            <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
         }
     </nav>
 }
