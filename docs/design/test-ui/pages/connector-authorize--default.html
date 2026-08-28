@@ -103,9 +103,9 @@
             <input type="hidden" name="client_id" value="pegasus-automation" />
             <input type="hidden" name="redirect_uri" value="https://connector.example/api/mcp/auth_callback" />
             <input type="hidden" name="scope" value="automation.cases automation.documents" />
-            <input type="hidden" name="state" value="state-4c1c0d0f" />
+            <input type="hidden" name="state" value="{{state}}" />
             <input type="hidden" name="resource" value="http://localhost/mcp" />
-            <input type="hidden" name="code_challenge" value="W9gHDtWjy1-YCMGziK0SI3wVjY5_56ZDEn3e6nnTCwM" />
+            <input type="hidden" name="code_challenge" value="{{code_challenge}}" />
             <input type="hidden" name="code_challenge_method" value="S256" />
         <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
         <div class="button-row">

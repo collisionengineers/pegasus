@@ -111,10 +111,22 @@
                 <span class="field-validation-valid" data-valmsg-for="InspectionMode" data-valmsg-replace="true"></span>
                 <small class="empty-state">Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</small>
             </div>
+            <div>
+                <label>
+                    <input type="checkbox" data-val="true" data-val-required="The EvaManualSubmission field is required." id="EvaManualSubmission" name="EvaManualSubmission" value="true" />
+                    Manual API submission
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" data-val="true" data-val-required="The EvaAutomaticSubmission field is required." id="EvaAutomaticSubmission" name="EvaAutomaticSubmission" value="true" />
+                    Automatic API submission
+                </label>
+            </div>
             <div class="button-row">
                 <button type="submit" class="primary-action">Create principal</button>
             </div>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="EvaManualSubmission" type="hidden" value="false" /><input name="EvaAutomaticSubmission" type="hidden" value="false" /></form>
     </div>
 
 
