@@ -27,7 +27,7 @@ public sealed class AssessmentPersistenceIntegrationTests
         var counter = new ReaderCommandCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var outcome = await harness.AcceptAsync("assessment-workspace-query-count");
-        await SetReviewAsync(harness.Factory, outcome.Identity.CaseId);
+        await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         counter.Reset();
 
@@ -43,7 +43,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
-        await SetReviewAsync(harness.Factory, outcome.Identity.CaseId);
+        await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
@@ -69,7 +69,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-access-review-cycle");
-        await SetReviewAsync(harness.Factory, outcome.Identity.CaseId);
+        await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         var source = new EfAssessmentAccessSource(harness.Factory);
 
         Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
@@ -823,13 +823,19 @@ public sealed class AssessmentPersistenceIntegrationTests
             CancellationToken cancellationToken) => Task.FromResult(Configuration);
     }
 
-    private static async Task SetReviewAsync(
+    /// <summary>
+    /// The assessment's own opening state under D11 (FRD-11, ENG-025):
+    /// Report preparation ("With Engineer") or later. Review no longer
+    /// opens the workspace, so these cases start where it does; the
+    /// export-cycle assertions the tests make are unchanged by that.
+    /// </summary>
+    private static async Task SetReportPreparationAsync(
         IDbContextFactory<PegasusDbContext> factory,
         Guid caseId)
     {
         await using var context = await factory.CreateDbContextAsync();
         var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
-        workflow.State = CaseLifecycleState.Review.ToString();
+        workflow.State = CaseLifecycleState.ReportPreparation.ToString();
         await context.SaveChangesAsync();
     }
 

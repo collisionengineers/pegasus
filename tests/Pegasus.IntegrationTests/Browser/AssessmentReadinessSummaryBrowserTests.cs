@@ -67,7 +67,10 @@ public sealed class AssessmentReadinessSummaryBrowserTests
         var warning = support.Page.Locator(".notice--warning");
         var warningText = (await warning.First.InnerTextAsync()).Trim();
         Assert.StartsWith("Report draft not ready:", warningText, StringComparison.Ordinal);
-        Assert.Contains("Repair cost figures", warningText, StringComparison.Ordinal);
+        Assert.Contains(
+            AssessmentReportProjection.RepairCostRequirement,
+            warningText,
+            StringComparison.Ordinal);
         Assert.Equal(0, await support.Page.Locator(".readiness-summary").CountAsync());
 
         // No estimate surfaces are drawn for a case with no specification:

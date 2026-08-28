@@ -266,8 +266,18 @@ public sealed partial class SendToAiIntegrationTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
-        var condition = Regex.Match(html, "data-condition=\"([^\"]+)\"");
-        Assert.Contains("disabled by an Administrator", condition.Value, StringComparison.Ordinal);
+        // The condition is read off the Send to Claude control itself: the
+        // record bar carries several gated seams, so the first
+        // data-condition on the page is not necessarily this one.
+        var sendGate = Regex.Match(
+            html,
+            "<span class=\"gated\" data-condition=\"(?<value>[^\"]+)\">[^<]*<button[^>]*>(?:(?!</button>).)*?Send to Claude",
+            RegexOptions.Singleline);
+        Assert.True(sendGate.Success, "Send to Claude renders as a gated, disabled control.");
+        Assert.Contains(
+            "disabled by an Administrator",
+            sendGate.Groups["value"].Value,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -345,10 +355,12 @@ public sealed partial class SendToAiIntegrationTests
                 ("targetPercent", "80")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        // Decoded first: Razor encodes the apostrophe in "Engineer's", and
+        // the claim is that Core's sentence reaches the operator unrewritten.
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains(
             "An estimate job needs a confirmed Engineer's Value on the case.",
-            afterHtml,
+            WebUtility.HtmlDecode(afterHtml),
             StringComparison.Ordinal);
     }
 
