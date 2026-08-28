@@ -25,3 +25,18 @@
 - `Program.cs` (RailCountsPageFilter registration, CSP, 404 middleware)
 - `Pages/StaffPageModel.cs`, `Core/Actors/StaffSessionPolicy.cs`, `Core/Identity/StaffRoleNames`
 - `scripts/Test-UiCatalogue.ps1`, `tests/.../Browser/BrowserTestSupport.cs`
+
+## Added by review of PR #589 (2026-08-28)
+
+- `src/Pegasus.Core/Operations/DashboardCounts.cs` — `CaseStageCounts` gains
+  `WithEngineer` (ReportPreparation + PostReport); small Core addition
+  allowed for this ticket by the reviewer.
+- `src/Pegasus.Infrastructure/Persistence/EfDashboardQueries.cs` — the stage
+  aggregate includes the two With-Engineer states.
+- Constructor-arity touch-ups: `Pages/Index.cshtml.cs`,
+  `tests/Pegasus.Core.Tests/Operations/DashboardBoundaryTests.cs`,
+  `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs`.
+- `docs/design/README.md` — D13 font rows, sprite checksum line and the
+  43 glyph checksums (added to Owns by the reviewer).
+- `tests/Pegasus.IntegrationTests/Browser/OperatorJourneyTests.cs` — the
+  page-rendered reason-dialog focus/click assertion.
