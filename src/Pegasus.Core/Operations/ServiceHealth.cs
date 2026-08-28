@@ -68,9 +68,16 @@ public sealed record ServiceHealthRow(
     ServiceHealthDependency Dependency,
     ServiceHealthRetryTarget? RetryTarget = null);
 
+/// <summary>
+/// <see cref="ExternalWorkLimitReached"/> is the Operations projection's own
+/// flag: when set, the Custody rows describe only the first
+/// <see cref="GetRequestOperations.MaximumItems"/> items and the page must
+/// say so rather than present the rows as the whole queue.
+/// </summary>
 public sealed record ServiceHealthSnapshot(
     DateTimeOffset AsOfUtc,
-    IReadOnlyList<ServiceHealthRow> Rows);
+    IReadOnlyList<ServiceHealthRow> Rows,
+    bool ExternalWorkLimitReached);
 
 /// <summary>
 /// What the Sent-items evidence poll has managed for one mailbox: the same
@@ -171,7 +178,16 @@ public static class ServiceHealthPolicy
             return ServiceHealthState.Partial;
         }
 
-        return health.Active > 0 ? ServiceHealthState.Running : ServiceHealthState.Current;
+        if (health.Active > 0)
+        {
+            return ServiceHealthState.Running;
+        }
+
+        // An empty queue that has never completed anything has no evidence
+        // to call itself current on.
+        return health.LatestCompletedAtUtc is null
+            ? ServiceHealthState.Configured
+            : ServiceHealthState.Current;
     }
 
     /// <summary>
@@ -385,6 +401,10 @@ public sealed class GetServiceHealth(
             ServiceHealthDependency.AiConnector));
 
         var ingressEnabled = await automationIngress.IsEnabledAsync(cancellationToken);
+        // Read through the port, not ListAutomationActivity: that use case is
+        // gated on ManageAutomationClients because it exposes the records
+        // themselves, whereas this row exposes only the newest timestamp to a
+        // PerformCasework reader. Nothing else from the record leaves here.
         var newestActivity = await automationActivity.ListAsync(
             new(actor, Page: 1, PageSize: 1),
             cancellationToken);
@@ -395,6 +415,6 @@ public sealed class GetServiceHealth(
             newestActivity.Records.Count == 0 ? null : newestActivity.Records[0].OccurredAtUtc,
             ServiceHealthDependency.AutomationClient));
 
-        return new(nowUtc, rows);
+        return new(nowUtc, rows, operations.LimitReached);
     }
 }

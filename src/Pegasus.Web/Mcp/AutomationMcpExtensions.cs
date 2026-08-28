@@ -28,6 +28,10 @@ public static class AutomationMcpExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<AutomationClientRegistry>();
         services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
+        // The snapshot needs the ingress adapter above, so it is composed here
+        // rather than in Infrastructure, where the Worker would carry a
+        // registration it cannot resolve.
+        services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
 
