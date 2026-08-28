@@ -98,20 +98,107 @@ public static class OperatorLabels
             (false, { } matched) => $"This was automatically associated with case {matched}."
         };
 
+    /// <summary>
+    /// The case lifecycle stage as the operator reads it (EPIC-011 D3): a
+    /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
+    /// and <see cref="CaseLifecycleState.PostReport"/> both read "With
+    /// Engineer", <see cref="CaseLifecycleState.PostReportComplete"/> reads
+    /// "Complete", and every other terminal outcome reads "Closed · outcome".
+    /// The Core enum is untouched.
+    /// </summary>
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",
         CaseLifecycleState.Held => "Held",
         CaseLifecycleState.Review => "Review",
-        CaseLifecycleState.ReportPreparation => "Report preparation",
-        CaseLifecycleState.PostReport => "Post report",
-        CaseLifecycleState.PostReportComplete => "Post-report complete",
-        CaseLifecycleState.ProviderCancelled => "Provider cancelled",
-        CaseLifecycleState.CollisionEngineersRejected => "Collision Engineers rejected",
-        CaseLifecycleState.CreatedInError => "Created in error",
-        CaseLifecycleState.SourceEmailUnlinked => "Cancelled — email unlinked",
+        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
+        CaseLifecycleState.PostReportComplete => "Complete",
+        CaseLifecycleState.ProviderCancelled => "Closed · Provider cancelled",
+        CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
+        CaseLifecycleState.CreatedInError => "Closed · Created in error",
+        CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
         _ => Humanise(state.ToString())
     };
+
+    /// <summary>The primary navigation and the shell's section labels — one list.</summary>
+    public static class Nav
+    {
+        public const string Work = "Work";
+        public const string Manage = "Manage";
+        public const string WorkCentre = "Work Centre";
+        public const string Inbox = "Inbox";
+        public const string Upload = "Upload";
+        public const string Cases = "Cases";
+        public const string Search = "Search";
+        public const string Operations = "Operations";
+        public const string Administration = "Administration";
+    }
+
+    /// <summary>The administration areas (§1.12) — one list.</summary>
+    public static class Admin
+    {
+        public const string Accounts = "Staff accounts & roles";
+        public const string Principals = "Principals";
+        public const string Configuration = "Workflow configuration";
+        public const string Mail = "Mail settings";
+        public const string Automation = "Automation & AI";
+    }
+
+    /// <summary>The freshness words the shell and every page header share.</summary>
+    public static class Freshness
+    {
+        public const string Current = "Current";
+        public const string Never = "Never updated";
+
+        public static string Label(string? status) => status switch
+        {
+            "loading" => "Refreshing",
+            "stale" => "Stale",
+            "partial" => "Partial",
+            "unavailable" => "Unavailable",
+            "failed" => "Failed",
+            _ => Current
+        };
+    }
+
+    /// <summary>A staff role name as the operator reads it.</summary>
+    public static string StaffRole(string? roleName) => roleName switch
+    {
+        StaffRoleNames.Administrator => "Administrator",
+        StaffRoleNames.Engineer => "Engineer",
+        StaffRoleNames.User => "User",
+        _ => Humanise(roleName)
+    };
+
+    /// <summary>
+    /// The avatar initials for a display name: the first letter of the first
+    /// two words, or the first two letters of a single word.
+    /// </summary>
+    public static string Initials(string? name)
+    {
+        var words = (name ?? string.Empty)
+            .Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries);
+        var letters = words.Length switch
+        {
+            0 => "?",
+            1 => words[0].Length > 1 ? words[0][..2] : words[0],
+            _ => string.Concat(words[0][0], words[1][0])
+        };
+        return letters.ToUpperInvariant();
+    }
+
+    /// <summary>A policy duration in the operator's words ("2 hours").</summary>
+    public static string Duration(TimeSpan value)
+    {
+        if (value.TotalHours >= 1 && value.TotalHours == Math.Floor(value.TotalHours))
+        {
+            var hours = (int)value.TotalHours;
+            return hours == 1 ? "1 hour" : $"{hours} hours";
+        }
+
+        var minutes = (int)Math.Round(value.TotalMinutes);
+        return minutes == 1 ? "1 minute" : $"{minutes} minutes";
+    }
 
     /// <summary>The stage name for a persisted stage string, however stored.</summary>
     public static string CaseStage(string? state) =>

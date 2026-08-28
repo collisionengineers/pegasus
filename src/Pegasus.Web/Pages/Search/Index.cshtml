@@ -1,6 +1,200 @@
 @page
 @model Pegasus.Web.Pages.Search.IndexModel
-@*
-    No markup: this route is a redirect into Cases, not a screen. See the page
-    model for why the screen was merged away.
-*@
+@using Pegasus.Core.Workflow
+@using Pegasus.Web.Presentation
+@{
+    ViewData["Title"] = "Search";
+    var hasAdvancedFilter =
+        !string.IsNullOrWhiteSpace(Model.Registration)
+        || !string.IsNullOrWhiteSpace(Model.Claimant)
+        || !string.IsNullOrWhiteSpace(Model.ClaimNumber)
+        || Model.EngineerId is not null
+        || Model.ReceivedDate is not null
+        || Model.InstructionDate is not null
+        || Model.FromDate is not null
+        || Model.ToDate is not null
+        || !string.IsNullOrWhiteSpace(Model.Origin)
+        || !string.IsNullOrWhiteSpace(Model.RecordKindFilter);
+}
+
+@* No lede. It narrated browser mechanics - that filters stay in the URL -
+   as if it were guidance. The filter bar is one line, with everything that is
+   used rarely behind a disclosure. *@
+<header class="page-heading">
+    <h1>Search</h1>
+</header>
+
+<section class="panel filterbar" aria-labelledby="case-filters-title">
+    <h2 id="case-filters-title" class="vh">Filter cases</h2>
+    <form method="get">
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+        <div class="filterbar__line">
+            <label for="case-query" class="vh">Case/PO or keyword</label>
+            <input id="case-query" name="query" value="@Model.Query" maxlength="300"
+                   placeholder="Case/PO, registration, claimant or claim number" />
+
+            <label for="case-state" class="vh">Case stage</label>
+            <select id="case-state" name="state">
+                <option value="">Any stage</option>
+                @foreach (var state in Enum.GetValues<CaseLifecycleState>())
+                {
+                    <option value="@state" selected="@(Model.State == state)">@OperatorLabels.CaseStage(state)</option>
+                }
+            </select>
+
+            <label for="case-principal" class="vh">Principal</label>
+            <input id="case-principal" name="principal" value="@Model.Principal" maxlength="20" placeholder="Principal" />
+
+            <button type="submit" class="btn btn--dark">
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                Search
+            </button>
+            <a asp-page="/Search/Index" class="btn">Clear</a>
+        </div>
+
+        <details class="filterbar__more" open="@(hasAdvancedFilter ? "open" : null)">
+            <summary>More filters</summary>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="CaseReference">Case/PO</label>
+                    <input id="case-reference" name="case" value="@Model.CaseReference" maxlength="100" />
+                </div>
+                <div>
+                    <label asp-for="Registration">Registration</label>
+                    <input asp-for="Registration" maxlength="20" />
+                </div>
+                <div>
+                    <label asp-for="Claimant">Claimant</label>
+                    <input asp-for="Claimant" maxlength="300" />
+                </div>
+                <div>
+                    <label asp-for="ClaimNumber">Claim number</label>
+                    <input asp-for="ClaimNumber" maxlength="100" />
+                </div>
+                <div>
+                    <label asp-for="EngineerId">Engineer</label>
+                    <input asp-for="EngineerId" type="text" />
+                    <span asp-validation-for="EngineerId" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="ReceivedDate">Received on</label>
+                    <input asp-for="ReceivedDate" type="date" />
+                    <span asp-validation-for="ReceivedDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="InstructionDate">Instructed on</label>
+                    <input asp-for="InstructionDate" type="date" />
+                    <span asp-validation-for="InstructionDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="FromDate">Received from</label>
+                    <input asp-for="FromDate" type="date" />
+                    <span asp-validation-for="FromDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="ToDate">Received to</label>
+                    <input asp-for="ToDate" type="date" />
+                    <span asp-validation-for="ToDate" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="Origin">Origin</label>
+                    <input asp-for="Origin" maxlength="100" />
+                </div>
+                <div>
+                    <label for="record-kind">Record type</label>
+                    <select id="record-kind" name="kind">
+                        <option value="" selected="@(string.IsNullOrEmpty(Model.RecordKindFilter))">All</option>
+                        <option value="instructions" selected="@(Model.RecordKindFilter == "instructions")">Cases</option>
+                        <option value="images" selected="@(Model.RecordKindFilter == "images")">Vehicle images</option>
+                    </select>
+                </div>
+            </div>
+        </details>
+    </form>
+</section>
+@if (Model.QueryFailed)
+{
+    <section class="status-card status-card--error" role="alert">
+        <h2>Cases are unavailable</h2>
+        <p>The case query could not be completed; try again.</p>
+    </section>
+}
+else if (Model.Results is { Items.Count: 0 } && Model.ImageIntakeResults.Count == 0)
+{
+    @* A zero result is a line of business language, not a headed panel
+       announcing itself. Both settled sentences are kept: each is separately
+       relied on to tell an empty result from the unavailable state above. *@
+    <p class="empty-state" aria-live="polite">No matching cases. No cases match these filters.</p>
+}
+else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count == 0)
+{
+    <p class="empty-state" aria-live="polite">No vehicle images match these filters.</p>
+}
+
+@if (Model.ImageIntakeResults.Count > 0)
+{
+    @* A queue list is already a panel; nesting it in another drew two boxes. *@
+    <h2 class="section-label section-gap">Vehicle images</h2>
+    <div class="panel queue-list">
+        @foreach (var item in Model.ImageIntakeResults)
+        {
+            <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
+                <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
+                <span><strong>@Pegasus.Web.Pages.Search.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
+            </a>
+        }
+    </div>
+}
+
+@if (Model.Results is { Items.Count: > 0 } results)
+{
+    @* The label names the table; the table's own border is the container. *@
+    <h2 class="section-label section-gap">Results</h2>
+    <div class="table-wrap">
+        <table>
+            <caption class="vh">Case search results</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Case/PO</th>
+                    <th scope="col">Registration</th>
+                    <th scope="col">Claimant</th>
+                    <th scope="col">Claim number</th>
+                    <th scope="col">Principal</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Engineer</th>
+                    <th scope="col">Received</th>
+                    <th scope="col">Instruction</th>
+                    <th scope="col">Origin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in results.Items)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                        <td>@(item.Registration ?? "Not recorded")</td>
+                        <td>@(item.Claimant ?? "Not recorded")</td>
+                        <td>@(item.ClaimNumber ?? "Not recorded")</td>
+                        <td>@item.Principal</td>
+                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
+                        <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
+                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
+                        <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
+                        <td>@item.Origin</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <nav class="pager" aria-label="Case result pages">
+        @if (results.HasPreviousPage)
+        {
+            <a href="@Model.PageUrl(results.Page - 1)">Previous</a>
+        }
+        <span class="pager__context">Page @results.Page · showing @results.Items.Count</span>
+        @if (results.HasNextPage)
+        {
+            <a href="@Model.PageUrl(results.Page + 1)">Next</a>
+        }
+    </nav>
+}

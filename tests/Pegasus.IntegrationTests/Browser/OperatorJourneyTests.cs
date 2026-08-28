@@ -176,11 +176,12 @@ public sealed class OperatorJourneyTests
         // asserted directly above through [aria-label='User'].
         AssertOrdered(
             navigation,
-            "Dashboard",
+            "Work Centre",
             "Inbox",
             "Upload",
-            "Queues",
             "Cases",
+            "Search",
+            "Operations",
             "Administration");
 
         // The three sections an operator actually opens this screen to read.
@@ -194,7 +195,7 @@ public sealed class OperatorJourneyTests
         // used to render an intake-receipt count and link into the intake
         // queue, which is a different entity on a different screen.
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
-        Assert.Equal("/Triage?queue=review", new Uri(support.Page.Url).PathAndQuery);
+        Assert.Equal("/Cases?tab=review", new Uri(support.Page.Url).PathAndQuery);
 
         await support.GoToAsync("/Operations");
         Assert.Equal(
@@ -241,6 +242,55 @@ public sealed class OperatorJourneyTests
 
         await support.Page.Keyboard.PressAsync("Enter");
         await Assertions.Expect(support.Page.Locator("#main-content")).ToBeFocusedAsync();
+    }
+
+    [Fact]
+    public async Task PageRenderedReasonDialogStaysReachableWhileOpen()
+    {
+        // PLAT-029: a reason dialog rendered inside the page (here the
+        // remove-document dialog on the evidence tab), not in the shell, must
+        // stay reachable while open: site.js sets inert on what is outside
+        // the dialog, never on an ancestor of it. The close click is a real
+        // pointer click, which an inert dialog would refuse. Same fixture as
+        // the keyboard journey above, with script enabled.
+        var repositoryFixture = RepositoryEvaFixture.Load();
+        var vehicleEvidence = new BrowserVehicleEvidenceQueries();
+        var caseDataState = new BrowserCaseDataState(repositoryFixture);
+        await using var support = await BrowserTestSupport.StartAsync(
+            width: 1440,
+            height: 900,
+            javaScriptEnabled: true,
+            configureWebHost: builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IVehicleEvidenceQueries>();
+                    services.AddSingleton<IVehicleEvidenceQueries>(vehicleEvidence);
+                    services.RemoveAll<ICaseDataQueries>();
+                    services.AddScoped<ICaseDataQueries>(provider => new BrowserAcceptedCaseDataQueries(
+                        provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                        caseDataState));
+                });
+            });
+        var accepted = await SeedCustodyRecoveryCaseAsync(support.Services, repositoryFixture);
+        caseDataState.Set(accepted.CaseId, accepted.Reference);
+        vehicleEvidence.Set(ConfirmedVehicle(accepted.CaseId, repositoryFixture));
+        await SeedEligibleImageAsync(support.Services, accepted.CaseId, repositoryFixture);
+
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
+        await EnterEditModeByKeyboardAsync(support.Page);
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?tab=evidence");
+
+        var removeTrigger = support.Page.Locator("[data-dialog-open^='remove-doc-']").First;
+        await removeTrigger.ClickAsync();
+        var reasonDialog = support.Page.Locator("#" + await removeTrigger.GetAttributeAsync("data-dialog-open"));
+        Assert.True(await reasonDialog.IsVisibleAsync());
+        Assert.True(await reasonDialog.EvaluateAsync<bool>(
+            "dialog => dialog.contains(document.activeElement) && dialog.closest('[inert]') === null"));
+        Assert.True(await reasonDialog.Locator("button[type='submit']").IsEnabledAsync());
+        await reasonDialog.Locator("[data-dialog-close]").First.ClickAsync();
+        Assert.True(await reasonDialog.IsHiddenAsync());
+        Assert.Equal(0, await support.Page.Locator("[inert]").CountAsync());
     }
 
     private static async Task<BrowserAcceptedCase> SeedCustodyRecoveryCaseAsync(

@@ -1,12 +1,10 @@
-﻿@*
+@*
     One file's confirmation outcome, once processing has resolved: what
     already happened automatically (reported, not re-offered) or the staff
     decision that is genuinely open. The action links route to the existing
     page that performs them; the one decision this partial carries itself is
     "Add to an existing case" — an explicit staff decision, posted to the
     hosting status page, which hands it to the existing leased link path.
-    The file it is about is the caller's to label (the group page names each
-    row; the single-file status page already has the name in its heading).
 
     Model: Pegasus.Web.Presentation.UploadOutcomeView
 *@
@@ -23,23 +21,23 @@
     }
     else
     {
-        <span class="field-hint">@Model.StateLabel</span>
+        <span class="muted">@Model.StateLabel</span>
     }
-    <p class="upload-outcome__message">@Model.Message</p>
+    <p>@Model.Message</p>
     @if (!compact && (Model.PrimaryAction is not null || Model.SecondaryAction is not null || Model.Attach is not null))
     {
         <div class="button-row">
             @if (Model.PrimaryAction is { } primary)
             {
-                <a class="primary-action" href="@primary.Url">@primary.Label</a>
+                <a class="btn btn--primary btn--small" href="@primary.Url">@primary.Label</a>
             }
             @if (Model.SecondaryAction is { } secondary)
             {
-                <a class="secondary-action" href="@secondary.Url">@secondary.Label</a>
+                <a class="btn btn--small" href="@secondary.Url">@secondary.Label</a>
             }
             @if (Model.Attach is not null)
             {
-                <a class="secondary-action" asp-page="/Upload">Cancel</a>
+                <a class="btn btn--small" asp-page="/Upload">Cancel</a>
             }
         </div>
     }
@@ -49,30 +47,32 @@
         @* Native disclosure, so opening and closing the search works without
            script; script upgrades the input inside to a combobox. *@
         <details class="upload-attach" data-refresh-hold>
-            <summary class="secondary-action">Add to an existing case</summary>
+            <summary class="btn btn--small">Add to an existing case</summary>
             <form method="post"
                   asp-page-handler="Attach"
-                  class="upload-attach__form"
+                  class="upload-attach__form stack"
                   data-case-search
                   data-case-search-url="@Url.Page(null, "CaseSearch")">
                 <input type="hidden" name="receiptId" value="@attach.ReceiptId" />
                 <input type="hidden" name="caseId" value="" data-case-search-value />
-                <label for="@(attachDomId)-input">Case</label>
-                <input id="@(attachDomId)-input"
-                       name="reference"
-                       type="text"
-                       maxlength="60"
-                       required
-                       autocomplete="off"
-                       spellcheck="false"
-                       aria-describedby="@(attachDomId)-hint"
-                       data-case-search-input />
-                <p id="@(attachDomId)-hint" class="field-hint">Search by case reference, registration or claimant, then choose the case this belongs to.</p>
-                <ul id="@(attachDomId)-list" class="case-search-list" hidden data-case-search-list></ul>
-                <label for="@(attachDomId)-reason">Reason for adding to this case</label>
-                <textarea id="@(attachDomId)-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                <div class="field">
+                    <label for="@(attachDomId)-input">Case</label>
+                    <input id="@(attachDomId)-input"
+                           name="reference"
+                           type="text"
+                           maxlength="60"
+                           required
+                           autocomplete="off"
+                           spellcheck="false"
+                           data-case-search-input />
+                    <ul id="@(attachDomId)-list" class="case-search-list" hidden data-case-search-list></ul>
+                </div>
+                <div class="field">
+                    <label for="@(attachDomId)-reason">Reason for adding to this case</label>
+                    <textarea id="@(attachDomId)-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                </div>
                 <div class="button-row">
-                    <button type="submit" class="primary-action">Add to this case</button>
+                    <button type="submit" class="btn btn--primary btn--small">Add to this case</button>
                 </div>
             </form>
         </details>
