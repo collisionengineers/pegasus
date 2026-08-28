@@ -32,3 +32,19 @@ migration, Web ~350, tests ~600), ~15 lines changed in existing files.
 ## Sequencing
 
 Commits: Core → Infrastructure+migration+grant → MCP → tests; merge `origin/dev`; simplification pass; report; PR.
+
+## Simplification pass — 2026-08-28
+
+Lenses run over `git diff origin/dev...HEAD` (reuse, simplification,
+efficiency, altitude).
+
+| Finding | Disposition |
+| --- | --- |
+| `RequireCreator` re-checked `actor.Kind is Staff or Automation` after `StaffAuthorization.Require(PerformCasework)` already restricts to those kinds — unreachable | Fixed (removed) |
+| `ValidateTransition` / `RequireCreator` called `ArgumentNullException.ThrowIfNull(actor)` before `StaffAuthorization.Require`, which throws the same | Fixed (removed) |
+| `EfAiJobStore.ParseState` was a one-line wrapper over `Parse<AiJobState>` | Fixed (inlined) |
+| `CreateAiJob.ExecuteAsync` checks `Enum.IsDefined(Kind)` although `ValidateNew` does too | Kept: the switch's default arm would otherwise treat an unknown kind as a queue pass before the store validates |
+| `pegasus_ai_job_create` takes a `kind` argument that must equal `UnidentifiedQueuePass` | Kept: FRD-10 names the tool "create a job of a catalogued kind"; D5 constrains the Actor to one kind today and the argument keeps the tool contract stable when staff-only kinds are not the constraint |
+| Result-kind-matches-job-kind rule lives in `EfAiJobStore.TransitionAsync` (needs the persisted kind) with `AiJobPolicy.ResultKindFor` as the single owner of the mapping | Accepted: the store is the only place both facts are present in one transaction; the rule itself is in Core |
+| Lease/expiry read as computed state (`AiJobPolicy.EffectiveState`) rather than a sweeper | Accepted by design (ADR-0035: Pegasus runs no timer for AI work) |
+| Idempotent transition replay remembers only the last operation key (`LastOperationKey`) | Accepted: an older key is refused by the version check with a reload message, which FRD-11 allows ("a stale or duplicate transition is an inert, recorded outcome") |
