@@ -60,7 +60,7 @@ internal static class CaseMutationGuard
             workflow.Version,
             actor,
             editLeaseToken,
-            RetainedHolderKind(workflow),
+            RetainedHolderKind(workflow.EditLeaseHolderKind),
             workflow.EditLeaseHolder,
             !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
             workflow.EditLeaseExpiresAtUtc,
@@ -92,12 +92,6 @@ internal static class CaseMutationGuard
     /// before the kind was recorded, which Core treats as nobody's; a value that is not an
     /// <see cref="ActorKind"/> is corrupt and surfaces rather than being read as a holder.
     /// </summary>
-    public static ActorKind? RetainedHolderKind(CaseWorkflowEntity workflow)
-    {
-        ArgumentNullException.ThrowIfNull(workflow);
-        return RetainedHolderKind(workflow.EditLeaseHolderKind);
-    }
-
     public static ActorKind? RetainedHolderKind(string? retainedHolderKind)
     {
         if (retainedHolderKind is null)

@@ -53,7 +53,6 @@ public static class CaseEditAuthority
     {
         ArgumentNullException.ThrowIfNull(actor);
         return retainedLeaseHolderKind == actor.Kind
-            && !string.IsNullOrWhiteSpace(retainedLeaseHolder)
             && string.Equals(retainedLeaseHolder, actor.SubjectId, StringComparison.Ordinal);
     }
 
