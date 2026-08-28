@@ -2,7 +2,7 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: review
+status: implementing
 area: automation-integrations
 assignee: claude-code
 profile: feature
@@ -38,11 +38,14 @@ commits:
   - 387f5e26
   - f021095e
   - ae35c34d
+  - c5011932
+  - df978b43
+  - afc0dc10
 prs:
   - '594'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-28T20:39:41.285Z'
+updated: '2026-08-28T21:58:48.393Z'
 ---
 
 ## What
