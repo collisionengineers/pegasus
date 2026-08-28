@@ -2,12 +2,14 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: implementing
+status: review
 area: automation-integrations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-21T14:20:03.598Z'
+  review: '2026-08-28T11:31:30.687Z'
+  implementing: '2026-08-28T16:58:50.515Z'
 taken_at: '2026-08-28T11:08:34.214Z'
 branch: task/tick-058-provider-submission-api
 worktree: ../pegasus-worktrees/tick-058-provider-submission-api
@@ -21,14 +23,26 @@ groups:
   - HZN-002
   - EPIC-009
   - EPIC-011
-links: []
+links:
+  - TICK-061
+  - DELIV-032
 blocks:
   - TICK-060
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
+commits:
+  - e56bb469
+  - a5af5fd9
+  - b5b6e096
+  - 2804ebb6
+  - 387f5e26
+  - f021095e
+  - ae35c34d
+prs:
+  - '594'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-28T11:08:34.214Z'
+updated: '2026-08-28T20:39:41.285Z'
 ---
 
 ## What
