@@ -433,6 +433,19 @@ public static class AssessmentPolicy
                     "Estimate work units must be non-negative in steps of 0.1.",
                     nameof(lines));
             }
+            if (line.PaintWorkUnits is { } paintWorkUnits
+                && (paintWorkUnits < 0 || decimal.Round(paintWorkUnits, 1) != paintWorkUnits))
+            {
+                throw new ArgumentException(
+                    "Estimate paint work units must be non-negative in steps of 0.1.",
+                    nameof(lines));
+            }
+            if (line.Quantity is { } quantity && quantity < 1)
+            {
+                throw new ArgumentException(
+                    "An estimate line quantity must be at least one.",
+                    nameof(lines));
+            }
             if (line.Price is { } price && (price < 0 || decimal.Round(price, 2) != price))
             {
                 throw new ArgumentException(
