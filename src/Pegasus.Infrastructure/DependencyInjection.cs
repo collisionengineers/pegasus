@@ -254,6 +254,9 @@ public static class DependencyInjection
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
+        services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
+        services.AddScoped<GetEngineerActivityReport>();
         services.AddScoped<EfWorkflowConfigurationStore>();
         services.AddScoped<IWorkflowConfigurationStore>(
             provider => provider.GetRequiredService<EfWorkflowConfigurationStore>());
