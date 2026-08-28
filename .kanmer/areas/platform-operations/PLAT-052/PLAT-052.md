@@ -4,12 +4,13 @@ type: ticket
 title: >-
   EvaSubmission page route is doubled
   (/Administration/Principals/EvaSubmission/{org}/{principal}/EvaSubmission)
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-28T21:47:28.486Z'
+  review: '2026-08-28T21:48:44.582Z'
 taken_at: '2026-08-28T21:46:06.049Z'
 branch: task/plat-052-eva-submission-route
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-052-eva-submission-route'
@@ -25,9 +26,13 @@ links:
   - UIIMP-005
 refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
+commits:
+  - 4b24ca1702848ee7023b120427235ef0ac6a98a1
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/614'
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-28T21:47:28.486Z'
+updated: '2026-08-28T21:48:44.582Z'
 ---
 
 ## What
