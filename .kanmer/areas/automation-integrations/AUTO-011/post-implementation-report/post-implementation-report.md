@@ -94,3 +94,17 @@ runs the wave loop.
 - Query-response jobs carry the message reference in `Instruction`
   (SubjectKind is the Case). If wave 4 wants a typed message subject, that is
   a small additive change to `AiJobSubjectKind`.
+
+## Review round — 2026-08-28
+
+Fixes applied on the branch (BOMs stripped; lapsed lease always reads
+Queued; repeat take refused; consent text corrected). Recorded decisions:
+
+- `EngineerValueAtSend` is returned under `automation.jobs` because the
+  Estimate kind needs its basis figure to draft to the target percentage.
+- Registered but not yet called by production code in this PR — **not
+  claimed as delivered**: `ICancelAiJob` and `IConfirmAiJob` (Operations
+  "Cancel" / "Complete job", PLAT-049; Engineer "Use estimate", ENG-028),
+  `IAiJobQueries.ListForSubjectAsync` / `ListRecentAsync` (PLAT-049
+  Operations list), `GetCountsAsync` (AUTO-010 Automation & AI counts).
+  Wave 4 supplies the callers and their activation evidence.

@@ -48,3 +48,15 @@ efficiency, altitude).
 | Result-kind-matches-job-kind rule lives in `EfAiJobStore.TransitionAsync` (needs the persisted kind) with `AiJobPolicy.ResultKindFor` as the single owner of the mapping | Accepted: the store is the only place both facts are present in one transaction; the rule itself is in Core |
 | Lease/expiry read as computed state (`AiJobPolicy.EffectiveState`) rather than a sweeper | Accepted by design (ADR-0035: Pegasus runs no timer for AI work) |
 | Idempotent transition replay remembers only the last operation key (`LastOperationKey`) | Accepted: an older key is refused by the version check with a reload message, which FRD-11 allows ("a stale or duplicate transition is an inert, recorded outcome") |
+
+## Review dispositions — 2026-08-28 (PR #590)
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | UTF-8 BOM introduced at line 1 of six existing files | Fixed — stripped; files now match `origin/dev` byte-for-byte at line 1 |
+| 2 | `EffectiveState` read a lapsed-lease Taken job as Expired when past `ExpiresAtUtc` | Fixed — a lapsed lease always reads Queued (ADR-0035); Expired is only an untaken Queued job past its expiry, on the next read; store closure path and `AiJobTests` adjusted |
+| 3 | `automation.assessment` consent text claimed estimate lines (ENG-026 not delivered) | Fixed — "Read and update assessment values under an edit lease." |
+| 4 | `EngineerValueAtSend` is exposed under `automation.jobs` | Accepted, recorded: an Estimate job's client needs the basis figure to draft to the target percentage; it is one confirmed assessment value, already readable under `automation.assessment` |
+| 5 | A repeat `take` by the holding client renewed the lease | Fixed — refused with "The AI job is already taken."; renewal is `progress` only; store test added |
+| 6–8 | `ICancelAiJob`, `IConfirmAiJob`, `ListForSubjectAsync` / `ListRecentAsync` / `GetCountsAsync` registered without a production caller in this PR | Accepted — wave-4 callers named in the report (PLAT-049, ENG-028, AUTO-010); not claimed as delivered |
+| — | `EfAiJobStore` copies the `EfAiWorkRequestStore` mechanics (Serializable transaction, request hash, version check, history) rather than sharing a helper | Accepted — ADR-0035 chose a second distinct record; a shared base for two stores is an abstraction without a third caller |
