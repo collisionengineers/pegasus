@@ -40,9 +40,10 @@ The Principal settings dialog carries:
 
 - the route e-mail addresses, read-only — they are owned by the provider route
   policy in [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
-- the EVA API policy — `API manual`, `API automatic`, or `ZIP only` — whose
-  meaning is owned by [FRD-07](frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
+- the two EVA API submission settings (manual, automatic) owned by
+  [FRD-07](frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
   and [ADR-0034](../adr/0034-per-principal-eva-api-submission-settings.md);
+  ZIP export needs no setting;
 - the Provider API credential (API-04): issue, reset, revoke, pause, and
   resume, each with a reason. The secret is shown once at issue or reset and
   never again; only its hash is retained. The credential is delivered with the
