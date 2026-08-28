@@ -3,6 +3,13 @@
 @using Pegasus.Web.Presentation
 @{
     ViewData["Title"] = "Work Centre";
+
+    // Refreshing reruns the queries and keeps the selected work item, not
+    // the first row of the list.
+    ViewData["RefreshFields"] = new Dictionary<string, string?>
+    {
+        ["selected"] = Model.Selected?.Id.ToString()
+    };
 }
 
 @* No lede. The metrics and the work list are the page; a sentence describing
