@@ -4,10 +4,12 @@ type: ticket
 title: >-
   EvaSubmission page route is doubled
   (/Administration/Principals/EvaSubmission/{org}/{principal}/EvaSubmission)
-status: preparing
+status: implementing
 area: platform-operations
 assignee: claude-code
 profile: fix
+stageEntered:
+  implementing: '2026-08-28T21:47:28.486Z'
 taken_at: '2026-08-28T21:46:06.049Z'
 branch: task/plat-052-eva-submission-route
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-052-eva-submission-route'
@@ -25,7 +27,7 @@ refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-28T21:46:06.049Z'
+updated: '2026-08-28T21:47:28.486Z'
 ---
 
 ## What
