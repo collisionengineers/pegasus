@@ -137,3 +137,38 @@ belongs to another owner.
 8. **`docs/current-architecture.md:525` is stale**: it says the Send to EVA
    control "opens `/Cases/{caseId}/Eva/Send`". Since PR #599 it opens a dialog.
    DELIV-030 (wave 5 current-state docs).
+
+## Round 3 delivered — 2026-08-28
+
+PR https://github.com/collisionengineers/pegasus/pull/615 —
+"CASE-012: complete lane E1 (Eva/Send, Create, Workflow, Closure)", base `dev`,
+branch `task/case-012-eva-send-salvage` from `origin/dev` 9868cf58. Not merged;
+this lane never merges its own PR.
+
+Commits (not yet on `dev`, so not recorded on the ticket's `commits` field
+until they are reachable there):
+
+| SHA | Subject |
+| --- | --- |
+| 9b102a3d | docs(design): correct the Case workspace catalogue branch text |
+| 0f316f76 | feat(cases): port New case to the workspace design system |
+| 1c15dfa5 | feat(cases): port the EVA handoff route to the workspace design system |
+| 0b4e14bc | test(cases): pin the EVA gate, the D10 report-sent confirmation and section selection |
+
+Verification, exactly as run:
+
+| Command | Result |
+| --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release` | Build succeeded, 0 Warning(s), 0 Error(s) |
+| `dotnet test … --filter "FullyQualifiedName~CaseDetailsWebTests"` | Failed 0, Passed 42, Skipped 0 |
+| `dotnet test … --filter` the three new pins | Failed 0, Passed 15, Skipped 0 |
+| `dotnet test … --filter "FullyQualifiedName~CaseCreateWebTests"` | Failed 0, Passed 17, Skipped 0 |
+
+Not run in this lane, by instruction: the full suite, the Browser category,
+and the snapshot and catalogue scripts. The orchestrator owns those gates. The
+Browser gate matters here: `OperatorJourneyTests` drives the ported
+`Eva/Send.cshtml` for the scriptless export, so that journey should be watched
+on the merge run.
+
+The ticket is left at `implementing` with the PR open, per this round's brief.
+Moving it to `review` is the orchestrator's call.
