@@ -418,6 +418,8 @@
                                asp-route-folder="@Model.FolderRouteValue"
                                asp-route-search="@Model.SearchTerm"
                                asp-route-queue="@Model.QueueFilter"
+                               asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
                                 <span>Open full message</span>
