@@ -39,3 +39,7 @@ Branch `task/plat-048-service-health-report` from `origin/dev` 658a7984; `origin
 - Attribution is by the case's **current** `AssignedEngineerId` (no assignment history exists); a Failed poll row's evidence time is its last success (the cursor keeps no failure time); the automation-activity port is read directly for the newest timestamp only (commented in code).
 - The 15-minute `StaleAfter` reuse and the 24 h `EvaRecentFailureWindow` are engineering choices to be named in PLAT-049's plan or `docs/open-decisions.md`.
 - Follow-ups filed: [[PLAT-053]] (one owner for the external-work state words in Infrastructure), [[PLAT-054]] (public office-day boundary owner for the Reports page, blocks PLAT-051's conversion).
+
+## CI fix — 2026-08-28, commit 11ad83b2
+
+`ServiceHealthPersistenceTests.EvaFailuresAndActivityReadTheAttemptsAndTheQueue` failed on `CK_EvaSubmissions_Counts` (`[ImagesSent] >= 0 AND [AttemptCount] >= 1 AND [WorkflowVersion] >= 0`): the seeded row left `AttemptCount` at 0. The helper now mirrors `EvaSubmissionPersistenceTests.Submission` (`AttemptCount = 1`, `ImagesSent`, `ActorSubjectId`). The shard's other failure (`MailboxIntakeIntegrationTests` ALTER DATABASE lock) is a runner flake per the coordinator.
