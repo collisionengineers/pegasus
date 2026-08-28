@@ -112,7 +112,10 @@ The Work Centre shows office-wide work: a metric strip of five counts —
 Not ready, Review, Held, Unidentified, Blocked — each an exact link to its
 Cases tab (`/Cases?tab=…`). Blocked links to `/Cases?tab=unidentified`,
 where Blocked intake items are surfaced with their own state chip; there is
-no separate Blocked tab. Then a two-pane needs-attention list and detail. A
+no separate Blocked tab. The Unidentified tab count, and the rail Cases sum,
+count Unidentified items only; Blocked intake rows are listed in that tab
+uncounted, with their own `Blocked intake` chip, so the two meanings stay
+distinct. Then a two-pane needs-attention list and detail. A
 needs-attention item is exactly one of these five kinds, each derived from
 a Core query, never from fixture or placeholder data:
 
@@ -247,7 +250,8 @@ the workspace keeps the missing-material reason, next chase, last recorded
 outcome, and next permitted action together. Triage has no due/chaser
 presentation. The Image-initiated record page remains the image record
 (D1) and still renders its image gallery alongside preserved
-filenames/group evidence, custody, and chronological merge/closure history; staff closure is
+filenames/group evidence, custody, and chronological merge/closure history;
+staff closure is
 a reasoned action, terminal records are read-only, and it is not a generic
 Close control.
 
@@ -400,7 +404,8 @@ current state and account.
   and nothing else; when the seam has no ticket the control is absent.
 - A lost or expired edit lease surfaces the holder and expiry and disables
   Save; a stale version is a non-destructive conflict.
-- Tabs and palette history that cannot be read are treated as empty; the page renders correctly with none.
+- Tabs and palette history that cannot be read are treated as empty; the
+  page renders correctly with none.
 - A redirect from a removed route keeps the query it was given.
 
 ## Acceptance evidence
