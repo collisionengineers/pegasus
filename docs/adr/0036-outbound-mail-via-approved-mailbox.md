@@ -8,6 +8,7 @@ related_capabilities: []
 related_frd: [frd-08]
 tags: [mailbox, outbound-mail, graph]
 ---
+
 # ADR-0036: Outbound mail via the approved mailbox
 
 ## Status
@@ -49,9 +50,7 @@ Sent-evidence poll retains the item and auto-links it to the Case named at
 send time, and the draft text is not evidence until that item exists.
 
 Flag and Delete are mailbox mutations through the same seam as the confirmed
-folder move. Delete moves the item to Deleted Items — it is never a hard
-delete — and the item stays reachable through the existing read-only
-Deleted Items search.
+folder move; their behaviour is specified in FRD-08.
 
 The capability is composed only by explicit configuration, following the
 composed-or-absent pattern of `IRetainedMailFolderMover`: absent, the
@@ -64,7 +63,8 @@ Enabling it in production is a separately approved live write under the
 
 - The application registration needs Graph `Mail.Send` and `Mail.ReadWrite`
   for the approved mailboxes, granted as a separately approved tenant change
-  and kept apart from the read/intake scopes as FRD-08 requires.
+  under the [runbook approval matrix](../runbook.md#live-operation-approval-matrix)
+  and kept apart from the read/intake scopes.
 - The Sent-evidence poll (`SentEvidencePollFunction`, ADR-0024 §4) is part of
   the activation set: a send whose Sent item is never polled has no evidence,
   so activation without it is refused.
