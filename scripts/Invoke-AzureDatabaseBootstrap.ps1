@@ -350,6 +350,27 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|G|$permission|EvaSubmissions")
         }
     }
+    # 20260828084644_GrantAiJobs: AUTO-011 added the pull-based AI job ledger
+    # (ADR-0035). Only Web touches it — staff create, cancel and confirm from
+    # the application and external AI clients claim and finish jobs through
+    # the /mcp ingress that Web hosts; the Worker runs no AI timer. Rows are
+    # created once and then move through their states in place, so Web holds
+    # SELECT, INSERT and UPDATE. A job is a permanent record: no DELETE is
+    # granted, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
+    }
+    # 20260828104139_GrantPrincipalApiCredentials: TICK-061 added one Provider
+    # API credential per Principal (API-04). Only Web touches it —
+    # Administrators issue, reset, pause, resume and revoke from the
+    # application and the Provider API verifies a presented secret in the
+    # same process; the Worker never authenticates a provider. A row is
+    # created once and then rotated or moved through its states in place, so
+    # Web holds SELECT, INSERT and UPDATE. A revoked credential stays as the
+    # record of what was revoked: no DELETE, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
+    }
     return @($expected | Sort-Object -Unique)
 }
 

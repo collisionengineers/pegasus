@@ -73,6 +73,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<CaseRepairSpecificationEntity>();
     internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
+    internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
+    internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
@@ -174,6 +176,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         EvaHandoffModelConfiguration.Configure(builder);
         EvaSubmissionModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
+        PrincipalCredentialModelConfiguration.Configure(builder);
         IntakeAllocationModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>

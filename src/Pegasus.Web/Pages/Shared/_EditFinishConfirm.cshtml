@@ -1,0 +1,19 @@
+@*
+    CASE-007: finishing edit mode with unsaved changes asks first.
+
+    Rendered by every page that carries edit mode. The script in site.js finds
+    this by id and treats any form holding an editLeaseToken as the work that
+    would be lost, so the two pages share one dialog rather than each keeping
+    its own copy of the same three answers.
+*@
+<div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
+    <div class="reason-dialog">
+        <h2 id="edit-finish-title">Save your changes before finishing?</h2>
+        <p>Values not saved are not kept.</p>
+        <div class="button-row">
+            <button type="button" class="secondary-action" data-edit-finish-keep>Keep editing</button>
+            <button type="button" class="secondary-action" data-edit-finish-discard>Discard</button>
+            <button type="button" class="primary-action" data-edit-finish-save>Save changes</button>
+        </div>
+    </div>
+</div>

@@ -58,14 +58,6 @@ ticket can't leave Backlog. Quick-filed tickets default to `docs_todo`.
 Filing a ticket isn't the same as starting it: if the user only asked you to
 file one, create it and stop there.
 
-## Epic context
-
-When creating an epic or cross-ticket feature group that needs one shared
-approval/constraint contract, write `assets/group-context.md` with
-`set_group_doc(path: "context.md")` after creation and read it before members
-start. Horizons do not require context by default; membership remains on tickets
-through `update_item(groups: [...])`, not a parent/child model.
-
 ## Linking
 
 Link once, in one direction. Backlinks are derived, so linking A→B is

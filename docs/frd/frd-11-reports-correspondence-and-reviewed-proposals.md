@@ -98,11 +98,13 @@ approved, or sent by this action — it is strictly the draft-generation step
 the renderer boundary above already defines; approval and issue remain the
 separately owned human acts described below.
 
-The Assessment screen is unavailable in `Not ready`, `Held`, post-report and
-terminal states. It is available in `Review` and `Report preparation` only after
-a successful EVA export in the current Review cycle. A later optional Engineer
-assignment does not invalidate that export or gate access. Returning to Review
-for corrected case data starts a new cycle and requires a fresh export.
+The Assessment workspace is available once the Case has entered `Report
+preparation` or later (displayed "With Engineer") and a successful EVA export
+or submission exists for the current Review cycle. It is never available in
+`Not ready`, `Review` or `Held`; it is editable in `Report preparation` and
+`Post report`, read-only in `Post-report complete`, and unavailable in the
+other terminal outcomes. Returning to Review for corrected case data starts a
+new cycle and requires a fresh export before the workspace opens again.
 
 **Readiness.** A single readiness rail decides whether the control is enabled:
 `AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
@@ -200,6 +202,84 @@ identities. Stale work cannot overwrite a newer case/evidence version;
 duplicate, expired, or cancelled requests are idempotent or inert outcomes of
 the tracking record that never mutate accepted data; no AI caller confirms,
 approves, or sends autonomously.
+
+### AI Job List
+
+The AI Job List is the AI-10 catalogue: one durable ledger of named AI jobs
+([ADR-0035](../adr/0035-ai-job-ledger.md)) that external AI clients claim
+through the Automation Actor ([FRD-10 § AI job and estimate
+tools](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
+Pegasus never runs an AI job itself and never applies a job's result to
+accepted data; every result is a draft or proposal that a staff act confirms
+through the existing action for that record. Visuals follow
+`docs/design/README.md`.
+
+**Kinds.** The catalogue is a closed Core list; an unknown kind is refused at
+creation.
+
+| Kind | Started from | Input | Result | Staff confirmation |
+| --- | --- | --- | --- | --- |
+| Estimate | Assessment `Send to Claude` (With Engineer or onwards) | Direction text and a target percentage of the recorded Engineer's Value; refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
+| Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
+| Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
+
+**States.** `Queued` → `Taken` → `Draft ready` → `Completed`, with `Failed`,
+`Cancelled` and `Expired` as the other terminal states.
+
+- `Queued`: created and claimable. Creation records the kind, the target
+  record, and *started by* — a staff username or the connector client name.
+- `Taken`: claimed by a named connector client under a lease with a visible
+  expiry. A lease that expires returns the job to `Queued` and records the
+  expired claim; a client may release a job back to `Queued` before then.
+- `Draft ready`: the client has written its result and named it on the job;
+  the job waits for staff.
+- `Completed`: the staff act that consumes the result has been recorded, or
+  staff completed the job by hand for a kind whose result needs no separate
+  act (Query response, Unidentified-queue pass).
+- `Failed`: the client reported failure with a reason; the job is not
+  re-queued automatically.
+- `Cancelled`: staff cancelled with a reason; a taken job is cancelled at
+  once and the client's next progress call is refused.
+- `Expired`: a job that was never taken before its own expiry.
+
+Every transition carries an operation key and an expected version; a stale
+or duplicate transition is an inert, recorded outcome. Transitions by a
+client are attributed to the Automation Actor and the client name; staff
+transitions to the staff username. The Administrator kill switch refuses
+claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
+
+**Operations panel.** The AI Job List on `/operations` shows every non-terminal
+job and the terminal jobs of the current day: Job (kind and detail), Record,
+Started by, Created, State, Action. The action is one of `Review estimate`
+(opens the Assessment estimate tab), `Open query` (opens the message), or
+`Review` (opens the Unidentified item) for a `Draft ready` job; `Complete
+job` for a `Draft ready` Query response or Unidentified-queue pass; `Cancel`
+(reason required) for any non-terminal job; otherwise nothing. `Send
+Unidentified to AI` creates an Unidentified-resolution job for a chosen U
+reference.
+
+**Administration.** Automation & AI shows the active and failed job counts and
+the Stop/Start automation control; that control is the ADR-0026 kill switch,
+so stopping automation also stops the ledger.
+
+### Estimate VAT on the rendered report
+
+Each estimate carries its own VAT percentage, entered freely on the estimate
+(D9). For the rendered assessment report, the Current estimate's VAT
+percentage replaces the built-in repairer-VAT-registered rule; that rule
+applies only when no Current estimate exists. The figures are computed once
+by `Pegasus.Core`:
+
+| Figure | Rule |
+| --- | --- |
+| Parts | Sum of part prices × quantity |
+| Labour | Labour hours × labour rate |
+| Paint | Paint hours × paint labour rate, plus paint materials |
+| Other | Other costs |
+| Subtotal | Parts + Labour + Paint + Other |
+| VAT | Subtotal × VAT % |
+| Total | Subtotal + VAT |
 
 Signatures embedded in governed renderer documents are provenance-sensitive
 document assets, not Web decorative imagery.

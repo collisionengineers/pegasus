@@ -86,6 +86,50 @@
         goes to the estimate section's import surface.
     *@
     <div class="record__bar">
+        @* CASE-024: the assessment's own saves run under the case's one edit
+           lease, entered here, so an engineer working an assessment is visible
+           to other staff as the case's editor. *@
+        @if (!Model.CaseIsArchived)
+        {
+            @if (!string.IsNullOrWhiteSpace(Model.LeaseToken))
+            {
+                <form method="post" asp-page-handler="ReleaseLease" class="record__bar-form" data-edit-toggle-off>
+                    <input type="hidden" name="id" value="@caseId" />
+                    <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="section" value="@current" />
+                    <button type="submit" class="btn btn--dark">Finish editing</button>
+                </form>
+                <partial name="Shared/_EditHeartbeat" view-data='new ViewDataDictionary(ViewData) { ["HeartbeatCaseId"] = caseId, ["HeartbeatLeaseToken"] = Model.LeaseToken }' />
+            }
+            else if (Model.CanRecoverLease)
+            {
+                <form method="post" asp-page-handler="ClaimLease" class="record__bar-form">
+                    <input type="hidden" name="id" value="@caseId" />
+                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Header.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <input type="hidden" name="section" value="@current" />
+                    <button type="submit" class="btn">Recover editing</button>
+                </form>
+            }
+            else if (Model.EditAuthorityHolder is { } holder)
+            {
+                <span class="record__bar-note" data-edit-authority>
+                    @EditModeDisplay.HeldBy(holder, Model.ViewerHoldsEditAuthority)
+                    Editing cannot be taken over.
+                </span>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="ClaimLease" class="record__bar-form">
+                    <input type="hidden" name="id" value="@caseId" />
+                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Header.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <input type="hidden" name="section" value="@current" />
+                    <button type="submit" class="btn">Edit assessment</button>
+                </form>
+            }
+        }
         <span class="gated" data-condition="Available once the estimating-service link is agreed">
             <a class="btn is-disabled" aria-disabled="true">
                 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
@@ -639,6 +683,7 @@
                         <h3 class="section-label section-gap">Accept this specification</h3>
                         <form method="post" asp-page-handler="AcceptSpecification">
                             <input type="hidden" name="operationKey" value="@Model.AcceptOperationKey" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                             <input type="hidden" name="specificationId" value="@draftSpec.SpecificationId" />
                             <input type="hidden" name="specificationVersion" value="@draftSpec.Version" />
                             <div class="form-grid">
@@ -694,6 +739,7 @@
                     <h3 class="section-label section-gap">Import an estimate</h3>
                     <form method="post" enctype="multipart/form-data" asp-page-handler="ImportEstimate">
                         <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                         <div class="dropzone" data-dropzone>
                             <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
                             <label for="estimate-file">Drag an estimate here, or choose it</label>
@@ -1071,6 +1117,7 @@
                 <form method="post" asp-page-handler="SaveDamage" class="damage-grid" data-damage-grid>
                     <input type="hidden" name="id" value="@Model.Case!.Header.CaseId" />
                     <input type="hidden" name="operationKey" value="@Model.DamageOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     @foreach (var (code, label) in new[]
                     {
                         ("left_front", "Left front"), ("left_side", "Left side"), ("left_rear", "Left rear"),
@@ -1392,3 +1439,5 @@
         </div>
     }
 }
+
+<partial name="Shared/_EditFinishConfirm" />

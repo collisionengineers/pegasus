@@ -15,7 +15,12 @@ namespace Pegasus.Core.Operations;
 /// Intake still awaiting instruction (image-initiated), matching the rows the
 /// Queues page's Not ready tab lists for both origins combined.
 /// </remarks>
-public sealed record CaseStageCounts(int NotReady, int Review, int Held);
+/// <param name="WithEngineer">
+/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation"/>
+/// or <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReport"/>: the
+/// operator reads both as "With Engineer" (EPIC-011 D3).
+/// </param>
+public sealed record CaseStageCounts(int NotReady, int Review, int Held, int WithEngineer);
 
 /// <summary>
 /// What moved today and this week.

@@ -103,7 +103,11 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260826151807_ApprovedMailboxStableIdentityAndSubscriptions",
                 "20260827100901_ReactivateBoundApprovedMailboxes",
                 "20260827143132_EvaApiSubmissions",
-                "20260827143200_GrantEvaSubmissions"
+                "20260827143200_GrantEvaSubmissions",
+                "20260828084601_AiJobs",
+                "20260828084644_GrantAiJobs",
+                "20260828104130_PrincipalApiCredentials",
+                "20260828104139_GrantPrincipalApiCredentials"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

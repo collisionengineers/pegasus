@@ -145,7 +145,7 @@ public sealed class IndexModel(
             exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
         {
             PreserveReason(requestId, reason);
-            StatusMessage = "This link's case is open for editing by someone else. Try again in a few minutes.";
+            StatusMessage = "This link's case is open for editing by someone else.";
             return RedirectToPage();
         }
 

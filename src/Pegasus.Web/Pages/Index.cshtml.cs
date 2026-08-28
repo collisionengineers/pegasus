@@ -16,7 +16,7 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
 
     public IReadOnlyList<CaseDueWork> DueWork { get; private set; } = [];
 
-    public CaseStageCounts CaseStages { get; private set; } = new(0, 0, 0);
+    public CaseStageCounts CaseStages { get; private set; } = new(0, 0, 0, 0);
 
     public CaseActivityCounts CaseActivity { get; private set; } = new(0, 0, 0, 0, 0);
 
