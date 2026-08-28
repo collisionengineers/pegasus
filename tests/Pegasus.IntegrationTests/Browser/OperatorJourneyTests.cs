@@ -87,6 +87,25 @@ public sealed class OperatorJourneyTests
             support.Services, accepted.CaseId, repositoryFixture);
         await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         await EnterEditModeByKeyboardAsync(support.Page);
+
+        // PLAT-029: a reason dialog rendered inside the page (here the
+        // remove-document dialog on the evidence tab), not in the shell, must
+        // stay reachable while open: site.js sets inert on what is outside
+        // the dialog, never on an ancestor of it. The close click is a real
+        // pointer click, which an inert dialog would refuse.
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?tab=evidence");
+        var removeTrigger = support.Page.Locator("[data-dialog-open^='remove-doc-']").First;
+        await removeTrigger.ClickAsync();
+        var reasonDialog = support.Page.Locator("#" + await removeTrigger.GetAttributeAsync("data-dialog-open"));
+        Assert.True(await reasonDialog.IsVisibleAsync());
+        Assert.True(await reasonDialog.EvaluateAsync<bool>(
+            "dialog => dialog.contains(document.activeElement) && dialog.closest('[inert]') === null"));
+        Assert.True(await reasonDialog.Locator("button[type='submit']").IsEnabledAsync());
+        await reasonDialog.Locator("[data-dialog-close]").First.ClickAsync();
+        Assert.True(await reasonDialog.IsHiddenAsync());
+        Assert.Equal(0, await support.Page.Locator("[inert]").CountAsync());
+
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         var retryButton = support.Page.GetByRole(
             AriaRole.Button,
             new PageGetByRoleOptions { Name = "Retry custody", Exact = true });

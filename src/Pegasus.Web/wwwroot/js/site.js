@@ -699,6 +699,26 @@
     // dialog is reachable, and return focus to the invoking control. This
     // lives here rather than beside the markup because the deployed
     // Content-Security-Policy discards inline scripts.
+    // While a dialog is open everything outside it is inert. A dialog may be
+    // rendered anywhere in the page (a Case page's reason dialogs live inside
+    // the shell), so inert is set on the siblings of each of its ancestors up
+    // to body - never on an ancestor - and exactly those elements are
+    // released on close.
+    function inertOutside(dialog) {
+        var made = [];
+        for (var node = dialog; node && node !== document.body; node = node.parentElement) {
+            Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
+                if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT') {
+                    sibling.setAttribute('inert', '');
+                    made.push(sibling);
+                }
+            });
+        }
+        return function release() {
+            made.forEach(function (element) { element.removeAttribute('inert'); });
+        };
+    }
+
     document.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
         if (dialog.dataset.dialogBound === 'true') {
             return;
@@ -706,7 +726,7 @@
         dialog.dataset.dialogBound = 'true';
 
         var dialogId = dialog.getAttribute('data-dialog') || dialog.id;
-        var shell = document.querySelector('[data-app-shell]');
+        var release = null;
         var invoker = null;
 
         function focusable() {
@@ -718,9 +738,7 @@
         function open(source) {
             invoker = source;
             dialog.hidden = false;
-            if (shell) {
-                shell.setAttribute('inert', '');
-            }
+            release = inertOutside(dialog);
             document.addEventListener('keydown', onKeydown, true);
             var items = focusable();
             var initial = dialog.querySelector('[data-dialog-initial-focus]')
@@ -734,8 +752,9 @@
 
         function close() {
             dialog.hidden = true;
-            if (shell) {
-                shell.removeAttribute('inert');
+            if (release) {
+                release();
+                release = null;
             }
             document.removeEventListener('keydown', onKeydown, true);
             if (invoker) {
@@ -874,7 +893,7 @@
             following.disabled = index === items.length - 1;
         }
 
-        var shell = document.querySelector('[data-app-shell]');
+        var release = null;
 
         function open(trigger) {
             var set = trigger.closest('[data-evidence-set]');
@@ -890,9 +909,7 @@
             var start = items.indexOf(trigger);
             invoker = trigger;
             viewer.hidden = false;
-            if (shell) {
-                shell.setAttribute('inert', '');
-            }
+            release = inertOutside(viewer);
             document.addEventListener('keydown', onKeydown, true);
             show(start < 0 ? 0 : start);
             var controls = focusable();
@@ -903,8 +920,9 @@
 
         function close() {
             viewer.hidden = true;
-            if (shell) {
-                shell.removeAttribute('inert');
+            if (release) {
+                release();
+                release = null;
             }
             document.removeEventListener('keydown', onKeydown, true);
             // Drop the source so a large preview stops loading once it is off
