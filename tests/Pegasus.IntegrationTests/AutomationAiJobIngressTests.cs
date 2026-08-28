@@ -1,0 +1,374 @@
+using System.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.AiWork;
+using Pegasus.Core.Identity;
+using Pegasus.Web.Authentication;
+using Pegasus.Web.Mcp;
+using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
+
+namespace Pegasus.IntegrationTests;
+
+/// <summary>
+/// Caller-equivalent evidence for the AI job ledger (ADR-0035): the store
+/// on real LocalDB persistence and the <c>automation.jobs</c> tools over
+/// real HTTP against the gated /mcp surface, with the same attribution
+/// assertions as the other Automation Actor tranches.
+/// </summary>
+[Trait("Category", "SqlServer")]
+public sealed class AutomationAiJobIngressTests
+{
+    private const string JobsScope = "automation.jobs";
+    private static readonly ActionActor Staff =
+        ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+    private static readonly ActionActor Client = ActionActor.Automation(ClientId);
+
+    [Fact]
+    public async Task TheStoreReplaysCreationGuardsVersionsAndExpiresLeasesWithHistory()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(SeedUtcNow);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+        var work = scope.ServiceProvider.GetRequiredService<IWorkAiJob>();
+
+        var job = new NewAiJob(
+            AiJobKind.UnidentifiedQueuePass,
+            AiJobSubjectKind.Queue,
+            null,
+            AiJobPolicy.QueueSubjectReference,
+            "Pass the queue.",
+            null,
+            null,
+            Staff,
+            "create-op",
+            AiJobPolicy.DefaultExpiry);
+        var created = await store.CreateAsync(job, CancellationToken.None);
+        Assert.Equal(AiJobState.Queued, created.State);
+        Assert.Equal(0, created.Version);
+        var replayed = await store.CreateAsync(job, CancellationToken.None);
+        Assert.Equal(created.JobId, replayed.JobId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.CreateAsync(job with { Instruction = "Different instruction." }, CancellationToken.None));
+
+        var taken = await work.TakeAsync(new(created.JobId, 0, Client, "take-1"), CancellationToken.None);
+        Assert.Equal(AiJobState.Taken, taken.State);
+        Assert.Equal(ClientId, taken.TakenBy);
+        Assert.Equal(SeedUtcNow + AiJobPolicy.LeaseDuration, taken.LeaseExpiresAtUtc);
+        Assert.Equal(1, taken.Version);
+
+        // A stale version is a refused, recorded outcome; the same key replays.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            work.ReportProgressAsync(new(created.JobId, 0, Client, "progress-stale", "x"), CancellationToken.None));
+        var replay = await work.TakeAsync(new(created.JobId, 0, Client, "take-1"), CancellationToken.None);
+        Assert.Equal(1, replay.Version);
+
+        // Another client cannot progress a job this client holds.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            work.ReportProgressAsync(
+                new(created.JobId, 1, ActionActor.Automation("other-client"), "progress-other", "x"),
+                CancellationToken.None));
+
+        // The lease lapses: the job reads as Queued and may be taken again,
+        // and the lapsed claim is recorded rather than erased.
+        clock.Advance(AiJobPolicy.LeaseDuration + TimeSpan.FromSeconds(1));
+        var lapsed = await store.GetAsync(created.JobId, CancellationToken.None);
+        Assert.Equal(AiJobState.Queued, lapsed!.State);
+        var open = await queries.ListOpenAsync(CancellationToken.None);
+        Assert.Equal(AiJobState.Queued, Assert.Single(open, item => item.JobId == created.JobId).State);
+        var retaken = await work.TakeAsync(
+            new(created.JobId, lapsed.Version, ActionActor.Automation("other-client"), "take-2"),
+            CancellationToken.None);
+        Assert.Equal(AiJobState.Taken, retaken.State);
+        Assert.Equal("other-client", retaken.TakenBy);
+
+        var counts = await queries.GetCountsAsync(CancellationToken.None);
+        Assert.Equal(new AiJobCounts(1, 0), counts);
+
+        var history = await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'ai_job'
+              AND AggregateId = N'{created.JobId:D}'
+              AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_expired')
+            """);
+        Assert.Equal(4, history);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'ai_job'
+              AND AggregateId = N'{created.JobId:D}'
+              AND EventKind = N'ai_job_expired'
+              AND Reason LIKE N'%{ClientId}%'
+            """));
+    }
+
+    [Fact]
+    public async Task JobToolsEnforceTheJobsScopeAndAppearInTheInventory()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+
+        var metadata = await client.GetStringAsync("/.well-known/oauth-protected-resource/mcp");
+        Assert.Contains(JobsScope, metadata, StringComparison.Ordinal);
+
+        var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
+        using var response = await PostMcpAsync(
+            client,
+            casesOnlyToken,
+            ToolCallPayload(1, "pegasus_ai_job_list", new { }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await ReadJsonRpcAsync(response);
+        Assert.Contains(JobsScope, document.RootElement.ToString(), StringComparison.Ordinal);
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_scope_denied'
+              AND Outcome = N'Denied'
+              AND SubjectId = N'pegasus-automation'
+            """));
+    }
+
+    [Fact]
+    public async Task AClientCreatesListsTakesProgressesAndCompletesAQueuePassOverHttp()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, JobsScope);
+
+        // Only the queue pass may be started by the Actor (EPIC-011 D5).
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                1,
+                "pegasus_ai_job_create",
+                new { kind = "Estimate", instruction = "Draft it.", operationKey = "mcp:create-estimate" })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.Contains(
+                "UnidentifiedQueuePass",
+                document.RootElement.ToString(),
+                StringComparison.Ordinal);
+        }
+
+        Guid jobId;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                2,
+                "pegasus_ai_job_create",
+                new
+                {
+                    kind = "UnidentifiedQueuePass",
+                    instruction = "Propose a destination for every open item.",
+                    operationKey = "mcp:create-pass"
+                })))
+        {
+            var created = await ReadStructuredContentAsync(response);
+            Assert.Equal("Queued", created.GetProperty("state").GetString());
+            Assert.Equal("UnidentifiedQueuePass", created.GetProperty("kind").GetString());
+            Assert.Equal(ClientId, created.GetProperty("createdBy").GetString());
+            jobId = created.GetProperty("jobId").GetGuid();
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(3, "pegasus_ai_job_list", new { kind = "UnidentifiedQueuePass" })))
+        {
+            var list = await ReadStructuredContentAsync(response);
+            var listed = Assert.Single(
+                list.GetProperty("jobs").EnumerateArray(),
+                item => item.GetProperty("jobId").GetGuid() == jobId);
+            Assert.Equal("Queued", listed.GetProperty("state").GetString());
+        }
+
+        long version;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                4,
+                "pegasus_ai_job_take",
+                new { jobId, expectedVersion = 0, operationKey = "mcp:take-1" })))
+        {
+            var taken = await ReadStructuredContentAsync(response);
+            Assert.Equal("Taken", taken.GetProperty("state").GetString());
+            Assert.Equal(ClientId, taken.GetProperty("takenBy").GetString());
+            Assert.True(taken.GetProperty("leaseExpiresAtUtc").GetDateTimeOffset() > DateTimeOffset.UtcNow);
+            version = taken.GetProperty("version").GetInt64();
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                5,
+                "pegasus_ai_job_progress",
+                new { jobId, expectedVersion = version, progressNote = "Two of five examined.", operationKey = "mcp:progress-1" })))
+        {
+            var progressed = await ReadStructuredContentAsync(response);
+            Assert.Equal("Two of five examined.", progressed.GetProperty("progressNote").GetString());
+            version = progressed.GetProperty("version").GetInt64();
+        }
+
+        // A result of the wrong kind for the job is refused.
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                6,
+                "pegasus_ai_job_complete",
+                new
+                {
+                    jobId,
+                    expectedVersion = version,
+                    resultKind = "DraftReply",
+                    resultText = "Wrong kind.",
+                    operationKey = "mcp:complete-wrong"
+                })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.Contains("ProposedResolution", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                7,
+                "pegasus_ai_job_complete",
+                new
+                {
+                    jobId,
+                    expectedVersion = version,
+                    resultKind = "ProposedResolution",
+                    resultText = "U17: add to CE-QDOS-31-00001 (registration match).",
+                    operationKey = "mcp:complete-1"
+                })))
+        {
+            var ready = await ReadStructuredContentAsync(response);
+            Assert.Equal("DraftReady", ready.GetProperty("state").GetString());
+            Assert.Equal("ProposedResolution", ready.GetProperty("resultKind").GetString());
+            version = ready.GetProperty("version").GetInt64();
+        }
+
+        // Draft ready waits for staff: the client can no longer release it.
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                8,
+                "pegasus_ai_job_release",
+                new { jobId, expectedVersion = version, operationKey = "mcp:release-1" })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.Contains("cannot move from DraftReady", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        // Nothing was applied to any record: the ledger row is the only
+        // business effect, and every step is attributed Automation history.
+        Assert.Equal(4, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'ai_job'
+              AND AggregateId = N'{jobId:D}'
+              AND ActorKind = N'Automation'
+              AND ActorSubjectId = N'{ClientId}'
+              AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_progress', N'ai_job_draft_ready')
+            """));
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'automation_mcp'
+              AND AggregateId = N'{jobId:D}'
+              AND Outcome = N'Succeeded'
+              AND EventKind IN (N'pegasus_ai_job_take', N'pegasus_ai_job_complete')
+            """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'automation_mcp'
+              AND EventKind = N'pegasus_ai_job_create'
+              AND Outcome = N'Succeeded'
+            """));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
+    }
+
+    [Fact]
+    public async Task TheAdministratorSwitchRefusesClaimsAndProgressButNotFinishing()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, JobsScope);
+
+        Guid queued;
+        Guid held;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var create = scope.ServiceProvider.GetRequiredService<ICreateAiJob>();
+            queued = (await create.ExecuteAsync(
+                new(AiJobKind.UnidentifiedQueuePass, null, null, "Pass one.", null, Staff, "seed-1"),
+                CancellationToken.None)).JobId;
+            held = (await create.ExecuteAsync(
+                new(AiJobKind.UnidentifiedQueuePass, null, null, "Pass two.", null, Staff, "seed-2"),
+                CancellationToken.None)).JobId;
+            await scope.ServiceProvider.GetRequiredService<IWorkAiJob>()
+                .TakeAsync(new(held, 0, Client, "seed-take"), CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<ISendToAiControl>()
+                .SetEnabledAsync(false, Staff, "Integration-test stop", "seed-stop", CancellationToken.None);
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(1, "pegasus_ai_job_take", new { jobId = queued, expectedVersion = 0, operationKey = "mcp:take-off" })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.Contains("disabled by an Administrator", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                2,
+                "pegasus_ai_job_progress",
+                new { jobId = held, expectedVersion = 1, progressNote = "Still going.", operationKey = "mcp:progress-off" })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.Contains("disabled by an Administrator", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                3,
+                "pegasus_ai_job_fail",
+                new { jobId = held, expectedVersion = 1, reason = "Stopped by the Administrator.", operationKey = "mcp:fail-off" })))
+        {
+            var failed = await ReadStructuredContentAsync(response);
+            Assert.Equal("Failed", failed.GetProperty("state").GetString());
+        }
+
+        // Every refused claim is recorded against the Automation actor and
+        // the queued job is untouched.
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'automation_mcp'
+              AND EventKind = N'pegasus_ai_job_take'
+              AND AggregateId = N'{queued:D}'
+              AND Outcome = N'Failed'
+            """));
+        Assert.Equal("Queued", await factory.Database.ScalarAsync<string>(
+            $"SELECT State FROM AiJobs WHERE JobId = '{queued:D}'"));
+    }
+}
