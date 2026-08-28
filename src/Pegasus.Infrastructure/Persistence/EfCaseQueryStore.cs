@@ -199,7 +199,7 @@ public sealed class EfCaseQueryStore(
             && CaseEditAuthority.IsHeld(expiresAtUtc, timeProvider.GetUtcNow())
                 ? new CaseEditLeaseSnapshot(
                     holder,
-                    CaseMutationGuard.RetainedHolderKind(workflow),
+                    CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
                     expiresAtUtc,
                     operationKey)
                 : null;

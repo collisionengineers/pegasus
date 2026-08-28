@@ -1245,7 +1245,7 @@ public sealed class EfCaseWorkflowStore(
             throw new CaseEditLeaseExpiredException(workflow.CaseId, workflow.Version);
         }
         if (!CaseEditAuthority.IsHolder(
-                CaseMutationGuard.RetainedHolderKind(workflow),
+                CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
                 workflow.EditLeaseHolder,
                 actor))
         {
