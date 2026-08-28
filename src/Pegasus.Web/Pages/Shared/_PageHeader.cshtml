@@ -3,9 +3,10 @@
     var eyebrow = ViewData["Eyebrow"] as string;
     var primaryActionText = ViewData["PrimaryActionText"] as string;
     var primaryActionUrl = ViewData["PrimaryActionUrl"] as string;
+    var primaryActionIcon = ViewData["PrimaryActionIcon"] as string ?? "icon-plus";
 }
-<div class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         @if (!string.IsNullOrEmpty(eyebrow))
         {
             <p class="eyebrow">@eyebrow</p>
@@ -14,11 +15,11 @@
     </div>
     @if (!string.IsNullOrEmpty(primaryActionText) && !string.IsNullOrEmpty(primaryActionUrl))
     {
-        <div class="page-heading-actions">
-            <a href="@primaryActionUrl" class="primary-action">
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg>
+        <div class="page-actions">
+            <a href="@primaryActionUrl" class="btn btn--primary">
+                <svg class="icon" aria-hidden="true"><use href="#@primaryActionIcon" /></svg>
                 <span>@primaryActionText</span>
             </a>
         </div>
     }
-</div>
+</header>
