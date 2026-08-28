@@ -6,372 +6,433 @@
     ViewData["Title"] = "Inbox";
     ViewData["RefreshStatus"] = Pegasus.Web.Pages.Mail.IndexModel.FreshnessStatus(Model.Freshness.State);
     ViewData["RefreshFields"] = Model.RefreshFields;
+    var selectedDetail = Model.SelectedDetail;
+    var selectedSummary = selectedDetail?.Summary;
+    var totalPages = Model.DeletedResults?.TotalPages ?? Model.Results.TotalPages;
+    var currentPage = Model.DeletedResults?.Page ?? Model.Results.Page;
 }
 
-@* No lede. The tabs, the rows and the freshness element are the explanation. *@
-<header class="page-heading">
-    <h1>Inbox</h1>
-    <partial name="Shared/_FreshnessBanner" model="Model.Freshness.LastSuccessfulUpdateAtUtc" />
+@* No lede. The filter bar, the rows and the freshness element are the explanation. *@
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Retained mail</p>
+        <h1>Inbox</h1>
+    </div>
+    <div class="page-actions">
+        <partial name="Shared/_FreshnessBanner" model="Model.Freshness.LastSuccessfulUpdateAtUtc" />
+    </div>
 </header>
 
-@if (Model.Mailboxes.Count > 1)
-{
-    <nav class="tabs" aria-label="Mailbox">
-        <a asp-page="/Mail/Index" asp-route-folder="@Model.FolderRouteValue"
-           asp-route-search="@Model.SearchTerm"
-           asp-route-queue="@Model.QueueFilter"
-           aria-current="@(Model.MailboxFilter is null ? "page" : null)">All mailboxes</a>
-        @foreach (var mailbox in Model.Mailboxes)
-        {
-            <a asp-page="/Mail/Index" asp-route-mailbox="@mailbox.MailboxId"
-               asp-route-folder="@Model.FolderRouteValue"
-               asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter"
-               aria-current="@(Model.MailboxFilter == mailbox.MailboxId.ToString("D") ? "page" : null)">@mailbox.MailboxAddress</a>
-        }
-    </nav>
-}
-
-<nav class="subtabs section-gap" aria-label="Folder">
-    @foreach (var folder in new[] { MailFolderScope.Inbox, MailFolderScope.Sent, MailFolderScope.DeletedItems })
-    {
-        <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
-           asp-route-search="@Model.SearchTerm"
-           asp-route-queue="@(folder == MailFolderScope.DeletedItems ? null : Model.QueueFilter)"
-           asp-route-folder="@(folder == MailFolderScope.Inbox ? null : Pegasus.Web.Pages.Mail.IndexModel.FolderCode(folder))"
-           aria-current="@(Model.Folder == folder ? "page" : null)">@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(folder)</a>
-    }
-</nav>
-
-@if (Model.Folder != MailFolderScope.DeletedItems)
-{
-    <form method="get" class="panel filterbar section-gap" aria-label="Mail view">
-        @if (Model.MailboxFilter is not null)
-        {
-            <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
-        }
-        @if (Model.FolderRouteValue is not null)
-        {
-            <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
-        }
-        @if (Model.SearchTerm is not null)
-        {
-            <input type="hidden" name="search" value="@Model.SearchTerm" />
-        }
-        <div class="filterbar__line">
-            <label for="mail-view">Queue or detailed classification</label>
-            <select id="mail-view" name="queue">
-                <option value="" selected="@(Model.QueueFilter is null)">All retained mail</option>
-                <optgroup label="Operational queues">
-                    @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
-                    {
-                        <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
-                    }
-                </optgroup>
-                <optgroup label="Detailed classifications">
-                    @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
-                    {
-                        <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
-                    }
-                </optgroup>
-            </select>
-            <button class="btn btn--dark" type="submit">Show view</button>
-        </div>
-    </form>
-}
-
-<form method="get" class="panel filterbar section-gap" role="search">
-    @if (Model.MailboxFilter is not null)
-    {
-        <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
-    }
-    @if (Model.FolderRouteValue is not null)
-    {
-        <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
-    }
-    @if (Model.QueueFilter is not null)
-    {
-        <input type="hidden" name="queue" value="@Model.QueueFilter" />
-    }
-    <div class="filterbar__line">
-        <label for="mail-search" class="vh">@(Model.Folder == MailFolderScope.Inbox ? "Search retained mail in current folders" : "Search this mailbox and folder")</label>
-        <input id="mail-search" name="search" value="@Model.SearchTerm" maxlength="200"
-               placeholder="Message body or attachment" />
-        <button class="btn btn--dark" type="submit">Search</button>
-        @if (Model.SearchTerm is not null)
-        {
-            <a class="btn" asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
-               asp-route-folder="@Model.FolderRouteValue"
-               asp-route-queue="@Model.QueueFilter">Clear</a>
-        }
+<form method="get" class="filter-bar" data-auto-submit aria-label="Mail view">
+    <div class="field">
+        <label for="mailbox-filter">Mailbox</label>
+        <select id="mailbox-filter" name="mailbox">
+            <option value="" selected="@(Model.MailboxFilter is null)">All approved mailboxes</option>
+            @foreach (var mailbox in Model.Mailboxes)
+            {
+                <option value="@mailbox.MailboxId"
+                        selected="@(Model.MailboxFilter == mailbox.MailboxId.ToString("D"))">
+                    @mailbox.MailboxAddress
+                </option>
+            }
+        </select>
     </div>
+    <div class="field">
+        <label for="folder-filter">Folder</label>
+        <select id="folder-filter" name="folder">
+            <option value="" selected="@(Model.Folder == MailFolderScope.Inbox)">Inbox</option>
+            <option value="sent" selected="@(Model.Folder == MailFolderScope.Sent)">Sent Items</option>
+            <option value="deleted" selected="@(Model.Folder == MailFolderScope.DeletedItems)">Deleted Items</option>
+        </select>
+    </div>
+    <div class="field">
+        @* A Deleted Items view has no queues; the select stays so switching
+           folders never submits a queue the deleted view refuses. *@
+        <label for="queue-filter">Queue</label>
+        <select id="queue-filter" name="queue" disabled="@(Model.Folder == MailFolderScope.DeletedItems)">
+            <option value="" selected="@(Model.QueueFilter is null)">All retained mail</option>
+            <optgroup label="Operational queues">
+                @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
+                {
+                    <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                }
+            </optgroup>
+            <optgroup label="Detailed classifications">
+                @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
+                {
+                    <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                }
+            </optgroup>
+        </select>
+    </div>
+    <div class="searchbox">
+        <label class="sr-only" for="mail-search">Search retained mail</label>
+        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+        <input id="mail-search" type="search" name="search" value="@Model.SearchTerm" maxlength="200" />
+    </div>
+    <button class="btn btn--dark" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+        <span>Search</span>
+    </button>
 </form>
 
-@* The mail list is a table: an operator scanning a morning's post compares
-   sender, subject, outcome and time down columns, which a stack of rows
-   cannot line up. *@
-@if (Model.SearchValidationMessage is not null)
-{
-    <div class="status-card" role="alert">@Model.SearchValidationMessage</div>
-}
-else if (Model.DeletedResults is { State: DeletedMailSearchState.Unavailable })
-{
-    <div class="status-card" role="status">Deleted Items search is unavailable. Retained Inbox mail remains available.</div>
-}
-else if (Model.DeletedResults is { } deleted)
-{
-    @if (deleted.IsTruncated)
-    {
-        <div class="status-card" role="status">This read-only search checked the 100 newest Deleted Items in the approved scope. Older items were not scanned.</div>
-    }
-    @if (deleted.Items.Count == 0)
-    {
-        <p class="empty-state">No Deleted Items matched “@Model.SearchTerm”.</p>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <caption class="vh">Deleted Items search results, most recent first</caption>
-                <thead><tr><th scope="col">From</th><th scope="col">Message</th><th scope="col">Matched in</th><th scope="col">Received</th></tr></thead>
-                <tbody>
-                @foreach (var item in deleted.Items)
+<section class="pane-layout @(selectedDetail is null ? "pane-layout--2" : "pane-layout--3")"
+         data-mail-preview-workspace aria-label="Retained mail">
+    <aside class="pane">
+        <div class="pane-head"><h2>Scope</h2></div>
+        <div class="pane-body pane-scroll">
+            <div class="scope-list">
+                @foreach (var scope in Model.Scopes)
                 {
-                    <tr data-state="@(item.IsRead ? "read" : "unread")">
-                        <td>@(item.SenderDisplayName ?? item.SenderAddress ?? "Sender not recorded")</td>
-                        <td>
-                            <details>
-                                <summary>@(string.IsNullOrWhiteSpace(item.Subject) ? "No subject" : item.Subject)</summary>
-                                <p><strong>Mailbox:</strong> @item.MailboxAddress</p>
-                                @if (string.IsNullOrWhiteSpace(item.BodyPlainText))
+                    <form method="get" action="/Inbox">
+                        @foreach (var field in scope.HiddenFields)
+                        {
+                            <input type="hidden" name="@field.Key" value="@field.Value" />
+                        }
+                        <button type="submit" class="scope-button" aria-pressed="@(scope.Pressed ? "true" : "false")">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-@scope.Definition.IconId" /></svg>
+                            </span>
+                            <span>@scope.Definition.Label</span>
+                            <span class="tabular">@scope.Count</span>
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </aside>
+
+    <div class="pane">
+        @* The sort order is a two-state link, so the pane head is a title and
+           the toggle in one row, as drawn. *@
+        <div class="pane-head inbox-messages-head">
+            <div class="inbox-message-title"><h2>Messages</h2></div>
+            @if (Model.Folder != MailFolderScope.DeletedItems)
+            {
+                <a class="btn btn--small sort-toggle"
+                   asp-page="/Mail/Index"
+                   asp-route-mailbox="@Model.MailboxFilter"
+                   asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter"
+                   asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                   asp-route-pageNumber="@(currentPage > 1 ? currentPage : (int?)null)"
+                   asp-route-sort="@(Model.OldestFirst ? null : "oldest")"
+                   aria-label="@(Model.OldestFirst
+                       ? "Received order: oldest first; activate for newest first"
+                       : "Received order: newest first; activate for oldest first")">
+                    Received @(Model.OldestFirst ? "↑" : "↓")
+                </a>
+            }
+        </div>
+        <div class="pane-body pane-scroll">
+            @if (Model.SearchValidationMessage is { } validationMessage)
+            {
+                <div class="notice notice--warning" role="alert">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@validationMessage</span>
+                </div>
+            }
+            else if (Model.DeletedResults is { State: DeletedMailSearchState.Unavailable })
+            {
+                <div class="notice" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+                    <span>Deleted Items search is unavailable. Retained Inbox mail remains available.</span>
+                </div>
+            }
+            else if (Model.DeletedResults is { } deleted)
+            {
+                @if (deleted.IsTruncated)
+                {
+                    <div class="notice" role="status">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+                        <span>This read-only search checked the 100 newest Deleted Items in the approved scope. Older items were not scanned.</span>
+                    </div>
+                }
+                @if (deleted.Items.Count == 0)
+                {
+                    <div class="empty"><p>No Deleted Items matched “@Model.SearchTerm”.</p></div>
+                }
+                else
+                {
+                    @foreach (var item in deleted.Items)
+                    {
+                        <div class="row-button @(item.IsRead ? null : "unread")">
+                            <span class="row-top">
+                                <span class="row-title">@(item.SenderDisplayName ?? item.SenderAddress ?? "Sender not recorded")</span>
+                                <span class="row-time">
+                                    <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time>
+                                    <time>@OperatorLabels.OfficeClock(item.ReceivedAtUtc)</time>
+                                </span>
+                            </span>
+                            <span class="row-title">@(string.IsNullOrWhiteSpace(item.Subject) ? "No subject" : item.Subject)</span>
+                            @if (item.Matches.Count > 0)
+                            {
+                                <span class="row-meta">Matched in: @string.Join("; ", item.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))</span>
+                            }
+                            <span class="row-top">
+                                <span class="row-meta">@item.MailboxAddress</span>
+                                <span class="row-meta">@item.Attachments.Count attachment@(item.Attachments.Count == 1 ? string.Empty : "s")</span>
+                            </span>
+                        </div>
+                    }
+                }
+            }
+            else if (Model.Results.Items.Count == 0)
+            {
+                @* An empty scope says which of the three reasons it is empty for. A blank
+                   list that could equally mean "nothing arrived", "nothing is kept here"
+                   or "everything here predates retention" tells the operator nothing. *@
+                <div class="empty">
+                    @if (Model.SearchTerm is not null)
+                    {
+                        <p>No retained mail in this mailbox matched “@Model.SearchTerm”.</p>
+                    }
+                    else if (Model.Folder != MailFolderScope.Inbox)
+                    {
+                        <p>
+                            @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
+                            Only received mail is retained.
+                        </p>
+                    }
+                    else if (Model.Results.HasUnretainedHistory)
+                    {
+                        <p>
+                            Nothing here yet. Messages are kept from the point this screen started
+                            keeping them; anything received before that was processed but is not
+                            shown here.
+                        </p>
+                    }
+                    else
+                    {
+                        <p>No mail has been received.</p>
+                    }
+                </div>
+            }
+            else
+            {
+                @foreach (var item in Model.Results.Items)
+                {
+                    var isSelected = selectedSummary?.Id == item.Id;
+                    <div class="row-button @(item.IsRead ? null : "unread")"
+                         data-mail-preview-row
+                         aria-selected="@(isSelected ? "true" : "false")">
+                        <span class="row-top">
+                            <span class="row-title">
+                                @if (!item.IsRead)
                                 {
-                                    <p class="empty-state">This message has no readable text body.</p>
+                                    @* Weight alone is not a state. The dot is not either. *@
+                                    <span class="unread-indicator" aria-hidden="true"></span><span class="sr-only">Unread</span>
+                                }
+                                @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)
+                            </span>
+                            @* Date above time: FRD-12 requires the two on separate
+                               lines so a long reference cannot push the timestamp
+                               into it at constrained width. *@
+                            <span class="row-time">
+                                <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time>
+                                <time>@OperatorLabels.OfficeClock(item.ReceivedAtUtc)</time>
+                            </span>
+                        </span>
+                        <a class="row-title"
+                           asp-page="/Mail/Index"
+                           asp-route-mailbox="@Model.MailboxFilter"
+                           asp-route-folder="@Model.FolderRouteValue"
+                           asp-route-search="@Model.SearchTerm"
+                           asp-route-queue="@Model.QueueFilter"
+                           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                           asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
+                           asp-route-selected="@item.Id"
+                           data-mail-preview-trigger
+                           data-mail-preview-url="@Url.Page("/Mail/Index", "Preview", new { id = item.Id })"
+                           aria-controls="mail-quick-preview"
+                           aria-expanded="@(isSelected ? "true" : "false")"
+                           title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
+                        @* The excerpt sits beneath the subject: it is what lets an
+                           operator sort the morning's post without opening every
+                           message. *@
+                        @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
+                        {
+                            <span class="row-excerpt">@item.BodyExcerpt</span>
+                        }
+                        @{
+                            var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
+                            var attachments = item.AttachmentCount > 0
+                                ? $"{item.AttachmentCount} attachment{(item.AttachmentCount == 1 ? string.Empty : "s")}"
+                                : null;
+                        }
+                        <span class="row-top">
+                            <span class="cluster">
+                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                                @if (item.Classification is { } classification
+                                    && item.OperationalDestination is { } operationalDestination)
+                                {
+                                    <span class="row-meta">
+                                        @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)
+                                        · @OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)
+                                    </span>
+                                }
+                            </span>
+                            @if (item.CaseId is { } rowCaseId && item.CaseReference is { Length: > 0 } rowCaseReference)
+                            {
+                                <span class="row-meta">
+                                    <a asp-page="/Cases/Details" asp-route-id="@rowCaseId">@rowCaseReference</a>@(attachments is null ? null : $" · {attachments}")
+                                </span>
+                            }
+                            else if (attachments is not null)
+                            {
+                                <span class="row-meta">@attachments</span>
+                            }
+                        </span>
+                        @if (forwarder is not null)
+                        {
+                            <span class="row-meta">Forwarded by @forwarder</span>
+                        }
+                        @if (item.Matches.Count > 0)
+                        {
+                            <span class="row-meta">Matched in: @string.Join("; ", item.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))</span>
+                        }
+                        @if (!item.MailboxIsPolled)
+                        {
+                            <span class="row-top">
+                                <partial name="Shared/_StatusChip" model="@("No longer polled")" />
+                            </span>
+                        }
+                    </div>
+                }
+            }
+        </div>
+        @* Accessible pagination, never infinite scrolling, and never a Next
+           past the last page. *@
+        @if (totalPages > 1)
+        {
+            <div class="pagination">
+                <span>Page @currentPage of @totalPages</span>
+                <div class="button-row">
+                    @* Paging shows a new page: the preview pane resets to its
+                       first row rather than chasing the previous page's row. *@
+                    @if (currentPage > 1)
+                    {
+                        <a class="btn btn--small"
+                           asp-page="/Mail/Index"
+                           asp-route-mailbox="@Model.MailboxFilter"
+                           asp-route-folder="@Model.FolderRouteValue"
+                           asp-route-search="@Model.SearchTerm"
+                           asp-route-queue="@Model.QueueFilter"
+                           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                           asp-route-pageNumber="@(currentPage - 1)">Previous</a>
+                    }
+                    @if (currentPage < totalPages)
+                    {
+                        <a class="btn btn--small"
+                           asp-page="/Mail/Index"
+                           asp-route-mailbox="@Model.MailboxFilter"
+                           asp-route-folder="@Model.FolderRouteValue"
+                           asp-route-search="@Model.SearchTerm"
+                           asp-route-queue="@Model.QueueFilter"
+                           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                           asp-route-pageNumber="@(currentPage + 1)">Next</a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (selectedDetail is { } detail)
+    {
+        var summary = detail.Summary;
+        var folderValue = summary.CurrentFolderType is { } currentFolderType
+            ? Pegasus.Core.Intake.MailLogicalFolders.Definition(currentFolderType).Label
+            : Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(detail.Folder);
+        var matchValue = summary.Matches.Count > 0
+            ? string.Join("; ", summary.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))
+            : null;
+        <div class="pane">
+            <div class="pane-head"><h2>Message preview</h2></div>
+            <div class="pane-body pane-scroll">
+                @* Links only: the preview pane is a viewer, and the row that
+                   selects it is already a link. *@
+                <aside id="mail-quick-preview" class="mail-preview" data-mail-preview
+                       aria-label="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)">
+                    <p data-mail-preview-status aria-live="polite" hidden></p>
+                    <div data-mail-preview-facts>
+                        <div class="mail-header">
+                            <div class="cluster cluster--between">
+                                <div>
+                                    <div class="mail-subject" data-mail-preview-subject>@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</div>
+                                    <div class="mail-route">
+                                        From <span data-mail-preview-sender>@Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)</span> ·
+                                        <time data-mail-preview-received datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(summary.ReceivedAtUtc) @OperatorLabels.OfficeClock(summary.ReceivedAtUtc)</time> ·
+                                        @summary.MailboxAddress
+                                    </div>
+                                </div>
+                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" />
+                            </div>
+                        </div>
+                        <div class="mail-body">
+                            <p data-mail-preview-excerpt>@(summary.BodyExcerpt ?? "No excerpt available")</p>
+                        </div>
+                        <div class="section-gap">
+                            <ul class="accepted-list" data-mail-preview-attachments>
+                                @if (detail.Attachments.Count > 0)
+                                {
+                                    @foreach (var attachment in detail.Attachments)
+                                    {
+                                        <li>@attachment.FileName</li>
+                                    }
                                 }
                                 else
                                 {
-                                    <pre class="mail-body">@item.BodyPlainText</pre>
+                                    <li>No attachments</li>
                                 }
-                                @if (item.Attachments.Count > 0)
-                                {
-                                    <ul>
-                                    @foreach (var attachment in item.Attachments)
-                                    {
-                                        <li>@attachment.FileName — @OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</li>
-                                    }
-                                    </ul>
-                                }
-                            </details>
-                        </td>
-                        <td><ul>@foreach (var match in item.Matches) { <li>@Pegasus.Web.Pages.Mail.IndexModel.MatchLabel(match)</li> }</ul></td>
-                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-}
-else if (Model.Results.Items.Count == 0)
-{
-    @* An empty scope says which of the three reasons it is empty for. A blank
-       list that could equally mean "nothing arrived", "nothing is kept here"
-       or "everything here predates retention" tells the operator nothing. The
-       mark names the surface; the sentence carries the meaning. *@
-    <div class="mark-empty">
-    <img class="mark mark--md" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" aria-hidden="true" />
-    @if (Model.SearchTerm is not null)
-    {
-        <p class="empty-state">No retained mail in this mailbox matched “@Model.SearchTerm”.</p>
-    }
-    else if (Model.Folder != MailFolderScope.Inbox)
-    {
-        <p class="empty-state">
-            @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
-            Only received mail is retained.
-        </p>
-    }
-    else if (Model.Results.HasUnretainedHistory)
-    {
-        <p class="empty-state">
-            Nothing here yet. Messages are kept from the point this screen started
-            keeping them; anything received before that was processed but is not
-            shown here.
-        </p>
-    }
-    else
-    {
-        <p class="empty-state">No mail has been received.</p>
-    }
-    </div>
-}
-else
-{
-    <div class="mail-workspace" data-mail-preview-workspace>
-        <div class="table-wrap">
-            <table>
-            <caption class="vh">Retained messages, most recent first</caption>
-            <thead>
-                <tr>
-                    <th scope="col">From</th>
-                    <th scope="col">Subject</th>
-                    <th scope="col">Outcome</th>
-                    <th scope="col">Received</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var item in Model.Results.Items)
-            {
-                <tr data-state="@(item.IsRead ? "read" : "unread")"
-                    data-mail-preview-row>
-                    <td>
-                        <span class="stack">
-                            <strong>
-                                @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)
-                                @if (!item.IsRead)
-                                {
-                                    @* Weight alone is not a state. The word is. *@
-                                    <span class="vh">Unread</span>
-                                }
-                            </strong>
-                        </span>
-                    </td>
-                    <td>
-                        <span class="stack">
-                            <a asp-page="/Mail/Message" asp-route-id="@item.Id"
+                            </ul>
+                        </div>
+                        <div class="section-gap fact-grid">
+                            <dl class="fact">
+                                <dt>Classification</dt>
+                                <dd data-mail-preview-classification>@(detail.Classification is { } dossier
+                                    ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(dossier.Current)
+                                    : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(detail.ClassificationOutcome))</dd>
+                            </dl>
+                            <dl class="fact">
+                                <dt>Case association</dt>
+                                <dd data-mail-preview-association>@(summary.CaseReference ?? "No case")</dd>
+                            </dl>
+                            <dl class="fact">
+                                <dt>Folder</dt>
+                                <dd>@folderValue</dd>
+                            </dl>
+                            <dl class="fact">
+                                <dt>Search match</dt>
+                                <dd>@(matchValue ?? "—")</dd>
+                            </dl>
+                        </div>
+                        <div class="button-row section-gap">
+                            <a class="btn btn--dark"
+                               asp-page="/Mail/Message"
+                               asp-route-id="@summary.Id"
                                asp-route-mailbox="@Model.MailboxFilter"
                                asp-route-folder="@Model.FolderRouteValue"
                                asp-route-search="@Model.SearchTerm"
                                asp-route-queue="@Model.QueueFilter"
-                               asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
-                               data-mail-preview-trigger
-                               data-mail-preview-url="@Url.Page("/Mail/Index", "Preview", new { id = item.Id })"
-                               aria-controls="mail-quick-preview"
-                               aria-expanded="false"
-                               title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
-                            @{
-                                var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
-                                var attachments = item.AttachmentCount > 0
-                                    ? $"{item.AttachmentCount} attachment{(item.AttachmentCount == 1 ? string.Empty : "s")}"
-                                    : null;
-                                var subline = string.Join(
-                                    " · ",
-                                    new[] { forwarder is null ? null : $"Forwarded by {forwarder}", attachments }
-                                        .Where(part => !string.IsNullOrWhiteSpace(part)));
-                            }
-                            @* The excerpt sits beneath the subject: it is
-                               what lets an operator sort the morning's post
-                               without opening every message. *@
-                            @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
+                               asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                <span>Open full message</span>
+                            </a>
+                            @if (summary.CaseId is { } linkedCaseId)
                             {
-                                <small>@item.BodyExcerpt</small>
+                                <a class="btn" asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                                    <span>Open linked Case</span>
+                                </a>
                             }
-                            @if (subline.Length > 0)
-                            {
-                                <small>@subline</small>
-                            }
-                            @if (item.Matches.Count > 0)
-                            {
-                                <small>Matched in: @string.Join("; ", item.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))</small>
-                            }
-                        </span>
-                    </td>
-                    <td>
-                        <span class="outcome-row">
-                            <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
-                            @if (item.Classification is { } classification
-                                && item.OperationalDestination is { } operationalDestination)
-                            {
-                                <span class="stack">
-                                    <small>@Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)</small>
-                                    <small>@OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)</small>
-                                </span>
-                            }
-                            @if (item.CaseId is { } caseId && item.CaseReference is { Length: > 0 } caseReference)
-                            {
-                                <a asp-page="/Cases/Details" asp-route-id="@caseId">@caseReference</a>
-                            }
-                            @if (!item.MailboxIsPolled)
-                            {
-                                <partial name="Shared/_StatusChip" model="@("No longer polled")" />
-                            }
-                        </span>
-                    </td>
-                    @* Date above time: FRD-12 requires the two on separate
-                       lines so a long reference cannot push the timestamp
-                       into it at constrained width. *@
-                    <td class="tabular">
-                        <span class="stack">
-                            <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time>
-                            <small>@OperatorLabels.OfficeClock(item.ReceivedAtUtc)</small>
-                        </span>
-                    </td>
-                </tr>
-            }
-            </tbody>
-            </table>
+                        </div>
+                    </div>
+                </aside>
+            </div>
         </div>
-        <aside id="mail-quick-preview" class="mail-preview" data-mail-preview hidden
-               aria-labelledby="mail-quick-preview-heading">
-            <h2 id="mail-quick-preview-heading">Quick preview</h2>
-            <p class="mail-preview__status" data-mail-preview-status aria-live="polite"></p>
-            <dl class="mail-preview__facts" data-mail-preview-facts hidden>
-                <div>
-                    <dt>From</dt>
-                    <dd data-mail-preview-sender></dd>
-                </div>
-                <div>
-                    <dt>Subject</dt>
-                    <dd data-mail-preview-subject></dd>
-                </div>
-                <div>
-                    <dt>Received</dt>
-                    <dd><time data-mail-preview-received></time></dd>
-                </div>
-                <div>
-                    <dt>Excerpt</dt>
-                    <dd data-mail-preview-excerpt></dd>
-                </div>
-                <div>
-                    <dt>Classification</dt>
-                    <dd data-mail-preview-classification></dd>
-                </div>
-                <div>
-                    <dt>Case</dt>
-                    <dd data-mail-preview-association></dd>
-                </div>
-                <div>
-                    <dt>Attachments</dt>
-                    <dd><ul class="plain-list" data-mail-preview-attachments></ul></dd>
-                </div>
-            </dl>
-        </aside>
-    </div>
-}
-
-@{
-    var currentPage = Model.DeletedResults?.Page ?? Model.Results.Page;
-    var totalPages = Model.DeletedResults?.TotalPages ?? Model.Results.TotalPages;
-}
-@if (totalPages > 1)
-{
-    @* Accessible pagination, never infinite scrolling. *@
-    <nav class="pager" aria-label="Pages">
-        @if (currentPage > 1)
-        {
-            <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
-               asp-route-folder="@Model.FolderRouteValue"
-               asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter"
-               asp-route-pageNumber="@(currentPage - 1)">Previous</a>
-        }
-        <span class="pager__context">Page @currentPage of @totalPages</span>
-        @if (currentPage < totalPages)
-        {
-            <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
-               asp-route-folder="@Model.FolderRouteValue"
-               asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter"
-               asp-route-pageNumber="@(currentPage + 1)">Next</a>
-        }
-    </nav>
-}
+    }
+</section>
