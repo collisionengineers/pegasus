@@ -71,8 +71,8 @@ public static class OperatorLabels
     /// <summary>
     /// The operator-meaningful handle for a received e-mail: its subject and
     /// sender, or "(No subject)" when the subject could not be read. The one
-    /// formatting rule for both the Unidentified queue row
-    /// (<c>Triage.IndexModel.UnidentifiedHandle</c>) and its detail page
+    /// formatting rule for both the Cases queue's Unidentified rows
+    /// (<c>Cases.IndexModel</c>) and the Unidentified detail page
     /// (<c>Unidentified.DetailsModel.Handle</c>), which read the same
     /// subject/sender from two different shapes.
     /// </summary>
@@ -119,6 +119,38 @@ public static class OperatorLabels
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
         _ => Humanise(state.ToString())
     };
+
+    /// <summary>The Triage record's own lifecycle words (moved here from the Cases page by CASE-025).</summary>
+    public static string TriageState(Pegasus.Core.Triage.TriageState state) => state switch
+    {
+        Pegasus.Core.Triage.TriageState.Open => "Open",
+        Pegasus.Core.Triage.TriageState.AwaitingInformation => "Awaiting information",
+        Pegasus.Core.Triage.TriageState.FindingRecorded => "Finding recorded",
+        Pegasus.Core.Triage.TriageState.Completed => "Completed",
+        Pegasus.Core.Triage.TriageState.Cancelled => "Cancelled",
+        _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
+    };
+
+    /// <summary>
+    /// A Not ready case's outstanding requirement as the operator reads it:
+    /// the requirement and the action that resolves it. Both come from the
+    /// case's recorded completeness facts, never from a sentence written here.
+    /// </summary>
+    public sealed record CaseRequirement(string Requirement, string Resolve);
+
+    public static IReadOnlyList<CaseRequirement> CaseRequirements(bool instructionsMissing, bool imagesMissing)
+    {
+        var items = new List<CaseRequirement>(2);
+        if (instructionsMissing)
+        {
+            items.Add(new("Instructions", "Receive the instruction"));
+        }
+        if (imagesMissing)
+        {
+            items.Add(new("Images", "Receive the vehicle images"));
+        }
+        return items;
+    }
 
     /// <summary>The primary navigation and the shell's section labels — one list.</summary>
     public static class Nav
