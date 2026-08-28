@@ -17,7 +17,7 @@
         ("notes", "Notes", "icon-history")
     ];
 }
-<nav class="case-section-nav" aria-label="Case sections">
+<div class="case-section-nav">
     @foreach (var (key, label, icon) in sections)
     {
         <a asp-page="/Cases/Details" asp-route-id="@caseId" asp-route-section="@key"
@@ -26,4 +26,4 @@
             <span>@label</span>
         </a>
     }
-</nav>
+</div>
