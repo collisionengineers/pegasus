@@ -59,3 +59,16 @@
   as they are; shell-class tests change.
 - Inbox/Operations counts stay absent (no query); wave 3 extends.
 - The account dialog shows Name / Role / Idle lock (no `auth_time` claim exists yet).
+
+## Design authority cited (after merging origin/dev at 690ca579)
+
+`docs/design/README.md` (UIIMP-006, PR #587) is the authority implemented
+against: §Tokens (Colour, Typography, Shape/borders/focus — 3px `--focus`
+ring, Spacing/layout/breakpoints 1360/1180/1100/980/900/760), §Icons (rail
+glyphs: Work Centre `layout-dashboard`, Inbox `inbox`, Upload `upload`,
+Cases `list`, Search `folder-open`, Operations `loader`, Administration
+`layout-grid`; the font table rows at lines 371–374 are placeholders
+"Recorded by PLAT-029"), §Component map › Utility classes (the exact CSP
+class names), §Routes, §Workspace contract §Cases/§Search/§External frames.
+The README's font and sprite SHA rows are UIIMP-006's file to fill from the
+post-implementation report.

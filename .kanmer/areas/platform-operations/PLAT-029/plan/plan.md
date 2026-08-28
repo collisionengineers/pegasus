@@ -47,3 +47,21 @@ routes ~300 moved; tests ~250; catalogue ~40).
 - `CurrentWhen`/`CountFor` helpers, `OperatorLabels.OfficeClock`,
   `StaffSessionPolicy.IdleLifetime`, `StaffRoleNames`, existing focus-trap
   block, `BrowserTestSupport`, `IntakeWebDriver`, catalogue script.
+
+## Simplification pass — 2026-08-28
+
+Lenses run over `git diff origin/dev...HEAD` (reuse, simplification,
+efficiency, altitude); `/simplify` not available in this agent, lenses
+applied by hand.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `_Layout` rendered `<main>` twice (with/without workspace attributes) behind a `@functions` helper. | Fixed — one `<main>`, Razor's null-attribute omission carries the optional `data-workspace-*`. |
+| 2 | `.viewer-stage` declared twice in site.css (`position:relative` in a second rule). | Fixed — merged into one rule. |
+| 3 | `_StatusChip` had a redundant `_ when key.StartsWith("closed")` arm before `_ => "neutral"`. | Fixed — dropped; comment states the D3 terminals read neutral. |
+| 4 | Legacy `.stack { display:grid; gap:1px }` collided with the new `.stack`. | Fixed — removed from the legacy block (new rule wins). |
+| 5 | `_MetricCard` repeats the tile body for `a` vs `div` hosts. | Accepted — Razor has no dynamic tag name; a second partial would be a heavier abstraction than 12 duplicated lines. |
+| 6 | `LayoutIntegrityTests` enumerated `TheoryData` to reuse the route list. | Fixed — `AccessibilityTests.AuthenticatedRouteList` is the one list; both theories derive from it. |
+| 7 | Triage-state words (`StateLabel`) still live on `Cases.IndexModel` rather than `OperatorLabels`. | Deferred — moving it touches `Triage/Details` and `Intake/Details` (wave-2 lane C2 files); left as a one-line reference fix and reported for C2. |
+| 8 | `Pages/Index.cshtml`, `Triage/Details`, `ImageIntake/Details`, `Intake/Details` edited (one-line link/type fixes only). | Accepted — inbound-reference fixes named in the brief; page bodies untouched. |
+| 9 | Route-string updates in tests outside the named 12 (`CasesIndexWebTests`, `QdosCustodialWebTests`, `ImageIntakeWebTests`, `AdministrationSearchAccountWebTests`). | Accepted — mechanical consequence of the route moves; without them the suite red-lines on merge. Listed in the report. |
