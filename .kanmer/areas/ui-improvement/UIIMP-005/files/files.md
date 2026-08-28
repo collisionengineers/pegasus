@@ -26,3 +26,10 @@
 ## Belongs to another ticket
 
 - Nothing found. Wave-1+ tickets regenerate the snapshots after this gate merges.
+
+## Absorbed on orchestrator decision (2026-08-28)
+
+| File | Change |
+| --- | --- |
+| `docs/design/test-ui/catalogue.json` | Entry for `Administration/Principals/EvaSubmission.cshtml` (visual, one `default` state, `pages/administration-principal-eva-submission--default.html`). |
+| `tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs` | Fetches the EvaSubmission page through `GetHtmlAsync` for the existing `WEBP` principal so the capture records it. |
