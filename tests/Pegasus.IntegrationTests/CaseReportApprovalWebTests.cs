@@ -176,7 +176,7 @@ public sealed partial class CaseDetailsWebTests
                 workflow,
                 leaseHolder is null
                     ? null
-                    : new(leaseHolder, now.AddMinutes(5), leaseOperationKey!),
+                    : new(leaseHolder, ActorKind.Staff, now.AddMinutes(5), leaseOperationKey!),
                 [],
                 null,
                 CaseCustodyState.Pending,
