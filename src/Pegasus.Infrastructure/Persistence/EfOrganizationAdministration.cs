@@ -690,7 +690,7 @@ public sealed class EfOrganizationAdministration(
             entity.Roles.Select(role => ParseRole(role.Role)).OrderBy(role => role).ToArray(),
             entity.Version);
 
-    private static Principal ToPrincipal(PrincipalEntity entity) =>
+    internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
             entity.Id,
             entity.OrganizationId,
