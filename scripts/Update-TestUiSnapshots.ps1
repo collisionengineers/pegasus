@@ -23,11 +23,14 @@ try {
     }
     $env:PEGASUS_TEST_UI_CAPTURE_DIR = $captureDirectory
     if (-not $SkipCapture) {
+        # The browser lane's cap: the capture suite includes every browser test,
+        # and each one starts a Chromium, a Kestrel host and its own database.
         $env:PEGASUS_TEST_UI_MODE = $null
         dotnet test "$repoRoot/tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj" `
             --configuration Release `
             --no-restore `
-            --filter '(FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests)'
+            --filter '(FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests)&Category!=Corpus' `
+            -- xUnit.MaxParallelThreads=2
         if ($LASTEXITCODE -ne 0) {
             throw "The integration capture suite failed with exit code $LASTEXITCODE."
         }
