@@ -37,16 +37,16 @@
   "SIMPLI": 15,
   "BUG": 1,
   "KANMER": 8,
-  "EPIC": 10,
+  "EPIC": 11,
   "HZN": 3,
   "PR": 68,
   "DELIV": 29,
   "INTK": 45,
-  "PLAT": 46,
+  "PLAT": 47,
   "CASE": 24,
-  "AUTO": 8,
+  "AUTO": 9,
   "ENG": 24,
-  "MAIL": 23,
+  "MAIL": 24,
   "DOCS": 14,
-  "UIIMP": 5
+  "UIIMP": 7
 }
