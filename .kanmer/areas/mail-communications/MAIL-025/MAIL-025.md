@@ -2,10 +2,12 @@
 id: MAIL-025
 type: ticket
 title: Port the Inbox list and message pages to the Integrated Operations Workspace
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T11:25:43.590Z'
 labels:
   - ui
   - wave-2
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-28T08:35:23.835Z'
+updated: '2026-08-28T11:25:43.590Z'
 ---
 
 ## What

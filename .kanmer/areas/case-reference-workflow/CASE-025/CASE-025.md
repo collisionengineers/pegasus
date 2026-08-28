@@ -2,10 +2,12 @@
 id: CASE-025
 type: ticket
 title: Port the Cases queues page (/Cases) with workflow rail groups and filters
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T11:25:42.203Z'
 labels:
   - ui
   - wave-2
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-28T08:35:23.861Z'
-updated: '2026-08-28T08:35:23.861Z'
+updated: '2026-08-28T11:25:42.203Z'
 ---
 
 ## What

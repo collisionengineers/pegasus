@@ -2,10 +2,12 @@
 id: CASE-012
 type: ticket
 title: Redesign the Case page workspace
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T11:25:40.733Z'
 labels:
   - ui
   - case
@@ -17,7 +19,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T08:07:56.666Z'
+updated: '2026-08-28T11:25:40.733Z'
 ---
 
 ## What
