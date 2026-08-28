@@ -35,19 +35,22 @@ public sealed class ServiceHealthTests
     }
 
     [Theory]
-    [InlineData(0, 0, 0, ServiceHealthState.Current)]
-    [InlineData(3, 0, 0, ServiceHealthState.Running)]
-    [InlineData(3, 1, 0, ServiceHealthState.Partial)]
-    [InlineData(3, 1, 1, ServiceHealthState.Failed)]
-    public void DispatchStateRanksFailureOverBackoffOverActivity(
+    [InlineData(0, 0, 0, false, ServiceHealthState.Configured)]
+    [InlineData(0, 0, 0, true, ServiceHealthState.Current)]
+    [InlineData(3, 0, 0, false, ServiceHealthState.Running)]
+    [InlineData(3, 1, 0, true, ServiceHealthState.Partial)]
+    [InlineData(3, 1, 1, true, ServiceHealthState.Failed)]
+    public void DispatchStateRanksFailureOverBackoffOverActivityAndNeedsEvidenceToBeCurrent(
         int active,
         int retryScheduled,
         int failed,
+        bool hasCompleted,
         ServiceHealthState expected)
     {
         Assert.Equal(
             expected,
-            ServiceHealthPolicy.DispatchState(new(active, retryScheduled, failed, FixedUtcNow)));
+            ServiceHealthPolicy.DispatchState(
+                new(active, retryScheduled, failed, hasCompleted ? FixedUtcNow : null)));
     }
 
     [Fact]
@@ -144,6 +147,7 @@ public sealed class ServiceHealthTests
             SentPolls = [new(Mailbox, FixedUtcNow.AddMinutes(5), FixedUtcNow.AddMinutes(-20), null)],
             Dispatch = new(1, 0, 0, FixedUtcNow.AddMinutes(-6)),
             Operations = [],
+            LimitReached = true,
             EvaActivity = new(0, FixedUtcNow.AddHours(-3)),
             AiCounts = new(0, 0),
             RecentJobs = [Job(jobTime, closedAtUtc: null)],
@@ -156,6 +160,7 @@ public sealed class ServiceHealthTests
         var snapshot = await useCase.ExecuteAsync(StaffActor(), CancellationToken.None);
 
         Assert.Equal(FixedUtcNow, snapshot.AsOfUtc);
+        Assert.True(snapshot.ExternalWorkLimitReached);
         Assert.Collection(
             snapshot.Rows,
             row =>
@@ -374,7 +379,9 @@ public sealed class ServiceHealthTests
             int maximumItems,
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new RequestOperationsProjection(Operations.ToImmutableArray(), false));
+            Task.FromResult(new RequestOperationsProjection(Operations.ToImmutableArray(), LimitReached));
+
+        public bool LimitReached { get; init; }
 
         public Task<EvaSubmissionRecord?> GetLatestAsync(
             Guid caseId,
