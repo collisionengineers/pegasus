@@ -109,5 +109,6 @@ Undefined icons `activity/spark/reply/flag/sort` (use Lucide activity/sparkles/r
 | D11 | Assessment opens for With Engineer or onwards, never Review; read-only once Complete. |
 | D12 | Engineer Report "Queries received" = retained messages classified post-report-emails associated with the Engineer's cases in the period. |
 | D13 | Vendor Inter Variable (+Italic) woff2 with OFL licence + SHA-256 in the design README. |
+| D14 | Work Centre "Blocked" metric links to `/Cases?tab=unidentified`; Blocked intake rows are listed in that Exceptions tab uncounted, with their own `Blocked intake` chip; the Unidentified count (tab and rail sum) counts Unidentified items only — the two meanings stay distinct (recorded 2026-08-28, UIIMP-007 review). |
 
 Routine calls: EVA note dropped; "No EVA" policy dropped; the dialog exposes the two ADR-0034 toggles rather than a three-value select (PLAT-047 review, 2026-08-28); route e-mail addresses read-only; account dialog "Session started" via an `auth_time` claim; wave-1 `site.css` carries a delimited legacy block for not-yet-ported page classes, deleted in wave 5; `main` is promoted only after wave 5.
