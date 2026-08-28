@@ -114,6 +114,14 @@ public sealed class EfAiJobStore(
         {
             return Map(entity, now);
         }
+        if (current == AiJobState.Taken
+            && transition.TargetState == AiJobState.Taken
+            && string.IsNullOrWhiteSpace(transition.ProgressNote))
+        {
+            // A take is a claim on a queued job; a held job is renewed
+            // through progress, never taken again.
+            throw new InvalidOperationException("The AI job is already taken.");
+        }
         if (!AiJobPolicy.IsLegalTransition(current, transition.TargetState))
         {
             throw new InvalidOperationException(
@@ -131,33 +139,23 @@ public sealed class EfAiJobStore(
             throw new InvalidOperationException("The AI job is taken by another client.");
         }
 
-        if (persisted != current)
+        if (persisted == AiJobState.Taken && current == AiJobState.Queued)
         {
-            // The lapsed claim (or the job's own expiry) is recorded as its
-            // own event before the new transition, so nothing is erased.
+            // The lapsed claim is recorded as its own event before the new
+            // transition, so nothing is erased.
             AddHistory(
                 context,
                 entity,
                 "ai_job_expired",
                 transition.Actor,
                 transition.OperationKey,
-                current == AiJobState.Expired
-                    ? "The job expired before it was taken."
-                    : $"The lease held by {entity.TakenBy} expired.",
+                $"The lease held by {entity.TakenBy} expired.",
                 now);
             entity.State = current.ToString();
             entity.Version++;
-            if (current == AiJobState.Queued)
-            {
-                entity.TakenBy = null;
-                entity.TakenAtUtc = null;
-                entity.LeaseExpiresAtUtc = null;
-            }
-            else
-            {
-                entity.ClosedAtUtc = now;
-                entity.ClosureReason = "The job expired before it was taken.";
-            }
+            entity.TakenBy = null;
+            entity.TakenAtUtc = null;
+            entity.LeaseExpiresAtUtc = null;
         }
 
         entity.State = transition.TargetState.ToString();

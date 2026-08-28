@@ -63,6 +63,10 @@ public sealed class AutomationAiJobIngressTests
         var replay = await work.TakeAsync(new(created.JobId, 0, Client, "take-1"), CancellationToken.None);
         Assert.Equal(1, replay.Version);
 
+        // A held job is renewed through progress, never taken again.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            work.TakeAsync(new(created.JobId, 1, Client, "take-again"), CancellationToken.None));
+
         // Another client cannot progress a job this client holds.
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             work.ReportProgressAsync(

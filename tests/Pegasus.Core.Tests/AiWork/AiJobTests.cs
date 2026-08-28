@@ -40,7 +40,7 @@ public sealed class AiJobTests
             AiJobState.Queued,
             AiJobPolicy.EffectiveState(AiJobState.Taken, expires, Now, Now));
         Assert.Equal(
-            AiJobState.Expired,
+            AiJobState.Queued,
             AiJobPolicy.EffectiveState(AiJobState.Taken, Now, Now, Now));
         Assert.Equal(
             AiJobState.Expired,
