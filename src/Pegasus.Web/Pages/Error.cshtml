@@ -5,29 +5,26 @@
     Layout = "Shared/_LayoutAuth";
 }
 
-@* One card, one statement of the fault. The previous page said the same thing
-   three times — heading, tinted panel, and a second heading — and gave a
-   55-character trace identifier hero prominence. *@
-<div class="auth-card auth-card--fault" role="alert">
-    <p class="auth-card__mark">COLLISION ENGINEERS</p>
+@* One card, one statement of the fault. *@
+<div role="alert">
     <h1>We could not complete that request</h1>
     <p>What you submitted may not have been saved. Try again, and if it keeps failing, tell your administrator the reference below.</p>
-    <div class="auth-card__actions">
+    <div class="button-row">
         @if (Model.ShowReturnPath)
         {
             @* Never a POST replay: the return path is the page the operator was
                reading, re-requested as a GET. *@
-            <a class="primary-action" href="@Model.ReturnPath">Try again</a>
+            <a class="btn btn--primary" href="@Model.ReturnPath">Try again</a>
         }
-        <a class="secondary-action" asp-page="/Index">Return to Dashboard</a>
+        <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
     </div>
     @if (Model.ShowRequestId)
     {
-        <p class="auth-card__foot">
+        <p class="auth-foot muted">
             Support reference
-            <span class="auth-card__reference">
+            <span class="auth-reference">
                 <code id="support-reference">@Model.RequestId</code>
-                <button type="button" class="btn" data-copy-target="support-reference" hidden>Copy</button>
+                <button type="button" class="btn btn--small" data-copy-target="support-reference" hidden>Copy</button>
             </span>
         </p>
     }

@@ -106,6 +106,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260827143200_GrantEvaSubmissions",
                 "20260828084601_AiJobs",
                 "20260828084644_GrantAiJobs",
+                "20260828104130_PrincipalApiCredentials",
+                "20260828104139_GrantPrincipalApiCredentials",
                 "20260828110108_CaseEditLeaseHolderKind"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());

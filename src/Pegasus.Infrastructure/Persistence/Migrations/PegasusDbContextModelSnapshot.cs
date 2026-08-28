@@ -4534,6 +4534,56 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalApiCredentialEntity", b =>
+                {
+                    b.Property<Guid>("PrincipalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("IssuedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("KeyId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nchar(16)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("PausedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RotatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SecretHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PrincipalId");
+
+                    b.HasIndex("KeyId")
+                        .IsUnique();
+
+                    b.ToTable("PrincipalApiCredentials", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PrincipalApiCredentials_State", "[State] IN ('Active', 'Paused', 'Revoked')");
+
+                            t.HasCheckConstraint("CK_PrincipalApiCredentials_Version", "[Version] >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6811,6 +6861,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalApiCredentialEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
+                        .WithOne()
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.PrincipalApiCredentialEntity", "PrincipalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Principal");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalEntity", b =>
