@@ -108,3 +108,45 @@ a declared Audit able to find its original report among its own assets.
 
 Migrations + grants + bootstrap census; test fakes and new tests; FRD-01/03/09 and
 capabilities; simplification pass.
+
+## 2026-08-28 — declared contract working end to end (commit 2804ebb6)
+
+All 8 `ProviderApiSubmissionTests` pass against SQL: a declared JSON instruction
+creates a real Case/PO, a declared `total-loss` Audit takes the `ap.` prefix, a
+declared `triage` opens a Triage and allocates no case, and a body naming another
+Principal is 403 with a recorded security event. All 1110 Core tests pass.
+
+### Two defects found while building, both fixed
+
+1. **`IntakeEvidenceSource` had two persisted code maps, already drifted** —
+   `EfIntakeReceiptStore` and `InspectionAddressResolutionStore` each carried their
+   own copy. Adding `ProviderDeclaration` to one meant receipts wrote it happily and
+   the address-resolution snapshot then refused to read it back, failing case
+   allocation with an *unclassified* fault whose safe reason says only "The case
+   could not be created." Now one owner, `IntakeEvidenceSourceCodes`. This is exactly
+   the failure mode the "one list per concept" rail exists to prevent, and it was
+   already latent on `dev` before this ticket.
+2. **The scaffolded migration re-added `CaseWorkflows.EditLeaseHolderKind`.**
+   `20260828110108_CaseEditLeaseHolderKind` reached this branch by merge and carries
+   an *earlier* timestamp than this branch's own migrations, so the last Designer
+   snapshot here (`GrantProviderSubmissions`, 11:17) predates it and the model diff
+   saw the column as missing. Every integration test failed at migration time with
+   "Column name 'EditLeaseHolderKind' ... specified more than once". Removed by hand
+   and the reason recorded in the migration's `<remarks>`.
+   **This will recur** on any branch that merges `dev` and then scaffolds a
+   migration; worth a board item of its own.
+
+### Notes for review
+
+- No new grant migration: the change creates no table, only columns on already-granted
+  tables and two recreated check constraints. `Test-MigrationGrants.ps1` passes
+  (84 files checked).
+- `dotnet ef migrations remove` reverts the model snapshot to the *previous
+  migration's* Designer file, which is what exposed defect 2. Regenerating rather
+  than hand-editing is still right; the hand edit was to the generated output.
+- The envelope bound (30 MiB decoded / 42 MiB body) is my recommendation under plan
+  item C5 and still wants the operator's confirmation. It is enforced while reading
+  the body, not trusted from `Content-Length`.
+- `docs/operator-notes.md` deliberately untouched: it is protected, and whether the
+  declared-verdict ruling belongs there as well as in FRD-01/FRD-09 is still an open
+  question for the operator.
