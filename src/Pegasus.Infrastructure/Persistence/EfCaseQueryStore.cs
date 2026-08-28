@@ -248,7 +248,9 @@ public sealed class EfCaseQueryStore(
             InstructionDate = draft == null ? null : draft.InstructionDate,
             Origin = receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
-            NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc
+            NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
+            InstructionComplete = caseEntity.InstructionComplete,
+            ImagesComplete = caseEntity.ImagesComplete
         };
 
     private static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
@@ -333,7 +335,11 @@ public sealed class EfCaseQueryStore(
         item.InstructionDate,
         item.Origin,
         item.CreatedAtUtc,
-        item.NextChaseAtUtc);
+        item.NextChaseAtUtc)
+    {
+        InstructionComplete = item.InstructionComplete,
+        ImagesComplete = item.ImagesComplete
+    };
 
     internal static CaseType ParseCaseType(string value)
     {
@@ -543,5 +549,7 @@ public sealed class EfCaseQueryStore(
         public required string Origin { get; init; }
         public DateTimeOffset CreatedAtUtc { get; init; }
         public DateTimeOffset? NextChaseAtUtc { get; init; }
+        public bool InstructionComplete { get; init; }
+        public bool ImagesComplete { get; init; }
     }
 }
