@@ -11,11 +11,13 @@ stageEntered:
 labels:
   - capability
   - API-01
-  - next
+  - now
   - requires-live-approval
+  - wave-3
 groups:
   - HZN-002
   - EPIC-009
+  - EPIC-011
 links: []
 blocks:
   - TICK-060
@@ -23,7 +25,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-25T06:46:28.760Z'
+updated: '2026-08-28T11:00:28.575Z'
 ---
 
 ## What
