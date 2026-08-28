@@ -305,6 +305,12 @@ public sealed partial class TestUiSnapshotTests
         foreach (var metadataPath in Directory.EnumerateFiles(root, "asset.json", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
             var metadata = JsonSerializer.Deserialize<CapturedAssetMetadata>(await File.ReadAllTextAsync(metadataPath), JsonOptions)!;
+            // Only receipt images are inlined; wwwroot assets the browser lane
+            // fetched stay source-relative references like every other page.
+            if (!metadata.Path.StartsWith("/Received/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
             var bytes = await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(metadataPath)!, "response.bin"));
             assets[metadata.Path] = $"data:{metadata.ContentType};base64,{Convert.ToBase64String(bytes)}";
         }
@@ -350,7 +356,7 @@ public sealed partial class TestUiSnapshotTests
     [GeneratedRegex("(<input[^>]+name=\"__RequestVerificationToken\"[^>]+value=\")[^\"]*(\")", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryValueRegex();
 
-    [GeneratedRegex("(<(?:input|meta)[^>]+(?:name|data-token-kind)=\"(operationkey|operationid|editleasetoken|requestid|externalreceipttoken|token)\"[^>]+value=\")[^\"]*(\")", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("(<(?:input|meta)[^>]+(?:name|data-token-kind)=\"(operationkey|operationid|editleasetoken|requestid|externalreceipttoken|token|code_challenge|nonce|state)\"[^>]+value=\")[^\"]*(\")", RegexOptions.IgnoreCase)]
     private static partial Regex VolatileGuidValueRegex();
 
     [GeneratedRegex("(<code id=\"support-reference\">)[^<]*(</code>)", RegexOptions.IgnoreCase)]
