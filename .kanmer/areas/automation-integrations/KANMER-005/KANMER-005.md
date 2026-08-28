@@ -2,12 +2,13 @@
 id: KANMER-005
 type: ticket
 title: Enforce exclusive editing leases between staff and Automation Actors
-status: implementing
+status: review
 area: automation-integrations
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-28T09:54:44.547Z'
+  review: '2026-08-28T11:12:40.763Z'
 taken_at: '2026-08-28T10:57:56.937Z'
 branch: task/kanmer-005-lease-exclusivity
 worktree: ../pegasus-worktrees/kanmer-005-lease-exclusivity
@@ -26,9 +27,15 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0011-restrict-mcp-to-automation-actor.md
   - docs/adr/0031-automation-actor-contract-without-eva-export-tools.md
+commits:
+  - 2ab02db3
+  - 4a91c5c1
+  - 8218b3f3
+prs:
+  - '593'
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-28T10:57:56.937Z'
+updated: '2026-08-28T11:12:40.763Z'
 ---
 
 ## What
