@@ -119,3 +119,15 @@ Queued; repeat take refused; consent text corrected). Recorded decisions:
   the Core result-kind rule ran. They now default to `null` (the operation
   key precedes them). The FRD-11 result shape (kind + reference and/or
   text, PascalCase kind names) is unchanged; the assertion was not relaxed.
+
+## CI round — 2026-08-28 (bootstrap census)
+
+`scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` requires every
+grant-carrying migration to be accounted for in the bootstrap's expected
+permission matrix. `scripts/Invoke-AzureDatabaseBootstrap.ps1` now carries
+the `20260828084644_GrantAiJobs` block: `pegasus_web_runtime_role` G
+SELECT/INSERT/UPDATE on `AiJobs`; DELETE denied via the baseline matrix;
+no Worker grant (AGENTS.md rule 16 — schema, grants and bootstrap census on
+one diff). Local run: "Azure deployment plan validation passed (Local)".
+This file is an addition to the owned list; it is the census the grant
+migration requires, not new scope.
