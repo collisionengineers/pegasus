@@ -83,9 +83,13 @@ public sealed class ProviderApiSubmissionTests
         // The typed classification double stands in for the generated QDOS
         // document tells, exactly as the allocation-recovery tests do; the
         // route, extraction, allocation and action-history paths are real.
+        // The host runs on the system clock, not the suite's fixed one: this
+        // test asserts the recorded order of three history entries by their
+        // own OccurredAtUtc, which a pinned clock would collapse into a tie.
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
+            TimeProvider.System,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
         using var api = WithProviderApi(factory);
         using var client = CreateClient(api);
