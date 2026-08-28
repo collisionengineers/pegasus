@@ -246,11 +246,15 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain("intake", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("custody", html, StringComparison.OrdinalIgnoreCase);
 
-        // A GUID legitimately appears in the row link's href (routing to
-        // /Unidentified/{id}); the design rule bans it from what the
-        // operator reads, not from a URL they never see. Strip attribute
-        // values before scanning so only visible text is checked.
-        var visibleOnly = Regex.Replace(html, "\\s(href|asp-route-\\w+)=\"[^\"]*\"", "");
+        // A GUID legitimately appears in the row link's href and in the
+        // freshness form's hidden `selected` input (both routing state the
+        // operator never sees as text); the design rule bans it from what
+        // the operator reads. Strip attribute values and hidden inputs
+        // before scanning so only visible text is checked.
+        var visibleOnly = Regex.Replace(
+            html,
+            "<input[^>]*type=\"hidden\"[^>]*>|\\s(href|asp-route-\\w+)=\"[^\"]*\"",
+            "");
         Assert.False(
             Regex.IsMatch(visibleOnly, @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"),
             "A raw GUID must never reach the operator-visible text of the Unidentified tab.");
