@@ -2,13 +2,14 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: review
+status: implementing
 area: automation-integrations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-21T14:20:03.598Z'
   review: '2026-08-28T11:31:30.687Z'
+  implementing: '2026-08-28T16:58:50.515Z'
 taken_at: '2026-08-28T11:08:34.214Z'
 branch: task/tick-058-provider-submission-api
 worktree: ../pegasus-worktrees/tick-058-provider-submission-api
@@ -35,7 +36,7 @@ prs:
   - '594'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-28T11:31:30.687Z'
+updated: '2026-08-28T16:58:50.515Z'
 ---
 
 ## What
