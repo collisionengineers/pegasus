@@ -49,7 +49,14 @@ public sealed class AutomationMcpIngressTests
         "pegasus_triage_cancel",
         "pegasus_triage_reopen",
         "pegasus_triage_case_link",
-        "pegasus_triage_case_unlink"
+        "pegasus_triage_case_unlink",
+        "pegasus_ai_job_list",
+        "pegasus_ai_job_create",
+        "pegasus_ai_job_take",
+        "pegasus_ai_job_progress",
+        "pegasus_ai_job_complete",
+        "pegasus_ai_job_fail",
+        "pegasus_ai_job_release"
     ];
 
     [Fact]

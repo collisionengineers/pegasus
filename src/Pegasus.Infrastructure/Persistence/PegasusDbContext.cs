@@ -73,6 +73,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<CaseRepairSpecificationEntity>();
     internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
+    internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
