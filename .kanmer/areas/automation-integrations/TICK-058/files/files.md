@@ -1,19 +1,28 @@
 # Files — TICK-058
 
-## Where the change lands
+## Owns (whole files)
 
 | Path | Why |
-|---|---|
-| `src/Pegasus.Web/` | Add the first provider authentication handler and the real submission endpoint together in the existing Azure Container App. |
-| `src/Pegasus.Core/Intake/` | Reuse `IGroupedIntakeSubmission`/`ReceiveIntake`; add no second intake policy owner. |
-| `src/Pegasus.Infrastructure/Persistence/` | Consume TICK-061's credential verification port and existing SQL/outbox; add no intake store. |
-| `tests/Pegasus.Core.Tests/`, `tests/Pegasus.IntegrationTests/`, `tests/Pegasus.ArchitectureTests/` | Prove transport mapping, authentication, replay/conflict, isolation, durability, composition, and dependency direction. |
-| `docs/frd/frd-09-provider-and-intermediary-routes.md`, `docs/capabilities.md`, `docs/current-architecture.md` | Settle the exact public contract before code and record the eventual caller. |
+| --- | --- |
+| `src/Pegasus.Core/ProviderApi/ProviderSubmission.cs` | New: `SubmitProviderInstruction`, `GetProviderSubmissionResult`, records, `IProviderSubmissionStore`, `IProviderSubmissionBindings`, `ProviderSubmissionPolicy`. |
+| `src/Pegasus.Infrastructure/Persistence/ProviderSubmissionEntities.cs`, `ProviderSubmissionModelConfiguration.cs`, `EfProviderSubmissionStore.cs` | New: the `ProviderSubmissions` table and its store/bindings adapter. |
+| `src/Pegasus.Infrastructure/Persistence/Migrations/20260828111707_ProviderSubmissions.*`, `20260828111732_GrantProviderSubmissions.*` | New: table + grants (Web SELECT/INSERT, Worker SELECT). |
+| `src/Pegasus.Web/ProviderApi/ProviderApi.cs`, `ProviderApiAuthenticationHandler.cs`, `ProviderApiEndpoints.cs` | New: constants, the `PegasusProviderApi` bearer scheme, `/api/provider/v1/submissions` endpoints. |
+| `tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs`, `tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs` | New tests. |
 
-## Existing code/resources reused
+## Touched (shared files, narrow edits)
 
-`GroupedIntake.cs`, `DurableIntake.cs`, existing upload envelope limits, Azure SQL outbox, transport Storage Queue, Function Worker, custody Storage, Web managed identity, Container App HTTPS ingress, and Application Insights.
+| Path | Edit |
+| --- | --- |
+| `src/Pegasus.Core/Identity/IdentityContracts.cs`, `StaffAuthorization.cs` | `ActorKind.Provider`, `ActionActor.Provider(principalId)`, `StaffAccessRight.SubmitProviderInstruction`. |
+| `src/Pegasus.Core/Actors/ActorDisplayNames.cs`, `src/Pegasus.Core/Intake/RetainedMail.cs` | Provider label and `provider:` actor prefix (the one prefix map). |
+| `src/Pegasus.Core/Intake/IntakeContracts.cs`, `DurableIntake.cs`, `GroupedIntake.cs`, `ProcessIntake.cs` | `IntakeSourceChannel.ProviderApi`; size bound; operation prefix; Principal binding from the credential, mail route skipped, no-policy → NeedsSorting. |
+| `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs`, `EfIntakeSubmissionGroupStore.cs`, `EfIntakeWorkStore.cs`, `EfTriageStore.cs`, `EfImageIntakeStore.cs` | `provider_api` channel code/parse (existing per-store maps). |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `Migrations/PegasusDbContextModelSnapshot.cs`, `src/Pegasus.Infrastructure/DependencyInjection.cs` | DbSet, model configuration, registrations. |
+| `src/Pegasus.Web/Program.cs`, `src/Pegasus.Web/Presentation/OperatorLabels.cs` | `Features:ProviderApi` gate, per-key rate-limit policy, rate-limit reason code, `IsMachineSurface`, channel label. |
+| `scripts/Invoke-AzureDatabaseBootstrap.ps1`, `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` | Grant census block; migration name list. |
+| `docs/frd/frd-09-provider-and-intermediary-routes.md` | Accepted API-01 submission contract. |
 
-## Out of scope
+## Not touched
 
-API-02/status vocabulary, synchronous processing, general Case lookup, files/reports returned to providers, outbound delivery, APIM/Front Door/Service Bus/new Function/new store, live activation, and latency optimization.
+`docs/current-architecture.md` / `docs/operations.md` (DELIV-030), `docs/capabilities.md` (TICK-061 moved API-01 to Now), Principal settings dialog (PLAT-050), any Worker file (the binding port is registered by Infrastructure DI and resolved by `ProcessIntake`'s optional parameter).
