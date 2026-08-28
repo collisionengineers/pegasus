@@ -1,0 +1,1 @@
+2026-08-28 16:40 — Parallel-run collision. PR #599 (head b7c4d8d2, other run) was open on `task/case-012-case-workspace` when this run tried to push. This run's five commits are parked on `origin/task/case-012-case-workspace-parallel` (866fe459); no PR opened, nothing forced, ticket left in implementing. Orchestrator to choose one implementation.

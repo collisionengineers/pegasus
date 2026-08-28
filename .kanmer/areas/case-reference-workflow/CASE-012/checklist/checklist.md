@@ -10,5 +10,6 @@
 - [x] Tests retargeted; D11, Report-sent, alias assertions added
 - [x] Catalogue branch text
 - [x] Release build green
-- [ ] origin/dev merged; simplification pass recorded
-- [ ] Post-implementation report; PR opened; ticket → review
+- [x] origin/dev merged; simplification pass recorded
+- [x] Post-implementation report written
+- [ ] PR: blocked — PR #599 already open from a parallel run; this run's work parked on `task/case-012-case-workspace-parallel`; orchestrator decides
