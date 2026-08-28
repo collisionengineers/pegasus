@@ -61,7 +61,7 @@ public sealed class AssessmentReadinessSummaryBrowserTests
         Assert.True(itemCount > 1, "The near-empty fixture should fail most readiness checks.");
 
         // The combined chip names the same count as the disclosed list.
-        var chipText = await support.Page.Locator(".readiness-summary summary .status-chip").InnerTextAsync();
+        var chipText = await support.Page.Locator(".readiness-summary summary .status").InnerTextAsync();
         var chipCount = int.Parse(Regex.Match(chipText, @"\d+").Value, CultureInfo.InvariantCulture);
         Assert.Equal(itemCount, chipCount);
         Assert.Matches(@"^\d+ issues detected$", chipText.Trim());
