@@ -21,9 +21,11 @@ links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
+prs:
+  - '596'
 archived: false
 created: '2026-08-28T08:35:23.861Z'
-updated: '2026-08-28T11:34:11.858Z'
+updated: '2026-08-28T15:58:47.270Z'
 ---
 
 ## What

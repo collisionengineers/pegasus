@@ -22,9 +22,11 @@ links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+prs:
+  - '597'
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-28T11:36:26.089Z'
+updated: '2026-08-28T15:58:49.595Z'
 ---
 
 ## What

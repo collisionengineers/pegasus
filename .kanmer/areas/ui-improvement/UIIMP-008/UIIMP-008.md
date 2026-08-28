@@ -20,9 +20,11 @@ groups:
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '598'
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-08-28T11:33:48.474Z'
+updated: '2026-08-28T15:58:51.422Z'
 ---
 
 ## What
