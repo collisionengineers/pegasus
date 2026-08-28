@@ -69,11 +69,12 @@ Permanent business history records every business mutation; download/export; mat
 
 Sign-ins and authentication failures remain in the security log. Routine views, searches, refreshes, polling, retries, lease renewal/expiry/heartbeat, and adapter mechanics remain content-safe telemetry.
 
-**Action Logs** is the one administration view over permanent action history
-and the security log. It is filtered by search text, Area, Actor, Result, From,
-and To, sorted newest first with a sort toggle, and shows Time, Actor, Area,
-Action, Reference, and Result per row. Account reviews, role changes, Principal
-settings and credential changes, and automation activity are read here; there
-is no separate Access review or Automation Activity page.
+**Action Logs** is the one administration view over permanent action
+history and the security log. It is filtered by search text, Area, Actor,
+Result, From, and To, sorted newest first with a sort toggle, and shows Time,
+Actor, Area, Action, Reference, and Result per row. Account reviews, role
+changes, Principal settings and credential changes, and automation activity
+are read here; there is no separate Access review or Automation Activity
+page.
 
 No identity design, app registration, scope declaration, role table, file, or registration proves that a live caller exists or is accepted.

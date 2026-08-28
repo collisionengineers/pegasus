@@ -113,12 +113,12 @@ Core state, not the label.
   report sent from Pegasus through an approved mailbox
   ([FRD-08 outbound correspondence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence))
   links its retained Sent item to the Case automatically. A report sent
-  through EVA is detected by the approved-mailbox report-mail match — the Case
-  reference and a PDF attachment — whereupon the PDF is attached to the Case
-  as the report document and the Sent item is linked. Either path enters
-  post-report work, still displayed as With Engineer. The Case action offers
-  only confirmation of detected evidence; `Post-report complete` remains the
-  separate, reasoned closure that ends post-report work.
+  through EVA is detected by the approved-mailbox report-mail match — the
+  Case reference and a PDF attachment — whereupon the PDF is attached to the
+  Case as the report document and the Sent item is linked. Either path
+  enters post-report work, still displayed as With Engineer. The Case action
+  offers only confirmation of detected evidence; `Post-report complete`
+  remains the separate, reasoned closure that ends post-report work.
 - **Return to Engineer** is the reasoned reopen from Complete to Report
   preparation; it requires an assigned Engineer and the normal destination
   gates.
