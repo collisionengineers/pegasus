@@ -214,3 +214,21 @@ evidence-viewer__, `label.req`. No `.legacy-` renames were needed.
    `/Cases`/`/Search`/`/Triage` stub, `RailCountsPageFilter` queries).
 10. `LayoutIntegrityTests` allow-list adds `.rail-user strong` and
     `.workspace-tab span`.
+
+## CI run 33157629752 on 32f4d189 — causes and fixes (2026-08-28)
+
+Diagnosed with one throwaway axe-node dump on `/` and an instrumented run
+of the failing journey (both removed before commit); no suite run locally.
+
+| Test(s) | Cause | Fix |
+| --- | --- | --- |
+| `AccessibilityTests.RealAuthenticatedRoute…` ×21, `.ForcedColours…`, `.OperationsRemainsUsable…`, `UploadRowsBrowserTests`, `UploadCaseSearchBrowserTests`, `MailWorkspaceBrowserTests`, `MultiFormatIntakeWebTests` | axe `region`: `div.utility-bar` (its freshness text) sat outside every landmark. axe `color-contrast`: `.shortcut-hint` "Ctrl K" (9px `#d8dfe3`) evaluated against the search input's white at 1.34:1. | `_Layout`: utility bar is `<section aria-label="Utility bar">` (a named region landmark). `.shortcut-hint` gets an opaque `#2d3336` ground with `#e6ebee` text (≈9:1) — a shell defect fixed in markup/CSS, not in tests. |
+| `LayoutIntegrityTests` ×11 | `A.brand` reported clipped: `.brand{overflow:hidden}` with its decorative `::after` texture bleeding past the edge (intentional). `/Search` also reported legacy `.vh` visually-hidden labels (1px clip, intentional). | Allow-list gains `.brand` and `.vh`. |
+| `OperatorJourneyTests.CustodyRecovery…` | My dialog assertion was inside a journey that runs with `javaScriptEnabled: false` by design (no-script usability), so no dialog can open there. | Assertion moved to a new `OperatorJourneyTests.PageRenderedReasonDialogStaysReachableWhileOpen` (same fixture, script on). |
+| `AssessmentReadinessSummaryBrowserTests` | The readiness chip is page markup (`.status-chip`), not `_StatusChip`; my selector change was wrong. | Selector restored to `.readiness-summary summary .status-chip`. |
+| `ImageViewingWebTests` | `_ImageGallery` emitted `<a class="gallery-item" href=…>`; the test pins `<a href="…"`. | Tile keeps `href` as its first attribute (markup, not test). |
+| `MailWorkspaceWebTests.FreshnessReports…` | Pinned the old "Updated" wording; the design contract is "Current · HH:MM" with a Stale/Unavailable chip. | Retargeted to `Current ·` with the same strength; `>Stale<` and `>Unavailable<` pins unchanged and still hold. |
+| `OrganizationAdministrationWebTests` | Landing no longer linked `/Administration/Organizations`. | Organisations card kept on the landing (not in `_AdminNav`) until PLAT-028 folds it (D2), with a comment. |
+
+Reviewed divergence added: `.shortcut-hint` carries an opaque ground the
+prototype did not draw, for contrast.
