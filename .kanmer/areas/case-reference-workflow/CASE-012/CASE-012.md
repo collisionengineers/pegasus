@@ -2,12 +2,15 @@
 id: CASE-012
 type: ticket
 title: Redesign the Case page workspace
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:40.733Z'
+taken_at: '2026-08-28T15:14:36.607Z'
+branch: task/case-012-case-workspace
+worktree: ../pegasus-worktrees/case-012-case-workspace
 labels:
   - ui
   - case
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T11:37:28.906Z'
+updated: '2026-08-28T15:14:36.607Z'
 ---
 
 ## What
