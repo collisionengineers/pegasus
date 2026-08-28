@@ -2,32 +2,80 @@
 
 ## Approach
 
-After TICK-061 supplies credential lifecycle and verification, add the first provider authentication handler and submission endpoint together in the existing Web Container App. Translate one bounded request into the existing grouped durable-intake owner and return an opaque receipt only after durable acceptance. Do not wait for processing or return files.
+Build on TICK-061's `IAuthenticatePrincipalCredential`. Add one Core owner
+(`Pegasus.Core.ProviderApi`) that turns an authenticated Principal's
+multipart envelope into the existing grouped durable intake on a new
+`provider_api` source channel, records a `ProviderSubmissions` row that is
+both the idempotency record and the Principal binding processing reads, and
+returns the durable receipt immediately. Expose it through one gated,
+bearer-only machine surface in Web. Diff estimate before coding: ~1,100
+lines of hand-written code across Core/Infrastructure/Web/tests plus two
+generated migration designers; actual: 49 files, ~1,250 hand-written lines.
 
-## Governing docs
+## Steps (each names what it reuses)
 
-- Modify FRD-09 to settle the exact submission wire contract, Principal isolation, idempotency, receipt response, and disclosure-safe failures before implementation.
-- ADR-0004 remains the accepted authentication boundary; no ADR number is reserved.
-- API-02 stays retired. API-03 alone resolves the provider's own receipt to an actual linked Case/PO or failure.
-
-## Steps
-
-1. Resolve the exact route, credential presentation, media type/parts, idempotency representation, response schema/statuses, and safe error mappings in FRD-09. Do not treat earlier multipart/HTTP Basic/202 suggestions as accepted defaults.
-2. Integrate TICK-061's verification port and compose one provider authentication handler only alongside this real route; staff cookies must not authenticate it.
-3. Add a thin Web adapter that enforces existing file/count/size limits, stamps Principal/client actor and source identity, and delegates to `IGroupedIntakeSubmission`.
-4. Preserve exact replay to the same durable receipt and fail closed on conflicting reuse, malformed/oversize requests, invalid/revoked credentials, paused submission permission, and custody failure.
-5. Reuse Azure SQL/outbox, transport Queue, Function Worker, custody Storage, HTTPS ingress, managed identity, and Application Insights. Add an application-level per-credential throttle with values fixed by capacity evidence.
-6. Add contract/integration/architecture tests for wire shape, single/multiple ordered files, limits, replay/conflict, actor/Principal isolation, pause/revoke, durable-before-response, throttle behavior, and absence when not activated.
-7. Refresh current-state docs after deployment, run the simplification lenses, locked restore/build/focused/full tests, and record evidence.
-
-## Azure decision
-
-No APIM, Front Door/WAF, Service Bus, extra Function, Entra app registration, or new store is justified initially. Capacity-test the existing one-replica Container App before changing scale. Reconsider APIM only for measured multi-provider traffic, centralized gateway governance, or a concrete WAF/domain requirement.
+1. Core vocabulary: `ActorKind.Provider` + `ActionActor.Provider`,
+   `StaffAccessRight.SubmitProviderInstruction`, `IntakeSourceChannel.ProviderApi`
+   — extending the existing single maps (`ActorDisplayNames`,
+   `MailClassificationActor.Prefixes`, `ReceiveIntake` size switch,
+   `SubmitGroupedIntake.OperationPrefix`).
+2. `ProviderSubmission.cs`: `SubmitProviderInstruction` (reuses
+   `IGroupedIntakeSubmission`, `IIntakeSubmissionGroupStore.FindAsync` for
+   replay detection, `IActionHistoryWriter`, `IntakeEnvelopeLimits`) and
+   `GetProviderSubmissionResult` (reuses `IQueuedIntakeStatusQueries`,
+   `IIntakeReceiptQueries`; vocabulary is `QueuedIntakeStatusKind`,
+   `IntakeDecision`, `IntakeAllocationFailureKind`).
+3. Binding into processing: `ProcessIntake` establishes the principal from
+   `IProviderSubmissionBindings` for the provider channel, skips mail-route
+   selection, classifies by the established principal; `AllocateIntake`
+   resolves the automatic principal the same way. A principal without an
+   extraction policy → NeedsSorting.
+4. Infrastructure: `ProviderSubmissionEntity` + configuration +
+   `EfProviderSubmissionStore` (also the bindings port), migrations
+   `20260828111707_ProviderSubmissions` and
+   `20260828111732_GrantProviderSubmissions` (Web SELECT/INSERT, Worker
+   SELECT), bootstrap census, migration list in
+   `IntakePersistenceIntegrationTests`.
+5. Web: `ProviderApi` constants, `ProviderApiAuthenticationHandler`
+   (`Bearer pgs_…`, security events `provider_credential_missing|rejected`),
+   `ProviderApiEndpoints` (`POST/GET /api/provider/v1/submissions`,
+   problem details, 201/200/409/403/413/401/404), `Program.cs` gate
+   `Features:ProviderApi`, per-key rate-limit policy, `IsMachineSurface`.
+6. FRD-09 § Accepted API-01 submission contract.
+7. Tests: `ProviderSubmissionTests` (Core) and `ProviderApiSubmissionTests`
+   (SqlServer, through `WebApplicationFactory`, draining with
+   `IntakeWebDriver.DrainStagedAsync`).
 
 ## Verification
 
-Web/SQL tests prove the durable receipt exists before response, authentication is Principal-scoped, replay is safe, pause blocks only submission, and no response exposes processing details, Case data, files, or reports.
+`dotnet build ./Pegasus.slnx --configuration Release` green;
+`pwsh ./scripts/Test-MigrationGrants.ps1` (82 files, all granted);
+`pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` passed. Tests are
+run by the orchestrator's wave loop (no `dotnet test` in this lane).
 
 ## Deferred activation
 
-Named provider, exact hostname/custom domain, final throttling values, capacity target, and live credential issuance require separate activation evidence/approval.
+Named provider, hostname, live throttle values, capacity target and any
+credential issuance need exact-target approval (capabilities.md boundary).
+`docs/current-architecture.md` / `docs/operations.md` are DELIV-030's.
+
+## Simplification pass — 2026-08-28
+
+Lenses run over the branch diff (reuse, simplification, efficiency, altitude):
+
+- Reuse: the first cut of the endpoint reused `IntakeMcpTools.DecisionCode`
+  for snake-case decision codes; dropped in favour of the Core enum names
+  serialized with `JsonStringEnumConverter`, so the API carries one
+  vocabulary and touches no MCP file. Applied.
+- Simplification: a `CreatedJson` `IResult` wrapper for the Location header
+  was replaced by setting the header on the response before `Results.Json`.
+  Applied. `replayed` detection is one `FindAsync` on the group store
+  rather than a stored flag. Applied.
+- Efficiency: files are buffered once per request (bounded by the envelope
+  limit); the bindings lookup is one query per member during processing.
+  No change.
+- Altitude: the channel code/parse maps stay duplicated per EF store
+  (pre-existing); not consolidated here — out of scope, noted in research.
+  `ProcessIntake`'s optional `IProviderSubmissionBindings` parameter follows
+  its existing optional-collaborator pattern rather than a new abstraction.
+  Not applied by design.
