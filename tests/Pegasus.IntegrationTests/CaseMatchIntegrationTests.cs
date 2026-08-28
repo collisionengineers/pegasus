@@ -136,6 +136,57 @@ public sealed class CaseMatchIntegrationTests
                 && item.EventType == "intake_case_linked_automatic"));
     }
 
+    /// <summary>
+    /// CASE-024: automatic association does not wait for an editor to finish. It writes receipt
+    /// rows only — no case row, no case version — so there is nothing for a staff edit to lose,
+    /// and the yield it used to perform was one-shot, silently costing the association for the
+    /// length of any editing session now that a lease is held for as long as the editor is open.
+    /// </summary>
+    [Fact]
+    public async Task AutomaticAssociationWritesWhileAStaffEditLeaseIsLiveAndLeavesTheCaseUntouched()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("case-match-accept-lease");
+        var caseId = outcome.Identity.CaseId;
+        var projection = await harness.GetRequiredDataAsync(caseId);
+        var chaserReceiptId = await harness.SeedAdditionalReceiptAsync("chaser-token-lease");
+        var lease = await harness.AcquireLeaseAsync(
+            caseId,
+            projection.Version,
+            "case-match-lease-live");
+
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var associated = await store.AssociateFromMatchAsync(
+            new(
+                chaserReceiptId,
+                caseId,
+                "qdos_case_match",
+                1,
+                "system-worker:intake-processing",
+                "case-match-association:while-leased",
+                "Automatic association while a staff editor holds the case."),
+            StartUtc,
+            CancellationToken.None);
+
+        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, associated);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var workflow = await context.CaseWorkflows.AsNoTracking()
+            .SingleAsync(item => item.CaseId == caseId);
+        // The editor keeps the case exactly as they loaded it: same version, same lease.
+        Assert.Equal(projection.Version, workflow.Version);
+        Assert.Equal(lease.Holder, workflow.EditLeaseHolder);
+        Assert.Equal(lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
+        var history = Assert.Single(await context.IntakeMutationHistory
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == chaserReceiptId
+                && item.EventType == "intake_case_linked_automatic")
+            .ToListAsync());
+        Assert.Null(history.ExpectedCaseVersion);
+        Assert.Null(history.BeforeCaseVersion);
+        Assert.Null(history.AfterCaseVersion);
+    }
+
     [Fact]
     public async Task StaffReversedAssociationIsNeverSilentlyRelinkedByAutomaticMatching()
     {

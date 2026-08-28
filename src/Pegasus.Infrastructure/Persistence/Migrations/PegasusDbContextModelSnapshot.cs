@@ -437,6 +437,139 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ActionHistory", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AiJobEntity", b =>
+                {
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ClosedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ClosureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CreatedByKind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("EngineerValueAtSend")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Instruction")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("LastOperationKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ProgressNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("ResultKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ResultReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ResultText")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SubjectKind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SubjectReference")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset?>("TakenAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TakenBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("TargetPercentOfEngineerValue")
+                        .HasColumnType("int");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("JobId");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("OperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("SubjectId");
+
+                    b.HasIndex("State", "LeaseExpiresAtUtc");
+
+                    b.ToTable("AiJobs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AiJobs_Kind", "[Kind] IN ('Estimate', 'UnidentifiedResolution', 'QueryResponse', 'UnidentifiedQueuePass')");
+
+                            t.HasCheckConstraint("CK_AiJobs_ResultKind", "[ResultKind] IS NULL OR [ResultKind] IN ('Estimate', 'ProposedResolution', 'DraftReply')");
+
+                            t.HasCheckConstraint("CK_AiJobs_State", "[State] IN ('Queued', 'Taken', 'DraftReady', 'Completed', 'Failed', 'Cancelled', 'Expired')");
+
+                            t.HasCheckConstraint("CK_AiJobs_SubjectKind", "[SubjectKind] IN ('Case', 'Unidentified', 'Queue')");
+
+                            t.HasCheckConstraint("CK_AiJobs_TargetPercent", "[TargetPercentOfEngineerValue] IS NULL OR [TargetPercentOfEngineerValue] BETWEEN 1 AND 100");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AiWorkRequestEntity", b =>
                 {
                     b.Property<Guid>("RequestId")
@@ -2798,9 +2931,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_EvaSubmissions_Counts", "[ImagesSent] >= 0 AND [AttemptCount] >= 1 AND [WorkflowVersion] >= 0");
 
-                            t.HasCheckConstraint("CK_EvaSubmissions_Outcome", "[Outcome] IN ('Succeeded', 'Rejected', 'Partial', 'Unknown')");
-
                             t.HasCheckConstraint("CK_EvaSubmissions_DeliveredAgreesWithOutcome", "([IsDelivered] = 1 AND [Outcome] IN ('Succeeded', 'Partial')) OR ([IsDelivered] = 0 AND [Outcome] NOT IN ('Succeeded', 'Partial'))");
+
+                            t.HasCheckConstraint("CK_EvaSubmissions_Outcome", "[Outcome] IN ('Succeeded', 'Rejected', 'Partial', 'Unknown')");
                         });
                 });
 

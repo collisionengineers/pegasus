@@ -120,11 +120,6 @@ public sealed partial class ExportModel(
         && !fileName.Contains('\\', StringComparison.Ordinal)
         && !fileName.Any(char.IsControl);
 
-    private static string RequireOperationKey(string value) =>
-        Guid.TryParseExact(value, "N", out var operationId)
-            ? operationId.ToString("N")
-            : throw new ArgumentException("The operation key is invalid.", nameof(value));
-
     [LoggerMessage(
         Level = LogLevel.Warning,
         Message = "Case document export failed for case {CaseId}.")]

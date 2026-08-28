@@ -122,3 +122,39 @@ internal sealed class SendToAiControlEntity
     public string? ChannelTokenProtected { get; set; }
     public DateTimeOffset? TokenRotatedAtUtc { get; set; }
 }
+
+/// <summary>
+/// One AI job on the pull-based ledger (AI-10, ADR-0035). Creation is
+/// idempotent per operation key; transitions are optimistic on Version.
+/// A subject that is a Case is correlated to it by SubjectId; no foreign
+/// key, because the subject may also be an Unidentified item or the queue.
+/// </summary>
+internal sealed class AiJobEntity
+{
+    public Guid JobId { get; set; }
+    public required string Kind { get; set; }
+    public required string SubjectKind { get; set; }
+    public Guid? SubjectId { get; set; }
+    public required string SubjectReference { get; set; }
+    public required string Instruction { get; set; }
+    public int? TargetPercentOfEngineerValue { get; set; }
+    public decimal? EngineerValueAtSend { get; set; }
+    public required string State { get; set; }
+    public required string OperationKey { get; set; }
+    public required string RequestHash { get; set; }
+    public required string CreatedByKind { get; set; }
+    public required string CreatedBy { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public string? TakenBy { get; set; }
+    public DateTimeOffset? TakenAtUtc { get; set; }
+    public DateTimeOffset? LeaseExpiresAtUtc { get; set; }
+    public string? ProgressNote { get; set; }
+    public string? ResultKind { get; set; }
+    public string? ResultReference { get; set; }
+    public string? ResultText { get; set; }
+    public DateTimeOffset? ClosedAtUtc { get; set; }
+    public string? ClosureReason { get; set; }
+    public string? LastOperationKey { get; set; }
+    public long Version { get; set; }
+}

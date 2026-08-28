@@ -1443,6 +1443,116 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Null(afterExpiry?.ActiveEditLease);
     }
 
+    /// <summary>
+    /// CASE-024: a heartbeat extends the lease and records nothing. It is issued once a minute for
+    /// as long as an editor is open, so a replay row per beat would grow a table nothing prunes,
+    /// and rewriting the operation key would destroy the claim key the workspace reads back to
+    /// recover edit mode.
+    /// </summary>
+    [Fact]
+    public async Task HeartbeatExtendsTheLeaseWithoutWritingAReplayRowOrTouchingTheClaimKey()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-heartbeat"),
+            default);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(4));
+        var beaten = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, actor, lease.Token),
+            default);
+
+        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), beaten.ExpiresAtUtc);
+        Assert.Equal(lease.Token, beaten.Token);
+        Assert.Equal(lease.Holder, beaten.Holder);
+        Assert.Equal(lease.Version, beaten.Version);
+        // One row for the claim, and none for the beat.
+        Assert.Equal(
+            1,
+            await harness.LeaseOperationCountAsync(harness.CaseId, "claim-heartbeat"));
+        Assert.Equal(1, await harness.LeaseOperationCountAsync(harness.CaseId));
+        Assert.Equal("claim-heartbeat", await harness.LeaseOperationKeyAsync(harness.CaseId));
+    }
+
+    [Fact]
+    public async Task HeartbeatIsRefusedForANonHolderAndForALeaseThatAlreadyLapsed()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var other = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "claim-refusals"),
+            default);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, other, lease.Token), default));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
+    }
+
+    /// <summary>
+    /// The first requirement, end to end: an editor that keeps beating is never timed out, however
+    /// long the session runs; one that stops frees the case for someone else.
+    /// </summary>
+    [Fact]
+    public async Task RepeatedHeartbeatsHoldTheLeaseIndefinitelyAndStoppingThemLetsItLapse()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var waiting = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, editor, "claim-long-session"),
+            default);
+
+        // Ten beats at the rendered interval - well past the point the lease would have lapsed
+        // unattended, which is the whole complaint this fixes.
+        for (var beat = 0; beat < 10; beat++)
+        {
+            harness.TimeProvider.Advance(CaseEditAuthority.HeartbeatInterval);
+            await harness.Store.HeartbeatAsync(new(harness.CaseId, editor, lease.Token), default);
+        }
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, waiting, "claim-while-beating"),
+                default));
+        Assert.Equal(1, await harness.LeaseOperationCountAsync(harness.CaseId));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        var reacquired = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, waiting, "claim-after-beats-stopped"),
+            default);
+
+        Assert.Equal(waiting.SubjectId, reacquired.Holder);
+    }
+
+    /// <summary>
+    /// The second requirement: a save ends edit mode as it commits, and a beat still in flight
+    /// cannot bring back the lease that save just cleared.
+    /// </summary>
+    [Fact]
+    public async Task ASaveEndsEditModeImmediatelyAndALaterHeartbeatCannotResurrectIt()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-before-save"),
+            default);
+        await harness.Store.HeartbeatAsync(new(harness.CaseId, actor, lease.Token), default);
+
+        await new PutCaseOnHold(harness.Store).ExecuteAsync(
+            new(harness.CaseId, 0, actor, "hold-ends-edit-mode", "Waiting", lease.Token),
+            default);
+
+        var afterSave = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        Assert.Null(afterSave?.ActiveEditLease);
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, actor, lease.Token), default));
+    }
+
     [Fact]
     public async Task AnAbandonedLeaseExpiresAndIsReacquiredByADifferentHolder()
     {
@@ -2100,6 +2210,26 @@ public sealed class CaseWorkflowPersistenceTests
             return await context.CaseEditLeaseOperations.LongCountAsync(
                 item => item.CaseId == caseId
                     && item.OperationKey == operationKey);
+        }
+
+        /// <summary>Every lease operation row the case carries, whatever its key.</summary>
+        public async Task<long> LeaseOperationCountAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            return await context.CaseEditLeaseOperations.LongCountAsync(
+                item => item.CaseId == caseId);
+        }
+
+        /// <summary>
+        /// The operation key retained on the case row — the claim key the workspace parses back to
+        /// restore edit mode, which a heartbeat must leave alone.
+        /// </summary>
+        public async Task<string?> LeaseOperationKeyAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.AsNoTracking()
+                .SingleAsync(item => item.CaseId == caseId);
+            return workflow.EditLeaseOperationKey;
         }
 
         public async Task<long> WorkflowEventCountAsync(string operationKey)
