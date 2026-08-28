@@ -28,3 +28,11 @@
 ## Open questions
 
 - None new. Parked: wire presentation of the credential (TICK-058), overlapping credentials, live issuance (exact-target approval).
+
+## Review response — 2026-08-28 (#592, commit c0a55807)
+
+- HIGH: `IssueReturnsTheSecretOnceAndNeverOnReplay` now asserts `Issued.Count == 2` and reads `Issued[0]`; secret-null-on-replay assertion kept.
+- UTF-8 BOMs stripped from `20260828104130_PrincipalApiCredentials.cs`, both `.Designer.cs` files and `PegasusDbContextModelSnapshot.cs`.
+- FRD-04 § Principals administration: one sentence states the two chosen transitions (reset of a paused credential → active; a revoked credential may be reissued).
+- Accepted risk — key-id timing oracle: `VerifySecretAsync` looks the row up by key id before hashing, so an unknown key id answers faster than a known one. The key id carries 96 random bits, so enumeration is infeasible; TICK-058 owns rate limiting on the endpoint that exposes the check.
+- Callers for proof: TICK-058 (`IAuthenticatePrincipalCredential`), PLAT-050 (`IGetPrincipalCredential` and the four commands). Until they merge this ticket's evidence tier is "registered and integration-tested", not "wired".

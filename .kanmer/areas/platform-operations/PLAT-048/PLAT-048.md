@@ -19,18 +19,21 @@ labels:
   - reports
 groups:
   - EPIC-011
-links: []
+links:
+  - PLAT-053
+  - PLAT-054
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 commits:
   - fc0537a1
   - 40f6d043
+  - 2818fc26
 prs:
   - '591'
 archived: false
 created: '2026-08-28T08:35:24.047Z'
-updated: '2026-08-28T10:49:18.208Z'
+updated: '2026-08-28T10:59:20.660Z'
 ---
 
 ## What

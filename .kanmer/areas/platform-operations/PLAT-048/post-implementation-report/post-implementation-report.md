@@ -30,3 +30,12 @@ Branch `task/plat-048-service-health-report` from `origin/dev` 658a7984; `origin
 1. `ServiceHealthPolicy.EvaRecentFailureWindow` (24 h) and the reuse of `StaleAfter` (15 min) for both poll rows are engineering choices with no operator statement; PLAT-049 review may want them in `docs/open-decisions.md` alongside the existing staleness entry.
 2. The Engineer query counts by `IntakeReceipts.ReceivedAtUtc` and `CaseReportSentEvidence.SentAtUtc`; neither column is indexed. Volumes are alpha-scale; if the Reports page proves slow, an index migration is a follow-up ticket (none added here).
 3. An Engineer with no activity in the period is absent from the rows. If the Reports table should list every Engineer account with zeros, PLAT-051 can union `IStaffAccountQueries` Engineer-role accounts in the page — the use case does not, so the report stays a query over recorded activity.
+
+## Review dispositions applied — 2026-08-28, commit 2818fc26
+
+- Intake dispatch row: `Configured` when nothing is active and nothing has ever completed (no `Current` without evidence).
+- `ServiceHealthSnapshot.ExternalWorkLimitReached` surfaces `GetRequestOperations.LimitReached`; PLAT-049 shows the partial-data notice when it is set.
+- `GetServiceHealth` is now registered in Web (`AddAutomationMcp`), not Infrastructure; the Worker carries no unresolvable registration.
+- Attribution is by the case's **current** `AssignedEngineerId` (no assignment history exists); a Failed poll row's evidence time is its last success (the cursor keeps no failure time); the automation-activity port is read directly for the newest timestamp only (commented in code).
+- The 15-minute `StaleAfter` reuse and the 24 h `EvaRecentFailureWindow` are engineering choices to be named in PLAT-049's plan or `docs/open-decisions.md`.
+- Follow-ups filed: [[PLAT-053]] (one owner for the external-work state words in Infrastructure), [[PLAT-054]] (public office-day boundary owner for the Reports page, blocks PLAT-051's conversion).
