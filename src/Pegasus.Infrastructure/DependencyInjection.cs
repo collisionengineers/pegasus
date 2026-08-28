@@ -191,6 +191,17 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
+        services.AddScoped<EfPrincipalCredentialStore>();
+        services.AddScoped<IPrincipalCredentialStore>(
+            provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
+        services.AddScoped<IPrincipalCredentialQueries>(
+            provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
+        services.AddScoped<IIssuePrincipalCredential, IssuePrincipalCredential>();
+        services.AddScoped<IPausePrincipalCredential, PausePrincipalCredential>();
+        services.AddScoped<IResumePrincipalCredential, ResumePrincipalCredential>();
+        services.AddScoped<IRevokePrincipalCredential, RevokePrincipalCredential>();
+        services.AddScoped<IGetPrincipalCredential, GetPrincipalCredential>();
+        services.AddScoped<IAuthenticatePrincipalCredential, AuthenticatePrincipalCredential>();
         services.AddScoped<ICreateOrganization, CreateOrganization>();
         services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
@@ -243,6 +254,9 @@ public static class DependencyInjection
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
+        services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
+        services.AddScoped<GetEngineerActivityReport>();
         services.AddScoped<EfWorkflowConfigurationStore>();
         services.AddScoped<IWorkflowConfigurationStore>(
             provider => provider.GetRequiredService<EfWorkflowConfigurationStore>());
@@ -281,6 +295,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
+        services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -309,6 +324,13 @@ public static class DependencyInjection
         services.AddScoped<ISaveAssessment, SaveAssessment>();
         services.AddScoped<IAiWorkRequestStore, EfAiWorkRequestStore>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
+        services.AddScoped<EfAiJobStore>();
+        services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
+        services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
+        services.AddScoped<ICreateAiJob, CreateAiJob>();
+        services.AddScoped<IWorkAiJob, WorkAiJob>();
+        services.AddScoped<ICancelAiJob, CancelAiJob>();
+        services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
             provider => provider.GetRequiredService<EfCaseTaskStore>());
