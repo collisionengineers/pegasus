@@ -273,6 +273,7 @@ internal sealed class EfOperationsStore(
                     workflow.Version,
                     workflow.EditLeaseTokenHash != null,
                     workflow.EditLeaseHolder,
+                    workflow.EditLeaseHolderKind,
                     workflow.EditLeaseOperationKey,
                     workflow.EditLeaseExpiresAtUtc,
                     workflow.ArchivedAtUtc != null))
@@ -304,6 +305,7 @@ internal sealed class EfOperationsStore(
                     workflow.Version,
                     workflow.EditLeaseTokenHash != null,
                     workflow.EditLeaseHolder,
+                    workflow.EditLeaseHolderKind,
                     workflow.EditLeaseOperationKey,
                     workflow.EditLeaseExpiresAtUtc,
                     workflow.ArchivedAtUtc != null))
@@ -613,6 +615,7 @@ internal sealed class EfOperationsStore(
             ActiveEditLease = MapActiveEditLease(
                 leaseState,
                 item.CaseEditLeaseHolder,
+                item.CaseEditLeaseHolderKind,
                 item.CaseEditLeaseOperationKey,
                 item.CaseEditLeaseExpiresAtUtc)
         };
@@ -653,10 +656,15 @@ internal sealed class EfOperationsStore(
     private static CaseEditLeaseSnapshot? MapActiveEditLease(
         RequestCaseEditLeaseState leaseState,
         string? holder,
+        string? holderKind,
         string? operationKey,
         DateTimeOffset? expiresAtUtc) =>
         leaseState == RequestCaseEditLeaseState.Active
-            ? new CaseEditLeaseSnapshot(holder!, expiresAtUtc!.Value, operationKey!)
+            ? new CaseEditLeaseSnapshot(
+                holder!,
+                CaseMutationGuard.RetainedHolderKind(holderKind),
+                expiresAtUtc!.Value,
+                operationKey!)
             : null;
 
     private static RequestOperationProjection MapExternalWork(
@@ -708,6 +716,7 @@ internal sealed class EfOperationsStore(
             ActiveEditLease = MapActiveEditLease(
                 leaseState,
                 item.CaseEditLeaseHolder,
+                item.CaseEditLeaseHolderKind,
                 item.CaseEditLeaseOperationKey,
                 item.CaseEditLeaseExpiresAtUtc)
         };
@@ -807,6 +816,7 @@ internal sealed class EfOperationsStore(
         long CaseVersion,
         bool HasCaseEditLease,
         string? CaseEditLeaseHolder,
+        string? CaseEditLeaseHolderKind,
         string? CaseEditLeaseOperationKey,
         DateTimeOffset? CaseEditLeaseExpiresAtUtc,
         bool CaseIsArchived);
@@ -828,6 +838,7 @@ internal sealed class EfOperationsStore(
         long CaseVersion,
         bool HasCaseEditLease,
         string? CaseEditLeaseHolder,
+        string? CaseEditLeaseHolderKind,
         string? CaseEditLeaseOperationKey,
         DateTimeOffset? CaseEditLeaseExpiresAtUtc,
         bool CaseIsArchived);

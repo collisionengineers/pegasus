@@ -41,6 +41,23 @@ public static class CaseEditAuthority
     }
 
     /// <summary>
+    /// Whether the retained holder is this actor. A holder is an <see cref="ActionActor"/>
+    /// identity — kind and subject together — so a staff account and the Automation Actor are
+    /// never the same holder even when their subject text coincides, and a retained holder whose
+    /// kind was never recorded is nobody's: it competes with every caller until it expires.
+    /// </summary>
+    public static bool IsHolder(
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return retainedLeaseHolderKind == actor.Kind
+            && !string.IsNullOrWhiteSpace(retainedLeaseHolder)
+            && string.Equals(retainedLeaseHolder, actor.SubjectId, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Refuses a mutation that does not present the live lease its actor holds. The caller has
     /// already compared the presented token against the retained hash in fixed time;
     /// <paramref name="presentedTokenMatchesRetainedHash"/> is false when it does not match or when
@@ -49,14 +66,16 @@ public static class CaseEditAuthority
     public static void RequireLease(
         Guid caseId,
         long caseVersion,
-        string actorSubjectId,
+        ActionActor actor,
         string? presentedLeaseToken,
+        ActorKind? retainedLeaseHolderKind,
         string? retainedLeaseHolder,
         bool hasRetainedLeaseTokenHash,
         DateTimeOffset? leaseExpiresAtUtc,
         bool presentedTokenMatchesRetainedHash,
         DateTimeOffset nowUtc)
     {
+        ArgumentNullException.ThrowIfNull(actor);
         if (string.IsNullOrWhiteSpace(presentedLeaseToken)
             || !IsHeld(leaseExpiresAtUtc, nowUtc)
             || !hasRetainedLeaseTokenHash
@@ -65,7 +84,7 @@ public static class CaseEditAuthority
             throw new CaseEditLeaseExpiredException(caseId, caseVersion);
         }
 
-        if (!string.Equals(retainedLeaseHolder, actorSubjectId, StringComparison.Ordinal)
+        if (!IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor)
             || !presentedTokenMatchesRetainedHash)
         {
             throw new CaseEditLeaseConflictException(caseId, caseVersion);
@@ -77,8 +96,9 @@ public static class CaseEditAuthority
 /// How the holder of a case's edit authority is disclosed to other authorised staff. A resolved
 /// account is named; an unresolvable one is described without an identifier, because the retained
 /// holder is a subject identifier and an identifier is never operator-facing. The Automation Actor
-/// is disclosed as itself: ADR-0011 requires it to stay attributable without impersonating staff,
-/// so it is never described as a member of staff.
+/// is disclosed as itself by its retained kind, never by the shape of its subject: ADR-0011
+/// requires it to stay attributable without impersonating staff, so it is never described as a
+/// member of staff.
 /// </summary>
 public sealed record CaseEditAuthorityHolder(string? DisplayName, bool IsAutomation = false)
 {
@@ -91,6 +111,7 @@ public sealed record CaseEditAuthorityHolder(string? DisplayName, bool IsAutomat
 public interface IDescribeCaseEditAuthorityHolder
 {
     Task<CaseEditAuthorityHolder> ExecuteAsync(
+        ActorKind? holderKind,
         string holderSubjectId,
         ActionActor actor,
         CancellationToken cancellationToken);
@@ -109,20 +130,23 @@ public sealed class DescribeCaseEditAuthorityHolder(IStaffAccountQueries account
         accounts ?? throw new ArgumentNullException(nameof(accounts));
 
     public async Task<CaseEditAuthorityHolder> ExecuteAsync(
+        ActorKind? holderKind,
         string holderSubjectId,
         ActionActor actor,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
-        // Casework authorization admits only the Staff and Automation actor kinds, and a staff
-        // subject identifier is always a GUID, so a holder that is not one is the Automation Actor.
-        if (!Guid.TryParse(holderSubjectId, out var staffId))
+        if (holderKind == ActorKind.Automation)
         {
             return CaseEditAuthorityHolder.Automation;
         }
 
-        if (staffId == Guid.Empty)
+        // Only a staff holder has an account to name. A holder whose kind was never recorded, or
+        // whose subject is not a staff identifier, is described without one.
+        if (holderKind != ActorKind.Staff
+            || !Guid.TryParse(holderSubjectId, out var staffId)
+            || staffId == Guid.Empty)
         {
             return CaseEditAuthorityHolder.Unnamed;
         }
