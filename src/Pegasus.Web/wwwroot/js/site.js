@@ -535,6 +535,72 @@
     });
 })();
 
+// CASE-024: an open editor keeps its own lease alive, so a real editing session
+// is never timed out mid-edit. The beat posts the rendered form, whose
+// antiforgery token rides in the FormData exactly as the upload enhancement
+// above does. With script the manual "Renew editing" button is redundant, so it
+// is hidden here; without script it stays and is the only way to keep editing.
+(function () {
+    var form = document.querySelector('[data-edit-heartbeat]');
+    if (!form) {
+        return;
+    }
+
+    var renew = document.querySelector('[data-edit-renew]');
+    if (renew) {
+        renew.hidden = true;
+    }
+
+    var seconds = parseInt(form.getAttribute('data-heartbeat-seconds'), 10);
+    if (!(seconds > 0)) {
+        // The interval is a server value; without it, leave the Renew button
+        // showing rather than beat on a guessed one.
+        if (renew) {
+            renew.hidden = false;
+        }
+        return;
+    }
+
+    // A live timer is what "still beating" means; visibilitychange checks it too,
+    // because it calls beat() directly rather than through the interval.
+    var timer = null;
+    var stop = function () {
+        window.clearInterval(timer);
+        timer = null;
+    };
+
+    var beat = function () {
+        if (timer === null) {
+            return;
+        }
+
+        fetch(form.getAttribute('action') || window.location.href, {
+            method: 'POST',
+            body: new FormData(form)
+        }).then(function (response) {
+            // 204 is the only answer that means the lease is still ours. A
+            // refusal is final - the lease was released, expired, or is now
+            // someone else's - and the page the operator lands on next already
+            // shows the case's real edit state, so nothing is said here.
+            if (response.status !== 204) {
+                stop();
+            }
+        }).catch(function () {
+            // A single failed beat is not a lost lease: there are several more
+            // before the lease could lapse, so keep beating.
+        });
+    };
+
+    timer = window.setInterval(beat, seconds * 1000);
+    // A hidden tab has its timers throttled, so the phase on return is
+    // unknowable; one beat on becoming visible again settles it.
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            beat();
+        }
+    });
+})();
+
 // INTK-022: a filter form marked data-auto-submit submits itself when any of
 // its selects change; the noscript Apply button covers the rest.
 (function () {

@@ -498,7 +498,7 @@ public sealed class DetailsModel(
                 activeLease.Holder,
                 actor,
                 cancellationToken);
-        return EditModeDisplay.CaseHeldBy(holder, activeLease.ExpiresAtUtc, isSelf);
+        return EditModeDisplay.CaseHeldBy(holder, isSelf);
     }
 
     /// <summary>
