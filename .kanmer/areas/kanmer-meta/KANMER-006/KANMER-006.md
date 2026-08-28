@@ -10,12 +10,14 @@ labels:
   - kanmer
   - setup
   - board-groom-follow-up
+groups:
+  - EPIC-011
 links:
   - KANMER-003
   - TICK-222
 archived: false
 created: '2026-08-25T06:35:41.710Z'
-updated: '2026-08-25T06:56:56.234Z'
+updated: '2026-08-28T08:07:41.507Z'
 ---
 
 ## What
