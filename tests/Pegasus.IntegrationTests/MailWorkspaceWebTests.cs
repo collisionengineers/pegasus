@@ -598,7 +598,7 @@ public sealed class MailWorkspaceWebTests
     public async Task ScopingAndPagingCarryTheMailboxFolderAndPageForward()
     {
         using var factory = new IntakeWebApplicationFactory();
-        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var scoped = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxFilter}");
@@ -610,6 +610,24 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
         // The row link carries the exact list position back into detail.
         Assert.Contains($"mailbox={FirstMailboxFilter}&amp;pageNumber=2", secondPage, StringComparison.Ordinal);
+
+        // The Unread scope and the oldest-first order survive the message
+        // round-trip: the pane's full-detail entry opens the message with
+        // them, Back returns to the same scope and order, and so does every
+        // section tab.
+        var unreadOldest = await GetHtmlAsync(
+            client,
+            $"/Inbox?mailbox={FirstMailboxFilter}&unread=true&sort=oldest&pageNumber=2");
+        Assert.Contains("unread=true&amp;sort=oldest&amp;pageNumber=2", unreadOldest, StringComparison.Ordinal);
+
+        var detail = await GetHtmlAsync(
+            client,
+            $"/Inbox/{ids[0]:D}?mailbox={FirstMailboxFilter}&unread=true&sort=oldest&pageNumber=2");
+        Assert.Contains(
+            $"/Inbox?mailbox={FirstMailboxFilter}&amp;unread=true&amp;sort=oldest&amp;pageNumber=2",
+            detail,
+            StringComparison.Ordinal);
+        Assert.Contains("unread=true&amp;sort=oldest&amp;section=attachments", detail, StringComparison.Ordinal);
     }
 
     [Fact]
