@@ -214,9 +214,9 @@
                 @foreach (var item in Model.Results.Items)
                 {
                     var isSelected = selectedSummary?.Id == item.Id;
-                    <div class="row-button @(item.IsRead ? null : "unread")"
-                         data-mail-preview-row
-                         aria-selected="@(isSelected ? "true" : "false")">
+                    @* The row is a container, not a widget: selection state
+                       lives on the row's link, where aria-current is legal. *@
+                    <div class="row-button @(item.IsRead ? null : "unread")" data-mail-preview-row>
                         <span class="row-top">
                             <span class="row-title">
                                 @if (!item.IsRead)
@@ -248,6 +248,7 @@
                            data-mail-preview-url="@Url.Page("/Mail/Index", "Preview", new { id = item.Id })"
                            aria-controls="mail-quick-preview"
                            aria-expanded="@(isSelected ? "true" : "false")"
+                           aria-current="@(isSelected ? "true" : null)"
                            title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
                         @* The excerpt sits beneath the subject: it is what lets an
                            operator sort the morning's post without opening every
