@@ -1,4 +1,4 @@
-﻿namespace Pegasus.Infrastructure.Persistence;
+namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// One current assessment field value with recording and confirmation

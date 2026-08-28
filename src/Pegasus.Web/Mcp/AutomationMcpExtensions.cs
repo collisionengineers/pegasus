@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using ModelContextProtocol.AspNetCore.Authentication;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;

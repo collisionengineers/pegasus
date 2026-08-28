@@ -11,8 +11,9 @@ namespace Pegasus.Core.AiWork;
 /// creates only the scheduled Unidentified-queue pass (EPIC-011 D5) and is
 /// the only actor that takes, progresses, completes, fails or releases;
 /// staff cancel and confirm. A Taken job whose lease has lapsed reads as
-/// Queued, and a Queued job past its own expiry reads as Expired, so no
-/// timer is needed for either rule.
+/// Queued regardless of the job's own expiry (ADR-0035: taken jobs expire
+/// back to Queued), and a Queued job past its own expiry reads as Expired,
+/// so no timer is needed for either rule.
 /// </summary>
 public static class AiJobPolicy
 {
@@ -54,8 +55,7 @@ public static class AiJobPolicy
         DateTimeOffset? leaseExpiresAtUtc,
         DateTimeOffset now) => persisted switch
     {
-        AiJobState.Taken when leaseExpiresAtUtc is { } lease && lease <= now =>
-            expiresAtUtc <= now ? AiJobState.Expired : AiJobState.Queued,
+        AiJobState.Taken when leaseExpiresAtUtc is { } lease && lease <= now => AiJobState.Queued,
         AiJobState.Queued when expiresAtUtc <= now => AiJobState.Expired,
         _ => persisted
     };
