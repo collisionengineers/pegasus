@@ -21,7 +21,10 @@
     </div>
     <div class="page-actions">
         <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
-        <a class="btn btn--primary" asp-page="/Cases/Create">
+        @* A case is made from received material, so /Cases/Create answers only
+           for a receipt and returns 404 without one. The header action starts
+           where that receipt comes from. *@
+        <a class="btn btn--primary" asp-page="/Upload">
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
             <span>Create Case</span>
         </a>
@@ -33,7 +36,7 @@
    enum through the one display mapping (D3), so a terminal outcome is a
    choice here and a result here — the work views exclude those cases, this
    page is where they stay findable. *@
-<form method="get" class="panel section-gap">
+<form method="get" class="panel section-gap" aria-label="Filter cases">
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     <div class="panel-body advanced-search-grid">
         <div class="field">
@@ -100,7 +103,20 @@
     </div>
 </form>
 
-@if (Model.ImageIntakeResults.Count > 0)
+@* One failure, one notice. Both reads on this page run inside the same
+   guarded load, so either can fail; neither section may answer a failed
+   query with an empty result or a "0 results" count. *@
+@if (Model.QueryFailed)
+{
+    <div class="notice notice--danger section-gap" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <div>
+            <strong>Cases are unavailable</strong>
+            <p>The search could not be completed; try again.</p>
+        </div>
+    </div>
+}
+else if (Model.ImageIntakeResults.Count > 0)
 {
     @* Image-initiated Cases answer the same reference or registration and
        keep their own record shape and named states (FRD-12). *@
@@ -129,7 +145,7 @@ else if (listingImages)
     <p class="empty">No vehicle images match these filters.</p>
 }
 
-@if (!listingImages)
+@if (!listingImages && !Model.QueryFailed)
 {
     <section class="pane-layout pane-layout--2 case-search-layout section-gap">
         <div class="pane">
@@ -140,17 +156,7 @@ else if (listingImages)
                 </div>
             </div>
             <div class="pane-body pane-scroll" data-row-list>
-                @if (Model.QueryFailed)
-                {
-                    <div class="notice notice--danger" role="alert">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                        <div>
-                            <strong>Cases are unavailable</strong>
-                            <p>The case query could not be completed; try again.</p>
-                        </div>
-                    </div>
-                }
-                else if (ViewData.ModelState.IsValid && Model.Rows.Count == 0 && Model.ImageIntakeResults.Count == 0)
+                @if (ViewData.ModelState.IsValid && Model.Rows.Count == 0 && Model.ImageIntakeResults.Count == 0)
                 {
                     @* Both settled sentences are kept: each is separately
                        relied on to tell an empty result from the unavailable
@@ -182,6 +188,7 @@ else if (listingImages)
                                 @foreach (var row in Model.Rows)
                                 {
                                     <tr data-select-href="@row.SelectHref" data-select-id="@row.Item.CaseId"
+                                        data-copy-reference="@row.Item.Reference"
                                         aria-selected="@(Model.SelectedId == row.Item.CaseId ? "true" : "false")">
                                         <td>
                                             <a class="table-row-link" href="@row.DetailHref">@row.Item.Reference</a>
@@ -241,9 +248,11 @@ else if (listingImages)
                 @if (Model.Selected is { } copySource)
                 {
                     @* Copy Case/PO sits outside the swapped preview because
-                       the shell's copy control binds once at load; its value
-                       is the server-selected row's reference, selectable
-                       text without script. *@
+                       the shell's copy control binds once at load; a control
+                       swapped into the preview would lose that binding. Its
+                       value is the selected row's reference — server-rendered
+                       here, and kept in step with a script-side selection by
+                       the Scripts section below. *@
                     <div class="button-row">
                         <span class="sr-only" id="search-copy-reference">@copySource.Item.Reference</span>
                         <button type="button" class="btn btn--small" data-copy-target="search-copy-reference" hidden>
@@ -255,4 +264,52 @@ else if (listingImages)
             </div>
         </div>
     </section>
+}
+
+@section Scripts {
+    <script>
+        // The shell's row-selection module swaps the preview target and
+        // rewrites the address; two controls this page owns live outside that
+        // region because they cannot survive being replaced — the Copy
+        // Case/PO source (the shell's clipboard binding resolves it once, at
+        // load) and the refresh form's hidden `selected` field. Without this
+        // they keep the row the server selected: Copy pasted the previous
+        // Case/PO and Refresh reopened the previous row. The clipboard and
+        // the selection stay the shell's; this only keeps the two values on
+        // the row the operator is reading.
+        (function () {
+            'use strict';
+            var reference = document.getElementById('search-copy-reference');
+            var refreshField = document.querySelector('[data-refresh-form] input[name="selected"]');
+            if (!reference && !refreshField) {
+                return;
+            }
+
+            document.querySelectorAll('tr[data-copy-reference][data-select-id]').forEach(function (row) {
+                function follow() {
+                    if (reference) {
+                        reference.textContent = row.getAttribute('data-copy-reference');
+                    }
+                    if (refreshField) {
+                        refreshField.value = row.getAttribute('data-select-id');
+                    }
+                }
+
+                // The same three openings the shell selects on, with the same
+                // guard: a click on the row's own link or button is that
+                // control's, not a selection.
+                row.addEventListener('click', function (event) {
+                    if (!event.target.closest('a, button')) {
+                        follow();
+                    }
+                });
+                row.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter' && !event.target.closest('a, button')) {
+                        follow();
+                    }
+                });
+                row.addEventListener('focus', follow);
+            });
+        })();
+    </script>
 }
