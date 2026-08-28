@@ -5,30 +5,32 @@ using Pegasus.Core.Operations;
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
-/// Supplies <c>ViewData["RailCounts"]</c> on every authenticated request, so
-/// <c>_Layout.cshtml</c>'s rail badges never carry a shell-invented number.
+/// Supplies <c>ViewData["RailCounts"]</c> and <c>ViewData["ShellRenderedAtUtc"]</c>
+/// on every authenticated request, so <c>_Layout.cshtml</c>'s rail counts and
+/// freshness line never carry a shell-invented figure.
 /// </summary>
 /// <remarks>
-/// PLAT-003: the rail (PLAT-001) shipped with the badge mechanism but no
-/// page ever populated it. Only the Queues badge gets a real figure here —
-/// it is the one rail route with a genuinely already-queried number behind
-/// it (<see cref="IDashboardQueries.GetCaseStageCountsAsync"/>, the same
-/// query UI-02 already deployed on the Dashboard and the Queues page's own
-/// tab badges). Inbox and Cases have no established figure to reuse without
-/// inventing one, so they are left absent from the dictionary — the layout
-/// already renders nothing for a missing key, never a stale zero.
+/// The dictionary keys are the rail routes that can carry a count —
+/// <c>Inbox</c>, <c>Cases</c>, <c>Operations</c>. Only <c>Cases</c> has a
+/// genuinely already-queried figure behind it today
+/// (<see cref="IDashboardQueries.GetCaseStageCountsAsync"/>: Not ready + Review
+/// + Held, the same aggregate the Work Centre and the Cases page read; wave 3
+/// extends it to the full §1.1 sum). Inbox and Operations have no established
+/// figure to reuse without inventing one, so they are absent from the
+/// dictionary — the layout renders nothing for a missing key, never a stale
+/// zero.
 ///
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
-/// shared per-request <c>ViewData</c>; nothing narrower already exists in
-/// this codebase to reuse instead. <see cref="GetCaseStageCountsAsync"/> is
-/// a single grouped aggregate query with no row projection (documented on
-/// <c>EfDashboardQueries</c> itself), so running it once more per request
-/// from the shell stays cheap.
+/// shared per-request <c>ViewData</c>. The stage-count query is a single
+/// grouped aggregate with no row projection, so running it once more per
+/// request from the shell stays cheap.
 /// </remarks>
-public sealed class RailCountsPageFilter(IDashboardQueries dashboardQueries) : IAsyncPageFilter
+public sealed class RailCountsPageFilter(IDashboardQueries dashboardQueries, TimeProvider timeProvider) : IAsyncPageFilter
 {
     private readonly IDashboardQueries dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
+    private readonly TimeProvider timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context) => Task.CompletedTask;
 
@@ -42,8 +44,9 @@ public sealed class RailCountsPageFilter(IDashboardQueries dashboardQueries) : I
             var counts = await dashboardQueries.GetCaseStageCountsAsync(context.HttpContext.RequestAborted);
             pageModel.ViewData["RailCounts"] = new Dictionary<string, int>
             {
-                ["Queues"] = counts.NotReady + counts.Review + counts.Held
+                ["Cases"] = counts.NotReady + counts.Review + counts.Held
             };
+            pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
         }
 
         await next();

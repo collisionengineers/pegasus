@@ -7,16 +7,12 @@
 
 @* The designed answer to a status code. Before this page existed, an unknown
    record URL, a dead external upload link, an oversized upload and a
-   rate-limited sign-in all returned the browser's own error page — on the one
-   screen whose audience the company does not control, among others. *@
-<div class="auth-card @(Model.IsFault ? "auth-card--fault" : string.Empty)">
-    <p class="auth-card__mark">COLLISION ENGINEERS</p>
-    <h1>@Model.Heading</h1>
-    <p>@Model.Explanation</p>
-    @if (Model.ShowReturnToDashboard)
-    {
-        <div class="auth-card__actions">
-            <a class="secondary-action" asp-page="/Index">Return to Dashboard</a>
-        </div>
-    }
-</div>
+   rate-limited sign-in all returned the browser's own error page. *@
+<h1>@Model.Heading</h1>
+<p>@Model.Explanation</p>
+@if (Model.ShowReturnToDashboard)
+{
+    <div class="button-row">
+        <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
+    </div>
+}
