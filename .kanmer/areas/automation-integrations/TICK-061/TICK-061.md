@@ -2,12 +2,15 @@
 id: TICK-061
 type: ticket
 title: 'API-04 — Issue, reset, revoke, pause, and resume provider credentials'
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-21T14:20:04.602Z'
+taken_at: '2026-08-28T10:34:38.605Z'
+branch: task/tick-061-provider-credentials
+worktree: ../pegasus-worktrees/tick-061-provider-credentials
 labels:
   - capability
   - API-04
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-08-25T06:46:29.565Z'
+updated: '2026-08-28T10:34:38.605Z'
 ---
 
 ## What

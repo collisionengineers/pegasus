@@ -1,33 +1,27 @@
 # Plan — TICK-061: Provider credential lifecycle
 
+## Diff estimate
+
+About 1,100 hand-written lines (Core ~300, store/entity/config ~400, tests ~350, docs/script ~50) plus generated migration designer/snapshot files.
+
 ## Approach
 
-Extend the existing Principal administration Core owner and EF transaction/history conventions with one credential per Principal. Generate a clear secret once, persist only its framework verifier in existing Azure SQL, and expose a verification port for the first real endpoint in TICK-058. PLAT-028 consumes the lifecycle commands and status projection. Do not compose a dormant authentication scheme.
-
-## Governing docs
-
-- Modify `docs/frd/frd-09-provider-and-intermediary-routes.md` with one-time issue/reset, revocation, and submission-only pause/resume behavior.
-- ADR-0004 already owns principal-scoped opaque provider credentials and remains accepted. This behavioral refinement does not need a new ADR and must not reserve a new ADR number.
-- Update capabilities/open decisions only where API-02 retirement or API-04 wording is stale.
+One credential per Principal. Core owns the lifecycle state machine and the secret format; Infrastructure owns hashing (PBKDF2 `PasswordHasher<T>`, the existing staff-password convention) and persistence. The clear secret exists only in the `IssuePrincipalCredential` outcome. No endpoint, scheme, or UI ships here.
 
 ## Steps
 
-1. Update FRD-09/capability wording without changing ADR-0004 or allocating an ADR number.
-2. Add Core status, generate/reset/revoke/pause/resume commands, Administrator authorization, expected-version/reason/operation-key rules, and a verification result that separates authenticated identity from permission to submit.
-3. Add one EF row per Principal in existing Azure SQL with immutable client ID, password-hasher output only, lifecycle/version timestamps, atomic permanent history, replay/conflict behavior, and migration.
-4. Return clear text only from generate/reset command results; prevent storage in entities, history, logs, telemetry, URLs, TempData, or configuration.
-5. Leave Web authentication composition to TICK-058, where the handler and first endpoint ship together; expose only the Core verification port here.
-6. Add Core/persistence/migration/architecture tests for one-time issue, immediate reset invalidation, revoke/reissue, pause/read distinction, authorization, concurrency/replay, history, hash-only storage, and cross-Principal isolation.
-7. Run the simplification lenses, locked restore, Release build, focused/full tests, and record the post-implementation report.
-
-## Azure decision
-
-Reuse Azure SQL and the Web managed identity. Do not put provider clear secrets in Key Vault: Pegasus never needs to recover them, and Key Vault would create a second lifecycle owner. Add no Azure resource or cloud write in this ticket.
+1. Core `PrincipalCredentials.cs`: `PrincipalCredentialState {Active, Paused, Revoked}`, `PrincipalCredentialRecord`, requests carrying `ActionActor`, `PrincipalId`, `ExpectedVersion`, `Reason`, `OperationKey`; `PrincipalCredentialPolicy` (normalise via the same rules as `OrganizationAdministrationPolicy`, plan transitions, `GenerateSecret(keyId)` = `pgs_<keyId>_<43-char base64url of 32 random bytes>`); ports `IPrincipalCredentialStore`, `IPrincipalCredentialQueries`, `IAuthenticatePrincipalCredential`; commands `IssuePrincipalCredential`, `PausePrincipalCredential`, `ResumePrincipalCredential`, `RevokePrincipalCredential`.
+   Reuses: `StaffAuthorization`, `ActionActor`, Organization administration normalisation constants.
+2. Infrastructure: entity, model configuration (unique PrincipalId/KeyId, State check constraint, FK to Principals, Version concurrency token), `EfPrincipalCredentialStore` implementing the three ports with Serializable transactions, receipt replay (`OrganizationAdministrationOperations`, same command-kind/hash shape), ActionHistory `principal_credential_issued|reset|paused|resumed|revoked` with hash never serialised; DbSet; DI.
+3. `dotnet ef migrations add PrincipalApiCredentials` then `GrantPrincipalApiCredentials` (web role SELECT/INSERT/UPDATE); bootstrap census block; run `Test-MigrationGrants.ps1` and `Test-AzureDeploymentPlan.ps1 -Mode Local`.
+4. `docs/capabilities.md`: API-01 and API-04 → Now / `0.1.0-alpha.1`, owner FRD-09, boundary "requires exact-target approval before any live credential is issued"; recount summary tables.
+5. Tests: Core (lifecycle transitions, Administrator-only, secret format/once, fail-closed authentication outcome mapping); integration (issue → authenticate → reset invalidates old → pause = authenticated-but-blocked → revoke refused; replay; hash-only column; history rows); migration census names.
+6. Simplification pass; post-implementation report; PR to `dev`.
 
 ## Verification
 
-Tests inspect persisted state and history to prove no clear secret survives, and prove the verification port returns Principal/client identity only for valid non-revoked credentials while pause remains a submission authorization result. Architecture tests prove no provider endpoint or authentication scheme is activated by this ticket.
+Build in Release; the two scripts exit 0. Tests are not run by the implementer (orchestrator runs the wave loop).
 
 ## Risks / deferred
 
-Multiple simultaneous credentials and live issuance remain deferred. TICK-058 and PLAT-028 remain blocked until this backend contract merges.
+Multiple simultaneous credentials, wire presentation of the credential, and live issuance remain deferred (open-questions Parked).

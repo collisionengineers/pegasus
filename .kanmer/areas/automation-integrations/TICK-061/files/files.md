@@ -1,22 +1,28 @@
 # Files — TICK-061
 
-## Where the change lands
+## Owns
 
 | Path | Why |
-|---|---|
-| `src/Pegasus.Core/Cases/` | Add Principal-owned credential status, lifecycle commands, validation, authorization, and verification port beside existing Principal administration. |
-| `src/Pegasus.Infrastructure/Persistence/` | Add one credential row per Principal, EF mapping/migration, hash verification, concurrency, replay, and permanent history in existing Azure SQL. |
-| `tests/Pegasus.Core.Tests/`, `tests/Pegasus.IntegrationTests/`, `tests/Pegasus.ArchitectureTests/` | Prove lifecycle, hash-only persistence, isolation, and port dependency direction. |
-| `docs/frd/frd-09-provider-and-intermediary-routes.md`, `docs/capabilities.md`, `docs/current-architecture.md` | Record lifecycle behavior and the eventual as-built owner; ADR-0004 remains the accepted security boundary. |
+| --- | --- |
+| `src/Pegasus.Core/Cases/PrincipalCredentials.cs` | New: record, state, commands (issue/reset, pause, resume, revoke), store/query/authentication ports, secret generation policy. |
+| `src/Pegasus.Infrastructure/Persistence/PrincipalCredentialEntities.cs` | New: `PrincipalApiCredentialEntity` (unique PrincipalId, unique KeyId). |
+| `src/Pegasus.Infrastructure/Persistence/PrincipalCredentialModelConfiguration.cs` | New: EF mapping, check constraint on State, unique indexes, FK to Principals. |
+| `src/Pegasus.Infrastructure/Persistence/EfPrincipalCredentialStore.cs` | New: store, queries and authentication port; PBKDF2 via `PasswordHasher<T>`; replay receipts; ActionHistory. |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` | DbSet + configuration call. |
+| `src/Pegasus.Infrastructure/Persistence/Migrations/*_PrincipalApiCredentials*` and `*_GrantPrincipalApiCredentials*` (+ snapshot) | Schema and web-role grant. |
+| `src/Pegasus.Infrastructure/DependencyInjection.cs` | Registrations. |
+| `scripts/Invoke-AzureDatabaseBootstrap.ps1` | `Get-ExpectedMatrix` census block. |
+| `docs/capabilities.md` | API-01 / API-04 rows to Now / `0.1.0-alpha.1`; summary recount. |
+| `tests/Pegasus.Core.Tests/Cases/PrincipalCredentialsTests.cs` | Lifecycle, fail-closed auth, one-secret-once. |
+| `tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs` | SqlServer-category store proof. |
+| `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` | Two migration names appended to the census. |
 
 ## Existing code/resources reused
 
-- `OrganizationAdministration.cs` and `EfOrganizationAdministration.cs`: authorization, expected version, reason, operation-key, transaction, and permanent-history conventions.
-- Existing Azure SQL and Web managed identity: credential verifier and metadata storage/access.
-- ASP.NET Core password hashing/cryptographic RNG: one-way verifier and one-time secret generation.
-- `PLAT-028`: the only administrator UI caller.
-- `TICK-058`: owns the first Web authentication handler because it supplies the first provider endpoint caller.
+- `OrganizationAdministrationPolicy` conventions (Administrator right, expected version, reason, operation key) and `EfOrganizationAdministration` transaction/receipt/history shape.
+- `PasswordHasher<T>` from the already-referenced Identity package — the same PBKDF2 that hashes staff passwords.
+- AUTO-011 migration + grant migration + bootstrap census pattern.
 
 ## Explicitly not changed
 
-No Web authentication scheme or dormant endpoint is composed here. No Key Vault secret per Principal, Entra app registration, API Management instance, new store, multiple credentials, provider self-service, live issuance, or ADR reservation is introduced.
+No Web authentication scheme, endpoint, or UI (TICK-058, PLAT-050). No Key Vault, new package, or ADR. No live credential.
