@@ -482,4 +482,148 @@ public sealed class AutomationAssessmentIngressTests
             WHERE CaseId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
             """));
     }
+
+    /// <summary>
+    /// ENG-026 / FRD-10 § AI job and estimate tools: an AI-draft estimate
+    /// must cite the Estimate job this client holds, always lands as a
+    /// Draft with unconfirmed lines and never as Current, and is listed
+    /// with Pegasus-computed totals.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnUnconfirmedAiDraft()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        Guid jobId;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var jobs = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+            var job = await jobs.CreateAsync(
+                new(
+                    AiJobKind.Estimate, AiJobSubjectKind.Case, caseId, "fixture-reference",
+                    "Draft an estimate.", 60, 12000m,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                    "ingress-estimate-job", AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            jobId = job.JobId;
+            await scope.ServiceProvider.GetRequiredService<IWorkAiJob>()
+                .TakeAsync(new(jobId, job.Version, ActionActor.Automation(ClientId), "ingress-estimate-take"), CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 10);
+        var lines = new object[]
+        {
+            new { type = "new_part", description = "Door skin", price = 220.40, quantity = 1 },
+            new { type = "repair", description = "Repair nearside door", workUnits = 2.5 },
+            new { type = "paint_repair", description = "Paint door", paintWorkUnits = 1.5 }
+        };
+
+        // Without the job the save is refused before anything is written.
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                11,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = lease.CaseVersion,
+                    editLeaseToken = lease.LeaseToken,
+                    operationKey = "mcp:ingress-estimate-refused",
+                    reason = "Automation drafted an estimate.",
+                    aiJobId = Guid.NewGuid(),
+                    name = "Claude draft",
+                    lines
+                })))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.Contains("The cited AI job was not found.", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE CaseId = '{caseId:D}'"));
+
+        Guid estimateId;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                12,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = lease.CaseVersion,
+                    editLeaseToken = lease.LeaseToken,
+                    operationKey = "mcp:ingress-estimate-1",
+                    reason = "Automation drafted an estimate.",
+                    aiJobId = jobId,
+                    name = "Claude draft",
+                    labourRate = 40,
+                    paintLabourRate = 30,
+                    paintMaterials = 25,
+                    vatPercent = 20,
+                    lines
+                })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
+            var estimate = structured.GetProperty("estimate");
+            estimateId = estimate.GetProperty("estimateId").GetGuid();
+            Assert.Equal("Draft", estimate.GetProperty("state").GetString());
+            Assert.Equal("AiDraft", estimate.GetProperty("sourceRoute").GetString());
+            Assert.False(estimate.GetProperty("isCurrent").GetBoolean());
+            Assert.Equal(jobId, estimate.GetProperty("aiJobId").GetGuid());
+            Assert.All(
+                estimate.GetProperty("lines").EnumerateArray(),
+                line => Assert.False(line.GetProperty("isConfirmed").GetBoolean()));
+            var totals = estimate.GetProperty("totals");
+            Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
+            Assert.Equal(100m, totals.GetProperty("labour").GetDecimal());
+            Assert.Equal(70m, totals.GetProperty("paint").GetDecimal());
+            Assert.Equal(78.08m, totals.GetProperty("vat").GetDecimal());
+            Assert.Equal(468.48m, totals.GetProperty("total").GetDecimal());
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseRepairSpecifications
+            WHERE Id = '{estimateId:D}' AND CaseId = '{caseId:D}' AND State = N'Draft'
+              AND SourceRoute = N'AiDraft' AND IsCurrent = 0 AND AiJobId = '{jobId:D}'
+              AND Name = N'Claude draft' AND VatPercent = 20
+            """));
+        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseEstimateLines
+            WHERE RepairSpecificationId = '{estimateId:D}' AND RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
+            """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation' AND EventKind = N'pegasus_estimate_save'
+              AND Outcome = N'Succeeded' AND CorrelationId = N'{jobId:D}'
+            """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation' AND EventKind = N'estimate_created' AND Outcome = N'Succeeded'
+            """));
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(13, "pegasus_estimate_list", new { caseId })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var structured = await ReadStructuredContentAsync(response);
+            var listed = Assert.Single(structured.GetProperty("estimates").EnumerateArray());
+            Assert.Equal(estimateId, listed.GetProperty("estimateId").GetGuid());
+            Assert.Equal(3, listed.GetProperty("lines").GetArrayLength());
+        }
+    }
 }
