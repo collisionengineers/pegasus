@@ -3,7 +3,7 @@
 Branch `task/uiimp-008-work-centre`, worktree
 `../pegasus-worktrees/uiimp-008-work-centre`, PR #610 → `dev`.
 12 commits ahead of `origin/dev`, 0 behind (was 10 ahead / 64 behind and
-CONFLICTING before this round).
+CONFLICTING before this round). PR state: MERGEABLE / CLEAN, CI green.
 
 ## What shipped
 
@@ -95,7 +95,7 @@ Dev's sorted entry stays and the trailing duplicate was deleted
 (`b8c0cf77`). No member was reordered; four lanes share that file this
 wave.
 
-## Evidence
+## Evidence — local
 
 | Command | Result |
 | --- | --- |
@@ -109,14 +109,28 @@ The first build attempt after the merge failed on `CS0105`; the table
 records the build after the fix. No assertion was weakened, skipped or
 deleted to reach these results.
 
-CI: the branch head had never scheduled a run — `gh pr checks 610`
-reported "no checks reported", and two empty `ci: retrigger` commits
-produced zero runs, because an empty commit does not schedule one here.
-The content-bearing merge push scheduled run
+## Evidence — CI
+
+The branch head had never scheduled a run: `gh pr checks 610` reported
+"no checks reported", and two empty `ci: retrigger` commits (`812e3516`,
+`57a51500`) produced zero runs, because an empty commit does not
+schedule one here. The content-bearing merge push scheduled run
 [33212916874](https://github.com/collisionengineers/pegasus/actions/runs/33212916874),
-the first real CI this head has had. The full suite, the Browser
-category and the snapshot/catalogue scripts stay with the orchestrator's
-wave loop.
+the first real CI this head has had.
+
+**Final state: success.** `unit`, `browser`, `sql-integration` 1/2/3,
+`sql-integration-coverage`, `changes`, `documentation`,
+`local-development-scripts` and `reference-data` all pass;
+`infrastructure` skips. PR #610 is MERGEABLE / CLEAN at `b8c0cf77`.
+
+The first attempt had one failure, `sql-integration (2)`: Failed 1 /
+Passed 329 / Skipped 2 / Total 332. It was
+`PrincipalCredentialPersistenceTests
+.IssueResetPauseResumeRevokeAreHashOnlyReplaySafeAndFailClosed` — a
+TICK-061 test, out of this lane (see below). Re-running that job alone
+passed it on the same commit. That is recorded here rather than erased:
+the first result was a genuine non-PASS, and the rerun is what makes the
+run green.
 
 ## Deviations from the plan
 
@@ -136,6 +150,19 @@ addendum.
   produced this conflict. Two lanes in one wave sharing a path is
   exactly what the wave plan's "a ticket owns whole files" rule exists to
   prevent.
+- **Flaky TICK-061 test, ~1 run in 16.**
+  `PrincipalCredentialPersistenceTests.cs` line 62 builds a "corrupted"
+  secret as `firstSecret[..^1] + "A"`. When the real secret already ends
+  in `A` that rebuilds the *correct* secret, authentication rightly
+  succeeds and `Assert.Null` fails — which is exactly the observed
+  output (expected null, actual `PrincipalCredentialAuthentication {
+  State = Active, MaySubmit = True }`). `PrincipalCredentialPolicy
+  .GenerateSecret` ends in `Base64Url(RandomNumberGenerator.GetBytes(32))`;
+  32 bytes is 256 bits, the first 42 base64url characters carry 252, so
+  the 43rd takes one of 16 values — `A` among them. Roughly a 6 % failure
+  rate per run. The fix belongs to TICK-061's owner (mutate to a
+  character guaranteed to differ); this lane never touched that test or
+  its production code.
 - **`ListQueueAsync` is unbounded** (carried forward from the plan's
   finding 5). The composition caps at 50 after composing, but the store
   query returns every open Unidentified row. The interface belongs to

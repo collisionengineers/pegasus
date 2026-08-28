@@ -134,3 +134,11 @@ guaranteed to differ, e.g. `firstSecret[..^1] + (firstSecret[^1] == 'A'
 
 Re-ran the failed job only (`gh run rerun 33212916874 --failed`) to
 confirm the flake.
+
+### Rerun result — CI green (2026-08-28)
+
+`sql-integration (2)` passed on rerun of the same commit `b8c0cf77`
+(11 m 36 s), confirming the TICK-061 flake above. Run 33212916874:
+**success**. PR #610: MERGEABLE / CLEAN. Ticket moved to `review`;
+`proof/` deliberately not written — proof is written on merged `main`
+by the orchestrator, after review and merge.
