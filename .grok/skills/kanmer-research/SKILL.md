@@ -23,13 +23,6 @@ the effective set. Ask it rather than assuming a pipeline.
    group's `context.md` (`get_group_doc`): the constraint binding the batch is
    written once, there, and applies to this ticket too. Check `get_ticket_doc`
    for existing research; extend it (`append: true`) rather than overwrite.
-   If the project declares sources, call `get_sources` with the ticket's area
-   and labels, passing MCP/plugin host observations only when they are known.
-   Use only declarations resolved as `available` research inputs; record their
-   ids/URLs and fetch failures, explicitly record `unknown`/`unavailable`
-   declarations as skipped, and never treat a declaration as authority or an
-   installation request. Use `fetch_source` only for an available, declared
-   llms.txt source.
 2. **Leave Backlog.** For most profiles this needs a governing doc: link the
    FRD/PRD this ticket implements (`link_doc <id> docs/functional/frd/<slug>.md`),
    or — if it is genuinely still to be written — set `docs_todo` and hand off to
