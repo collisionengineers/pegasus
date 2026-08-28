@@ -104,7 +104,7 @@ public sealed class EfAiJobStore(
             return Map(entity, now);
         }
 
-        var persisted = ParseState(entity.State);
+        var persisted = Parse<AiJobState>(entity.State);
         var current = AiJobPolicy.EffectiveState(
             persisted,
             entity.ExpiresAtUtc,
@@ -285,7 +285,7 @@ public sealed class EfAiJobStore(
             .ToListAsync(cancellationToken);
         var active = open.Count(item =>
             !AiJobStates.IsTerminal(AiJobPolicy.EffectiveState(
-                ParseState(item.State),
+                Parse<AiJobState>(item.State),
                 item.ExpiresAtUtc,
                 item.LeaseExpiresAtUtc,
                 now)));
@@ -350,7 +350,7 @@ public sealed class EfAiJobStore(
         entity.TargetPercentOfEngineerValue,
         entity.EngineerValueAtSend,
         AiJobPolicy.EffectiveState(
-            ParseState(entity.State),
+            Parse<AiJobState>(entity.State),
             entity.ExpiresAtUtc,
             entity.LeaseExpiresAtUtc,
             now),
@@ -368,8 +368,6 @@ public sealed class EfAiJobStore(
         entity.ClosedAtUtc,
         entity.ClosureReason,
         entity.Version);
-
-    private static AiJobState ParseState(string value) => Parse<AiJobState>(value);
 
     private static TEnum Parse<TEnum>(string value) where TEnum : struct, Enum =>
         Enum.TryParse<TEnum>(value, out var parsed) && Enum.IsDefined(parsed)

@@ -142,7 +142,6 @@ public static class AiJobPolicy
                 nameof(transition),
                 "The expected job version cannot be negative.");
         }
-        ArgumentNullException.ThrowIfNull(transition.Actor);
         StaffAuthorization.Require(transition.Actor, StaffAccessRight.PerformCasework);
         ValidateOperationKey(transition.OperationKey);
         if (!Enum.IsDefined(transition.TargetState))
@@ -222,16 +221,11 @@ public static class AiJobPolicy
 
     private static void RequireCreator(ActionActor actor, AiJobKind kind)
     {
-        ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         if (actor.Kind == ActorKind.Automation && kind != AiJobKind.UnidentifiedQueuePass)
         {
             throw new InvalidOperationException(
                 "The Automation Actor creates only Unidentified-queue pass jobs.");
-        }
-        if (actor.Kind is not (ActorKind.Staff or ActorKind.Automation))
-        {
-            throw new InvalidOperationException("AI jobs are created by staff or the Automation Actor.");
         }
     }
 
