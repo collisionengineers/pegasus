@@ -27,7 +27,17 @@ public sealed record AssessmentAccessState(
     long LatestReviewVersion,
     long? LatestExportVersion)
 {
+    /// <summary>
+    /// D11 (FRD-11): the workspace opens once the case is With Engineer
+    /// (Report preparation or later) and a current-cycle export exists.
+    /// </summary>
     public bool CanOpen => AssessmentAccessPolicy.CanOpen(this);
+
+    /// <summary>
+    /// D11: the workspace is read-only once the case is Post-report
+    /// complete; Report preparation and Post report stay editable.
+    /// </summary>
+    public bool IsReadOnly => AssessmentAccessPolicy.IsReadOnly(this);
 }
 
 public static class AssessmentAccessPolicy
@@ -35,9 +45,18 @@ public static class AssessmentAccessPolicy
     public static bool CanOpen(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);
-        return access.State is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation
+        return access.State
+                is CaseLifecycleState.ReportPreparation
+                    or CaseLifecycleState.PostReport
+                    or CaseLifecycleState.PostReportComplete
             && access.LatestExportVersion is { } exportedVersion
             && exportedVersion >= access.LatestReviewVersion;
+    }
+
+    public static bool IsReadOnly(AssessmentAccessState access)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        return access.State == CaseLifecycleState.PostReportComplete;
     }
 }
 
