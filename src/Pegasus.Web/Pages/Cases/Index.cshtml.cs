@@ -365,7 +365,7 @@ public sealed class IndexModel(
         HasPreviousPage = CurrentPage > 1;
         HasNextPage = results.Any(result => result.HasNextPage);
         var items = results.SelectMany(result => result.Items).ToArray();
-        Principals = PrincipalsOf(items);
+        Principals = PrincipalOptions(items);
         return items.Select(CaseRow).ToArray();
     }
 
@@ -391,8 +391,11 @@ public sealed class IndexModel(
             : Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
         await Task.WhenAll(casesTask, imagesTask);
 
-        Principals = PrincipalsOf(casesTask.Result.Items);
-        var cases = casesTask.Result.Items
+        // The Missing filter is applied to the read, so what it removes
+        // never reaches the Principal select's options either — a principal
+        // whose every row the filter dropped stays listed (PrincipalOptions)
+        // so the active choice remains visible.
+        var matchingCases = casesTask.Result.Items
             .Where(item => MissingFilter switch
             {
                 "instructions" => item.InstructionComplete == false && item.ImagesComplete == true,
@@ -400,7 +403,9 @@ public sealed class IndexModel(
                 "both" => item.InstructionComplete == false && item.ImagesComplete == false,
                 _ => true
             })
-            .Select(CaseRow);
+            .ToArray();
+        Principals = PrincipalOptions(matchingCases);
+        var cases = matchingCases.Select(CaseRow);
         var images = await Task.WhenAll(imagesTask.Result
             .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
             .Select(async item => ImageRow(
@@ -628,6 +633,23 @@ public sealed class IndexModel(
         .Distinct(StringComparer.Ordinal)
         .Order(StringComparer.Ordinal)
         .ToArray();
+
+    /// <summary>
+    /// The Principal select's options: the principals of the rows the
+    /// filters still show — a sample of the queue, not a census — plus the
+    /// active principal when no shown row carries it, so the choice that is
+    /// filtering the list is never invisible in the control that made it.
+    /// </summary>
+    private string[] PrincipalOptions(CaseSearchItem[] items)
+    {
+        var options = PrincipalsOf(items).ToList();
+        if (PrincipalFilter is not null && !options.Contains(PrincipalFilter))
+        {
+            options.Add(PrincipalFilter);
+            options.Sort(StringComparer.Ordinal);
+        }
+        return [.. options];
+    }
 
     private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

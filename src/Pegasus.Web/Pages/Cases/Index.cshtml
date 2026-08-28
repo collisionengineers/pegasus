@@ -74,7 +74,15 @@
         <div class="pane-head">
             <h2>Case workflow</h2>
         </div>
-        <div class="scope-list">
+        @* The rail is the shape the design system styles for a pressed
+           scope: buttons carrying tab=X, in one GET form, so a scope opens
+           with a plain native submit and keeps the Principal filter. Counts
+           are queried figures, never placeholders. *@
+        <form method="get" action="/Cases" class="scope-list" data-row-list>
+            @if (Model.PrincipalFilter is not null)
+            {
+                <input type="hidden" name="principal" value="@Model.PrincipalFilter" />
+            }
             @{ var groupOrdinal = 0; }
             @foreach (var group in IndexModel.Tabs.GroupBy(tab => tab.Group))
             {
@@ -85,21 +93,18 @@
                 <div class="queue-group-label">@group.Key</div>
                 @foreach (var tab in group)
                 {
-                    @* The pressed state is the design system's own selected
-                       convention for a scope button; counts are queried
-                       figures, never placeholders. *@
-                    <a class="scope-button @(tab.IsException ? "queue-exception" : null)"
-                       href="@Model.Href(tab: tab.Key)"
-                       aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
+                    <button type="submit" name="tab" value="@tab.Key"
+                            class="scope-button @(tab.IsException ? "queue-exception" : null)"
+                            aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
                         <span class="scope-visual-icon">
                             <svg class="icon" aria-hidden="true"><use href="#@tab.Icon" /></svg>
                         </span>
                         <span>@tab.Label</span>
                         <span>@Model.Count(tab)</span>
-                    </a>
+                    </button>
                 }
             }
-        </div>
+        </form>
     </aside>
 
     <div class="pane">
@@ -109,14 +114,16 @@
                 <span class="muted">@Model.Rows.Count item@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
             </div>
         </div>
-        <div class="pane-body pane-scroll">
-            @* A row links to its detail and nothing else; the selected row is
-               the one the quick detail beside it reads. Blocked intake rows
-               sit in the Unidentified scope with their own chip and no count
-               of their own (D14). *@
+        <div class="pane-body pane-scroll" data-row-list>
+            @* A row links to its detail and nothing else; the selected row
+               is the one the quick detail beside it reads, marked as the
+               current item of the list (aria-current, the one current-state
+               token a link may legally carry). Blocked intake rows sit in
+               the Unidentified scope with their own chip and no count of
+               their own (D14). *@
             @foreach (var row in Model.Rows)
             {
-                <a class="row-button" href="@row.DetailHref" aria-selected="@(Model.SelectedId == row.Id ? "true" : "false")">
+                <a class="row-button" href="@row.DetailHref" aria-current="@(Model.SelectedId == row.Id ? "true" : null)">
                     <span class="row-top">
                         <span class="row-title">@row.Title</span>
                         <partial name="Shared/_StatusChip" model="@row.Chip" />
@@ -180,7 +187,7 @@
                         {
                             <div class="workflow-exception">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
-                                <strong>Held</strong>
+                                <strong>@OperatorLabels.CaseStage(CaseLifecycleState.Held)</strong>
                             </div>
                         }
                         @* Outstanding requirements are the case's recorded
