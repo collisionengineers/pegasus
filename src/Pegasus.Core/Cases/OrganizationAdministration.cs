@@ -663,7 +663,7 @@ public static class OrganizationAdministrationPolicy
         }
     }
 
-    private static string NormalizeRequiredText(
+    internal static string NormalizeRequiredText(
         string value,
         int maximumLength,
         string parameterName)

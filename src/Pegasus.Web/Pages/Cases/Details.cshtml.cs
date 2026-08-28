@@ -336,13 +336,14 @@ public sealed partial class DetailsModel(
             return;
         }
 
-        ViewerHoldsEditAuthority = string.Equals(
+        ViewerHoldsEditAuthority = CaseEditAuthority.IsHolder(
+            activeLease.HolderKind,
             activeLease.Holder,
-            actor.SubjectId,
-            StringComparison.Ordinal);
+            actor);
         EditAuthorityHolder = ViewerHoldsEditAuthority
             ? CaseEditAuthorityHolder.Unnamed
             : await describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.HolderKind,
                 activeLease.Holder,
                 actor,
                 cancellationToken);
