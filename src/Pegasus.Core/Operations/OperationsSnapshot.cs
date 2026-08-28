@@ -67,16 +67,6 @@ public sealed class GetOperationsSnapshot(
 {
     private const int MaximumDueWork = 20;
 
-    /// <summary>
-    /// The zone the day and week boundaries are taken against.
-    /// </summary>
-    /// <remarks>
-    /// "Today" on this screen means the office's today. Counting from a UTC
-    /// midnight would move the boundary by an hour for half the year and
-    /// silently reassign work between days.
-    /// </remarks>
-    private const string OfficeTimeZoneId = "Europe/London";
-
     private readonly IIntakeReceiptQueries intakeQueries =
         intakeQueries ?? throw new ArgumentNullException(nameof(intakeQueries));
     private readonly IListTriage listTriage =
@@ -96,7 +86,8 @@ public sealed class GetOperationsSnapshot(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
         var asOfUtc = timeProvider.GetUtcNow();
-        var (dayStartUtc, weekStartUtc) = OfficeBoundaries(asOfUtc);
+        var (dayStartUtc, weekStartUtc) =
+            LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
 
         var intake = await intakeQueries.GetCountsAsync(cancellationToken);
         var triage = await listTriage.ExecuteAsync(
@@ -123,38 +114,5 @@ public sealed class GetOperationsSnapshot(
             caseStages,
             caseActivity,
             mailActivity);
-    }
-
-    /// <summary>
-    /// The start of the office's today and of its week, expressed in UTC.
-    /// </summary>
-    /// <remarks>
-    /// The week starts on Monday, which is the week the office works to. Where
-    /// the platform carries no IANA database the zone cannot be resolved and
-    /// the boundaries fall back to UTC — an hour out for part of the year, and
-    /// the only alternative to failing the whole dashboard over a clock.
-    /// </remarks>
-    private static (DateTimeOffset DayStartUtc, DateTimeOffset WeekStartUtc) OfficeBoundaries(
-        DateTimeOffset asOfUtc)
-    {
-        TimeZoneInfo office;
-        try
-        {
-            office = TimeZoneInfo.FindSystemTimeZoneById(OfficeTimeZoneId);
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            office = TimeZoneInfo.Utc;
-        }
-        catch (InvalidTimeZoneException)
-        {
-            office = TimeZoneInfo.Utc;
-        }
-
-        var local = TimeZoneInfo.ConvertTime(asOfUtc, office);
-        var dayStartLocal = new DateTimeOffset(local.Date, local.Offset);
-        var daysSinceMonday = ((int)local.DayOfWeek + 6) % 7;
-        var weekStartLocal = dayStartLocal.AddDays(-daysSinceMonday);
-        return (dayStartLocal.ToUniversalTime(), weekStartLocal.ToUniversalTime());
     }
 }
