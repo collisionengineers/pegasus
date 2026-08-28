@@ -42,3 +42,17 @@ files; no code, no tests, no ADR.
 
 `docs/open-decisions.md` (referenced, not edited), FRD-01 label mapping
 (PLAT-047), ADR-0035 (AUTO-009), FRD-08 / correspondence row (MAIL-024).
+
+## Simplification pass — 2026-08-28
+
+n/a — docs-only.
+
+## Outcome
+
+Final counts (mechanical recount after the change): 233 rows — Now 140,
+Next 29, Later 35, Not planned 29; targets `0.1.0-alpha.1` 140, `0.3.0`
+19, `0.7.0` 0 (EXT-04 brought forward), `1.0.0` 10, `1.1.0` 5, `1.2.0` 4;
+204 planned. This also clears the drift [[DELIV-018]] recorded.
+Coordinator additions applied: AI-10 owner cites FRD-11 § AI Job List
+(AUTO-009) in prose; D10 wording — Report sent enters post-report work and
+never completes the Case. `Test-DocumentationLinks.ps1` passes (124 files).
