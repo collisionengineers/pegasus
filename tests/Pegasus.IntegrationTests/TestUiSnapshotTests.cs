@@ -23,6 +23,7 @@ public sealed partial class TestUiSnapshotTests
             ["administration-accounts--empty"] = new("No staff accounts are available."),
             ["administration-configuration--default"] = new("Workflow configuration"),
             ["administration-mail-categories--default"] = new("<title>Outlook categories"),
+            ["administration-principal-eva-submission--default"] = new("<h1>EVA API submission for "),
             ["case-details--unavailable"] = new("<h1>Case unavailable</h1>"),
             ["case-details--conflict"] = new("case changed", "Case unavailable"),
             ["cases--empty"] = new("No matching cases."),
