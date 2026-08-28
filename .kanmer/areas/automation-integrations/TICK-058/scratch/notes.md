@@ -150,3 +150,32 @@ Principal is 403 with a recorded security event. All 1110 Core tests pass.
 - `docs/operator-notes.md` deliberately untouched: it is protected, and whether the
   declared-verdict ruling belongs there as well as in FRD-01/FRD-09 is still an open
   question for the operator.
+
+## Board reconciliation — 2026-08-28
+
+**Stage.** The ticket read `status: review` while `stageEntered.implementing`
+(16:58:50Z) was later than `stageEntered.review` (11:31:30Z). Walked the ticket
+review → implementing → review to reconcile it; both boundaries were passable
+(`enter-review` needs post-implementation-report + questions-resolved, both
+satisfied). **`stageEntered` did not restamp** — the engine records first entry
+per stage, not the latest, so the two timestamps still read the same way.
+
+That is not a wrong status. The real history is review (11:31) → implementing
+(16:58, when the operator replaced the contract and the work was redone) →
+review (now). `status: review` is correct and is where the ticket belongs: the
+PR is open and waiting on an independent review. The apparent contradiction is
+a `stageEntered` semantics artifact, not board drift, and no tool call can
+rewrite it. Recorded here so the next reader does not try again.
+
+**Commits.** All ten recorded SHAs are now reachable on
+`origin/task/tick-058-provider-submission-api` (verified with
+`git merge-base --is-ancestor` against the pushed ref). Before this session the
+last four existed only in the worktree, so the ticket violated AGENTS.md
+rule 17. Added `c5011932` (the read-back fix), `df978b43` (the `origin/dev`
+merge) and `afc0dc10` (the BOM restore).
+
+**Checklist.** Rewritten: it still described the superseded multipart contract.
+
+**Not done, deliberately.** No `proof` document — proof is written on merged
+`main` after review and merge, and this PR has not been reviewed. The ticket was
+not moved toward Done.

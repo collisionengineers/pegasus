@@ -2,7 +2,7 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: implementing
+status: review
 area: automation-integrations
 assignee: claude-code
 profile: feature
@@ -45,7 +45,7 @@ prs:
   - '594'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-28T21:58:48.393Z'
+updated: '2026-08-28T21:58:56.442Z'
 ---
 
 ## What
