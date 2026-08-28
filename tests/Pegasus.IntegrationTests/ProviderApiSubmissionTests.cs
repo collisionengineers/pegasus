@@ -59,7 +59,12 @@ public sealed class ProviderApiSubmissionTests
             Assert.Equal("application/problem+json", anonymous.Content.Headers.ContentType?.MediaType);
         }
 
-        using (var wrong = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{Guid.NewGuid():D}", secret[..^1] + "A"))
+        // Change the last character to one it is not. Appending a fixed "A"
+        // silently produced the *same* secret whenever the issued one already
+        // ended in "A" — roughly one run in sixty-four, which authenticated and
+        // failed this assertion for no reason a reader could see.
+        var wrongSecret = secret[..^1] + (secret[^1] == 'A' ? 'B' : 'A');
+        using (var wrong = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{Guid.NewGuid():D}", wrongSecret))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
             Assert.DoesNotContain(secret, await wrong.Content.ReadAsStringAsync(), StringComparison.Ordinal);
