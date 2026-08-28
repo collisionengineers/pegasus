@@ -164,7 +164,7 @@ callers.
 | UI-09 | Full case workspace | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-11 | Accounts, principals, mailbox allowlist, and configuration workspace | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Required and accepted before 0.1.0-alpha.1. |
-| UI-16 | Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts, Work Centre needs-attention work, Cases queue groups, workspace tabs, command palette, keyboard map and breakpoints | Now | 0.1.0-alpha.1 | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) | Allocated 2026-08-28 for the next alpha release (EPIC-011); replaces the Dashboard/Queues/Cases route set and removes the `/VehicleImages` list. Design authority is [design § Operations-first shell](design/README.md#operations-first-shell); delivery, snapshot and browser-walk evidence remain separate. |
+| UI-16 | Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts, Work Centre needs-attention work, Cases queue groups, workspace tabs, command palette, keyboard map and breakpoints | Now | 0.1.0-alpha.1 | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) | Allocated 2026-08-28 for the next alpha release (EPIC-011); replaces the Dashboard/Queues/Cases route set and removes the `/VehicleImages` list. Design authority is [design § Authenticated shell](design/README.md#authenticated-shell); delivery, snapshot and browser-walk evidence remain separate. |
 | DOC-01 | Automatic Box case-folder creation using the Case/PO name | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Immutable Case/PO naming, response-loss-safe binding, fail-closed conflict handling and human reasoned recovery are caller-proved locally. Live controlled Box target proof, migration, deployment and operator acceptance remain pending. |
 | DOC-02 | Store source emails, instruction documents, images, correspondence, and reports in Box | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Day-one accepted Case custody requirement. Blob is temporary hot staging only; preserve the approved test-target scope for local and non-production deployment evidence. |
 | DOC-03 | Retained document versions | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) | Stable business-readable occurrence/version custody and replay verification are caller-proved locally; live Box proof remains pending. |
@@ -355,8 +355,10 @@ Sequence constraints:
   2026-08-03); `INT-28` evidence precedes `INT-32` pairing visibility;
 - accepted `CASE-31`, `ENG-01`, and `ENG-02` data/workflow precede
   `EXT-08` and `RPT-01`–`RPT-05` rendering;
-- accepted report events/rendering precede `MAIL-17` and the `MI-*`
-  consumption path;
+- accepted report events/rendering precede `MAIL-17` and the `MI-02`/`MI-03`
+  consumption path; `MI-01`'s Engineer Report consumes retained post-report
+  messages (D12) and case-linked Sent evidence, not rendered-report events,
+  so it is not bound to that ordering;
 - the `AI-09` transport, hand-off, and recovery evidence (implemented gated at
   `0.1.0-alpha.1`, ADR-0031) precedes any `1.3.0` AI proposal caller, and
   `AI-07` remains blocked on assignment authority;

@@ -18,7 +18,7 @@ The shell described here is the Integrated Operations Workspace (`UI-16`).
 It completes the design route that
 [open decisions — later operator UI capabilities](../open-decisions.md#later-operator-ui-capabilities)
 requires for the routes it activates; the design authority is
-[design § Operations-first shell](../design/README.md#operations-first-shell).
+[design § Authenticated shell](../design/README.md#authenticated-shell).
 
 ## Behaviour
 
@@ -29,8 +29,8 @@ The selected alpha direction is Operations-first. The UI must provide:
 - an authenticated office-wide Work Centre with Europe/London day boundaries
   and Monday-to-Monday weeks;
 - actionable receiving, requests, Triage, case, query, and exception queues;
-- intake-evidence filters with exact options `All`, `Instructions`, and
-  `Images`;
+- a Not-ready Missing filter with exact options `All`, `Instructions`,
+  `Images`, and `Both missing` (§ Cases);
 - clear counts that link to their exact filtered work and do not render stale
   zero placeholders;
 - list/detail journeys for intake, source evidence, Triage, cases, documents,
@@ -110,17 +110,21 @@ Automation Activity entry.
 
 The Work Centre shows office-wide work: a metric strip of five counts —
 Not ready, Review, Held, Unidentified, Blocked — each an exact link to its
-Cases tab (`/Cases?tab=…`), then a two-pane needs-attention list and detail.
-A needs-attention item is one of these kinds, each derived from a Core
-query, never from fixture or placeholder data:
+Cases tab (`/Cases?tab=…`). Blocked links to `/Cases?tab=unidentified`,
+where Blocked intake items are surfaced with their own state chip; there is
+no separate Blocked tab. Then a two-pane needs-attention list and detail. A
+needs-attention item is exactly one of these five kinds, each derived from
+a Core query, never from fixture or placeholder data:
 
 - **Case** — a chase that is due, a readiness blocker, or an outstanding
   requirement;
 - **Held decision** — a Case on hold whose hold needs a decision;
 - **Mail** — an Unidentified item;
 - **Triage** — a Triage record without a finding;
-- **External work** — retryable failed external work;
-- **AI job** — a failed AI job ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)).
+- **External work** — retryable failed external work.
+
+Failed AI jobs are not a needs-attention kind; they surface on Operations
+(§ Operations).
 
 Each item shows its kind and reference, title, priority, owner and due
 value. Selecting an item shows the reason it needs attention (a label and
@@ -241,8 +245,9 @@ non-destructive conflict.
 The case list and persistent identity area expose due/overdue state, while
 the workspace keeps the missing-material reason, next chase, last recorded
 outcome, and next permitted action together. Triage has no due/chaser
-presentation. Image-initiated detail shows preserved filenames/group
-evidence, custody, and chronological merge/closure history; staff closure is
+presentation. The Image-initiated record page remains the image record
+(D1) and still renders its image gallery alongside preserved
+filenames/group evidence, custody, and chronological merge/closure history; staff closure is
 a reasoned action, terminal records are read-only, and it is not a generic
 Close control.
 
@@ -395,8 +400,7 @@ current state and account.
   and nothing else; when the seam has no ticket the control is absent.
 - A lost or expired edit lease surfaces the holder and expiry and disables
   Save; a stale version is a non-destructive conflict.
-- Tabs and palette history that cannot be read from browser storage are
-  treated as empty; the page renders correctly with none.
+- Tabs and palette history that cannot be read are treated as empty; the page renders correctly with none.
 - A redirect from a removed route keeps the query it was given.
 
 ## Acceptance evidence
