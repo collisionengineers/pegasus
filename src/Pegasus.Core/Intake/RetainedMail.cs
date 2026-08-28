@@ -19,13 +19,17 @@ public enum MailFolderScope
 /// <summary>
 /// Which slice of retained mail the operator is looking at. A null
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
+/// <paramref name="UnreadOnly"/> is the Unread scope; <paramref name="OldestFirst"/>
+/// is the list's sort toggle (newest first by default).
 /// </summary>
 public sealed record MailWorkspaceScope(
     Guid? MailboxId,
     MailFolderScope Folder,
     string? SearchTerm = null,
     MailOperationalDestination? Destination = null,
-    MailCategory? DetailedClassification = null);
+    MailCategory? DetailedClassification = null,
+    bool UnreadOnly = false,
+    bool OldestFirst = false);
 
 public enum MailSearchMatchKind
 {
@@ -371,6 +375,11 @@ public interface IRetainedMailQueries
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>How many retained messages the scope holds — the scope list's count wells.</summary>
+    Task<int> CountAsync(
+        MailWorkspaceScope scope,
+        CancellationToken cancellationToken);
+
     Task<RetainedMailDetail?> GetAsync(
         Guid id,
         CancellationToken cancellationToken,
@@ -409,6 +418,21 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(pageSize),
                 "The requested page size is outside the supported range.");
         }
+        return await queries.ListAsync(Normalize(scope), page, pageSize, cancellationToken);
+    }
+
+    public async Task<int> CountAsync(
+        ActionActor actor,
+        MailWorkspaceScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await queries.CountAsync(Normalize(scope), cancellationToken);
+    }
+
+    private static MailWorkspaceScope Normalize(MailWorkspaceScope scope)
+    {
         if (!Enum.IsDefined(scope.Folder))
         {
             throw new ArgumentOutOfRangeException(
@@ -442,11 +466,10 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
             throw new ArgumentException("The mailbox identity is required.", nameof(scope));
         }
 
-        var normalizedScope = scope with
+        return scope with
         {
             SearchTerm = searchTerm
         };
-        return await queries.ListAsync(normalizedScope, page, pageSize, cancellationToken);
     }
 
     internal static string? NormalizeSearchTerm(string? value, string parameterName)
