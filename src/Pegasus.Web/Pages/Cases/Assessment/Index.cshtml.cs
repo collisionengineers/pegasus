@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +7,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
@@ -14,23 +15,19 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
 /// <summary>
-/// The Send to AI wiring for the assessment surface (AI-09; see ADR-0031 /
-/// FRD-11: docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
-/// docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md), plus
-/// the DELIV-012 report-draft entry point. This model binds the case
-/// identity header, the Send to Claude panel, the report-draft panel, and
-/// the PAV slider's recorded-evidence data; the section forms themselves
-/// stay unbound design markup until the UI-15 activation task wires the
-/// staff save paths. The report draft reads already-saved assessment values
-/// through the same store as the rest of this page — it does not depend on
-/// those unbound forms.
+/// The Assessment workspace (context.md §1.9, ENG-025). Access is owned by
+/// <see cref="AssessmentAccessPolicy"/> in Core (D11: With Engineer or
+/// onwards plus a current-cycle export; read-only once Complete). The page
+/// draws the identity ribbon, the record bar (estimate import, the Glass's
+/// and Audatex disabled seams, Send to Claude through the AI job ledger,
+/// report-draft generation and preview) and the assessment-v3 evidence and
+/// estimates panes over the repair-specification seam (ENG-002/EXT-09).
 /// </summary>
 /// <remarks>
-/// CASE-024: the save paths this page does have now run under edit mode the
-/// operator enters, the same one server-owned lease the case workspace claims,
-/// instead of each handler claiming a lease of its own for the length of one
-/// save. An engineer working an assessment is therefore visible to other staff
-/// as the case's editor, which is what the lease is for.
+/// CASE-024: the save paths this page offers run under edit mode the
+/// operator enters, the same one server-owned lease the case workspace
+/// claims, so an engineer working an assessment is visible to other staff
+/// as the case's editor.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -39,6 +36,8 @@ public sealed class IndexModel(
     IGetCase getCase,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
+    ICaseEvidenceImageQueries evidenceImageQueries,
+    ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
     IRepairSpecificationStore repairSpecifications,
@@ -48,8 +47,6 @@ public sealed class IndexModel(
     IHeartbeatCaseEditLease heartbeatLease,
     IReleaseCaseEditLease releaseLease,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
-    ISaveAssessment saveAssessment,
-    TimeProvider timeProvider,
     ILogger<IndexModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
@@ -65,35 +62,17 @@ public sealed class IndexModel(
 
     public CaseAssessmentProjection? Assessment { get; private set; }
 
-    public AiWorkRequestRecord? LatestRequest { get; private set; }
-
-    /// <summary>Panel state: available, in-flight, sent, completed, failed, unavailable.</summary>
-    public string PanelState { get; private set; } = "unavailable";
-
-    public IReadOnlyList<string> UnavailableReasons { get; private set; } = [];
-
-    public string? FailureReason { get; private set; }
-
-    public string SendOperationKey { get; private set; } = NewOperationKey();
-
-    public string ReconcileOperationKey { get; private set; } = NewOperationKey();
-
     /// <summary>
-    /// The DELIV-012 report-draft entry point's readiness: ready to render,
-    /// or every named reason it is not (case unrecognized when null).
+    /// The unavailable surface (contract §1.9 gate): access refused names
+    /// the case and states the export condition rather than 404-ing a URL
+    /// the Case workspace had been offering.
     /// </summary>
-    public AssessmentReportDraftPreparation? ReportDraftPreparation { get; private set; }
+    public string? UnavailableReference { get; private set; }
 
-    public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
+    public string? UnavailableRegistration { get; private set; }
 
-    /// <summary>
-    /// ENG-003: the one readiness list the page renders. <see cref="ReportDraftPreparation"/>'s
-    /// <c>Reasons</c> already reuses <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/> as its
-    /// base and only appends report-specific requirements on top
-    /// (<see cref="Pegasus.Core.Reports.AssessmentReportProjection.Project"/>). The access gate
-    /// guarantees that Review-entry requirements excluded by this list already passed.
-    /// </summary>
-    public IReadOnlyList<AssessmentReadinessItem> CombinedReadiness { get; private set; } = [];
+    /// <summary>D11: Post-report complete renders every pane read-only.</summary>
+    public bool IsReadOnly { get; private set; }
 
     /// <summary>ENG-002: the case's current repair specification, draft first.</summary>
     public RepairSpecificationVersion? DraftSpecification { get; private set; }
@@ -102,22 +81,49 @@ public sealed class IndexModel(
 
     public bool ActorIsEngineer { get; private set; }
 
+    /// <summary>Instruction-role live files for the evidence rail.</summary>
+    public IReadOnlyList<CaseFile> InstructionFiles { get; private set; } = [];
+
+    /// <summary>Custody-confirmed case images for the evidence rail.</summary>
+    public IReadOnlyList<CaseEvidenceImage> EvidenceImages { get; private set; } = [];
+
     public string ImportOperationKey { get; private set; } = NewOperationKey();
 
     public string AcceptOperationKey { get; private set; } = NewOperationKey();
 
-    /// <summary>A saved assessment value for one vocabulary path, or null.</summary>
-    public string? SavedValue(string path) => Assessment?.Field(path)?.Value;
+    public string SendOperationKey { get; private set; } = NewOperationKey();
+
+    public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
 
     /// <summary>
-    /// The Mileage prefill: the saved assessment value, else confirmed vehicle
-    /// evidence, else the DVSA estimate (miles only) — CASE-008.
+    /// The DELIV-012 report-draft entry point's readiness: ready to render,
+    /// or every named reason it is not (case unrecognized when null).
     /// </summary>
-    public string? MileagePrefill
+    public AssessmentReportDraftPreparation? ReportDraftPreparation { get; private set; }
+
+    /// <summary>The case's claimed identity line, rendered in the header eyebrow.</summary>
+    public string HeaderEyebrow =>
+        string.IsNullOrWhiteSpace(Case?.Header.Registration)
+            ? Case?.Header.Reference ?? string.Empty
+            : $"{Case.Header.Reference} · {Case.Header.Registration}";
+
+    /// <summary>
+    /// The claimant the ribbon shows; the workspace projection carries no
+    /// party list, so this reads the same <see cref="IGetCase"/> summary
+    /// the page already loads for edit mode.
+    /// </summary>
+    public string? Claimant { get; private set; }
+
+    /// <summary>
+    /// The Mileage figure the ribbon shows: the saved assessment value,
+    /// else confirmed vehicle evidence, else the DVSA estimate (miles
+    /// only) — the CASE-008 cascade, unchanged.
+    /// </summary>
+    public string? MileageDisplay
     {
         get
         {
-            if (SavedValue("vehicle.odometer_miles") is { Length: > 0 } saved)
+            if (Assessment?.Field("vehicle.odometer_miles")?.Value is { Length: > 0 } saved)
             {
                 return saved;
             }
@@ -137,145 +143,68 @@ public sealed class IndexModel(
         }
     }
 
-    /// <summary>The Source prefill: saved, else online data when the mileage came from evidence.</summary>
-    public string? MileageSourcePrefill =>
-        SavedValue("vehicle.odometer_miles") is { Length: > 0 }
-            ? SavedValue("vehicle.mileage_source")
-            : CaseMileageSourcePrefill();
-
-    /// <summary>A vehicle-detail prefill: the saved assessment value, else lookup evidence.</summary>
-    public string? VehiclePrefill(string path)
+    /// <summary>The Vehicle figure the ribbon shows, from vehicle evidence.</summary>
+    public string VehicleDisplay
     {
-        if (SavedValue(path) is { Length: > 0 } saved)
+        get
         {
-            return saved;
+            var vehicle = Case?.Data?.Vehicle;
+            var details = Case?.LatestVehicleObservation?.Vehicle;
+            var make = vehicle?.Make.Confirmed?.Value ?? vehicle?.Make.Fact?.Value ?? details?.Make;
+            var model = vehicle?.Model.Confirmed?.Value ?? vehicle?.Model.Fact?.Value ?? details?.Model;
+            return string.Join(" ", new[] { make, model }.Where(part => !string.IsNullOrWhiteSpace(part)));
         }
-
-        var vehicle = Case?.Data?.Vehicle;
-        var details = Case?.LatestVehicleObservation?.Vehicle;
-        return path switch
-        {
-            "vehicle.make" => vehicle?.Make.Confirmed?.Value ?? vehicle?.Make.Fact?.Value ?? details?.Make,
-            "vehicle.model" => vehicle?.Model.Confirmed?.Value ?? vehicle?.Model.Fact?.Value ?? details?.Model,
-            "vehicle.year" => details?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
-            "vehicle.engine_cc" => details?.EngineCapacityCc?.ToString(CultureInfo.InvariantCulture),
-            "vehicle.fuel" => details?.FuelType,
-            _ => null
-        };
     }
-
-    private string? CaseMileageSourcePrefill()
-    {
-        var mileage = Case?.Data?.Vehicle.Mileage;
-        var selected = mileage?.Confirmed ?? mileage?.Fact;
-        if (selected is not null)
-        {
-            return selected.Source.Kind == CaseDataSourceKind.VehicleLookup ? "online_data" : null;
-        }
-
-        return Case?.LatestVehicleObservation?.Mileage is { Unit: VehicleMileageUnit.Miles }
-            ? "online_data"
-            : null;
-    }
-
-    private static bool IsMiles(string? unit) =>
-        unit is null || string.Equals(unit, "miles", StringComparison.OrdinalIgnoreCase);
-
-    public string DamageOperationKey { get; private set; } = NewOperationKey();
-
-    /// <summary>The saved damage location, highlighted on the diagram (ENG-006).</summary>
-    public string? SavedImpactLocation =>
-        Assessment?.Field(AssessmentVocabulary.ImpactLocation)?.Value;
-
-    /// <summary>The case's recorded inspection mode, preselecting the method radios.</summary>
-    public CaseInspectionMode? RecordedInspectionMode =>
-        Case?.Data?.Inspection.Mode.Current?.Value;
 
     /// <summary>
-    /// ENG-006: one click on a damage region saves it as the case's impact
-    /// location through the assessment save seam, under the edit mode the
-    /// operator entered — the same value the report prints and the Impact
-    /// location dropdown edits.
+    /// The confirmed Engineer's Value that anchors the Send to Claude
+    /// target (FRD-11 § AI Job List); Core refuses the job without it, so
+    /// the dialog disables and names the condition here first.
     /// </summary>
-    public async Task<IActionResult> OnPostSaveDamageAsync(
-        Guid id,
-        string operationKey,
-        string? editLeaseToken,
-        string? impactLocation,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!await CanAccessAsync(id, actor, cancellationToken))
-        {
-            return NotFound();
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
-            return RedirectToPage(new { id, section = "report" });
-        }
-        if (string.IsNullOrWhiteSpace(impactLocation))
-        {
-            TempData["AssessmentError"] = "Choose where the damage is.";
-            return RedirectToPage(new { id, section = "report" });
-        }
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            TempData["AssessmentError"] = NotInEditMode;
-            return RedirectToPage(new { id, section = "report" });
-        }
+    public decimal? EngineerValue =>
+        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { IsConfirmed: true } engineerValue
+            && decimal.TryParse(
+                engineerValue.Value,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var parsed)
+            ? parsed
+            : null;
 
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
-        {
-            return NotFound();
-        }
+    /// <summary>The condition naming why Send to Claude is not offered, or null when offered.</summary>
+    public string? SendToClaudeCondition { get; private set; }
 
-        try
-        {
-            await saveAssessment.ExecuteAsync(
-                new(
-                    id,
-                    details.Workflow.Version,
-                    actor,
-                    operationKey,
-                    "Damage location marked on the assessment diagram.",
-                    editLeaseToken,
-                    new Dictionary<string, string?>
-                    {
-                        [AssessmentVocabulary.ImpactLocation] = impactLocation
-                    }),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["AssessmentError"] = exception.Message;
-            return RedirectToPage(new { id, section = "report" });
-        }
+    /// <summary>The condition naming why an estimate import is not offered, or null when offered.</summary>
+    public string? ImportCondition =>
+        IsReadOnly
+            ? "Read-only once Complete"
+            : !ActorIsEngineer
+                ? "Only an Engineer can import an estimate"
+                : DraftSpecification is not null
+                    ? "A draft estimate is awaiting acceptance"
+                    : null;
 
-        // The save ended edit mode inside its own transaction, as every case mutation does, so
-        // this browser forgets a token the server has already cleared.
-        ClearLeaseState();
-        TempData["AssessmentStatus"] = "Damage location saved.";
-        return RedirectToPage(new { id, section = "report" });
-    }
+    /// <summary>The condition naming why the report-draft controls are not offered, or null.</summary>
+    public string? ReportDraftCondition { get; private set; }
 
-    public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
+    /// <summary>Whether the report-draft readiness names outstanding reasons this render.</summary>
+    public bool ReportDraftNotReady =>
+        ReportDraftPreparation is { CanGenerate: false }
+        && ReportDraftReasons.Count > 0;
+
+    /// <summary>
+    /// The report-draft readiness reasons, named once beside the disabled
+    /// control (FRD-11: a missing requirement leaves the control disabled
+    /// and states that outstanding reason by name).
+    /// </summary>
+    public IReadOnlyList<AssessmentReadinessItem> ReportDraftReasons
+        => ReportDraftPreparation?.Reasons ?? [];
 
     /// <summary>
     /// The holder disclosure other staff see. The workspace projection carries the lease and the
     /// assessment projection does not, so this page reads it from the same
     /// <see cref="IGetCase"/> it already uses rather than widening
-    /// <see cref="AssessmentWorkspace"/> with a second copy of it. The case version is not read
-    /// that way — the assessment header already carries it.
+    /// <see cref="AssessmentWorkspace"/> with a second copy of it.
     /// </summary>
     public CaseEditAuthorityHolder? EditAuthorityHolder { get; private set; }
 
@@ -292,7 +221,6 @@ public sealed class IndexModel(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string? section,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -310,7 +238,7 @@ public sealed class IndexModel(
             id,
             expectedVersion,
             operationKey,
-            () => RedirectToPage(new { id, section }),
+            () => RedirectToPage(new { id }),
             cancellationToken);
     }
 
@@ -324,14 +252,13 @@ public sealed class IndexModel(
         Guid id,
         string operationKey,
         string editLeaseToken,
-        string? section,
         CancellationToken cancellationToken) =>
         ReleaseLeaseAsync(
             releaseLease,
             id,
             operationKey,
             editLeaseToken,
-            () => RedirectToPage(new { id, section }),
+            () => RedirectToPage(new { id }),
             cancellationToken);
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -341,30 +268,53 @@ public sealed class IndexModel(
             return Forbid();
         }
 
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access is null)
+        {
+            return NotFound();
+        }
+        if (!access.CanOpen)
+        {
+            // The gate the contract draws: name the case, state the export
+            // condition, offer the way back (§1.9 "Assessment unavailable").
+            var gateDetails = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+            if (gateDetails is null)
+            {
+                return NotFound();
+            }
+            UnavailableReference = gateDetails.Summary.Reference;
+            UnavailableRegistration = gateDetails.Summary.Registration;
+            return Page();
+        }
+
         Case = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
         if (Case is null)
         {
             return NotFound();
         }
 
-        await RestoreEditModeAsync(id, actor, cancellationToken);
+        var details = await LoadCaseContextAsync(id, actor, cancellationToken);
         Assessment = Case.Assessment;
         DraftSpecification = Case.DraftSpecification;
         AcceptedSpecification = Case.AcceptedSpecification;
         ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
-        LatestRequest = Case.LatestRequest;
+        IsReadOnly = access.IsReadOnly;
+        Claimant = details?.Summary.Claimant;
+        InstructionFiles = CaseFiles.Live(details?.Documents ?? [])
+            .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Instruction)
+            .ToList();
+        EvidenceImages = await evidenceImageQueries.ListForCaseAsync(id, cancellationToken);
         ReportDraftPreparation = AssessmentReportProjection.Prepare(Assessment, costs: null);
-        CombinedReadiness = ReportDraftPreparation.Reasons;
-        await EvaluatePanelStateAsync(cancellationToken);
+        await EvaluateRecordBarConditionsAsync(cancellationToken);
         return Page();
     }
 
     /// <summary>
     /// Renders and returns the report draft PDF (DELIV-012). Readiness is
     /// decided by <see cref="AssessmentReportProjection"/>, the same
-    /// readiness rail rendered on this page; a case that is not ready
-    /// returns to the page with every outstanding reason named rather than
-    /// throwing.
+    /// readiness that conditions the record-bar controls; a case that is
+    /// not ready returns to the page with every outstanding reason named
+    /// rather than throwing.
     /// </summary>
     public async Task<IActionResult> OnPostGenerateReportDraftAsync(
         Guid id,
@@ -412,7 +362,97 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// ENG-002: the drag-and-drop estimate import. The file is parsed first
+    /// The record bar's preview: the same read-only rendering seam as the
+    /// generate control, delivered inline so the browser's own viewer is
+    /// the preview surface (nothing is saved by either).
+    /// </summary>
+    public async Task<IActionResult> OnGetPreviewReportDraftAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        var result = await generateReportDraft.ExecuteAsync(id, actor, cancellationToken);
+        return result.Outcome switch
+        {
+            GenerateCaseAssessmentReportDraftOutcome.NotFound => NotFound(),
+            GenerateCaseAssessmentReportDraftOutcome.NotReady => RedirectToPage(new { id }),
+            _ => File(result.Draft!.Assessment.Pdf, "application/pdf"),
+        };
+    }
+
+    /// <summary>
+    /// FRD-11 § AI Job List: Send to Claude queues an Estimate-kind AI job
+    /// carrying the operator's direction and a target percentage of the
+    /// confirmed Engineer's Value. Core owns every refusal — the eligible
+    /// state, the missing Engineer's Value and the Administrator switch —
+    /// and this handler surfaces the refusal sentence it is given.
+    /// </summary>
+    public async Task<IActionResult> OnPostSendToClaudeAsync(
+        Guid id,
+        string operationKey,
+        string? direction,
+        int? targetPercent,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToPage(new { id });
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        var trimmedDirection = direction?.Trim();
+        var instruction = string.IsNullOrWhiteSpace(trimmedDirection)
+            ? $"Draft an estimate for case {details.Summary.Reference}."
+            : trimmedDirection;
+        try
+        {
+            await createAiJob.ExecuteAsync(
+                new(
+                    AiJobKind.Estimate,
+                    id,
+                    details.Summary.Reference,
+                    instruction,
+                    targetPercent,
+                    actor,
+                    operationKey),
+                cancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            TempData["AssessmentError"] = "Choose a target between 1 and 100 percent of the Engineer's Value.";
+            return RedirectToPage(new { id });
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["AssessmentError"] = exception.Message;
+            return RedirectToPage(new { id });
+        }
+
+        TempData["AssessmentStatus"] =
+            "Sent to Claude. The job is queued; its estimate opens from Operations when ready.";
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>
+    /// ENG-002: the estimate import. The file is parsed first
     /// (no side effects — a rejected parse retains nothing), then retained
     /// through the existing case-document custody path, then landed as a
     /// draft repair specification with the route, source version and hash of
@@ -438,22 +478,22 @@ public sealed class IndexModel(
         if (!actor.IsInRole(StaffRole.Engineer))
         {
             TempData["AssessmentError"] = "Only an Engineer can import an estimate.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         if (!IsOperationKeyValid(operationKey))
         {
             TempData["AssessmentError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
         {
             TempData["AssessmentError"] = "Choose a non-empty estimate file of 10 MB or less.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         if (!estimateParser.CanParse(estimateFile.FileName, estimateFile.ContentType))
         {
             TempData["AssessmentError"] = "Only a PDF estimate can be imported at present.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
 
         await using var buffer = new MemoryStream((int)estimateFile.Length);
@@ -468,7 +508,7 @@ public sealed class IndexModel(
         catch (EstimateParseRejectedException exception)
         {
             TempData["AssessmentError"] = exception.Message;
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
 
         var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
@@ -480,7 +520,7 @@ public sealed class IndexModel(
         {
             TempData["AssessmentError"] = "A draft repair specification already exists for this case. "
                 + "Accept it or replace its lines before importing another estimate.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         var accepted = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
         var trimmedReason = reason?.Trim();
@@ -488,13 +528,13 @@ public sealed class IndexModel(
         {
             TempData["AssessmentError"] = "This case already has an accepted repair specification. "
                 + "Give the reason this import corrects it.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
 
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             TempData["AssessmentError"] = NotInEditMode;
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
 
         var caseVersion = details.Workflow.Version;
@@ -528,7 +568,7 @@ public sealed class IndexModel(
                 exception,
                 "The estimate was not imported because the case changed or another editor holds it. "
                 + "Nothing was recorded; retry the import.");
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
 
         try
@@ -572,7 +612,7 @@ public sealed class IndexModel(
                 + "recorded because the case changed. Retry the import.");
         }
 
-        return RedirectToEstimate(id);
+        return RedirectToPage(new { id });
     }
 
     /// <summary>
@@ -608,29 +648,29 @@ public sealed class IndexModel(
         if (!actor.IsInRole(StaffRole.Engineer))
         {
             TempData["AssessmentError"] = "Only an Engineer can accept a repair specification.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         if (!IsOperationKeyValid(operationKey))
         {
             TempData["AssessmentError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         if (repairerVatRegistered is not ("true" or "false"))
         {
             TempData["AssessmentError"] = "Answer whether the repairer is VAT registered.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             TempData["AssessmentError"] = NotInEditMode;
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
 
         var draft = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
         if (draft is null || draft.SpecificationId != specificationId)
         {
             TempData["AssessmentError"] = "The draft repair specification changed. Review it again.";
-            return RedirectToEstimate(id);
+            return RedirectToPage(new { id });
         }
         var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
         if (details is null)
@@ -678,7 +718,7 @@ public sealed class IndexModel(
                 + "editor holds it. Review it again.");
         }
 
-        return RedirectToEstimate(id);
+        return RedirectToPage(new { id });
     }
 
     /// <summary>
@@ -695,15 +735,12 @@ public sealed class IndexModel(
             ? exception.Message
             : fallback;
 
-    private RedirectToPageResult RedirectToEstimate(Guid id) =>
-        RedirectToPage(new { id, section = "estimate" });
-
-
     /// <summary>
-    /// Loads the case's edit authority for this render. The assessment projection does not carry
-    /// the lease, so it comes from the workspace query this page already depends on.
+    /// Loads the case's edit authority and live documents for this render.
+    /// The assessment projection does not carry the lease, so it comes from
+    /// the workspace query this page already depends on.
     /// </summary>
-    private async Task RestoreEditModeAsync(
+    private async Task<CaseDetails?> LoadCaseContextAsync(
         Guid id,
         ActionActor actor,
         CancellationToken cancellationToken)
@@ -711,14 +748,14 @@ public sealed class IndexModel(
         var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
         if (details is null)
         {
-            return;
+            return null;
         }
 
         CaseIsArchived = details.Workflow.Archive is not null;
         RestoreLeaseState(id, actor, details.ActiveEditLease);
         if (details.ActiveEditLease is not { } activeLease)
         {
-            return;
+            return details;
         }
 
         ViewerHoldsEditAuthority = CaseEditAuthority.IsHolder(
@@ -732,170 +769,41 @@ public sealed class IndexModel(
                 activeLease.Holder,
                 actor,
                 cancellationToken);
-    }
-
-    public async Task<IActionResult> OnPostSendAsync(
-        Guid id,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!await CanAccessAsync(id, actor, cancellationToken))
-        {
-            return NotFound();
-        }
-
-        var sendCaseToAi = HttpContext.RequestServices.GetService<ISendCaseToAi>();
-        if (sendCaseToAi is null)
-        {
-            return NotFound();
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
-            return RedirectToPage(new { id });
-        }
-
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
-        {
-            return NotFound();
-        }
-
-        var result = await sendCaseToAi.ExecuteAsync(
-            new(
-                id,
-                actor,
-                operationKey,
-                $"Work the assessment for case {details.Summary.Reference} in Pegasus: "
-                + "read the case, record your working values through the automation tools, "
-                + "and reply done when finished."),
-            cancellationToken);
-        TempData["AssessmentStatus"] = result.Outcome switch
-        {
-            SendCaseToAiOutcome.HandedOff => "Sent. Changes will appear on this case for your review.",
-            SendCaseToAiOutcome.Failed => "Nothing was sent. " + string.Join(" ", result.Reasons),
-            _ => "Sending is not available. " + string.Join(" ", result.Reasons)
-        };
-        return RedirectToPage(new { id });
-    }
-
-    public async Task<IActionResult> OnPostReconcileAsync(
-        Guid id,
-        Guid requestId,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!await CanAccessAsync(id, actor, cancellationToken))
-        {
-            return NotFound();
-        }
-
-        var reconcile = HttpContext.RequestServices.GetService<IReconcileAiWorkRequest>();
-        if (reconcile is null)
-        {
-            return NotFound();
-        }
-        if (requestId == Guid.Empty || !IsOperationKeyValid(operationKey))
-        {
-            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
-            return RedirectToPage(new { id });
-        }
-
-        try
-        {
-            var record = await reconcile.ExecuteAsync(
-                new(id, requestId, actor, operationKey),
-                cancellationToken);
-            TempData["AssessmentStatus"] = record.State switch
-            {
-                AiWorkRequestState.Completed =>
-                    "Claude has finished. Review the changes on this case.",
-                AiWorkRequestState.Failed =>
-                    "The hand-off failed. " + (record.ReplyMessage ?? record.ClosureReason ?? string.Empty),
-                AiWorkRequestState.Expired =>
-                    "The request expired before a reply was recorded.",
-                _ => "No reply has been recorded yet."
-            };
-        }
-        catch (KeyNotFoundException)
-        {
-            TempData["AssessmentError"] = "The Send to AI request was not found.";
-        }
-
-        return RedirectToPage(new { id });
+        return details;
     }
 
     /// <summary>
-    /// ENG-003: the one place the "N issues detected" pluralisation rule
-    /// lives, so the readiness panel's summary chip and the report-draft
-    /// "Not ready" card's reference back to it never drift apart.
+    /// The record-bar conditions, computed once per render so the controls
+    /// and their gating spans cannot disagree: Send to Claude needs an
+    /// editable case, the switch on and a confirmed Engineer's Value; the
+    /// report draft needs a projectable assessment.
     /// </summary>
-    public static string IssueSummaryText(int count) =>
-        $"{count} {(count == 1 ? "issue" : "issues")} detected";
-
-    public string FieldValue(string path) => Assessment?.Field(path)?.Value ?? string.Empty;
-
-    public decimal? MoneyField(string path) =>
-        Assessment?.Field(path)?.Value is { } value
-            && decimal.TryParse(
-                value,
-                NumberStyles.AllowDecimalPoint,
-                CultureInfo.InvariantCulture,
-                out var parsed)
-            ? parsed
-            : null;
-
-    private async Task EvaluatePanelStateAsync(CancellationToken cancellationToken)
+    private async Task EvaluateRecordBarConditionsAsync(CancellationToken cancellationToken)
     {
-        // The composition gate decides first: an uncomposed capability is
-        // absent from the page entirely (docs/design/README.md), and with
-        // Features:SendToAi off there is no reconcile handler to post to.
-        if (!SendComposed)
+        var sendConditions = new List<string>();
+        if (IsReadOnly)
         {
-            return;
+            sendConditions.Add("Read-only once Complete");
         }
-
-        if (LatestRequest is { } request)
+        else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {
-            var expired = request.ExpiresAtUtc <= timeProvider.GetUtcNow();
-            switch (request.State)
-            {
-                case AiWorkRequestState.Created or AiWorkRequestState.HandedOff when !expired:
-                    PanelState = "sent";
-                    return;
-                case AiWorkRequestState.Completed:
-                    PanelState = "completed";
-                    return;
-                case AiWorkRequestState.Failed:
-                    PanelState = "failed";
-                    FailureReason = request.ReplyMessage ?? request.ClosureReason;
-                    return;
-            }
+            sendConditions.Add("Sending to AI is disabled by an Administrator");
         }
-
-        var reasons = new List<string>();
-        if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
+        else if (EngineerValue is null)
         {
-            reasons.Add("Sending to AI is disabled by an Administrator.");
+            sendConditions.Add("A confirmed Engineer's Value is required");
         }
+        SendToClaudeCondition = sendConditions.FirstOrDefault();
 
-        if (Case is { } details
-            && !AiWorkPolicy.IsEligibleCaseState(details.Header.State))
-        {
-            reasons.Add("The case is not in a state that accepts assessment work.");
-        }
-
-        PanelState = reasons.Count == 0 ? "available" : "unavailable";
-        UnavailableReasons = reasons;
+        ReportDraftCondition = ReportDraftPreparation is null
+            ? "Not available for this case"
+            : ReportDraftPreparation.CanGenerate
+                ? null
+                : "Not ready";
     }
+
+    private static bool IsMiles(string? unit) =>
+        unit is null || string.Equals(unit, "miles", StringComparison.OrdinalIgnoreCase);
 
     private async Task<bool> CanAccessAsync(
         Guid caseId,
