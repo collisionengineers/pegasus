@@ -88,6 +88,19 @@ public interface IRenewCaseEditLease
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Keeps the lease its holder already has from lapsing under an open editor.
+/// Unlike renewal it carries no operation key and leaves no replay record:
+/// FRD-01 counts a heartbeat as telemetry, and an editor produces one every
+/// minute for as long as the page stays open.
+/// </summary>
+public interface IHeartbeatCaseEditLease
+{
+    Task<CaseEditLease> ExecuteAsync(
+        HeartbeatCaseEditLeaseRequest request,
+        CancellationToken cancellationToken);
+}
+
 public interface IReleaseCaseEditLease
 {
     Task ExecuteAsync(

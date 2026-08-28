@@ -74,13 +74,16 @@
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <button type="submit" class="btn btn--dark">Finish editing</button>
                 </form>
-                <form method="post" asp-page-handler="RenewLease" class="record__bar-form">
+                @* Script hides this and beats instead; without script it is how
+                   editing is kept. *@
+                <form method="post" asp-page-handler="RenewLease" class="record__bar-form" data-edit-renew>
                     <input type="hidden" name="id" value="@summary.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <button type="submit" class="btn">Renew editing</button>
                 </form>
+                <partial name="Shared/_EditHeartbeat" view-data='new ViewDataDictionary(ViewData) { ["HeartbeatCaseId"] = summary.CaseId, ["HeartbeatLeaseToken"] = Model.LeaseToken }' />
             }
             else if (Model.CanRecoverLease)
             {
@@ -94,7 +97,7 @@
             else if (details.ActiveEditLease is { } heldByOther && Model.EditAuthorityHolder is { } holder)
             {
                 <span class="record__bar-note" data-edit-authority>
-                    @EditModeDisplay.HeldBy(holder, heldByOther.ExpiresAtUtc, Model.ViewerHoldsEditAuthority)
+                    @EditModeDisplay.HeldBy(holder, Model.ViewerHoldsEditAuthority)
                     Editing cannot be taken over.
                 </span>
             }

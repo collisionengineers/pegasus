@@ -176,6 +176,44 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     protected RedirectToPageResult RedirectToDetails(Guid id) =>
         RedirectToPage("/Cases/Details", new { id });
 
+    /// <summary>
+    /// Tells the server the editor is still here, so an open page is never timed out mid-edit.
+    /// Every page that carries edit mode answers it the same way, and none of them redirect: the
+    /// browser only needs to know whether to keep beating.
+    /// </summary>
+    /// <remarks>
+    /// It reads and writes no TempData on any path — not even to forget a lost lease. TempData
+    /// here is cookie-backed, so re-issuing that cookie from a request the operator did not make
+    /// can race a form post they did and lose them the token mid-edit. A refusal needs no state
+    /// anyway: the page it lands on already renders the case's real edit state.
+    /// </remarks>
+    protected async Task<IActionResult> HeartbeatLeaseAsync(
+        IHeartbeatCaseEditLease heartbeat,
+        Guid id,
+        string editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await heartbeat.ExecuteAsync(new(id, actor, editLeaseToken), cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsLeaseLoss(exception))
+        {
+            return new StatusCodeResult(StatusCodes.Status409Conflict);
+        }
+
+        return new StatusCodeResult(StatusCodes.Status204NoContent);
+    }
+
     protected void StoreLeaseAuthority(Guid caseId, string leaseToken)
     {
         if (string.IsNullOrWhiteSpace(leaseToken))

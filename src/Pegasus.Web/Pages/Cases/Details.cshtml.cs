@@ -21,6 +21,7 @@ public sealed partial class DetailsModel(
     IGetAssessmentAccess getAssessmentAccess,
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
+    IHeartbeatCaseEditLease heartbeatLease,
     IReleaseCaseEditLease releaseLease,
     IConfirmCompleteness confirmCompleteness,
     ISaveCase saveCase,
@@ -181,7 +182,7 @@ public sealed partial class DetailsModel(
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
             TempData.Remove(ReleaseLeaseOperationKeyName);
-            TempData["CaseStatus"] = $"Edit mode is active until {Presentation.OperatorLabels.OfficeTime(lease.ExpiresAtUtc)}.";
+            TempData["CaseStatus"] = "Edit mode is active.";
         }
         catch (StaffAuthorizationException)
         {
@@ -227,7 +228,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
-            TempData["CaseStatus"] = $"Edit mode was renewed until {Presentation.OperatorLabels.OfficeTime(lease.ExpiresAtUtc)}.";
+            TempData["CaseStatus"] = "Edit mode was renewed.";
         }
         catch (StaffAuthorizationException)
         {
@@ -252,6 +253,12 @@ public sealed partial class DetailsModel(
 
         return RedirectToDetails(id);
     }
+
+    public Task<IActionResult> OnPostHeartbeatLeaseAsync(
+        Guid id,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        HeartbeatLeaseAsync(heartbeatLease, id, editLeaseToken, cancellationToken);
 
     public async Task<IActionResult> OnPostReleaseLeaseAsync(
         Guid id,
