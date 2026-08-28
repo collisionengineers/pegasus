@@ -128,7 +128,7 @@
             }
         </header>
         <div class="app-column">
-            <div class="utility-bar">
+            <section class="utility-bar" aria-label="Utility bar">
                 <div class="utility-freshness"><span class="health-dot"></span><span>@freshness</span></div>
                 <form class="utility-search" role="search" method="get" action="/Search">
                     <label class="sr-only" for="global-search">Search Pegasus</label>
@@ -145,7 +145,7 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
                     </button>
                 </div>
-            </div>
+            </section>
             <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
                 <a class="workspace-tab" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
                     <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>

@@ -115,7 +115,7 @@ main [id]{scroll-margin-top:92px}
 .utility-search input::placeholder{color:#c8d0d4}
 .utility-search input:focus,.utility-search input:focus-visible{background:#fff;color:var(--ink);border-color:var(--navy);outline-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
 .utility-search>.icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px}
-.shortcut-hint{position:absolute;right:9px;top:50%;transform:translateY(-50%);border:1px solid rgba(255,255,255,.3);padding:2px 5px;font-size:9px;color:#d8dfe3}
+.shortcut-hint{position:absolute;right:9px;top:50%;transform:translateY(-50%);border:1px solid rgba(255,255,255,.3);padding:2px 5px;font-size:9px;color:#e6ebee;background:#2d3336}
 .utility-actions{margin-left:auto;display:flex;align-items:center;gap:7px}
 .utility-freshness{display:flex;align-items:center;gap:7px;font-size:11px;color:#dce4e7;white-space:nowrap}
 .utility-freshness .health-dot{box-shadow:none;width:7px;height:7px}

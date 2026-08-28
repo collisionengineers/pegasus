@@ -29,6 +29,12 @@
                     <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
                     <h3>@OperatorLabels.Admin.Mail</h3>
                 </a>
+                @* Organisations stays reachable from the landing until PLAT-028
+                   folds it into Principals (D2); it is not in the area rail. *@
+                <a class="admin-card" asp-page="/Administration/Organizations/Index">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                    <h3>Organisations</h3>
+                </a>
                 @* A capability a deployment has not composed is absent. *@
                 @if (Model.AutomationComposed)
                 {

@@ -28,11 +28,12 @@ public sealed class LayoutIntegrityTests
         return data;
     }
 
-    // Containers that scroll by design: a scrolling pane, a wide table, the
-    // horizontal rail and tab strips, a textarea, a select, and anything a
-    // page marks [data-allow-clip].
+    // Containers that clip by design: the brand lockup (its decorative
+    // texture bleeds past the edge), the legacy visually-hidden .vh, a
+    // scrolling pane, a wide table, the horizontal rail and tab strips, a
+    // textarea, a select, and anything a page marks [data-allow-clip].
     private const string AllowedClipSelector =
-        ".pane-scroll, .table-wrap, .primary-nav, .workspace-tabs, .tabs, .estimate-table, "
+        ".brand, .vh, .pane-scroll, .table-wrap, .primary-nav, .workspace-tabs, .tabs, .estimate-table, "
         + ".command-results, .report-preview, .row-excerpt, .ribbon-value, .rail-user strong, .workspace-tab span, "
         + "textarea, select, [data-allow-clip]";
 
