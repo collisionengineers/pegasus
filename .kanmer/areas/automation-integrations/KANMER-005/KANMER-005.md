@@ -12,7 +12,11 @@ labels:
   - bug
   - lease
   - concurrency
-links: []
+  - wave-3
+groups:
+  - EPIC-011
+links:
+  - CASE-024
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
@@ -21,7 +25,7 @@ refs:
   - docs/adr/0031-automation-actor-contract-without-eva-export-tools.md
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-28T10:13:44.130Z'
+updated: '2026-08-28T10:50:40.118Z'
 ---
 
 ## What
