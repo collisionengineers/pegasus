@@ -57,6 +57,56 @@ No provider route is active until its exact capability allocation, accepted
 contract, credentials/scopes, failure and recovery proof, real caller, and
 operator acceptance exist.
 
+### Accepted API-01 submission contract
+
+> Owner capability: API-01 (with API-04 credentials). Operator decision
+> 2026-08-28 (EPIC-011 D8): the Principal's Pegasus API key is the Provider
+> API credential, delivered with the submission endpoint. Live activation for
+> a named provider still requires exact-target approval before any credential
+> is issued.
+
+The surface is a versioned machine surface, composed only where the
+`Features:ProviderApi` gate is on and otherwise absent (404). It accepts no
+cookie and no staff identity; a Principal credential is accepted nowhere
+else.
+
+- **Credential.** `Authorization: Bearer pgs_<key id>_<secret>` — the secret
+  API-04 issued once. Unknown key, wrong secret, revoked credential, or
+  inactive Principal is refused as 401 with a recorded security event that
+  names the key id when one was well-formed and never the secret. Requests
+  are rate-limited per key id.
+- **Submit.** `POST /api/provider/v1/submissions` as `multipart/form-data`:
+  one or more `files` parts in instruction order (the first is the
+  instruction; later parts are its attachments or images), an optional
+  `providerReference` field (at most 200 characters), and a required
+  `Idempotency-Key` header (at most 200 characters, unique per Principal).
+  The envelope bound is the staff Upload bound: at most 20 files, each at
+  most 10 MiB; a larger envelope is 413. The files enter the same grouped
+  durable intake path as a staff upload, on the `provider_api` source
+  channel, bound to the authenticated Principal — the content and any
+  sender inside it never select a route or a different Principal — and
+  attributed to the Provider actor (that Principal) in action history.
+- **Receipt.** 201 with `submissionId`, `receivedAtUtc`, `providerReference`,
+  `replayed: false` and the accepted files (ordinal, file name, SHA-256,
+  duplicate flag) the moment the envelope is durably received, before any
+  processing. A replay of the same key with identical files is 200 with the
+  same receipt and `replayed: true`; the same key with different files or a
+  different file count is 409 and retains nothing new.
+- **Pause.** A paused credential is refused for submission (403, recorded)
+  and still reads its own receipts and results; a revoked one is refused
+  everywhere.
+- **Result.** `GET /api/provider/v1/submissions/{id}` returns the
+  submission's `status` (`Received`, `Processing`, `Complete`, `Failed` — the
+  intake work vocabulary, not a provider-only one), the `caseReference` once
+  processing allocated a Case/PO, and per file the intake `decision`,
+  `allocationFailure`, `failureCode` and `caseReference`. A submission that
+  does not exist or belongs to another Principal is 404 — the two are
+  indistinguishable.
+- **Fail closed.** A Principal without an instruction extraction policy, or
+  a source with no retained submission binding, is retained for sorting
+  rather than allocated. Custody failure is 503 and the caller retries with
+  the same key.
+
 ### Accepted QDOS automatic case-association predicates
 
 > Owner capability: route association (QDOS direct). Relocated from ADR-0020 (2026-08-03). Instantiates the route-policy association frame for the QDOS direct route and supersedes the earlier single-domain QDOS sender identity with the operator-accepted three-domain set. General multi-rule precedence and confidence questions remain open in [open decisions](../open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display).
