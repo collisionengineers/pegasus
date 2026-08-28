@@ -27,7 +27,7 @@ public sealed class ImageIntakeWebTests
             Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
 
-        var detailsBefore = await GetAsync(client, $"/Received/{receiptId:D}");
+        var detailsBefore = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Register Image intake", detailsBefore);
         Assert.Contains("No readable registration", detailsBefore);
 
@@ -43,7 +43,7 @@ public sealed class ImageIntakeWebTests
             }));
         Assert.Equal(HttpStatusCode.Redirect, registerResponse.StatusCode);
 
-        var detailsAfter = await GetAsync(client, $"/Received/{receiptId:D}");
+        var detailsAfter = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Vehicle images registered", detailsAfter);
         Assert.Contains("AB12CDE-01", detailsAfter);
         Assert.DoesNotContain("Register Image intake</h2>", detailsAfter);
@@ -56,21 +56,21 @@ public sealed class ImageIntakeWebTests
         Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt.Decision);
         Assert.Equal("vehicle.png", receipt.SourceFileName);
 
-        var indexByReference = await GetAsync(client, "/VehicleImages?query=AB12CDE-01");
+        var indexByReference = await IntakeWebDriver.GetHtmlAsync(client, "/VehicleImages?query=AB12CDE-01");
         Assert.Contains("AB12CDE-01", indexByReference);
-        var indexByVrm = await GetAsync(client, "/VehicleImages?query=AB12CDE");
+        var indexByVrm = await IntakeWebDriver.GetHtmlAsync(client, "/VehicleImages?query=AB12CDE");
         Assert.Contains("AB12CDE-01", indexByVrm);
 
-        var caseSearch = await GetAsync(client, "/Cases?query=AB12CDE-01");
+        var caseSearch = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?query=AB12CDE-01");
         Assert.Contains("AB12CDE-01", caseSearch);
-        var caseSearchImagesOnly = await GetAsync(client, "/Cases?kind=images");
+        var caseSearchImagesOnly = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?kind=images");
         Assert.Contains("AB12CDE-01", caseSearchImagesOnly);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var detail = await scope.ServiceProvider
             .GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
-        var imageIntakePage = await GetAsync(client, $"/VehicleImages/{detail!.Record.Id:D}");
+        var imageIntakePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail!.Record.Id:D}");
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
     }
@@ -135,18 +135,11 @@ public sealed class ImageIntakeWebTests
         var suggestion = Assert.Single(suggestions);
         Assert.Equal(ImageVrmSuggestionDisposition.Confirmed, suggestion.Disposition);
 
-        var receiptPage = await GetAsync(client, $"/Received/{receiptId:D}");
+        var receiptPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Associated with Case", receiptPage);
         Assert.Contains("AB12CDE-01", receiptPage);
-        var casePage = await GetAsync(client, $"/Cases/{caseId:D}?tab=evidence");
+        var casePage = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?tab=evidence");
         Assert.Contains("AB12CDE-01", casePage);
-    }
-
-    private static async Task<string> GetAsync(HttpClient client, string url)
-    {
-        using var response = await client.GetAsync(url);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 }
 

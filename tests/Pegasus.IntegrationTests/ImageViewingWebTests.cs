@@ -129,7 +129,7 @@ public sealed class ImageViewingWebTests
         Assert.StartsWith("image/", galleryImage.MediaType, StringComparison.Ordinal);
 
         var expectedSource = $"/Received/{receiptId:D}/Image";
-        var imageCasePage = await GetAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
+        var imageCasePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("loading=\"lazy\"", imageCasePage, StringComparison.Ordinal);
@@ -147,7 +147,7 @@ public sealed class ImageViewingWebTests
         Assert.Contains(">Download<", imageCasePage, StringComparison.Ordinal);
         Assert.Contains(">Close<", imageCasePage, StringComparison.Ordinal);
 
-        var casePage = await GetAsync(client, $"/Cases/{caseId:D}?tab=evidence");
+        var casePage = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?tab=evidence");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
         Assert.Contains("data-evidence-viewer", casePage, StringComparison.Ordinal);
@@ -159,7 +159,7 @@ public sealed class ImageViewingWebTests
             StringComparison.OrdinalIgnoreCase);
 
         // The overview tab does not pay the gallery query cost.
-        var overview = await GetAsync(client, $"/Cases/{caseId:D}");
+        var overview = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.DoesNotContain(expectedSource, overview, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -236,12 +236,5 @@ public sealed class ImageViewingWebTests
         anonymousRequest.Headers.Add("X-Test-Anonymous", "1");
         using var anonymous = await client.SendAsync(anonymousRequest);
         Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
-    }
-
-    private static async Task<string> GetAsync(HttpClient client, string url)
-    {
-        using var response = await client.GetAsync(url);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 }
