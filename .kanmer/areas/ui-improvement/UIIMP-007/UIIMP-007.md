@@ -4,20 +4,24 @@ type: ticket
 title: >-
   FRD-12, capabilities and boundaries for the new shell, routes and activated
   capabilities
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-28T08:08:15.950Z'
 labels:
   - ui
   - docs
   - capabilities
+groups:
+  - EPIC-011
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:05:30.058Z'
-updated: '2026-08-28T08:05:30.058Z'
+updated: '2026-08-28T08:08:15.950Z'
 ---
 
 ## What

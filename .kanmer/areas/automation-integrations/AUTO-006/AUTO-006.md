@@ -1,7 +1,7 @@
 ---
 id: AUTO-006
 type: ticket
-title: Redesign the Automation workspace
+title: Redesign the Automation & AI administration area
 status: backlog
 area: automation-integrations
 assignee: ''
@@ -12,11 +12,13 @@ labels:
   - operator-requested
 groups:
   - EPIC-008
-links: []
+  - EPIC-011
+links:
+  - AUTO-007
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-08-25T06:46:22.769Z'
+updated: '2026-08-28T08:08:02.710Z'
 ---
 
 ## What

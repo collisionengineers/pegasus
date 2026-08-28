@@ -2,14 +2,18 @@
 id: UIIMP-006
 type: ticket
 title: Rewrite the design authority to the Integrated Operations Workspace
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-28T08:08:14.136Z'
 labels:
   - ui
   - design
   - docs
+groups:
+  - EPIC-011
 links:
   - UIIMP-003
   - UIIMP-004
@@ -17,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:05:30.031Z'
-updated: '2026-08-28T08:05:30.031Z'
+updated: '2026-08-28T08:08:14.136Z'
 ---
 
 ## What

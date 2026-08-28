@@ -4,14 +4,18 @@ type: ticket
 title: >-
   FRD-01 and FRD-04 wording: workflow display labels, one Principals area,
   Action Logs
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-28T08:08:17.460Z'
 labels:
   - docs
   - case
   - administration
+groups:
+  - EPIC-011
 links:
   - PLAT-028
   - PLAT-027
@@ -20,7 +24,7 @@ refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 archived: false
 created: '2026-08-28T08:05:30.098Z'
-updated: '2026-08-28T08:05:30.098Z'
+updated: '2026-08-28T08:08:17.460Z'
 ---
 
 ## What

@@ -4,20 +4,24 @@ type: ticket
 title: >-
   FRD-08 and ADR-0036: outbound mail from an approved mailbox and EVA-sent
   report detection
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-28T08:08:21.145Z'
 labels:
   - docs
   - mail
   - adr
+groups:
+  - EPIC-011
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:05:30.146Z'
-updated: '2026-08-28T08:05:30.146Z'
+updated: '2026-08-28T08:08:21.145Z'
 ---
 
 ## What

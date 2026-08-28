@@ -2,10 +2,12 @@
 id: KANMER-006
 type: ticket
 title: Reconcile the current Kanmer setup drift
-status: backlog
+status: preparing
 area: kanmer-meta
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-28T08:08:09.750Z'
 labels:
   - kanmer
   - setup
@@ -17,7 +19,7 @@ links:
   - TICK-222
 archived: false
 created: '2026-08-25T06:35:41.710Z'
-updated: '2026-08-28T08:07:41.507Z'
+updated: '2026-08-28T08:08:09.750Z'
 ---
 
 ## What

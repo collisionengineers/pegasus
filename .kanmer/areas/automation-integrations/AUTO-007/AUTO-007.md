@@ -13,28 +13,18 @@ labels:
   - operator-requested
 groups:
   - EPIC-008
-links: []
+links:
+  - AUTO-006
 docs_todo: true
-archived: false
+archived: true
 created: '2026-08-21T13:19:14.444Z'
-updated: '2026-08-25T06:46:23.057Z'
+updated: '2026-08-28T08:08:07.147Z'
 ---
 
-## What
+## Archived 2026-08-28
+
+Superseded by [[AUTO-006]]: the approved Integrated Operations Workspace design ([[EPIC-011]]) has one "Automation & AI" administration area carrying the Automation controls and the AI settings panel together, so a separate AI Settings redesign no longer exists.
+
+## What (historical)
 
 Redesign the AI Settings surface.
-
-## Why
-
-AI settings need a coherent administration experience in the requested redesign programme.
-
-## Approach
-
-- Research current settings, governing requirements, and operator needs.
-- File linked backend or process follow-ups where the redesign requires them.
-
-## Verification
-
-- [ ] The approved redesign supports the required AI-settings workflows.
-
-## Outcome

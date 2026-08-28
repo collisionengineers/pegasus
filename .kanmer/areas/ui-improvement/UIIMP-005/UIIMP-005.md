@@ -4,14 +4,18 @@ type: ticket
 title: >-
   Harden the generated Test UI snapshot tooling (deferred review findings from
   UIIMP-004)
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-28T08:08:12.055Z'
 labels:
   - ui
   - design
   - tests
+groups:
+  - EPIC-011
 links:
   - UIIMP-004
 refs:
@@ -19,7 +23,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-27T08:17:30.643Z'
-updated: '2026-08-27T08:17:30.643Z'
+updated: '2026-08-28T08:08:12.055Z'
 ---
 
 ## What
