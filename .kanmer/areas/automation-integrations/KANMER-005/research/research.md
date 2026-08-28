@@ -113,3 +113,131 @@ need without changing the settled save lifecycle?
 None. The only product choice discovered by research—whether save ends the
 lease—was resolved in favor of the current behavior and is recorded in
 `open-questions/open-questions.md`.
+
+## Microsoft Learn and Azure extension — 2026-08-28
+
+### Source routing
+
+- Kanmer `get_sources` resolved no project-declared MCP, plugin, or
+  `llms.txt` sources for this ticket's area and labels. At the operator's
+  explicit request, this extension used the already-connected Azure MCP and
+  Microsoft Learn MCP directly. They are technical evidence, not authority
+  over the repository's linked FRDs, ADRs, code, or release rules.
+
+### Concurrency and transaction guidance
+
+- Microsoft Learn's [EF Core concurrency guidance](https://learn.microsoft.com/en-us/ef/core/saving/concurrency)
+  confirms that application-managed concurrency tokens are appropriate when
+  the application controls the protected unit. Pegasus already marks both
+  `CaseWorkflowEntity.Version` and `ConcurrencyToken` as concurrency tokens.
+  Adding SQL `rowversion` for this holder-kind correction would duplicate the
+  existing protection and is not part of the fix.
+- Microsoft's [transaction guidance](https://learn.microsoft.com/en-us/ef/core/saving/transactions)
+  and [SQL Server table-hint reference](https://learn.microsoft.com/en-us/sql/t-sql/queries/hints-transact-sql-table?view=sql-server-ver17#arguments)
+  support the existing shape: a short transaction, one workflow row selected
+  with `UPDLOCK`, and serializable-range behavior from `HOLDLOCK`. The SQL
+  locking guide specifically describes update locks as the way to avoid a
+  shared-to-exclusive conversion race. Retain the current
+  `SERIALIZABLE` + `UPDLOCK,HOLDLOCK` claim/renew/release boundary and extend
+  the identity tuple inside it; do not broaden the hints or hold a transaction
+  across an editing session.
+- Microsoft documents [optimized locking](https://learn.microsoft.com/en-us/sql/relational-databases/performance/optimized-locking?view=sql-server-ver17#best-practices-with-optimized-locking)
+  for Azure SQL Database and notes that explicit locking hints still take
+  effect. That makes the existing single-row hint a deliberate exception, not
+  a pattern to copy to other queries.
+- EF's [connection-resiliency guidance](https://learn.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency#execution-strategies-and-transactions)
+  requires an explicitly started transaction to be replayed as one unit when
+  retrying execution strategies are enabled. Pegasus currently calls
+  `UseSqlServer` without `EnableRetryOnFailure`; conflicts and deadlocks
+  surface. KANMER-005 must not add a partial retry around one command. A future
+  retry change would replay the entire idempotent lease operation through
+  `CreateExecutionStrategy` and is separate work.
+
+### Migration guidance and refinement
+
+- Microsoft's [migration guidance](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/managing#customize-migration-code)
+  supports adding the new column as nullable with no default, reviewing the
+  generated migration, and using explicit migration SQL for the data
+  transformation. The migration must not call the current `DbContext` or
+  current entity types because they can drift from the historical schema.
+- This refines and supersedes the earlier blanket-clear migration instruction.
+  Add nullable `EditLeaseHolderKind` with no default. Backfill it only from the
+  exact current `CaseEditLeaseOperations` row: matching case, operation key,
+  holder subject, claim/renew operation kind, result version, token hash, and
+  expiry. That row is durable evidence of the actor kind; GUID shape and a
+  default of `Staff` are not. Clear the complete ephemeral lease tuple only
+  for a retained holder that has no such exact match.
+- Microsoft documents [check constraints](https://learn.microsoft.com/en-us/ef/core/modeling/indexes#check-constraints)
+  as database invariant enforcement, but a paired-null holder constraint is
+  intentionally not added in this release. Pegasus applies migrations before
+  activating the new packages; the currently running old Web revision can
+  still claim a lease without the new column. A constraint would therefore
+  make that otherwise additive migration break the live old writer and would
+  invoke ADR-0030's non-additive-release consequences. The new runtime instead
+  treats a missing or unrecognized retained kind as an active, unidentified
+  competing holder until expiry: it cannot be taken over or used for a write,
+  and expiry permits the existing atomic clear/reclaim path.
+- `Down` drops only the added column. Clearing an unmatched transient lease is
+  intentionally not reversible; it discards no Case data, version, identity,
+  or history. Migration tests must prove exact-match backfill, unmatched
+  tuple clearing, the no-holder case, and new-runtime refusal/recovery for a
+  direct-SQL partial or unknown-kind tuple.
+
+### Read-only Azure evidence
+
+- Azure MCP resolved the exact production database as `pegasus` on
+  `pegasus-prod-sql-252ow37gij` in UK South. Its management status was
+  `Online` on Standard S0. The SQL server was `Ready` and the Web Container
+  App provisioning state was `Succeeded`.
+- Direct read-only SQL at `2026-08-28T10:14:01Z` found six workflow rows, zero
+  retained holders, zero active holders, and zero lease-operation rows. An
+  earlier census in the same research session saw five workflow rows; one Case
+  was created between reads while every lease count remained zero. There is
+  still no retained lease evidence from which to reconstruct the report.
+- The database has snapshot isolation `ON`, read-committed snapshot enabled,
+  and accelerated database recovery enabled. Those database settings do not
+  replace the explicit write lock protecting the claim decision.
+- Production object grants already cover the added column. The Web runtime
+  role has `SELECT`, `INSERT`, and `UPDATE` on `CaseWorkflows` and `SELECT` and
+  `INSERT` on `CaseEditLeaseOperations`; the Worker role has `SELECT`,
+  `INSERT`, and `UPDATE` on `CaseWorkflows` and `SELECT` on the operation
+  table. Both roles are denied `DELETE`. Staff and Automation enter through
+  the Web runtime role, so Azure RBAC and SQL grants neither distinguish nor
+  own actor-kind exclusivity. No new grant migration is required, but the
+  existing runtime-role migration tests and bootstrap census must stay green.
+- For `2026-08-18T12:00:00Z`–`16:00:00Z`, Azure Monitor reported 648 Web
+  requests, exactly one replica, zero restarts, SQL availability at 100%,
+  zero failed connections, and zero deadlocks. This rules out those platform
+  signals as an explanation for a holder rewrite; it does not prove the
+  application invariant.
+- Application Insights requests/exceptions/traces and Container App console
+  logs stopped before noon that day despite continuing platform request
+  metrics. There are therefore no correlated application records for the
+  reported window. Resource Health and AppLens were also not usable for this
+  topology: Container Apps were reported unsupported, while database/workspace
+  Resource Health calls returned an authorization/provider-registration
+  error. Those results are evidence limitations, not healthy-resource claims;
+  no provider registration or other Azure write was attempted.
+- Azure best-practice guidance favors managed identity, parameterized SQL,
+  bounded retry semantics, and structured monitoring. The existing managed
+  connection and parameterized EF/SQL paths remain. New lease telemetry or an
+  alerting contract would be separate observability scope; correctness in this
+  ticket is proved by the persisted invariant and synchronized real-store
+  tests, never by the absence of Azure alerts.
+
+### Planning consequences
+
+- [[CASE-024]] remains in Review on PR 581 at `747ecc47`; CI is green, but four
+  P1 review findings and two operator sign-offs remain unresolved. It now
+  formally blocks KANMER-005. Execution waits for it to merge and starts from
+  a freshly updated `origin/dev`, then extends its heartbeat and shared page
+  handlers rather than the pre-merge copies.
+- The complete new-claim identity is `(ActorKind, SubjectId, token)`. The Core
+  lease returned by claim/renew/heartbeat carries a non-null `ActorKind`; the
+  persisted column remains nullable only for migration/rollout compatibility.
+  Query and Web projections must preserve an unidentified invalid state
+  fail-closed instead of inferring actor kind from the subject.
+- Cover both Staff/Automation directions, same-subject/different-kind, exact
+  state preservation after rejected claims and writes, one-winner synchronized
+  claims on separate contexts/connections, the holder's renew/release path,
+  and the settled save-clears-lease behavior.
