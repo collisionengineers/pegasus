@@ -64,15 +64,23 @@ public sealed partial class SendToAiIntegrationTests
         Assert.DoesNotContain(RotatedToken, heldHtml, StringComparison.Ordinal);
 
         // The next hand-off reaches the overridden channel with the rotated
-        // token; the composed channel receives nothing.
-        var assessmentHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        using (var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=Send",
-            Form(
-                AntiforgeryValue(assessmentHtml),
-                ("operationKey", InputValue(assessmentHtml, "operationKey")))))
+        // token; the composed channel receives nothing. The hand-off is
+        // driven through its own seam: the Assessment surface moved to the
+        // AI job ledger (ENG-025), so the page no longer triggers it.
+        await using (var handOffScope = factory.Services.CreateAsyncScope())
         {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            var outcome = await handOffScope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.AiWork.ISendCaseToAi>()
+                .ExecuteAsync(
+                    new(
+                        caseId,
+                        ActionActor.Staff(
+                            DevelopmentOfflineIdentity.AdministratorId,
+                            [StaffRole.Administrator]),
+                        Guid.NewGuid().ToString("N"),
+                        "Connector override probe."),
+                    CancellationToken.None);
+            Assert.Equal(Pegasus.Core.AiWork.SendCaseToAiOutcome.HandedOff, outcome.Outcome);
         }
 
         var request = Assert.Single(

@@ -1,188 +1,39 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
+/// <summary>
+/// ENG-025 / FRD-11 § AI Job List: the Assessment page's Send to Claude
+/// queues an Estimate-kind AI job through <see cref="ICreateAiJob"/> (the
+/// AUTO-011 ledger superseded the AI-09 push hand-off on this surface). The
+/// switch-off gate stays visible as the control's condition, and the
+/// handler surfaces Core's refusal sentences unchanged. The ledger's own
+/// state machine is owned by the AUTO-011 Core tests; the channel connector
+/// seam is proven directly in SendToAiConnectorAdministrationTests, whose
+/// fixtures live in this partial class.
+/// </summary>
 [Trait("Category", "SqlServer")]
 public sealed partial class SendToAiIntegrationTests
 {
     private const string ChannelToken = "integration-test-send-to-ai-channel-token-0123456789";
     private static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
-    [Fact]
-    public async Task GateOffExposesNoSendBehaviour()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        var caseId = await SeedAcceptedCaseAsync(factory);
-        using var client = CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.DoesNotContain("id=\"send-title\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"send-confirm\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"send-to-claude-form\"", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GateOnRoundTripHandsOffReconcilesAndRecordsCorrelatedHistory()
-    {
-        await using var receiver = new FakeChannelReceiver();
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = WithSendToAi(baseFactory, receiver.BaseUrl);
-        var caseId = await SeedAcceptedCaseAsync(factory);
-        using var client = CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains("send-to-claude-form", html, StringComparison.Ordinal);
-        using (var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=Send",
-            Form(
-                AntiforgeryValue(html),
-                ("operationKey", InputValue(html, "operationKey")))))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        }
-
-        var request = Assert.Single(
-            receiver.Requests,
-            item => item.Path.StartsWith("/send", StringComparison.Ordinal));
-        Assert.Equal($"Bearer {ChannelToken}", request.Authorization);
-        Assert.Contains("\"schema_version\":1", request.Body, StringComparison.Ordinal);
-        Assert.Contains("\"case_reference\":", request.Body, StringComparison.Ordinal);
-        Assert.DoesNotContain("claimant", request.Body, StringComparison.OrdinalIgnoreCase);
-
-        var sentHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains(
-            "Sent. Changes will appear on this case for your review.",
-            sentHtml,
-            StringComparison.Ordinal);
-
-        Guid requestId;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var record = await scope.ServiceProvider
-                .GetRequiredService<IAiWorkRequestStore>()
-                .GetLatestForCaseAsync(caseId, CancellationToken.None);
-            Assert.NotNull(record);
-            Assert.Equal(AiWorkRequestState.HandedOff, record!.State);
-            requestId = record.RequestId;
-        }
-
-        receiver.ReplyStatus = "done";
-        receiver.ReplyMessage = "Assessment recorded.";
-        using (var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=Reconcile",
-            Form(
-                AntiforgeryValue(sentHtml),
-                ("requestId", requestId.ToString("D")),
-                ("operationKey", InputValue(sentHtml, "operationKey")))))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        }
-
-        var completedHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains("Claude has finished", completedHtml, StringComparison.Ordinal);
-
-        using var database = factory.Services.CreateScope();
-        var contextFactory = database.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var history = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "ai_work_request")
-            .ToArrayAsync();
-        Assert.Equal(3, history.Length);
-        Assert.All(history, entry =>
-            Assert.Equal(requestId.ToString("D"), entry.CorrelationId));
-        Assert.Contains(history, entry => entry.EventKind == "ai_work_request_completed");
-    }
-
-    [Fact]
-    public async Task ARefusedChannelIsAVisibleFailureWithTheCaseUnchanged()
-    {
-        await using var receiver = new FakeChannelReceiver
-        {
-            SendStatusCode = 401,
-            SendBody = """{"error":"unauthorized"}"""
-        };
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = WithSendToAi(baseFactory, receiver.BaseUrl);
-        var caseId = await SeedAcceptedCaseAsync(factory);
-        using var client = CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        using (var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=Send",
-            Form(
-                AntiforgeryValue(html),
-                ("operationKey", InputValue(html, "operationKey")))))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        }
-
-        var failedHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains("Nothing was sent", failedHtml, StringComparison.Ordinal);
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var record = await scope.ServiceProvider
-            .GetRequiredService<IAiWorkRequestStore>()
-            .GetLatestForCaseAsync(caseId, CancellationToken.None);
-        Assert.Equal(AiWorkRequestState.Failed, record!.State);
-        var caseData = await scope.ServiceProvider
-            .GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
-        Assert.Equal(0, caseData!.Version);
-    }
-
-    [Fact]
-    public async Task TheAdministratorSwitchRefusesNewHandOffsAndIsRecorded()
-    {
-        await using var receiver = new FakeChannelReceiver();
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = WithSendToAi(baseFactory, receiver.BaseUrl);
-        var caseId = await SeedAcceptedCaseAsync(factory);
-        using var client = CreateClient(factory);
-
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var control = scope.ServiceProvider.GetRequiredService<ISendToAiControl>();
-            var enabled = await control.SetEnabledAsync(
-                enabled: false,
-                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "Integration-test switch",
-                Guid.NewGuid().ToString("N"),
-                CancellationToken.None);
-            Assert.False(enabled);
-        }
-
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains(
-            "disabled by an Administrator",
-            html,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"send-to-claude-form\"", html, StringComparison.Ordinal);
-        Assert.Empty(receiver.Requests);
-
-        using var database = factory.Services.CreateScope();
-        var contextFactory = database.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        Assert.Equal(1, await context.ActionHistory.AsNoTracking()
-            .CountAsync(item => item.AggregateType == "send_to_ai"
-                && item.EventKind == "send_to_ai_disabled"));
-    }
-
-    private static WebApplicationFactory<Program> WithSendToAi(
+    internal static WebApplicationFactory<Program> WithSendToAi(
         IntakeWebApplicationFactory factory,
         string channelBaseUrl) =>
         factory.WithWebHostBuilder(builder =>
@@ -193,14 +44,11 @@ public sealed partial class SendToAiIntegrationTests
             builder.UseSetting("SendToAi:TimeoutSeconds", "5");
         });
 
-    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-    private static async Task<Guid> SeedAcceptedCaseAsync(WebApplicationFactory<Program> factory)
+    /// <summary>
+    /// Seeds an accepted QDOS case with a current export proxy: the state
+    /// the Assessment gate and the AI seams share.
+    /// </summary>
+    internal static async Task<Guid> SeedAcceptedCaseAsync(WebApplicationFactory<Program> factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -284,55 +132,12 @@ public sealed partial class SendToAiIntegrationTests
         await transaction.CommitAsync();
     }
 
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static FormUrlEncodedContent Form(
-        string antiforgeryToken,
-        params (string Name, string Value)[] values)
-    {
-        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
-        fields["__RequestVerificationToken"] = antiforgeryToken;
-        return new(fields);
-    }
-
-    private static string InputValue(string html, string name)
-    {
-        var tag = Regex.Match(
-            html,
-            $"<input[^>]*name=\\\"{Regex.Escape(name)}\\\"[^>]*>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(tag.Success, $"The page must render '{name}'.");
-        var value = ValueRegex().Match(tag.Value);
-        Assert.True(value.Success, $"The field '{name}' must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-    private static string AntiforgeryValue(string html)
-    {
-        var tag = AntiforgeryTagRegex().Match(html);
-        Assert.True(tag.Success, "The page must render an antiforgery token.");
-        var value = ValueRegex().Match(tag.Value);
-        Assert.True(value.Success, "The antiforgery token must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryTagRegex();
-
-    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ValueRegex();
-
     /// <summary>
     /// A local double for the channel connector: records every request,
     /// asserts nothing itself, and serves the scripted /send and /events
-    /// responses on a loopback port.
+    /// responses on a loopback port (SendToAiConnectorAdministrationTests).
     /// </summary>
-    private sealed class FakeChannelReceiver : IAsyncDisposable
+    internal sealed class FakeChannelReceiver : IAsyncDisposable
     {
         private readonly HttpListener listener;
         private readonly Task loop;
@@ -449,6 +254,289 @@ public sealed partial class SendToAiIntegrationTests
             var port = ((IPEndPoint)probe.LocalEndpoint).Port;
             probe.Stop();
             return port;
+        }
+    }
+
+    [Fact]
+    public async Task ASwitchedOffControlStatesTheConditionAndIsNotOffered()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId, controlEnabled: false);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
+        var condition = Regex.Match(html, "data-condition=\"([^\"]+)\"");
+        Assert.Contains("disabled by an Administrator", condition.Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendingRecordsAnEstimateJobWithTheDirectionAndTarget()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-range-base=\"9000\"", html, StringComparison.Ordinal);
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
+            Form(
+                AntiforgeryValue(html),
+                ("operationKey", InputValue(html, "operationKey")),
+                ("direction", "Target the repair, not the paint."),
+                ("targetPercent", "80")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(((RecordingCreateAiJob)GetJobFactory(factory)).Commands);
+        Assert.Equal(AiJobKind.Estimate, command.Kind);
+        Assert.Equal(caseId, command.SubjectId);
+        Assert.Equal("QDOS-2026-00042", command.SubjectReference);
+        Assert.Equal("Target the repair, not the paint.", command.Instruction);
+        Assert.Equal(80, command.TargetPercentOfEngineerValue);
+
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains("Sent to Claude", afterHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnEmptyDirectionFallsBackToANamedInstruction()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
+            Form(
+                AntiforgeryValue(html),
+                ("operationKey", InputValue(html, "operationKey")),
+                ("direction", "   "),
+                ("targetPercent", "75")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(((RecordingCreateAiJob)GetJobFactory(factory)).Commands);
+        Assert.Equal("Draft an estimate for case QDOS-2026-00042.", command.Instruction);
+    }
+
+    /// <summary>
+    /// Core owns the refusal (no confirmed Engineer's Value, wrong state,
+    /// switch off); the page surfaces the sentence it is given rather than
+    /// rewriting it.
+    /// </summary>
+    [Fact]
+    public async Task ACoreRefusalIsSurfacedUnchanged()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            caseId,
+            refusal: "An estimate job needs a confirmed Engineer's Value on the case.");
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
+            Form(
+                AntiforgeryValue(html),
+                ("operationKey", InputValue(html, "operationKey")),
+                ("direction", "Draft the estimate"),
+                ("targetPercent", "80")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains(
+            "An estimate job needs a confirmed Engineer's Value on the case.",
+            afterHtml,
+            StringComparison.Ordinal);
+    }
+
+    private static ICreateAiJob GetJobFactory(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<ICreateAiJob>();
+    }
+
+    private static WebApplicationFactory<Program> Compose(
+        Guid caseId,
+        bool controlEnabled = true,
+        string? refusal = null)
+    {
+        var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var source = new FakeGetCase(caseId);
+        var jobs = new RecordingCreateAiJob(refusal);
+        return baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentAccess>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<ICreateAiJob>();
+                services.RemoveAll<ISendToAiControl>();
+                services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
+                services.AddSingleton<IGetAssessmentWorkspace>(source);
+                services.AddSingleton<ICreateAiJob>(jobs);
+                services.AddSingleton<ISendToAiControl>(new FixedSendToAiControl(controlEnabled));
+            }));
+    }
+
+    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
+    {
+        using var response = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    private static FormUrlEncodedContent Form(
+        string antiforgeryToken,
+        params (string Name, string Value)[] values)
+    {
+        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
+        fields["__RequestVerificationToken"] = antiforgeryToken;
+        return new(fields);
+    }
+
+    private static string InputValue(string html, string name)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*name=\\\"{Regex.Escape(name)}\\\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The page must render '{name}'.");
+        var value = ValueRegex().Match(tag.Value);
+        Assert.True(value.Success, $"The field '{name}' must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    private static string AntiforgeryValue(string html)
+    {
+        var tag = AntiforgeryTagRegex().Match(html);
+        Assert.True(tag.Success, "The page must render an antiforgery token.");
+        var value = ValueRegex().Match(tag.Value);
+        Assert.True(value.Success, "The antiforgery token must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AntiforgeryTagRegex();
+
+    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ValueRegex();
+
+    /// <summary>
+    /// One recording fake for the page's job creation: it remembers the
+    /// command, or throws the refusal sentence the real Core use case
+    /// would, so the page's surfacing is exercised without the ledger's
+    /// own state machine.
+    /// </summary>
+    private sealed class RecordingCreateAiJob(string? refusal) : ICreateAiJob
+    {
+        public List<CreateAiJobCommand> Commands { get; } = [];
+
+        public Task<AiJobRecord> ExecuteAsync(
+            CreateAiJobCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            if (refusal is not null)
+            {
+                throw new InvalidOperationException(refusal);
+            }
+            Commands.Add(command);
+            return Task.FromResult(new AiJobRecord(
+                JobId: Guid.NewGuid(),
+                Kind: command.Kind,
+                SubjectKind: AiJobSubjectKind.Case,
+                SubjectId: command.SubjectId,
+                SubjectReference: command.SubjectReference ?? string.Empty,
+                Instruction: command.Instruction,
+                TargetPercentOfEngineerValue: command.TargetPercentOfEngineerValue,
+                EngineerValueAtSend: null,
+                State: AiJobState.Queued,
+                CreatedByKind: command.Actor.Kind,
+                CreatedBy: command.Actor.SubjectId,
+                CreatedAtUtc: DateTimeOffset.UtcNow,
+                ExpiresAtUtc: DateTimeOffset.UtcNow.AddHours(6),
+                TakenBy: null,
+                TakenAtUtc: null,
+                LeaseExpiresAtUtc: null,
+                ProgressNote: null,
+                ResultKind: null,
+                ResultReference: null,
+                ResultText: null,
+                ClosedAtUtc: null,
+                ClosureReason: null,
+                Version: 1));
+        }
+    }
+
+    private sealed class FixedSendToAiControl(bool enabled) : ISendToAiControl
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(enabled);
+
+        public Task<bool> SetEnabledAsync(
+            bool enabled,
+            ActionActor actor,
+            string reason,
+            string operationKey,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace
+    {
+        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+        {
+            if (query.CaseId != caseId)
+            {
+                return Task.FromResult<CaseDetails?>(null);
+            }
+
+            var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
+            var workflow = new CaseWorkflowRecord(
+                caseId, identity, CaseLifecycleState.ReportPreparation, null, null,
+                null, null, null, null, null, 7);
+            var summary = new CaseSearchItem(
+                caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
+                workflow.State, null, "AB12CDE", "Alex Example", "P-100",
+                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+            CaseDetails details = new(
+                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], []);
+            return Task.FromResult<CaseDetails?>(details);
+        }
+
+        public async Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            if (details is null)
+            {
+                return null;
+            }
+            IReadOnlyList<AssessmentFieldValue> fields =
+            [
+                new(
+                    AssessmentVocabulary.ValueEngineer,
+                    "9000",
+                    ActorKind.Staff,
+                    "engineer-1",
+                    DateTimeOffset.UtcNow,
+                    "engineer-1",
+                    DateTimeOffset.UtcNow)
+            ];
+            var assessment = new CaseAssessmentProjection(
+                caseId, "QDOS-2026-00042", 7, CaseLifecycleState.ReportPreparation, null,
+                fields, [], new(null, null, null, null, null, null, null, null, null));
+            return AssessmentWorkspaceTestData.Create(details, assessment);
         }
     }
 }
