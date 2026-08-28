@@ -232,3 +232,17 @@ of the failing journey (both removed before commit); no suite run locally.
 
 Reviewed divergence added: `.shortcut-hint` carries an opaque ground the
 prototype did not draw, for contrast.
+
+## CI on af597799 — causes and fixes (2026-08-28)
+
+Merged `origin/dev` 1f2cf4a6 (CASE-024 heartbeat) first — clean merge, no
+conflicts (its site.js block precedes my sections).
+
+| Test | Cause | Fix |
+| --- | --- | --- |
+| `OperatorJourneyTests.PageRenderedReasonDialogStaysReachableWhileOpen` (focus assertion) | Diagnosed locally: `focusable()` chose the first `input, select, textarea`, which is the antiforgery `<input type="hidden">`; `focus()` on it is a no-op, focus stayed on the invoking button, which then became inert and was blurred to `body`. | `focusable()` skips `type=hidden` and unrendered controls (`getClientRects().length > 0`); the textarea now takes focus. |
+| `AccessibilityTests.ForcedColoursAndReducedMotion…` (axe `color-contrast`) | Under forced-colours emulation the shell's gradient grounds drop while author text colours stay, leaving light rail/utility-bar text on a light ground. | `@media(forced-colors:active)`: the dark shell surfaces and their text take `Canvas`/`CanvasText` (rail, brand, utility bar, tabs strip, record head, toast, buttons, nav-count, health line, shortcut hint, estimate total). |
+| `ImageViewingWebTests` (`>Download<`, then `>Close<`) | Viewer copy is the contract's "Save as" (§1.8) and the close control was icon-only. | Pin retargeted to `>Save as<` at equal strength; Close button carries `sr-only` text "Close" (aria-label dropped to avoid a double name). |
+| `MailWorkspaceWebTests.FreshnessReports…` (`Current ·`) | Razor's HtmlEncoder emits a C#-interpolated U+00B7 as `&#xB7;`. | `_FreshnessBanner` and `_Layout` render the separator as literal markup text. |
+| `AdministrationSearchAccountWebTests` (`/Administration/MailCategories`) | Landing no longer linked Outlook categories. | Card kept on the landing (not in `_AdminNav`, whose Mail settings area is Mailboxes) until the Mail-settings port folds categories in. |
+| `CaseMatchIntegrationTests.StaffSaveUpdates…` | `SqlException: Connection Timeout Expired … post-login phase` in the harness seed — a SQL Server connection timeout on the runner, unrelated to this branch's changes. | No change; flagged for the orchestrator. |
