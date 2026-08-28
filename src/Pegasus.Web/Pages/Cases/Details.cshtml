@@ -187,7 +187,7 @@
                       asp-page-handler="CreateRequestUploadLink">
                     <input type="hidden" name="id" value="@summary.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <button type="submit" class="btn">
                         <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
@@ -313,7 +313,7 @@
                     @if (Model.EvidenceImages.Count > 0)
                     {
                         <section class="section-gap" aria-labelledby="instruction-photos-title">
-                            <div class="panel-head"><h2 id="instruction-photos-title">Instruction photographs</h2></div>
+                            <div class="blockhead"><h2 id="instruction-photos-title">Instruction photographs</h2></div>
                             @{
                                 // DOCS-007: an image registered as a case document is served
                                 // from Box through the case-document route. The intake-asset
@@ -364,7 +364,7 @@
                         </section>
                     }
                     <section class="section-gap" aria-labelledby="case-images-title">
-                        <div class="panel-head"><h2 id="case-images-title">Vehicle images</h2></div>
+                        <div class="blockhead"><h2 id="case-images-title">Vehicle images</h2></div>
                         @if (Model.ImageIntakes.Count == 0)
                         {
                             <div class="empty">
@@ -526,7 +526,7 @@
                 <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Close">
                     <input type="hidden" name="id" value="@workflow.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <div class="dialog-body stack">
                         <div class="field">
@@ -567,13 +567,9 @@
             <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Reopen">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <input type="hidden" name="instructionsComplete" value="@(details.Data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString())" />
-                <input type="hidden" name="imagesComplete" value="@(details.Data?.Completeness.Values.ImagesComplete.ToString() ?? false.ToString())" />
-                <input type="hidden" name="instructionsReviewedByStaff" value="@(details.Data?.Completeness.Values.InstructionConfirmedByStaff.ToString() ?? false.ToString())" />
-                <input type="hidden" name="imagesReviewedByStaff" value="@(details.Data?.Completeness.Values.ImagesConfirmedByStaff.ToString() ?? false.ToString())" />
-                <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
+                <partial name="Cases/Shared/_ReadinessHiddenFields" model="Model" />
                 <div class="dialog-body stack">
                     <div class="field">
                         <label class="req" for="case-reopen-destination">Destination</label>
@@ -644,13 +640,9 @@
                           asp-page-handler="AssignEngineer" class="stack">
                         <input type="hidden" name="id" value="@workflow.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                        <input type="hidden" name="instructionsComplete" value="@(details.Data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString())" />
-                        <input type="hidden" name="imagesComplete" value="@(details.Data?.Completeness.Values.ImagesComplete.ToString() ?? false.ToString())" />
-                        <input type="hidden" name="instructionsReviewedByStaff" value="@(details.Data?.Completeness.Values.InstructionConfirmedByStaff.ToString() ?? false.ToString())" />
-                        <input type="hidden" name="imagesReviewedByStaff" value="@(details.Data?.Completeness.Values.ImagesConfirmedByStaff.ToString() ?? false.ToString())" />
-                        <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
+                        <partial name="Cases/Shared/_ReadinessHiddenFields" model="Model" />
                         <div class="field">
                             <label class="req" for="eva-engineer">Engineer</label>
                             <select id="eva-engineer" name="engineerId" required data-dialog-initial-focus>
@@ -674,7 +666,7 @@
                    First sent to Engineer proxy, so it stays a POST. *@
                 <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@workflow.CaseId"
                       asp-page-handler="Bundle">
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                     <div class="button-row">
                         <button type="submit" class="btn">
                             <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
@@ -686,7 +678,7 @@
                 {
                     <form method="post" asp-page="/Cases/Eva/Send" asp-route-caseId="@workflow.CaseId"
                           asp-page-handler="Submit">
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                         <div class="button-row">
                             <button type="submit" class="btn btn--primary">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
@@ -722,7 +714,7 @@
                         <input type="hidden" name="id" value="@workflow.CaseId" />
                         <input type="hidden" name="evidenceId" value="@evidence.EvidenceId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                         <div class="definition-list">
                             <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>

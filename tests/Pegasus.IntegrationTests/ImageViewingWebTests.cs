@@ -147,7 +147,7 @@ public sealed class ImageViewingWebTests
         Assert.Contains(">Save as<", imageCasePage, StringComparison.Ordinal);
         Assert.Contains(">Close<", imageCasePage, StringComparison.Ordinal);
 
-        var casePage = await GetAsync(client, $"/Cases/{caseId:D}?tab=evidence");
+        var casePage = await GetAsync(client, $"/Cases/{caseId:D}?section=case-files");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
         Assert.Contains("data-evidence-viewer", casePage, StringComparison.Ordinal);
