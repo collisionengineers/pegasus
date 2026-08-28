@@ -60,6 +60,29 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     }
 
     [Fact]
+    public async Task ManuallyLinkedUnidentifiedReceiptResolvesToTheInstructionCase()
+    {
+        var harness = new Harness();
+        var caseId = Guid.NewGuid();
+        var receipt = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting) with
+        {
+            ManualLinkedCaseId = caseId,
+            ManualAssociationVersion = 0,
+            ManualLinkedCaseReference = "QDOS26030"
+        };
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(3, UnidentifiedOrigin.Receipt(receipt.Id));
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(1, result.Resolved);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
+        Assert.Equal(caseId.ToString("N"), resolve.TargetId);
+        Assert.Equal("QDOS26030", resolve.TargetReference);
+    }
+
+    [Fact]
     public async Task StillUnidentifiedReceiptsAreNeverForceClosed()
     {
         var harness = new Harness();

@@ -79,17 +79,18 @@ public sealed class ReconcileUnidentifiedDestinations(
     /// <summary>
     /// Resolves the receipt's open Unidentified item when the receipt now has
     /// a real destination; returns whether a resolution was written. A
-    /// receipt that is still legitimately unidentified
-    /// (<see cref="ProcessIntake.IsUnidentifiedEligible"/>) is never
-    /// force-closed, and a receipt with no open item is a no-op. Failures
-    /// propagate — callers decide whether the write is advisory.
+    /// receipt that is still legitimately unidentified and has no effective
+    /// destination is never force-closed, and a receipt with no open item is a
+    /// no-op. Failures propagate — callers decide whether the write is
+    /// advisory.
     /// </summary>
     public async Task<bool> ResolveForReceiptAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        if (ProcessIntake.IsUnidentifiedEligible(receipt))
+        if (receipt.CurrentCaseId is null
+            && ProcessIntake.IsUnidentifiedEligible(receipt))
         {
             return false;
         }
@@ -107,11 +108,11 @@ public sealed class ReconcileUnidentifiedDestinations(
         UnidentifiedResolutionTargetKind targetKind;
         string targetId;
         string? targetReference;
-        if (receipt.Decision == IntakeDecision.CaseCreated && receipt.CurrentCaseId is { } caseId)
+        if (receipt.CurrentCaseId is { } caseId)
         {
             targetKind = UnidentifiedResolutionTargetKind.InstructionCase;
             targetId = caseId.ToString("N");
-            targetReference = receipt.AcceptedCaseReference ?? receipt.ManualLinkedCaseReference;
+            targetReference = receipt.CurrentCaseReference;
         }
         else if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
         {
