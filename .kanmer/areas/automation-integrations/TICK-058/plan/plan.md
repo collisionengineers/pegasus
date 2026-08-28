@@ -79,3 +79,20 @@ Lenses run over the branch diff (reuse, simplification, efficiency, altitude):
   `ProcessIntake`'s optional `IProviderSubmissionBindings` parameter follows
   its existing optional-collaborator pattern rather than a new abstraction.
   Not applied by design.
+
+## Simplification pass — 2026-08-28
+
+Run over this branch's own diff after the contract rewrite, across the four
+lenses. Findings and dispositions:
+
+| Finding | Lens | Disposition |
+| --- | --- | --- |
+| `ProviderInstructionParty`, `ProviderInstructionClaimant` and `ProviderInstructionAsset` were left behind by the earlier manifest-based design and had no callers | simplification | **Fixed** — deleted (387f5e26) |
+| `IntakeEvidenceSource` had two persisted code maps (`EfIntakeReceiptStore`, `InspectionAddressResolutionStore`) that had already drifted | reuse | **Fixed** — one owner, `IntakeEvidenceSourceCodes` (2804ebb6). This is not cosmetic: the drift failed case allocation with an unclassified fault |
+| The intake field labels now have four users — the QDOS extraction policy that produces them, `InstructionDraftCompleteness` that reports them, `CaseDataSnapshotFactory` that looks values up by them, and this declaration | reuse | **Pinned, not fixed.** A test asserts every required label has a matching declared review field, so a rename fails there rather than in allocation. Extracting one owner touches the QDOS policy and the snapshot factory and is outside this brief — the duplication pre-dates it (three copies before this ticket) |
+| The declared path could have been a second creation pipeline | altitude | **Avoided by design** — one substitution in `ProcessIntake.AssessAsync`; allocation, Triage creation, custody, action history and the Worker path are untouched |
+| The provider arm of the extraction-policy mismatch branch, and `ProviderApiPrincipalPolicyKey`/`Version`, became unreachable once the substitution returns earlier | simplification | **Fixed** — removed (2804ebb6) |
+| `GetProviderSubmissionResult` needed a staged-receipt lookup, which would have dragged the whole `IIntakeWorkStore` into it and its fakes | efficiency | **Fixed** — the submission records its own `StagedReceiptId`, so the result is one indexed read of our own row |
+| Bounds could have been tighter wire-only numbers | simplification | **Rejected** — the case store's own bounds are used. A contract that refuses a fifty-character claimant name the database would have stored refuses real work |
+| The "wrong secret" in `RefusedCredentialsAre401…` was `secret[..^1] + "A"`, which is the *same* secret when the issued one ends in `A` | correctness | **Fixed** — deterministic mutation. Pre-existing, and the likely cause of the single failure seen under the full parallel run |
+| Migrations scaffolded after a `dev` merge re-add columns from earlier-timestamped migrations | correctness | **Deferred to a ticket** — hand-fixed here with the reason recorded in the migration; **DELIV-032** owns the guard, because it will recur on any branch that merges `dev` then scaffolds |
