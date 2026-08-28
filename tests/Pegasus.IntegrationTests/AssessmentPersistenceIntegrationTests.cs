@@ -412,6 +412,172 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
+    public async Task NamedEstimatesSaveDuplicateDiscardSetCurrentAndListWithOneCurrentPerCase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("estimate-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var duplicate = new DuplicateEstimate(harness.RepairSpecifications);
+        var discard = new DiscardEstimate(harness.RepairSpecifications);
+        var setCurrent = new SetCurrentEstimate(
+            harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
+        var list = new ListCaseEstimates(harness.RepairSpecifications);
+        long version = 0;
+
+        async Task<CaseEditLease> LeaseAsync(ActionActor actor, string key) =>
+            await harness.AcquireLeaseAsync(caseId, version, actor, key);
+
+        // Two Engineer estimates on one case: both Drafts, staff lines confirmed.
+        var leaseA = await LeaseAsync(engineer, "estimate-lease-a");
+        var repairer = await save.ExecuteAsync(
+            new(caseId, leaseA.Version, engineer, "estimate-save-a", "Recorded the repairer's estimate.",
+                leaseA.Token, null,
+                new("Repairer", 3, 40m, 30m, 25m, 0m, 20m, "Typed from the repairer's e-mail."),
+                [
+                    new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
+                        "confirmed", "official", null, Quantity: 1),
+                    new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
+                        "confirmed", "judgement", null),
+                    new("paint_repair", null, "Paint door", null, null, false, null, null,
+                        "confirmed", "judgement", null, PaintWorkUnits: 1.5m),
+                ],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(RepairSpecificationState.Draft, repairer.State);
+        Assert.Equal("Repairer", repairer.Details.Name);
+        Assert.Equal(3, repairer.Lines.Count);
+        Assert.All(repairer.Lines, line => Assert.True(line.IsConfirmed));
+        Assert.False(repairer.IsCurrent);
+
+        var leaseB = await LeaseAsync(engineer, "estimate-lease-b");
+        var engineers = await save.ExecuteAsync(
+            new(caseId, leaseB.Version, engineer, "estimate-save-b", "Recorded the Engineer's own estimate.",
+                leaseB.Token, null,
+                new("Engineer's", 2, 45m, null, null, 0m, 0m, null),
+                [new("repair", null, "Repair nearside door", 2m, null, false, null, null, "confirmed", "judgement", null)],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(2, engineers.Version);
+
+        // Duplicate: "<name> copy", Draft, Manual, lines cloned.
+        var leaseCopy = await LeaseAsync(engineer, "estimate-lease-copy");
+        var copy = await duplicate.ExecuteAsync(
+            new(caseId, leaseCopy.Version, engineer, "estimate-duplicate", "Working copy.",
+                leaseCopy.Token, repairer.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.Equal("Repairer copy", copy.Details.Name);
+        Assert.Equal(RepairSpecificationState.Draft, copy.State);
+        Assert.Equal(RepairSpecificationSourceRoute.Manual, copy.Source.Route);
+        Assert.Equal(3, copy.Lines.Count);
+        Assert.Equal(repairer.Details.LabourRate, copy.Details.LabourRate);
+
+        // Use estimate: the Draft is accepted with the totals owner's basis and becomes Current.
+        var leaseUseA = await LeaseAsync(engineer, "estimate-lease-use-a");
+        var useA = new SetCurrentEstimateRequest(
+            caseId, leaseUseA.Version, engineer, "estimate-use-a", "Use the repairer's estimate.",
+            leaseUseA.Token, repairer.SpecificationId);
+        var currentA = await setCurrent.ExecuteAsync(useA, CancellationToken.None);
+        version++;
+        Assert.Equal(RepairSpecificationState.Accepted, currentA.State);
+        Assert.True(currentA.IsCurrent);
+        var totalsA = EstimateTotals.Compute(currentA);
+        Assert.Equal(220.40m + 100m + 70m, totalsA.Subtotal);
+        Assert.Equal(totalsA.Total, currentA.CalculationBasis!.Total);
+        Assert.Equal(totalsA.Vat, currentA.CalculationBasis.Vat);
+        Assert.Equal(currentA.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentAcceptedAsync(caseId, CancellationToken.None))!.SpecificationId);
+        // Replay returns the same estimate without a second mutation.
+        Assert.Equal(currentA.SpecificationId,
+            (await setCurrent.ExecuteAsync(useA, CancellationToken.None)).SpecificationId);
+
+        // Switching Current clears the previous in the same transaction; A stays Accepted.
+        var leaseUseB = await LeaseAsync(engineer, "estimate-lease-use-b");
+        var currentB = await setCurrent.ExecuteAsync(
+            new(caseId, leaseUseB.Version, engineer, "estimate-use-b", "Use the Engineer's estimate.",
+                leaseUseB.Token, engineers.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.True(currentB.IsCurrent);
+        var listed = await list.ExecuteAsync(caseId, CancellationToken.None);
+        Assert.Equal(3, listed.Count);
+        Assert.Single(listed, item => item.IsCurrent);
+        Assert.Equal(RepairSpecificationState.Accepted,
+            listed.Single(item => item.SpecificationId == repairer.SpecificationId).State);
+        Assert.Equal(currentB.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentAcceptedAsync(caseId, CancellationToken.None))!.SpecificationId);
+        Assert.Equal(copy.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentDraftAsync(caseId, CancellationToken.None))!.SpecificationId);
+
+        // An accepted estimate is neither discarded nor edited; the copy is discarded with its reason.
+        var leaseRefused = await LeaseAsync(engineer, "estimate-lease-refused");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => discard.ExecuteAsync(
+            new(caseId, leaseRefused.Version, engineer, "estimate-discard-accepted", "Not wanted.",
+                leaseRefused.Token, repairer.SpecificationId),
+            CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => save.ExecuteAsync(
+            new(caseId, leaseRefused.Version, engineer, "estimate-edit-accepted", "Change it.",
+                leaseRefused.Token, engineers.SpecificationId, engineers.Details, [],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None));
+        var discarded = await discard.ExecuteAsync(
+            new(caseId, leaseRefused.Version, engineer, "estimate-discard-copy", "Superfluous copy.",
+                leaseRefused.Token, copy.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(RepairSpecificationState.Discarded, discarded.State);
+        Assert.Equal("Superfluous copy.", discarded.DiscardReason);
+        Assert.Null(await harness.RepairSpecifications.GetCurrentDraftAsync(caseId, CancellationToken.None));
+
+        // AI draft: the Automation actor cites the Estimate job it holds; lines land unconfirmed;
+        // the Engineer's "Use estimate" confirms the lines and completes the Draft-ready job.
+        var job = await jobs.CreateAsync(
+            new(AiJobKind.Estimate, AiJobSubjectKind.Case, caseId, outcome.Identity.Reference,
+                "Draft an estimate at 60 % of the Engineer's Value.", 60, 12000m, engineer,
+                "estimate-job-create", AiJobPolicy.DefaultExpiry),
+            CancellationToken.None);
+        var taken = await jobs.TransitionAsync(
+            new(job.JobId, job.Version, AiJobState.Taken, harness.AutomationActor, "estimate-job-take",
+                LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        var leaseAi = await LeaseAsync(harness.AutomationActor, "estimate-lease-ai");
+        var aiDraft = await save.ExecuteAsync(
+            new(caseId, leaseAi.Version, harness.AutomationActor, "mcp:estimate-save-ai", "AI drafted an estimate.",
+                leaseAi.Token, null,
+                new("Claude draft", 2, 40m, 30m, 20m, 0m, 20m, null),
+                [new("repair", null, "Repair nearside door", 3m, null, false, null, null, "estimated", "judgement", "Visible damage")],
+                new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
+                job.JobId),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, aiDraft.Source.Route);
+        Assert.Equal(job.JobId, aiDraft.AiJobId);
+        Assert.All(aiDraft.Lines, line => Assert.False(line.IsConfirmed));
+        await jobs.TransitionAsync(
+            new(job.JobId, taken.Version, AiJobState.DraftReady, harness.AutomationActor, "estimate-job-ready",
+                Result: new(AiJobResultKind.Estimate, aiDraft.SpecificationId.ToString("D"), null)),
+            CancellationToken.None);
+
+        var leaseUseAi = await LeaseAsync(engineer, "estimate-lease-use-ai");
+        var currentAi = await setCurrent.ExecuteAsync(
+            new(caseId, leaseUseAi.Version, engineer, "estimate-use-ai", "Use the AI draft.",
+                leaseUseAi.Token, aiDraft.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.True(currentAi.IsCurrent);
+        Assert.All(currentAi.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
+        Assert.Equal(AiJobState.Completed, (await jobs.GetAsync(job.JobId, CancellationToken.None))!.State);
+
+        Assert.Equal(4, (await list.ExecuteAsync(caseId, CancellationToken.None)).Count);
+        Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
+    }
+
+    [Fact]
     public async Task TheAiWorkRequestLifecyclePersistsWithCorrelatedHistory()
     {
         await using var harness = await Harness.CreateAsync();
@@ -590,6 +756,8 @@ public sealed class AssessmentPersistenceIntegrationTests
         }
 
         public void Advance(TimeSpan interval) => timeProvider.Advance(interval);
+
+        public TimeProvider Clock => timeProvider;
 
         public Task<CaseAcceptanceOutcome> AcceptAsync(string operationKey) =>
             acceptIntake.ExecuteAsync(
