@@ -2,12 +2,13 @@
 id: PLAT-048
 type: ticket
 title: Service health snapshot and Engineer activity report queries
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T10:30:32.496Z'
+  review: '2026-08-28T10:49:18.208Z'
 taken_at: '2026-08-28T10:38:15.898Z'
 branch: task/plat-048-service-health-report
 worktree: ../pegasus-worktrees/plat-048-service-health-report
@@ -22,9 +23,14 @@ links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+commits:
+  - fc0537a1
+  - 40f6d043
+prs:
+  - '591'
 archived: false
 created: '2026-08-28T08:35:24.047Z'
-updated: '2026-08-28T10:38:15.898Z'
+updated: '2026-08-28T10:49:18.208Z'
 ---
 
 ## What

@@ -25,3 +25,16 @@ Build in Release; the two scripts exit 0. Tests are not run by the implementer (
 ## Risks / deferred
 
 Multiple simultaneous credentials, wire presentation of the credential, and live issuance remain deferred (open-questions Parked).
+
+## Simplification pass — 2026-08-28
+
+Lenses run over the branch diff (reuse, simplification, efficiency, altitude):
+
+| Finding | Disposition |
+| --- | --- |
+| `NormalizeRequiredText` would have been a second copy of the Organization administration helper. | Applied: the existing helper is `internal` and reused. |
+| `ExecuteWithConcurrencyRetryAsync` duplicated `EfOrganizationAdministration`'s loop. | Applied (b5c09412): one loop, parameterised by the retry predicate. |
+| Receipt replay could have needed its own table. | Applied from the start: `OrganizationAdministrationOperations` carries the receipts with distinct command kinds. |
+| Two result records (`PrincipalCredentialIssueResult` for the store, `IssuePrincipalCredentialOutcome` for the caller). | Kept: the store result must say "replayed" so the command withholds the secret; the caller must never see that flag or receive a null secret without a reason. A single record would push the secret decision into the store. |
+| `SecretHash` left out of the Core record (brief listed it). | Kept: the verifier never leaves the store, so queries cannot leak it by construction — one fewer place to guard. Reported for the reviewer. |
+| Architecture-test addition (plan step 6 earlier draft). | Not applied: existing architecture tests already bind Core/Infrastructure dependency direction; no endpoint or scheme exists to prove absent. |
