@@ -9,9 +9,9 @@
           "/v:on",
           "/s",
           "/c",
-          "setlocal EnableDelayedExpansion&&set KANMER_PROVIDER_CWD=!CD!&&pushd !LOCALAPPDATA!\\Kanmer\\bin&&call kanmer-mcp.cmd"
+          "setlocal EnableDelayedExpansion&&pushd C:\\Users\\Alex\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer&&set KANMER_PROVIDER_CWD=!CD!&&pushd !LOCALAPPDATA!\\Kanmer\\bin&&call kanmer-mcp.cmd"
         ],
-        "cwd": "C:\\Users\\Alex\\Documents\\GitHub\\pegasus",
+        "cwd": "C:\\Users\\Alex\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer",
         "env": {
           "KANMER_BOARD_BRANCH": "kanmer-board"
         },
