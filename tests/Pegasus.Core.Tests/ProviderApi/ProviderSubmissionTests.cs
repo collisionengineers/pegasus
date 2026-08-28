@@ -209,9 +209,11 @@ public sealed class ProviderSubmissionTests
         {
             if (ConflictOnce)
             {
-                // The winner of the race is another row under the same key.
+                // The winner of the race is another row under the same key,
+                // keyed by its own id as every other row in this fake is.
                 ConflictOnce = false;
-                Records[Guid.NewGuid()] = record with { Id = Guid.NewGuid() };
+                var winner = record with { Id = Guid.NewGuid() };
+                Records[winner.Id] = winner;
                 throw new ProviderSubmissionException(ProviderSubmissionError.OperationConflict);
             }
             if (Records.Values.Any(item =>
