@@ -71,8 +71,8 @@ public static class OperatorLabels
     /// <summary>
     /// The operator-meaningful handle for a received e-mail: its subject and
     /// sender, or "(No subject)" when the subject could not be read. The one
-    /// formatting rule for both the Unidentified queue row
-    /// (<c>Triage.IndexModel.UnidentifiedHandle</c>) and its detail page
+    /// formatting rule for both the Cases queue's Unidentified rows
+    /// (<c>Cases.IndexModel</c>) and the Unidentified detail page
     /// (<c>Unidentified.DetailsModel.Handle</c>), which read the same
     /// subject/sender from two different shapes.
     /// </summary>

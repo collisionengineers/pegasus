@@ -1,308 +1,247 @@
 @page
+@using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.IndexModel
 @{
     ViewData["Title"] = "Cases";
 
-    // Refreshing reruns the queue, its filter, and the page the operator is
-    // on, not page one of everything.
+    // Refreshing reruns the scope, its filters, the page and the selected
+    // row, not page one of everything.
     ViewData["RefreshFields"] = new Dictionary<string, string?>
     {
         ["tab"] = Model.Queue,
-        ["state"] = Model.StateFilter,
-        ["kind"] = Model.ShowingUnidentified ? Model.UnidentifiedKind : null,
-        ["origin"] = Model.ShowingNotReady ? Model.NotReadyOrigin : null,
-        ["principal"] = Model.ShowingNotReady ? Model.PrincipalFilter : null,
-        ["sort"] = Model.SortParam,
-        ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null
+        ["principal"] = Model.PrincipalFilter,
+        ["missing"] = Model.ShowingNotReady ? Model.MissingFilter : null,
+        ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null,
+        ["selected"] = Model.SelectedId?.ToString("D")
     };
+
+    var hasFilters = Model.PrincipalFilter is not null || Model.MissingFilter is not null;
 }
 
-@* "Triage queue" spent a reserved business term on a screen that is mostly not
-   about Triage-type work. Not ready, Review, Held and Triage are joined by
-   Unidentified — unresolved retained material, not a case stage, but queue
-   work the same way the other four are. *@
-<header class="page-heading">
-    <h1>Cases</h1>
-    @* Every count on this screen says when it was last read. *@
-    <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
+@* One page for the whole case workflow: the rail's groups are where the work
+   is, each count a queried figure, and the panes read the open group beside
+   the row the operator selected. *@
+<header class="page-header">
+    <div class="page-title">
+        <h1>Cases</h1>
+    </div>
+    <div class="page-actions">
+        <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
+    </div>
 </header>
 
-<nav class="tabs" aria-label="Case workflow">
-    <a asp-page="/Cases/Index" asp-route-tab="not_ready"
-       aria-current="@(Model.Queue == "not_ready" ? "page" : null)">
-        Not ready <span class="count">@Model.StageCounts.NotReady</span>
-    </a>
-    <a asp-page="/Cases/Index" asp-route-tab="review"
-       aria-current="@(Model.Queue == "review" ? "page" : null)">
-        Review <span class="count">@Model.StageCounts.Review</span>
-    </a>
-    <a asp-page="/Cases/Index" asp-route-tab="held"
-       aria-current="@(Model.Queue == "held" ? "page" : null)">
-        Held <span class="count">@Model.StageCounts.Held</span>
-    </a>
-    <a asp-page="/Cases/Index" asp-route-tab="triage"
-       aria-current="@(Model.ShowingTriage ? "page" : null)">
-        Triage <span class="count">@Model.Results.TotalCount</span>
-    </a>
-    <a asp-page="/Cases/Index" asp-route-tab="unidentified"
-       aria-current="@(Model.ShowingUnidentified ? "page" : null)">
-        Unidentified <span class="count">@Model.UnidentifiedCount</span>
-    </a>
-</nav>
-
-@if (Model.ShowingTriage)
+@if (IndexModel.ListsCases(Model.Queue))
 {
-    @* The triage record's own lifecycle, as sub-states of this tab. At page
-       level these read as case stages, which they are not. *@
-    <nav class="subtabs section-gap" aria-label="Triage states">
-        <a asp-page="/Cases/Index" asp-route-tab="triage"
-           aria-current="@(Model.StateFilter is null ? "page" : null)">All open</a>
-        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="open"
-           aria-current="@(Model.StateFilter == "open" ? "page" : null)">Open</a>
-        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="awaiting_information"
-           aria-current="@(Model.StateFilter == "awaiting_information" ? "page" : null)">Awaiting information</a>
-        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="finding_recorded"
-           aria-current="@(Model.StateFilter == "finding_recorded" ? "page" : null)">Finding recorded</a>
-        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="completed"
-           aria-current="@(Model.StateFilter == "completed" ? "page" : null)">Completed</a>
-        <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="cancelled"
-           aria-current="@(Model.StateFilter == "cancelled" ? "page" : null)">Cancelled</a>
-    </nav>
-
-    @* The table is the surface, not something sitting on one: a panel around a
-       bordered table draws a second box around the first. *@
-    @if (Model.Results.Items.Count == 0)
-    {
-        <div class="mark-empty">
-            <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
-            <p class="empty-state">No triage work is open.</p>
-        </div>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <caption class="vh">Triage work, most recently opened first</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Registration</th>
-                        <th scope="col">Opened</th>
-                        <th scope="col">State</th>
-                        <th scope="col">Assigned to</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var item in Model.Results.Items)
+    @* Selects submit on change; the button is the no-script path. The
+       Principal select exists only where Principal rows are listed, and the
+       Missing select only on Not ready — a control that filters nothing is
+       never drawn. *@
+    <form method="get" class="filter-bar" data-auto-submit>
+        <input type="hidden" name="tab" value="@Model.Queue" />
+        <div class="field">
+            <label for="queue-principal">Principal</label>
+            <select id="queue-principal" name="principal">
+                <option value="">All</option>
+                @foreach (var principal in Model.Principals)
                 {
-                    <tr>
-                        @* A triage record is pre-case, so the row leads
-                           with the registration rather than a case
-                           reference most rows will not have. *@
-                        <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
-                        <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
-                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Cases.IndexModel.StateLabel(item.State)" /></td>
-                        <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
-                    </tr>
+                    <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
                 }
-                </tbody>
-            </table>
+            </select>
         </div>
-    }
+        @if (Model.ShowingNotReady)
+        {
+            <div class="field">
+                <label for="queue-missing">Missing</label>
+                <select id="queue-missing" name="missing">
+                    <option value="">All</option>
+                    <option value="instructions" selected="@(Model.MissingFilter == "instructions" ? "selected" : null)">Instructions</option>
+                    <option value="images" selected="@(Model.MissingFilter == "images" ? "selected" : null)">Images</option>
+                    <option value="both" selected="@(Model.MissingFilter == "both" ? "selected" : null)">Both missing</option>
+                </select>
+            </div>
+        }
+        <noscript><button type="submit" class="btn">Apply</button></noscript>
+        @if (hasFilters)
+        {
+            <a class="btn" href="@Model.Href(tab: Model.Queue, keepFilters: false)">Clear</a>
+        }
+    </form>
 }
-else if (Model.ShowingUnidentified)
-{
-    @* Images vs. e-mails is the operator's own split: "the material behind
-       this row" not "the record type behind this row". *@
-    <nav class="subtabs section-gap" aria-label="Unidentified filters">
-        <a asp-page="/Cases/Index" asp-route-tab="unidentified"
-           aria-current="@(Model.UnidentifiedKind == "all" ? "page" : null)">All</a>
-        <a asp-page="/Cases/Index" asp-route-tab="unidentified" asp-route-kind="images"
-           aria-current="@(Model.UnidentifiedKind == "images" ? "page" : null)">Images</a>
-        <a asp-page="/Cases/Index" asp-route-tab="unidentified" asp-route-kind="emails"
-           aria-current="@(Model.UnidentifiedKind == "emails" ? "page" : null)">E-mails</a>
-    </nav>
 
-    @if (Model.UnidentifiedRows.Count == 0)
-    {
-        <div class="mark-empty">
-            <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
-            <p class="empty-state">No Unidentified material matches this view.</p>
+<section class="pane-layout pane-layout--3 queue-layout">
+    <aside class="pane">
+        <div class="pane-head">
+            <h2>Case workflow</h2>
         </div>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <caption class="vh">Unidentified material, oldest first</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Reference</th>
-                        <th scope="col">Kind</th>
-                        <th scope="col">Concerns</th>
-                        <th scope="col">Received</th>
-                        <th scope="col">Reason</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var row in Model.UnidentifiedRows)
-                {
-                    <tr>
-                        <td><a asp-page="/Unidentified/Details" asp-route-id="@row.Id">@row.Reference</a></td>
-                        <td>@Pegasus.Web.Pages.Cases.IndexModel.UnidentifiedKindLabel(row)</td>
-                        <td>@Pegasus.Web.Pages.Cases.IndexModel.UnidentifiedHandle(row)</td>
-                        <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
-                        <td>@Pegasus.Web.Pages.Cases.IndexModel.UnidentifiedReasonLabel(row)</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-}
-else
-{
-    @if (Model.ShowingNotReady)
-    {
-        @* Dropdown filters, not pills: origin in the operator's own words
-           (what the case is waiting for), and the principals present in the
-           queue. Selects submit on change; the button is the no-script path. *@
-        <form method="get" class="filter-row section-gap" data-auto-submit>
-            <input type="hidden" name="tab" value="not_ready" />
-            @if (!string.IsNullOrEmpty(Model.SortParam))
+        <div class="scope-list">
+            @{ var groupOrdinal = 0; }
+            @foreach (var group in IndexModel.Tabs.GroupBy(tab => tab.Group))
             {
-                <input type="hidden" name="sort" value="@Model.SortParam" />
+                if (groupOrdinal++ > 0)
+                {
+                    <div class="queue-group-divider"></div>
+                }
+                <div class="queue-group-label">@group.Key</div>
+                @foreach (var tab in group)
+                {
+                    @* The pressed state is the design system's own selected
+                       convention for a scope button; counts are queried
+                       figures, never placeholders. *@
+                    <a class="scope-button @(tab.IsException ? "queue-exception" : null)"
+                       href="@Model.Href(tab: tab.Key)"
+                       aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#@tab.Icon" /></svg>
+                        </span>
+                        <span>@tab.Label</span>
+                        <span>@Model.Count(tab)</span>
+                    </a>
+                }
             }
-            <label>Waiting for
-                <select name="origin">
-                    <option value="">All</option>
-                    <option value="instruction" selected="@(Model.NotReadyOrigin == "instruction" ? "selected" : null)">Awaiting images</option>
-                    <option value="image" selected="@(Model.NotReadyOrigin == "image" ? "selected" : null)">Awaiting instructions</option>
-                </select>
-            </label>
-            <label>Principal
-                <select name="principal">
-                    <option value="">All</option>
-                    @foreach (var principal in Model.Principals)
-                    {
-                        <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
-                    }
-                </select>
-            </label>
-            <noscript><button type="submit" class="btn">Apply</button></noscript>
-        </form>
+        </div>
+    </aside>
 
-        @if (Model.NotReadyRows.Count == 0)
-        {
-            <div class="mark-empty">
-                <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
-                <p class="empty-state">No cases are waiting.</p>
+    <div class="pane">
+        <div class="pane-head">
+            <div>
+                <h2>@Model.CurrentTab.Label</h2>
+                <span class="muted">@Model.Rows.Count item@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
             </div>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <caption class="vh">Cases waiting, both origins in one table</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("reference")'>Reference</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
-                            <th scope="col">Status</th>
-                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Cases/Index" asp-route-tab="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
-                            <th scope="col">Chase</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.NotReadyRows)
+        </div>
+        <div class="pane-body pane-scroll">
+            @* A row links to its detail and nothing else; the selected row is
+               the one the quick detail beside it reads. Blocked intake rows
+               sit in the Unidentified scope with their own chip and no count
+               of their own (D14). *@
+            @foreach (var row in Model.Rows)
+            {
+                <a class="row-button" href="@row.DetailHref" aria-selected="@(Model.SelectedId == row.Id ? "true" : "false")">
+                    <span class="row-top">
+                        <span class="row-title">@row.Title</span>
+                        <partial name="Shared/_StatusChip" model="@row.Chip" />
+                    </span>
+                    @if (!string.IsNullOrEmpty(row.Excerpt))
                     {
-                        <tr>
-                            <td><a asp-page="@row.DetailsPage" asp-route-id="@row.Id">@row.Reference</a></td>
-                            <td>@(row.Registration ?? "—")</td>
-                            <td>@(row.Claimant ?? "—")</td>
-                            <td>@(row.Principal ?? "—")</td>
-                            <td>@row.Status</td>
-                            <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(row.ReceivedAtUtc)</time></td>
-                            <td>
-                                @if (row.IsImageInitiated)
-                                {
-                                    @* TICK-065: the image half has no persisted chase
-                                       machinery — a derived due/not-due read on the
-                                       registration date (ImageIntakeChaseSchedule). *@
-                                    <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageChaseState(Model.IsImageIntakeChaseDue(row.ReceivedAtUtc))" />
-                                }
-                                else if (row.NextChaseAtUtc is { } chase)
-                                {
-                                    @OperatorLabels.OfficeDate(chase)
-                                }
-                                else
-                                {
-                                    <text>—</text>
-                                }
-                            </td>
-                        </tr>
+                        <span class="row-excerpt">@row.Excerpt</span>
                     }
-                    </tbody>
-                </table>
-            </div>
-        }
-    }
-    else
-    {
-        if (Model.Cases.Items.Count == 0)
+                    <span class="row-top">
+                        <span class="row-meta">@row.Meta</span>
+                        @if (row.Time is { } time)
+                        {
+                            <span class="row-meta">@time</span>
+                        }
+                    </span>
+                </a>
+            }
+        </div>
+        @if (Model.HasPreviousPage || Model.HasNextPage)
         {
-            <div class="mark-empty">
-                <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
-                <p class="empty-state">
-                    @(Model.Queue == "held" ? "No cases are held." : "No cases are ready to confirm.")
-                </p>
-            </div>
+            <nav class="pagination" aria-label="Pages">
+                @if (Model.HasPreviousPage)
+                {
+                    <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage - 1)">Previous</a>
+                }
+                <span>Page @Model.CurrentPage</span>
+                @if (Model.HasNextPage)
+                {
+                    <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage + 1)">Next</a>
+                }
+            </nav>
         }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <caption class="vh">Cases in this queue</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("reference")'>Case</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
-                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Cases/Index" asp-route-tab="@Model.Queue" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var item in Model.Cases.Items)
-                    {
-                        <tr>
-                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                            <td>@(item.Registration ?? "—")</td>
-                            <td>@(item.Claimant ?? "—")</td>
-                            <td>@item.Principal</td>
-                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    }
-}
+    </div>
 
-@if (Model.ShowingTriage && Model.Results.TotalPages > 1)
-{
-    <nav class="pager" aria-label="Pages">
-        @if (Model.Results.Page > 1)
-        {
-            <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page - 1)">Previous</a>
-        }
-        <span class="pager__context">Page @Model.Results.Page of @Model.Results.TotalPages</span>
-        @if (Model.Results.Page < Model.Results.TotalPages)
-        {
-            <a asp-page="/Cases/Index" asp-route-tab="triage" asp-route-state="@Model.StateFilter" asp-route-page="@(Model.Results.Page + 1)">Next</a>
-        }
-    </nav>
-}
+    <div class="pane">
+        <div class="pane-head">
+            <h2>Quick detail</h2>
+        </div>
+        <div class="pane-body pane-scroll">
+            @if (Model.Selected is { } detail)
+            {
+                <div class="detail-canvas">
+                    <p class="eyebrow">@detail.Eyebrow</p>
+                    <h2>@detail.Heading</h2>
+                    @if (detail.Kind == IndexModel.RowKind.Case && detail.State is { } state)
+                    {
+                        var step = IndexModel.StepIndex(state);
+                        <ol class="workflow-stepper workflow-stepper--compact" aria-label="Case workflow">
+                            @for (var index = 0; index < IndexModel.Steps.Count; index++)
+                            {
+                                var current = IndexModel.Steps[index];
+                                <li class="workflow-step @(index < step ? "is-complete" : null) @(index == step ? "is-current" : null)">
+                                    <span class="workflow-step-icon">
+                                        <svg class="icon" aria-hidden="true"><use href="#@(index < step ? "icon-check" : current.Icon)" /></svg>
+                                    </span>
+                                    <span>@current.Label</span>
+                                </li>
+                            }
+                        </ol>
+                        if (state == CaseLifecycleState.Held)
+                        {
+                            <div class="workflow-exception">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                                <strong>Held</strong>
+                            </div>
+                        }
+                        @* Outstanding requirements are the case's recorded
+                           completeness facts: the requirement and the action
+                           that resolves it, nothing else. *@
+                        @if (detail.Outstanding is { Count: > 0 })
+                        {
+                            <section class="section-gap">
+                                <h3 class="section-label">Outstanding requirements</h3>
+                                <ul class="blocker-list">
+                                    @foreach (var requirement in detail.Outstanding)
+                                    {
+                                        <li class="blocker">
+                                            <strong>@requirement.Requirement</strong>
+                                            <small>@requirement.Resolve</small>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+                        <section class="panel section-gap">
+                            <div class="panel-head">
+                                <h3>Current work</h3>
+                            </div>
+                            <div class="panel-body">
+                                @foreach (var fact in detail.Facts)
+                                {
+                                    <div class="decision-row">
+                                        <span>@fact.Label</span>
+                                        <strong>@fact.Value</strong>
+                                    </div>
+                                }
+                                <div class="button-row section-gap">
+                                    <a class="btn btn--dark" href="@detail.DetailHref">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                        <span>@detail.OpenLabel</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </section>
+                    }
+                    else
+                    {
+                        <div class="definition-list section-gap">
+                            @foreach (var fact in detail.Facts)
+                            {
+                                <dl class="definition">
+                                    <dt>@fact.Label</dt>
+                                    <dd>@fact.Value</dd>
+                                </dl>
+                            }
+                        </div>
+                        <div class="button-row section-gap">
+                            <a class="btn btn--dark" href="@detail.DetailHref">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                <span>@detail.OpenLabel</span>
+                            </a>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</section>
