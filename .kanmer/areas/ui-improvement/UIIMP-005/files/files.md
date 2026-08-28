@@ -28,3 +28,11 @@
 ## Belongs to another ticket
 
 - Nothing outstanding. The EvaSubmission classification gap (TICK-077) was absorbed here by orchestrator decision.
+
+## Added on the wave loop (2026-08-28, `a2b13099`)
+
+| File | Change |
+| --- | --- |
+| `tests/Pegasus.IntegrationTests/ImageViewingWebTests.cs` | Private `GetAsync` helper (a copy of `IntakeWebDriver.GetHtmlAsync`) removed; 3 call sites use the shared helper, so `/VehicleImages/{id}` is captured with its receipt images. |
+| `tests/Pegasus.IntegrationTests/ImageIntakeWebTests.cs` | Same: private helper removed, 9 call sites rewired. |
+| `docs/design/test-ui/catalogue.json` (`4a40bcc9`) | EvaSubmission route corrected to the page's effective route `/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}/EvaSubmission`. |
