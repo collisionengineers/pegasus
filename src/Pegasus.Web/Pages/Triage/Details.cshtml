@@ -97,7 +97,12 @@
     <div class="record-body">
         <div class="grid grid-2">
             <section class="panel" aria-labelledby="triage-determinations-title">
-                <div class="panel-head"><h2 id="triage-determinations-title">Determinations</h2></div>
+                @* On a Completed record the same panel is the post-send
+                   correction (FRD-03), so it is named for what it does there
+                   rather than splitting a second panel off the §1.5 contract. *@
+                <div class="panel-head">
+                    <h2 id="triage-determinations-title">@(correction ? "Post-send correction" : "Determinations")</h2>
+                </div>
                 <div class="panel-body stack">
                     @* One form, three postings: with no active finding it
                        records a new one; with the single active finding — while
@@ -183,13 +188,22 @@
                                     <span>Await information</span>
                                 </button>
                             }
-                            @if (canComplete)
-                            {
-                                <button type="button" class="btn" data-dialog-open="triage-complete-dialog">
+                            @* Complete keeps its place, disabled, with its
+                               condition named on the control. Removing it
+                               would say completion is not possible here,
+                               which is false — this record offers it once a
+                               finding is recorded. The control maps to the
+                               same `complete` handler either way, so it is a
+                               state gate, not an inert seam (D7). *@
+                            <span class="gated" data-condition="@(canComplete ? null : "Available once a finding is recorded")">
+                                <button type="button"
+                                        class="btn @(canComplete ? string.Empty : "is-disabled")"
+                                        data-dialog-open="@(canComplete ? "triage-complete-dialog" : null)"
+                                        disabled="@(canComplete ? null : "disabled")">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
                                     <span>Complete Triage</span>
                                 </button>
-                            }
+                            </span>
                             <button type="button" class="btn btn--danger" data-dialog-open="triage-cancel-dialog">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                                 <span>Cancel Triage</span>
@@ -371,8 +385,12 @@
             </section>
         }
 
-        <section class="panel section-gap" aria-labelledby="triage-notes-title">
-            <div class="panel-head"><h2 id="triage-notes-title">Notes</h2></div>
+        @* Every entry here is a retained business event, not an operator
+           note — Triage has no note entity. FRD-03 owns the term, so the
+           panel keeps §1.5's entry shape (Date/Time/ID + text) under the
+           name the domain actually gives it. *@
+        <section class="panel section-gap" aria-labelledby="triage-history-title">
+            <div class="panel-head"><h2 id="triage-history-title">Permanent history</h2></div>
             <div class="panel-body">
                 <div class="notes-list">
                     @foreach (var entry in Model.Triage.History.OrderByDescending(history => history.OccurredAtUtc))
