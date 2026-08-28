@@ -138,7 +138,12 @@ public sealed partial class DetailsModel(
                 }
                 ImagesByIntake = imagesByIntake;
             }
-            RestoreLeaseState(id, actor);
+            RestoreLeaseState(id, actor, Case.ActiveEditLease);
+            if (LeaseToken is not null)
+            {
+                // Only this page renders a manual renew control, so only it needs that key.
+                RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
+            }
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
             ManualChaseAttemptedAtUtc = timeProvider.GetUtcNow();
@@ -153,52 +158,18 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public async Task<IActionResult> OnPostClaimLeaseAsync(
+    public Task<IActionResult> OnPostClaimLeaseAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-
-        try
-        {
-            var normalizedOperationKey = RequireOperationKey(operationKey);
-            var lease = await acquireLease.ExecuteAsync(
-                new(id, expectedVersion, actor, normalizedOperationKey),
-                cancellationToken);
-            StoreClaimLeaseOperation(id, normalizedOperationKey);
-            StoreLeaseAuthority(id, lease.Token);
-            TempData.Remove(RenewLeaseOperationKeyName);
-            TempData.Remove(ReleaseLeaseOperationKeyName);
-            TempData["CaseStatus"] = "Edit mode is active.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "claim_lease", exception);
-            if (IsLeaseLoss(exception))
-            {
-                ClearLeaseState();
-            }
-            else if (Guid.TryParseExact(operationKey, "N", out var operationId))
-            {
-                StoreClaimLeaseOperation(id, operationId.ToString("N"));
-            }
-            TempData["CaseError"] =
-                "Edit mode could not be entered because the case changed or is being edited by another member of staff.";
-        }
-
-        return RedirectToDetails(id);
-    }
+        CancellationToken cancellationToken) =>
+        ClaimLeaseAsync(
+            acquireLease,
+            id,
+            expectedVersion,
+            operationKey,
+            () => RedirectToDetails(id),
+            cancellationToken);
 
     public async Task<IActionResult> OnPostRenewLeaseAsync(
         Guid id,
@@ -253,48 +224,18 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         HeartbeatLeaseAsync(heartbeatLease, id, editLeaseToken, cancellationToken);
 
-    public async Task<IActionResult> OnPostReleaseLeaseAsync(
+    public Task<IActionResult> OnPostReleaseLeaseAsync(
         Guid id,
         string operationKey,
         string editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-
-        try
-        {
-            await releaseLease.ExecuteAsync(
-                new(id, actor, RequireOperationKey(operationKey), editLeaseToken),
-                cancellationToken);
-            ClearLeaseState();
-            TempData["CaseStatus"] = "Edit mode was left safely.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "release_lease", exception);
-            if (IsLeaseLoss(exception))
-            {
-                ClearLeaseState();
-            }
-            else
-            {
-                StoreLeaseAuthority(id, editLeaseToken);
-                TempData[ReleaseLeaseOperationKeyName] = operationKey;
-            }
-            TempData["CaseError"] = "Edit mode could not be released. Reload the case to confirm its current state.";
-        }
-
-        return RedirectToDetails(id);
-    }
+        CancellationToken cancellationToken) =>
+        ReleaseLeaseAsync(
+            releaseLease,
+            id,
+            operationKey,
+            editLeaseToken,
+            () => RedirectToDetails(id),
+            cancellationToken);
 
     public Task<IActionResult> OnPostConfirmCompletenessAsync(
         Guid id,
@@ -385,15 +326,6 @@ public sealed partial class DetailsModel(
                         inspectionMode)),
                 cancellationToken),
             "Case data was saved. The case is Not ready until completeness is confirmed again.");
-
-    private void RestoreLeaseState(Guid caseId, ActionActor actor)
-    {
-        RestoreLeaseState(caseId, actor, Case!.ActiveEditLease);
-        if (LeaseToken is not null)
-        {
-            RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
-        }
-    }
 
     private async Task DescribeEditAuthorityHolderAsync(
         ActionActor actor,

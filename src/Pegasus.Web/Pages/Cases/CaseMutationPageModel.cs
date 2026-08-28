@@ -170,11 +170,114 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         CanRecoverLease = true;
     }
 
-    /// <summary>Forgets a claim key this page just spent, so the next claim gets a fresh one.</summary>
-    protected void ResetClaimLeaseOperationKey(Guid caseId, string operationKey)
+    /// <summary>
+    /// Where this page puts what it wants to say next. The workspace and its capability pages
+    /// share one pair; a page whose messages are read somewhere else overrides them.
+    /// </summary>
+    protected virtual string StatusTempDataKey => "CaseStatus";
+
+    protected virtual string ErrorTempDataKey => "CaseError";
+
+    /// <summary>
+    /// Enters edit mode. Every page that offers it enters it the same way, including what happens
+    /// to the claim key when the claim is refused: a lost lease clears this page's state, and any
+    /// other refusal keeps the same key, because the claim is idempotent by that key and a retry
+    /// must replay rather than claim twice.
+    /// </summary>
+    protected async Task<IActionResult> ClaimLeaseAsync(
+        IAcquireCaseEditLease acquireLease,
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
     {
-        ClaimLeaseOperationKey = operationKey;
-        StoreClaimLeaseOperation(caseId, operationKey);
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+
+        try
+        {
+            var normalizedOperationKey = RequireOperationKey(operationKey);
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, expectedVersion, actor, normalizedOperationKey),
+                cancellationToken);
+            StoreClaimLeaseOperation(id, normalizedOperationKey);
+            StoreLeaseAuthority(id, lease.Token);
+            TempData.Remove(RenewLeaseOperationKeyName);
+            TempData.Remove(ReleaseLeaseOperationKeyName);
+            TempData[StatusTempDataKey] = "Edit mode is active.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            if (IsLeaseLoss(exception))
+            {
+                ClearLeaseState();
+            }
+            else if (Guid.TryParseExact(operationKey, "N", out var operationId))
+            {
+                StoreClaimLeaseOperation(id, operationId.ToString("N"));
+            }
+            TempData[ErrorTempDataKey] =
+                "Edit mode could not be entered because the case changed or is being edited by another member of staff.";
+        }
+
+        return redirect();
+    }
+
+    /// <summary>Leaves edit mode, releasing the server-owned authority rather than forgetting it.</summary>
+    protected async Task<IActionResult> ReleaseLeaseAsync(
+        IReleaseCaseEditLease releaseLease,
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+
+        try
+        {
+            await releaseLease.ExecuteAsync(
+                new(id, actor, RequireOperationKey(operationKey), editLeaseToken),
+                cancellationToken);
+            ClearLeaseState();
+            TempData[StatusTempDataKey] = "Edit mode was left safely.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "release_lease", exception);
+            if (IsLeaseLoss(exception))
+            {
+                ClearLeaseState();
+            }
+            else
+            {
+                StoreLeaseAuthority(id, editLeaseToken);
+                TempData[ReleaseLeaseOperationKeyName] = operationKey;
+            }
+            TempData[ErrorTempDataKey] =
+                "Edit mode could not be released. Reload the case to confirm its current state.";
+        }
+
+        return redirect();
     }
 
     protected string GetOrCreateClaimLeaseOperation(Guid caseId)
@@ -266,7 +369,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         {
             await execute(actor);
             ClearLeaseState();
-            TempData["CaseStatus"] = successMessage;
+            TempData[StatusTempDataKey] = successMessage;
         }
         catch (StaffAuthorizationException)
         {
@@ -278,7 +381,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
             RetainProposedValues(id);
-            TempData["CaseError"] = failureMessage;
+            TempData[ErrorTempDataKey] = failureMessage;
         }
 
         return RedirectToDetails(id);

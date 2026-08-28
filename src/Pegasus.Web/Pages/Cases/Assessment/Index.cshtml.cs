@@ -222,16 +222,16 @@ public sealed class IndexModel(
             TempData["AssessmentError"] = "Choose where the damage is.";
             return RedirectToPage(new { id, section = "report" });
         }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["AssessmentError"] = NotInEditMode;
+            return RedirectToPage(new { id, section = "report" });
+        }
 
         var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
         if (details is null)
         {
             return NotFound();
-        }
-        if (HeldLeaseToken(id, editLeaseToken) is not { } leaseToken)
-        {
-            TempData["AssessmentError"] = NotInEditMode;
-            return RedirectToPage(new { id, section = "report" });
         }
 
         try
@@ -243,7 +243,7 @@ public sealed class IndexModel(
                     actor,
                     operationKey,
                     "Damage location marked on the assessment diagram.",
-                    leaseToken,
+                    editLeaseToken,
                     new Dictionary<string, string?>
                     {
                         [AssessmentVocabulary.ImpactLocation] = impactLocation
@@ -256,7 +256,7 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            HandleLeaseFailure(id, leaseToken, exception);
+            HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["AssessmentError"] = exception.Message;
             return RedirectToPage(new { id, section = "report" });
         }
@@ -271,18 +271,22 @@ public sealed class IndexModel(
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     /// <summary>
-    /// The case version this render is bound to, and the holder disclosure other staff see. The
-    /// workspace projection carries the lease and the assessment projection does not, so this page
-    /// reads it from the same <see cref="IGetCase"/> it already uses rather than widening
-    /// <see cref="AssessmentWorkspace"/> with a second copy of it.
+    /// The holder disclosure other staff see. The workspace projection carries the lease and the
+    /// assessment projection does not, so this page reads it from the same
+    /// <see cref="IGetCase"/> it already uses rather than widening
+    /// <see cref="AssessmentWorkspace"/> with a second copy of it. The case version is not read
+    /// that way — the assessment header already carries it.
     /// </summary>
-    public long CaseVersion { get; private set; }
-
     public CaseEditAuthorityHolder? EditAuthorityHolder { get; private set; }
 
     public bool ViewerHoldsEditAuthority { get; private set; }
 
     public bool CaseIsArchived { get; private set; }
+
+    /// <summary>This page's messages are rendered by its own panels, not the workspace's.</summary>
+    protected override string StatusTempDataKey => "AssessmentStatus";
+
+    protected override string ErrorTempDataKey => "AssessmentError";
 
     public async Task<IActionResult> OnPostClaimLeaseAsync(
         Guid id,
@@ -301,42 +305,13 @@ public sealed class IndexModel(
             return NotFound();
         }
 
-        try
-        {
-            var normalizedOperationKey = RequireOperationKey(operationKey);
-            var lease = await acquireLease.ExecuteAsync(
-                new(id, expectedVersion, actor, normalizedOperationKey),
-                cancellationToken);
-            ResetClaimLeaseOperationKey(id, normalizedOperationKey);
-            StoreLeaseAuthority(id, lease.Token);
-            TempData.Remove(ReleaseLeaseOperationKeyName);
-            TempData["AssessmentStatus"] = "Edit mode is active.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "claim_lease", exception);
-            if (IsLeaseLoss(exception))
-            {
-                ClearLeaseState();
-            }
-            else
-            {
-                // The claim key is spent whatever happened to it, so a retry uses a fresh one
-                // rather than replaying against different material.
-                ResetClaimLeaseOperationKey(id, NewOperationKey());
-            }
-            TempData["AssessmentError"] = MutationRefusalMessage(
-                exception,
-                "Edit mode could not be entered because the case changed or another editor holds "
-                + "it. Reload the case.");
-        }
-
-        return RedirectToPage(new { id, section });
+        return await ClaimLeaseAsync(
+            acquireLease,
+            id,
+            expectedVersion,
+            operationKey,
+            () => RedirectToPage(new { id, section }),
+            cancellationToken);
     }
 
     public Task<IActionResult> OnPostHeartbeatLeaseAsync(
@@ -345,50 +320,19 @@ public sealed class IndexModel(
         CancellationToken cancellationToken) =>
         HeartbeatLeaseAsync(heartbeatLease, id, editLeaseToken, cancellationToken);
 
-    public async Task<IActionResult> OnPostReleaseLeaseAsync(
+    public Task<IActionResult> OnPostReleaseLeaseAsync(
         Guid id,
         string operationKey,
         string editLeaseToken,
         string? section,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-
-        try
-        {
-            await releaseLease.ExecuteAsync(
-                new(id, actor, RequireOperationKey(operationKey), editLeaseToken),
-                cancellationToken);
-            ClearLeaseState();
-            TempData["AssessmentStatus"] = "Edit mode was left safely.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "release_lease", exception);
-            if (IsLeaseLoss(exception))
-            {
-                ClearLeaseState();
-            }
-            else
-            {
-                StoreLeaseAuthority(id, editLeaseToken);
-                TempData[ReleaseLeaseOperationKeyName] = operationKey;
-            }
-            TempData["AssessmentError"] =
-                "Edit mode could not be released. Reload the case to confirm its current state.";
-        }
-
-        return RedirectToPage(new { id, section });
-    }
+        CancellationToken cancellationToken) =>
+        ReleaseLeaseAsync(
+            releaseLease,
+            id,
+            operationKey,
+            editLeaseToken,
+            () => RedirectToPage(new { id, section }),
+            cancellationToken);
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -547,7 +491,7 @@ public sealed class IndexModel(
             return RedirectToEstimate(id);
         }
 
-        if (HeldLeaseToken(id, editLeaseToken) is not { } leaseToken)
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             TempData["AssessmentError"] = NotInEditMode;
             return RedirectToEstimate(id);
@@ -570,7 +514,7 @@ public sealed class IndexModel(
                     actor,
                     $"{operationKey}-document",
                     caseVersion,
-                    leaseToken),
+                    editLeaseToken),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -579,7 +523,7 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            HandleLeaseFailure(id, leaseToken, exception);
+            HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["AssessmentError"] = MutationRefusalMessage(
                 exception,
                 "The estimate was not imported because the case changed or another editor holds it. "
@@ -676,6 +620,11 @@ public sealed class IndexModel(
             TempData["AssessmentError"] = "Answer whether the repairer is VAT registered.";
             return RedirectToEstimate(id);
         }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["AssessmentError"] = NotInEditMode;
+            return RedirectToEstimate(id);
+        }
 
         var draft = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
         if (draft is null || draft.SpecificationId != specificationId)
@@ -687,11 +636,6 @@ public sealed class IndexModel(
         if (details is null)
         {
             return NotFound();
-        }
-        if (HeldLeaseToken(id, editLeaseToken) is not { } leaseToken)
-        {
-            TempData["AssessmentError"] = NotInEditMode;
-            return RedirectToEstimate(id);
         }
 
         try
@@ -716,7 +660,7 @@ public sealed class IndexModel(
                     actor,
                     operationKey,
                     string.IsNullOrWhiteSpace(reason) ? "Repair specification accepted" : reason.Trim(),
-                    leaseToken),
+                    editLeaseToken),
                 cancellationToken);
             ClearLeaseState();
             TempData["AssessmentStatus"] = "The repair specification was accepted.";
@@ -727,7 +671,7 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            HandleLeaseFailure(id, leaseToken, exception);
+            HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["AssessmentError"] = MutationRefusalMessage(
                 exception,
                 "The repair specification was not accepted because the case changed or another "
@@ -754,17 +698,6 @@ public sealed class IndexModel(
     private RedirectToPageResult RedirectToEstimate(Guid id) =>
         RedirectToPage(new { id, section = "estimate" });
 
-    /// <summary>
-    /// The lease this save presents, or null when it presents none. A save that was submitted
-    /// from a page rendered outside edit mode is refused here rather than in Core, so the operator
-    /// is told to enter edit mode instead of being shown a refusal about a token they never had.
-    /// A token that is stale rather than absent still goes to Core, which is the only thing
-    /// entitled to judge it.
-    /// </summary>
-    private string? HeldLeaseToken(Guid caseId, string? presented) =>
-        string.IsNullOrWhiteSpace(presented)
-            ? PeekGuid(LeaseCaseIdKey) == caseId ? PeekLeaseToken() : null
-            : presented;
 
     /// <summary>
     /// Loads the case's edit authority for this render. The assessment projection does not carry
@@ -781,7 +714,6 @@ public sealed class IndexModel(
             return;
         }
 
-        CaseVersion = details.Workflow.Version;
         CaseIsArchived = details.Workflow.Archive is not null;
         RestoreLeaseState(id, actor, details.ActiveEditLease);
         if (details.ActiveEditLease is not { } activeLease)
