@@ -9,4 +9,4 @@
 - [x] 7. Routes moved/stubbed, ImageIntake list deleted, inbound links fixed, Administration admin-layout, catalogue updated — 71277763 (catalogue script blocked by the pre-existing unclassified `Principals/EvaSubmission.cshtml`, see report)
 - [x] 8. Tests updated + LayoutIntegrityTests added — 646b6763
 - [x] 9. Release build clean; origin/dev merged (b5ff6590); simplification pass recorded; report written
-- [ ] 10. PR opened and ticket moved to review
+- [x] 10. PR #589 opened against dev; ticket moved to review
