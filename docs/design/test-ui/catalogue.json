@@ -303,13 +303,13 @@
       {
         "state": "default",
         "file": "pages/case-details--default.html",
-        "branch": "Loaded overview in Review with held edit lease.",
+        "branch": "Case workspace: Case Overview in Review with the edit lease held (header, identity ribbon, action bar, edit bar, section nav, context column).",
         "scenario": "case-details--default"
       },
       {
         "state": "unavailable",
         "file": "pages/case-details--unavailable.html",
-        "branch": "The case workspace cannot load the requested editable data.",
+        "branch": "The case query failed and the workspace renders the unavailable notice.",
         "scenario": "case-details--unavailable"
       },
       {
