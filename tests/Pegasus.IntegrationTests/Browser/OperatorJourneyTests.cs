@@ -176,11 +176,12 @@ public sealed class OperatorJourneyTests
         // asserted directly above through [aria-label='User'].
         AssertOrdered(
             navigation,
-            "Dashboard",
+            "Work Centre",
             "Inbox",
             "Upload",
-            "Queues",
             "Cases",
+            "Search",
+            "Operations",
             "Administration");
 
         // The three sections an operator actually opens this screen to read.
@@ -194,7 +195,7 @@ public sealed class OperatorJourneyTests
         // used to render an intake-receipt count and link into the intake
         // queue, which is a different entity on a different screen.
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
-        Assert.Equal("/Triage?queue=review", new Uri(support.Page.Url).PathAndQuery);
+        Assert.Equal("/Cases?tab=review", new Uri(support.Page.Url).PathAndQuery);
 
         await support.GoToAsync("/Operations");
         Assert.Equal(
