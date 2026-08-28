@@ -38,3 +38,7 @@ About +140 / -1 lines across four files:
 ## Out of scope
 
 Code (wave 3 `Core/Mail/OutboundMail.cs`, Graph adapter, Worker), the Graph scope grant, capabilities.md rows (UIIMP-007), ADR-0035 (AUTO-009).
+
+## Simplification pass — 2026-08-28
+
+n/a — docs-only.

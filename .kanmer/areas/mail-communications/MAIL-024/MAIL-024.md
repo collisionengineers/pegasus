@@ -4,12 +4,13 @@ type: ticket
 title: >-
   FRD-08 and ADR-0036: outbound mail from an approved mailbox and EVA-sent
   report detection
-status: implementing
+status: review
 area: mail-communications
 assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-28T08:08:21.145Z'
+  review: '2026-08-28T08:15:21.870Z'
 taken_at: '2026-08-28T08:13:35.265Z'
 branch: task/mail-024-outbound-mail-docs
 worktree: ../pegasus-worktrees/mail-024-outbound-mail-docs
@@ -22,9 +23,13 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - 47d9144af70005f97efb8f1540b400dee3905646
+prs:
+  - '584'
 archived: false
 created: '2026-08-28T08:05:30.146Z'
-updated: '2026-08-28T08:13:35.265Z'
+updated: '2026-08-28T08:15:21.870Z'
 ---
 
 ## What
@@ -39,5 +44,5 @@ updated: '2026-08-28T08:13:35.265Z'
 
 ## Verification
 
-- [ ] ADR frontmatter valid; one decision.
-- [ ] `scripts/Test-DocumentationLinks.ps1` passes.
+- [x] ADR frontmatter valid; one decision.
+- [x] `scripts/Test-DocumentationLinks.ps1` passes.

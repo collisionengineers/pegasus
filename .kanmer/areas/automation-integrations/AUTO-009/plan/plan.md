@@ -41,3 +41,7 @@ Docs-only. Estimated diff: ~+190 lines across four Markdown files (one new ADR
 
 `boundaries.md`, `capabilities.md`, `open-decisions.md` (UIIMP-007), code
 (wave 3 AI job ledger ticket), FRD-12 (UIIMP-007).
+
+## Simplification pass — 2026-08-28
+
+n/a — docs-only.
