@@ -323,8 +323,25 @@ provisional and are recorded here rather than presented as settled.
 
 | Decision | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|---|
-| Stale threshold | Observed poll behaviour under real load: how often a tick is genuinely late, and how long an operator can act on mail without knowing polling has stopped. | Too short and the chip cries wolf on every slow tick; too long and a stopped Worker is invisible while staff work from a list that is no longer arriving. | Ship the provisional 15 minutes (fifteen missed one-minute ticks), recorded in `GetRetainedMailFreshness.StaleAfter`. | How long after the last successful poll should the workspace stop calling its data current? |
+| Stale threshold | Observed poll behaviour under real load: how often a tick is genuinely late, and how long an operator can act on mail without knowing polling has stopped. | Too short and the chip cries wolf on every slow tick; too long and a stopped Worker is invisible while staff work from a list that is no longer arriving. | Ship the provisional 15 minutes (three missed `ApprovedInboxPollSchedule` recovery ticks at `0 */5 * * * *`), recorded in `GetRetainedMailFreshness.StaleAfter`. | How long after the last successful poll should the workspace stop calling its data current? |
 | Historical mail | Whether operators need messages received before message-level retention began, and if so what a reconstruction from retained artifacts could honestly recover. | A backfill invents display material for messages whose MIME was retained but never parsed for display, and would present reconstructed fields as if they had been read at poll time. | Start empty. The list surfaces `HasUnretainedHistory` and says the gap exists rather than presenting nothing as "nothing was received". | Should retained mail be backfilled for messages polled before retention began? |
+
+## App Insights daily cap
+
+MAIL-020 (release 35, 2026-08-27) raised the App Insights component
+`dataVolumeCap.cap` on `pegasus-prod-appi-252ow37gij` and the Log Analytics
+workspace `dailyQuotaGb` on `pegasus-prod-logs-252ow37gij` from 0.1 GB to
+0.5 GB (one bicep variable, `telemetryDailyCapGb`, binds both), and the
+deployed Worker now drops successful SQL dependency telemetry via
+`SqlDependencyTelemetryFilter`. Operator billing approval was given
+2026-08-27 (worst case approximately £24/month, expected approximately
+£2/month). Both caps read back 0.5 immediately after the release 35
+provision. This is a raised ceiling with a cut contributor, not proof the
+new cap survives a full working day of combined Web and Worker volume.
+
+| Decision | Evidence needed | Impact | Recommended default | Decision question |
+|---|---|---|---|---|
+| Further cap increase | A working day of ingestion volume observed at the 0.5 GB cap. | Too low and the estate still goes silent by mid-morning; too high raises billing without proven need. | Hold at 0.5 GB until PLAT-034 records a full working day under it. | Does the estate need a cap above 0.5 GB once a full day's volume at the new cap is observed? |
 
 ## Manual upload in a deployed environment
 

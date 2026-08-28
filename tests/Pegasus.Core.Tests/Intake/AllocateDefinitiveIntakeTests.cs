@@ -78,8 +78,49 @@ public sealed class AllocateDefinitiveIntakeTests
         Assert.Equal(IntakeAllocationFailureKind.SequenceExhausted, sequence?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, sequence?.State.RecoveryDisposition);
         Assert.Equal(IntakeAllocationFailureKind.Unexpected, unexpected?.State.FailureKind);
+        Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, unexpected?.State.RecoveryDisposition);
         Assert.Equal("The case could not be created. No reference was allocated.", unexpected?.State.SafeReason);
         Assert.DoesNotContain("private", unexpected?.State.SafeReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // INTK-044. A standalone Audit that failed automatic allocation for an
+    // unclassified reason has no manual creation route, so the failure must
+    // be staff-retryable, and the retry must hand acceptance the identical
+    // command — same receipt version, same retained evidence — rather than
+    // anything the staff member could have reshaped.
+    [Fact]
+    public async Task UnexpectedAutomaticAuditFailureIsRetriedWithTheSameCommand()
+    {
+        var receipt = Receipt(CaseType.Audit, "QDOS");
+        var evidenceId = Guid.NewGuid();
+        var store = new RecordingAllocationStore();
+        var accept = new RecordingAcceptance(new InvalidOperationException("transient fault"));
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            store,
+            accept,
+            TimeProvider.System,
+            new EvidenceQueries(receipt.Id, evidenceId));
+
+        var failed = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, failed?.State.Status);
+        Assert.True(failed?.State.CanRetry);
+
+        accept.Failure = null;
+        var retried = await sut.RetryAsync(new(
+            receipt.Id,
+            receipt.Version,
+            failed!.State.AttemptId,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            "retry:intk-044",
+            "Retry after the fault cleared."));
+
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retried.State.Status);
+        Assert.Equal(2, accept.Requests.Count);
+        Assert.Equal(CaseType.Audit, accept.Requests[1].CaseType);
+        Assert.Equal(evidenceId, accept.Requests[1].StandaloneAuditEvidenceId);
+        Assert.Equal(accept.Requests[0].ExpectedVersion, accept.Requests[1].ExpectedVersion);
+        Assert.Equal(accept.Requests[0].Completeness, accept.Requests[1].Completeness);
     }
 
     [Fact]
@@ -309,18 +350,39 @@ public sealed class AllocateDefinitiveIntakeTests
             CancellationToken cancellationToken) => Task.FromResult<IntakeAssetRecord?>(null);
     }
 
+    private sealed class EvidenceQueries(Guid receiptId, Guid evidenceId) : IStandaloneAuditEvidenceQueries
+    {
+        public Task<StandaloneAuditEvidence?> GetForReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<StandaloneAuditEvidence?>(intakeReceiptId == receiptId
+                ? new(
+                    evidenceId,
+                    receiptId,
+                    Guid.NewGuid(),
+                    AuditAssessment.Repairable,
+                    Guid.Empty,
+                    DateTimeOffset.UtcNow,
+                    "The retained original report states Repairable.",
+                    0,
+                    false)
+                : null);
+    }
+
     private sealed class RecordingAcceptance(Exception? failure = null) : IAcceptIntake
     {
         public List<AcceptIntakeRequest> Requests { get; } = [];
+
+        public Exception? Failure { get; set; } = failure;
 
         public Task<CaseAcceptanceOutcome> ExecuteAsync(
             AcceptIntakeRequest request,
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            if (failure is not null)
+            if (Failure is not null)
             {
-                return Task.FromException<CaseAcceptanceOutcome>(failure);
+                return Task.FromException<CaseAcceptanceOutcome>(Failure);
             }
 
             return Task.FromResult(new CaseAcceptanceOutcome(

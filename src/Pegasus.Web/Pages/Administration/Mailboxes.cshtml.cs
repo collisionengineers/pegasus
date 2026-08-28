@@ -10,6 +10,7 @@ public sealed class MailboxesModel(
     ListApprovedMailboxes listApprovedMailboxes,
     UpdateApprovedMailbox updateApprovedMailbox,
     IApprovedMailboxPollStatusQueries pollStatusQueries,
+    IApprovedMailboxSubscriptionStore subscriptionStore,
     IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity)
     : AdministrationPageModel
 {
@@ -239,6 +240,8 @@ public sealed class MailboxesModel(
 
     public IReadOnlyList<ApprovedMailboxPollStatus> PollStatuses { get; private set; } = [];
 
+    public IReadOnlyList<ApprovedMailboxSubscription> Subscriptions { get; private set; } = [];
+
     public string AddressFor(ApprovedMailbox mailbox) =>
         mailbox.Id == MailboxId && ExpectedVersion > 0 ? Address : mailbox.Address;
 
@@ -273,6 +276,26 @@ public sealed class MailboxesModel(
             var code => $" Last failure: {Presentation.OperatorLabels.Humanise(code)}."
         };
         return $"{completed}{due}{failure}";
+    }
+
+    /// <summary>
+    /// The Graph change-notification subscription behind this mailbox, as maintenance
+    /// last left it. A mailbox with no row has never had one created.
+    /// </summary>
+    public string SubscriptionStatusFor(ApprovedMailbox mailbox)
+    {
+        var subscription = Subscriptions.SingleOrDefault(item => item.ApprovedMailboxId == mailbox.Id);
+        if (subscription is null)
+        {
+            return "None.";
+        }
+
+        var state = $"{Presentation.OperatorLabels.Humanise(subscription.LifecycleState.ToString())}.";
+        var expires = $" Expires {Presentation.OperatorLabels.OfficeTime(subscription.ExpiresAtUtc)}.";
+        var failure = subscription.LastMaintenanceFailureCode is { } code
+            ? $" Last failure: {Presentation.OperatorLabels.Humanise(code)}."
+            : string.Empty;
+        return $"{state}{expires}{failure}";
     }
 
     public string ReasonFor(ApprovedMailbox mailbox) =>
@@ -335,6 +358,7 @@ public sealed class MailboxesModel(
     {
         Mailboxes = await listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
         PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
+        Subscriptions = await subscriptionStore.ListAsync(cancellationToken);
     }
 
     private static string MailboxErrorMessage(ApprovedMailboxUpdateException exception) =>

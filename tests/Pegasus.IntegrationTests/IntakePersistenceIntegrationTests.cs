@@ -101,6 +101,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260825121453_GrantWorkerImageIntakeLifecycleEvents",
                 "20260825145216_MailboxImageIntake",
                 "20260826151807_ApprovedMailboxStableIdentityAndSubscriptions",
+                "20260827100901_ReactivateBoundApprovedMailboxes",
                 "20260827143132_EvaApiSubmissions",
                 "20260827143200_GrantEvaSubmissions"
             ],

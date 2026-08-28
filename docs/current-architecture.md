@@ -50,7 +50,7 @@ flowchart LR
 
 The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API caller remains separately gated. The Automation MCP ingress is implemented inside `Pegasus.Web` behind a composition gate that is off by default; when the gate is off no automation route exists, and live activation remains separately approved.
 
-The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment by exact-SHA fast-forward releases of `main`; this topology was rechecked after release 34 on 2026-08-27 and is unchanged. The current production state (release, revision, migration head, gate settings) is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
+The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment by exact-SHA fast-forward releases of `main`; this topology was rechecked after release 35 on 2026-08-27 and is unchanged. The current production state (release, revision, migration head, gate settings) is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
 
 ## Components and dependency direction
 
@@ -156,22 +156,24 @@ The following remain planned or absent, not merely unverified:
 - automated legacy DOC and MSG extraction;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
 - live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
-- correlated live telemetry, **for most of each day**. Both hosts are now
-  instrumented: the Worker has reported continuously throughout the retained
-  window, and release 19 instrumented the Web host, which had carried the
-  connection string since the estate was built while never calling
-  `AddApplicationInsightsTelemetry`. What is not solved is retention of that
-  signal. The workspace runs a **0.1 GB daily quota resetting at 03:00Z**
-  (`workspaceCapping.dataIngestionStatus: RespectQuota`) and the estate exhausts
-  it within hours, so ingestion stops for the rest of the day and every check run
-  in a UK working hour returns empty. That is not a hypothesis: it is why both
-  production custody failures left no trace, and why release 20's cause had to be
-  found by reading `sys.database_permissions` rather than a stack trace. The two
-  alert rules cannot fire on the capped window either. Sampling is on
-  (`APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING`) and the Worker's own polling
-  produces most of the volume, so measuring before buying quota is the cheaper
-  order. Correlation, retention and alert delivery remain unproved until the
-  window covers a working day (PLAT-034, open).
+- correlated live telemetry retention for a full working day remains unproved.
+  Both hosts are instrumented: the Worker has reported continuously throughout
+  the retained window, and release 19 instrumented the Web host, which had
+  carried the connection string since the estate was built while never calling
+  `AddApplicationInsightsTelemetry`. Release 35 (2026-08-27, MAIL-020) raised
+  the component `dataVolumeCap.cap` on `pegasus-prod-appi-252ow37gij` and the
+  workspace `dailyQuotaGb` on `pegasus-prod-logs-252ow37gij` from 0.1 to
+  **0.5 GB** (one variable, `telemetryDailyCapGb`, binds both) and the deployed
+  Worker now registers `SqlDependencyTelemetryFilter`, dropping only successful
+  SQL dependency items — `AppDependencies` had been 64.7 MB of a single day's
+  0.1 GB component cap. Both caps read back 0.5 immediately after the release
+  35 provision. That raises the ceiling and cuts the largest single
+  contributor; it does not by itself prove the new cap survives a full working
+  day of both hosts' combined volume, and the two alert rules remain unproved
+  against a capped window until that evidence exists. Sampling is on
+  (`APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING`). Correlation, retention and
+  alert delivery remain unproved until the window covers a working day at the
+  new cap (PLAT-034, open).
 - an automated check that a runtime role may write what the code writes. The
   least-privilege grant matrix (`20260729199000_RuntimeRoleReconciliation`) is
   the one list of what Web and Worker may touch, and nothing verifies it against

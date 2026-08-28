@@ -40,7 +40,9 @@
                         <th scope="col">Address</th>
                         <th scope="col">Route scope</th>
                         <th scope="col">State</th>
+                        <th scope="col">Activated</th>
                         <th scope="col">Polling</th>
+                        <th scope="col">Subscription</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -50,7 +52,9 @@
                         <td>@mailbox.Address</td>
                         <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Presentation.OperatorLabels.RouteScope))</td>
                         <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Presentation.OperatorLabels.Humanise(mailbox.State.ToString())" /></td>
+                        <td>@Pegasus.Web.Presentation.OperatorLabels.OfficeTime(mailbox.ActivatedAtUtc, "Not activated")</td>
                         <td>@Model.PollStatusFor(mailbox)</td>
+                        <td>@Model.SubscriptionStatusFor(mailbox)</td>
                     </tr>
                 }
                 </tbody>
