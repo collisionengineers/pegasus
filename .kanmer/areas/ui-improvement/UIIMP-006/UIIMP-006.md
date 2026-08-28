@@ -25,11 +25,12 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - b5cb2edd
+  - 932e0e64
 prs:
   - '587'
 archived: false
 created: '2026-08-28T08:05:30.031Z'
-updated: '2026-08-28T08:21:12.901Z'
+updated: '2026-08-28T08:28:16.315Z'
 ---
 
 ## What
@@ -48,5 +49,5 @@ Keep verbatim: Evidence discipline, Test UI, Voice/banned words, No explanatory 
 
 ## Verification
 
-- [ ] Every section of the new contract (group `context.md` §1) has an owning heading in the README.
-- [ ] `scripts/Test-DocumentationLinks.ps1` passes.
+- [x] Every section of the new contract (group `context.md` §1) has an owning heading in the README.
+- [x] `scripts/Test-DocumentationLinks.ps1` passes.
