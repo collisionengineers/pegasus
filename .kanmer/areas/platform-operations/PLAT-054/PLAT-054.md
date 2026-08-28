@@ -4,10 +4,15 @@ type: ticket
 title: >-
   Expose OperationsSnapshot.OfficeBoundaries (Europe/London day) for the Reports
   page — one conversion owner
-status: backlog
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: fix
+stageEntered:
+  implementing: '2026-08-28T21:27:18.167Z'
+taken_at: '2026-08-28T21:26:52.093Z'
+branch: task/plat-054-office-boundaries
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-054-office-boundaries'
 labels:
   - backend
   - reports
@@ -19,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T10:58:44.482Z'
-updated: '2026-08-28T10:58:44.482Z'
+updated: '2026-08-28T21:27:18.167Z'
 ---
 
 ## What
