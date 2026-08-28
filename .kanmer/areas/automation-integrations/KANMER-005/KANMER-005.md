@@ -2,10 +2,12 @@
 id: KANMER-005
 type: ticket
 title: Enforce exclusive editing leases between staff and Automation Actors
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-28T09:54:44.547Z'
 labels:
   - bug
   - lease
@@ -13,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-20T10:46:42.869Z'
+updated: '2026-08-28T09:54:44.547Z'
 ---
 
 ## What
