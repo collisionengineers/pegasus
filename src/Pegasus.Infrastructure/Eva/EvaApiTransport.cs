@@ -284,13 +284,20 @@ internal sealed partial class EvaApiTransport(
 
         if (response.Status != HttpStatusCode.OK)
         {
-            // Authentication is answered, and the answer is no. Terminal: the
-            // same credentials will be refused again, so this is a rejection
-            // rather than something to retry.
+            // Only a refusal is terminal. A 4xx means EVA read the credentials
+            // and said no, and the same pair will be refused again. Anything
+            // else — a 500, a gateway timeout, a throttle — is EVA being
+            // unavailable, and marking that terminal would strand every case
+            // the sweep happened to touch during it, with no route back for a
+            // principal that has no manual button.
+            var outcome = EvaSubmissionPolicy.Classify(response.Status, null, false)
+                == EvaSubmissionOutcome.Rejected
+                ? EvaSubmissionOutcome.Rejected
+                : EvaSubmissionOutcome.Unknown;
             return new(
                 null,
                 new(
-                    EvaSubmissionOutcome.Rejected,
+                    outcome,
                     null,
                     null,
                     $"eva_auth_{(int)response.Status!}",

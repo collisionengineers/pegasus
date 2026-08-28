@@ -62,7 +62,7 @@ public sealed class EfAutomaticEvaSubmissionStore(
             .ToListAsync(cancellationToken);
         var submitted = await context.EvaSubmissions
             .AsNoTracking()
-            .Where(item => item.IsSucceeded && candidates.Contains(item.CaseId))
+            .Where(item => item.IsDelivered && candidates.Contains(item.CaseId))
             .Select(item => item.CaseId)
             .ToListAsync(cancellationToken);
 
@@ -87,8 +87,10 @@ public sealed class EfAutomaticEvaSubmissionStore(
                 CaseId = caseId,
                 Kind = ExternalWorkKinds.SubmitCaseToEva,
                 // Stable per case, so a second sweep racing this one produces
-                // the same operation key and the submission's own replay guard
-                // recognises it rather than sending twice.
+                // the same row rather than a second one. Each attempt derives
+                // its own key from this one (EvaSubmissionPolicy
+                // .AttemptOperationKey) so that a retry reaches EVA instead of
+                // replaying the attempt before it.
                 OperationKey = OperationKey(caseId),
                 State = "pending",
                 AttemptCount = 0,

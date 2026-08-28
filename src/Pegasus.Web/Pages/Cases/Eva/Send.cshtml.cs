@@ -75,8 +75,11 @@ public sealed partial class SendModel(
             : await modeStore.GetForPrincipalAsync(
                 caseData.Identity.PrincipalCode,
                 cancellationToken);
+        // Delivered, not merely succeeded: an instruction EVA accepted without
+        // returning an identifier still created a claim, and offering the
+        // button again would create a second one that no API call can withdraw.
         CanSubmitToApi = EvaSubmissionPolicy.AllowsManualSubmission(modes)
-            && LastSubmission is not { IsSucceeded: true };
+            && LastSubmission is not { IsDelivered: true };
         return Page();
     }
 

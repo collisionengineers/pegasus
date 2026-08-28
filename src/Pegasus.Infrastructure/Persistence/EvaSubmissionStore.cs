@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -30,7 +30,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// 2. **A second submission is refused.** EVA has no idempotency: a second
 ///    accepted instruction creates a second claim with its own File Reference
 ///    and no API call can undo it. So the once-per-case rule is checked before
-///    the call and enforced by <c>UX_EvaSubmissions_CaseSucceeded</c> after
+///    the call and enforced by <c>UX_EvaSubmissions_CaseDelivered</c> after
 ///    it.
 /// </summary>
 public sealed class EvaSubmissionStore(
@@ -92,7 +92,7 @@ public sealed class EvaSubmissionStore(
         // Then the once-per-case rule. Checked here so an operator is told
         // plainly rather than discovering it as a database error, and enforced
         // again by the unique index because this check is outside the write.
-        var delivered = await FindSucceededAsync(context, request.CaseId, cancellationToken);
+        var delivered = await FindDeliveredAsync(context, request.CaseId, cancellationToken);
         if (delivered is not null)
         {
             throw new EvaAlreadySubmittedException(request.CaseId, delivered.FileReference);
@@ -169,13 +169,13 @@ public sealed class EvaSubmissionStore(
     private static string MediaTypeExtension(string mediaType) =>
         mediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
 
-    private static Task<EvaSubmissionEntity?> FindSucceededAsync(
+    private static Task<EvaSubmissionEntity?> FindDeliveredAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken) => context.EvaSubmissions
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                item => item.CaseId == caseId && item.IsSucceeded,
+                item => item.CaseId == caseId && item.IsDelivered,
                 cancellationToken);
 
     /// <summary>
@@ -261,7 +261,7 @@ public sealed class EvaSubmissionStore(
             ExternalRef = caseData.Identity.Reference,
             OperationKey = request.OperationKey,
             Outcome = result.Outcome.ToString(),
-            IsSucceeded = result.Outcome == EvaSubmissionOutcome.Succeeded,
+            IsDelivered = result.IsDelivered,
             EvaId = result.EvaId,
             FileReference = result.FileReference,
             FailureCode = result.FailureCode,

@@ -10,7 +10,7 @@ namespace Pegasus.IntegrationTests;
 /// prove: EVA has no idempotency, so a second accepted instruction creates a
 /// second claim with its own File Reference that no API call can withdraw.
 /// Code refuses the second submission, and
-/// <c>UX_EvaSubmissions_CaseSucceeded</c> refuses it again underneath — but a
+/// <c>UX_EvaSubmissions_CaseDelivered</c> refuses it again underneath — but a
 /// filtered unique index that is subtly wrong looks identical to a correct one
 /// until a real database is asked to enforce it.
 ///
@@ -34,6 +34,31 @@ public sealed class EvaSubmissionPersistenceTests
         await using (var context = await database.CreateContextAsync())
         {
             context.EvaSubmissions.Add(Submission(caseId, EvaSubmissionOutcome.Succeeded));
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.EvaSubmissions.Add(Submission(caseId, EvaSubmissionOutcome.Succeeded));
+            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+        }
+    }
+
+    /// <summary>
+    /// A partial delivery closes the rule too. EVA accepted the instruction and
+    /// returned no identifier — the claim exists all the same, and a second
+    /// send would create another one that no API call can withdraw. The index
+    /// is filtered on delivery rather than on success for exactly this case.
+    /// </summary>
+    [Fact]
+    public async Task AnAcceptanceWithoutAnIdentifierAlsoClosesTheCase()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.EvaSubmissions.Add(Submission(caseId, EvaSubmissionOutcome.Partial));
             await context.SaveChangesAsync();
         }
 
@@ -73,12 +98,12 @@ public sealed class EvaSubmissionPersistenceTests
                 .ToArrayAsync();
 
             Assert.Equal(4, rows.Length);
-            Assert.Single(rows, row => row.IsSucceeded);
+            Assert.Single(rows, row => row.IsDelivered);
         }
     }
 
     /// <summary>
-    /// The two outcome columns must agree. IsSucceeded exists only to drive
+    /// The two outcome columns must agree. IsDelivered exists only to drive
     /// the filtered index, so a row that says one thing in the enum and
     /// another in the flag would put the wrong rows under the unique
     /// constraint.
@@ -91,7 +116,7 @@ public sealed class EvaSubmissionPersistenceTests
 
         await using var context = await database.CreateContextAsync();
         var lying = Submission(caseId, EvaSubmissionOutcome.Rejected);
-        lying.IsSucceeded = true;
+        lying.IsDelivered = true;
         context.EvaSubmissions.Add(lying);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
@@ -161,7 +186,7 @@ public sealed class EvaSubmissionPersistenceTests
         ExternalRef = "EVA31003",
         OperationKey = Guid.NewGuid().ToString("N"),
         Outcome = outcome.ToString(),
-        IsSucceeded = outcome == EvaSubmissionOutcome.Succeeded,
+        IsDelivered = outcome is EvaSubmissionOutcome.Succeeded or EvaSubmissionOutcome.Partial,
         EvaId = outcome == EvaSubmissionOutcome.Succeeded ? "600005" : null,
         FileReference = outcome == EvaSubmissionOutcome.Succeeded ? "61239" : null,
         FailureCode = outcome == EvaSubmissionOutcome.Succeeded ? null : "eva_unreachable",

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Eva;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -32,7 +32,7 @@ public sealed class EfEvaSubmissionQueries(
         var row = await context.EvaSubmissions
             .AsNoTracking()
             .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.IsSucceeded)
+            .OrderByDescending(item => item.IsDelivered)
             .ThenByDescending(item => item.SubmittedAtUtc)
             .Select(item => new
             {

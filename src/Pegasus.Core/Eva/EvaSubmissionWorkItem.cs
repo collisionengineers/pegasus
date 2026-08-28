@@ -152,7 +152,9 @@ public sealed class ProcessQueuedEvaSubmission(
                 new(
                     workItem.CaseId,
                     ActionActor.SystemWorker(WorkerActorId),
-                    workItem.OperationKey,
+                    EvaSubmissionPolicy.AttemptOperationKey(
+                        workItem.OperationKey,
+                        workItem.AttemptCount),
                     EvaSubmissionTrigger.Automatic),
                 cancellationToken);
         }

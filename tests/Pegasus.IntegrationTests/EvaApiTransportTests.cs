@@ -227,6 +227,35 @@ public sealed class EvaApiTransportTests
     }
 
     /// <summary>
+    /// An unavailable token endpoint is not a refusal. Marking it terminal
+    /// would strand every case a sweep touched while EVA was down: the work row
+    /// goes to failed, and the reconciliation sweep skips a case that already
+    /// has one, so an automatic-only principal — which by design has no button
+    /// — would have no route back at all.
+    /// </summary>
+    [Fact]
+    public async Task AnUnavailableTokenEndpointLeavesTheOutcomeUnknown()
+    {
+        using var handler = new DelegateHandler((request, _) =>
+            request.RequestUri!.AbsolutePath.EndsWith("Connect/token", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                {
+                    Content = new StringContent(
+                        "Internal Server Error",
+                        Encoding.UTF8,
+                        "text/plain")
+                }
+                : Ok(RecordedSuccess));
+        using var client = new HttpClient(handler);
+
+        var result = await Transport(client).SubmitInstructionAsync(Payload());
+
+        Assert.Equal(EvaSubmissionOutcome.Unknown, result.Outcome);
+        Assert.True(EvaSubmissionPolicy.IsRetryable(result.Outcome));
+        Assert.Equal("eva_auth_500", result.FailureCode);
+    }
+
+    /// <summary>
     /// Images travel as base64 inside the instruction body, in EVA's own file
     /// model, in the order they were given.
     /// </summary>

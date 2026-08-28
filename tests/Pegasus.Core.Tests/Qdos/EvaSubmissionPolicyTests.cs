@@ -164,6 +164,30 @@ public sealed class EvaSubmissionPolicyTests
             EvaSubmissionTrigger.Automatic));
     }
 
+    /// <summary>
+    /// Each attempt of a queued submission is its own operation. If they shared
+    /// the work row's key, the second attempt would replay the first attempt's
+    /// unknown outcome from action history and never reach EVA, so the retry
+    /// ladder would spend every attempt sending nothing.
+    /// </summary>
+    [Fact]
+    public void EachAttemptOfOneWorkItemGetsItsOwnOperationKey()
+    {
+        const string row = "0f3d5b8c9a2e4f118d7c6b5a4938271e";
+
+        var keys = Enumerable.Range(1, EvaSubmissionRetryPolicy.MaximumAttempts)
+            .Select(attempt => EvaSubmissionPolicy.AttemptOperationKey(row, attempt))
+            .ToArray();
+
+        Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
+        Assert.DoesNotContain(row, keys, StringComparer.Ordinal);
+        Assert.All(keys, key => Assert.True(Guid.TryParseExact(key, "N", out _)));
+
+        // Derived, not generated: a queue message delivered twice for the same
+        // attempt must replay rather than submit a second time.
+        Assert.Equal(keys[0], EvaSubmissionPolicy.AttemptOperationKey(row, 1));
+    }
+
     [Fact]
     public void OnlyASuccessHasNoFailureCode()
     {

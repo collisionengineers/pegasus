@@ -1,4 +1,4 @@
-﻿namespace Pegasus.Infrastructure.Persistence;
+namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// One attempt to submit a case to EVA over the API (EXT-04).
@@ -54,7 +54,7 @@ internal sealed class EvaSubmissionEntity
     /// It exists as its own column so the filtered unique index below can key
     /// on it — a computed or parsed condition could not.
     /// </summary>
-    public bool IsSucceeded { get; set; }
+    public bool IsDelivered { get; set; }
 
     /// <summary>EVA's response envelope identifier.</summary>
     public string? EvaId { get; set; }

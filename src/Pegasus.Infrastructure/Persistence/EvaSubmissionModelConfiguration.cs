@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -16,12 +16,15 @@ internal static class EvaSubmissionModelConfiguration
                     "CK_EvaSubmissions_Outcome",
                     "[Outcome] IN ('Succeeded', 'Rejected', 'Partial', 'Unknown')");
 
-                // IsSucceeded exists to drive the unique index, so it must
-                // agree with Outcome or the index guards the wrong rows.
+                // IsDelivered exists to drive the unique index, so it must
+                // agree with Outcome or the index guards the wrong rows. It
+                // means the instruction reached EVA, which a Partial did: EVA
+                // accepted it and returned no identifier, and a second send
+                // would create a second claim no API call can withdraw.
                 table.HasCheckConstraint(
-                    "CK_EvaSubmissions_SucceededAgreesWithOutcome",
-                    "([IsSucceeded] = 1 AND [Outcome] = 'Succeeded') "
-                    + "OR ([IsSucceeded] = 0 AND [Outcome] <> 'Succeeded')");
+                    "CK_EvaSubmissions_DeliveredAgreesWithOutcome",
+                    "([IsDelivered] = 1 AND [Outcome] IN ('Succeeded', 'Partial')) "
+                    + "OR ([IsDelivered] = 0 AND [Outcome] NOT IN ('Succeeded', 'Partial'))");
 
                 table.HasCheckConstraint(
                     "CK_EvaSubmissions_Counts",
@@ -47,8 +50,8 @@ internal static class EvaSubmissionModelConfiguration
             // needs to see to decide whether to try again.
             entity.HasIndex(item => item.CaseId)
                 .IsUnique()
-                .HasFilter("[IsSucceeded] = 1")
-                .HasDatabaseName("UX_EvaSubmissions_CaseSucceeded");
+                .HasFilter("[IsDelivered] = 1")
+                .HasDatabaseName("UX_EvaSubmissions_CaseDelivered");
 
             entity.HasIndex(item => new { item.CaseId, item.SubmittedAtUtc })
                 .HasDatabaseName("IX_EvaSubmissions_CaseSubmittedAt");

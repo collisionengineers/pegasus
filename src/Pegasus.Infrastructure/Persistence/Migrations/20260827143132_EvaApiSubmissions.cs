@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -35,7 +35,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     ExternalRef = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Outcome = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    IsSucceeded = table.Column<bool>(type: "bit", nullable: false),
+                    IsDelivered = table.Column<bool>(type: "bit", nullable: false),
                     EvaId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     FileReference = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     FailureCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
@@ -50,7 +50,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     table.PrimaryKey("PK_EvaSubmissions", x => x.Id);
                     table.CheckConstraint("CK_EvaSubmissions_Counts", "[ImagesSent] >= 0 AND [AttemptCount] >= 1 AND [WorkflowVersion] >= 0");
                     table.CheckConstraint("CK_EvaSubmissions_Outcome", "[Outcome] IN ('Succeeded', 'Rejected', 'Partial', 'Unknown')");
-                    table.CheckConstraint("CK_EvaSubmissions_SucceededAgreesWithOutcome", "([IsSucceeded] = 1 AND [Outcome] = 'Succeeded') OR ([IsSucceeded] = 0 AND [Outcome] <> 'Succeeded')");
+                    table.CheckConstraint("CK_EvaSubmissions_DeliveredAgreesWithOutcome", "([IsDelivered] = 1 AND [Outcome] IN ('Succeeded', 'Partial')) OR ([IsDelivered] = 0 AND [Outcome] NOT IN ('Succeeded', 'Partial'))");
                     table.ForeignKey(
                         name: "FK_EvaSubmissions_Cases_CaseId",
                         column: x => x.CaseId,
@@ -70,11 +70,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 columns: new[] { "CaseId", "SubmittedAtUtc" });
 
             migrationBuilder.CreateIndex(
-                name: "UX_EvaSubmissions_CaseSucceeded",
+                name: "UX_EvaSubmissions_CaseDelivered",
                 table: "EvaSubmissions",
                 column: "CaseId",
                 unique: true,
-                filter: "[IsSucceeded] = 1");
+                filter: "[IsDelivered] = 1");
         }
 
         /// <inheritdoc />

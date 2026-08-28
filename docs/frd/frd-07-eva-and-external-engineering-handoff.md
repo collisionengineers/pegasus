@@ -82,15 +82,18 @@ Each Principal carries two independent settings, both off by default:
   operator action.
 
 They are independent, so a Principal may submit automatically and offer no
-button. Such a Principal has no manual recovery from a failed submission;
-recovery is the reconciliation that re-arms the work. A replacement Principal
-inherits its predecessor's settings.
+button. Such a Principal has no case-page recovery from a failed submission:
+the reconciliation sweep does not re-arm a case that already carries a
+submission work row, so a submission that exhausted its retries is recovered
+from the Operations external-work retry surface, which every queued kind
+shares. A replacement Principal inherits its predecessor's settings.
 
 **A case is submitted at most once.** EVA has no idempotency: a second accepted
 instruction creates a second claim with its own File Reference, and no API call
 can withdraw it. So a case that has reached EVA is never submitted again, by
 either route, and the rule is a database constraint rather than only a code
-path.
+path. Reaching EVA means a `Succeeded` **or** a `Partial` outcome: an
+acceptance that returned no identifier still created the claim.
 
 The consequence must be stated plainly: **once a case has been submitted, later
 changes to it do not reach EVA.** A case retracted from `Review`, reworked and

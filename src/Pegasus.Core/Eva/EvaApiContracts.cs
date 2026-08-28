@@ -208,6 +208,14 @@ public sealed record EvaSubmissionRecord(
     DateTimeOffset SubmittedAtUtc)
 {
     public bool IsSucceeded => Outcome == EvaSubmissionOutcome.Succeeded;
+
+    /// <summary>
+    /// The instruction reached EVA — either completely, or accepted with no
+    /// identifier returned. Both close the once-per-case rule: EVA created a
+    /// claim either way, and no API call can withdraw it.
+    /// </summary>
+    public bool IsDelivered => Outcome is EvaSubmissionOutcome.Succeeded
+        or EvaSubmissionOutcome.Partial;
 }
 
 public interface IEvaSubmissionQueries

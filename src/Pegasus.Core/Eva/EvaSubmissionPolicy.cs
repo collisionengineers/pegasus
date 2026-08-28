@@ -128,6 +128,40 @@ public static class EvaSubmissionPolicy
         outcome == EvaSubmissionOutcome.Unknown;
 
     /// <summary>
+    /// The operation key one attempt of a queued submission runs under.
+    ///
+    /// The durable work row's own key is stable per case, so two sweeps racing
+    /// each other produce the same row rather than two. An attempt is not the
+    /// same thing as the row: the replay guard answers a repeated operation
+    /// with the outcome already recorded for it, so if every attempt shared the
+    /// row's key then the second attempt would replay the first attempt's
+    /// unknown outcome instead of reaching EVA, and the retry ladder would
+    /// spend every attempt without sending anything.
+    ///
+    /// Derived rather than generated, so a queue message delivered twice for
+    /// the same attempt still replays instead of submitting twice. The mix is
+    /// exclusive-or, which is injective in the attempt number, so two attempts
+    /// of one case can never collide.
+    /// </summary>
+    public static string AttemptOperationKey(string operationKey, int attemptCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(attemptCount, 1);
+        if (!Guid.TryParseExact(operationKey, "N", out var key))
+        {
+            throw new ArgumentException("The operation key is invalid.", nameof(operationKey));
+        }
+
+        var bytes = key.ToByteArray();
+        var attempt = BitConverter.GetBytes(attemptCount);
+        for (var index = 0; index < attempt.Length; index++)
+        {
+            bytes[^(index + 1)] ^= attempt[index];
+        }
+
+        return new Guid(bytes).ToString("N");
+    }
+
+    /// <summary>
     /// What EVA's answer means, in the four terms FRD-07 requires stay
     /// distinct.
     ///
