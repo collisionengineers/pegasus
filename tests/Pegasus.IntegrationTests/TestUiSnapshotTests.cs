@@ -72,10 +72,17 @@ public sealed partial class TestUiSnapshotTests
         {
             var path = Path.Combine(catalogueRoot, file.Key.Replace('/', Path.DirectorySeparatorChar));
             Assert.True(File.Exists(path), $"Missing generated Test UI file: {file.Key}");
+            // Newline-normalised on both sides: a core.autocrlf checkout
+            // hands back CRLF for files the generator wrote with LF.
             Assert.True(
-                file.Value == await File.ReadAllTextAsync(path),
+                file.Value == NormalizeNewLines(await File.ReadAllTextAsync(path)),
                 $"Generated Test UI file is stale: {file.Key}");
         }
+        var orphans = CommittedPages(catalogueRoot)
+            .Where(page => !generated.ContainsKey(page))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(orphans.Length == 0, "Committed Test UI pages no state generates:\n- " + string.Join("\n- ", orphans));
         await VerifyOfflineBrowserRenderAsync(catalogueRoot, generated);
     }
 
@@ -120,14 +127,27 @@ public sealed partial class TestUiSnapshotTests
                     .Cast<StateMatch>()
                     .ToArray();
                 var stateMatch = StateMatches.GetValueOrDefault(state.Scenario);
-                var selected = routeCandidates
+                var matched = routeCandidates
                     .Where(candidate => stateMatch?.Matches(candidate.Html) ?? otherMatches.All(match => !match.Matches(candidate.Html)))
+                    .ToArray();
+                // A page is only offline-complete when every receipt image it
+                // shows was captured for that receipt; no candidate may borrow
+                // another receipt's bytes.
+                var selected = matched
+                    .Where(candidate => MissingReceiptImages(candidate.Html, assets).Length == 0)
                     .Select(candidate => NormalizeAndRewrite(candidate.Html, state.File, manifest, assets))
                     .Order(StringComparer.Ordinal)
                     .FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(selected))
                 {
-                    missing.Add($"{state.Scenario} ({entry.Route})");
+                    var uncaptured = matched
+                        .SelectMany(candidate => MissingReceiptImages(candidate.Html, assets))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Order(StringComparer.Ordinal)
+                        .ToArray();
+                    missing.Add(uncaptured.Length == 0
+                        ? $"{state.Scenario} ({entry.Route})"
+                        : $"{state.Scenario} ({entry.Route}): matched, but no candidate had its receipt images captured: {string.Join(", ", uncaptured)}");
                     continue;
                 }
                 output[state.File] = selected;
@@ -147,21 +167,21 @@ public sealed partial class TestUiSnapshotTests
         IReadOnlyDictionary<string, string> assets)
     {
         html = CapturedAssetUrlRegex().Replace(html, match =>
-        {
-            var url = WebUtility.HtmlDecode(match.Groups[2].Value);
-            var path = url.Split('?', '#')[0];
-            return (assets.TryGetValue(path, out var dataUrl)
-                    || assets.TryGetValue(GuidRegex().Replace(path, "{guid}"), out dataUrl))
+            assets.TryGetValue(AssetPath(match.Groups[2].Value), out var dataUrl)
                 ? $"{match.Groups[1].Value}=\"{dataUrl}\""
-                : match.Value;
-        });
+                : match.Value);
+        // Live-only behaviour has no offline caller: a reload timer, the
+        // Inbox preview fetch and the case-search JSON handler are dropped
+        // rather than pointed at a static page.
+        html = LiveAttributeRegex().Replace(html, string.Empty);
         html = AntiforgeryValueRegex().Replace(html, "$1{{antiforgery-token}}$2");
         html = VolatileGuidValueRegex().Replace(html, match =>
             match.Groups[1].Value + "{{" + match.Groups[2].Value.ToLowerInvariant() + "}}" + match.Groups[3].Value);
+        html = SupportReferenceRegex().Replace(html, "$1{{request-id}}$2");
         html = CacheBusterRegex().Replace(html, "$1{{asset-version}}");
         var guidNumber = 0;
         var guids = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        html = GuidRegex().Replace(html, match =>
+        string StableGuid(Match match)
         {
             if (!guids.TryGetValue(match.Value, out var replacement))
             {
@@ -169,7 +189,9 @@ public sealed partial class TestUiSnapshotTests
                 guids[match.Value] = replacement;
             }
             return replacement;
-        });
+        }
+        html = GuidRegex().Replace(html, StableGuid);
+        html = CompactGuidRegex().Replace(html, StableGuid);
 
         var outputDirectoryDepth = outputFile.Count(character => character == '/') + 1;
         var sourcePrefix = string.Concat(Enumerable.Repeat("../", outputDirectoryDepth + 2));
@@ -229,19 +251,25 @@ public sealed partial class TestUiSnapshotTests
             + nonvisual + "</tbody></table></div></section></main></body></html>\n";
     }
 
-    private static void WriteGenerated(string catalogueRoot, IReadOnlyDictionary<string, string> generated)
+    private static string AssetPath(string attributeValue) =>
+        WebUtility.HtmlDecode(attributeValue).Split('?', '#')[0];
+
+    private static string[] MissingReceiptImages(string html, IReadOnlyDictionary<string, string> assets) =>
+        IntakeWebDriver.ReceiptImageUrlRegex().Matches(html)
+            .Select(match => AssetPath(match.Groups[1].Value))
+            .Where(path => !assets.ContainsKey(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static IEnumerable<string> CommittedPages(string catalogueRoot) =>
+        Directory.EnumerateFiles(Path.Combine(catalogueRoot, "pages"), "*.html", SearchOption.TopDirectoryOnly)
+            .Select(page => "pages/" + Path.GetFileName(page));
+
+    private static void WriteGenerated(string catalogueRoot, Dictionary<string, string> generated)
     {
-        var pagesRoot = Path.Combine(catalogueRoot, "pages");
-        var expectedPages = generated.Keys
-            .Where(key => key.StartsWith("pages/", StringComparison.Ordinal))
-            .Select(key => Path.GetFullPath(Path.Combine(catalogueRoot, key.Replace('/', Path.DirectorySeparatorChar))))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var existingPage in Directory.EnumerateFiles(pagesRoot, "*.html", SearchOption.TopDirectoryOnly))
+        foreach (var orphan in CommittedPages(catalogueRoot).Where(page => !generated.ContainsKey(page)))
         {
-            if (!expectedPages.Contains(Path.GetFullPath(existingPage)))
-            {
-                File.Delete(existingPage);
-            }
+            File.Delete(Path.Combine(catalogueRoot, orphan.Replace('/', Path.DirectorySeparatorChar)));
         }
 
         foreach (var file in generated)
@@ -277,9 +305,7 @@ public sealed partial class TestUiSnapshotTests
         {
             var metadata = JsonSerializer.Deserialize<CapturedAssetMetadata>(await File.ReadAllTextAsync(metadataPath), JsonOptions)!;
             var bytes = await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(metadataPath)!, "response.bin"));
-            var dataUrl = $"data:{metadata.ContentType};base64,{Convert.ToBase64String(bytes)}";
-            assets[metadata.Path] = dataUrl;
-            assets.TryAdd(GuidRegex().Replace(metadata.Path, "{guid}"), dataUrl);
+            assets[metadata.Path] = $"data:{metadata.ContentType};base64,{Convert.ToBase64String(bytes)}";
         }
         return assets;
     }
@@ -323,8 +349,14 @@ public sealed partial class TestUiSnapshotTests
     [GeneratedRegex("(<input[^>]+name=\"__RequestVerificationToken\"[^>]+value=\")[^\"]*(\")", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryValueRegex();
 
-    [GeneratedRegex("(<(?:input|meta)[^>]+(?:name|data-token-kind)=\"(operationkey|editleasetoken|requestid)\"[^>]+value=\")[^\"]*(\")", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("(<(?:input|meta)[^>]+(?:name|data-token-kind)=\"(operationkey|operationid|editleasetoken|requestid|externalreceipttoken|token)\"[^>]+value=\")[^\"]*(\")", RegexOptions.IgnoreCase)]
     private static partial Regex VolatileGuidValueRegex();
+
+    [GeneratedRegex("(<code id=\"support-reference\">)[^<]*(</code>)", RegexOptions.IgnoreCase)]
+    private static partial Regex SupportReferenceRegex();
+
+    [GeneratedRegex("\\s+data-(?:auto-refresh|mail-preview-url|case-search-url)=\"[^\"]*\"", RegexOptions.IgnoreCase)]
+    private static partial Regex LiveAttributeRegex();
 
     [GeneratedRegex("([?&]v=)[A-Za-z0-9_-]+", RegexOptions.IgnoreCase)]
     private static partial Regex CacheBusterRegex();
@@ -335,7 +367,7 @@ public sealed partial class TestUiSnapshotTests
     [GeneratedRegex("\\.[a-z0-9]{8,}\\.([a-z0-9]+)$", RegexOptions.IgnoreCase)]
     private static partial Regex FingerprintedAssetRegex();
 
-    [GeneratedRegex("((?:href|action|src|data-case-search-url|data-download-href|value))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("((?:href|action|src|data-download-href|value))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex ApplicationUrlRegex();
 
     [GeneratedRegex("((?:href|src|data-download-href))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
@@ -343,6 +375,11 @@ public sealed partial class TestUiSnapshotTests
 
     [GeneratedRegex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", RegexOptions.IgnoreCase)]
     private static partial Regex GuidRegex();
+
+    // "N"-format identifiers (operation keys, receipt ids in element ids)
+    // are as run-specific as the hyphenated form and share its numbering.
+    [GeneratedRegex("(?<![0-9a-z])[0-9a-f]{32}(?![0-9a-z])", RegexOptions.IgnoreCase)]
+    private static partial Regex CompactGuidRegex();
 
     [GeneratedRegex("[ \\t]+(?=\\n)")]
     private static partial Regex TrailingWhitespaceRegex();
