@@ -162,3 +162,47 @@ Status: pass complete; findings above applied or disposed with reasons.
   is owned by the orchestrator's browser walk (UIIMP-010), per EPIC-011.
 - The disabled-but-visible Complete affordance is replaced by the per-state
   control convention used across the workspace pages — accepted.
+
+## Correction — 2026-08-28 (round 2, regression fix)
+
+Round 1's last disposition — "the disabled-but-visible Complete
+affordance is replaced by the per-state control convention used across
+the workspace pages — accepted" — rested on a false premise, and CI
+caught it. The workspace pages use the opposite convention:
+
+- `Pages/Cases/Details.cshtml:269` —
+  `data-condition="@(Model.CanOpenAssessment ? null : "Available after
+  the current Review export")"` around a state-gated `is-disabled`
+  Open Assessment control.
+- `Pages/Cases/Assessment/Index.cshtml:765` — the same `.gated` shape
+  around a permission-gated "Import estimate" button.
+- `wwwroot/css/site.css:1893-1911` carries `.gated`/`data-condition`
+  as a design-system rule, with a forced-colours case.
+
+So "disabled with the condition named" *is* the workspace convention
+for a control whose handler exists but whose state does not yet permit
+it; per-state show/hide is the convention only for controls Core
+forbids outright (Await, Reopen). D7 forbids an **inert** control — one
+wired to no handler. Complete posts the same `complete` action either
+way, so it is a state gate, not an inert seam, and EPIC-011 §1.5 keeps
+the server-side transitions "available through the determinations flow".
+
+Three port regressions followed from that premise, each pinned by
+`QdosTriageIntegrationTests` and each fixed in the markup — no
+assertion was weakened:
+
+1. Complete vanished when unavailable → restored to the `.gated`
+   shape (`Details.cshtml:186`).
+2. The post-send correction lost its name when the three determination
+   forms were unified → the panel is named "Post-send correction" on a
+   Completed record, keeping the single §1.5 panel
+   (`Details.cshtml:104`).
+3. The permanent-history panel was renamed "Notes" → every entry is a
+   retained business event and Triage has no note entity, so the
+   generic name misstated a term FRD-03 owns; §1.5's entry shape is
+   kept under the domain's own name (`Details.cshtml:392`).
+
+Finding 3 is the one worth carrying forward: the unification in
+simplification-pass item 1 was sound, but it silently dropped two
+operator-facing names along with the duplicated markup. A dedup that
+also renames is two changes, not one.

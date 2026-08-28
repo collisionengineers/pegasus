@@ -2,12 +2,13 @@
 id: UIIMP-008
 type: ticket
 title: Port the Work Centre (/) to the Integrated Operations Workspace
-status: implementing
+status: review
 area: ui-improvement
 assignee: zcode
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:45.448Z'
+  review: '2026-08-28T21:34:29.969Z'
 taken_at: '2026-08-28T13:45:34.481Z'
 branch: task/uiimp-008-work-centre
 worktree: ../pegasus-worktrees/uiimp-008-work-centre
@@ -20,9 +21,22 @@ groups:
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - '78005070'
+  - 606a8020
+  - b952ff4a
+  - ddedfa81
+  - 83d86fdd
+  - c07b4488
+  - f524b343
+  - 5a9ff906
+  - 11f1f7de
+  - b8c0cf77
+prs:
+  - '#610'
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-08-28T13:45:34.481Z'
+updated: '2026-08-28T21:34:48.800Z'
 ---
 
 ## What
