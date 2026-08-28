@@ -193,7 +193,7 @@
         <h2 id="triage-title" class="section-label">Triage</h2>
         <dl class="detail-list">
             <div><dt>Vehicle registration</dt><dd><a asp-page="/Triage/Details" asp-route-id="@triage.Id">@triage.NormalizedVehicleRegistration</a></dd></div>
-            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(triage.State)</dd></div>
+            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Cases.IndexModel.StateLabel(triage.State)</dd></div>
             <div><dt>Opened</dt><dd>@OperatorLabels.OfficeTime(triage.CreatedAtUtc)</dd></div>
         </dl>
     </section>

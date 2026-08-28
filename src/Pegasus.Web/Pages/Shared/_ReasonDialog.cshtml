@@ -1,12 +1,13 @@
 @*
     Reason dialog.
 
-    docs/design/README.md#ui-specification requires a named requirement and consequence, a
+    docs/design/README.md requires a named requirement and consequence, a
     labelled reason, confirmation and cancel, initial focus, focus containment,
     Escape where safe, and focus return to the invoking control.
 
     Open it from any control carrying `data-dialog-open="<DialogId>"`; the
-    script below handles the rest and needs no inline handler.
+    generalised [data-dialog] behaviour in site.js handles the rest (the
+    [data-reason-dialog] alias is kept for the pages that still bind on it).
 *@
 @{
     var dialogId = ViewData["DialogId"] as string ?? "reasonModal";
@@ -14,45 +15,44 @@
     var actionUrl = ViewData["DialogActionUrl"] as string ?? "#";
     var hiddenFields = ViewData["DialogHiddenFields"] as IReadOnlyDictionary<string, string?>
         ?? new Dictionary<string, string?>();
-    // The header above requires "a named requirement and consequence", but the
-    // dialog carried no place to say the consequence. Supplied only where an
-    // action has one from the approved necessary-copy list; absent otherwise,
-    // so no dialog gains explanatory prose it does not need (INTK-029).
+    // Supplied only where an action has a consequence from the approved
+    // necessary-copy list; absent otherwise (INTK-029).
     var consequence = ViewData["DialogConsequence"] as string;
 }
-<div id="@dialogId" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title" data-reason-dialog hidden>
-    <div class="reason-dialog">
-        <h2 id="@(dialogId)_title" class="reason-dialog__title">
-            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"/></svg>
-            <span>@title</span>
-        </h2>
-        @if (!string.IsNullOrWhiteSpace(consequence))
-        {
-            <p class="notice">@consequence</p>
-        }
-        <form method="post" action="@actionUrl" class="form-grid">
+<div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title">
+        <div class="dialog-head">
+            <h2 id="@(dialogId)_title" tabindex="-1">@title</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="@actionUrl">
             @Html.AntiForgeryToken()
             @foreach (var field in hiddenFields)
             {
                 <input type="hidden" name="@field.Key" value="@field.Value" />
             }
-            <div>
-                @* `--red` was never declared, so the required marker rendered in
-                   the inherited text colour. It now uses the same approved dark
-                   red as every other validation cue. *@
-                <label for="@(dialogId)_reason">
-                    Reason for action
-                    <span class="field-validation" aria-hidden="true">*</span>
-                </label>
-                @* Every reason column in this schema is 500. Without the bound, a longer
-   reason reaches SaveChanges and the whole mutation rolls back, so the
-   operator is refused the action rather than the sentence (DOCS-012). *@
-                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+            <div class="dialog-body stack">
+                @if (!string.IsNullOrWhiteSpace(consequence))
+                {
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>@consequence</span>
+                    </div>
+                }
+                <div class="field">
+                    <label class="req" for="@(dialogId)_reason">Reason for action</label>
+                    @* Every reason column in this schema is 500. Without the
+                       bound, a longer reason reaches SaveChanges and the whole
+                       mutation rolls back (DOCS-012). *@
+                    <textarea id="@(dialogId)_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
             </div>
-            <div class="button-row button-row--end">
-                <button type="button" class="secondary-action" data-dialog-dismiss>Cancel</button>
-                <button type="submit" class="primary-action">Confirm Action</button>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
             </div>
         </form>
-    </div>
+    </section>
 </div>
