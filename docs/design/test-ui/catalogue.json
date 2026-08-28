@@ -346,6 +346,19 @@
     "reason": "GET redirects to case details; POST returns a ZIP archive."
   },
   {
+    "source": "src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml",
+    "route": "/Cases/{caseId:guid}/Eva/Send",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-eva-send--default.html",
+        "branch": "A Review case with manual submission enabled, choosing between the API submission and the export.",
+        "scenario": "case-eva-send--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Cases/Index.cshtml",
     "route": "/Cases",
     "classification": "visual",
