@@ -84,7 +84,7 @@
             <div class="scope-list">
                 @foreach (var scope in Model.Scopes)
                 {
-                    <form method="get" action="/Inbox">
+                    <form method="get">
                         @foreach (var field in scope.HiddenFields)
                         {
                             <input type="hidden" name="@field.Key" value="@field.Value" />

@@ -246,9 +246,9 @@ public sealed class IndexModel(
 
     /// <summary>
     /// The preview renders the selected row of the current page; with no usable
-    /// selection it renders the first row, the way the drawn list does. A
-    /// selected message that is not on the page still previews: the pane follows
-    /// the operator's choice, not the page's first position.
+    /// selection it renders the first row, the way the drawn list does — a
+    /// selected message that is not on the page falls back to the page's first
+    /// position, exactly as the drawn prototype resolves a stale selection.
     /// </summary>
     private async Task LoadSelectedDetailAsync(
         ActionActor actor,
