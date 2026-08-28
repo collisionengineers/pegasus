@@ -561,18 +561,16 @@
         return;
     }
 
+    // A live timer is what "still beating" means; visibilitychange checks it too,
+    // because it calls beat() directly rather than through the interval.
     var timer = null;
-    var beating = true;
     var stop = function () {
-        beating = false;
-        if (timer !== null) {
-            window.clearInterval(timer);
-            timer = null;
-        }
+        window.clearInterval(timer);
+        timer = null;
     };
 
     var beat = function () {
-        if (!beating) {
+        if (timer === null) {
             return;
         }
 

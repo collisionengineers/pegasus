@@ -106,7 +106,7 @@
             {
                 <form method="post" asp-page-handler="ClaimLease" class="record__bar-form">
                     <input type="hidden" name="id" value="@caseId" />
-                    <input type="hidden" name="expectedVersion" value="@Model.CaseVersion" />
+                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Header.Version" />
                     <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
                     <input type="hidden" name="section" value="@current" />
                     <button type="submit" class="btn">Recover editing</button>
@@ -123,7 +123,7 @@
             {
                 <form method="post" asp-page-handler="ClaimLease" class="record__bar-form">
                     <input type="hidden" name="id" value="@caseId" />
-                    <input type="hidden" name="expectedVersion" value="@Model.CaseVersion" />
+                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Header.Version" />
                     <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
                     <input type="hidden" name="section" value="@current" />
                     <button type="submit" class="btn">Edit assessment</button>
