@@ -90,7 +90,11 @@ public sealed class OperatorJourneyTests
         var operationsResponse = await support.GoToAsync("/Operations");
         Assert.Equal(200, operationsResponse.Status);
         var attentionText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Contains("Attention required", attentionText, StringComparison.Ordinal);
+        // The section label is uppercased by the design system
+        // (.section-label), and innerText returns the rendered form — so
+        // normalize both sides, the same way the read-order assertions on
+        // the Work Centre lower them.
+        Assert.Contains("ATTENTION REQUIRED", attentionText.ToUpperInvariant(), StringComparison.Ordinal);
         Assert.Contains(accepted.Reference, attentionText, StringComparison.Ordinal);
         Assert.Contains("temporarily unavailable", attentionText, StringComparison.OrdinalIgnoreCase);
         AssertOperatorSafe(attentionText, accepted.CaseId);
