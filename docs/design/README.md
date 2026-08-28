@@ -221,8 +221,8 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
 | `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Rail brand and sign-in card. |
 | `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts & roles. |
 | `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; removed with the legacy block in wave 5. |
-| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | No integrated surface; removed with the legacy block in wave 5. |
+| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; proposed for the wave-5 removal ticket. |
+| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | No integrated surface; proposed for the wave-5 removal ticket. |
 | `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Administration → Principals. |
 | `configuration.png` | `PegasusDesign/assets/icons/configuration.png`<br>`B64DCBE7FD45B24A0D9BD687BF8E16BCB3E4E587ED16F93BF1BCE12370A6E921` | `src/Pegasus.Web/wwwroot/images/marks/configuration.png`<br>`86A311A3C1ACE78E5D5A407B289F901ED7C26860BCBBBDEF59EC93A71BAFA62E` | Administration → Workflow configuration. |
 | `mailboxes.png` | `PegasusDesign/assets/icons/mailboxes.png`<br>`179A5677C4B73587601F0AF79162F87217C2035D096D90341281E23BFD87F688` | `src/Pegasus.Web/wwwroot/images/marks/mailboxes.png`<br>`1B727ACBE0DCC114370E0D620DCB74E20A12866C85187689ABDB8A249B61C019` | Administration → Mail settings. |
@@ -333,9 +333,9 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 
 Green must not represent progress, availability or a generic positive action;
 it is reserved for confirmed completion. The prototype's `--polish-*`
-properties are a layered overlay and are not tokens: `--polish-shadow` and
-`--polish-shadow-raised` are adopted as the resting and hover shadows of
-the polish layer's cards alongside `--shadow`, and `--polish-red-soft` /
+properties are a layered overlay and their names are not carried: the
+`--polish-shadow` and `--polish-shadow-raised` values are written into the
+card rules that use them (resting and hover), and `--polish-red-soft` /
 `--polish-blue-soft` are not adopted — the `--*-bg` tints are the only soft
 fills.
 
@@ -366,7 +366,7 @@ the Content Security Policy permits fonts from `'self'` only.
 
 The fallbacks after `"Segoe UI"` (Roboto, "Helvetica Neue", Arial) are
 added beyond the prototype's stack so a workstation without the vendored
-face degrades to the same metric-compatible family on every platform.
+face degrades to a comparable sans-serif on every platform.
 
 | File | Licence | SHA-256 |
 | --- | --- | --- |
@@ -727,11 +727,12 @@ the integration enables it.
 | `/Uploads/{token}` | Public upload | External frame |
 
 Route moves are 301 stubs delivered by PLAT-029 and deleted in wave 5:
-`/Triage` → `/Cases?tab=triage`, `/Unidentified` →
-`/Cases?tab=unidentified`, `/Cases?query…` (the former search) → `/Search`
-with the same query string. `/VehicleImages` (list) is removed outright — no
-stub — and `ImageIntake/Index` is deleted; the detail page stays as the image record. Test UI catalogue
-route keys follow these moves in the same PLAT-029 change set.
+`/Triage` → `/Cases?tab=triage`; `/Unidentified` →
+`/Cases?tab=unidentified`; `/Cases?query…` (the former search) →
+`/Search` with the same query string. `/VehicleImages` (list) is removed
+outright — no stub — and `ImageIntake/Index` is deleted; the detail page
+stays as the image record. Test UI catalogue route keys follow these moves
+in the same PLAT-029 change set.
 
 ## Component map
 
