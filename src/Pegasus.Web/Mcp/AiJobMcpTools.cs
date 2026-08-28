@@ -198,9 +198,9 @@ internal sealed class AiJobMcpTools(
         Guid jobId,
         long expectedVersion,
         [Description("Estimate, ProposedResolution or DraftReply — must match the job kind.")] string resultKind,
-        [Description("Reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference,
-        [Description("Proposal or draft text, at most 4000 characters.")] string? resultText,
         string operationKey,
+        [Description("Reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference = null,
+        [Description("Proposal or draft text, at most 4000 characters.")] string? resultText = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
@@ -272,8 +272,8 @@ internal sealed class AiJobMcpTools(
     public async Task<AiJobToolItem> ReleaseAsync(
         Guid jobId,
         long expectedVersion,
-        string? reason,
         string operationKey,
+        [Description("Optional, at most 500 characters.")] string? reason = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
