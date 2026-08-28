@@ -148,7 +148,7 @@
       {
         "state": "default",
         "file": "pages/administration--default.html",
-        "branch": "Automation-uncomposed eight-card administration landing.",
+        "branch": "Administration landing on the admin-layout: area rail and area cards, Automation absent when not composed.",
         "scenario": "administration--default"
       }
     ]

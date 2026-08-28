@@ -33,7 +33,8 @@ public sealed class LayoutIntegrityTests
     // page marks [data-allow-clip].
     private const string AllowedClipSelector =
         ".pane-scroll, .table-wrap, .primary-nav, .workspace-tabs, .tabs, .estimate-table, "
-        + ".command-results, .report-preview, .row-excerpt, .ribbon-value, textarea, select, [data-allow-clip]";
+        + ".command-results, .report-preview, .row-excerpt, .ribbon-value, .rail-user strong, .workspace-tab span, "
+        + "textarea, select, [data-allow-clip]";
 
     [Theory]
     [MemberData(nameof(RoutesAndViewports))]

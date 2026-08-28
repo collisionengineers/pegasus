@@ -92,7 +92,7 @@ public sealed class IndexModel(
 
     public bool ShowingNotReady => Queue == "not_ready";
 
-    public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0);
+    public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
 
     /// <summary>Open Unidentified items, so the tab always carries its count.</summary>
     public int UnidentifiedCount { get; private set; }
