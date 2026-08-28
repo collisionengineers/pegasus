@@ -4,10 +4,14 @@ type: ticket
 title: >-
   External-work state vocabulary has three copies in Infrastructure — one
   internal owner
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-28T21:36:22.183Z'
+branch: task/plat-053-external-work-vocabulary
+worktree: >-
+  C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-053-external-work-vocabulary
 labels:
   - backend
   - simplification
@@ -19,7 +23,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T10:58:39.368Z'
-updated: '2026-08-28T10:58:39.368Z'
+updated: '2026-08-28T21:36:22.183Z'
 ---
 
 ## What
