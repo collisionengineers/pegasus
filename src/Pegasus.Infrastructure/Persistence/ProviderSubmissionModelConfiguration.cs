@@ -26,6 +26,7 @@ internal static class ProviderSubmissionModelConfiguration
                 .IsRequired();
             entity.Property(item => item.ProviderReference)
                 .HasMaxLength(ProviderSubmissionPolicy.MaximumProviderReferenceLength);
+            entity.Property(item => item.DeclaredInstructionJson).IsRequired();
             entity.HasIndex(item => new { item.PrincipalId, item.IdempotencyKey }).IsUnique();
         });
     }

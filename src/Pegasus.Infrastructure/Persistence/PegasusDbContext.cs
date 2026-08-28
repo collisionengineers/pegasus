@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
@@ -257,6 +257,14 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DateOfIncident).HasColumnType("date");
             entity.Property(item => item.InstructionDate).HasColumnType("date");
             entity.Property(item => item.InspectionAddress).HasMaxLength(1000);
+            entity.Property(item => item.VehicleMileageUnit).HasMaxLength(40);
+            entity.Property(item => item.VatStatus).HasMaxLength(100);
+            entity.Property(item => item.ClaimantAddress).HasMaxLength(1000);
+            entity.Property(item => item.ClaimantContactNumber).HasMaxLength(100);
+            entity.Property(item => item.FileHandlerName).HasMaxLength(300);
+            entity.Property(item => item.FileHandlerEmailAddress).HasMaxLength(320);
+            entity.Property(item => item.FileHandlerPhoneNumber).HasMaxLength(100);
+            entity.Property(item => item.Notes).HasMaxLength(2000);
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.InstructionDraft)
                 .HasForeignKey<InstructionDraftEntity>(item => item.IntakeReceiptId)
@@ -1423,6 +1431,18 @@ internal sealed class InstructionDraftEntity
     public DateOnly? InstructionDate { get; set; }
     public DateOnly? InspectionDate { get; set; }
     public string? InspectionAddress { get; set; }
+
+    // Declared-instruction fields (API-01). No extraction policy reads these
+    // today; a provider that states its instruction over the API supplies them
+    // directly.
+    public string? VehicleMileageUnit { get; set; }
+    public string? VatStatus { get; set; }
+    public string? ClaimantAddress { get; set; }
+    public string? ClaimantContactNumber { get; set; }
+    public string? FileHandlerName { get; set; }
+    public string? FileHandlerEmailAddress { get; set; }
+    public string? FileHandlerPhoneNumber { get; set; }
+    public string? Notes { get; set; }
 }
 
 internal sealed class IntakeAssetEntity

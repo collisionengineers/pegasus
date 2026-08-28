@@ -1,4 +1,6 @@
+using System.Text;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
@@ -11,189 +13,273 @@ public sealed class ProviderSubmissionTests
     private static readonly Guid PrincipalId = Guid.Parse("0f149cac-e1d4-4a57-925f-7c35d33d7f5b");
     private static readonly Guid OtherPrincipalId = Guid.Parse("7a1b2c3d-0000-4000-8000-000000000001");
     private const string KeyId = "AAAAAAAAAAAAAAAA";
+    private const string PrincipalCode = "QDOS";
     private static readonly PrincipalCredentialAuthentication Active =
         new(PrincipalId, KeyId, PrincipalCredentialState.Active);
     private static readonly PrincipalCredentialAuthentication Paused =
         new(PrincipalId, KeyId, PrincipalCredentialState.Paused);
 
-    private static ProviderSubmissionFile File(int ordinal, byte value = 1) =>
-        new(ordinal, $"instruction-{ordinal}.pdf", "application/pdf", new byte[] { value, 2, 3 });
+    private static ProviderSubmissionFile File(
+        int ordinal,
+        byte value = 1,
+        DocumentSemanticRole? role = null) =>
+        new(ordinal, $"instruction-{ordinal}.pdf", "application/pdf", new byte[] { value, 2, 3 }, role);
+
+    private static ProviderInstruction Instruction(
+        ProviderInstructionKind kind = ProviderInstructionKind.Inspection,
+        AuditAssessment? verdict = null,
+        string? principal = null) =>
+        new(
+            kind,
+            verdict,
+            principal,
+            ClaimNumber: "12345/1",
+            ClaimantName: "Alex Mercer",
+            VehicleRegistration: "AB12CDE");
 
     private static ProviderSubmissionRequest Request(
         PrincipalCredentialAuthentication credential,
         string key = "order-1",
+        ProviderInstruction? instruction = null,
+        byte body = 9,
         params ProviderSubmissionFile[] files) =>
-        new(credential, key, " REF-9 ", files.Length == 0 ? [File(0)] : files, "trace-1");
+        new(
+            credential,
+            key,
+            instruction ?? Instruction(),
+            files.Length == 0 ? [File(0)] : files,
+            Encoding.UTF8.GetBytes($"{{\"body\":{body}}}"),
+            "trace-1");
+
+    private static SubmitProviderInstruction Submit(
+        FakeStore store,
+        FakeIntakeSubmission intake,
+        FakeHistory? history = null) =>
+        new(store, intake, history ?? new FakeHistory(), new FixedTime());
 
     [Fact]
-    public async Task SubmissionEntersGroupedIntakeOnTheProviderChannelBoundToThePrincipalActor()
+    public async Task DeclaredSubmissionIsRetainedAsOneSourceOnTheProviderChannel()
     {
         var store = new FakeStore();
-        var grouped = new FakeGroupedSubmission();
+        var intake = new FakeIntakeSubmission();
         var history = new FakeHistory();
-        var submit = new SubmitProviderInstruction(store, grouped, grouped, history, new FixedTime());
 
-        var receipt = await submit.ExecuteAsync(Request(Active, files: [File(0), File(1, 9)]), default);
+        var receipt = await Submit(store, intake, history).ExecuteAsync(
+            Request(Active, files: [File(0), File(1, value: 7)]),
+            CancellationToken.None);
 
-        var request = Assert.Single(grouped.Requests);
-        Assert.Equal(IntakeSourceChannel.ProviderApi, request.Channel);
-        Assert.Equal(ProviderSubmissionPolicy.SubmissionToken(receipt.SubmissionId), request.SubmissionToken);
-        Assert.Equal($"provider:{PrincipalId:D}", request.Actor);
-        Assert.All(request.Files, file => Assert.Equal(request.Actor, file.Source.Actor));
-        Assert.Equal([0, 1], request.Files.Select(file => file.Ordinal));
-        Assert.Equal("REF-9", receipt.ProviderReference);
+        // One submission is one receipt: the request as sent, carrying its files
+        // the way an e-mail carries its attachments.
+        var source = Assert.Single(intake.Sources);
+        Assert.Equal(IntakeSourceChannel.ProviderApi, source.SourceIdentity.Channel);
+        Assert.Equal(ProviderInstructionPolicy.SourceFileName, source.FileName);
+        Assert.Equal(ProviderInstructionPolicy.SourceMediaType, source.MediaType);
+        Assert.Equal(receipt.SubmissionId.ToString("N"), source.SourceIdentity.ExternalReceiptToken);
         Assert.False(receipt.Replayed);
+
+        // The declaration is retained with the submission, so processing never
+        // has to re-read the body to know what was instructed.
+        var stored = Assert.Single(store.Records.Values);
+        Assert.Equal("12345/1", stored.Instruction?.ClaimNumber);
+        Assert.Equal(ProviderInstructionKind.Inspection, stored.Instruction?.Kind);
+
         Assert.Equal(2, receipt.Files.Count);
-        var record = Assert.Single(store.Records.Values);
-        Assert.Equal(PrincipalId, record.PrincipalId);
-        Assert.Equal(KeyId, record.KeyId);
-        Assert.Equal("order-1", record.IdempotencyKey);
-        var entry = Assert.Single(history.Entries);
-        Assert.Equal(ActorKind.Provider, entry.Actor.Kind);
-        Assert.Equal(PrincipalId.ToString("D"), entry.Actor.SubjectId);
-        Assert.Equal("Accepted", entry.Outcome);
-        Assert.Equal(receipt.SubmissionId.ToString("D"), entry.AggregateId);
+        Assert.All(receipt.Files, file => Assert.False(file.IsDuplicate));
+        Assert.Equal(ActorKind.Provider, Assert.Single(history.Entries).Actor.Kind);
     }
 
     [Fact]
     public async Task PausedCredentialIsRefusedBeforeAnythingIsRetained()
     {
         var store = new FakeStore();
-        var grouped = new FakeGroupedSubmission();
-        var submit = new SubmitProviderInstruction(store, grouped, grouped, new FakeHistory(), new FixedTime());
+        var intake = new FakeIntakeSubmission();
 
-        var refused = await Assert.ThrowsAsync<ProviderSubmissionException>(
-            () => submit.ExecuteAsync(Request(Paused), default));
+        var error = await Assert.ThrowsAsync<ProviderSubmissionException>(
+            () => Submit(store, intake).ExecuteAsync(Request(Paused), CancellationToken.None));
 
-        Assert.Equal(ProviderSubmissionError.CredentialPaused, refused.Error);
+        Assert.Equal(ProviderSubmissionError.CredentialPaused, error.Error);
         Assert.Empty(store.Records);
-        Assert.Empty(grouped.Requests);
+        Assert.Empty(intake.Sources);
     }
 
     [Fact]
-    public async Task ReplayOfTheSameKeyReturnsTheSameSubmissionAndDifferentContentFailsClosed()
+    public async Task ABodyNamingAnotherPrincipalIsRefusedRatherThanRedirected()
     {
         var store = new FakeStore();
-        var grouped = new FakeGroupedSubmission();
-        var history = new FakeHistory();
-        var submit = new SubmitProviderInstruction(store, grouped, grouped, history, new FixedTime());
+        var intake = new FakeIntakeSubmission();
 
-        var first = await submit.ExecuteAsync(Request(Active), default);
-        var replay = await submit.ExecuteAsync(Request(Active), default);
+        var error = await Assert.ThrowsAsync<ProviderSubmissionException>(
+            () => Submit(store, intake).ExecuteAsync(
+                Request(Active, instruction: Instruction(principal: "OTHER")),
+                CancellationToken.None));
+
+        Assert.Equal(ProviderSubmissionError.PrincipalMismatch, error.Error);
+        Assert.Empty(store.Records);
+        Assert.Empty(intake.Sources);
+    }
+
+    [Fact]
+    public async Task ABodyNamingItsOwnPrincipalIsAccepted()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+
+        var receipt = await Submit(store, intake).ExecuteAsync(
+            Request(Active, instruction: Instruction(principal: " qdos ")),
+            CancellationToken.None);
+
+        Assert.NotEqual(Guid.Empty, receipt.SubmissionId);
+    }
+
+    [Fact]
+    public async Task ReplayReturnsTheSameSubmissionAndADifferentBodyFailsClosed()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var submit = Submit(store, intake);
+
+        var first = await submit.ExecuteAsync(Request(Active), CancellationToken.None);
+        var replay = await submit.ExecuteAsync(Request(Active), CancellationToken.None);
+
         Assert.Equal(first.SubmissionId, replay.SubmissionId);
         Assert.True(replay.Replayed);
         Assert.Single(store.Records);
-        Assert.Equal("Replayed", history.Entries[^1].Outcome);
 
-        var conflict = await Assert.ThrowsAsync<ProviderSubmissionException>(
-            () => submit.ExecuteAsync(Request(Active, files: [File(0, 7)]), default));
-        Assert.Equal(ProviderSubmissionError.IdempotencyKeyConflict, conflict.Error);
-        Assert.Equal("Refused", history.Entries[^1].Outcome);
-
-        var countConflict = await Assert.ThrowsAsync<ProviderSubmissionException>(
-            () => submit.ExecuteAsync(Request(Active, files: [File(0), File(1)]), default));
-        Assert.Equal(ProviderSubmissionError.IdempotencyKeyConflict, countConflict.Error);
+        var error = await Assert.ThrowsAsync<ProviderSubmissionException>(
+            () => submit.ExecuteAsync(Request(Active, body: 42), CancellationToken.None));
+        Assert.Equal(ProviderSubmissionError.IdempotencyKeyConflict, error.Error);
     }
 
     [Fact]
     public async Task LosingAConcurrentInsertResolvesToTheWinnersSubmission()
     {
         var store = new FakeStore { ConflictOnce = true };
-        var grouped = new FakeGroupedSubmission();
-        var submit = new SubmitProviderInstruction(store, grouped, grouped, new FakeHistory(), new FixedTime());
+        var intake = new FakeIntakeSubmission();
 
-        var receipt = await submit.ExecuteAsync(Request(Active), default);
+        var receipt = await Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None);
 
+        Assert.Single(store.Records);
         Assert.Equal(store.Records.Keys.Single(), receipt.SubmissionId);
     }
 
     [Fact]
-    public async Task EnvelopeLimitsAreTheStaffUploadLimits()
+    public async Task TheEnvelopeIsBoundedByFileCountBySingleFileAndByTotal()
     {
         var store = new FakeStore();
-        var grouped = new FakeGroupedSubmission();
-        var submit = new SubmitProviderInstruction(store, grouped, grouped, new FakeHistory(), new FixedTime());
+        var intake = new FakeIntakeSubmission();
+        var submit = Submit(store, intake);
 
-        var tooMany = Enumerable.Range(0, IntakeEnvelopeLimits.MaximumBatchFileCount + 1)
-            .Select(ordinal => File(ordinal))
+        var tooMany = Enumerable
+            .Range(0, IntakeEnvelopeLimits.MaximumBatchFileCount + 1)
+            .Select(ordinal => File(ordinal, (byte)(ordinal % 250 + 1)))
             .ToArray();
-        var count = await Assert.ThrowsAsync<ProviderSubmissionException>(
-            () => submit.ExecuteAsync(Request(Active, files: tooMany), default));
-        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, count.Error);
+        Assert.Equal(
+            ProviderSubmissionError.EnvelopeExceeded,
+            (await Assert.ThrowsAsync<ProviderSubmissionException>(
+                () => submit.ExecuteAsync(Request(Active, files: tooMany), CancellationToken.None))).Error);
 
-        var oversize = new ProviderSubmissionFile(
-            0, "big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumContentLength + 1]);
-        var size = await Assert.ThrowsAsync<ProviderSubmissionException>(
-            () => submit.ExecuteAsync(Request(Active, files: oversize), default));
-        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, size.Error);
+        var oversizeFile = new ProviderSubmissionFile(
+            0,
+            "big.pdf",
+            "application/pdf",
+            new byte[IntakeEnvelopeLimits.MaximumContentLength + 1]);
+        Assert.Equal(
+            ProviderSubmissionError.EnvelopeExceeded,
+            (await Assert.ThrowsAsync<ProviderSubmissionException>(
+                () => submit.ExecuteAsync(Request(Active, files: [oversizeFile]), CancellationToken.None))).Error);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => submit.ExecuteAsync(Request(Active, files: File(1)), default));
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => submit.ExecuteAsync(Request(Active, key: " "), default));
-        await Assert.ThrowsAsync<ArgumentException>(
+        // Four files each inside the per-file bound still exceed the envelope,
+        // which is the bound base64 in one request body actually costs.
+        var eachUnderTheFileBound = Enumerable
+            .Range(0, 4)
+            .Select(ordinal => new ProviderSubmissionFile(
+                ordinal,
+                $"big-{ordinal}.pdf",
+                "application/pdf",
+                new byte[IntakeEnvelopeLimits.MaximumContentLength]))
+            .ToArray();
+        Assert.Equal(
+            ProviderSubmissionError.EnvelopeExceeded,
+            (await Assert.ThrowsAsync<ProviderSubmissionException>(
+                () => submit.ExecuteAsync(
+                    Request(Active, files: eachUnderTheFileBound),
+                    CancellationToken.None))).Error);
+
+        Assert.Empty(intake.Sources);
+    }
+
+    [Fact]
+    public async Task AnAuditMustAttachItsOriginalReportAndOnlyAnAuditCarriesAVerdict()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var submit = Submit(store, intake);
+
+        // The declared verdict decides the reference (operator, 2026-08-28), but
+        // the Engineer still needs the report they are auditing.
+        var missingReport = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
             () => submit.ExecuteAsync(
-                Request(Active, files: new ProviderSubmissionFile(0, "../x.pdf", "application/pdf", new byte[] { 1 })),
-                default));
-        Assert.Empty(store.Records);
+                Request(
+                    Active,
+                    instruction: Instruction(ProviderInstructionKind.Audit, AuditAssessment.Repairable)),
+                CancellationToken.None));
+        Assert.Equal("files", missingReport.Field);
+
+        var noVerdict = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
+            () => submit.ExecuteAsync(
+                Request(Active, instruction: Instruction(ProviderInstructionKind.Audit)),
+                CancellationToken.None));
+        Assert.Equal("originalReportVerdict", noVerdict.Field);
+
+        // Inspection + Audit audits Collision Engineers' own report, so it has
+        // no incoming report and no verdict to state (FRD-01 § Case types).
+        var strayVerdict = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
+            () => submit.ExecuteAsync(
+                Request(
+                    Active,
+                    instruction: Instruction(ProviderInstructionKind.AuditReport, AuditAssessment.TotalLoss)),
+                CancellationToken.None));
+        Assert.Equal("originalReportVerdict", strayVerdict.Field);
+
+        var accepted = await submit.ExecuteAsync(
+            Request(
+                Active,
+                instruction: Instruction(ProviderInstructionKind.Audit, AuditAssessment.Repairable),
+                files: [File(0), File(1, value: 7, role: DocumentSemanticRole.AuditReport)]),
+            CancellationToken.None);
+        Assert.NotEqual(Guid.Empty, accepted.SubmissionId);
     }
 
     [Fact]
     public async Task ResultIsReadableWhilePausedAndNeverAcrossPrincipals()
     {
         var store = new FakeStore();
-        var grouped = new FakeGroupedSubmission();
-        var submit = new SubmitProviderInstruction(store, grouped, grouped, new FakeHistory(), new FixedTime());
-        var receipt = await submit.ExecuteAsync(Request(Active, files: [File(0), File(1)]), default);
-        var member = grouped.Group!.Members[0];
+        var intake = new FakeIntakeSubmission();
+        var receipt = await Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None);
+
         var status = new FakeStatus();
-        status.Statuses[member.StagedReceiptId] = new(
-            member.StagedReceiptId, member.SourceFileName, Now, QueuedIntakeStatusKind.Complete,
-            Guid.NewGuid(), null, null);
-        status.Receipts[status.Statuses[member.StagedReceiptId].ProcessedReceiptId!.Value] =
-            Receipt(IntakeDecision.CaseCreated, "QDOS-000123", null);
-        var get = new GetProviderSubmissionResult(store, grouped, status, status);
+        var staged = intake.StagedIds.Single();
+        status.Statuses[staged] = new(
+            staged,
+            ProviderInstructionPolicy.SourceFileName,
+            Now,
+            QueuedIntakeStatusKind.Complete,
+            ProcessedReceiptId: null,
+            CaseId: null,
+            FailureCode: null);
+        var result = new GetProviderSubmissionResult(store, status, status);
 
-        var result = await get.ExecuteAsync(Paused, receipt.SubmissionId, default);
+        var paused = await result.ExecuteAsync(Paused, receipt.SubmissionId, CancellationToken.None);
+        Assert.NotNull(paused);
+        Assert.Equal(QueuedIntakeStatusKind.Complete, paused.Status);
 
-        Assert.NotNull(result);
-        Assert.Equal(QueuedIntakeStatusKind.Received, result.Status);
-        Assert.Equal("QDOS-000123", result.CaseReference);
-        Assert.Equal(IntakeDecision.CaseCreated, result.Files[0].Decision);
-        Assert.Null(result.Files[0].AllocationFailure);
-        Assert.Equal("QDOS-000123", result.Files[0].CaseReference);
-        Assert.Equal(QueuedIntakeStatusKind.Received, result.Files[1].Status);
-        Assert.Null(result.Files[1].Decision);
-
-        Assert.Null(await get.ExecuteAsync(
-            new(OtherPrincipalId, KeyId, PrincipalCredentialState.Active), receipt.SubmissionId, default));
-        Assert.Null(await get.ExecuteAsync(Active, Guid.NewGuid(), default));
+        // Another Principal's submission and one that does not exist are the
+        // same answer: nothing (FRD-09 fails closed on cross-principal reads).
+        var foreign = new PrincipalCredentialAuthentication(
+            OtherPrincipalId, KeyId, PrincipalCredentialState.Active);
+        Assert.Null(await result.ExecuteAsync(foreign, receipt.SubmissionId, CancellationToken.None));
+        Assert.Null(await result.ExecuteAsync(Active, Guid.NewGuid(), CancellationToken.None));
     }
-
-    [Fact]
-    public void TheProviderActorHoldsOnlyItsOwnRight()
-    {
-        var actor = ActionActor.Provider(PrincipalId);
-        Assert.Equal(ActorKind.Provider, actor.Kind);
-        Assert.True(StaffAuthorization.IsAuthorized(actor, StaffAccessRight.SubmitProviderInstruction));
-        Assert.All(
-            Enum.GetValues<StaffAccessRight>().Where(right => right != StaffAccessRight.SubmitProviderInstruction),
-            right => Assert.False(StaffAuthorization.IsAuthorized(actor, right)));
-        Assert.False(StaffAuthorization.IsAuthorized(
-            ActionActor.Automation("automation"), StaffAccessRight.SubmitProviderInstruction));
-        Assert.Throws<ArgumentException>(() => ActionActor.Provider(Guid.Empty));
-    }
-
-    private static IntakeReceipt Receipt(
-        IntakeDecision decision,
-        string? caseReference,
-        IntakeAllocationFailureKind? failureKind) =>
-        new(
-            Guid.NewGuid(), "instruction-0.pdf", "application/pdf", 3, "HASH",
-            new(IntakeSourceChannel.ProviderApi, "token"), Now, Now, decision, "reason",
-            [], [], null, [], null, null, false, "reader", "1", null, null,
-            AllocationState: new(Guid.NewGuid(), IntakeAllocationProjectionStatus.Succeeded, null, Now, failureKind),
-            AcceptedCaseReference: caseReference);
 
     private sealed class FixedTime : TimeProvider
     {
@@ -233,67 +319,56 @@ public sealed class ProviderSubmissionTests
 
         public Task<ProviderSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Records.GetValueOrDefault(id));
+
+        public Task<string?> FindPrincipalCodeAsync(Guid principalId, CancellationToken cancellationToken) =>
+            Task.FromResult(principalId == PrincipalId ? PrincipalCode : null);
+
+        public Task RecordStagedReceiptAsync(
+            Guid submissionId, Guid stagedReceiptId, CancellationToken cancellationToken)
+        {
+            if (Records.TryGetValue(submissionId, out var record))
+            {
+                Records[submissionId] = record with { StagedReceiptId = stagedReceiptId };
+            }
+
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>
-    /// Stands in for the grouped owner and its store together: one group per
-    /// token, content-hash dedup per ordinal, conflict on a changed hash.
+    /// One retained source per identity, with the same identity-conflict rule
+    /// the real receiver enforces: the same token with different bytes is a
+    /// visible conflict, never a second receipt.
     /// </summary>
-    private sealed class FakeGroupedSubmission : IGroupedIntakeSubmission, IIntakeSubmissionGroupStore
+    private sealed class FakeIntakeSubmission : IIntakeSubmission
     {
-        public List<GroupedIntakeSubmissionRequest> Requests { get; } = [];
-        public IntakeSubmissionGroup? Group { get; private set; }
+        private readonly Dictionary<string, (Guid Id, string Hash)> retained = new(StringComparer.Ordinal);
 
-        public Task<GroupedIntakeSubmissionResult> ExecuteAsync(
-            GroupedIntakeSubmissionRequest request, CancellationToken cancellationToken = default)
+        public List<IntakeSource> Sources { get; } = [];
+
+        public IReadOnlyCollection<Guid> StagedIds => retained.Values.Select(item => item.Id).ToArray();
+
+        public Task<ReceivedIntake> ExecuteAsync(
+            IntakeSource source, string operationKey, CancellationToken cancellationToken = default)
         {
-            Requests.Add(request);
-            var members = new List<IntakeSubmissionGroupMember>();
-            foreach (var file in request.Files)
+            var token = source.SourceIdentity.ExternalReceiptToken;
+            var hash = ProviderSubmissionPolicy.Sha256(source.Content);
+            if (retained.TryGetValue(token, out var existing))
             {
-                var hash = ProviderSubmissionPolicy.Sha256(file.Source.Content);
-                var existing = Group?.Members.SingleOrDefault(member => member.Ordinal == file.Ordinal);
-                if (existing is not null && existing.SourceHash != hash)
+                if (!string.Equals(existing.Hash, hash, StringComparison.Ordinal))
                 {
-                    throw new IntakeSourceIdentityConflictException(existing.SourceHash, hash);
+                    throw new IntakeSourceIdentityConflictException();
                 }
 
-                members.Add(existing is null
-                    ? new(Group?.Id ?? Guid.NewGuid(), file.Ordinal, Guid.NewGuid(), file.Source.FileName, hash, false)
-                    : existing with { IsDuplicate = true });
+                return Task.FromResult(new ReceivedIntake(existing.Id, IsDuplicate: true));
             }
 
-            Group = Group is null
-                ? new(members[0].GroupId, request.Channel, request.SubmissionToken, request.Files.Count,
-                    request.Actor, request.ReceivedAtUtc, members)
-                : Group with { Members = members };
-            return Task.FromResult(new GroupedIntakeSubmissionResult(Group, members));
+            var id = Guid.NewGuid();
+            retained[token] = (id, hash);
+            Sources.Add(source);
+            return Task.FromResult(new ReceivedIntake(id, IsDuplicate: false));
         }
 
-        public Task<IntakeSubmissionGroup?> FindAsync(
-            IntakeSourceChannel channel, string submissionToken, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Group is { } group && group.Channel == channel && group.SubmissionToken == submissionToken
-                ? group
-                : null);
-
-        public Task<IntakeSubmissionGroup?> GetAsync(Guid groupId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IntakeSubmissionGroup> GetOrCreateAsync(
-            Guid groupId, IntakeSourceChannel channel, string submissionToken, int expectedMemberCount,
-            string actor, DateTimeOffset receivedAtUtc, Guid? parentReceiptId,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-            Guid groupId, int ordinal, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IntakeSubmissionGroupMember> AddMemberAsync(
-            Guid groupId, int ordinal, ReceivedIntake received, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
-            Guid groupId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeHistory : IActionHistoryWriter

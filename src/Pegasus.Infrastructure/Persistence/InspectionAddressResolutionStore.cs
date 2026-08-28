@@ -142,7 +142,7 @@ public sealed class InspectionAddressResolutionStore(
         evidence.Add(new(
             // A supplied address has no extracted provenance to name, because
             // there was none; the staff member who typed it is the source.
-            ToCode(suggestion is null
+            IntakeEvidenceSourceCodes.ToCode(suggestion is null
                 ? IntakeEvidenceSource.StaffCorrection
                 : suggestion.Provenance[0].Source),
             "strong",
@@ -467,7 +467,7 @@ public sealed class InspectionAddressResolutionStore(
                 field.SuggestedValue,
                 field.Candidates.Select(candidate => new InstructionFieldCandidate(
                     candidate.Value,
-                    ParseSource(candidate.Source),
+                    IntakeEvidenceSourceCodes.Parse(candidate.Source),
                     candidate.SourceLabel)).ToArray(),
                 field.IsDefaulted,
                 field.HasConflict))
@@ -484,36 +484,6 @@ public sealed class InspectionAddressResolutionStore(
 
         return envelope.Data;
     }
-
-    private static string ToCode(IntakeEvidenceSource source) => source switch
-    {
-        IntakeEvidenceSource.EmailBody => "email_body",
-        IntakeEvidenceSource.PdfContent => "pdf_content",
-        IntakeEvidenceSource.DocumentContent => "document_content",
-        IntakeEvidenceSource.ImageContent => "image_content",
-        IntakeEvidenceSource.Sender => "sender",
-        IntakeEvidenceSource.Subject => "subject",
-        IntakeEvidenceSource.FileName => "file_name",
-        IntakeEvidenceSource.MimeType => "mime_type",
-        IntakeEvidenceSource.StaffCorrection => "staff_correction",
-        IntakeEvidenceSource.SystemDefault => "system_default",
-        _ => throw new InvalidOperationException($"Unknown intake evidence source '{(int)source}'.")
-    };
-
-    private static IntakeEvidenceSource ParseSource(string source) => source switch
-    {
-        "email_body" => IntakeEvidenceSource.EmailBody,
-        "pdf_content" => IntakeEvidenceSource.PdfContent,
-        "document_content" => IntakeEvidenceSource.DocumentContent,
-        "image_content" => IntakeEvidenceSource.ImageContent,
-        "sender" => IntakeEvidenceSource.Sender,
-        "subject" => IntakeEvidenceSource.Subject,
-        "file_name" => IntakeEvidenceSource.FileName,
-        "mime_type" => IntakeEvidenceSource.MimeType,
-        "staff_correction" => IntakeEvidenceSource.StaffCorrection,
-        "system_default" => IntakeEvidenceSource.SystemDefault,
-        _ => throw new InvalidDataException($"Unknown persisted intake evidence source '{source}'.")
-    };
 
     private sealed record VersionedEnvelope<T>(int Version, T Data);
     private sealed record PersistedEvidence(

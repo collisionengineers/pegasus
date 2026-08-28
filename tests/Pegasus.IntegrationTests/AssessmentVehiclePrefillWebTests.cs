@@ -173,7 +173,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             workflow.State,
             new(new(true, true, true, true), new(true, "test", 1)),
             new(Empty<string>()),
-            new(Empty<string>()),
+            new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),
             new(Fact("AB12CDE"), Fact("FORD"), Fact("FOCUS"), Fact(40000L), Fact("miles")),
             new(Empty<DateOnly>(), Empty<string>()),

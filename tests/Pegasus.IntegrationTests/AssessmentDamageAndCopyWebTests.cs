@@ -222,7 +222,7 @@ public sealed partial class AssessmentDamageAndCopyWebTests
             CaseLifecycleState.Review,
             new(new(true, true, false, false), new(true, "policy", 1)),
             new(Empty<string>()),
-            new(Empty<string>()),
+            new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),

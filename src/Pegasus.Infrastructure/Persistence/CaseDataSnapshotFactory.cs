@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
@@ -192,6 +192,13 @@ internal static class CaseDataSnapshotFactory
             "Inspection date",
             CaseDataCodes.Date,
             Date(draft.InspectionDate));
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantContactNumber, "Claimant contact number", CaseDataCodes.Text, draft.ClaimantContactNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantAddress, "Claimant address", CaseDataCodes.Text, draft.ClaimantAddress);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactName, "Contact name", CaseDataCodes.Text, draft.FileHandlerName);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactEmailAddress, "Contact email", CaseDataCodes.Text, draft.FileHandlerEmailAddress);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactPhoneNumber, "Contact phone", CaseDataCodes.Text, draft.FileHandlerPhoneNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VatStatus, "VAT status", CaseDataCodes.Text, draft.VatStatus);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMileageUnit, "Vehicle mileage unit", CaseDataCodes.Text, draft.VehicleMileageUnit);
         var suggestedInspectionAddress = fields.SingleOrDefault(
                 field => string.Equals(
                     field.Name,
@@ -227,7 +234,8 @@ internal static class CaseDataSnapshotFactory
 
         var mileageField = fields.SingleOrDefault(
             field => string.Equals(field.Name, "Vehicle mileage", StringComparison.Ordinal));
-        if (mileageField?.SuggestedValue is { } suggestedMileage
+        if (draft.VehicleMileageUnit is null
+            && mileageField?.SuggestedValue is { } suggestedMileage
             && HasExplicitMilesUnit(suggestedMileage))
         {
             AddExtractedValue(
@@ -382,9 +390,15 @@ internal static class CaseDataSnapshotFactory
             // on the field. Recording it as evidence would have the case claim
             // the document said something it never said, and the confirmed row
             // inherits this kind, so the mislabelling would carry through.
-            SourceKind = candidate.Source == IntakeEvidenceSource.StaffCorrection
-                ? CaseDataCodes.StaffCorrection
-                : CaseDataCodes.IntakeEvidence,
+            SourceKind = candidate.Source switch
+            {
+                IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
+                // FRD-02 names the provider API as a provenance in its own
+                // right. A value the instructing Principal stated is neither
+                // something a document said nor something a person here keyed.
+                IntakeEvidenceSource.ProviderDeclaration => CaseDataCodes.ProviderApi,
+                _ => CaseDataCodes.IntakeEvidence
+            },
             SourceIdentity = receipt.Id.ToString("D"),
             SourceLabel = $"{candidate.Source}:{candidate.SourceLabel}",
             PolicyKey = receipt.ExtractionPolicyKey!,

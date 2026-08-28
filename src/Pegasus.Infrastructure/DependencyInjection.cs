@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.AiWork;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -426,7 +426,12 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
-            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            // The Provider API reader decorates the ordinary one: it answers for
+            // its own channel and defers for every other (API-01).
+            services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            services.AddScoped<IIntakeSourceReader>(provider =>
+                new ProviderApiIntakeSourceReader(
+                    provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
 
             // Shared by both EVA routes so the archive and the API submission

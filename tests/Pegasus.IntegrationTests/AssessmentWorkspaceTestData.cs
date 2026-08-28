@@ -27,7 +27,7 @@ internal static class AssessmentWorkspaceTestData
                 new CaseCompleteness(false, false, false, false),
                 new CaseCompletenessEvaluation(false, "test", 1)),
             new CaseProviderData(emptyString),
-            new CaseClaimantData(emptyString),
+            new CaseClaimantData(emptyString, emptyString, emptyString),
             new CaseClaimData(emptyString),
             new CaseVehicleData(
                 emptyString, emptyString, emptyString,

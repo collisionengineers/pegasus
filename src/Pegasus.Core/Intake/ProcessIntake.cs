@@ -22,9 +22,6 @@ public sealed class ProcessIntake(
     IProviderSubmissionBindings? providerSubmissionBindings = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
-    private const string ProviderApiPrincipalPolicyKey = "provider_api_credential";
-    private const int ProviderApiPrincipalPolicyVersion = 1;
-
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default) =>
@@ -375,7 +372,14 @@ public sealed class ProcessIntake(
         MailClassificationResult? classification,
         CancellationToken cancellationToken)
     {
-        if (classification?.StandaloneAuditReport is not { } report)
+        // An e-mailed Audit has its report identified by the route's own
+        // classification; a Provider API Audit has it declared, and the verdict
+        // with it (operator decision, 2026-08-28). Either way exactly one
+        // retained attachment is the original report and one AuditAssessment
+        // derives the a./ap. reference.
+        var report = classification?.StandaloneAuditReport
+            ?? await DeclaredAuditReportAsync(receipt, cancellationToken);
+        if (report is null)
         {
             return;
         }
@@ -396,6 +400,27 @@ public sealed class ProcessIntake(
         await automaticStandaloneAuditEvidence.ExecuteAsync(
             new(receipt.Id, receipt.Version, reportAsset.Id, report.Assessment),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// The original report a Provider API Audit declared, or null when the
+    /// receipt is not one. The verdict is the Principal's own: the operator
+    /// ruled on 2026-08-28 that a declared verdict decides the reference,
+    /// replacing the read of the report's literal outcome for this route.
+    /// </summary>
+    private async Task<StandaloneAuditReportEvaluation?> DeclaredAuditReportAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.ProviderApi)
+        {
+            return null;
+        }
+
+        var binding = await FindProviderBindingAsync(receipt.SourceIdentity, cancellationToken);
+        return binding?.Instruction is { Kind: ProviderInstructionKind.Audit, OriginalReportVerdict: { } verdict }
+            ? new(ProviderInstructionPolicy.OriginalReportSourceLabel, verdict)
+            : null;
     }
 
     private async Task<IntakeAssessment> AssessAsync(
@@ -450,6 +475,29 @@ public sealed class ProcessIntake(
                 null);
         }
 
+        if (sourceChannel == IntakeSourceChannel.ProviderApi)
+        {
+            // A provider states its instruction; nothing about it is read out of
+            // the submitted files, and no mail route or extraction policy
+            // applies. A source with no retained submission binding is refused
+            // rather than guessed at.
+            var binding = await FindProviderBindingAsync(sourceIdentity, cancellationToken);
+            return binding is null
+                ? new(
+                    IntakeDecision.NeedsSorting,
+                    "The submission this source belongs to was not found.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+                : DeclaredAssessment(binding, readerEvidence, processedAtUtc);
+        }
+
         var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel);
         if (mailRouteDecision is not null
             && mailRouteDecision.Disposition != MailRouteDisposition.Accepted)
@@ -468,9 +516,7 @@ public sealed class ProcessIntake(
                 mailRouteDecision);
         }
 
-        var principalContext = sourceChannel == IntakeSourceChannel.ProviderApi
-            ? await EstablishProviderPrincipalContextAsync(sourceIdentity, cancellationToken)
-            : EstablishPrincipalContext(mailRouteDecision);
+        var principalContext = EstablishPrincipalContext(mailRouteDecision);
         var mailClassificationDecision = EvaluateMailClassification(
             readResult,
             principalContext?.PrincipalCode);
@@ -519,28 +565,6 @@ public sealed class ProcessIntake(
                 principalContext.PrincipalCode,
                 StringComparison.Ordinal))
         {
-            if (sourceChannel == IntakeSourceChannel.ProviderApi)
-            {
-                // The credential establishes the Principal, but only a Principal
-                // with an instruction extraction policy can be allocated on
-                // automatically; anything else is retained for sorting rather
-                // than treated as a misconfigured route (API-01, FRD-09).
-                return new(
-                    IntakeDecision.NeedsSorting,
-                    "The provider's principal has no instruction extraction policy for automatic case creation.",
-                    readerEvidence,
-                    [],
-                    null,
-                    [],
-                    null,
-                    null,
-                    null,
-                    null,
-                    mailRouteDecision,
-                    mailClassificationDecision,
-                    caseMatchDecision);
-            }
-
             throw new InvalidOperationException(
                 "The established principal has no matching instruction extraction policy.");
         }
@@ -661,9 +685,8 @@ public sealed class ProcessIntake(
 
     /// <summary>
     /// Classification belongs to the established Principal — the accepted
-    /// route's work provider, or the Principal a Provider API credential
-    /// bound the source to — so a provider-submitted instruction is typed by
-    /// the same policy as the equivalent e-mail (FRD-09).
+    /// route's work provider. A Provider API submission never reaches here: its
+    /// Principal declares the instruction's type rather than having it read.
     /// </summary>
     private MailClassificationResult? EvaluateMailClassification(
         IntakeSourceReadResult readResult,
@@ -696,21 +719,70 @@ public sealed class ProcessIntake(
     /// content or a sender. A source without a binding fails closed to
     /// sorting.
     /// </summary>
-    private async Task<EstablishedPrincipalContext?> EstablishProviderPrincipalContextAsync(
+    private Task<ProviderSubmissionBinding?> FindProviderBindingAsync(
         IntakeSourceIdentity sourceIdentity,
-        CancellationToken cancellationToken)
-    {
-        if (providerSubmissionBindings is null)
-        {
-            return null;
-        }
+        CancellationToken cancellationToken) =>
+        providerSubmissionBindings is null
+            ? Task.FromResult<ProviderSubmissionBinding?>(null)
+            : providerSubmissionBindings.FindAsync(sourceIdentity, cancellationToken);
 
-        var principalCode = await providerSubmissionBindings.FindPrincipalCodeAsync(
-            sourceIdentity,
-            cancellationToken);
-        return principalCode is null
-            ? null
-            : new(principalCode, ProviderApiPrincipalPolicyKey, ProviderApiPrincipalPolicyVersion);
+    /// <summary>
+    /// The assessment for a submission whose Principal declared its instruction
+    /// (API-01). Nothing is extracted: the values are the ones the authenticated
+    /// Principal stated, and they are recorded as review fields carrying
+    /// <see cref="IntakeEvidenceSource.ProviderDeclaration"/> so the case shows
+    /// where each came from.
+    ///
+    /// This is a substitution, not a second pipeline. Everything downstream —
+    /// allocation, Triage creation, custody, action history, the durable Worker
+    /// path — runs exactly as it does for an e-mail instruction.
+    /// </summary>
+    private static IntakeAssessment DeclaredAssessment(
+        ProviderSubmissionBinding binding,
+        IReadOnlyList<IntakeEvidence> readerEvidence,
+        DateTimeOffset processedAtUtc)
+    {
+        var instruction = binding.Instruction;
+        var isTriage = instruction.Kind == ProviderInstructionKind.Triage;
+        var draft = ProviderInstructionPolicy.ToDraft(
+            instruction,
+            binding.PrincipalCode,
+            LondonCalendar.DateAt(processedAtUtc));
+        var fields = ProviderInstructionPolicy.ReviewFields(draft);
+        var missingFields = InstructionDraftCompleteness.MissingFieldNames(draft);
+        IntakeEvidence[] evidence = isTriage
+            ?
+            [
+                .. readerEvidence,
+                ProviderInstructionPolicy.DeclarationEvidence(instruction.Kind),
+                ProviderInstructionPolicy.TriageEvidence()
+            ]
+            : [.. readerEvidence, ProviderInstructionPolicy.DeclarationEvidence(instruction.Kind)];
+
+        // The identity-critical fields are the only ones that may withhold a
+        // reference; ordinary detail missing from a declaration leaves the case
+        // Not ready exactly as it does for an e-mail (FRD-02).
+        var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        var decision = missingIdentity.Count > 0 || isTriage
+            ? IntakeDecision.NeedsSorting
+            : IntakeDecision.CaseCreated;
+        var reason = missingIdentity.Count > 0
+            ? $"The declared instruction does not identify the claim: {string.Join(", ", missingIdentity)}."
+            : isTriage
+                ? "A Triage request is pre-case work; no case is created from it."
+                : "The authenticated Principal declared a definitive instruction.";
+        return new(
+            decision,
+            reason,
+            evidence,
+            fields,
+            draft,
+            missingFields,
+            null,
+            null,
+            ProviderInstructionPolicy.PolicyKey,
+            ProviderInstructionPolicy.PolicyVersion,
+            null);
     }
 
     private static EstablishedPrincipalContext? EstablishPrincipalContext(

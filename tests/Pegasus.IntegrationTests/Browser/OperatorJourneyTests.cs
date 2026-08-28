@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -555,7 +555,7 @@ public sealed class OperatorJourneyTests
                 CaseLifecycleState.Review,
                 new(new(true, true, true, true), new(true, "browser-completeness", 1)),
                 new(CaseField(fixture.WorkProvider)),
-                new(CaseField(fixture.ClaimantName)),
+                new(CaseField(fixture.ClaimantName), EmptyCaseField<string>(), EmptyCaseField<string>()),
                 new(CaseField(fixture.Reference)),
                 new(
                     CaseField(fixture.Vrm),
