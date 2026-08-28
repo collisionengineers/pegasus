@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.AiWork;
 
@@ -166,6 +166,50 @@ internal static class AssessmentModelConfiguration
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<AiJobEntity>(entity =>
+        {
+            var states = string.Join(", ", Enum.GetNames<AiJobState>().Select(SqlLiteral));
+            var kinds = string.Join(", ", Enum.GetNames<AiJobKind>().Select(SqlLiteral));
+            var subjects = string.Join(", ", Enum.GetNames<AiJobSubjectKind>().Select(SqlLiteral));
+            var results = string.Join(", ", Enum.GetNames<AiJobResultKind>().Select(SqlLiteral));
+            entity.ToTable("AiJobs", table =>
+            {
+                table.HasCheckConstraint("CK_AiJobs_State", $"[State] IN ({states})");
+                table.HasCheckConstraint("CK_AiJobs_Kind", $"[Kind] IN ({kinds})");
+                table.HasCheckConstraint("CK_AiJobs_SubjectKind", $"[SubjectKind] IN ({subjects})");
+                table.HasCheckConstraint(
+                    "CK_AiJobs_ResultKind",
+                    $"[ResultKind] IS NULL OR [ResultKind] IN ({results})");
+                table.HasCheckConstraint(
+                    "CK_AiJobs_TargetPercent",
+                    "[TargetPercentOfEngineerValue] IS NULL OR [TargetPercentOfEngineerValue] BETWEEN 1 AND 100");
+            });
+            entity.HasKey(item => item.JobId);
+            entity.Property(item => item.JobId).ValueGeneratedNever();
+            entity.Property(item => item.Kind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.SubjectKind).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.SubjectReference).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.Instruction).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.EngineerValueAtSend).HasPrecision(18, 2);
+            entity.Property(item => item.State).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.CreatedByKind).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.TakenBy).HasMaxLength(200);
+            entity.Property(item => item.ProgressNote).HasMaxLength(500);
+            entity.Property(item => item.ResultKind).HasMaxLength(40);
+            entity.Property(item => item.ResultReference).HasMaxLength(200);
+            entity.Property(item => item.ResultText).HasMaxLength(4000);
+            entity.Property(item => item.ClosureReason).HasMaxLength(500);
+            entity.Property(item => item.LastOperationKey).HasMaxLength(100);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.State, item.LeaseExpiresAtUtc });
+            entity.HasIndex(item => item.SubjectId);
+            entity.HasIndex(item => item.CreatedAtUtc);
         });
 
         builder.Entity<SendToAiControlEntity>(entity =>

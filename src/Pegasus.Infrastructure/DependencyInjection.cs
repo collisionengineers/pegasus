@@ -309,6 +309,13 @@ public static class DependencyInjection
         services.AddScoped<ISaveAssessment, SaveAssessment>();
         services.AddScoped<IAiWorkRequestStore, EfAiWorkRequestStore>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
+        services.AddScoped<EfAiJobStore>();
+        services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
+        services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
+        services.AddScoped<ICreateAiJob, CreateAiJob>();
+        services.AddScoped<IWorkAiJob, WorkAiJob>();
+        services.AddScoped<ICancelAiJob, CancelAiJob>();
+        services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
             provider => provider.GetRequiredService<EfCaseTaskStore>());
