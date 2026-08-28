@@ -26,6 +26,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
+using Pegasus.Web.ProviderApi;
 using Pegasus.Web.Pages.Uploads;
 using Pegasus.Web;
 using Azure.Core;
@@ -283,6 +284,10 @@ if ((localDocumentCustodyConfigured || productionProfile)
 // exists. An explicitly configured deployment may enable it in Production.
 var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration);
 
+// The Provider API (API-01) is gated the same way: off by default, and
+// without the flag no /api/provider route, scheme or policy exists.
+var providerApiEnabled = builder.Configuration.GetValue<bool>(ProviderApi.FeatureFlag);
+
 // The Send to AI hand-off (AI-09) follows the same gate pattern: absent by
 // default, DevelopmentOffline-only, and without it the assessment panel
 // renders the unavailable state and no outbound transport exists.
@@ -326,7 +331,9 @@ builder.Services.AddRateLimiter(options =>
                     AutomationMcp.TokenEndpointPath,
                     StringComparison.OrdinalIgnoreCase)
                 ? "automation_rate_limited"
-                : "authentication_rate_limited";
+                : rejectedPath.StartsWithSegments(ProviderApi.BasePath)
+                    ? "provider_api_rate_limited"
+                    : "authentication_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -351,6 +358,22 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = AutomationMcp.RequestsPerClientPerMinute,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    // Partitioned by the presented key id so one provider cannot exhaust
+    // another's budget; a request without a well-shaped secret shares the
+    // caller address's partition instead.
+    options.AddPolicy(
+        ProviderApi.RateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            ProviderApi.TryReadKeyId(context.Request.Headers.Authorization.ToString())
+                ?? context.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = ProviderApi.RequestsPerKeyPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -682,6 +705,10 @@ builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 if (automationMcpOptions is not null)
 {
     builder.Services.AddPegasusAutomationMcp(automationMcpOptions, productVersion);
+}
+if (providerApiEnabled)
+{
+    builder.Services.AddPegasusProviderApi();
 }
 if (sendToAiOptions is not null)
 {
@@ -1028,6 +1055,10 @@ if (automationMcpOptions is not null)
 {
     app.MapPegasusAutomationMcp();
 }
+if (providerApiEnabled)
+{
+    app.MapPegasusProviderApi();
+}
 
 app.Run();
 
@@ -1040,7 +1071,8 @@ static bool IsMachineSurface(PathString path) =>
     path.StartsWithSegments("/health")
     || path.StartsWithSegments("/diagnostics")
     || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
-    || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase);
+    || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
+    || path.StartsWithSegments(ProviderApi.BasePath);
 
 /// <summary>
 /// Creates, updates, or removes the disposable UI-verification Administrator.

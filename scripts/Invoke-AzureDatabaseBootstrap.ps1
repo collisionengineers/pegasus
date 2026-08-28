@@ -371,6 +371,17 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
+    # 20260828111732_GrantProviderSubmissions: TICK-058 added the Provider API
+    # submission record (API-01). Web hosts the API: it inserts one row per
+    # accepted submission and reads rows back for idempotent replay and the
+    # provider's own result lookup. The Worker processes the staged files and
+    # reads the row to bind each one to the Principal whose credential
+    # submitted it; it never writes one. A submission is a fact about a
+    # moment and is never edited or removed: no UPDATE or DELETE for either.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
     return @($expected | Sort-Object -Unique)
 }
 

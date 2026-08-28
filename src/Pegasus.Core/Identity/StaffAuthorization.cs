@@ -17,7 +17,8 @@ public enum StaffAccessRight
     ManageApprovedOutlookCategories,
     ManageAutomationClients,
     ExecuteSystemWork,
-    SubmitRequestUpload
+    SubmitRequestUpload,
+    SubmitProviderInstruction
 }
 
 /// <summary>
@@ -53,6 +54,10 @@ public static class StaffAuthorization
 
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,
             StaffAccessRight.SubmitRequestUpload => actor.Kind == ActorKind.RequestLink,
+            // The Provider API actor (API-01) may only submit its own
+            // Principal's instructions and read its own receipts; every staff,
+            // management and system-work right above stays denied for it.
+            StaffAccessRight.SubmitProviderInstruction => actor.Kind == ActorKind.Provider,
             _ => false
         };
     }

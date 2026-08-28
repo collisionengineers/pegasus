@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.ProviderApi;
 
 namespace Pegasus.Core.Intake;
 
@@ -17,9 +18,12 @@ public sealed class ProcessIntake(
     EvaluateIntakeCaseMatch caseMatchEvaluator,
     TimeProvider timeProvider,
     IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
-    IRegisterUnidentified? registerUnidentified = null)
+    IRegisterUnidentified? registerUnidentified = null,
+    IProviderSubmissionBindings? providerSubmissionBindings = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
+    private const string ProviderApiPrincipalPolicyKey = "provider_api_credential";
+    private const int ProviderApiPrincipalPolicyVersion = 1;
 
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
@@ -183,7 +187,7 @@ public sealed class ProcessIntake(
         var processedAtUtc = timeProvider.GetUtcNow();
         var assessment = await AssessAsync(
             readResult,
-            safeSource.SourceIdentity.Channel,
+            safeSource.SourceIdentity,
             processedAtUtc,
             cancellationToken);
         if (assessment.Decision == IntakeDecision.CaseCreated
@@ -396,10 +400,11 @@ public sealed class ProcessIntake(
 
     private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
-        IntakeSourceChannel sourceChannel,
+        IntakeSourceIdentity sourceIdentity,
         DateTimeOffset processedAtUtc,
         CancellationToken cancellationToken)
     {
+        var sourceChannel = sourceIdentity.Channel;
         var readerEvidence = readResult.Issues
             .Select(issue => new IntakeEvidence(
                 issue.Source,
@@ -468,7 +473,9 @@ public sealed class ProcessIntake(
             readResult,
             mailRouteDecision,
             cancellationToken);
-        var principalContext = EstablishPrincipalContext(mailRouteDecision);
+        var principalContext = sourceChannel == IntakeSourceChannel.ProviderApi
+            ? await EstablishProviderPrincipalContextAsync(sourceIdentity, cancellationToken)
+            : EstablishPrincipalContext(mailRouteDecision);
         if (principalContext is null)
         {
             if (readResult.RequiresOcr)
@@ -510,6 +517,28 @@ public sealed class ProcessIntake(
                 principalContext.PrincipalCode,
                 StringComparison.Ordinal))
         {
+            if (sourceChannel == IntakeSourceChannel.ProviderApi)
+            {
+                // The credential establishes the Principal, but only a Principal
+                // with an instruction extraction policy can be allocated on
+                // automatically; anything else is retained for sorting rather
+                // than treated as a misconfigured route (API-01, FRD-09).
+                return new(
+                    IntakeDecision.NeedsSorting,
+                    "The provider's principal has no instruction extraction policy for automatic case creation.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    null,
+                    null,
+                    null,
+                    null,
+                    mailRouteDecision,
+                    mailClassificationDecision,
+                    caseMatchDecision);
+            }
+
             throw new InvalidOperationException(
                 "The established principal has no matching instruction extraction policy.");
         }
@@ -653,6 +682,30 @@ public sealed class ProcessIntake(
         return result;
     }
 
+    /// <summary>
+    /// A Provider API source is bound to the Principal whose credential
+    /// submitted it (API-01): the binding is the retained submission record,
+    /// found by the member's source identity, never inferred from the
+    /// content or a sender. A source without a binding fails closed to
+    /// sorting.
+    /// </summary>
+    private async Task<EstablishedPrincipalContext?> EstablishProviderPrincipalContextAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken)
+    {
+        if (providerSubmissionBindings is null)
+        {
+            return null;
+        }
+
+        var principalCode = await providerSubmissionBindings.FindPrincipalCodeAsync(
+            sourceIdentity,
+            cancellationToken);
+        return principalCode is null
+            ? null
+            : new(principalCode, ProviderApiPrincipalPolicyKey, ProviderApiPrincipalPolicyVersion);
+    }
+
     private static EstablishedPrincipalContext? EstablishPrincipalContext(
         MailRouteEvaluationResult? mailRouteDecision) =>
         mailRouteDecision is
@@ -705,6 +758,13 @@ public sealed class ProcessIntake(
         IntakeSourceReadResult readResult,
         IntakeSourceChannel sourceChannel)
     {
+        // A Provider API submission's route identity is its credential, so
+        // the sender of a forwarded message inside it never selects a route.
+        if (sourceChannel == IntakeSourceChannel.ProviderApi)
+        {
+            return null;
+        }
+
         if (sourceChannel != IntakeSourceChannel.Mailbox
             && !readResult.TransportEvidence.Any(item =>
                 item.Source == IntakeEvidenceSource.Sender
@@ -894,6 +954,7 @@ public sealed class ProcessIntake(
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
+        IntakeSourceChannel.ProviderApi => "provider_api",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
