@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Expose OperationsSnapshot.OfficeBoundaries (Europe/London day) for the Reports
   page — one conversion owner
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-28T21:27:18.167Z'
+  review: '2026-08-28T21:28:07.500Z'
 taken_at: '2026-08-28T21:26:52.093Z'
 branch: task/plat-054-office-boundaries
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-054-office-boundaries'
@@ -22,9 +23,13 @@ links:
   - PLAT-048
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - c2bef9df25acca4c5ec7224ae6bb637e57f089da
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/611'
 archived: false
 created: '2026-08-28T10:58:44.482Z'
-updated: '2026-08-28T21:27:18.167Z'
+updated: '2026-08-28T21:28:34.291Z'
 ---
 
 ## What
