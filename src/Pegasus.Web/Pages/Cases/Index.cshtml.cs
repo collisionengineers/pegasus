@@ -9,21 +9,23 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
-namespace Pegasus.Web.Pages.Triage;
+namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// Queues: the work waiting before a case reaches an Engineer.
+/// Cases (EPIC-011 §1.4, formerly Queues at <c>/Triage</c>): the case
+/// workflow tabs — Not ready, Review, Held, Triage, Unidentified.
 /// </summary>
 /// <remarks>
-/// The screen used to be called "Triage queue", which spent a reserved
-/// business term on a page that is mostly not about Triage-type work. Its
-/// tabs are Not ready, Review, Held, and Triage — a separate pre-case entity
-/// with its own lifecycle, which is exactly why it needs a tab of its own
-/// rather than being folded in as a stage.
+/// Triage is a separate pre-case entity with its own lifecycle, which is
+/// exactly why it needs a tab of its own rather than being folded in as a
+/// stage. Unidentified joined as a fifth tab in INTK-009: it is unresolved
+/// retained material, not a case stage, but it is queue work the same way
+/// the other four tabs are.
 ///
-/// Unidentified joined as a fifth tab in INTK-009, replacing the standalone
-/// <c>/Unidentified</c> nav page: it is unresolved retained material, not a
-/// case stage, but it is queue work the same way the other four tabs are.
+/// The tab is <c>?tab=</c>; the pre-EPIC-011 <c>?queue=</c> is accepted as an
+/// alias so old links keep working. A request carrying a search-only
+/// parameter belongs to <c>/Search</c> (the old <c>/Cases</c> search) and is
+/// redirected there permanently with its values intact.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -63,12 +65,26 @@ public sealed class IndexModel(
     /// <c>triage</c> or <c>unidentified</c>. Not ready is the default because
     /// it is the largest and the one with work in it.
     /// </summary>
+    [BindProperty(SupportsGet = true, Name = "tab")]
+    public string? TabFilter { get; set; }
+
+    /// <summary>The pre-EPIC-011 name of <see cref="TabFilter"/>, accepted as an alias.</summary>
     [BindProperty(SupportsGet = true, Name = "queue")]
     public string? QueueFilter { get; set; }
 
-    public string Queue => string.IsNullOrWhiteSpace(QueueFilter)
-        ? "not_ready"
-        : QueueFilter.ToLowerInvariant();
+    public string Queue => string.IsNullOrWhiteSpace(TabFilter)
+        ? string.IsNullOrWhiteSpace(QueueFilter) ? "not_ready" : QueueFilter.ToLowerInvariant()
+        : TabFilter.ToLowerInvariant();
+
+    /// <summary>
+    /// The query parameters that belong to <c>/Search</c> and never to this
+    /// page. Their presence means an old <c>/Cases</c> search link.
+    /// </summary>
+    private static readonly string[] SearchOnlyParameters =
+    [
+        "case", "registration", "claimant", "claimNumber", "engineerId",
+        "receivedDate", "instructionDate", "fromDate", "toDate", "query"
+    ];
 
     public bool ShowingTriage => Queue == "triage";
 
@@ -198,6 +214,11 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        if (SearchOnlyParameters.Any(parameter => Request.Query.ContainsKey(parameter)))
+        {
+            return RedirectPermanent("/Search" + Request.QueryString.Value);
+        }
+
         if (!TryGetActor(out var actor))
         {
             return Forbid();
