@@ -175,6 +175,7 @@ public sealed class EfCaseWorkflowStore(
         workflow.EditLeaseTokenHash = tokenHash;
         workflow.EditLeaseRequestHash = requestHash;
         workflow.EditLeaseHolder = request.Actor.SubjectId;
+        workflow.EditLeaseHolderKind = request.Actor.Kind.ToString();
         workflow.EditLeaseOperationKey = operationKey;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         AddLeaseOperation(
@@ -1243,10 +1244,10 @@ public sealed class EfCaseWorkflowStore(
         {
             throw new CaseEditLeaseExpiredException(workflow.CaseId, workflow.Version);
         }
-        if (!string.Equals(
+        if (!CaseEditAuthority.IsHolder(
+                CaseMutationGuard.RetainedHolderKind(workflow),
                 workflow.EditLeaseHolder,
-                actor.SubjectId,
-                StringComparison.Ordinal))
+                actor))
         {
             throw new CaseEditLeaseConflictException(workflow.CaseId, workflow.Version);
         }
