@@ -176,6 +176,49 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task CountRequiresCaseworkAuthorization()
+    {
+        var queries = new Queries();
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new ListRetainedMail(queries).CountAsync(
+                ActionActor.RequestLink(Guid.NewGuid()),
+                new(null, MailFolderScope.Inbox),
+                CancellationToken.None));
+
+        Assert.Empty(queries.CountedScopes);
+    }
+
+    [Fact]
+    public async Task CountNormalizesTheScopeExactlyAsTheListDoes()
+    {
+        var queries = new Queries();
+
+        await new ListRetainedMail(queries).CountAsync(
+            Caseworker(),
+            new(MailboxA, MailFolderScope.Inbox, "  estimate  ", UnreadOnly: true),
+            CancellationToken.None);
+
+        var scope = Assert.Single(queries.CountedScopes);
+        Assert.Equal(MailboxA, scope.MailboxId);
+        Assert.Equal(MailFolderScope.Inbox, scope.Folder);
+        Assert.Equal("estimate", scope.SearchTerm);
+        Assert.True(scope.UnreadOnly);
+        // The count refuses what the list refuses, through the same guards.
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            new ListRetainedMail(queries).CountAsync(
+                Caseworker(),
+                new(null, (MailFolderScope)7),
+                CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new ListRetainedMail(queries).CountAsync(
+                Caseworker(),
+                new(null, MailFolderScope.Inbox, new string('x', 201)),
+                CancellationToken.None));
+        Assert.Single(queries.CountedScopes);
+    }
+
+    [Fact]
     public async Task ListAcceptsOnlyOneCanonicalMailView()
     {
         var queries = new Queries();
@@ -691,6 +734,8 @@ public sealed class RetainedMailTests
     {
         internal List<(MailWorkspaceScope Scope, int Page, int PageSize)> Scopes { get; } = [];
 
+        internal List<MailWorkspaceScope> CountedScopes { get; } = [];
+
         internal RetainedMailDetail? DetailToReturn { get; set; }
 
         public Task<RetainedMailPage> ListAsync(
@@ -701,6 +746,14 @@ public sealed class RetainedMailTests
         {
             Scopes.Add((scope, page, pageSize));
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
+        }
+
+        public Task<int> CountAsync(
+            MailWorkspaceScope scope,
+            CancellationToken cancellationToken)
+        {
+            CountedScopes.Add(scope);
+            return Task.FromResult(0);
         }
 
         public Task<RetainedMailDetail?> GetAsync(
