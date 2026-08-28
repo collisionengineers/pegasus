@@ -148,6 +148,28 @@ public sealed class DashboardBoundaryTests
         Assert.DoesNotContain(NeedsAttentionKind.ExternalWork, kinds);
     }
 
+    /// <summary>
+    /// The Triage list is newest-first across every state, so one unfiltered
+    /// page would bury an open record behind fifty settled ones. The
+    /// projection queries the no-finding states directly.
+    /// </summary>
+    [Fact]
+    public async Task NeedsAttentionStillListsOpenTriageBehindFiftySettledRecords()
+    {
+        var recorder = new RecordingDashboardQueries();
+        var triageItems = Enumerable.Range(1, GetOperationsSnapshot.MaximumNeedsAttention)
+            .Select(index => NewTriage(Guid.NewGuid(), $"S{index:000}", TriageState.FindingRecorded))
+            .ToList();
+        triageItems.Add(NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open));
+
+        var snapshot = await ExecuteAsync(
+            recorder,
+            NowUtc,
+            triage: new StubListTriage { Items = triageItems });
+
+        Assert.Contains(snapshot.NeedsAttention, item => item.Kind == NeedsAttentionKind.Triage);
+    }
+
     [Fact]
     public async Task NeedsAttentionOrdersByPriorityThenDueThenReference()
     {
@@ -357,8 +379,13 @@ public sealed class DashboardBoundaryTests
 
         public Task<TriageListPage> ExecuteAsync(
             ListTriageQuery query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new TriageListPage(Items, query.Page, query.PageSize, Items.Count));
+            CancellationToken cancellationToken = default)
+        {
+            var matches = Items
+                .Where(item => query.State is null || item.State == query.State)
+                .ToArray();
+            return Task.FromResult(new TriageListPage(matches, query.Page, query.PageSize, matches.Length));
+        }
     }
 
     private sealed class StubDueWorkQueries : ICaseDueWorkQueries

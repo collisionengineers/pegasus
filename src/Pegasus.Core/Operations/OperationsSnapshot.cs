@@ -121,9 +121,17 @@ public sealed class GetOperationsSnapshot(
         var (dayStartUtc, weekStartUtc) = OfficeBoundaries(asOfUtc);
 
         var intake = await intakeQueries.GetCountsAsync(cancellationToken);
-        var triage = await listTriage.ExecuteAsync(
-            new(actor, State: null, Page: 1, PageSize: MaximumNeedsAttention),
+        // The Triage kind is work without a finding, so both no-finding states
+        // are queried directly. One unfiltered page would not do: the list is
+        // newest-first across every state, so fifty settled records would
+        // silently bury an open one off page one.
+        var openTriagePage = await listTriage.ExecuteAsync(
+            new(actor, TriageState.Open, Page: 1, PageSize: MaximumNeedsAttention),
             cancellationToken);
+        var awaitingTriagePage = await listTriage.ExecuteAsync(
+            new(actor, TriageState.AwaitingInformation, Page: 1, PageSize: MaximumNeedsAttention),
+            cancellationToken);
+        var triageWithoutFinding = openTriagePage.Items.Concat(awaitingTriagePage.Items).ToArray();
         var dueWork = await dueWorkQueries.GetDueAsync(
             asOfUtc,
             MaximumNeedsAttention,
@@ -148,14 +156,14 @@ public sealed class GetOperationsSnapshot(
             dueWork,
             held.Items,
             unidentified,
-            triage.Items,
+            triageWithoutFinding,
             requests.Items,
             cancellationToken);
 
         return new(
             asOfUtc,
             intake,
-            triage.TotalCount,
+            openTriagePage.TotalCount + awaitingTriagePage.TotalCount,
             dueWork,
             caseStages,
             caseActivity,
@@ -180,13 +188,11 @@ public sealed class GetOperationsSnapshot(
         CancellationToken cancellationToken)
     {
         var dayEndUtc = dayStartUtc.AddDays(1);
-        var openTriage = triage
-            .Where(record => record.State is TriageState.Open or TriageState.AwaitingInformation)
-            .ToArray();
+        // Both no-finding states arrive pre-filtered from their own queries.
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
             heldCases.Select(item => item.EngineerId ?? Guid.Empty)
-                .Concat(openTriage.Select(record => record.AssigneeId ?? Guid.Empty)),
+                .Concat(triage.Select(record => record.AssigneeId ?? Guid.Empty)),
             cancellationToken);
 
         var items = new List<NeedsAttentionItem>();
@@ -245,7 +251,7 @@ public sealed class GetOperationsSnapshot(
                 row.MediaKind.ToString()));
         }
 
-        foreach (var record in openTriage)
+        foreach (var record in triage)
         {
             items.Add(new(
                 NeedsAttentionKind.Triage,
