@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -306,8 +306,6 @@ public static class OperatorLabels
         RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
         RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
         RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
-        RepairSpecificationSourceRoute.Json => "imported from a JSON estimate",
-        RepairSpecificationSourceRoute.AiDraft => "drafted by AI",
         _ => "recorded before source tracking"
     };
 
