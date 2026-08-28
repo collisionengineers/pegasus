@@ -38,8 +38,8 @@ Visuals and controls are owned by the
 
 The Principal settings dialog carries:
 
-- the route e-mail addresses, read-only — they are owned by the provider route
-  policy in [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
+- the route e-mail addresses, read-only — they are owned by the provider
+  route policy in [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
 - the two EVA API submission settings (manual, automatic) owned by
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
   and [ADR-0034](../adr/0034-per-principal-eva-api-submission-settings.md);
