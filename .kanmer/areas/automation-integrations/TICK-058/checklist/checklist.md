@@ -23,3 +23,31 @@
 - Evidence: `dotnet restore --locked-mode` and `build -c Release` succeeded; `Pegasus.Core.Tests` 1118/1118; `Pegasus.ArchitectureTests` 100/100; `ProviderApiSubmissionTests` 8/8 against SQL; `Test-MigrationGrants.ps1` and `Test-MarkdownPlacement.ps1` pass.
 - Two defects fixed on the way: the duplicated `IntakeEvidenceSource` code maps, and the scaffolded migration re-adding a merged-in column (follow-up **DELIV-032**).
 - One pre-existing flaky assertion fixed in this file: the "wrong secret" was built as `secret[..^1] + "A"`, which is the *same* secret whenever the issued one already ends in `A` — about one run in sixty-four, and the likely cause of the single integration failure seen under the full parallel run.
+
+## Delivery gate — 2026-08-28, complete
+
+| Command | Result |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | succeeded |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | succeeded |
+| `Pegasus.Core.Tests` | 1118 passed, 0 failed |
+| `Pegasus.ArchitectureTests` | 100 passed, 0 failed |
+| `Pegasus.IntegrationTests` (`Category!=Corpus`) | 1108 passed, **0 failed**, 2 skipped, 20m28s |
+| `scripts/Test-MigrationGrants.ps1` | passed, 84 files |
+| `scripts/Test-MarkdownPlacement.ps1` | passed |
+
+The two skips are pre-existing machine-local corpus gates
+(`QdosMappingExtractionTests`, `CustodyOutboxIntegrationTests`: "this machine's
+ignored local corpus has no qdosmapping folder"), in files this ticket does not
+touch.
+
+Two failures were found and fixed during the gate rather than reported as
+flakes:
+
+- `CommittedMigrationCreatesTheSqlServerSchema` pins the exact migration chain
+  and needed the new migration recorded in it (ae35c34d). A genuine miss.
+- `RefusedCredentialsAre401…` built its invalid secret as `secret[..^1] + "A"`,
+  which is the same secret whenever the issued one ends in `A` (f021095e).
+  Pre-existing, roughly one run in sixty-four.
+
+Commits: 2804ebb6, 387f5e26, f021095e, ae35c34d.
