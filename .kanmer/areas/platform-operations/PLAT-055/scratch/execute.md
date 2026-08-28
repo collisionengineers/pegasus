@@ -1,0 +1,1 @@
+2026-08-28 production remediation completed. Sanitized evidence: Infisical→Key Vault equality PASS; Web reference PASS; Worker reference PASS; azd URI PASS; Web Healthy and readiness HTTP 200; Worker Running/Normal; EVA token-only authentication HTTP 200 with a non-empty token envelope. No instruction endpoint called and no secret/token emitted.

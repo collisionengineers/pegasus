@@ -2,12 +2,17 @@
 id: CASE-012
 type: ticket
 title: Redesign the Case page workspace
-status: preparing
+status: verifying
 area: case-reference-workflow
-assignee: ''
+assignee: zcode
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:40.733Z'
+  review: '2026-08-28T14:44:23.561Z'
+  verifying: '2026-08-28T18:20:41.637Z'
+taken_at: '2026-08-28T13:52:16.537Z'
+branch: task/case-012-case-workspace
+worktree: ../pegasus-worktrees/case-012-case-workspace
 labels:
   - ui
   - case
@@ -15,11 +20,12 @@ labels:
 groups:
   - EPIC-008
   - EPIC-011
-links: []
+links:
+  - TICK-223
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T11:25:40.733Z'
+updated: '2026-08-28T18:20:41.637Z'
 ---
 
 ## What

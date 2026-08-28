@@ -11,11 +11,13 @@ labels:
   - INT-16
   - next
 links: []
+blocks:
+  - INTK-049
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-08-25T06:46:27.701Z'
+updated: '2026-08-28T20:39:08.720Z'
 ---
 
 ## What

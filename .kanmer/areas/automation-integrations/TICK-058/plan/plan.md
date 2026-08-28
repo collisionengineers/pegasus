@@ -31,3 +31,20 @@ Web/SQL tests prove the durable receipt exists before response, authentication i
 ## Deferred activation
 
 Named provider, exact hostname/custom domain, final throttling values, capacity target, and live credential issuance require separate activation evidence/approval.
+
+## Simplification pass
+
+- 2026-08-28: run over the branch's own diff after the CI-fix increment
+  (concurrent-insert fake, uncomposed-surface 404 gate, history-order clock);
+  no earlier pass was recorded. Lenses and dispositions: (1) Program.cs now
+  carries three alike `app.Use` absence-gate blocks — extracting a shared
+  helper rejected; the inline gate is that file's established convention and
+  each block guards a different flag and path set (existing convention
+  wins). (2) The optional `IProviderSubmissionBindings` constructor
+  parameters on `ProcessIntake`/`AllocateIntake` follow those constructors'
+  existing optional-collaborator convention (accept). (3) Nothing else in
+  the Core/Infra/Web slices is a second implementation or a speculative
+  abstraction; the store, handler, and endpoint each extend one existing
+  pattern (accept). The three CI fixes themselves were checked and left
+  minimal: the fake keeps its own key==Id invariant, the 404 gate is one
+  flag-scoped block, and the moving clock is one test's composition choice.

@@ -52,3 +52,26 @@ Web MCP and tests, plus one EF migration and snapshot.
 - Existing import/accept callers compile and keep their behaviour.
 - Automation can only create/update AiDraft estimates that cite a Taken
   Estimate job for the case held by the same client.
+
+## Simplification pass — 2026-08-28
+
+Ran before the PR as commit a0daecd9 ("ENG-026: simplification pass — one
+replay lookup in the repair-specification store"): the store's duplicate
+version lookup (`GetRequiredVersionAsync`) was removed and its call site
+routed through the existing `ReplayedAsync` replay lookup — 1 insertion,
+6 deletions in `EfRepairSpecificationStore.cs`. No findings were left
+unapplied. Recorded here retroactively: the pass ran but this heading was
+missing from the plan until the CI-fix pass (9c0d9181, c97889f1).
+
+## CI fixes — 2026-08-28
+
+- 9c0d9181 `test(mcp)`: `AutomationMcpIngressTests` expected inventory gains
+  `pegasus_estimate_list`/`pegasus_estimate_save`, matching the registration
+  source (43 tools, both sides sorted at the assertion).
+- c97889f1 `test(estimates)`: `JsonEstimateParserTests.
+  AnythingAmbiguousRejectsTheWholeImport` cases now lead with a short
+  rejection-reason parameter so truncated Theory display names stay unique
+  for the shard partitioner; all 11 cases kept, the same rejection is
+  asserted (`Record.Exception` + exact-type check — the exception is
+  sealed). Branch-wide Theory scan found no other colliding Theory
+  (the other two added Theories use short, distinct arguments).

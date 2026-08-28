@@ -30,9 +30,18 @@ independently observable in the ticket's recorded worktree.*
   renders read-only; holder ends; staff claim.
 - [x] [pre-review] `dotnet build ./Pegasus.slnx --configuration Release`
   exit 0 on the final tree (2026-08-28).
-- [ ] [pre-review] Test run — not run by the implementer by instruction; the
-  EPIC-011 orchestrator runs the wave loop (restore/build/test filters,
-  snapshots, migration grants).
+- [x] [pre-review] Test run — orchestrator wave loop executed 2026-08-28 on
+  the branch head after the dev re-merge (`ecde19c4`) and the FRD-01 rollout
+  sentence (`45a43b63`): restore `--locked-mode` exit 0; Release build exit 0;
+  Core 1099/1099; Architecture 100/100; Integration 988/991 — three failures
+  (`RetainedMailPersistenceTests.PagingIsStableAndComplete`,
+  `ProviderDomainReferenceIntegrationTests.FreshSchemaMigrationSeeds…`,
+  `LocalDbTemplateDatabaseTests.RestoringTheTemplateMatchesMigrating…`)
+  with 33 s–2 m 40 s durations during six concurrent agent workloads;
+  isolated re-run of exactly those three: 3/3 passed in 2 m 4 s (LocalDB
+  contention, DELIV-031 class, unrelated to the lease change surface);
+  `Test-MigrationGrants.ps1`: 81 migration files checked, exit 0. Snapshots
+  not regenerated — no UI page changed on this branch.
 - [x] [pre-review] Simplification pass recorded in `plan.md` (dated section);
   post-implementation report written; PR to `dev` opened.
 - [x] [pre-review] Stop with the PR open: no merge, no proof, no next ticket.
@@ -45,3 +54,8 @@ independently observable in the ticket's recorded worktree.*
   claim-path `IsHeld` refusal predates the incident (`012b3864`, 2026-08-05).
 - 2026-08-28 Commits `2ab02db3` (fix), `4a91c5c1` (tests), `8218b3f3`
   (simplification).
+- 2026-08-28 Review round 1 (independent agent): APPROVE with one docs-only
+  addition — the kind-less retained-lease rollout sentence — added to FRD-01
+  §Case edit authority and recovery in `45a43b63`. Dev re-merge `ecde19c4`
+  resolved one census-list conflict (TICK-061 migrations ordered before
+  `20260828110108_CaseEditLeaseHolderKind`).

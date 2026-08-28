@@ -2,10 +2,18 @@
 id: PLAT-023
 type: ticket
 title: Redesign the Operations workspace
-status: backlog
+status: verifying
 area: platform-operations
-assignee: ''
+assignee: zcode
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T18:33:09.053Z'
+  implementing: '2026-08-28T18:42:15.901Z'
+  review: '2026-08-28T18:49:33.063Z'
+  verifying: '2026-08-28T19:23:45.754Z'
+taken_at: '2026-08-28T18:42:18.698Z'
+branch: task/plat-023-operations
+worktree: ../pegasus-worktrees/plat-023-operations
 labels:
   - ui
   - operations
@@ -15,9 +23,15 @@ groups:
   - EPIC-011
 links: []
 docs_todo: true
+commits:
+  - a0c28af8
+  - 6bf5f789
+  - 2e7ea751
+prs:
+  - '602'
 archived: false
 created: '2026-08-21T13:19:14.290Z'
-updated: '2026-08-28T08:07:58.842Z'
+updated: '2026-08-28T19:23:45.754Z'
 ---
 
 ## What

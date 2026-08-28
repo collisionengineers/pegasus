@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/600 at commit c84c7a05019e1b56db7c47f0b806eed3d615c456. Verification: 99/99 pages, zero missing tokens, Required glyphs 55 Yes/553 No, 4/4 images, 9/9 annotations, PDF hash match, visual review PASS.

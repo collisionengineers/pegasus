@@ -2,12 +2,17 @@
 id: MAIL-025
 type: ticket
 title: Port the Inbox list and message pages to the Integrated Operations Workspace
-status: preparing
+status: verifying
 area: mail-communications
-assignee: ''
+assignee: zcode
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:43.590Z'
+  review: '2026-08-28T14:25:03.997Z'
+  verifying: '2026-08-28T18:39:58.208Z'
+taken_at: '2026-08-28T13:40:46.480Z'
+branch: task/mail-025-inbox-port
+worktree: ../pegasus-worktrees/mail-025-inbox-port
 labels:
   - ui
   - wave-2
@@ -21,7 +26,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-28T11:25:43.590Z'
+updated: '2026-08-28T18:39:58.208Z'
 ---
 
 ## What

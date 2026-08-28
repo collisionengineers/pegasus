@@ -10,9 +10,6 @@ assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T15:19:39.900Z'
-taken_at: '2026-08-26T12:49:06.099Z'
-branch: task/intk-001-truthful-status
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/intk-001-truthful-status'
 labels: []
 groups:
   - EPIC-002
@@ -28,7 +25,7 @@ commits:
   - 1594ff0e
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-26T12:54:09.573Z'
+updated: '2026-08-28T14:01:18.098Z'
 ---
 
 ## What

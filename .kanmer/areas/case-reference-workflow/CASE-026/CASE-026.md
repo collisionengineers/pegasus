@@ -4,10 +4,16 @@ type: ticket
 title: >-
   Port the Search page (/Search) with the advanced filter grid and selected-Case
   pane
-status: backlog
+status: review
 area: case-reference-workflow
-assignee: ''
+assignee: zcode
 profile: feature
+stageEntered:
+  implementing: '2026-08-28T18:45:18.734Z'
+  review: '2026-08-28T19:04:46.136Z'
+taken_at: '2026-08-28T18:33:20.835Z'
+branch: task/case-026-search-page
+worktree: ../pegasus-worktrees/case-026-search-page
 labels:
   - ui
   - wave-2
@@ -19,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-08-28T08:35:23.906Z'
+updated: '2026-08-28T19:04:46.136Z'
 ---
 
 ## What
