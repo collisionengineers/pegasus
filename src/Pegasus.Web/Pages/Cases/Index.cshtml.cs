@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Identity;
+using Microsoft.AspNetCore.WebUtilities;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
@@ -12,69 +15,80 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// Cases (EPIC-011 §1.4, formerly Queues at <c>/Triage</c>): the case
-/// workflow tabs — Not ready, Review, Held, Triage, Unidentified.
+/// Cases (EPIC-011 §1.4): the three-pane queue — a rail of workflow groups
+/// with queried counts, the rows of the open group, and a quick detail of the
+/// selected row.
 /// </summary>
 /// <remarks>
-/// Triage is a separate pre-case entity with its own lifecycle, which is
-/// exactly why it needs a tab of its own rather than being folded in as a
-/// stage. Unidentified joined as a fifth tab in INTK-009: it is unresolved
-/// retained material, not a case stage, but it is queue work the same way
-/// the other four tabs are.
+/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete),
+/// Pre-Case work (Triage) and Exceptions (Held, Unidentified). With Engineer
+/// and Complete are display groupings of Core states (D3); the other terminal
+/// outcomes are not listed here. Blocked intake rows sit in the Unidentified
+/// group with their own chip and are not counted (D14).
 ///
-/// The tab is <c>?tab=</c>; the pre-EPIC-011 <c>?queue=</c> is accepted as an
-/// alias so old links keep working. A request carrying a search-only
-/// parameter belongs to <c>/Search</c> (the old <c>/Cases</c> search) and is
-/// redirected there permanently with its values intact.
+/// The group is <c>?tab=</c>; the pre-EPIC-011 <c>?queue=</c> is accepted as
+/// an alias and the README's hyphenated spellings normalise to the same keys.
+/// A request carrying a search-only parameter belongs to <c>/Search</c> and
+/// is redirected there permanently with its values intact.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
+    IGetCase getCase,
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
+    IListIntake listIntake,
+    IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider) : StaffPageModel
 {
     private const int PageSize = 25;
+
+    /// <summary>
+    /// Not ready merges two origins into one list, so it is read whole rather
+    /// than paged — the bounded exception-queue trade-off Unidentified makes.
+    /// </summary>
+    private const int MergedPageSize = 100;
 
     private readonly IListTriage _listTriage =
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly ISearchCases _searchCases =
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
+    private readonly IGetCase _getCase =
+        getCase ?? throw new ArgumentNullException(nameof(getCase));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IUnidentifiedStore _unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
     private readonly IImageIntakeQueries _imageIntakeQueries =
         imageIntakeQueries ?? throw new ArgumentNullException(nameof(imageIntakeQueries));
+    private readonly IListIntake _listIntake =
+        listIntake ?? throw new ArgumentNullException(nameof(listIntake));
+    private readonly IStaffAccountQueries _staffAccounts =
+        staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    /// <summary>
-    /// When these counts and rows were last read, so the screen can say how
-    /// current it is. FRD-12 requires every count and query to expose its last
-    /// successful update time; it is set only after the queries return, so a
-    /// failed load never claims to be fresh.
-    /// </summary>
-    public DateTimeOffset? LoadedAtUtc { get; private set; }
+    /// <summary>One rail entry: its key, label, group and icon.</summary>
+    public sealed record Tab(string Key, string Label, string Group, string Icon, bool IsException = false);
 
-    /// <summary>
-    /// Which queue is open: <c>not_ready</c>, <c>review</c>, <c>held</c>,
-    /// <c>triage</c> or <c>unidentified</c>. Not ready is the default because
-    /// it is the largest and the one with work in it.
-    /// </summary>
-    [BindProperty(SupportsGet = true, Name = "tab")]
-    public string? TabFilter { get; set; }
+    public const string WorkflowGroup = "Workflow";
+    public const string PreCaseGroup = "Pre-Case work";
+    public const string ExceptionsGroup = "Exceptions";
 
-    /// <summary>The pre-EPIC-011 name of <see cref="TabFilter"/>, accepted as an alias.</summary>
-    [BindProperty(SupportsGet = true, Name = "queue")]
-    public string? QueueFilter { get; set; }
-
-    public string Queue => string.IsNullOrWhiteSpace(TabFilter)
-        ? string.IsNullOrWhiteSpace(QueueFilter) ? "not_ready" : QueueFilter.ToLowerInvariant()
-        : TabFilter.ToLowerInvariant();
+    /// <summary>The rail, in rail order; the group labels are the section labels.</summary>
+    public static readonly IReadOnlyList<Tab> Tabs =
+    [
+        new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), WorkflowGroup, "icon-clock"),
+        new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), WorkflowGroup, "icon-check-circle"),
+        new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
+        new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
+        new("triage", "Triage", PreCaseGroup, "icon-file-text"),
+        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
+        new("unidentified", "Unidentified", ExceptionsGroup, "icon-alert-triangle", IsException: true)
+    ];
 
     /// <summary>
     /// The query parameters that belong to <c>/Search</c> and never to this
@@ -86,131 +100,171 @@ public sealed class IndexModel(
         "receivedDate", "instructionDate", "fromDate", "toDate", "query"
     ];
 
-    public bool ShowingTriage => Queue == "triage";
-
-    public bool ShowingUnidentified => Queue == "unidentified";
-
-    public bool ShowingNotReady => Queue == "not_ready";
-
-    public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
-
-    /// <summary>Open Unidentified items, so the tab always carries its count.</summary>
-    public int UnidentifiedCount { get; private set; }
-
-    public SearchCasesResult Cases { get; private set; } = new([], 1, PageSize, false, false);
-
-    [BindProperty(SupportsGet = true, Name = "state")]
-    public string? StateFilter { get; set; }
-
-    [BindProperty(SupportsGet = true, Name = "page")]
-    public int CurrentPage { get; set; } = 1;
-
-    public TriageListPage Results { get; private set; } = new([], 1, PageSize, 0);
-
-    public TriageState? State { get; private set; }
-
     /// <summary>
-    /// The Unidentified tab's media-kind filter: <c>all</c>, <c>images</c> or
-    /// <c>emails</c>. Only consulted when <see cref="ShowingUnidentified"/>.
+    /// When these counts and rows were last read. Set only after the queries
+    /// return, so a failed load never claims to be fresh.
     /// </summary>
-    [BindProperty(SupportsGet = true, Name = "kind")]
-    public string? KindFilter { get; set; }
+    public DateTimeOffset? LoadedAtUtc { get; private set; }
 
-    public string UnidentifiedKind => string.IsNullOrWhiteSpace(KindFilter)
-        ? "all"
-        : KindFilter.ToLowerInvariant();
+    [BindProperty(SupportsGet = true, Name = "tab")]
+    public string? TabFilter { get; set; }
 
-    public IReadOnlyList<UnidentifiedQueueRow> UnidentifiedRows { get; private set; } = [];
+    /// <summary>The pre-EPIC-011 name of <see cref="TabFilter"/>, accepted as an alias.</summary>
+    [BindProperty(SupportsGet = true, Name = "queue")]
+    public string? QueueFilter { get; set; }
 
-    /// <summary>
-    /// The Not ready tab's case-origin filter: <c>all</c>, <c>instruction</c>
-    /// or <c>image</c> — the two case origins INTK-008 settled. Only
-    /// consulted when <see cref="ShowingNotReady"/>.
-    /// </summary>
-    [BindProperty(SupportsGet = true, Name = "origin")]
-    public string? OriginFilter { get; set; }
+    public string Queue => (string.IsNullOrWhiteSpace(TabFilter)
+            ? string.IsNullOrWhiteSpace(QueueFilter) ? "not_ready" : QueueFilter
+            : TabFilter)
+        .Trim().ToLowerInvariant().Replace('-', '_');
 
-    public string NotReadyOrigin => string.IsNullOrWhiteSpace(OriginFilter)
-        ? "all"
-        : OriginFilter.ToLowerInvariant();
+    public Tab CurrentTab => Tabs.First(tab => tab.Key == Queue);
 
-    /// <summary>
-    /// Image-initiated Cases still awaiting instruction, merged into the one
-    /// Not ready table. Not paginated: this is the same bounded
-    /// exception-queue trade-off the Unidentified tab already makes, not a
-    /// second convention.
-    /// </summary>
-    public IReadOnlyList<ImageIntakeSummary> ImageInitiatedRows { get; private set; } = [];
-
-    /// <summary>The Not ready tab's Principal dropdown filter.</summary>
     [BindProperty(SupportsGet = true, Name = "principal")]
     public string? PrincipalFilter { get; set; }
 
     /// <summary>
-    /// The case tables' sort: a column code plus direction, defaulting to
-    /// newest received first.
+    /// The Not ready group's Missing filter: <c>instructions</c>, <c>images</c>
+    /// or <c>both</c>, read from each case's recorded completeness facts.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "missing")]
+    public string? MissingFilter { get; set; }
+
+    /// <summary>
+    /// <c>received_desc</c> (default, newest first) or <c>received_asc</c>.
     /// </summary>
     [BindProperty(SupportsGet = true, Name = "sort")]
     public string? SortParam { get; set; }
 
-    public CaseSearchOrder Order { get; private set; } = CaseSearchOrder.ReceivedDesc;
+    public bool OldestFirst => SortParam == "received_asc";
 
-    /// <summary>One row of the merged Not ready table, whichever origin.</summary>
+    [BindProperty(SupportsGet = true, Name = "page")]
+    public int CurrentPage { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true, Name = "selected")]
+    public Guid? SelectedId { get; set; }
+
+    public bool ShowingNotReady => Queue == "not_ready";
+
+    /// <summary>Whether the open group lists Cases, so the Principal filter applies.</summary>
+    public bool ShowingCases => Queue is "not_ready" or "review" or "with_engineer" or "complete" or "held";
+
+    public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
+
+    public int TriageCount { get; private set; }
+
+    /// <summary>Open Unidentified items only — Blocked intake rows are listed but never counted (D14).</summary>
+    public int UnidentifiedCount { get; private set; }
+
+    public int Count(Tab tab) => tab.Key switch
+    {
+        "not_ready" => StageCounts.NotReady,
+        "review" => StageCounts.Review,
+        "with_engineer" => StageCounts.WithEngineer,
+        "complete" => StageCounts.Complete,
+        "triage" => TriageCount,
+        "held" => StageCounts.Held,
+        "unidentified" => UnidentifiedCount,
+        _ => 0
+    };
+
+    public enum RowKind
+    {
+        Case,
+        Image,
+        Triage,
+        Unidentified,
+        BlockedIntake
+    }
+
+    /// <summary>
+    /// One row of the middle pane, whichever kind: the title line, its chip,
+    /// two detail lines and the right-hand time. Each kind fills the lines
+    /// per §1.4; an absent fact leaves its line empty rather than a dash.
+    /// </summary>
     public sealed record QueueRow(
-        string Reference,
-        string DetailsPage,
+        RowKind Kind,
         Guid Id,
-        string? Registration,
-        string? Claimant,
-        string? Principal,
-        string Status,
+        string Title,
+        string Chip,
+        string Detail,
+        string Meta,
         DateTimeOffset ReceivedAtUtc,
-        DateTimeOffset? NextChaseAtUtc,
-        bool IsImageInitiated = false);
+        string? Time,
+        string OpenHref);
 
-    public IReadOnlyList<QueueRow> NotReadyRows { get; private set; } = [];
+    public IReadOnlyList<QueueRow> Rows { get; private set; } = [];
 
-    /// <summary>The principals present in the Not ready queue, for the dropdown.</summary>
+    public bool HasPreviousPage { get; private set; }
+
+    public bool HasNextPage { get; private set; }
+
+    /// <summary>The principals present in the loaded rows, for the Principal select.</summary>
     public IReadOnlyList<string> Principals { get; private set; } = [];
 
-    /// <summary>The sort code the given column header should link to next.</summary>
-    public string NextSort(string column)
+    /// <summary>
+    /// The quick-detail pane. A Case carries its state for the stepper and
+    /// its outstanding requirements; every kind carries a definition list and
+    /// the link to its full record.
+    /// </summary>
+    public sealed record QuickDetail(
+        RowKind Kind,
+        string Eyebrow,
+        string Heading,
+        string OpenHref,
+        string OpenLabel,
+        IReadOnlyList<KeyValuePair<string, string>> Facts,
+        CaseLifecycleState? State = null,
+        IReadOnlyList<OperatorLabels.CaseRequirement>? Outstanding = null);
+
+    public QuickDetail? Selected { get; private set; }
+
+    /// <summary>The four steps of the compact stepper, plus the Held exception cell.</summary>
+    public static readonly IReadOnlyList<(string Label, string Icon)> Steps =
+    [
+        (OperatorLabels.CaseStage(CaseLifecycleState.NotReady), "icon-clock"),
+        (OperatorLabels.CaseStage(CaseLifecycleState.Review), "icon-check-circle"),
+        (OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), "icon-user"),
+        (OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), "icon-check")
+    ];
+
+    /// <summary>The step index a state sits at, or -1 for Held and the excluded terminals.</summary>
+    public static int StepIndex(CaseLifecycleState state) => state switch
     {
-        var (asc, desc) = ($"{column}_asc", $"{column}_desc");
-        var current = SortParam ?? "received_desc";
-        if (column == "received")
-        {
-            return current == desc ? asc : desc;
-        }
-
-        return current == asc ? desc : asc;
-    }
-
-    public string? AriaSort(string column)
-    {
-        var current = SortParam ?? "received_desc";
-        if (current == $"{column}_asc")
-        {
-            return "ascending";
-        }
-
-        return current == $"{column}_desc" ? "descending" : null;
-    }
-
-    private static CaseSearchOrder? ParseOrder(string? sort) => sort switch
-    {
-        null or "" or "received_desc" => CaseSearchOrder.ReceivedDesc,
-        "received_asc" => CaseSearchOrder.ReceivedAsc,
-        "reference_asc" => CaseSearchOrder.ReferenceAsc,
-        "reference_desc" => CaseSearchOrder.ReferenceDesc,
-        "registration_asc" => CaseSearchOrder.RegistrationAsc,
-        "registration_desc" => CaseSearchOrder.RegistrationDesc,
-        "claimant_asc" => CaseSearchOrder.ClaimantAsc,
-        "claimant_desc" => CaseSearchOrder.ClaimantDesc,
-        "principal_asc" => CaseSearchOrder.PrincipalAsc,
-        "principal_desc" => CaseSearchOrder.PrincipalDesc,
-        _ => null
+        CaseLifecycleState.NotReady => 0,
+        CaseLifecycleState.Review => 1,
+        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => 2,
+        CaseLifecycleState.PostReportComplete => 3,
+        _ => -1
     };
+
+    /// <summary>This page's address with the current filters and the given overrides.</summary>
+    public string Href(
+        string? tab = null,
+        Guid? selected = null,
+        string? sort = null,
+        int? page = null,
+        bool keepFilters = true)
+    {
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["tab"] = tab ?? Queue
+        };
+        if (keepFilters && ShowingCases)
+        {
+            values["principal"] = PrincipalFilter;
+            values["missing"] = ShowingNotReady ? MissingFilter : null;
+        }
+        values["sort"] = sort ?? SortParam;
+        var pageNumber = page ?? CurrentPage;
+        values["page"] = pageNumber > 1 ? pageNumber.ToString() : null;
+        values["selected"] = selected?.ToString("D");
+        return QueryHelpers.AddQueryString(
+            "/Cases",
+            values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
+    }
+
+    public string SortToggleHref() => Href(sort: OldestFirst ? null : "received_asc", page: 1);
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -224,225 +278,308 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        TriageState? parsedState = null;
-        if (!string.IsNullOrWhiteSpace(StateFilter)
-            && !TryParseState(StateFilter, out parsedState))
+        if (Tabs.All(tab => tab.Key != Queue)
+            || CurrentPage > 10_000
+            || SortParam is not (null or "" or "received_desc" or "received_asc")
+            || MissingFilter is not (null or "" or "instructions" or "images" or "both"))
         {
             return NotFound();
         }
 
-        if (CurrentPage > 10_000)
-        {
-            return NotFound();
-        }
-
-        if (Queue is not ("not_ready" or "review" or "held" or "triage" or "unidentified"))
-        {
-            return NotFound();
-        }
-
-        if (KindFilter is not (null or "" or "all" or "images" or "emails"))
-        {
-            return NotFound();
-        }
-
-        if (OriginFilter is not (null or "" or "all" or "instruction" or "image"))
-        {
-            return NotFound();
-        }
-
-        if (ParseOrder(SortParam) is not { } order)
-        {
-            return NotFound();
-        }
-
-        Order = order;
-
-        State = parsedState;
-        StateFilter = parsedState is null ? null : StateCode(parsedState.Value);
         CurrentPage = Math.Max(1, CurrentPage);
+        SortParam = string.IsNullOrWhiteSpace(SortParam) || SortParam == "received_desc" ? null : SortParam;
+        PrincipalFilter = EmptyToNull(PrincipalFilter);
+        MissingFilter = ShowingNotReady ? EmptyToNull(MissingFilter) : null;
 
-        // Every tab carries its count, whichever one is open: an operator
-        // decides where to go by what is waiting, not by opening each in
-        // turn. Both queries use their own DbContext, so they run
-        // concurrently rather than paying the sum of their latencies.
+        // Every group carries its count whichever one is open. The three
+        // count queries use their own DbContext each, so they run together.
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        var triageTask = _listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
         var openUnidentifiedTask = _unidentifiedStore.ListQueueAsync(null, cancellationToken);
-        await Task.WhenAll(stageCountsTask, openUnidentifiedTask);
+        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedTask);
         StageCounts = stageCountsTask.Result;
-        var openUnidentifiedRows = openUnidentifiedTask.Result;
-        UnidentifiedCount = openUnidentifiedRows.Count;
+        TriageCount = triageTask.Result.TotalCount;
+        UnidentifiedCount = openUnidentifiedTask.Result.Count;
 
-        if (ShowingTriage)
+        var rows = Queue switch
         {
-            Results = await _listTriage.ExecuteAsync(
-                new(actor, State, CurrentPage, PageSize),
-                cancellationToken);
+            "triage" => await LoadTriageAsync(actor, cancellationToken),
+            "unidentified" => await LoadUnidentifiedAsync(actor, openUnidentifiedTask.Result, cancellationToken),
+            "not_ready" => await LoadNotReadyAsync(actor, cancellationToken),
+            _ => await LoadCasesAsync(actor, cancellationToken)
+        };
+        Rows = (OldestFirst
+                ? rows.OrderBy(row => row.ReceivedAtUtc)
+                : rows.OrderByDescending(row => row.ReceivedAtUtc))
+            .ThenBy(row => row.Title, StringComparer.Ordinal)
+            .ToArray();
+
+        var selectedRow = SelectedId is { } selectedId
+            ? Rows.FirstOrDefault(row => row.Id == selectedId)
+            : Rows.FirstOrDefault();
+        if (SelectedId is not null && selectedRow is null)
+        {
+            return NotFound();
         }
-        else if (ShowingUnidentified)
+
+        if (selectedRow is not null)
         {
-            // Filters the count query's own result rather than re-querying:
-            // the join behind ListQueueAsync is the same whichever kind is
-            // asked for, so there is nothing a second call would learn.
-            UnidentifiedMediaKind? mediaKind = UnidentifiedKind switch
-            {
-                "images" => UnidentifiedMediaKind.Image,
-                "emails" => UnidentifiedMediaKind.Email,
-                _ => null
-            };
-            UnidentifiedRows = mediaKind is null
-                ? openUnidentifiedRows
-                : openUnidentifiedRows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
-        }
-        else if (ShowingNotReady)
-        {
-            await LoadNotReadyAsync(actor, cancellationToken);
-        }
-        else
-        {
-            Cases = await _searchCases.ExecuteAsync(
-                new(
-                    actor,
-                    new(State: Queue == "held" ? CaseLifecycleState.Held : CaseLifecycleState.Review),
-                    CurrentPage,
-                    PageSize,
-                    Order),
-                cancellationToken);
+            SelectedId = selectedRow.Id;
+            Selected = await LoadDetailAsync(actor, selectedRow, cancellationToken);
         }
 
         LoadedAtUtc = _timeProvider.GetUtcNow();
         return Page();
     }
 
-    /// <summary>
-    /// The Not ready tab's two independent origin queries — a formal Case
-    /// search and an Image-initiated Case list — run concurrently and each
-    /// is skipped outright when the origin filter excludes it, rather than
-    /// fetched and then discarded.
-    /// </summary>
-    private async Task LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        Task<SearchCasesResult>? casesTask = NotReadyOrigin != "image"
-            ? _searchCases.ExecuteAsync(
-                new(
-                    actor,
-                    new(State: CaseLifecycleState.NotReady, Principal: EmptyToNull(PrincipalFilter)),
-                    Page: 1,
-                    PageSize: 100,
-                    Order: Order),
-                cancellationToken)
-            : null;
-        Task<IReadOnlyList<ImageIntakeSummary>>? imageInitiatedTask = NotReadyOrigin != "instruction"
-            ? _imageIntakeQueries.ListAsync(false, cancellationToken)
-            : null;
-
-        var pending = new Task?[] { casesTask, imageInitiatedTask }
-            .Where(task => task is not null)
-            .Select(task => task!)
-            .ToArray();
-        await Task.WhenAll(pending);
-
-        if (casesTask is not null)
+        // With Engineer is two Core states read as one group (D3): both
+        // pages are read and merged, so the group can carry up to two pages.
+        CaseLifecycleState[] states = Queue switch
         {
-            Cases = casesTask.Result;
-        }
-
-        if (imageInitiatedTask is not null)
-        {
-            ImageInitiatedRows = imageInitiatedTask.Result
-                .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
-                .ToArray();
-        }
-
-        // One table, both origins. Image-initiated rows have no claimant,
-        // principal or chase schedule yet, so those cells render a dash.
-        var rows = Cases.Items
-            .Select(item => new QueueRow(
-                item.Reference,
-                "/Cases/Details",
-                item.CaseId,
-                item.Registration,
-                item.Claimant,
-                item.Principal,
-                OperatorLabels.CaseStage(item.State),
-                item.ReceivedAtUtc,
-                item.NextChaseAtUtc))
-            .Concat(ImageInitiatedRows
-                .Where(_ => string.IsNullOrWhiteSpace(PrincipalFilter))
-                .Select(item => new QueueRow(
-                    item.ImageIntakeReference,
-                    "/ImageIntake/Details",
-                    item.Id,
-                    item.NormalizedVehicleRegistration,
-                    null,
-                    null,
-                    OperatorLabels.ImageIntakeLifecycleState(item.State),
-                    item.RegisteredAtUtc,
-                    null,
-                    IsImageInitiated: true)));
-        NotReadyRows = (Order switch
-        {
-            CaseSearchOrder.ReceivedAsc => rows.OrderBy(row => row.ReceivedAtUtc),
-            CaseSearchOrder.ReferenceAsc => rows.OrderBy(row => row.Reference, StringComparer.Ordinal),
-            CaseSearchOrder.ReferenceDesc => rows.OrderByDescending(row => row.Reference, StringComparer.Ordinal),
-            CaseSearchOrder.RegistrationAsc => rows.OrderBy(row => row.Registration, StringComparer.Ordinal),
-            CaseSearchOrder.RegistrationDesc => rows.OrderByDescending(row => row.Registration, StringComparer.Ordinal),
-            CaseSearchOrder.ClaimantAsc => rows.OrderBy(row => row.Claimant, StringComparer.Ordinal),
-            CaseSearchOrder.ClaimantDesc => rows.OrderByDescending(row => row.Claimant, StringComparer.Ordinal),
-            CaseSearchOrder.PrincipalAsc => rows.OrderBy(row => row.Principal, StringComparer.Ordinal),
-            CaseSearchOrder.PrincipalDesc => rows.OrderByDescending(row => row.Principal, StringComparer.Ordinal),
-            _ => rows.OrderByDescending(row => row.ReceivedAtUtc)
-        }).ThenBy(row => row.Reference, StringComparer.Ordinal).ToArray();
-        Principals = Cases.Items
-            .Select(item => item.Principal)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        static string? EmptyToNull(string? value) =>
-            string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
-    public static bool TryParseState(string value, out TriageState? state)
-    {
-        state = value.ToLowerInvariant() switch
-        {
-            "open" => TriageState.Open,
-            "awaiting_information" => TriageState.AwaitingInformation,
-            "finding_recorded" => TriageState.FindingRecorded,
-            "completed" => TriageState.Completed,
-            "cancelled" => TriageState.Cancelled,
-            _ => null
+            "review" => [CaseLifecycleState.Review],
+            "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
+            "complete" => [CaseLifecycleState.PostReportComplete],
+            _ => [CaseLifecycleState.Held]
         };
-
-        return state is not null;
+        var results = await Task.WhenAll(states.Select(state => _searchCases.ExecuteAsync(
+            new(
+                actor,
+                new(State: state, Principal: PrincipalFilter),
+                CurrentPage,
+                PageSize,
+                OldestFirst ? CaseSearchOrder.ReceivedAsc : CaseSearchOrder.ReceivedDesc),
+            cancellationToken)));
+        HasPreviousPage = results.Any(result => result.HasPreviousPage);
+        HasNextPage = results.Any(result => result.HasNextPage);
+        var items = results.SelectMany(result => result.Items).ToArray();
+        Principals = PrincipalsOf(items);
+        return items.Select(CaseRow).ToArray();
     }
 
-    public static string StateLabel(TriageState state) => state switch
+    /// <summary>
+    /// Not ready's two origins — formal Cases and Image-initiated Cases still
+    /// awaiting instruction — read together and filtered by what each is
+    /// missing. An image-initiated row is missing its instruction by
+    /// definition, so it is listed for All and Instructions only, and never
+    /// for a named Principal, which it does not have yet.
+    /// </summary>
+    private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        TriageState.Open => "Open",
-        TriageState.AwaitingInformation => "Awaiting information",
-        TriageState.FindingRecorded => "Finding recorded",
-        TriageState.Completed => "Completed",
-        TriageState.Cancelled => "Cancelled",
-        _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
-    };
+        var casesTask = _searchCases.ExecuteAsync(
+            new(
+                actor,
+                new(State: CaseLifecycleState.NotReady, Principal: PrincipalFilter),
+                Page: 1,
+                PageSize: MergedPageSize,
+                OldestFirst ? CaseSearchOrder.ReceivedAsc : CaseSearchOrder.ReceivedDesc),
+            cancellationToken);
+        var listImages = PrincipalFilter is null && MissingFilter is null or "instructions";
+        var imagesTask = listImages
+            ? _imageIntakeQueries.ListAsync(false, cancellationToken)
+            : Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
+        await Task.WhenAll(casesTask, imagesTask);
 
-    private static string StateCode(TriageState state) => state switch
+        Principals = PrincipalsOf(casesTask.Result.Items);
+        var cases = casesTask.Result.Items
+            .Where(item => MissingFilter switch
+            {
+                "instructions" => item.InstructionComplete == false,
+                "images" => item.ImagesComplete == false,
+                "both" => item.InstructionComplete == false && item.ImagesComplete == false,
+                _ => true
+            })
+            .Select(CaseRow);
+        var images = imagesTask.Result
+            .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
+            .Select(item => new QueueRow(
+                RowKind.Image,
+                item.Id,
+                Title(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
+                OperatorLabels.ImageIntakeLifecycleState(item.State),
+                OperatorLabels.SourceChannel(IntakeSourceChannel.ManualUpload) is var _ ? string.Empty : string.Empty,
+                OperatorLabels.OfficeDate(item.RegisteredAtUtc),
+                item.RegisteredAtUtc,
+                OperatorLabels.ImageChaseState(ImageIntakeChaseSchedule.IsChaseDue(item.RegisteredAtUtc, _timeProvider.GetUtcNow())),
+                $"/VehicleImages/{item.Id:D}"));
+        return cases.Concat(images).ToArray();
+    }
+
+    private async Task<IReadOnlyList<QueueRow>> LoadTriageAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        TriageState.Open => "open",
-        TriageState.AwaitingInformation => "awaiting_information",
-        TriageState.FindingRecorded => "finding_recorded",
-        TriageState.Completed => "completed",
-        TriageState.Cancelled => "cancelled",
-        _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
-    };
+        var page = await _listTriage.ExecuteAsync(new(actor, State: null, CurrentPage, PageSize), cancellationToken);
+        HasPreviousPage = page.Page > 1;
+        HasNextPage = page.Page < page.TotalPages;
+        return page.Items
+            .Select(item => new QueueRow(
+                RowKind.Triage,
+                item.Id,
+                item.NormalizedVehicleRegistration,
+                OperatorLabels.TriageState(item.State),
+                Assignee(item.AssigneeId),
+                OperatorLabels.OfficeDate(item.CreatedAtUtc),
+                item.CreatedAtUtc,
+                null,
+                $"/Triage/{item.Id:D}"))
+            .ToArray();
+    }
 
-    public static string UnidentifiedKindLabel(UnidentifiedQueueRow row) =>
-        OperatorLabels.UnidentifiedMediaKind(row.MediaKind);
+    /// <summary>
+    /// The Unidentified group: the open Unidentified items (the counted rows,
+    /// already read for the rail) plus the Blocked intake receipts, listed
+    /// with their own chip and left out of the count (D14).
+    /// </summary>
+    private async Task<IReadOnlyList<QueueRow>> LoadUnidentifiedAsync(
+        ActionActor actor,
+        IReadOnlyList<UnidentifiedQueueRow> openRows,
+        CancellationToken cancellationToken)
+    {
+        var blocked = await _listIntake.ExecuteAsync(
+            new(actor, IntakeDecision.BlockedIntake, Page: 1, PageSize: MergedPageSize),
+            cancellationToken);
+        var unidentified = openRows.Select(row => new QueueRow(
+            RowKind.Unidentified,
+            row.Id,
+            Title(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
+            "Unidentified",
+            UnidentifiedHandle(row),
+            Title(OperatorLabels.OfficeDate(row.ReceivedAtUtc), OperatorLabels.UnidentifiedReason(row.ReasonCode)),
+            row.ReceivedAtUtc,
+            null,
+            $"/Unidentified/{row.Id:D}"));
+        var blockedRows = blocked.Items.Select(item => new QueueRow(
+            RowKind.BlockedIntake,
+            item.Id,
+            item.SourceFileName,
+            "Blocked intake",
+            OperatorLabels.EmailHandle(item.Subject, item.Sender) is var handle && item.Sender is not null ? handle : string.Empty,
+            Title(OperatorLabels.OfficeDate(item.ReceivedAtUtc), OperatorLabels.IntakeFailure(item.FailureReason)),
+            item.ReceivedAtUtc,
+            null,
+            $"/Received/{item.Id:D}"));
+        return unidentified.Concat(blockedRows).ToArray();
+    }
 
-    public static string UnidentifiedReasonLabel(UnidentifiedQueueRow row) =>
-        OperatorLabels.UnidentifiedReason(row.ReasonCode);
+    private async Task<QuickDetail> LoadDetailAsync(ActionActor actor, QueueRow row, CancellationToken cancellationToken)
+    {
+        if (row.Kind != RowKind.Case)
+        {
+            return await LoadRecordDetailAsync(actor, row, cancellationToken);
+        }
+
+        var details = await _getCase.ExecuteAsync(new(row.Id, actor), cancellationToken)
+            ?? throw new InvalidOperationException($"Case '{row.Id}' was listed but could not be read.");
+        var completeness = details.Data?.Completeness.Values;
+        var outstanding = details.Workflow.State == CaseLifecycleState.NotReady && completeness is not null
+            ? OperatorLabels.CaseRequirements(!completeness.InstructionComplete, !completeness.ImagesComplete)
+            : [];
+
+        var facts = new List<KeyValuePair<string, string>>(3);
+        var dueWork = details.Workflow.DueWork;
+        if (dueWork?.DueBy is { } dueBy)
+        {
+            facts.Add(new("Due", OperatorLabels.OfficeDate(dueBy.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))));
+        }
+        else if (details.Summary.NextChaseAtUtc is { } nextChase)
+        {
+            facts.Add(new("Due", OperatorLabels.OfficeDate(nextChase)));
+        }
+
+        if (details.Workflow.AssignedEngineerId is { } engineerId)
+        {
+            var names = await ActorDisplayNames.ResolveStaffNamesAsync(_staffAccounts, [engineerId], cancellationToken);
+            facts.Add(new("Engineer", ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), names)));
+        }
+
+        // Next action is the first outstanding requirement's resolve text,
+        // else the due work's own state — never a sentence written here.
+        if (outstanding.Count > 0)
+        {
+            facts.Add(new("Next action", outstanding[0].Resolve));
+        }
+        else if (dueWork is not null)
+        {
+            facts.Add(new("Next action", dueWork.NextChaseAtUtc is { } chase
+                ? Title(OperatorLabels.ChaseState(dueWork.State), OperatorLabels.OfficeDate(chase))
+                : OperatorLabels.ChaseState(dueWork.State)));
+        }
+
+        return new(
+            RowKind.Case,
+            OperatorLabels.SourceChannel(details.Summary.Origin),
+            row.Title,
+            row.OpenHref,
+            "Open full Case",
+            facts,
+            details.Workflow.State,
+            outstanding);
+    }
+
+    private async Task<QuickDetail> LoadRecordDetailAsync(ActionActor actor, QueueRow row, CancellationToken cancellationToken)
+    {
+        var facts = new List<KeyValuePair<string, string>>(5);
+        switch (row.Kind)
+        {
+            case RowKind.Image:
+                var images = await _imageIntakeQueries.ListImagesAsync(row.Id, cancellationToken);
+                facts.Add(new("State", row.Chip));
+                facts.Add(new("Registered", row.Meta));
+                facts.Add(new("Images", images.Count.ToString()));
+                if (row.Time is { } chase)
+                {
+                    facts.Add(new("Chase", chase));
+                }
+                return new(row.Kind, "Image-initiated Case", row.Title, row.OpenHref, "Open image record", facts);
+            case RowKind.Triage:
+                facts.Add(new("Registration", row.Title));
+                facts.Add(new("State", row.Chip));
+                facts.Add(new("Assigned to", row.Detail));
+                facts.Add(new("Opened", row.Meta));
+                return new(row.Kind, "Triage", row.Title, row.OpenHref, "Open Triage", facts);
+            case RowKind.BlockedIntake:
+                facts.Add(new("File", row.Title));
+                if (row.Detail.Length > 0)
+                {
+                    facts.Add(new("E-mail", row.Detail));
+                }
+                facts.Add(new("Received", OperatorLabels.OfficeDate(row.ReceivedAtUtc)));
+                facts.Add(new("Reason", row.Meta[(row.Meta.IndexOf(" · ", StringComparison.Ordinal) + 3)..]));
+                return new(row.Kind, "Blocked intake", row.Title, row.OpenHref, "Open received item", facts);
+            default:
+                facts.Add(new("Kind", row.Title[(row.Title.IndexOf(" · ", StringComparison.Ordinal) + 3)..]));
+                facts.Add(new("Handle", row.Detail));
+                facts.Add(new("Received", OperatorLabels.OfficeDate(row.ReceivedAtUtc)));
+                facts.Add(new("Reason", row.Meta[(row.Meta.IndexOf(" · ", StringComparison.Ordinal) + 3)..]));
+                return new(row.Kind, "Unidentified", row.Title, row.OpenHref, "Open Unidentified", facts);
+        }
+    }
+
+    private static QueueRow CaseRow(CaseSearchItem item) => new(
+        RowKind.Case,
+        item.CaseId,
+        Title(item.Reference, item.Registration),
+        OperatorLabels.CaseStage(item.State),
+        Title(item.Claimant, item.Principal),
+        Title(OperatorLabels.SourceChannel(item.Origin), OperatorLabels.OfficeDate(item.ReceivedAtUtc)),
+        item.ReceivedAtUtc,
+        item.NextChaseAtUtc is { } chase ? OperatorLabels.OfficeDate(chase) : null,
+        $"/Cases/{item.CaseId:D}");
+
+    /// <summary>"first · second", dropping whichever half is absent.</summary>
+    private static string Title(string? first, string? second) =>
+        string.Join(" · ", new[] { first, second }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    private static string Assignee(Guid? assigneeId) => assigneeId is null ? "Unassigned" : "Assigned";
+
+    private static IReadOnlyList<string> PrincipalsOf(IEnumerable<CaseSearchItem> items) => items
+        .Select(item => item.Principal)
+        .Distinct(StringComparer.Ordinal)
+        .Order(StringComparer.Ordinal)
+        .ToArray();
+
+    private static string? EmptyToNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     /// <summary>
     /// The operator-meaningful handle for a queue row: the original filename
@@ -456,15 +593,4 @@ public sealed class IndexModel(
         UnidentifiedMediaKind.Email => OperatorLabels.EmailHandle(row.EmailSubject, row.EmailSender),
         _ => row.FileName ?? "Not available"
     };
-
-    /// <summary>
-    /// Whether an Image-initiated Case row on the Not ready tab has been
-    /// Awaiting instruction long enough to chase, per
-    /// <see cref="ImageIntakeChaseSchedule"/>. Reads the injected
-    /// <see cref="TimeProvider"/> rather than <c>DateTimeOffset.UtcNow</c> so
-    /// the same fake-clock control every other query on this page uses
-    /// applies here too.
-    /// </summary>
-    public bool IsImageIntakeChaseDue(DateTimeOffset registeredAtUtc) =>
-        ImageIntakeChaseSchedule.IsChaseDue(registeredAtUtc, _timeProvider.GetUtcNow());
 }
