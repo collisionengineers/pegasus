@@ -123,6 +123,12 @@ public sealed class DashboardBoundaryTests
     /// is failure that can still be retried: rows past those boundaries stay
     /// on their own screens.
     /// </summary>
+    /// <remarks>
+    /// Only the FindingRecorded record is fed — with the no-finding states
+    /// queried directly, an Open record is *expected* to appear, so feeding
+    /// one here and asserting absence would contradict the projection. The
+    /// FindingRecorded row is the one that must never surface.
+    /// </remarks>
     [Fact]
     public async Task NeedsAttentionSkipsTriageWithAFindingAndExternalWorkThatCannotRetry()
     {
@@ -132,11 +138,7 @@ public sealed class DashboardBoundaryTests
             NowUtc,
             triage: new StubListTriage
             {
-                Items =
-                [
-                    NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open),
-                    NewTriage(Guid.NewGuid(), "XY98Z", TriageState.FindingRecorded)
-                ],
+                Items = [NewTriage(Guid.NewGuid(), "XY98Z", TriageState.FindingRecorded)],
             },
             requestStore: new StubRequestOperationStore
             {
@@ -151,8 +153,14 @@ public sealed class DashboardBoundaryTests
     /// <summary>
     /// The Triage list is newest-first across every state, so one unfiltered
     /// page would bury an open record behind fifty settled ones. The
-    /// projection queries the no-finding states directly.
+    /// projection queries the no-finding states directly, so the Open record
+    /// is read however deep the settled list is.
     /// </summary>
+    /// <remarks>
+    /// The Open record sits last, past the page-one cut the stub models: a
+    /// revert to a single unfiltered read would truncate it away and fail
+    /// here, which is what makes this test a guard rather than a tautology.
+    /// </remarks>
     [Fact]
     public async Task NeedsAttentionStillListsOpenTriageBehindFiftySettledRecords()
     {
@@ -373,6 +381,13 @@ public sealed class DashboardBoundaryTests
             Task.FromResult<IntakeAssetRecord?>(null);
     }
 
+    /// <summary>
+    /// Pages the way <see cref="ListTriage"/> does — state filter, then a
+    /// Skip/Take window with the full match count — so a read that asks for
+    /// one unfiltered page is truncated exactly as the real store truncates
+    /// it. Rows keep insertion order; callers that need a record to survive
+    /// paging place it inside the window.
+    /// </summary>
     private sealed class StubListTriage : IListTriage
     {
         public IReadOnlyList<TriageSummary> Items { get; init; } = [];
@@ -384,7 +399,11 @@ public sealed class DashboardBoundaryTests
             var matches = Items
                 .Where(item => query.State is null || item.State == query.State)
                 .ToArray();
-            return Task.FromResult(new TriageListPage(matches, query.Page, query.PageSize, matches.Length));
+            var page = matches
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToArray();
+            return Task.FromResult(new TriageListPage(page, query.Page, query.PageSize, matches.Length));
         }
     }
 
