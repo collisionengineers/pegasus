@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Harden the generated Test UI snapshot tooling (deferred review findings from
   UIIMP-004)
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-28T08:08:12.055Z'
+taken_at: '2026-08-28T08:16:04.127Z'
+branch: task/uiimp-005-test-ui-gate
+worktree: ../pegasus-worktrees/uiimp-005-test-ui-gate
 labels:
   - ui
   - design
@@ -23,7 +26,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-27T08:17:30.643Z'
-updated: '2026-08-28T08:08:12.055Z'
+updated: '2026-08-28T08:16:04.127Z'
 ---
 
 ## What
