@@ -129,10 +129,11 @@ reflow; nothing is hidden at any width except the rail foot and nav labels,
 whose functions move to the utility bar and account dialog.
 
 **A rail count is a figure a page already queried**, never one the shell
-invents. The Inbox count is the unread retained-mail figure; the Cases count
-is `not_ready + review + with_engineer + held + triage + unidentified`; the
-Operations count is retryable external work plus AI jobs awaiting review.
-An absent count renders nothing at all — a shell-level `0` would be exactly
+invents. The Cases count is
+`not_ready + review + with_engineer + held + triage + unidentified` (group
+contract §1.1); the Inbox and Operations figures are composed by the wave-2
+and wave-3 tickets that own those queries — the shell invents none. An absent
+count renders nothing at all — a shell-level `0` would be exactly
 the stale zero the operator-experience requirements forbid. Counts are
 supplied by one page filter (`Presentation/RailCountsPageFilter.cs`,
 PLAT-029), not by each page.
@@ -206,8 +207,8 @@ Uses under the integrated design: the rail brand and the sign-in card
 `principals`, `configuration`, `mailboxes`, `automation`); the Cases rail
 empty state (`checkmark`). `roles`, `access` and `organisations` lose their
 surfaces when those areas fold into Staff accounts & roles and Principals
-(D2, [Removed surfaces](#removed-surfaces)); their bytes stay registered until
-a wave-5 ticket removes them with the legacy block.
+(D2, [Removed surfaces](#removed-surfaces)); their bytes stay registered and
+their removal is proposed for the wave-5 removal ticket.
 
 #### Pegasus marks source-to-runtime mapping
 
@@ -219,7 +220,7 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
 | --- | --- | --- | --- |
 | `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Rail brand and sign-in card. |
 | `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts & roles. |
-| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; removed with the legacy block in wave 5. |
+| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; proposed for the wave-5 removal ticket. |
 | `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; removed with the legacy block in wave 5. |
 | `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | No integrated surface; removed with the legacy block in wave 5. |
 | `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Administration → Principals. |
@@ -241,8 +242,8 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
   and in-progress external work, green only for confirmed completion, red for
   danger and blocked, neutral for everything else.
 - State is never conveyed by colour alone; every `.status` chip carries text.
-- 3px corners, 1px hairline borders, the one soft `--shadow` on raised
-  surfaces (dialogs, the utility bar), and a 12px gap rhythm.
+- 3px corners, 1px hairline borders, `--shadow` only where the prototype
+  raises a surface on hover or overlay, and a 12px gap rhythm.
 - Inter Variable for all application text, Lucide line icons only.
 - Controls communicate purpose without narrating obvious actions. Screens
   carry no lede or subtitle: eyebrow, one H1 and the content. Guidance appears
@@ -328,12 +329,13 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 | `--blue` / `--blue-bg` | `#285f88` / `#eaf3f8` | Informational, With Engineer, external work in progress |
 | `--danger` / `--danger-bg` | `#98272c` / `#fff0f1` | Danger actions, blocked, failed |
 | `--focus` | `#d3232a` | Keyboard focus ring |
-| `--shadow` | `0 8px 24px rgba(25,39,45,.09)` | Raised surfaces only |
+| `--shadow` | `0 8px 24px rgba(25,39,45,.09)` | Hover-raised cards, palette dropdown, toast |
 
 Green must not represent progress, availability or a generic positive action;
 it is reserved for confirmed completion. The prototype's `--polish-*`
 properties are a layered overlay and are not tokens: `--polish-shadow` and
-`--polish-shadow-raised` collapse into `--shadow`, and `--polish-red-soft` /
+`--polish-shadow-raised` are adopted as the resting and hover shadows of
+the polish layer's cards alongside `--shadow`, and `--polish-red-soft` /
 `--polish-blue-soft` are not adopted — the `--*-bg` tints are the only soft
 fills.
 
@@ -362,6 +364,10 @@ the Content Security Policy permits fonts from `'self'` only.
 --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 ```
 
+The fallbacks after `"Segoe UI"` (Roboto, "Helvetica Neue", Arial) are
+added beyond the prototype's stack so a workstation without the vendored
+face degrades to the same metric-compatible family on every platform.
+
 | File | Licence | SHA-256 |
 | --- | --- | --- |
 | `fonts/inter/InterVariable.woff2` | SIL OFL 1.1 (`fonts/inter/LICENSE.txt`) | Recorded by PLAT-029 when the bytes land |
@@ -383,8 +389,9 @@ Rules:
 | `--radius` | `3px` — controls, chips, rows |
 | `--radius-lg` | `4px` — panels, dialogs, panes |
 | Borders | `1px solid var(--line)`; controls `var(--line-strong)` |
-| Keyboard focus ring | `2px solid var(--focus)`, `outline-offset: 2px`; the utility search takes `--navy` on its dark ground |
-| Depth | Border-first; `--shadow` on dialogs and the utility bar only |
+| Keyboard focus ring | `3px solid var(--focus)`, `outline-offset: 2px` (the prototype base rule); the utility search takes `--navy` on its dark ground |
+| Selection outline | Selected rows and tabs (`row-button`, `work-item`, `tab`) take `2px solid var(--navy)` |
+| Depth | Border-first. `--shadow` is applied where the prototype applies it: `gallery-item` and `admin-card` hover, the command-palette dropdown and the toast; dialogs and the sign-in card carry their own deeper raised shadow; selected rows and metrics use an inset red bar, not a shadow |
 
 There is no second radius pair. The 2px geometry of the previous design is
 superseded.
@@ -407,7 +414,7 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1360px | Work Centre panes narrow; `case-context` hides and its facts move into the Overview; admin grids drop to two columns |
+| 1360px | Work Centre panes narrow; `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `case-section-nav` and `admin-nav` become horizontal scrollers; `--content-max` is released |
@@ -422,7 +429,8 @@ primary/dark buttons in `CanvasText`/`ButtonText`.
 ### Motion
 
 There is no product-wide motion system and no approved duration or easing
-tokens. Hover and focus transitions are at most 120ms; dialog and toast
+tokens. Hover and focus state transitions are 140ms (the prototype's
+`.13–.14s ease`); dialog and toast
 entrance is a single opacity/translate step; both are removed under reduced
 motion. Marketing scroll reveals, staggered entrances, hover scaling and CTA
 lift are excluded. Do not invent duration or easing tokens during
@@ -515,12 +523,12 @@ this line).
 | `dashboard` | `layout-dashboard` | pending | Rail: Work Centre |
 | `inbox` | `inbox` | pending | Rail: Inbox; Inbox scopes |
 | `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone; Add dialog |
-| `queues` | `list` | pending | Cases rail groups |
-| `cases` | `folder-open` | pending | Rail: Cases; Case tabs |
+| `queues` | `list` | pending | Rail: Cases (as the prototype draws it); Cases rail groups |
+| `cases` | `folder-open` | pending | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | pending | Image record; gallery; image-initiated rows |
 | `operations` | `loader` | pending | Rail: Operations; running jobs |
 | `admin` | `layout-grid` | pending | Rail: Administration |
-| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Rail: Search; utility search; palette |
+| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons |
 | `plus` | `plus` | pending | Add, Create, New estimate |
 | `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Refresh, DVLA/DVSA refresh |
 | `chevron-right` | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Row affordance, stepper |
@@ -560,7 +568,7 @@ this line).
 | `person` | `user` | (as `user`) | Claimant, parties |
 | `task` | `check-square` | pending | Work items, checks |
 | `archive` | `archive` | pending | Archive, Deleted Items |
-| `send` | `send` | pending | Send, Reply, Send to EVA |
+| `send` | `send` | pending | Send, Send to EVA, **Send to Claude** (the prototype's `btn(…,'primary','send')`) |
 | `paperclip` | `paperclip` | pending | Attachments |
 | `home` | `home` | pending | Work Centre tab |
 | `map` | `map-pin` | pending | Inspection address |
@@ -569,7 +577,7 @@ this line).
 | — | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Delete estimate, remove line, Delete message |
 | — | `rotate-cw` | pending | Rotate view |
 | `activity` (undefined in the prototype) | `activity` | pending | Service health, presence |
-| `spark` (undefined) | `sparkles` | pending | AI job, Send to Claude |
+| `spark` (undefined) | `sparkles` | pending | Automation & AI nav entry, AI job rows |
 | `reply` (undefined) | `reply` | pending | Reply |
 | `flag` (undefined) | `flag` | pending | Flag message |
 | `sort` (undefined) | `arrow-up-down` | pending | Sort toggle |
@@ -719,10 +727,10 @@ the integration enables it.
 | `/Uploads/{token}` | Public upload | External frame |
 
 Route moves are 301 stubs delivered by PLAT-029 and deleted in wave 5:
-`/Triage` → `/Cases?tab=triage`, `/Unidentified` → `/Cases?tab=unidentified`,
-`/Cases?query…` (the former search) → `/Search` with the same query string.
-`/VehicleImages` (list) is removed outright — no stub — and `ImageIntake/Index`
-is deleted; the detail page stays as the image record. Test UI catalogue
+`/Triage` → `/Cases?tab=triage`, `/Unidentified` →
+`/Cases?tab=unidentified`, `/Cases?query…` (the former search) → `/Search`
+with the same query string. `/VehicleImages` (list) is removed outright — no
+stub — and `ImageIntake/Index` is deleted; the detail page stays as the image record. Test UI catalogue
 route keys follow these moves in the same PLAT-029 change set.
 
 ## Component map
@@ -803,7 +811,8 @@ The Content Security Policy forbids inline styles, so the prototype's
 `panel-body--compact`, `panel-body--tight`, `field--narrow`, `no-border`,
 `viewer-stage`, `metric-strip--3`, `metric-strip--5`.
 
-A new utility needs a second caller and a reason in the ticket plan.
+The names are fixed here and delivered by PLAT-029; a new utility needs a
+second caller and a reason in the ticket plan.
 
 ### Shared partials
 
@@ -1012,8 +1021,9 @@ Reports** | content panel (heading, area label, meta).
   Create staff account.
 - **Principals:** table Name, Principal Code, Roles, State, Settings; Create
   Principal (creates the backing Organisation inline, D2); Settings dialog —
-  route e-mail addresses (read-only), EVA API policy (API manual / API
-  automatic / ZIP only), Pegasus API key (masked, Show / Hide), Generate new
+  route e-mail addresses (read-only), the two independent ADR-0034 EVA
+  toggles — Manual API submission, Automatic API submission (ZIP export
+  needs no setting) — Pegasus API key (masked, Show / Hide), Generate new
   key (danger → reason), Save.
 - **Workflow configuration:** Instruction completeness (two checkboxes),
   Review (two checkboxes), Due work (chase interval); Save configuration.
@@ -1079,10 +1089,9 @@ Recorded from the effective render layer (group `context.md` §1.15):
 The 2026-08-03 reviewed divergence — a terracotta gradient, 12px radius,
 Poppins request, hover lift, blue focus ring, inline sparkle and ember canvas
 confined to the `.send-action` control — is retired. Under the integrated
-design **Send to Claude** is a `btn--primary` with the Lucide `sparkles`
-glyph, the approved red focus ring and no local custom properties, so the
-recorded contrast shortfall no longer exists. The action's identity is carried
-by its label alone.
+design **Send to Claude** is a `btn--primary` with the Lucide `send` glyph,
+the approved red focus ring and no local custom properties, so the recorded
+contrast shortfall no longer exists.
 
 ## Deferred and absent UI seams
 
