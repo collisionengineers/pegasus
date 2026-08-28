@@ -24,9 +24,6 @@
         "failed" or "unavailable" => "failed",
         _ => null
     };
-    var text = Model is { } lastGood
-        ? $"{statusLabel} · {OperatorLabels.OfficeClock(lastGood)}"
-        : OperatorLabels.Freshness.Never;
     var noticeTone = status switch
     {
         "stale" or "partial" => "notice--warning",
@@ -38,11 +35,11 @@
     <span class="health-dot @dotModifier"></span>
     @if (Model is { } lastGoodTime)
     {
-        <span><time datetime="@lastGoodTime.ToString("O")">@text</time></span>
+        <span><time datetime="@lastGoodTime.ToString("O")">@statusLabel · @OperatorLabels.OfficeClock(lastGoodTime)</time></span>
     }
     else
     {
-        <span>@text</span>
+        <span>@OperatorLabels.Freshness.Never</span>
     }
     @if (noticeTone is not null)
     {
