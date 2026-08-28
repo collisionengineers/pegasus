@@ -41,3 +41,20 @@ Diff estimate ~1,100 lines; this plan is shorter than the diff.
 - `dotnet build ./Pegasus.slnx --configuration Release` exit 0.
 - Every row carries `LatestEvidenceAtUtc` from a recorded timestamp or null; no state is produced by calling an external system.
 - No file outside Owns except the two Web lines and `DependencyInjection.cs`, all reported.
+
+## Simplification pass — 2026-08-28
+
+Lenses: reuse, simplification, efficiency, altitude, over the branch diff against `origin/dev` (658a7984).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | Reuse: `GetRetainedMailFreshness.StaleAfter` is the only staleness number; `ServiceHealthPolicy.PollState` reads it rather than declaring a second one. | Applied (by construction). |
+| 2 | Reuse: Engineer names resolve through `ActorDisplayNames.ResolveStaffNamesAsync`; the EF query returns ids only, so there is one owner of "who is this staff id". | Applied. |
+| 3 | Reuse: the Custody rows reuse `GetRequestOperations` (validation included) instead of a second projection over `ExternalWorkItems`; the retry identity is exactly `RetryExternalWorkCommand`'s. | Applied. |
+| 4 | Reuse: the query-received association rule is `CurrentIntakeAssociations.ReadAsync`, the same rule the Inbox applies, so a reversed association is excluded for free. | Applied. |
+| 5 | Simplification: EVA pending work is counted in `EfEvaSubmissionQueries` from the same `ExternalWorkItems` rows `EfEvaSubmissionWorkStore` claims, so the work store keeps a single write-side responsibility and gains no read method. Deviates from the ticket's "implement in … EfEvaSubmissionWorkStore.cs". | Applied; recorded here and in the report. |
+| 6 | Altitude: `IAutomationIngressStatusQueries` exposes one boolean, not `AutomationClientStatus` (client id, scopes, display name) — the health row needs only the switch. | Applied. |
+| 7 | Efficiency: all counts are grouped/aggregated at the store; only the dispatch state vocabulary is parsed after the read because `EfIntakeWorkStore` owns the codes and `Enum` parsing has no SQL translation (same pattern as `EfEvaSubmissionQueries.GetLatestAsync`). | Applied. |
+| 8 | Efficiency: the intake dispatch health runs two aggregate queries (group-by and max). One query with a conditional aggregate would save a round-trip on a table that is small by design (staged receipts are cleaned up). | Not applied — the two-query form reads as the two facts it is; revisit only if the snapshot proves slow. |
+| 9 | Simplification: the Core test's single `Sources` fake implements all eight read ports, so each test names its whole estate in one object rather than eight one-line fakes. | Applied. |
+| 10 | Considered a `Running` state for a poll cursor under an active lease. Neither poll status port exposes the lease, and adding it would widen `ApprovedMailboxPollStatus` for one consumer. | Not applied — no invented probe; noted as a candidate for PLAT-049 if the table wants it. |
