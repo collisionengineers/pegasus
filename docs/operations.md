@@ -311,6 +311,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 36 | 2026-08-28 | `84132d01ccb0afca7af6c6ce519e6f3491aee160` | `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032` | `pegasus-prod-web-252ow37gij--84132d01ccb0` | `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions` |
   | 35 | 2026-08-27 | `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f` | `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8` | `pegasus-prod-web-252ow37gij--3a1a017c8dea` | `20260827100901_ReactivateBoundApprovedMailboxes` (data-only, matched zero rows) |
   | 34 | 2026-08-27 | `1ec65dc894f121f4bb5b31ae82c818a401d08beb` | `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0` | `pegasus-prod-web-252ow37gij--1ec65dc894f1` | none (head unchanged at `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`) |
   | 33 | 2026-08-26 | `ee8067eca799eaa614a96488364d333093e21aaa` | `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6` | `pegasus-prod-web-252ow37gij--ee8067eca799` | `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions` |
@@ -348,6 +349,53 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 36** (2026-08-28, source
+    `84132d01ccb0afca7af6c6ce519e6f3491aee160`, image
+    `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032`,
+    manifest SHA-256
+    `A1E3707F39187C5991D8D8512166F5F418FE0B05DC7CA9F85105908BDB435C76`)
+    shipped the EXT-04 EVA API submission route. It applied
+    `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions`,
+    advancing the head to the latter; `EvaSubmissions` reads zero rows and no
+    Principal has either EVA toggle on, so the deployed behaviour of every
+    existing case is unchanged. Production SQL read back exactly the four
+    expected grants — `SELECT` and `INSERT` on `EvaSubmissions` for both
+    `pegasus_web_runtime_role` and `pegasus_worker_runtime_role`, with `UPDATE`
+    and `DELETE` granted to neither. The sole Web revision
+    `pegasus-prod-web-252ow37gij--84132d01ccb0` is `RunningAtMaxScale` with 100%
+    traffic in Single mode and its digest matches the manifest; the Worker
+    `config-zip` deployment succeeded and all eighteen of its Key Vault
+    references, the two new EVA ones included, read `Resolved`. Production smoke
+    matched the exact source and product version and included the inbox intake
+    liveness check (last poll 2026-08-28 03:00:03Z, subscription expiring
+    2026-09-02 10:25:00Z).
+
+    Two prerequisites were created by hand for this release, and both are
+    permanent: the secrets `eva-client-id` and `eva-client-secret` in
+    `pegasusprodkv252ow37g`, and two `Key Vault Secrets User` grants for the Web
+    identity scoped to those two secret resources. TICK-077 wired the secrets
+    into the container app's `configuration.secrets` but shipped no grants, and
+    the first provision failed with the Web identity unable to fetch either — a
+    gap no CI gate can catch, because `Test-AzureDeploymentPlan` prohibits a
+    vault-wide grant in bicep and secret-scoped grants are made outside it. A
+    provision before that one failed earlier still, on a UTF-8 BOM TICK-077 left
+    on `infra/main.parameters.json`, which azd's JSON decoder refuses; that is
+    fixed on `main` as ENG-022. Neither failure deployed anything: production
+    served release 35 unchanged throughout.
+
+    **Pegasus has still never called EVA, in any environment.** This release
+    proves deployment, schema, runtime permissions, secret resolution and
+    configuration. It proves nothing about the vendor contract — that EVA
+    accepts this payload, that images land, or what it returns — which remains
+    an operator-held live test with `EvaManualSubmission` on a Principal.
+
+    **Deviation recorded, not introduced by this release:** the Worker identity
+    holds a `Key Vault Secrets User` grant at *vault* scope in addition to its
+    six secret-scoped ones, which is how its EVA references resolved without a
+    grant being added for them. That contradicts the secret-level-only posture
+    described under the 2026-08-03 vault consolidation below, and is why only
+    the Web identity needed new grants here.
 
   - **Release 35** (2026-08-27, source
     `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f`, image
