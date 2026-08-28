@@ -59,3 +59,18 @@ loop (`waves.md`).
 ## Stop condition
 
 PR open against `dev`; ticket in Review. No merge, no proof, no next ticket.
+
+## Simplification pass — 2026-08-28
+
+Lenses run over `git diff origin/dev...HEAD` (reuse, simplification,
+efficiency, altitude) after the tests slice.
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Altitude | `CaseMutationGuard.RetainedHolderKind` had an entity overload wrapping the string overload; three callers all hold the entity, but the wrapper was one line. | Applied: one function taking the retained string; callers pass `workflow.EditLeaseHolderKind` (`8218b3f3`). |
+| 2 | Simplification | `CaseEditAuthority.IsHolder` checked `IsNullOrWhiteSpace(retainedLeaseHolder)` before an ordinal equality against `actor.SubjectId`, which `ActionActor` guarantees non-blank. | Applied: the equality alone is the rule (`8218b3f3`); the Core test `OnlyTheExactKindAndSubjectIsTheHolder` still pins null and blank holders as non-matches. |
+| 3 | Reuse | The operations store parses the retained kind through the same `CaseMutationGuard.RetainedHolderKind` as the guard, replay and case query — no second parser. | Already so; no change. |
+| 4 | Simplification | `RequireLease` and `IsHolder` both `ThrowIfNull(actor)`. | Kept: `RequireLease` can throw `Expired` before reaching `IsHolder`, so a null actor would otherwise be reported as an expired lease. |
+| 5 | Altitude | Details and Assessment compute `ViewerHoldsEditAuthority` after `RestoreLeaseState` already evaluated the same match. | Not applied: the duplication predates this change (CASE-024 shape) and collapsing it means restructuring the page models — out of scope; noted for the CASE lanes. |
+| 6 | Efficiency | No new queries, allocations or round-trips: the kind rides the existing row and the existing projections. | n/a. |
+| 7 | Reuse | The earlier plan's migration backfill from `CaseEditLeaseOperations` and the paired-null constraint were dropped: one additive nullable column, with the runtime treating a kind-less unexpired lease as nobody's until expiry (≤ 5 minutes). | Applied by design (plan step 4); recorded in the migration's shape and the report. |
