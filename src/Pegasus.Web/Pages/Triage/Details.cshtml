@@ -7,11 +7,21 @@
 
     var record = Model.Triage.Record;
     var mutable = record.State is not (TriageState.Completed or TriageState.Cancelled);
-    var canComplete = record.State == TriageState.FindingRecorded;
     // The one condition that gates completion, stated once so the control and
     // its wording cannot drift apart.
+    var canComplete = record.State == TriageState.FindingRecorded;
     var activeFindings = Model.ActiveFindings;
     var currentFinding = activeFindings.Count == 1 ? activeFindings[0] : null;
+    // A finding the determinations form supersedes: the current one while
+    // mutable, and — for the post-send correction (FRD-03) — the current one
+    // on a Completed record. Cancelled triage must be reopened first (Core).
+    var correction = !mutable && record.State == TriageState.Completed && currentFinding is not null;
+    var formFinding = mutable || correction ? currentFinding : null;
+    var hiddenBase = new Dictionary<string, string?>
+    {
+        ["expectedVersion"] = record.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ["operationKey"] = Model.OperationKey
+    };
 }
 
 <header class="page-header">
@@ -89,87 +99,79 @@
             <section class="panel" aria-labelledby="triage-determinations-title">
                 <div class="panel-head"><h2 id="triage-determinations-title">Determinations</h2></div>
                 <div class="panel-body stack">
+                    @* One form, three postings: with no active finding it
+                       records a new one; with the single active finding — while
+                       mutable, or as the post-send correction from Completed
+                       (FRD-03) — it supersedes that finding through the same
+                       controls refilled, so a correction never overwrites
+                       history. Multiple active findings need reconciliation
+                       first (Core). *@
+                    @if (formFinding is not null || (mutable && activeFindings.Count == 0))
+                    {
+                        <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                            <input type="hidden" name="expectedVersion" value="@record.Version" />
+                            <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                            @if (formFinding is not null)
+                            {
+                                <input type="hidden" name="supersedesFindingId" value="@formFinding.Id" />
+                            }
+                            <div class="field">
+                                <label for="triage-roadworthiness">Roadworthiness</label>
+                                <select id="triage-roadworthiness" name="roadworthiness">
+                                    <option value="" selected="@(formFinding?.Roadworthiness is null ? "selected" : null)">Not recorded</option>
+                                    <option value="Roadworthy" selected="@(formFinding?.Roadworthiness == RoadworthinessFinding.Roadworthy ? "selected" : null)">Roadworthy</option>
+                                    <option value="Unroadworthy" selected="@(formFinding?.Roadworthiness == RoadworthinessFinding.Unroadworthy ? "selected" : null)">Unroadworthy</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="triage-repair-outcome">Repair outcome</label>
+                                <select id="triage-repair-outcome" name="assessment">
+                                    <option value="" selected="@(formFinding?.Assessment is null ? "selected" : null)">Not recorded</option>
+                                    <option value="Repairable" selected="@(formFinding?.Assessment == AssessmentFinding.Repairable ? "selected" : null)">Repairable</option>
+                                    <option value="TotalLoss" selected="@(formFinding?.Assessment == AssessmentFinding.TotalLoss ? "selected" : null)">Total loss</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label class="req" for="triage-finding-reason">Reason</label>
+                                <textarea id="triage-finding-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                            </div>
+                            <div class="button-row">
+                                <button type="submit" name="actionName"
+                                        value="@(formFinding is null ? "record_finding" : "supersede_finding")"
+                                        class="btn btn--primary">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                    <span>@(correction ? "Record correction" : "Save determinations")</span>
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    else if (mutable)
+                    {
+                        <div class="notice notice--warning" role="alert">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>Multiple active findings require reconciliation before another finding can be recorded.</span>
+                        </div>
+                    }
+                    else if (currentFinding is not null)
+                    {
+                        @* A terminal record with no correction offered shows
+                           the accepted finding as facts. *@
+                        <div class="definition-list">
+                            <dl class="definition">
+                                <dt>Roadworthiness</dt>
+                                <dd>@(currentFinding.Roadworthiness is { } roadworthiness
+                                    ? DetailsModel.RoadworthinessLabel(roadworthiness) : "Not recorded")</dd>
+                            </dl>
+                            <dl class="definition">
+                                <dt>Repair outcome</dt>
+                                <dd>@(currentFinding.Assessment is { } assessment
+                                    ? DetailsModel.AssessmentLabel(assessment) : "Not recorded")</dd>
+                            </dl>
+                        </div>
+                    }
+
                     @if (mutable)
                     {
-                        @* One form, two postings: no active finding records a
-                           new one; the single active finding is superseded by
-                           the same controls refilled. A later correction never
-                           overwrites history (FRD-03). *@
-                        @if (activeFindings.Count == 0)
-                        {
-                            <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
-                                <input type="hidden" name="expectedVersion" value="@record.Version" />
-                                <input type="hidden" name="operationKey" value="@Model.OperationKey" />
-                                <div class="field">
-                                    <label for="triage-roadworthiness">Roadworthiness</label>
-                                    <select id="triage-roadworthiness" name="roadworthiness">
-                                        <option value="">Not recorded</option>
-                                        <option value="Roadworthy">Roadworthy</option>
-                                        <option value="Unroadworthy">Unroadworthy</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label for="triage-repair-outcome">Repair outcome</label>
-                                    <select id="triage-repair-outcome" name="assessment">
-                                        <option value="">Not recorded</option>
-                                        <option value="Repairable">Repairable</option>
-                                        <option value="TotalLoss">Total loss</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label class="req" for="triage-finding-reason">Reason</label>
-                                    <textarea id="triage-finding-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                                </div>
-                                <div class="button-row">
-                                    <button type="submit" name="actionName" value="record_finding" class="btn btn--primary">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                        <span>Save determinations</span>
-                                    </button>
-                                </div>
-                            </form>
-                        }
-                        else if (currentFinding is not null)
-                        {
-                            <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
-                                <input type="hidden" name="expectedVersion" value="@record.Version" />
-                                <input type="hidden" name="operationKey" value="@Model.OperationKey" />
-                                <input type="hidden" name="supersedesFindingId" value="@currentFinding.Id" />
-                                <div class="field">
-                                    <label for="triage-roadworthiness">Roadworthiness</label>
-                                    <select id="triage-roadworthiness" name="roadworthiness">
-                                        <option value="" selected="@(currentFinding.Roadworthiness is null ? "selected" : null)">Not recorded</option>
-                                        <option value="Roadworthy" selected="@(currentFinding.Roadworthiness == RoadworthinessFinding.Roadworthy ? "selected" : null)">Roadworthy</option>
-                                        <option value="Unroadworthy" selected="@(currentFinding.Roadworthiness == RoadworthinessFinding.Unroadworthy ? "selected" : null)">Unroadworthy</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label for="triage-repair-outcome">Repair outcome</label>
-                                    <select id="triage-repair-outcome" name="assessment">
-                                        <option value="" selected="@(currentFinding.Assessment is null ? "selected" : null)">Not recorded</option>
-                                        <option value="Repairable" selected="@(currentFinding.Assessment == AssessmentFinding.Repairable ? "selected" : null)">Repairable</option>
-                                        <option value="TotalLoss" selected="@(currentFinding.Assessment == AssessmentFinding.TotalLoss ? "selected" : null)">Total loss</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label class="req" for="triage-finding-reason">Reason</label>
-                                    <textarea id="triage-finding-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                                </div>
-                                <div class="button-row">
-                                    <button type="submit" name="actionName" value="supersede_finding" class="btn btn--primary">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                        <span>Save determinations</span>
-                                    </button>
-                                </div>
-                            </form>
-                        }
-                        else
-                        {
-                            <div class="notice notice--warning" role="alert">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                <span>Multiple active findings require reconciliation before another finding can be recorded.</span>
-                            </div>
-                        }
-
                         @* The workflow transitions, each a reason dialog over
                            the same handler the old action bar posted. Only the
                            ones Core permits from this state render. *@
@@ -196,60 +198,6 @@
                     }
                     else
                     {
-                        @* Terminal record: the accepted finding as facts, the
-                           reasoned way back, and — from Completed — the
-                           post-send correction, which supersedes the finding
-                           and returns the Triage to Finding recorded (FRD-03).
-                           Cancelled triage must be reopened first (Core). *@
-                        @if (currentFinding is not null)
-                        {
-                            <div class="definition-list">
-                                <dl class="definition">
-                                    <dt>Roadworthiness</dt>
-                                    <dd>@(currentFinding.Roadworthiness is { } roadworthiness
-                                        ? DetailsModel.RoadworthinessLabel(roadworthiness) : "Not recorded")</dd>
-                                </dl>
-                                <dl class="definition">
-                                    <dt>Repair outcome</dt>
-                                    <dd>@(currentFinding.Assessment is { } assessment
-                                        ? DetailsModel.AssessmentLabel(assessment) : "Not recorded")</dd>
-                                </dl>
-                            </div>
-                        }
-                        @if (record.State == TriageState.Completed && currentFinding is not null)
-                        {
-                            <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
-                                <input type="hidden" name="expectedVersion" value="@record.Version" />
-                                <input type="hidden" name="operationKey" value="@Model.OperationKey" />
-                                <input type="hidden" name="supersedesFindingId" value="@currentFinding.Id" />
-                                <div class="field">
-                                    <label for="triage-roadworthiness">Roadworthiness</label>
-                                    <select id="triage-roadworthiness" name="roadworthiness">
-                                        <option value="" selected="@(currentFinding.Roadworthiness is null ? "selected" : null)">Not recorded</option>
-                                        <option value="Roadworthy" selected="@(currentFinding.Roadworthiness == RoadworthinessFinding.Roadworthy ? "selected" : null)">Roadworthy</option>
-                                        <option value="Unroadworthy" selected="@(currentFinding.Roadworthiness == RoadworthinessFinding.Unroadworthy ? "selected" : null)">Unroadworthy</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label for="triage-repair-outcome">Repair outcome</label>
-                                    <select id="triage-repair-outcome" name="assessment">
-                                        <option value="" selected="@(currentFinding.Assessment is null ? "selected" : null)">Not recorded</option>
-                                        <option value="Repairable" selected="@(currentFinding.Assessment == AssessmentFinding.Repairable ? "selected" : null)">Repairable</option>
-                                        <option value="TotalLoss" selected="@(currentFinding.Assessment == AssessmentFinding.TotalLoss ? "selected" : null)">Total loss</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label class="req" for="triage-finding-reason">Reason</label>
-                                    <textarea id="triage-finding-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                                </div>
-                                <div class="button-row">
-                                    <button type="submit" name="actionName" value="supersede_finding" class="btn btn--primary">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                        <span>Record correction</span>
-                                    </button>
-                                </div>
-                            </form>
-                        }
                         <div class="button-row">
                             <button type="button" class="btn" data-dialog-open="triage-reopen-dialog">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
@@ -286,8 +234,7 @@
                             </dd>
                         </dl>
                     </div>
-                    @if (Model.CaseAssociationUnavailableCaseId is { } unavailableCaseId
-                        && Model.CaseAssociationUnavailableReason is { } unavailableReason)
+                    @if (Model.CaseAssociationUnavailableReason is { } unavailableReason)
                     {
                         <div class="notice notice--warning" role="status">
                             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
@@ -350,73 +297,72 @@
         }
 
         @* Exact response evidence keeps its handlers; the panel renders only
-           when there is something to link or something linked. *@
-        @if (mutable && Model.Triage.ResponseEvidenceCandidates.Count > 0)
+           when there is something linked or something to link — both can be
+           true at once. *@
+        @if (Model.Triage.ResponseEvidence.Count > 0 || (mutable && Model.Triage.ResponseEvidenceCandidates.Count > 0))
         {
             <section class="panel section-gap" aria-labelledby="triage-response-title">
                 <div class="panel-head"><h2 id="triage-response-title">Exact response evidence</h2></div>
                 <div class="panel-body stack">
-                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
-                        <input type="hidden" name="expectedVersion" value="@record.Version" />
-                        <input type="hidden" name="operationKey" value="@Model.OperationKey" />
-                        <div class="field">
-                            <label class="req" for="triage-response-candidate">Approved-mailbox reply</label>
-                            <select id="triage-response-candidate" name="responseCandidate" required>
-                                <option value="">Select exact response evidence</option>
-                                @foreach (var candidate in Model.Triage.ResponseEvidenceCandidates)
-                                {
-                                    <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
-                                        @OperatorLabels.OfficeTime(candidate.SentAtUtc) —
-                                        @candidate.MailboxAddress —
-                                        message @candidate.InternetMessageIdentity —
-                                        Sent evidence @candidate.SentEvidenceId
-                                    </option>
-                                }
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="req" for="triage-response-reason">Reason</label>
-                            <textarea id="triage-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" name="actionName" value="link_response" class="btn btn--dark">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                                <span>Record and link exact response</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </section>
-        }
-        else if (Model.Triage.ResponseEvidence.Count > 0)
-        {
-            <section class="panel section-gap" aria-labelledby="triage-response-title">
-                <div class="panel-head"><h2 id="triage-response-title">Exact response evidence</h2></div>
-                <div class="panel-body stack">
-                    <div class="timeline">
-                        @foreach (var evidence in Model.Triage.ResponseEvidence)
-                        {
-                            <div class="timeline-item">
-                                <div class="timeline-title">@OperatorLabels.OfficeTime(evidence.LinkedAtUtc)</div>
-                                <div class="timeline-text">@evidence.Reason</div>
-                            </div>
-                        }
-                    </div>
-                    @if (mutable)
+                    @if (Model.Triage.ResponseEvidence.Count > 0)
                     {
-                        var linkedResponse = Model.Triage.ResponseEvidence[0];
+                        <div class="timeline">
+                            @foreach (var evidence in Model.Triage.ResponseEvidence)
+                            {
+                                <div class="timeline-item">
+                                    <div class="timeline-title">@OperatorLabels.OfficeTime(evidence.LinkedAtUtc)</div>
+                                    <div class="timeline-text">@evidence.Reason</div>
+                                </div>
+                            }
+                        </div>
+                        @if (mutable)
+                        {
+                            var linkedResponse = Model.Triage.ResponseEvidence[0];
+                            <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                                <input type="hidden" name="expectedVersion" value="@record.Version" />
+                                <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                                <input type="hidden" name="sentEvidenceId" value="@linkedResponse.SentEvidenceId" />
+                                <div class="field">
+                                    <label class="req" for="triage-unlink-response-reason">Reason</label>
+                                    <textarea id="triage-unlink-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                                </div>
+                                <div class="button-row">
+                                    <button type="submit" name="actionName" value="unlink_response" class="btn">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                        <span>Unlink response</span>
+                                    </button>
+                                </div>
+                            </form>
+                        }
+                    }
+                    @if (mutable && Model.Triage.ResponseEvidenceCandidates.Count > 0)
+                    {
                         <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
                             <input type="hidden" name="expectedVersion" value="@record.Version" />
                             <input type="hidden" name="operationKey" value="@Model.OperationKey" />
-                            <input type="hidden" name="sentEvidenceId" value="@linkedResponse.SentEvidenceId" />
                             <div class="field">
-                                <label class="req" for="triage-unlink-response-reason">Reason</label>
-                                <textarea id="triage-unlink-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                                <label class="req" for="triage-response-candidate">Approved-mailbox reply</label>
+                                <select id="triage-response-candidate" name="responseCandidate" required>
+                                    <option value="">Select exact response evidence</option>
+                                    @foreach (var candidate in Model.Triage.ResponseEvidenceCandidates)
+                                    {
+                                        <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
+                                            @OperatorLabels.OfficeTime(candidate.SentAtUtc) —
+                                            @candidate.MailboxAddress —
+                                            message @candidate.InternetMessageIdentity —
+                                            Sent evidence @candidate.SentEvidenceId
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label class="req" for="triage-response-reason">Reason</label>
+                                <textarea id="triage-response-reason" name="reason" rows="3" required maxlength="500"></textarea>
                             </div>
                             <div class="button-row">
-                                <button type="submit" name="actionName" value="unlink_response" class="btn">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                                    <span>Unlink response</span>
+                                <button type="submit" name="actionName" value="link_response" class="btn btn--dark">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                                    <span>Record and link exact response</span>
                                 </button>
                             </div>
                         </form>
@@ -450,12 +396,6 @@
 
 @if (mutable)
 {
-    var hiddenBase = new Dictionary<string, string?>
-    {
-        ["expectedVersion"] = record.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        ["operationKey"] = Model.OperationKey
-    };
-
     @if (record.AssigneeId is null)
     {
         <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
@@ -567,11 +507,6 @@ else
         ["DialogId"] = "triage-reopen-dialog",
         ["DialogTitle"] = "Reopen",
         ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
-        ["DialogHiddenFields"] = new Dictionary<string, string?>
-        {
-            ["actionName"] = "reopen",
-            ["expectedVersion"] = record.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["operationKey"] = Model.OperationKey
-        }
+        ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "reopen" }
     })" />
 }
