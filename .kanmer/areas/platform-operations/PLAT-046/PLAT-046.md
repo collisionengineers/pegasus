@@ -4,10 +4,12 @@ type: ticket
 title: >-
   The Worker serves before migrations complete, so a column-adding release
   throws until they land
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-28T07:54:27.369Z'
 labels:
   - release
   - worker
@@ -19,7 +21,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-08-28T03:25:47.384Z'
+updated: '2026-08-28T07:54:27.369Z'
 ---
 
 ## What
