@@ -51,6 +51,14 @@ public sealed class CasesIndexWebTests
         Assert.Equal("needle", query.Filters.Query);
         Assert.Contains($"href=\"/Cases/{search.CaseId:D}\"", html, StringComparison.Ordinal);
 
+        // The ported page: selectable rows, a server-rendered Selected Case
+        // pane, and the D3 terminal chip on the closed result.
+        Assert.Contains("Selected Case", html, StringComparison.Ordinal);
+        Assert.Contains("data-preview-target", html, StringComparison.Ordinal);
+        Assert.Contains($"data-select-id=\"{search.CaseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"data-select-id=\"{search.ClosedCaseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("Closed · Created in error", html, StringComparison.Ordinal);
+
         var next = Regex.Match(
             html,
             "<a[^>]*href=\"(?<href>[^\"]+)\"[^>]*>Next</a>",
@@ -93,6 +101,40 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain(nameof(InvalidOperationException), failedHtml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SelectedRowPreviewsItsFactsServerSide()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        // ?selected= reads the named row server-side: its facts, its D3
+        // terminal chip and its own Case link, with Copy Case/PO beside the
+        // swapped region where the shell's copy binding can reach it.
+        using var response = await client.GetAsync($"/Search?selected={search.ClosedCaseId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var row = Regex.Match(
+            html,
+            "<tr[^>]*data-select-id=\"" + search.ClosedCaseId.ToString("D") + "\"[^>]*aria-selected=\"(?<selected>[^\"]+)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(row.Success, "The selected row must carry its selection state.");
+        Assert.Equal("true", row.Groups["selected"].Value);
+
+        Assert.Contains("Selected Case", html, StringComparison.Ordinal);
+        Assert.Contains("Inspection", html, StringComparison.Ordinal);
+        Assert.Contains("QDOS3100043 · AB12CDE", html, StringComparison.Ordinal);
+        Assert.Contains("Rear-end impact at a roundabout", html, StringComparison.Ordinal);
+        Assert.Contains("Provider reference", html, StringComparison.Ordinal);
+        Assert.Contains("CLM43", html, StringComparison.Ordinal);
+        Assert.Contains("Unassigned", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{search.ClosedCaseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-copy-target=\"search-copy-reference\"", html, StringComparison.Ordinal);
+        Assert.Contains("Copy Case/PO", html, StringComparison.Ordinal);
+    }
+
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         RecordingSearchCases search) => baseFactory.WithWebHostBuilder(builder =>
@@ -112,6 +154,9 @@ public sealed class CasesIndexWebTests
     private sealed class RecordingSearchCases : ISearchCases
     {
         public Guid CaseId { get; } = Guid.NewGuid();
+
+        /// <summary>A second result in a D3 terminal state, with the CASE-026 projection fields.</summary>
+        public Guid ClosedCaseId { get; } = Guid.NewGuid();
 
         public SearchCasesQuery? Query { get; private set; }
 
@@ -147,7 +192,27 @@ public sealed class CasesIndexWebTests
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
                         new DateOnly(2031, 5, 2),
                         "Email",
+                        new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero)),
+                    new(
+                        ClosedCaseId,
+                        "QDOS3100043",
+                        null,
+                        CaseType.Inspection,
+                        "QDOS",
+                        CaseLifecycleState.CreatedInError,
+                        null,
+                        "AB12CDE",
+                        "Claimant",
+                        "CLM43",
+                        new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
+                        new DateOnly(2031, 5, 2),
+                        "Email",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero))
+                    {
+                        VehicleMake = "Ford",
+                        VehicleModel = "Fiesta",
+                        AccidentCircumstances = "Rear-end impact at a roundabout"
+                    }
                 ];
             return Task.FromResult(new SearchCasesResult(items, query.Page, query.PageSize, true, true));
         }
