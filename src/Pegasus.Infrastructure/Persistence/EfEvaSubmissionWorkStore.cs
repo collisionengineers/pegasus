@@ -50,22 +50,20 @@ public sealed class EfEvaSubmissionWorkStore(
             {
                 throw new InvalidDataException("The external work item is not an EVA submission.");
             }
-            if (work.State is "completed" or "failed")
+            var state = ExternalWorkStatePersistence.ParseEvaSubmission(
+                work.State,
+                work.AttemptCount);
+            if (state is EvaSubmissionWorkState.Completed or EvaSubmissionWorkState.Failed)
             {
                 return null;
             }
-            if (work.State == "pending" && work.DueAtUtc > nowUtc)
+            if (work.State == ExternalWorkStatePersistence.Pending && work.DueAtUtc > nowUtc)
             {
                 return null;
             }
-            if (work.State == "processing" && work.LeaseExpiresAtUtc > nowUtc)
+            if (state == EvaSubmissionWorkState.Processing && work.LeaseExpiresAtUtc > nowUtc)
             {
                 throw new InvalidOperationException("The EVA submission work item is already leased.");
-            }
-            if (work.State is not ("pending" or "dispatching" or "queued" or "processing"))
-            {
-                throw new InvalidDataException(
-                    $"The EVA submission work item has unknown state '{work.State}'.");
             }
             if (work.CaseId is not { } caseId)
             {
@@ -83,7 +81,7 @@ public sealed class EfEvaSubmissionWorkStore(
                     && item.LeaseToken == work.LeaseToken
                     && item.LeaseExpiresAtUtc == work.LeaseExpiresAtUtc)
                 .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(item => item.State, "processing")
+                    .SetProperty(item => item.State, ExternalWorkStatePersistence.Processing)
                     .SetProperty(item => item.AttemptCount, item => item.AttemptCount + 1)
                     .SetProperty(item => item.LeaseToken, leaseToken)
                     .SetProperty(item => item.LeaseExpiresAtUtc, leaseExpiresAtUtc)
@@ -149,7 +147,7 @@ public sealed class EfEvaSubmissionWorkStore(
         // Already terminal: a duplicate queue delivery arriving after the work
         // finished is not an error, and rewriting the row would replace a real
         // outcome with a stale one.
-        if (work.State is "completed" or "failed")
+        if (work.State is ExternalWorkStatePersistence.Completed or ExternalWorkStatePersistence.Failed)
         {
             await transaction.CommitAsync(cancellationToken);
             return;
@@ -159,19 +157,17 @@ public sealed class EfEvaSubmissionWorkStore(
         // another worker took over — recording anyway would overwrite their
         // outcome with ours, and a swallowed conflict here is a submission
         // recorded against the wrong attempt.
-        if (!string.Equals(work.State, "processing", StringComparison.Ordinal)
+        if (!string.Equals(
+                work.State,
+                ExternalWorkStatePersistence.Processing,
+                StringComparison.Ordinal)
             || !string.Equals(work.LeaseToken, leaseToken, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
                 "The EVA submission processing lease was lost before its outcome was recorded.");
         }
 
-        work.State = state switch
-        {
-            EvaSubmissionWorkState.Completed => "completed",
-            EvaSubmissionWorkState.Failed => "failed",
-            _ => "pending"
-        };
+        work.State = ExternalWorkStatePersistence.FormatEvaSubmission(state);
         work.FailureCode = failureCode;
         work.FailureReason = Truncate(failureReason);
         work.LeaseToken = null;
