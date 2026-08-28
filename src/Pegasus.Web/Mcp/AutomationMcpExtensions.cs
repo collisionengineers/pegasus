@@ -27,6 +27,7 @@ public static class AutomationMcpExtensions
         services.AddMemoryCache();
         services.AddHttpContextAccessor();
         services.AddScoped<AutomationClientRegistry>();
+        services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
 
