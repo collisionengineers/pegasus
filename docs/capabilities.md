@@ -31,8 +31,8 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 140 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
-| Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
+| Now | 142 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Next | 27 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
 | Later | 35 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
@@ -40,10 +40,10 @@ Total: **233 capabilities; 233 unique IDs** (mechanical recount 2026-08-28).
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 140 |
+| `0.1.0-alpha.1` | 142 |
 | `0.2.0` | 5 |
 | `0.3.0` | 19 |
-| `0.4.0` | 5 |
+| `0.4.0` | 3 |
 | `0.5.0` | 5 |
 | `0.6.0` | 5 |
 | `0.7.0` | 0 |
@@ -224,10 +224,10 @@ callers.
 | CASE-23 | Post-report query and dispute work on the existing case with retained report/reply-chain evidence and an explicit lifecycle | Next | 0.4.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | State transitions, actors, response proof, due/chaser interaction, closure, and dispute resolution remain unresolved. |
 | UI-10 | Full email-management workspace | Next | 0.3.0 | [Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing) | Locally implemented as the existing retained-mail workspace: newest-first approved-mailbox Inbox, folder and queue refinements, retained/Deleted Items search, paging, freshness, exact detail/thread/attachment evidence, Case association and separately owned exact-message actions. The final assembly adds a thin authenticated `GetRetainedMail` quick-preview read to the existing dense table: pointer or keyboard intent selects one row and shows sender, subject, timestamp, excerpt, current classification, Case association and attachment names beside the table, stacking after it at constrained/200%-equivalent width; focus departure dismisses it and the unchanged subject link remains the no-JavaScript full-detail path. Authenticated Web and real-browser tests prove exact-message scoping, no read/classification/association mutation, axe, focus behavior and no document overflow. No bitmap, Core/EF/schema/action framework, mailbox write or new outcome was added. Deployment and live read-only acceptance remain separate evidence; Outlook mutation remains gated by each owning MAIL capability. |
 | UI-14 | Categorised email views for Receiving work, Queries, Other, Unidentified, Triage, and named detailed classifications | Next | 0.3.0 | [Classification and destination rules](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [operator experience](frd/frd-12-operator-experience.md#operator-experience) | Locally implemented on the retained Inbox as one accessible queue/detail selector. Unidentified replaces only the former broad `Needs sorting` destination; Triage remains a separate classification and view. The selected view is preserved through search, paging, refresh, list/detail navigation, and existing detail actions. Counts and pages are filtered in SQL from the current classification projection; no derived destination is stored. Deployment, live-mailbox evidence, and manual visual acceptance remain separate. |
-| API-01 | Principal-scoped provider submission API | Next | 0.4.0 | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) | Allocation only; exact routes/schema/client representation remain unresolved. |
+| API-01 | Principal-scoped provider submission API | Now | 0.1.0-alpha.1 | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) | Brought forward 2026-08-28 (EPIC-011 D8: the Principal API key is the Provider API credential, delivered with the submission endpoint); requires exact-target approval before any live credential is issued. |
 | API-02 | Provider API receipt and processing-status lookup | Next | 0.4.0 | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) | Allocation only; the client may see only its principal's submissions. |
 | API-03 | Provider API resulting Case/PO lookup | Next | 0.4.0 | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) | Allocation only; no case/reference may be inferred before accepted processing. |
-| API-04 | Provider API credential issue, rotation, and revocation | Next | 0.4.0 | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) | Allocation only; credentials do not define a general external tenant or route. |
+| API-04 | Provider API credential issue, reset, revoke, pause, and resume | Now | 0.1.0-alpha.1 | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) | Brought forward 2026-08-28 (EPIC-011 D8); one credential per Principal, hash-only storage, secret shown once; credentials do not define a general external tenant or route; requires exact-target approval before any live credential is issued. |
 | MCP-05 | Automation Actor actions for the broader classified-email workspace | Next | 0.3.0 | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) | Allocation only; ordinary staff have no MCP access and owning evidence is still required. |
 | AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | Later | 1.0.0 | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) | Allocation only; each image addition, replacement, or removal produces a source/versioned advisory on registration overview, damage close-up, and the applicable reflection criterion. It neither affects Case lifecycle nor returns an AI Proposal; activation still requires its own contract and caller evidence. |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | Next | 0.3.0 | [Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing) | Operator-activated for local implementation after programme review (2026-08-20): the Core logical-folder policy, approved-mailbox bindings, and administrator-only read-only folder-resolution control are implemented and test-backed. This does not activate MAIL-05 recommendation, MAIL-06 confirmation, MAIL-07 move, deployment, or live-mailbox writes; those retain their own evidence and approval gates. |
@@ -331,10 +331,10 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | QDOS-alpha scope plus the Integrated Operations Workspace bring-forwards (`UI-16`, `AI-10`, `EXT-09`, `EXT-10`, `MI-01`, 2026-08-28); not a completion claim | 140 |
+| 01 | `0.1.0-alpha.1` | QDOS-alpha scope plus the Integrated Operations Workspace bring-forwards (`UI-16`, `AI-10`, `EXT-09`, `EXT-10`, `MI-01`, `API-01`, `API-04`, 2026-08-28); not a completion claim | 142 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 5 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
-| 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
+| 04 | `0.4.0` | Remaining provider API lookups (`API-02`, `API-03`) and post-report query/dispute casework | 3 |
 | 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
 | 06 | `0.6.0` | Individually approved operator AI assistance | 5 |
 | 07 | `0.7.0` | Optional direct EVA API coexistence before replacement (`EXT-04` brought forward to `0.1.0-alpha.1`; entry retained) | 0 |
