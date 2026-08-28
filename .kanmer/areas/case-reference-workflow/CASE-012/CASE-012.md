@@ -23,9 +23,12 @@ groups:
 links:
   - TICK-223
 docs_todo: true
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/599'
+  - 'https://github.com/collisionengineers/pegasus/pull/615'
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T22:09:10.833Z'
+updated: '2026-08-28T22:11:43.057Z'
 ---
 
 ## What

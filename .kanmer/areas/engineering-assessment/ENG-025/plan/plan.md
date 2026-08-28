@@ -131,3 +131,87 @@ STOP at the open PR (no merge; review + merge are the orchestrator's).
 - Page renders §1.9 shell from real data; no inert control; access matches
   FRD-11 (D11) in Core with tests; CSP holds (no inline script/style); no
   new CSS/JS file; clipboard-clean build; PR open.
+
+## 2026-08-28 — Scope correction (before the pass)
+
+Commit `5611f316`, subject-labelled "(ENG-026)", had added the full
+multi-estimate editor — estimate tabs, the per-estimate editor
+(Delete/Duplicate/Use estimate/Save), the "New estimate" control and the
+import name/source fields — to `Pages/Cases/Assessment/Index.cshtml(.cs)`.
+That contradicts step 0 of this plan, the ticket body ("The multi-estimate
+editor is wave 4") and waves.md, which puts "Assessment estimate editor +
+Send to Claude" in wave 4 on ENG-028; ENG-026 owns Core estimates only and
+no page.
+
+Nothing of the shell needs it: with the editor removed the Estimates pane
+still renders the accepted/draft repair specification, its lines, basis and
+the Engineer acceptance, plus the "No estimates recorded" empty state, and
+the whole solution builds and its Assessment tests pass. So the whole
+commit was reverted, not partially kept.
+
+- Reverted on this branch by `bc16d8fa` (a new commit — `5611f316` stays
+  reachable, no history rewrite).
+- Salvaged to `task/eng-028-estimate-editor` (branch created from
+  `origin/dev` @ `9868cf58`, worktree
+  `../pegasus-worktrees/eng-028-estimate-editor`, commit `6b4d11db`,
+  pushed). No PR: ENG-028 is wave 4 and blocked. Its state — the two page
+  files are taken whole from `5611f316`, so its diff against `dev` also
+  contains this shell — is recorded on ENG-028's scratch
+  (`scratch/salvaged-editor.md`).
+- The page comments that named "ENG-026/ENG-028" as the editor's home now
+  name ENG-028 (`c9e90360`).
+
+## 2026-08-28 — Simplification pass
+
+Lenses: reuse, simplification, efficiency, altitude, over the branch's own
+diff against `origin/dev` @ `9868cf58`.
+
+### Defects found and fixed (correctness, not simplification)
+
+1. **Two `main` landmarks.** The Estimates pane was a second `<main>`
+   nested in the shell's; axe reported `landmark-no-duplicate-main` and
+   `landmark-main-is-top-level` and the retargeted browser test failed on
+   it. It is a `<section>` now, as CASE-012 did for the Case workspace pane
+   (`8603f945`). Fixed in `d5dd2c3f`.
+2. **The report-draft controls could never enable.** `OnGetAsync` called
+   `AssessmentReportProjection.Prepare(Assessment, costs: null)` with no
+   estimate, so ENG-026's `RepairCostRequirement` fired for every case and
+   Generate/Preview report draft stayed disabled even where generating
+   would have succeeded. It now passes `AcceptedSpecification` as the
+   Current estimate — the same inputs `EfAssessmentReportProjectionSource`
+   hands `Project`. Fixed in `5d3b658c`.
+3. **Four test assertions were wrong against merged `dev`** (written before
+   this branch merged it, never run under the plan's build-only rule).
+   Fixed in `22dd1870`; none weakened — see the post-implementation report.
+
+### Simplification findings
+
+- **Reuse (no finding).** The port adds no new helper: it reuses the lease
+  trio and `CaseMutationPageModel`, `CaseFiles.Live` +
+  `ICaseEvidenceImageQueries` for the rail, `ICreateAiJob` (AUTO-011) for
+  Send to Claude, `GenerateCaseAssessmentReportDraft` for the draft, the
+  `_StatusChip` / `_EvidenceViewer` / `_EditHeartbeat` partials and the
+  existing `site.js` dialog, tablist, range, rail-toggle and dropzone
+  modules. No new CSS or JS file; no inline `<script>`/`<style>`.
+- **The `gated` span repeats five times in the record bar.** Not extracted:
+  `Details.cshtml` renders the same shape inline, so a partial would be a
+  second way to do something the codebase already does, with no caller
+  outside this file. Convention wins.
+- **`IndexModel.Assessment` is public but read only by the page model.**
+  Left as-is: page models expose their state, and narrowing it is churn
+  with no reader affected.
+- **Dead machinery is gone, verified.** No reference remains anywhere under
+  `Pages/Cases/Assessment/` to `SaveDamage`, the section routing, the PAV
+  slider, the readiness disclosure (`readiness-summary`) or `assessment-v2`.
+- **Efficiency (no finding).** One access query, one workspace query, one
+  case query and one evidence-image batch per render; the view holds no
+  per-row query.
+- **Altitude (no finding).** Access is decided once in Core
+  (`AssessmentAccessPolicy`) and every gate — page, workspace source,
+  access source, the Case workspace's "Open Assessment", the report-draft
+  seam — reads it. The record-bar conditions are computed once per render
+  so a control and its gating span cannot disagree.
+
+`Pages/Cases/Assessment/Suggestions.cshtml` is unchanged and still carries
+no `@page` directive, so no route activates — the deferred-surface state
+`docs/design/README.md` describes, not an inert control on a live page.
