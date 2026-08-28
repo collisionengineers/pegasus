@@ -210,6 +210,9 @@ public sealed partial class CaseDetailsWebTests
                 Substitute<ICaseDataQueries>(services, store);
                 Substitute<IEvaSubmissionQueries>(services, evaStores);
                 Substitute<IEvaSubmissionModeStore>(services, evaStores);
+                // The page treats an uncomposed transport as "no API route":
+                // a non-null submitter is what makes the manual toggle apply.
+                Substitute<ISubmitCaseToEva>(services, new StubSubmitCaseToEva());
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1140,6 +1143,25 @@ public sealed partial class CaseDetailsWebTests
         Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
             string principalCode,
             CancellationToken cancellationToken) => Task.FromResult(modes);
+    }
+
+    /// <summary>
+    /// In-memory stand-in so the page sees a composed transport and applies
+    /// the principal's manual toggle. No request is ever sent anywhere: the
+    /// send-page test is a GET, and a POST would only record here and read
+    /// back as "nothing was submitted".
+    /// </summary>
+    private sealed class StubSubmitCaseToEva : ISubmitCaseToEva
+    {
+        public List<SubmitCaseToEvaRequest> Requests { get; } = [];
+
+        public Task<SubmitCaseToEvaResult?> ExecuteAsync(
+            SubmitCaseToEvaRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult<SubmitCaseToEvaResult?>(null);
+        }
     }
 
     private static void AssertPrg(HttpResponseMessage response, Guid caseId)

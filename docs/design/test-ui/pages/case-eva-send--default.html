@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Search · Pegasus</title>
+    <title>Send QDOS3100042 to EVA · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -91,12 +91,12 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                         <span>Upload</span>
                     </a>
-                <a class="nav-link" href="queues--default.html">
+                <a class="nav-link" aria-current="page" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
                         <span class="nav-count" aria-label="0 outstanding">0</span>
                 </a>
-                <a class="nav-link" aria-current="page" href="cases--default.html">
+                <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
                     <span>Search</span>
                 </a>
@@ -157,109 +157,32 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Search</h1>
+<a class="back-link" href="case-details--default.html">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to QDOS3100042
+</a>
+
+<header class="page-header">
+    <div class="page-title">
+            <p class="eyebrow">Case</p>
+        <h1>Send QDOS3100042 to EVA</h1>
+    </div>
 </header>
 
-<section class="panel filterbar" aria-labelledby="case-filters-title">
-    <h2 id="case-filters-title" class="vh">Filter cases</h2>
-    <form method="get">
 
-        <div class="filterbar__line">
-            <label for="case-query" class="vh">Case/PO or keyword</label>
-            <input id="case-query" name="query" maxlength="300"
-                   placeholder="Case/PO, registration, claimant or claim number" />
 
-            <label for="case-state" class="vh">Case stage</label>
-            <select id="case-state" name="state">
-                <option value="">Any stage</option>
-                    <option value="NotReady">Not ready</option>
-                    <option value="Held">Held</option>
-                    <option value="Review">Review</option>
-                    <option value="ReportPreparation">With Engineer</option>
-                    <option value="PostReport">With Engineer</option>
-                    <option value="PostReportComplete">Complete</option>
-                    <option value="ProviderCancelled">Closed &#xB7; Provider cancelled</option>
-                    <option value="CollisionEngineersRejected">Closed &#xB7; Collision Engineers rejected</option>
-                    <option value="CreatedInError">Closed &#xB7; Created in error</option>
-                    <option value="SourceEmailUnlinked">Closed &#xB7; E-mail unlinked</option>
-            </select>
-
-            <label for="case-principal" class="vh">Principal</label>
-            <input id="case-principal" name="principal" value="QDOS" maxlength="20" placeholder="Principal" />
-
-            <button type="submit" class="btn btn--dark">
-                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                Search
-            </button>
-            <a class="btn" href="cases--default.html">Clear</a>
-        </div>
-
-        <details class="filterbar__more">
-            <summary>More filters</summary>
-            <div class="form-grid">
-                <div>
-                    <label for="CaseReference">Case/PO</label>
-                    <input id="case-reference" name="case" maxlength="100" />
-                </div>
-                <div>
-                    <label for="Registration">Registration</label>
-                    <input maxlength="20" type="text" id="Registration" name="Registration" value="" />
-                </div>
-                <div>
-                    <label for="Claimant">Claimant</label>
-                    <input maxlength="300" type="text" id="Claimant" name="Claimant" value="" />
-                </div>
-                <div>
-                    <label for="ClaimNumber">Claim number</label>
-                    <input maxlength="100" type="text" id="ClaimNumber" name="ClaimNumber" value="" />
-                </div>
-                <div>
-                    <label for="EngineerId">Engineer</label>
-                    <input type="text" id="EngineerId" name="EngineerId" value="" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="EngineerId" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="ReceivedDate">Received on</label>
-                    <input type="date" id="ReceivedDate" name="ReceivedDate" value="" /><input name="__Invariant" type="hidden" value="ReceivedDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="ReceivedDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="InstructionDate">Instructed on</label>
-                    <input type="date" id="InstructionDate" name="InstructionDate" value="" /><input name="__Invariant" type="hidden" value="InstructionDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="InstructionDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="FromDate">Received from</label>
-                    <input type="date" id="FromDate" name="FromDate" value="" /><input name="__Invariant" type="hidden" value="FromDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="FromDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="ToDate">Received to</label>
-                    <input type="date" id="ToDate" name="ToDate" value="" /><input name="__Invariant" type="hidden" value="ToDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="ToDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="Origin">Origin</label>
-                    <input maxlength="100" type="text" id="Origin" name="Origin" value="" />
-                </div>
-                <div>
-                    <label for="record-kind">Record type</label>
-                    <select id="record-kind" name="kind">
-                        <option value="" selected="selected">All</option>
-                        <option value="instructions">Cases</option>
-                        <option value="images">Vehicle images</option>
-                    </select>
-                </div>
-            </div>
-        </details>
-    </form>
-</section>
-    <section class="status-card status-card--error" role="alert">
-        <h2>Cases are unavailable</h2>
-        <p>The case query could not be completed; try again.</p>
-    </section>
-
+<div class="panel">
+    <div class="button-row">
+            <form method="post" action="case-eva-send--default.html">
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <button type="submit" class="btn btn--dark">Submit to EVA API</button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        <form method="post" action="#">
+            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+            <button type="submit" class="btn">Download export</button>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
+</div>
 
 
                 </div>
