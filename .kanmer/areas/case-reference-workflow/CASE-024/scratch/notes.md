@@ -66,3 +66,5 @@ worktree is removed.
 An earlier attempt at this run was killed by a 10-minute tool cap, not by a test
 failure; it is not counted as evidence either way. This run replaces it and
 covers the post-simplification code.
+
+2026-08-28 (EPIC-011 orchestrator): PR #581 merged into dev at 1f2cf4a6 on the operator's instruction ("KANMER-005 goes with CASE-024, to be merged with the full set of changes"). CI was fully green. The ticket's "needs operator sign-off" items (operator copy deletions; UI-15 exception widening) are treated as accepted by that instruction. Recorded worktree path `C:/Users/Alex/…` does not exist on this machine — closeout must skip the worktree removal step or run on the original machine. Moved to verifying; proof to be written on merged main after the programme's dev→main promotion.

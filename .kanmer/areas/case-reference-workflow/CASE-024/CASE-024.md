@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Hold the case edit lease indefinitely while editing, and give Assessment its
   own edit mode
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T05:09:24.672Z'
   review: '2026-08-28T07:05:45.536Z'
+  verifying: '2026-08-28T10:52:02.387Z'
 taken_at: '2026-08-28T05:11:57.614Z'
 branch: task/case-024-edit-lease-heartbeat
 worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/case-024-edit-lease-heartbeat'
@@ -37,7 +38,7 @@ prs:
   - '581'
 archived: false
 created: '2026-08-28T05:09:12.450Z'
-updated: '2026-08-28T10:13:22.991Z'
+updated: '2026-08-28T10:52:02.387Z'
 ---
 
 ## What

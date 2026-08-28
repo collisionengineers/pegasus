@@ -28,6 +28,6 @@ Delete legacy CSS block and superseded stubs/partials · `docs/current-architect
 Wave 0: KANMER-006, UIIMP-005, UIIMP-006, UIIMP-007, PLAT-047, AUTO-009, MAIL-024 (all merged except UIIMP-005 #588).
 Wave 1: PLAT-029.
 Wave 2: A UIIMP-008 · B MAIL-025 · C1 CASE-025 · C2 INTK-046 · D CASE-026 · E1 CASE-012 · E2 CASE-027 · F ENG-025 · G INTK-047 · H PLAT-023 · I1 PLAT-027 · I2 PLAT-025 · I3 PLAT-026 · I4 PLAT-028 · I5 AUTO-006.
-Wave 3 (migration order): AUTO-011 → TICK-061 (+TICK-058) → ENG-026 → ENG-027 → CASE-028 → PLAT-048 → MAIL-027.
+Wave 3 (migration order): AUTO-011 (merged 658a7984) → TICK-061 (+TICK-058) → ENG-026 → ENG-027 → CASE-028 → PLAT-048 (no migration) → MAIL-027. Added 2026-08-28 by the operator: KANMER-005 (exclusive edit leases across staff and Automation Actors) ships with CASE-024 (PR #581 merged 1f2cf4a6); Case/Assessment lanes rebase over both.
 Wave 4: PLAT-049, AUTO-010, PLAT-050, PLAT-051, CASE-029, ENG-028, MAIL-026, CASE-030.
 Wave 5: UIIMP-009 → DELIV-030 → UIIMP-010.
