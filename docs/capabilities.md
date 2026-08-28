@@ -1,4 +1,4 @@
-# Capability inventory
+﻿# Capability inventory
 
 This is the stable product-capability inventory. Each capability keeps its
 settled ID and durable outcome, has one canonical owner, and uses an exact
