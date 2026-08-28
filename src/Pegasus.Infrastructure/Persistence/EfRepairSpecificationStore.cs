@@ -134,7 +134,7 @@ public sealed class EfRepairSpecificationStore(
         var requestHash = Hash(request);
         if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
-            return await GetRequiredVersionAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
@@ -534,11 +534,6 @@ public sealed class EfRepairSpecificationStore(
         await context.CaseRepairSpecifications.Include(item => item.Lines)
             .SingleOrDefaultAsync(item => item.Id == estimateId && item.CaseId == caseId, cancellationToken)
         ?? throw new InvalidOperationException("The estimate was not found on this case.");
-
-    private static async Task<RepairSpecificationVersion> GetRequiredVersionAsync(
-        PegasusDbContext context, Guid caseId, Guid id, CancellationToken cancellationToken) =>
-        Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleAsync(item => item.CaseId == caseId && item.Id == id, cancellationToken));
 
     private static async Task<CaseWorkflowEntity> RequiredWorkflowAsync(
         PegasusDbContext context, Guid caseId, CancellationToken cancellationToken) =>
