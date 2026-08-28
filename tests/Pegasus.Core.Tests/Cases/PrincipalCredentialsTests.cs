@@ -137,11 +137,12 @@ public sealed class PrincipalCredentialsTests
         var replay = await command.ExecuteAsync(Request(0), default);
 
         Assert.NotNull(first.Secret);
-        Assert.Equal(first.Credential.KeyId, store.Issued.Single().KeyId);
+        Assert.Equal(2, store.Issued.Count);
+        Assert.Equal(first.Credential.KeyId, store.Issued[0].KeyId);
         Assert.True(PrincipalCredentialPolicy.IsWellFormed(first.Credential.KeyId, first.Secret));
         Assert.Null(replay.Secret);
-        Assert.Equal("issue-1", store.Issued.Single().Request.OperationKey);
-        Assert.Equal("first key", store.Issued.Single().Request.Reason);
+        Assert.Equal("issue-1", store.Issued[0].Request.OperationKey);
+        Assert.Equal("first key", store.Issued[0].Request.Reason);
     }
 
     [Fact]
