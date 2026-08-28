@@ -122,10 +122,11 @@ public sealed class AccessibilityTests
         Assert.False(await HasHorizontalOverflowAsync(support.Page));
         Assert.True(await support.Page.GetByRole(
             AriaRole.Heading,
-            new PageGetByRoleOptions { Name = "Dashboard", Exact = true }).IsVisibleAsync());
-        // Both spellings until the Work Centre port (wave 2) retires the
-        // legacy metric__value class from the page body.
-        Assert.True(await support.Page.Locator(".metric .metric-value, .metric .metric__value").First.IsVisibleAsync());
+            new PageGetByRoleOptions { Name = "Work Centre", Exact = true }).IsVisibleAsync());
+        // The Work Centre port (wave 2) retired the legacy metric__value
+        // class from the page body, so the ported vocabulary is the only
+        // spelling this page may carry.
+        Assert.True(await support.Page.Locator(".metric .metric-value").First.IsVisibleAsync());
     }
 
     [Fact]

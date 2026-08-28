@@ -85,8 +85,8 @@ public sealed class TriageQueuesWebTests
     /// CaseWorkflows rows while the row query
     /// (<c>Triage/Index.cshtml.cs LoadNotReadyAsync</c>) also lists
     /// awaiting-instruction Image Intakes. The badge must equal the number
-    /// of rows across both origins, and the Dashboard's Not-ready tile reads
-    /// the same count so it must agree too.
+    /// of rows across both origins, and the Work Centre's Not ready metric
+    /// reads the same count so it must agree too.
     /// </summary>
     [Fact]
     public async Task NotReadyBadgeCountMatchesRowsAcrossBothOrigins()
@@ -138,15 +138,15 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(imageIntake.ImageIntakeReference, notReadyHtml, StringComparison.Ordinal);
         Assert.Equal(2, badgeCount);
 
-        // The Dashboard's Not-ready tile reads the same count query, so it
-        // must report the identical figure — a queue whose badge disagrees
-        // with its own tab's tile is exactly the defect being fixed here.
+        // The Work Centre's Not ready metric reads the same count query, so
+        // it must report the identical figure — a queue whose badge disagrees
+        // with its own tab's metric is exactly the defect being fixed here.
         using var dashboard = await client.GetAsync("/");
         var dashboardHtml = await dashboard.Content.ReadAsStringAsync();
         var tileMatch = Regex.Match(
             dashboardHtml,
-            "data-state=\"not-ready\"[\\s\\S]*?metric__value\">(\\d+)</strong>");
-        Assert.True(tileMatch.Success, "Dashboard Not ready tile markup not found.");
+            "data-value=\"not_ready\"[\\s\\S]*?metric-value\">(\\d+)</span>");
+        Assert.True(tileMatch.Success, "Work Centre Not ready metric markup not found.");
         Assert.Equal(badgeCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
