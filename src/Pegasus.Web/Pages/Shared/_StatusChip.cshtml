@@ -2,19 +2,19 @@
     The single place a business or query state chooses its visual treatment.
 
     Model: the exact state text to display. Business labels keep their settled
-    casing (`Not ready`, `Blocked intake`, `Unidentified`, `Review`, `Held`);
-    this partial never rewrites the caller's words, it only picks a tone and an
-    icon for them.
+    casing (`Not ready`, `Review`, `With Engineer`, `Complete`, `Held`,
+    `Unidentified`, `Blocked intake`); this partial never rewrites the
+    caller's words, it only picks a tone for them.
 
     ViewData["StatusCount"] — optional count appended in brackets.
     ViewData["StatusTone"]  — optional explicit tone override
-                              (navy | amber | red | green | neutral).
+                              (navy | amber | red | green | blue | neutral).
 
-    Tone rules follow docs/design/README.md: amber is incomplete or pending, navy is
-    Review and other in-flight states, red is blocked/failed/denied, green is
-    confirmed completion only, and neutral covers absent, loading, current and
-    settled-terminal states. Every chip carries its text label, so no state is
-    ever conveyed by colour or icon alone.
+    Tone rules follow docs/design/README.md: amber is incomplete or pending,
+    navy is Review and other in-flight states, red is blocked/failed/denied,
+    green is confirmed completion only, and neutral covers absent, loading,
+    current and settled-terminal states. Every chip carries its text label and
+    the chip's own leading dot, so no state is conveyed by colour alone.
 *@
 @model string
 @{
@@ -31,61 +31,64 @@
         .ToArray());
     key = string.Join(' ', key.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-    var (tone, iconId) = key switch
+    var tone = key switch
     {
-        // Case lifecycle
-        "not ready" => ("amber", "icon-alert-triangle"),
-        "review" => ("navy", "icon-info"),
-        "held" => ("amber", "icon-clock"),
-        "completed" or "post report completion" => ("green", "icon-check-circle"),
-        "cancelled" or "provider cancellation" or "archived" => ("neutral", "icon-info"),
-        "created in error" => ("neutral", "icon-alert-circle"),
-        "reopened" or "open" => ("navy", "icon-info"),
+        // Case lifecycle (D3 display labels)
+        "not ready" => "amber",
+        "review" => "navy",
+        "with engineer" => "navy",
+        "held" => "amber",
+        "complete" or "completed" or "post report completion" => "green",
+        "cancelled" or "provider cancellation" or "archived" => "neutral",
+        "created in error" => "neutral",
+        "reopened" or "open" => "navy",
 
         // Intake and Triage
-        "needs sorting" or "unidentified" => ("amber", "icon-alert-triangle"),
-        "blocked intake" or "blocked" => ("red", "icon-alert-circle"),
-        "document text required" or "unsupported" => ("amber", "icon-file-text"),
-        "awaiting information" => ("amber", "icon-clock"),
-        "finding recorded" => ("navy", "icon-check-circle"),
-        "registration missing" => ("amber", "icon-alert-triangle"),
+        "needs sorting" or "unidentified" => "amber",
+        "blocked intake" or "blocked" => "red",
+        "document text required" or "unsupported" => "amber",
+        "awaiting information" => "amber",
+        "finding recorded" => "navy",
+        "registration missing" => "amber",
 
         // Query freshness
-        "current" => ("neutral", "icon-check-circle"),
-        "loading" or "refreshing" => ("neutral", "icon-refresh-cw"),
-        "stale" => ("amber", "icon-clock"),
-        "partial" or "limit reached" => ("amber", "icon-alert-triangle"),
-        "unavailable" => ("neutral", "icon-alert-circle"),
-        "failed" or "technical failure" or "error" => ("red", "icon-alert-circle"),
+        "current" => "neutral",
+        "loading" or "refreshing" => "neutral",
+        "stale" => "amber",
+        "partial" or "limit reached" => "amber",
+        "unavailable" => "neutral",
+        "failed" or "technical failure" or "error" => "red",
 
         // Access and mutation
-        "denied" or "unauthenticated" => ("red", "icon-lock"),
-        "disabled" => ("neutral", "icon-lock"),
-        "approved" or "enabled" => ("navy", "icon-check-circle"),
-        "conflict" or "stale version" => ("red", "icon-alert-triangle"),
-        "lease lost" => ("red", "icon-lock"),
-        "lease held" or "editing" => ("navy", "icon-lock"),
-        "lease expired" => ("amber", "icon-clock"),
-        "locked" => ("neutral", "icon-lock"),
+        "denied" or "unauthenticated" => "red",
+        "disabled" => "neutral",
+        "approved" or "enabled" => "navy",
+        "conflict" or "stale version" => "red",
+        "lease lost" => "red",
+        "lease held" or "editing" => "navy",
+        "lease expired" => "amber",
+        "locked" => "neutral",
 
         // Access review
-        "due no review recorded" or "due" => ("amber", "icon-clock"),
-        "recorded" => ("neutral", "icon-check-circle"),
+        "due no review recorded" or "due" => "amber",
+        "recorded" => "neutral",
 
         // Chase state (Case-side CaseDueWorkState and the Image-initiated
         // Case's derived due/not-due read share this vocabulary)
-        "chase due" => ("amber", "icon-clock"),
-        "chasing paused" => ("amber", "icon-clock"),
-        "chasing stopped" => ("neutral", "icon-info"),
-        "not yet due" => ("neutral", "icon-clock"),
+        "chase due" => "amber",
+        "chasing paused" => "amber",
+        "chasing stopped" => "neutral",
+        "not yet due" => "neutral",
 
         // External and document custody
-        "pending" => ("amber", "icon-clock"),
-        "retry" => ("amber", "icon-refresh-cw"),
-        "success" => ("green", "icon-check-circle"),
-        "unknown" => ("neutral", "icon-info"),
+        "pending" => "amber",
+        "retry" => "amber",
+        "success" => "green",
+        "unknown" => "neutral",
 
-        _ => ("neutral", "icon-info")
+        // Every other terminal case outcome is "Closed · <outcome>" (D3)
+        _ when key.StartsWith("closed", StringComparison.Ordinal) => "neutral",
+        _ => "neutral"
     };
 
     if (ViewData["StatusTone"] is string toneOverride && !string.IsNullOrWhiteSpace(toneOverride))
@@ -98,7 +101,4 @@
         ? $"{state} ({suppliedCount})"
         : state;
 }
-<span class="status-chip status-chip--@tone">
-    <svg class="icon" aria-hidden="true"><use href="#@iconId" /></svg>
-    <span>@displayText</span>
-</span>
+<span class="status status--@tone">@displayText</span>
