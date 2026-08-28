@@ -211,45 +211,55 @@
     @* Undrawn in the prototype, but the only surface for three real Core
        paths: the Review → With Engineer transition, its return, and the
        correction of a wrongly linked report-Sent item. Archiving ends a
-       terminal case's editability. Offered only in edit context. *@
-    @if (mayEdit && !CaseLifecycleRules.IsTerminal(state))
+       terminal case's editability. Offered only in edit context, and only
+       when one of them applies. *@
+    @{
+        var offersStartWork = mayEdit && state == CaseLifecycleState.Review;
+        var offersReturnToReview = mayEdit
+            && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+        var offersUnlinkEvidence = mayEdit
+            && workflow.ReportSentEvidence is not null
+            && state is not CaseLifecycleState.Held
+            && !CaseLifecycleRules.IsTerminal(state);
+        var offersArchive = mayEdit && CaseLifecycleRules.IsTerminal(state) && workflow.Archive is null;
+        var offersLifecyclePanel = offersStartWork
+            || offersReturnToReview
+            || offersUnlinkEvidence
+            || offersArchive;
+    }
+    @if (offersLifecyclePanel)
     {
         <section class="panel" aria-labelledby="case-lifecycle-title">
             <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
             <div class="panel-body button-row">
-                @if (state == CaseLifecycleState.Review)
+                @if (offersStartWork)
                 {
                     <button type="button" class="btn" data-dialog-open="case-start-work-dialog">
                         <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
                         <span>Start report preparation</span>
                     </button>
                 }
-                @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport)
+                @if (offersReturnToReview)
                 {
                     <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
                         <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
                         <span>Return to Review</span>
                     </button>
                 }
-                @if (workflow.ReportSentEvidence is { } linked && state is not CaseLifecycleState.Held)
+                @if (offersUnlinkEvidence)
                 {
                     <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                         <span>Unlink report evidence</span>
                     </button>
                 }
-            </div>
-        </section>
-    }
-    else if (mayEdit && workflow.Archive is null)
-    {
-        <section class="panel" aria-labelledby="case-lifecycle-title">
-            <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
-            <div class="panel-body button-row">
-                <button type="button" class="btn" data-dialog-open="case-archive-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
-                    <span>Archive case</span>
-                </button>
+                @if (offersArchive)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-archive-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                        <span>Archive case</span>
+                    </button>
+                }
             </div>
         </section>
     }

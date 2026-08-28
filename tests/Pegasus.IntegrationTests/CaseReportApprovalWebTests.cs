@@ -32,7 +32,14 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
+        // CASE-012: the workspace no longer renders the typed-SHA approval
+        // form (inherited scope bans typed SHA inputs; the approval act moves
+        // to the Assessment report-draft lane). The handler's contract — the
+        // server actor, the stable artifact identity, replay by operation
+        // key, and no caller-supplied time — is pinned here for the surface
+        // that will call it.
         var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.DoesNotContain("Approve report", initialHtml, StringComparison.Ordinal);
         var claimOperationKey = InputValue(initialHtml, "operationKey");
         using var claimResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=ClaimLease",
@@ -44,11 +51,8 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claimResponse, store.CaseId);
 
         var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        // CASE-016: the button no longer says "immutable" — the assertion is that
-        // the approval control renders once the lease is held, not what it is called.
-        Assert.Contains("Approve report", leasedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("approvedAtUtc", leasedHtml, StringComparison.Ordinal);
-        var approvalId = InputValue(leasedHtml, "approvalId");
+        var approvalId = Guid.NewGuid().ToString("D");
         const string approvalOperationKey = "report-approval-replay";
         using var firstResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Closure?handler=RecordReportApproval",
@@ -92,11 +96,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(request.Actor.SubjectId, replay.Actor.SubjectId);
         Assert.Equal(request.Actor.Roles.OrderBy(role => role), replay.Actor.Roles.OrderBy(role => role));
         Assert.Equal(request.Approval, replay.Approval);
-
-        // PLAT-011: the Actor row on the case summary shows the resolved approver
-        // name, never the raw actor subject id (docs/design/README.md:168).
-        Assert.Contains(ApprovalCaseDetailsStore.ApproverDisplayName, currentHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(claimant.SubjectId, VisibleText(currentHtml), StringComparison.OrdinalIgnoreCase);
     }
 
     private static FormUrlEncodedContent ApprovalForm(

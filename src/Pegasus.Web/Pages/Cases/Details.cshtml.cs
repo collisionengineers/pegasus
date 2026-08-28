@@ -160,14 +160,6 @@ public sealed partial class DetailsModel(
     }
 
 
-    /// <summary>
-    /// Everything the case carries: files, vehicle images and linked e-mail.
-    /// </summary>
-    public int EvidenceCount =>
-        (Case is null ? 0 : CaseFiles.Live(Case.Documents).Count)
-        + ImageIntakes.Count
-        + EvidenceImages.Count;
-
     public CaseDetails? Case { get; private set; }
 
     public bool CanOpenAssessment { get; private set; }
@@ -194,8 +186,6 @@ public sealed partial class DetailsModel(
     public bool QueryFailed { get; private set; }
 
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
-
-    public Guid ReportApprovalId { get; } = Guid.NewGuid();
 
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
 
