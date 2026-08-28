@@ -171,3 +171,46 @@ evidence-viewer__, `label.req`. No `.legacy-` renames were needed.
   `auth_time` claim.
 - `Administration/{Roles,Access,Organizations}` pages still exist and are
   listed in `AuthenticatedRouteList` until their folding tickets land.
+
+## Review of PR #589 — changes applied (2026-08-28)
+
+1. **inert (blocking):** `site.js` no longer sets `inert` on `[data-app-shell]`.
+   `inertOutside(dialog)` walks from the dialog to `body` and sets `inert` on
+   every sibling of each ancestor, recording them; close releases exactly
+   those. Used by the generalised `[data-dialog]` block and the evidence
+   viewer; `_ShellDialogs` unchanged. Browser assertion added in
+   `OperatorJourneyTests` (evidence tab, remove-document reason dialog:
+   visible, focus inside, not under `[inert]`, Confirm enabled, Cancel
+   real-clicked, no `[inert]` left).
+2. **Cases rail count = contract sum:** `CaseStageCounts` gains
+   `WithEngineer` (ReportPreparation + PostReport) in Core, counted by
+   `EfDashboardQueries`; `RailCountsPageFilter` sums
+   not_ready + review + with_engineer + held + open Triage
+   (`IListTriage`, page size 1, `TotalCount`) + Unidentified
+   (`IUnidentifiedStore.ListQueueAsync(null)`), all in one `Task.WhenAll`,
+   actor from `StaffActorFactory`.
+3. **README D13 rows:** font SHA-256s, licence SHA-256, sprite checksum line
+   (committed-blob SHA) and all 43 `pending` glyph rows filled with the
+   SHA-256 of each `<g id="icon-…">…</g>` element (the existing rows' method,
+   verified against `upload`).
+4. `--font` is now exactly the README stack; `@font-face` family stays `Inter`.
+5. `--polish-shadow` inlined into its 7 rules; `--polish-shadow-raised`,
+   `--polish-red-soft`, `--polish-blue-soft` deleted (no callers).
+6. **Reviewed divergences (recorded):** account dialog keeps a "Change
+   password" link so `/Account/PasswordChange` stays reachable (prototype
+   had only Close/Sign out); Add dialog omits "Create upload request" (needs
+   a Case picker — wave 4); utility search has no placeholder (no
+   explanatory copy); freshness reads "Current · HH:MM" (prototype "All
+   sources current"), stale/failed states as a status chip.
+7. `.status--neutral` keeps the prototype `#57534e` on `#f3f2f0`.
+   **Docs follow-up:** README §Status chips row for `.status--neutral`
+   (`--muted` on `--surface-3`) must be corrected to those values.
+8. Evidence viewer uses `.dialog--wide` (rule reintroduced); the
+   `.viewer-stage[aria-busy]::after` rule exists once; `.text-small`,
+   `.block`, `.link-plain` removed (no callers); `.rot-*` and `progress` kept.
+9. `catalogue.json`/`index.html` branch text for `Administration/Index`
+   corrected. **`docs/current-architecture.md` is DELIV-030's** — the shell,
+   route and count changes here need reflecting there (rail routes,
+   `/Cases`/`/Search`/`/Triage` stub, `RailCountsPageFilter` queries).
+10. `LayoutIntegrityTests` allow-list adds `.rail-user strong` and
+    `.workspace-tab span`.
