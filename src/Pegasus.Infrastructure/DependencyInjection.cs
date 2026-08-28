@@ -191,6 +191,17 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
+        services.AddScoped<EfPrincipalCredentialStore>();
+        services.AddScoped<IPrincipalCredentialStore>(
+            provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
+        services.AddScoped<IPrincipalCredentialQueries>(
+            provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
+        services.AddScoped<IIssuePrincipalCredential, IssuePrincipalCredential>();
+        services.AddScoped<IPausePrincipalCredential, PausePrincipalCredential>();
+        services.AddScoped<IResumePrincipalCredential, ResumePrincipalCredential>();
+        services.AddScoped<IRevokePrincipalCredential, RevokePrincipalCredential>();
+        services.AddScoped<IGetPrincipalCredential, GetPrincipalCredential>();
+        services.AddScoped<IAuthenticatePrincipalCredential, AuthenticatePrincipalCredential>();
         services.AddScoped<ICreateOrganization, CreateOrganization>();
         services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
@@ -243,6 +254,9 @@ public static class DependencyInjection
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
+        services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
+        services.AddScoped<GetEngineerActivityReport>();
         services.AddScoped<EfWorkflowConfigurationStore>();
         services.AddScoped<IWorkflowConfigurationStore>(
             provider => provider.GetRequiredService<EfWorkflowConfigurationStore>());
@@ -301,6 +315,14 @@ public static class DependencyInjection
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
+        // the import dialog selects the parser by the chosen source route.
+        services.AddSingleton<JsonEstimateParser>();
+        services.AddScoped<ISaveEstimate, SaveEstimate>();
+        services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
+        services.AddScoped<IDiscardEstimate, DiscardEstimate>();
+        services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
+        services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();

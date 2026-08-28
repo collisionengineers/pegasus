@@ -95,9 +95,9 @@ internal sealed class EfAssessmentReportProjectionSource(
                 row.Sha256))
             .ToArray();
 
-        // Repair-cost figures have no accepted formula anywhere in the
-        // domain yet (see the remarks on AssessmentReportProjectionInput);
-        // this production source never fabricates one.
+        // Repair costs are never typed here: the projection derives them
+        // from the Current estimate (the workspace's accepted specification)
+        // through EstimateTotals, and fails closed when there is none.
         return new AssessmentReportProjectionInput(
             workspace.Assessment,
             workspace.Data.Claimant.Name.Current?.Value,
@@ -107,7 +107,8 @@ internal sealed class EfAssessmentReportProjectionSource(
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime),
             photos,
             sources,
-            Costs: null);
+            Costs: null,
+            CurrentEstimate: workspace.AcceptedSpecification);
     }
 
     private sealed record ConfirmedDocumentRow(

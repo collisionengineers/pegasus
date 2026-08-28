@@ -28,6 +28,7 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public string? EditLeaseTokenHash { get; set; }
     public string? EditLeaseRequestHash { get; set; }
     public string? EditLeaseHolder { get; set; }
+    public string? EditLeaseHolderKind { get; set; }
     public string? EditLeaseOperationKey { get; set; }
     public DateTimeOffset? EditLeaseExpiresAtUtc { get; set; }
     public Guid ConcurrencyToken { get; set; }
