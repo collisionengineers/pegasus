@@ -10,16 +10,16 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-003: the operator rail's Queues badge must show the real
-/// Not ready + Review + Held total (UI-02's already-deployed count), and a
-/// route with no established figure (Inbox, Cases) must render no badge at
-/// all rather than a stale zero.
+/// PLAT-003 / PLAT-029: the operator rail's Cases count must show the real
+/// Not ready + Review + Held total (the already-deployed stage aggregate),
+/// and a route with no established figure (Inbox, Operations) must render no
+/// count at all rather than a stale zero.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class RailCountsWebTests
 {
     [Fact]
-    public async Task QueuesBadgeShowsTheRealStageTotalAndOtherRoutesRenderNoBadge()
+    public async Task CasesCountShowsTheRealStageTotalAndOtherRoutesRenderNoCount()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -33,20 +33,20 @@ public sealed class RailCountsWebTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var queuesMatch = Regex.Match(
+        var casesMatch = Regex.Match(
             html,
-            "Queues</span>\\s*<span class=\"rail-link__count rail-link__count--waiting\">(\\d+)</span>");
-        Assert.True(queuesMatch.Success, "Queues rail badge markup not found.");
-        Assert.Equal(1, int.Parse(queuesMatch.Groups[1].Value, CultureInfo.InvariantCulture));
+            "Cases</span>\\s*<span class=\"nav-count\"[^>]*>(\\d+)</span>");
+        Assert.True(casesMatch.Success, "Cases rail count markup not found.");
+        Assert.Equal(1, int.Parse(casesMatch.Groups[1].Value, CultureInfo.InvariantCulture));
 
-        // Inbox and Cases have no established figure to reuse (research.md):
-        // their rail links must carry no rail-link__count span at all.
+        // Inbox and Operations have no established figure to reuse
+        // (research.md): their rail links must carry no nav-count span at all.
         Assert.False(
-            Regex.IsMatch(html, "Inbox</span>\\s*<span class=\"rail-link__count\">"),
-            "Inbox must render no badge until a real figure exists for it.");
+            Regex.IsMatch(html, "Inbox</span>\\s*<span class=\"nav-count\""),
+            "Inbox must render no count until a real figure exists for it.");
         Assert.False(
-            Regex.IsMatch(html, "Cases</span>\\s*<span class=\"rail-link__count\">"),
-            "Cases must render no badge until a real figure exists for it.");
+            Regex.IsMatch(html, "Operations</span>\\s*<span class=\"nav-count\""),
+            "Operations must render no count until a real figure exists for it.");
     }
 
     /// <summary>

@@ -53,3 +53,38 @@ Background automation follows the same rule. Queues and timers transport stable
 work identities; Core owns transitions and idempotency. Poison work remains
 recoverable and observable. No AI proposal or workspace service can mutate case
 state directly.
+
+## AI job and estimate tools
+
+The Automation Actor's inventory gains the AI job ledger tools decided by
+[ADR-0035](../adr/0035-ai-job-ledger.md); the behaviour of jobs, kinds and
+states is owned by [FRD-11 § AI Job
+List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list).
+Every tool invokes the same Core command as the staff application, supplies
+the resolved Automation identity and the connecting client's name rather
+than caller-provided actor data, requires an operation key and expected
+version on every mutation, and records permanent history. The ADR-0031 kill
+switch and attribution rules are unchanged: a stopped automation client is
+refused before any tool runs.
+
+| Tool | Scope | Action |
+| --- | --- | --- |
+| `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
+| `pegasus_ai_job_create` | `automation.jobs` | Create a job of a catalogued kind for a named record; the only route by which an external scheduler starts an Unidentified-queue pass |
+| `pegasus_ai_job_take` | `automation.jobs` | Claim one queued job under a bounded lease held by the client's name; refused when the job is not queued or the kill switch is on |
+| `pegasus_ai_job_progress` | `automation.jobs` | Renew the lease and record a short progress note; refused after cancellation or lease expiry |
+| `pegasus_ai_job_complete` | `automation.jobs` | Mark the job `Draft ready`, naming the draft or proposal it produced |
+| `pegasus_ai_job_fail` | `automation.jobs` | Mark the job `Failed` with a reason |
+| `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
+| `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
+| `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
+
+`automation.jobs` is a new scope with its own consent description on the
+Administrator consent page; a token without it cannot see the ledger. The
+estimate tools stay under `automation.assessment` because they write
+assessment values, but they accept AI drafts only: an estimate saved without
+a job reference, or naming a job that is not taken by the calling client, is
+refused. The existing `automation.mail` scope is granted today without a
+consent description; it must carry one before any connector is consented to
+it. Each tool is proven under the tranche rule above — real caller, success,
+authorization failure, validation failure, and action-history evidence.

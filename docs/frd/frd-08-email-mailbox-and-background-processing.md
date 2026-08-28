@@ -374,3 +374,59 @@ Confirmation proves only that the exact item existed in the approved Sent scope 
 Triage completion uses its separate exact reply-chain evidence contract and has no subject, VRM, manual-item-selection, or manual “sent” fallback.
 
 The local alpha must not mutate a mailbox. A Worker project, queue registration, or timer configuration is not caller proof.
+
+### Outbound correspondence
+
+Staff-initiated Reply, Forward and Compose exist on the Inbox message and the
+Case correspondence surfaces, and are the technical decision of
+[ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md). They are
+present only when the outbound capability is composed; when it is not, the
+surfaces carry no send, Flag or Delete control and no composer.
+
+- **Who may send.** A signed-in staff member with the casework right. There is
+  no autonomous, scheduled, or Automation Actor send.
+- **From which mailbox.** Reply and Forward send as the approved mailbox the
+  retained message belongs to; Compose sends as the default approved mailbox.
+  The sending identity is never a staff member's own address or any mailbox
+  outside the approved allowlist, and the composer shows it read-only.
+- **What the composer carries.** To, Subject, Message, Case, and From
+  (read-only). Reply and Forward preserve the retained message's reply-chain
+  and conversation identity; Case defaults to the message's current
+  association and may be changed before sending.
+- **What is retained.** The immutable Sent item Graph writes for the send is
+  the evidence, retained by the existing Sent-evidence poll under
+  [Outbound correspondence evidence](#outbound-correspondence-evidence) and
+  auto-linked to the Case named at send time. The draft text is not evidence
+  until that Sent item exists; a send that Graph refuses leaves no evidence
+  and is visible as a failure on the composer, not recorded as sent.
+- **Flag.** A mailbox mutation through the same seam as the confirmed folder
+  move, recorded in the message's history with actor and time; it changes no
+  classification, association, or Case state.
+- **Delete.** Requires a reason, moves the exact item to Deleted Items — never
+  a hard delete — and is recorded in the message's history. The retained
+  message, its evidence, and its associations remain; the item stays reachable
+  through the existing read-only Deleted Items search.
+
+Local alpha and every test profile use the unavailable implementation of the
+seam and never mutate a mailbox. Production activation is a separately
+approved live write, and requires the Sent-evidence poll to be enabled for
+the sending mailbox so that every send has its evidence.
+
+### EVA-sent report detection
+
+A report sent through EVA rather than from Pegasus is detected, not asserted
+(EPIC-011 D10). The Sent-evidence poll recognises a report mail in the
+approved mailbox when the exact Sent item matches a Case reference and
+carries a PDF attachment classified as a report. On that match Pegasus
+attaches the PDF to the Case as the report document, links the Sent item as
+`Report sent` evidence under
+[Outbound correspondence evidence](#outbound-correspondence-evidence), and
+records the report-sent event that moves the Case into post-report work; the
+Case's own closure outcome remains a separate reasoned step.
+
+A Sent item with no Case-reference match, with several candidate Cases, with
+a Case already holding report-sent evidence, or with no attachment classified
+as a report is retained unlinked and surfaces on the Case for staff
+confirmation through the existing reasoned link; it never completes
+automatically. There is no manual "report sent" assertion without the Sent
+item.

@@ -59,19 +59,19 @@ public sealed class TriageQueuesWebTests
                 "Staff confirmed the registration from the retained image."),
             CancellationToken.None);
 
-        using var instructionOnly = await client.GetAsync("/Triage?queue=not_ready&origin=instruction");
+        using var instructionOnly = await client.GetAsync("/Cases?tab=not_ready&origin=instruction");
         var instructionOnlyHtml = await instructionOnly.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, instructionOnly.StatusCode);
         Assert.Contains(instructionCaseReference, instructionOnlyHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(imageIntake.ImageIntakeReference, instructionOnlyHtml, StringComparison.Ordinal);
 
-        using var imageOnly = await client.GetAsync("/Triage?queue=not_ready&origin=image");
+        using var imageOnly = await client.GetAsync("/Cases?tab=not_ready&origin=image");
         var imageOnlyHtml = await imageOnly.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, imageOnly.StatusCode);
         Assert.Contains(imageIntake.ImageIntakeReference, imageOnlyHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(instructionCaseReference, imageOnlyHtml, StringComparison.Ordinal);
 
-        using var all = await client.GetAsync("/Triage?queue=not_ready");
+        using var all = await client.GetAsync("/Cases?tab=not_ready");
         var allHtml = await all.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, all.StatusCode);
         Assert.Contains(instructionCaseReference, allHtml, StringComparison.Ordinal);
@@ -123,7 +123,7 @@ public sealed class TriageQueuesWebTests
                 "Staff confirmed the registration from the retained image."),
             CancellationToken.None);
 
-        using var notReady = await client.GetAsync("/Triage?queue=not_ready");
+        using var notReady = await client.GetAsync("/Cases?tab=not_ready");
         var notReadyHtml = await notReady.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, notReady.StatusCode);
 
@@ -189,7 +189,7 @@ public sealed class TriageQueuesWebTests
                 "Staff confirmed the registration from the retained image."),
             CancellationToken.None);
 
-        using var response = await client.GetAsync("/Triage?queue=not_ready&origin=image");
+        using var response = await client.GetAsync("/Cases?tab=not_ready&origin=image");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -208,7 +208,7 @@ public sealed class TriageQueuesWebTests
         using var response = await client.GetAsync("/Unidentified");
 
         Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal("/Triage?queue=unidentified", response.Headers.Location?.OriginalString);
+        Assert.Equal("/Cases?tab=unidentified", response.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class TriageQueuesWebTests
                 DateTimeOffset.UtcNow),
             CancellationToken.None);
 
-        using var response = await client.GetAsync("/Triage?queue=unidentified");
+        using var response = await client.GetAsync("/Cases?tab=unidentified");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -316,7 +316,7 @@ public sealed class TriageQueuesWebTests
                 "Staff confirmed the registration from the retained image."),
             CancellationToken.None);
 
-        using var response = await client.GetAsync("/Triage?queue=not_ready");
+        using var response = await client.GetAsync("/Cases?tab=not_ready");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -362,7 +362,7 @@ public sealed class TriageQueuesWebTests
                 $"UPDATE IntakeReceipts SET ReceivedAtUtc = {new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero)} WHERE Id = {newerReceiptId}");
         }
 
-        using var newestFirst = await client.GetAsync("/Triage?queue=not_ready");
+        using var newestFirst = await client.GetAsync("/Cases?tab=not_ready");
         var newestFirstHtml = await newestFirst.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, newestFirst.StatusCode);
         Assert.True(
@@ -370,7 +370,7 @@ public sealed class TriageQueuesWebTests
                 < newestFirstHtml.IndexOf($">{olderReference}</a>", StringComparison.Ordinal),
             "The default order must put the newest received case first.");
 
-        using var oldestFirst = await client.GetAsync("/Triage?queue=not_ready&sort=received_asc");
+        using var oldestFirst = await client.GetAsync("/Cases?tab=not_ready&sort=received_asc");
         var oldestFirstHtml = await oldestFirst.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, oldestFirst.StatusCode);
         Assert.True(

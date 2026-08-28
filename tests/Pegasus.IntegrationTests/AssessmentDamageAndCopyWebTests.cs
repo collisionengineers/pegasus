@@ -59,6 +59,8 @@ public sealed partial class AssessmentDamageAndCopyWebTests
         var token = AntiforgeryValue(html);
         var operationKey = Guid.NewGuid().ToString("N");
 
+        // CASE-024: the save runs under edit mode the operator entered, not under a lease the
+        // handler claims for itself, so the assessment presents the token it was rendered with.
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=SaveDamage",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -66,6 +68,7 @@ public sealed partial class AssessmentDamageAndCopyWebTests
                 ["__RequestVerificationToken"] = token,
                 ["id"] = caseId.ToString("D"),
                 ["operationKey"] = operationKey,
+                ["editLeaseToken"] = "lease-token",
                 ["impactLocation"] = "left_front",
             }));
 

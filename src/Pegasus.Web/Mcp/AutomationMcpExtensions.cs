@@ -115,7 +115,8 @@ public static class AutomationMcpExtensions
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
-            .WithTools<TriageMcpTools>();
+            .WithTools<TriageMcpTools>()
+            .WithTools<AiJobMcpTools>();
         return services;
     }
 

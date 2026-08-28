@@ -278,6 +278,50 @@ public sealed class EfCaseWorkflowStore(
             expiresAtUtc);
     }
 
+    /// <summary>
+    /// Keeps the holder's own live lease from lapsing while their editor stays open. It is
+    /// deliberately not <see cref="RenewAsync"/>: an open page beats every minute for as long as
+    /// it is open, and renewal records one <c>CaseEditLeaseOperations</c> row per call in a table
+    /// nothing prunes. FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no
+    /// operation key, and no request hash — <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
+    /// still has to hold the *claim* key the workspace reads back to recover edit mode. It also
+    /// asks for no expected version: a version cannot move under a live lease, because every
+    /// mutation clears the lease as it commits.
+    /// </summary>
+    public async Task<CaseEditLease> HeartbeatAsync(
+        HeartbeatCaseEditLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireWorkflowMutationLockAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId,
+                cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        ArchivedCaseGuard.RequireNotArchived(workflow);
+
+        var now = timeProvider.GetUtcNow();
+        RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        var expiresAtUtc = now + EditLeaseDuration;
+        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            request.CaseId,
+            request.LeaseToken,
+            request.Actor.SubjectId,
+            workflow.Version,
+            expiresAtUtc);
+    }
+
     public async Task ReleaseAsync(
         ReleaseCaseEditLeaseRequest request,
         CancellationToken cancellationToken)

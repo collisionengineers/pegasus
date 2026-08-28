@@ -7,6 +7,22 @@ board branch, and MCP is already rooted there — never create, switch or push t
 branch yourself. Your own ticket worktree is a separate thing, recorded by
 `take_ticket`.
 
+- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
+- **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
+- Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
+- **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
+- An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
+- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
+- Work each ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage.
+- Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
+- Proof is written on merged `main`, after review and the merge, not before.
+- Archive, don't delete. Reference other items with [[ID]] wiki-links.
+- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
+- Each skill ends by naming what comes next — read that line before improvising a hand-off.
+<!-- kanmer:instructions:end -->
+
+## Kanmer conventions for this repository
+
 The board branch convention is the repository variable `KANMER_BOARD_BRANCH`,
 falling back to `kanmer-board` when it is unset. A branch rename is an
 administrator handoff: retarget branch protection and required checks, update
@@ -15,18 +31,7 @@ old refs. Agents must not mutate protected refs, branch protection, or repositor
 variables; stop and report when the observed branch and configured convention
 disagree.
 
-- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
-- **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
-- Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
-- **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
-- An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
-- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
-- Work each fresh ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage. A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
-- Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
-- Proof is written on merged `main`, after review and the merge, not before.
-- Archive, don't delete. Reference other items with [[ID]] wiki-links.
-- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
-- Each skill ends by naming what comes next — read that line before improvising a hand-off.
+A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
 
 The local MCP convention is `KANMER_BOARD_BRANCH` in each project-scoped
 provider registration or exported local runtime, falling back to the default
@@ -78,7 +83,6 @@ local removal must confirm the alias is stopped before deleting its metadata.
 22. **Review findings get dispositions.** Fix, reject with reason, accept risk, or defer to a ticket; never silence them.
 23. **Secrets never appear in code, tickets, or proofs.**
 24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
-<!-- kanmer:instructions:end -->
 
 # Pegasus repository instructions
 

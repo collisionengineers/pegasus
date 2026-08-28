@@ -1,19 +1,38 @@
-﻿# Design authority
+# Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../prd/README.md) and [capabilities](../capabilities.md); architecture and deployed state remain with [architecture](../current-architecture.md) and [operations](../operations.md), procedures with the [runbook](../runbook.md), operator truth with [operator notes](../operator-notes.md), and repository workflow with [engineering](../engineering.md).
+This file is the durable authority for Pegasus visual design, Web interaction
+contracts, approved assets, component and pattern boundaries, and
+source-to-runtime mappings. Product scope and business capability remain owned
+by [requirements](../prd/README.md) and [capabilities](../capabilities.md);
+architecture and deployed state remain with
+[architecture](../current-architecture.md) and [operations](../operations.md),
+procedures with the [runbook](../runbook.md), operator truth with
+[operator notes](../operator-notes.md), and repository workflow with
+[engineering](../engineering.md).
+
+The design it describes is the **Integrated Operations Workspace**, approved by
+the operator on 2026-08-28 from the effective render layer of the reviewed
+prototype and transcribed into the EPIC-011 group contract (`context.md` §1,
+decisions D1–D13). This file restates that contract as the durable authority.
+Delivery is planned: the design system and shell are delivered by PLAT-029
+(EPIC-011 wave 1) and the pages by EPIC-011 waves 2–5. Nothing here is a claim
+that a surface exists, is deployed, or is accepted; the evidence discipline
+below governs every such claim.
 
 ## Evidence discipline
 
 Intended, planned, implemented, caller-proved, deployed and accepted are distinct:
 
-- **Planned `0.1.0-alpha.1`** describes the approved target contract. It does not prove an authenticated Web caller, deployment or operator acceptance.
+- **Planned** describes the approved target contract — the Integrated
+  Operations Workspace below. It does not prove an authenticated Web caller,
+  deployment or operator acceptance.
 - **Implemented** means code or an asset exists. Imported workspace code is not automatically a Pegasus caller.
 - **Caller-proved** requires a real route or other named caller exercising the behavior.
 - **Deployed** requires deployment evidence; none is inferred from implementation.
 - **Accepted** requires the specified accessibility and operator review evidence.
-- The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
-
-The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](../adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
+- The reviewed prototype records the design selection. Its fixture data,
+  dead layers and defects are not design approval or runtime evidence; only
+  its effective render layer, as transcribed here, is the contract.
 
 Detailed durable product-design owners are the
 [operator-experience requirements](README.md#operator-experience-requirements) and
@@ -42,112 +61,155 @@ catalogue manifest. Regenerate and verify after changing a routed Razor page:
 `scripts/Update-TestUiSnapshots.ps1 -Verify` and
 `scripts/Test-UiCatalogue.ps1`.
 
+The [route map](#routes) below states what the catalogue's route keys become
+as each wave lands: PLAT-029 makes the structural edits to `catalogue.json`
+(moved routes, 301 stubs, the removed `/VehicleImages` list), and each page
+ticket re-snapshots its own routes.
 
 ## Product direction
 
-The application is an operational, restrained, desktop-first internal case-management tool for a small office of approximately eight users. It is not a marketing site, document system, mobile product or general-purpose command centre.
+The application is an operational, restrained, desktop-first internal
+case-management tool for a small office of approximately eight users. It is
+not a marketing site, document system, mobile product or general-purpose
+command centre.
 
-**Operations-first was selected on 2026-07-27 for the planned `0.1.0-alpha.1` shell and landing strategy.** This approves the route hierarchy and operating model, not pixel-for-pixel reproduction of a comparison raster and not a partial implementation.
+**The Integrated Operations Workspace was selected on 2026-08-28** as the
+shell, route hierarchy and page family for the whole staff application. This
+approves the contract transcribed in this file, not pixel-for-pixel
+reproduction of the prototype and not any partial implementation.
 
-The authenticated routes are:
+The authenticated routes, in rail order, are:
 
-1. Dashboard
+1. Work Centre (`/`)
 2. Inbox
 3. Upload
-4. Queues
-5. Cases
+4. Cases
+5. Search
 6. Operations
 7. Administration, visible only to authorised Administrators
-8. authenticated user/sign-out controls
+8. the account dialog and sign-out, from the rail foot
 
-This order was settled by the operator on 2026-08-04 and shipped in releases
-6 and 7. It supersedes the earlier planned order
-(`Operations → Intake → Triage → Cases → Administration → Search`): Search
-merged into Cases, which has the identical backing query; the combined intake
-screen split into Inbox and Upload; and `Triage` stopped naming a route while
-keeping its settled meaning as a pre-case entity inside Queues.
+This order supersedes the 2026-08-04 order (`Dashboard → Inbox → Upload →
+Queues → Cases → Administration`): the Dashboard becomes the Work Centre,
+Queues becomes Cases, the former Cases search becomes Search, and Operations
+returns as a routed workspace. `Triage`, `Unidentified`, `Audit`, `Blocked`,
+`Not ready`, `Review` and `Held` keep their settled meanings; Triage and
+Unidentified are pre-Case records reached through the Cases rail, never Case
+states.
 
-Operations is the staff-wide information workspace. It contains three sections:
-retryable external work, active internally generated upload links, and
-informational AI operations copy. Empty and bounded-result states are explicit;
-Operations has no general receipt filter or email ledger. The separately planned
-principal-scoped provider API is not represented by the staff Automation/MCP
-ingress. Safe upload-link withdrawal and existing retry feedback retain
-antiforgery, reason, lease, version, actor, idempotency and PRG behaviour.
+The common hierarchy of every authenticated page is:
 
-The common hierarchy is:
-
-1. authenticated identity, role, navigation and sign out;
-2. surface title, exact queue or filter, freshness and safe primary action;
-3. operational table, workbench or record;
+1. shell — rail, utility bar, workspace tabs;
+2. page header — eyebrow, title, freshness and the safe primary action;
+3. operational panes, table, workbench or record;
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
-### Authenticated shell: the operator rail
+### Authenticated shell
 
-**Adopted 2026-08-17.** The authenticated shell is a 236px left rail, not a top
-bar. The routes keep the settled order and the rail carries their outstanding
-counts, so an operator sees where the work is without opening anything. The
-route list, the conditional Inbox item and the Administrator-only Administration
-item are unchanged; only their placement is.
+The `.app-shell` grid is a 220px sticky `.app-rail` beside the `.app-column`.
+The rail is the dark `--nav` gradient with a 3px `--red` top stripe. Its
+content, top to bottom:
 
-Two consequences are recorded rather than assumed:
+- **Brand** — the `pegasus-lockup` mark at 48px beside "PEGASUS" and the line
+  "Case management".
+- **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
+  [count], Upload, Cases (`/cases`) [count], Search (`/search`), Operations
+  [count].
+- **Nav label "Manage"**, then Administration — rendered for Administrators
+  only, absent for everyone else.
+- **Rail foot** — the health line (dot and "Current · HH:MM") and the user
+  block (avatar initials, name, role, account-menu button).
 
-- **The current route's non-colour signal is a left border, not an underline.**
-  `aria-current="page"` and the weight change are unchanged, so the route is
-  still identifiable without hue; the underline moved to the rail's leading
-  edge. Under 1024px the rail lies down into a horizontal bar and the border
-  moves to the bottom edge, so the signal survives the reflow. Nothing is
-  hidden at any width.
-- **A rail count is a figure a page already queried**, never one the shell
-  invents. An absent count renders nothing at all — a shell-level `0` would be
-  exactly the stale zero placeholder the operator-experience requirements
-  forbid.
-- **The content region is bounded and centred** (operator decision,
-  2026-08-19). `main` is capped at 1280px, carries the 24px gutters, and sits
-  centred in the space beside the rail, so a wide monitor shows equal margins
-  either side rather than every screen pressed against the rail with the right
-  of the display empty. It is not stretched to fill: a table's far column
-  belongs within a glance of its first. Below the cap nothing moves.
+The current route is signalled by a white background, a `--red` left border
+and a red icon well, with `aria-current="page"`; the border is the non-colour
+cue. Below 980px the rail lies down into a horizontal bar, labels hide, and
+the current-route border moves to the bottom edge, so the cue survives the
+reflow; nothing is hidden at any width except the rail foot and nav labels,
+whose functions move to the utility bar and account dialog.
 
-`_LayoutAuth` and `_LayoutExternal` are unaffected: sign-in, the signed-out
-confirmation, access denied, the error family and the one screen a third party
-sees are not places in the application and keep their navless or brand-only
-frame.
+**A rail count is a figure a page already queried**, never one the shell
+invents. The Cases count is
+`not_ready + review + with_engineer + held + triage + unidentified` (group
+contract §1.1); the Inbox and Operations figures are composed by the wave-2
+and wave-3 tickets that own those queries — the shell invents none. An absent
+count renders nothing at all — a shell-level `0` would be exactly
+the stale zero the operator-experience requirements forbid. Counts are
+supplied by one page filter (`Presentation/RailCountsPageFilter.cs`,
+PLAT-029), not by each page.
+
+The **account dialog** opens from the rail-foot button and shows Name, Role,
+Session started (an `auth_time` claim) and Idle lock, with Close and Sign out.
+
+The **utility bar** is dark and sticky at the top of the column: freshness
+text, the global search input with its "Ctrl K" hint (Enter or Ctrl K opens
+the command palette dialog), the "Add" primary button (dialog: Upload files,
+Create Case, Create upload request, Review Inbox) and the bell (Notifications
+dialog).
+
+The **workspace-tab strip** sits under the utility bar: a "Work Centre" tab,
+one closable tab per open Case record — at most four, least-recently-used
+evicted — and an "Open" button that raises the command palette.
+
+`main.app-main` holds `.content`, capped at 1580px and centred with the 18px
+page padding, so a wide monitor shows equal margins either side rather than
+every table pressed against the rail. Below the cap nothing moves. Every page
+carries the skip link, the toast region and the dialog root.
+
+`_LayoutAuth` and `_LayoutExternal` remain the navless frames: sign-in, the
+signed-out confirmation, access denied, the error family and the one screen a
+third party sees are not places in the application (see
+[External frames](#external-frames)).
+
+### Keyboard and dialog contract
+
+| Key | Action |
+| --- | --- |
+| Ctrl K | Command palette dialog (also Enter in the utility search) |
+| Ctrl U | Upload (`/upload`) |
+| Ctrl N | Create Case |
+| Ctrl S | Save, only while a Case is in edit |
+| F5 | Refresh — re-query the current page, never a browser reload |
+| ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
+| Escape | Close the open dialog |
+
+Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
+initial focus on the first control, a focus trap, the rest of the document
+`inert` while open, Escape closes where safe, and focus returns to the
+invoking control. Toasts live in `.toast-region`, are announced restrainedly,
+and never carry an action the page does not also offer.
 
 ### The Pegasus marks
 
-**Commissioned by the operator; adopted 2026-08-17.** Fourteen purpose-drawn
-raster marks, supplied with the design, live in
-`src/Pegasus.Web/wwwroot/images/marks/`. They are a second, deliberate class of
-imagery, and the earlier blanket statement that no imagery is needed for the
-internal application is narrowed to exclude them: it still holds for marketing
-photography and for generated or substitute glyphs, neither of which these are.
+**Commissioned by the operator; adopted 2026-08-17.** Ten purpose-drawn raster
+marks live in `src/Pegasus.Web/wwwroot/images/marks/`. Four further marks —
+`activity`, `brand`, `calendar` and `casefolder` — were supplied with the
+design and are **not in the tree**: their bytes were never copied, so they have
+no runtime mapping and no checksum row, and nothing may reference them until a
+ticket puts them in the tree and records them below.
 
-They do not replace the Lucide sprite and do not compete with it. The division
-is by job:
+The marks are a second, deliberate class of imagery; the statement that no
+imagery is needed for the internal application still holds for marketing
+photography and for generated or substitute glyphs, neither of which these are.
+They do not replace the Lucide sprite and do not compete with it:
 
 - **A Lucide glyph names a thing inside a row** — an action, a state, a
   provenance word. It is 16px, inline, and one glyph means one thing everywhere.
-  The seventeen registered below remain the only glyphs used that way.
-- **A mark names a whole surface** — an administration workspace, an empty
-  result, the product itself. It is 30–112px, sits beside a heading or above a
-  sentence, and carries detail no line glyph holds at that size.
+- **A mark names a whole surface** — an administration area, an empty result,
+  the product itself. It is 30–112px and sits beside text that already says
+  the same thing.
 
-Every mark is decorative: `aria-hidden`, empty `alt`, always beside text that
-already says the same thing, so nothing is lost with images off. None is used
-for a semantic action or state, so the one-icon-per-meaning rule is untouched.
+Every mark is decorative: `aria-hidden`, empty `alt`, always beside text.
+None is used for a semantic action or state.
 
-Current uses: the eight administration workspace cards (`accounts`, `roles`,
-`access`, `organisations`, `principals`, `configuration`, `mailboxes`,
-`automation`); the Inbox and Queues empty states (`mailboxes`, `checkmark`); and
-the product lockup in the rail and on the forced password-change card
-(`pegasus-lockup`). `activity`, `brand`, `calendar` and `casefolder` are
-supplied and not yet placed.
+Uses under the integrated design: the rail brand and the sign-in card
+(`pegasus-lockup`); the Administration area panel heads (`accounts`,
+`principals`, `configuration`, `mailboxes`, `automation`); the Cases rail
+empty state (`checkmark`). `roles`, `access` and `organisations` lose their
+surfaces when those areas fold into Staff accounts & roles and Principals
+(D2, [Removed surfaces](#removed-surfaces)); their bytes stay registered and
+their removal is proposed for the wave-5 removal ticket.
 
-They are approved assets and belong in the register below once their bytes are
-in the tree, on the same terms as the sprite: recorded name and SHA-256, and no
-silent substitution.
 #### Pegasus marks source-to-runtime mapping
 
 Upstream source: Claude Design project `710bb42f`, `assets/icons/` (1024×1024
@@ -156,162 +218,223 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
 
 | Mark | Upstream source & SHA-256 | Runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Lanczos downscale to 128×128. Rail brand lockup and forced password-change card. |
-| `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Lanczos downscale to 128×128. Administration → Staff accounts. |
-| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | Lanczos downscale to 128×128. Administration → Staff roles. |
-| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | Lanczos downscale to 128×128. Administration → Access review. |
-| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | Lanczos downscale to 128×128. Administration → Organisations. |
-| `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Lanczos downscale to 128×128. Administration → Principals. |
-| `configuration.png` | `PegasusDesign/assets/icons/configuration.png`<br>`B64DCBE7FD45B24A0D9BD687BF8E16BCB3E4E587ED16F93BF1BCE12370A6E921` | `src/Pegasus.Web/wwwroot/images/marks/configuration.png`<br>`86A311A3C1ACE78E5D5A407B289F901ED7C26860BCBBBDEF59EC93A71BAFA62E` | Lanczos downscale to 128×128. Administration → Workflow configuration. |
-| `mailboxes.png` | `PegasusDesign/assets/icons/mailboxes.png`<br>`179A5677C4B73587601F0AF79162F87217C2035D096D90341281E23BFD87F688` | `src/Pegasus.Web/wwwroot/images/marks/mailboxes.png`<br>`1B727ACBE0DCC114370E0D620DCB74E20A12866C85187689ABDB8A249B61C019` | Lanczos downscale to 128×128. Administration → Approved mailboxes; Inbox empty state. |
-| `automation.png` | `PegasusDesign/assets/icons/automation.png`<br>`51F6970F9C0245E694D3562922A34AC5C3F2E762ACB5682FDF6DAA3FDFE10039` | `src/Pegasus.Web/wwwroot/images/marks/automation.png`<br>`1EABE2EF634065A1A76F78A6D520A366C49D469EBC3C92BA99F1DBA1A8F8B3FE` | Lanczos downscale to 128×128. Administration → Automation. |
-| `checkmark.png` | `PegasusDesign/assets/icons/checkmark.png`<br>`6ECC9917585A85D7B8C7EC62DB3C167689FD0F210D9838EC0B9959F1238471F3` | `src/Pegasus.Web/wwwroot/images/marks/checkmark.png`<br>`5531CC893A5C7A1137F049CF0D77A9D19B73EB30AC1036985A902FFC44A0C30F` | Lanczos downscale to 128×128. Queues empty states. |
-
-Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
-
-**MAIL-11 re-entry adopted 2026-08-20 for local implementation.** The operator's
-instruction to implement the reviewed programme activates browse/search inside the
-existing `/Inbox` workspace for its allocated `0.3.0` introduction. Integrating
-with the existing mailbox tabs, GET filter, table, detail and empty/failure patterns
-was selected over a second mail workspace; it introduces no new visual system.
-PR #469 supplies the independent implementation and design review. Deployment,
-live-mailbox evidence and manual visual acceptance remain separate release evidence;
-this decision authorises none of those and no mailbox mutation.
+| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Rail brand and sign-in card. |
+| `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts & roles. |
+| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; proposed for the wave-5 removal ticket. |
+| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; proposed for the wave-5 removal ticket. |
+| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | No integrated surface; proposed for the wave-5 removal ticket. |
+| `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Administration → Principals. |
+| `configuration.png` | `PegasusDesign/assets/icons/configuration.png`<br>`B64DCBE7FD45B24A0D9BD687BF8E16BCB3E4E587ED16F93BF1BCE12370A6E921` | `src/Pegasus.Web/wwwroot/images/marks/configuration.png`<br>`86A311A3C1ACE78E5D5A407B289F901ED7C26860BCBBBDEF59EC93A71BAFA62E` | Administration → Workflow configuration. |
+| `mailboxes.png` | `PegasusDesign/assets/icons/mailboxes.png`<br>`179A5677C4B73587601F0AF79162F87217C2035D096D90341281E23BFD87F688` | `src/Pegasus.Web/wwwroot/images/marks/mailboxes.png`<br>`1B727ACBE0DCC114370E0D620DCB74E20A12866C85187689ABDB8A249B61C019` | Administration → Mail settings. |
+| `automation.png` | `PegasusDesign/assets/icons/automation.png`<br>`51F6970F9C0245E694D3562922A34AC5C3F2E762ACB5682FDF6DAA3FDFE10039` | `src/Pegasus.Web/wwwroot/images/marks/automation.png`<br>`1EABE2EF634065A1A76F78A6D520A366C49D469EBC3C92BA99F1DBA1A8F8B3FE` | Administration → Automation & AI. |
+| `checkmark.png` | `PegasusDesign/assets/icons/checkmark.png`<br>`6ECC9917585A85D7B8C7EC62DB3C167689FD0F210D9838EC0B9959F1238471F3` | `src/Pegasus.Web/wwwroot/images/marks/checkmark.png`<br>`5531CC893A5C7A1137F049CF0D77A9D19B73EB30AC1036985A902FFC44A0C30F` | Cases rail empty state. |
+| `activity`, `brand`, `calendar`, `casefolder` | Supplied with the design; not copied | **Not in the tree** — no destination, no checksum | Unplaced. A ticket that places one records both checksums here first. |
 
 ## Design principles
 
 - Operational, restrained and border-led rather than decorative.
-- White or light-neutral ground, white panels, warm-charcoal navigation and near-black text.
-- Collision red is sparse: primary actions, active navigation, visible focus and urgent emphasis.
-- Product states are distinct: amber for incomplete/pending, restrained navy for **Review**, and green only for confirmed completion.
-- State is never conveyed by colour alone.
-- Use 2px corners, 1px hairline borders, rare soft shadows and a 4px spacing rhythm.
-- Use system UI text and Lucide line icons only.
-- Controls communicate purpose without narrating obvious actions. Screens carry no lede or subtitle: one H1 and the content. Guidance appears only beside a control whose action has a consequence the operator must understand, and is one sentence.
-- Do not expose Azure, OCR, AI, queue mechanics, extraction engines, deployment, adapter, lease/version, projection, ingress, or artifact terminology in operator copy. The word “intake” never appears in operator-facing text (operator decision 2026-08-04).
-- Every state value shown to an operator passes through an explicit operator-label map — `Pegasus.Web.Presentation.OperatorLabels`. Raw `ToString()` of enums, snake_case event codes, GUIDs, hashes, storage paths, version integers and byte counts never reach markup. File sizes, where relevant, are megabytes to one decimal.
-- Every date and time an operator reads renders Europe/London through that same map. `ToLocalTime()` is never correct: it resolves against the server clock, which is the office zone on a developer workstation and UTC on the deployed container, so it looks right exactly where it is tested and is wrong through British Summer Time where it runs.
-- A composed query that returns zero renders `0`. A capability that is not composed in a deployment is absent from the interface — never a disabled item, inert card, or “Unavailable” placeholder. Genuine runtime failure renders the designed failure state with the last-good time.
-  - This applies to capabilities, not to conditions. An action the record in front of the operator will genuinely offer once a condition is met stays visible and disabled with the condition named on the control (“Available in Review”); removing it would assert the action is impossible, which is false.
-- Every screen defines its empty, loading, and failure states in business language, and unknown-record URLs render the styled not-found screen, never a raw browser error.
-- Screens are compact working surfaces, not marketing pages: 4px base rhythm with 8/12/16 steps, 32px table rows, 12–16px panel padding, 13.5–14px body text. A screen about a single record is one container — header, action bar, tabs — and the operator reaches its identity, its state, its available actions and its main content without scrolling.
-- Provenance is an icon with a one-word tooltip, shown on hover **and** on keyboard focus with a matching accessible name: Staff · Extracted · AI · E-mail · Lookup · Principal · Automatic. Source labels, policy keys and provenance sentences do not appear in markup.
-- A count query and a rendered time cannot be proved locally: an empty database returns the same zero as a correct query, and a Europe/London workstation clock matches the office by accident. Both need populated test data or the deployed instance.
+- Cool light-neutral ground, white panels, dark charcoal navigation and
+  near-black text.
+- Collision red is sparse: primary actions, the current route, visible focus
+  and urgent emphasis.
+- Product states are distinct: amber for incomplete/pending and the
+  exceptions group, restrained navy for **Review**, blue for informational
+  and in-progress external work, green only for confirmed completion, red for
+  danger and blocked, neutral for everything else.
+- State is never conveyed by colour alone; every `.status` chip carries text.
+- 3px corners, 1px hairline borders, `--shadow` only where the prototype
+  raises a surface on hover or overlay, and a 12px gap rhythm.
+- Inter Variable for all application text, Lucide line icons only.
+- Controls communicate purpose without narrating obvious actions. Screens
+  carry no lede or subtitle: eyebrow, one H1 and the content. Guidance appears
+  only beside a control whose action has a consequence the operator must
+  understand, and is one sentence.
+- Do not expose Azure, OCR, AI mechanics, queue mechanics, extraction
+  engines, deployment, adapter, lease/version, projection, ingress, or
+  artifact terminology in operator copy. The word "intake" never appears in
+  operator-facing text (operator decision 2026-08-04).
+- Every state value shown to an operator passes through an explicit
+  operator-label map — `Pegasus.Web.Presentation.OperatorLabels`. Raw
+  `ToString()` of enums, snake_case event codes, GUIDs, hashes, storage paths,
+  version integers and byte counts never reach markup. File sizes, where
+  relevant, are megabytes to one decimal.
+- Every date and time an operator reads renders Europe/London through that
+  same map. `ToLocalTime()` is never correct: it resolves against the server
+  clock, which is the office zone on a developer workstation and UTC on the
+  deployed container.
+- A composed query that returns zero renders `0`. A capability that is not
+  composed in a deployment is absent from the interface — never an inert
+  card or an "Unavailable" placeholder. The one permitted disabled control is
+  a named, ticketed integration seam
+  ([Absent versus disabled](#absent-versus-disabled)). Genuine runtime
+  failure renders the designed failure state with the last-good time.
+- Every screen defines its empty, loading, and failure states in business
+  language, and unknown-record URLs render the styled not-found screen, never
+  a raw browser error.
+- Screens are compact working surfaces: 40px rows, 12–16px panel padding,
+  13–14px body text. A screen about a single record is one container —
+  header, identity ribbon, action bar, sections — and the operator reaches
+  its identity, its state, its available actions and its main content
+  without scrolling.
+- Provenance is an icon with a one-word tooltip, shown on hover **and** on
+  keyboard focus with a matching accessible name: Staff · Extracted · AI ·
+  E-mail · Lookup · Principal · Automatic. Source labels, policy keys and
+  provenance sentences do not appear in markup.
+- A count query and a rendered time cannot be proved locally: an empty
+  database returns the same zero as a correct query, and a Europe/London
+  workstation clock matches the office by accident. Both need populated test
+  data or the deployed instance.
+- Every drawn control maps to a named handler or an approved disabled seam.
+  An inert control is a defect.
 
-Settled terms retain their exact meanings and casing, including `Audit`, `Triage`, `Unidentified`, `Blocked`, `Not ready`, `Review` and `Held` (`Blocked` supersedes the earlier interface wording `Blocked intake`, operator decision 2026-08-04; the pre-case failure boundary it names is unchanged). Never substitute a generic **Close** action for a named lifecycle outcome.
+Settled terms retain their exact meanings and casing, including `Audit`,
+`Triage`, `Unidentified`, `Blocked`, `Not ready`, `Review`, `With Engineer`,
+`Complete` and `Held`. `With Engineer` and `Complete` are display labels only
+(D3): `ReportPreparation` and `PostReport` render as "With Engineer",
+`PostReportComplete` as "Complete", and the Core enum is untouched; other
+terminal outcomes render as "Closed · <outcome>" in Search and are excluded
+from the Cases rail. Never substitute a generic **Close** action for a named
+lifecycle outcome.
 
 ## Tokens
 
-The upstream token source was `styles/colors_and_type.css` in the provided `collision-engineers-design-dev` bundle. That source pack is not retained. The values below are the adapted repository-owned authority; no website stylesheet or generated token file is copied.
+The token source is the prototype's `html[data-design="integrated"]` block,
+verified value by value on 2026-08-28. The values below are the repository
+authority; `site.css` declares them once on `:root` and no page declares a
+literal colour, radius or size. Earlier token sets (the `collision-engineers-
+design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 
 ### Colour
 
-| Role | Approved value or rule |
-| --- | --- |
-| Collision red | `#DB0816` |
-| Pressed/dark red | `#8F1422` |
-| Red tint | `rgba(219,8,22,.07)` |
-| Warm charcoal | `#2C2A27` |
-| Near-black ink | `#16191D` |
-| White | `#FFFFFF` |
-| Light neutral | `#F5F4F2` |
-| Border | `#E6E4E1` |
-| Muted text | `#6B6B6B` |
-| Confirmed-success green | `#16833B` |
- | Incomplete/pending amber | `#7A3E00` (fg) / `#FFF4D6` (bg) / `#A15C00` (border) |
- | Review navy | `#143A5E` (fg) / `#EAF1F8` (bg) / `#365F87` (border) |
-
- Amber incomplete/pending (`#7A3E00`/`#FFF4D6`/`#A15C00`) and navy **Review** (`#143A5E`/`#EAF1F8`/`#365F87`) are approved Pegasus state tokens implemented across `site.css` and status partials. Green must not represent progress, availability or a generic positive action; it is reserved for confirmed completion.
-Excluded marketing tokens include WhatsApp green/pills, large display scales, CTA shadows, document red and brand-font declarations.
-
-#### Reviewed divergence: the `Send to Claude` control
-
-Authorised by the operator on 2026-08-03 and scoped to the single
-`.send-action` control on the Engineer assessment surface. The action carries
-the provider's own identity so it reads as Claude on sight and is never
-mistaken for a Collision Engineers action.
-
-Every value below is declared as a local custom property on the control
-itself, not added to `:root`, so no other surface can inherit it. The rest of
-the application keeps the approved palette, the 2px radius and the red focus
-ring.
-
-| Divergence | Value | Why it is confined here |
+| Token | Value | Role |
 | --- | --- | --- |
-| Terracotta gradient | `#E8956D` → `#D97757` → `#B85F3D` at 135° | The provider's accent. Not added to the colour table and used by no other rule. |
-| Corner radius | `12px` | Matches the provider's control shape. The approved `2px` remains the only radius elsewhere. |
-| Type | `Poppins` first, falling back to the approved system stack | The face is requested, never loaded. No font bundle, file or external stylesheet is added, so a workstation without Poppins renders the approved stack. |
-| Raised shadow and hover lift | `0 2px 5px` at rest, `0 12px 28px -8px` and `translateY(-2px)` on hover | The one lift in the product. Removed under reduced motion. |
-| Focus ring | `2px solid #6A9BCC` | The approved red ring all but disappears on terracotta. This is the only control that does not use it. |
-| Sparkle glyph | Inline four-point star | Not a Lucide glyph and deliberately **not** added to the checksummed sprite, which is unchanged at 16 glyphs. |
-| Ember canvas | Ten particles from a seeded generator | Decoration drawn beneath the label. It reads no page data, starts only when motion is welcome, and stops when the control leaves the document. |
+| `--bg` | `#f1f3f4` | Page ground |
+| `--surface` | `#fff` | Panels, rows, dialogs |
+| `--surface-2` | `#f8f9f9` | Panel heads, fact cells, hover |
+| `--surface-3` | `#e9edef` | Pressed, selected row, icon wells |
+| `--ink` | `#202629` | Text |
+| `--muted` | `#626b70` | Secondary text |
+| `--quiet` | `#7d878c` | Tertiary text, eyebrows |
+| `--line` | `#d2d8db` | Hairline borders |
+| `--line-strong` | `#9da9ae` | Control borders |
+| `--nav` | `#24282b` | Rail and utility bar |
+| `--nav-2` | `#30363a` | Rail gradient end, dark buttons |
+| `--nav-text` | `#f5f5f3` | Text on `--nav` |
+| `--nav-muted` | `#bcc3c6` | Secondary text on `--nav` |
+| `--red` | `#c9222b` | Primary action, current route, stripe |
+| `--red-dark` | `#9e1720` | Pressed primary |
+| `--amber` / `--amber-bg` | `#975b07` / `#fff4dc` | Incomplete, pending, Held, exceptions |
+| `--navy` / `--navy-bg` | `#274f70` / `#eaf1f6` | Review |
+| `--green` / `--green-bg` | `#2b643d` / `#e9f4ec` | Confirmed completion |
+| `--blue` / `--blue-bg` | `#285f88` / `#eaf3f8` | Informational, With Engineer, external work in progress |
+| `--danger` / `--danger-bg` | `#98272c` / `#fff0f1` | Danger actions, blocked, failed |
+| `--focus` | `#d3232a` | Keyboard focus ring |
+| `--shadow` | `0 8px 24px rgba(25,39,45,.09)` | Hover-raised cards, palette dropdown, toast |
 
-Reduced motion removes the lift, the sparkle animation and the canvas; forced
-colours discards the gradient and restores a `ButtonText` border. The control
-keeps its 44px target and its accessible name in every mode.
+Green must not represent progress, availability or a generic positive action;
+it is reserved for confirmed completion. The prototype's `--polish-*`
+properties are a layered overlay and their names are not carried: the
+`--polish-shadow` and `--polish-shadow-raised` values are written into the
+card rules that use them (resting and hover), and `--polish-red-soft` /
+`--polish-blue-soft` are not adopted — the `--*-bg` tints are the only soft
+fills.
 
-**Known shortfall, recorded rather than hidden:** `#FAF9F5` on this gradient
-measures about 2.3:1 at the light stop, 3.0:1 at the middle and 4.2:1 at the
-deep stop, against the 4.5:1 this size and weight require. The gradient is the
-provider's own and was adopted as given. Resolving it means either deepening
-the ramp or taking dark text, and that is an operator decision, not a
-design-pass one.
+State chips are `.status` with one tone modifier and always a text label:
+
+| Modifier | Tone | Typical states |
+| --- | --- | --- |
+| `.status--amber` | `--amber` on `--amber-bg` | Not ready, Held, Unidentified, pending |
+| `.status--navy` | `--navy` on `--navy-bg` | Review |
+| `.status--blue` | `--blue` on `--blue-bg` | With Engineer, running, sent |
+| `.status--green` | `--green` on `--green-bg` | Complete, confirmed |
+| `.status--red` | `--danger` on `--danger-bg` | Blocked, failed, closed in error |
+| `.status--neutral` | `--muted` on `--surface-3` | Closed, cancelled, unknown |
 
 ### Typography
 
-Use this system stack for all application text:
+Application text uses **Inter Variable** (upright and italic), vendored under
+`src/Pegasus.Web/wwwroot/fonts/inter/` as woff2 with the SIL Open Font
+License 1.1 text beside it (D13). The face is self-hosted and declared with
+`font-display: swap`; no external font stylesheet or CDN is referenced, and
+the Content Security Policy permits fonts from `'self'` only.
 
 ```css
-ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif
+--font: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system,
+        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+--mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 ```
+
+The fallbacks after `"Segoe UI"` (Roboto, "Helvetica Neue", Arial) are
+added beyond the prototype's stack so a workstation without the vendored
+face degrades to a comparable sans-serif on every platform.
+
+| File | Licence | SHA-256 |
+| --- | --- | --- |
+| `fonts/inter/InterVariable.woff2` | SIL OFL 1.1 (`fonts/inter/LICENSE.txt`, SHA-256 `262481E844521B326F5ECD053E59B98C8B2DA78C8EE1BDBB6E8174305E54935A`) | `693B77D4F32EE9B8BFC995589B5FAD5E99ADF2832738661F5402F9978429A8E3` |
+| `fonts/inter/InterVariable-Italic.woff2` | SIL OFL 1.1 | `E564F652916DB6C139570FEFB9524A77C4D48F30C92928DE9DB19B6B5C7A262A` |
 
 Rules:
 
-- Body text is 14–16px.
-- Use semantic heading hierarchy.
-- Compact uppercase eyebrows may be used where useful.
-- Queue and metric values may use stronger weight.
-- Tw Cen MT and Futura are marketing, logo and document faces, not application body or UI fonts.
-- Do not copy or load an application brand-font bundle.
-
-The shorter fallback stack currently used by `src/Pegasus.Web/wwwroot/css/site.css` is compatible but is not a separate authority.
+- Body text is 13–14px; page titles 20px; eyebrows 10–11px uppercase with
+  tracking; metric values and Case references may use weight 700+.
+- Use semantic heading hierarchy: one H1 per page in `.page-title`.
+- `--mono` is for references, registrations and technical handles only.
+- Tw Cen MT and Futura are marketing, logo and document faces, not
+  application fonts. No brand-font bundle is copied.
 
 ### Shape, borders and focus
 
-| Token | Approved value |
+| Token | Value |
 | --- | --- |
-| Primary radius | `2px` |
-| Borders | `1px` |
-| Keyboard focus ring | `3px rgba(219,8,22,.38)` |
-| Depth | Border-first; rare soft shadows |
+| `--radius` | `3px` — controls, chips, rows |
+| `--radius-lg` | `4px` — panels, dialogs, panes |
+| Borders | `1px solid var(--line)`; controls `var(--line-strong)` |
+| Keyboard focus ring | `3px solid var(--focus)`, `outline-offset: 2px` (the prototype base rule); the utility search takes `--navy` on its dark ground |
+| Selection outline | Selected rows and tabs (`row-button`, `work-item`, `tab`) take `2px solid var(--navy)` |
+| Depth | Border-first. `--shadow` is applied where the prototype applies it: `gallery-item` and `admin-card` hover, the command-palette dropdown and the toast; dialogs and the sign-in card carry their own deeper raised shadow; selected rows and metrics use an inset red bar, not a shadow |
 
-The 3px geometry that previously appeared in the Development CSS is resolved: `src/Pegasus.Web/wwwroot/css/site.css` now uses the approved 2px radius throughout. There is no second approved radius.
+There is no second radius pair. The 2px geometry of the previous design is
+superseded.
 
-### Spacing and layout
+### Spacing, layout and breakpoints
 
-Approved spacing steps are:
+| Token | Value |
+| --- | --- |
+| `--rail` | `220px` |
+| `--content-max` | `1580px` |
+| `--gap` | `12px` |
+| `--page-pad` | `18px` |
+| `--row` | `40px` |
 
-```text
-4, 8, 12, 14, 18, 24, 32, 40, 64px
-```
+Spacing steps are 4, 8, 12, 18 and 24px. Panels and panes are `--gap` apart;
+panel bodies pad 12–16px; page padding is `--page-pad`.
 
-Use only steps exercised by the selected UI. Primary gutters are 24px.
+Layouts are desktop-first and reflow at these widths, each named by the
+prototype's effective media queries:
 
-At 1280px and wider, use dense desktop multi-pane layouts. At 1024–1279px and at 200% zoom, reorder secondary content into labelled tabs, drawers or ordered sections without losing identity, state, labels, focus or actions. The upstream marketing 1200px/96px section rhythm is not imported.
+| Max width | Reflow |
+| --- | --- |
+| 1360px | Work Centre panes narrow; `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns |
+| 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
+| 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
+| 980px | The rail lies down into a horizontal bar; `case-section-nav` and `admin-nav` become horizontal scrollers; `--content-max` is released |
+| 900px | Workflow stepper stacks; estimate form two columns; `checks-grid` one column |
+| 760px | Single column everywhere: panes stack with a top border, ribbons and fact grids one column, page actions full width, `--page-pad` 12px, dialogs pad 10px |
 
-Mobile staff UI is **Not planned**. CSS reflow does not create a mobile product, and a supported-device notice is only for genuinely unsupported devices, never a substitute for responsive desktop behavior.
+Mobile staff UI is **Not planned**. The reflow keeps a constrained desktop or
+200% zoom usable; it does not create a mobile product. Reduced motion removes
+every transition; forced colours outline the current route, selected tab and
+primary/dark buttons in `CanvasText`/`ButtonText`.
 
 ### Motion
 
-There is no product-wide motion system and no approved duration or easing tokens.
-
-A basic, non-essential refresh or loading animation is permitted if:
-
-- the feedback remains understandable without motion;
-- reduced-motion preferences receive a static equivalent; and
-- the behavior is verified through the real approved route.
-
-Marketing scroll reveals, staggered entrances, hover scaling and CTA lift are excluded. Do not invent duration or easing tokens during implementation.
+There is no product-wide motion system and no approved duration or easing
+tokens. Hover and focus state transitions are 140ms (the prototype's
+`.13–.14s ease`); dialog and toast
+entrance is a single opacity/translate step; both are removed under reduced
+motion. Marketing scroll reveals, staggered entrances, hover scaling and CTA
+lift are excluded. Do not invent duration or easing tokens during
+implementation.
 
 ## Assets
 
@@ -323,7 +446,9 @@ The approved master is:
 docs/design/brand/logos/logo_no_margin.png
 ```
 
-It is the red gear-C Collision Engineers lockup, copied exactly from `assets/logo_no_margin.png` in the provided `collision-engineers-design-dev` source bundle.
+It is the red gear-C Collision Engineers lockup, copied exactly from
+`assets/logo_no_margin.png` in the provided `collision-engineers-design-dev`
+source bundle.
 
 ```text
 SHA-256: E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2
@@ -332,24 +457,28 @@ SHA-256: E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2
 Current consumers:
 
 - embedded by `src/Pegasus.Infrastructure` for the integrated report renderer;
-- copied byte-for-byte to the Web runtime and embedded by `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` (see the source-to-runtime mapping below).
+- copied byte-for-byte to the Web runtime and embedded by
+  `src/Pegasus.Web/Pages/Shared/_LayoutExternal.cshtml` — the external frame
+  states the company, never the product. `_Layout.cshtml` does **not** use
+  it; the authenticated rail carries the `pegasus-lockup` mark.
 
 Rules:
 
 - Never redraw the gear.
 - Never extract it from a screenshot.
 - Never recolour the master or invent another mark.
-- Copy or optimise it for a runtime only through a reviewed source-to-runtime mapping with checksum proof.
-- The former `CE` text mark was replaced by the mapped logo in `_Layout.cshtml`; the leftover `.brand-mark` CSS rule has been deleted from `site.css`. No second logo variant exists.
+- Copy or optimise it for a runtime only through a reviewed source-to-runtime
+  mapping with checksum proof.
+- No second logo variant exists.
 
-The upstream source directory may be absent from a clean checkout. The checksum-pinned repository copy is the durable source.
+The upstream source directory may be absent from a clean checkout. The
+checksum-pinned repository copy is the durable source.
 
+#### Logo source-to-runtime mapping
 
- #### Logo source-to-runtime mapping
-
- | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
- | --- | --- | --- | --- |
- | Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
+| Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
+| --- | --- | --- | --- |
+| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded by `_LayoutExternal.cshtml` (public upload frame) and, under the integrated design, the `auth-brand` of the sign-in card. |
 
 ### Icons
 
@@ -361,58 +490,124 @@ Lucide is the only approved Web/UI icon system:
 - rendered at 16–24px;
 - `currentColor`.
 
-Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
+Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure
+symbols. The prototype's hand-drawn `iconPaths` are not adopted; every glyph
+it names maps to the Lucide id below, and the prototype's inline sparkle on
+`Send to Claude` is retired ([Reviewed divergences](#reviewed-divergences)).
 
-The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below). Glyph usage is now exercised: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the same seventeen glyph vectors once per page from `_Layout.cshtml`, and pages reference them as `<svg class="icon"><use href="#icon-…"/></svg>`.
+The checksummed sprite is `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`,
+inlined once per page by `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`
+as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
+`<svg class="icon"><use href="#icon-…"/></svg>`. The `.icon` rule applies the
+stroke and caps because a `<use>` clone does not inherit them. The sprite
+holds the sixty glyphs below (the original seventeen plus the
+forty-three PLAT-029 added from Lucide v0.344.0); each glyph checksum is the
+SHA-256 of its `<g id="icon-…">…</g>` element in the sprite.
 
-The inline partial is the runtime delivery of the checksummed asset, not a second icon set. It carries the identical glyph vectors and differs only in wrapper element: each glyph is a `<symbol viewBox="0 0 24 24">` rather than a `<g>`, because `<use>` does not inherit a `viewBox` from a `<g>` and consuming elements would render clipped. The approved 2px stroke and round caps are applied by the `.icon` rule in `site.css`, since a `<use>` clone does not inherit presentation attributes from the sprite root. No glyph was added, removed, or redrawn.
+An icon paired with a visible text label is decorative and carries
+`aria-hidden="true"`. An icon that is the whole control carries
+`aria-hidden="true"` on the glyph and its accessible name on the button.
+`src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not
+icon-system authority.
 
-An icon paired with a visible text label is decorative and carries `aria-hidden="true"`. An icon that is the whole control carries `aria-hidden="true"` on the glyph and its accessible name on the button, as `trash-2` does. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
+#### Lucide icons source-to-runtime mapping
 
+Upstream source: Lucide official SVG vectors release (v0.344.0). Runtime
+sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 of the
+committed LF blob `90FEB7AB7E40931DDE9B011CEC06F4E8B4DCD058695DEC09DB5E0965AC7A0992`,
+sixty glyphs; the pre-PLAT-029 seventeen-glyph sprite was
+`24360787DB7A58F1B0ACA7E2F66405749C9D5742A2ADA91C07BDFF03202872D0`).
 
- #### Lucide icons source-to-runtime mapping
-
- Upstream source: Lucide official SVG vectors release (v0.344.0).
- Runtime sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 `24360787DB7A58F1B0ACA7E2F66405749C9D5742A2ADA91C07BDFF03202872D0`).
-
- | Icon glyph | Glyph SHA-256 | Usage & accessibility mapping |
- | --- | --- | --- |
- | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Global search action and input field prefix icon (`aria-hidden="true"`) |
- | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Authenticated user menu / profile identity icon |
- | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Manual refresh action / freshness banner status icon |
- | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness timestamp and due date indicator icon |
- | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date range and instruction date filter icon |
- | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed success status badge icon |
- | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Incomplete / pending / warning status chip icon |
- | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary / blocked intake status icon |
- | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance panel and field detail information icon |
- | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Source document and instruction evidence icon |
- | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Table and workbench queue filter control icon |
- | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Administration workspace navigation icon |
- | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Interactive table row expansion indicator |
- | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
- | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
- | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
- | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Per-file removal control on the case evidence panel (labelled by `aria-label`) |
+| Prototype name | Lucide id | Glyph SHA-256 | Usage |
+| --- | --- | --- | --- |
+| `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
+| `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
+| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone; Add dialog |
+| `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
+| `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
+| `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
+| `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Rail: Operations; running jobs |
+| `admin` | `layout-grid` | `DCF60CA3B7FC36D4C69ED1A6EBC4CAD464CE850786B7AEE5BD1AB0A542C0D0BE` | Rail: Administration |
+| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons |
+| `plus` | `plus` | `A1190965745A47ED26827784BBAE8B9291D5170501A02FB335D82247EA276108` | Add, Create, New estimate |
+| `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Refresh, DVLA/DVSA refresh |
+| `chevron-right` | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Row affordance, stepper |
+| `chevron-left` | `chevron-left` | `1E4CC2B6933AEDC73D77B080ABC988D9A4ED319191AC4AB2F0BD417C8E91BCE1` | Back, pagination |
+| `chevron-down` | `chevron-down` | `07FA08D36ABFC560E7901833347764591406C71C2E8974BAF3EE518866D549C3` | Disclosure, select |
+| `arrow` | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Open full record, transitions |
+| `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog |
+| `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
+| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due |
+| `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
+| `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, exceptions group |
+| `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |
+| `check-circle` | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed completion |
+| `file` | `file` | `1A3C36C8758354AA3FBE172B2F9AA864C898B425AEF310970A2A30C706899C4A` | Document rows |
+| `mail` | `mail` | `1F2FF3622BA89D178DAC9BB0FBADE33862AF73E2AA627D7B8B682D8FA23B9C81` | Mail rows, Correspondence |
+| `link` | `link` | `6D49DABEC5033468AD49114CA79422BC8CB2F1C1AE3696A34FD98EA5B1E93A1E` | Case link, upload link |
+| `edit` | `pencil` | `63FD491D3A18940F7DDDD179F617729039871DBB01E42FCF6CEF81D6315A6C39` | Edit Case, inline edit |
+| `save` | `save` | `BEEDEA57260C30DD0B222C239B536C1EFD8B8DD7BDD3BB5311CFB5DD325677A3` | Save |
+| `close` | `x` | `FE4FAFDA78C537A7218FC7EDE65B1A01BE9BD5DF253C75805309D1EA2E6152DC` | Dialog close, tab close, remove |
+| `hold` | `pause` | `1A4247062E4B9E29A38E9C6C0867F6D85351F8B058606EA1FC89768495734773` | Place on Hold, Held |
+| `play` | `play` | `197D4369B982F7DBA348DCD5BD06F4C003A2C345C40CE2AC44719238463844D5` | Release Hold, Start automation |
+| `report`, `document` | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Report, instruction evidence |
+| `settings` | `settings` | `F6CE9F023EC1C2720723672887014349E1D3A68DF9555CA3795C5FEF95265B4A` | Principal settings, configuration |
+| `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
+| `lock` | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Edit lease, idle lock |
+| `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Open Operations, retained source |
+| `eye` | `eye` | `73D6B13F2AE0E9AA498E371618CF4CC6392C75F1A4C23FCDF1B981451368EF7A` | Preview, Show key |
+| `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
+| `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
+| `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
+| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
+| `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
+| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download EVA package |
+| `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
+| `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance, informational notice |
+| `car` | `car` | `36AE3DC22866D02D1159AB8D6256BB09E91B2D98C03BC7126EE576437BECF0C5` | Vehicle section |
+| `person` | `user` | (as `user`) | Claimant, parties |
+| `task` | `check-square` | `D84CA64CC54CFF1C150D4D31618203F054470D80DFD59989B3EE52009574CE31` | Work items, checks |
+| `archive` | `archive` | `37BA14C8285BE494749A4DA9E213B37048ABCEF5DB0D65B1C65DE959A135AD84` | Archive, Deleted Items |
+| `send` | `send` | `63B04BD6FA6A68DEC5F9492B1D0926D00EE28C3F1332E10F47565AF49FB4649D` | Send, Send to EVA, **Send to Claude** (the prototype's `btn(…,'primary','send')`) |
+| `paperclip` | `paperclip` | `65E2F64F2264077A89E3D0DB428C3DF5E3C175BAB1A1C05561209B023EC2CED8` | Attachments |
+| `home` | `home` | `7ABDB2720CEBD3A9AFBFAC581DCC7807C6E7A8E3229621EC5AA5B9583B060BDF` | Work Centre tab |
+| `map` | `map-pin` | `93DF1DF4794C821825D59FC9550292FAB3504802B3EC767B9246E057CE499F29` | Inspection address |
+| `key` | `key` | `9C4745F5604E0E32D887381FF5AE40DDA8BF4DF163D98025823CBBC0A06391C4` | API key |
+| `shield` | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Roles, access |
+| — | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Delete estimate, remove line, Delete message |
+| — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view |
+| `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
+| `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
+| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply |
+| `flag` (undefined) | `flag` | `A55F63EE07DFA4078A73AC54401544201065765B3DDB64C23B39CAC355A8AAE9` | Flag message |
+| `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
 
 ### Imagery and evidence
 
-Upstream marketing photography is excluded, and no generated or substitute glyph is used anywhere. The one class of imagery the internal Web application does carry is the [commissioned Pegasus marks](#the-pegasus-marks), adopted 2026-08-17: fourteen operator-supplied raster marks that name a surface, always decorative and always beside text that says the same thing.
+Upstream marketing photography is excluded, and no generated or substitute
+glyph is used anywhere. The one class of imagery the internal Web application
+carries is the [commissioned Pegasus marks](#the-pegasus-marks): decorative,
+naming a surface, always beside text that says the same thing.
 
-Genuine case images, emails and documents are operational evidence, not decorative assets. Use only authorised repository-provided evidence through its owning workflow. Never generate placeholder cases, damage images, emails, documents or people.
-
-The retained comparison rasters are selection evidence only. The Operations-first shell strategy is approved; no raster is pixel-level authority, runtime payload or implementation proof.
+Genuine case images, emails and documents are operational evidence, not
+decorative assets. Use only authorised repository-provided evidence through
+its owning workflow. Never generate placeholder cases, damage images, emails,
+documents or people. The prototype's fixture data is not domain data and is
+never copied.
 
 ### Web and renderer boundary
 
 | Asset class | Approved consumer and boundary |
 | --- | --- |
-| Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web |
+| Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
 | Supplied engineer signatures | Andy Patterson's approved exact tuple is embedded by Infrastructure; other supplied assets remain governed but inactive; never Web decorative imagery |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
-The imported renderer can exercise its own assets without proving the planned Pegasus report capability. Imported workspace material does not become UI, report or design authority by existing in the repository. See the [workspace boundary](../../workspaces/README.md).
+The imported renderer can exercise its own assets without proving the planned
+Pegasus report capability. Imported workspace material does not become UI,
+report or design authority by existing in the repository. See the
+[workspace boundary](../../workspaces/README.md).
 
 ## Voice, labels and necessary copy
 
@@ -467,333 +662,514 @@ does not merge.
 
 ## Access and permissions
 
-Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](../current-architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
+Staff accounts, authentication, and authorisation are implemented and
+enforced through authenticated Web callers
+([architecture](../current-architecture.md)). Accounts use Pegasus-managed
+usernames and passwords. Core owns the exact
+[staff role access matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix),
+automated-actor boundary, and
+[case edit authority](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery);
+this section owns only how those decisions appear in the UI.
 
-| Actor | Planned UI boundary |
+| Actor | UI boundary |
 | --- | --- |
-| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, approved Outlook category display names, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
-| Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
-| Automated processing | No UI account or interactive control. |
-| Provider API client ([API-01–API-04, `Next / 0.4.0`](../capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
-| External/customer | No application account; the only external surface is the isolated request-scoped `/Uploads/{token}` upload page (INT-31), which exposes no case or request state. |
+| Administrator | Staff shell plus the Administration areas: Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports. No secret display beyond the masked Principal API key. |
+| Engineer, User | Staff shell without Administration. Their ordinary Inbox, Cases, Search, Case, Assessment, Upload and Operations controls are identical. |
+| Automated processing | No UI account or interactive control; the Automation Actor appears only as `SYSTEM` / `AI` in notes and Action Logs. |
+| Provider API client | No staff shell, Case workspace, or Administration surface; its credential is the Principal "Pegasus API key" (D8). |
+| External/customer | No application account; the only external surface is the request-scoped `/Uploads/{token}` page, which exposes no case or request state. |
 
-Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
+Every protected route and action must handle unauthenticated,
+disabled-session, stale-role, denied, loading, and successful outcomes. Hiding
+a route or control never replaces server authorisation. Administration has no
+generic rules editor, credential/cloud/release operation, bulk predecessor
+import, or bulk Case-edit tool. No surface permits permanent deletion or
+direct external/customer Case editing.
 
-## Operations-first shell
+## Absent versus disabled
 
-Operations is the landing route.
+A capability that is not composed in this deployment is **absent** from the
+interface. A control whose record does not yet satisfy a condition is present,
+disabled, and states the condition on the control ("Available in Review").
 
-```text
-CE logo | Dashboard | Inbox | Upload | Queues | Cases | Administration | User
-Dashboard
-Not ready | Review | Held        (active cases)
-Received today | Unidentified | Blocked        (e-mail activity)
-New cases today | Sent to Engineer: today / week | Reports sent: today / week
-Last updated | Refresh
-```
+**Amended 2026-08-28 (D7).** A disabled control for an *uncomposed
+integration* is permitted only for a named, ticketed integration seam drawn
+in the approved design:
 
-The approved route order is `Dashboard → Inbox → Upload → Queues → Cases →
-Administration (admin-only) + user controls` (operator decision 2026-08-04).
-Search merged into Cases, which has the identical backing query; the former
-combined intake screen split into Inbox and Upload; Queues is the
-pre-engineer-assignment work viewer carrying Not ready, Review, Held and
-Triage — the first three Case stages, the fourth a separate pre-case entity.
-`Triage` no longer names a screen, nav item, title or route, and its settled
-meaning is unchanged.
-
-Rules:
-
-- Every metric is an exact query link to its corresponding filtered queue.
-- `Blocked` is exact wording and remains pre-case.
-- Every metric shows its last-good time and one current refresh state: loading,
-  current, stale, partial, unavailable, or failed.
-- `0` is a current result, never a substitute for stale, partial, unavailable,
-  failed, or not-yet-loaded data, and no shipped tile may render a placeholder
-  for a query that does not exist.
-- Manual refresh reruns the same filter, gives start/completion feedback, keeps
-  last-good data visible, and never claims an external action succeeded.
-- Refresh remains telemetry; accepting, rejecting, linking, or changing an
-  external fact during reconciliation is a permanent, attributable business
-  event.
-- Day boundaries use Europe/London midnight.
-- Week boundaries begin Monday.
-- At constrained desktop width or 200% zoom, the selected summary becomes an ordered, labelled section after the results without losing identity, state or action context.
-- Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
-- There are no `0.1.0-alpha.1` saved views, bulk actions, inline mutation, calendar, personal assignments or general email queues.
-
-The selection rationale is strongest shared-office awareness and truthful day/week visibility. Its risk is density and dependence on independent, accurate queries.
-
-### Rejected alternatives retained as evidence
-
-| Direction | Rationale and boundary |
-| --- | --- |
-| Worklist-first | Highest repeated case-queue throughput, initially focused on `Not ready`, with a selector limited to `Not ready`, `Review` and `Held`. It weakens whole-office day/week visibility. It must not become a generic cross-feature list; Intake and Triage remain dedicated, the summary is read-only, and consequential actions open focused flows. No bulk actions, saved personal queues, inline lifecycle mutation or speculative email work. |
-| Case-first | Clearest auditability and deep case context, with Cases/search as the landing and Operations retained as a full named route. It makes shared queue scanning less immediate and cannot be the earliest implementation. No generic Close, notes substitute, percentage completeness, named Engineer assignment, inline external editing, estimator, valuation, finance, AI or mobile controls. |
-
-The three comparison rasters were selection evidence only; they were removed from the repository on 2026-08-27 and remain in Git history. Their styling and details were never approved.
-
-## Current Development caller
-
-The exercised Development journey is:
-
-```text
-upload one supported local source
-→ Core ProcessIntake, fail closed
-→ persisted receipt/outcome
-→ queue
-→ receipt review
-→ retained source/evidence/draft/assets
-→ authorised retained-asset download
-```
-
-It runs under authenticated staff identity (the DevelopmentOffline profile's server-derived actor); it does not create a case, allocate a reference or prove the planned shell.
-
-### Core outcome to operator label and persistence
-
-The received-items caller combines the processing decision with the actual
-Case link and durable allocation state. A decision is never case-existence
-authority on its own.
-
-| Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
-| --- | --- | --- | --- |
-| `CaseCreated` | Ready for case allocation, Creating case, Case not created, or Case created according to allocation/link state | Yes | Only when the Case intake link exists |
-| `NeedsSorting` | Unidentified | Yes | No |
-| `BlockedIntake` | Blocked | Yes | No |
-| `OcrRequired` | Needs text extraction | Yes | No |
-| `TechnicalFailure` | Failed | Yes | No |
-| `Unsupported` | Unsupported | Yes | No |
-| `ImageIntakeRegistered` | Vehicle images registered | Yes | No formal Case/PO; allocates the Image-initiated VRM reference |
-
-`CaseCreated` is the processing eligibility code; typed allocation records the
-separate attempt and the Case intake link is the only proof that a reference
-exists. Ambiguous or unidentified material is `Unidentified`.
-
-`Needs text extraction` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
-
-Validation or refusal before an accepted intake receipt must not be described as formal Case creation. An `ImageIntakeRegistered` receipt allocates the separate Image-initiated Image Intake Reference.
-
-There is no decision meaning "a human has not pressed the button yet":
-[FRD-02](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
-exactly one instructed Case idempotently and that "the allocation decision adds no universal
-manual acceptance gate", and the [operator notes](../operator-notes.md) send only ambiguous
-provider, instruction-type, or case evidence — and any unidentified e-mail — to `Unidentified`.
-Every definitive typed instruction attempts allocation at processing time. An Audit is definitive
-only when its separate original report supplies one literal outcome: `repairable` or `total loss`.
-An Audit instruction with no separate report, a conflicting report, or an unclear outcome is
-`Unidentified`; it allocates neither a Case/PO nor an Audit reference and carries a U-reference.
-Incomplete ordinary detail is never a bar to allocation. A failure is retained separately and requires a reasoned staff
-retry after correction.
-`Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
-must never name an intake state.
-
-### Planned case-creation mapping
-
-| Intake decision | Operator state | Persisted case/reference consequence |
+| Seam | Control | Ticket |
 | --- | --- | --- |
-| Definitive authorised instruction with instruction and image completeness satisfied | `Review` | Create exactly one case/reference through shared fail-closed acceptance |
-| Definitive authorised instruction without both completeness requirements | `Not ready` | Create exactly one incomplete case/reference |
-| Audit instruction without a separate original report carrying one literal outcome | `Unidentified` | No Case/PO or reference; preserve the received evidence under its U-reference |
-| Staff-resolved intake with both completeness requirements recorded | `Review` | Create exactly one case/reference |
-| Staff-resolved intake without both completeness requirements recorded | `Not ready` | Create exactly one incomplete case/reference |
-| Explicit confirmation of both requirements on an existing `Not ready` case | `Review` | Transition the existing case; do not create another case/reference |
-| `Blocked intake` | Shown as `Blocked`, with required reason | Persist pre-case intake work only; no case/reference |
-| Unidentified, unsupported/incomplete source, identity-critical ambiguity, custody/integrity/replay/occurrence conflict or missing identity evidence | Unidentified or named pre-case failure | No case/reference |
-| Resolve/retry of blocked or failed intake | Re-enter ordinary fail-closed intake | Create exactly one case/reference only if the ordinary gates then pass |
+| Experian | Vehicle checks → Run Experian check | ENG-001 |
+| Glass's, Audatex | Assessment record bar sources | EXT-09 |
+| Cazana | Valuation source | ENG-008 / ENG-009 |
+
+Every other uncomposed capability stays absent: no inert card, no
+"Unavailable" placeholder, no unlinked route. A disabled seam carries its
+accessible name, `aria-disabled`, and no handler; the ticket that composes
+the integration enables it.
+
+## Routes
+
+| Route | Page | Notes |
+| --- | --- | --- |
+| `/` | Work Centre | Metric strip, Needs attention, Today pane |
+| `/Inbox` | Inbox | Scope, messages, preview panes |
+| `/Inbox/{id}` | Inbox message | Record, tabs, decision card |
+| `/Upload` | Upload | Dropzone and file rows |
+| `/Cases` | Cases | `queue-layout`; `?tab=` selects the rail group: `not-ready`, `review`, `with-engineer`, `complete`, `triage`, `held`, `unidentified` |
+| `/Triage/{id}` | Triage record | Pre-Case |
+| `/Unidentified/{id}` | Unidentified record | Pre-Case |
+| `/Search` | Search | Advanced grid, results, Selected Case |
+| `/Cases/{id}` | Case workspace | `?section=` selects `overview`, `vehicle`, `valuations`, `inspection-address`, `case-files`, `notes` |
+| `/Cases/{id}/Assessment` | Assessment | With Engineer or onwards only (D11) |
+| `/Operations` | Operations | AI Job List, Service health, Attention required, upload links, EVA handoffs |
+| `/Administration/{area}` | Administration | `accounts`, `principals`, `configuration`, `mail`, `automation`, `service-health`, `action-logs`, `reports`; bare `/Administration` opens `accounts` |
+| `/VehicleImages/{id}` | Image record | The list page is removed (D1) |
+| `/Uploads/{token}` | Public upload | External frame |
+
+Route moves are 301 stubs delivered by PLAT-029 and deleted in wave 5:
+`/Triage` → `/Cases?tab=triage`; `/Unidentified` →
+`/Cases?tab=unidentified`; `/Cases?query…` (the former search) →
+`/Search` with the same query string. `/VehicleImages` (list) is removed
+outright — no stub — and `ImageIntake/Index` is deleted; the detail page
+stays as the image record. Test UI catalogue route keys follow these moves
+in the same PLAT-029 change set.
 
 ## Component map
 
-Only the first table describes exercised components. Planned contracts do not create a speculative component library.
+The class vocabulary is the one `site.css` declares under the integrated
+design. Every page composes these classes; a page-specific class is a defect
+unless it is listed here. PLAT-029 delivers the vocabulary and carries the
+previous vocabulary in a delimited legacy block for pages not yet ported,
+deleted in wave 5.
 
-### Exercised components
+### Shell
 
-| Component | Purpose and states | Runtime owner |
-| --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight change **and a 2px Collision-red left border** so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
-| Navless shells | The screens that are not a place in the application. `_LayoutAuth` carries sign in, the signed-out confirmation, access denied and the error/not-found family; `_LayoutExternal` carries the one screen a third party sees and states the company, never the product | `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`, `_LayoutExternal.cshtml` |
-| Status-code page | The designed answer to a status code with no exception behind it: unknown record, dead external upload link, oversized upload, rate-limited sign-in. Scoped away from the health, version and automation surfaces, whose callers want a parsable body | `src/Pegasus.Web/Pages/StatusCode.cshtml(.cs)` |
-| Operator label map | The single place a persisted code becomes words: stage, case type, document role and origin, custody, upload-link state, history event, file size. Raw `enum.ToString()`, snake_case event codes and PascalCase compounds never reach markup | `src/Pegasus.Web/Presentation/OperatorLabels.cs` |
-| Queue/metric card | Show persisted Development intake counts and open the exact list; value and unavailable states are both exercised, an unavailable tile stating its absence rather than substituting a zero; stale and partial remain planned | `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/site.css` |
-| Status chip | The single place a business or query state selects its tone and Lucide glyph; always paired with its text label | `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml` |
-| Freshness and manual refresh | Last-good Europe/London time, current refresh state, and a manual refresh that reruns the same filter with start feedback and double-submit protection | `src/Pegasus.Web/Pages/Shared/_FreshnessBanner.cshtml` |
-| Page header | Eyebrow, title, lede and optional primary action, shared by the Operations, Cases, Intake, Triage and Administration surfaces | `src/Pegasus.Web/Pages/Shared/_PageHeader.cshtml` |
-| Administration workspaces | Authorised Administration entry cards; one accessible link per card with the whole card as the pointer target | `src/Pegasus.Web/Pages/Administration/Index.cshtml` |
-| Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; redirect to the staged receipt status; show Received, Processing, Complete or Failed; refresh nonterminal status every two seconds with a manual refresh available; link completion to the resulting case or retained receipt; list and inspect retained receipts and download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/{Upload,UploadStatus}.cshtml(.cs)`, `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
-| Image-initiated Case list/detail | List searchable Image-initiated records by lifecycle state and exact Image Intake Reference; detail presents VRM suggestions, preserved group evidence, merge history, custody, and reasoned staff closure | `src/Pegasus.Web/Pages/ImageIntake/{Index,Details}.cshtml(.cs)` |
-| Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
-| Anonymous request upload | Token-bound `/Uploads/{token}` form and immediate result; antiforgery, idempotent operation key, generic non-disclosing outcomes | `src/Pegasus.Web/Pages/Uploads/Request.cshtml(.cs)` |
-
-### Planned component contracts
-
-| Component | Required contract |
+| Class | Role |
 | --- | --- |
-| Shell/access | Sign-in; disabled, stale-role and denied outcomes; visibility derived from the [Core-owned role matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) plus server authorisation |
-| Metric/queue | Label, value or unavailable state, last-good time, current refresh state and exact destination filter; `0`, loading, current, stale, partial, unavailable and failed remain distinct; each Case row has a read-only latest attributable activity/evidence summary with its timestamp, using operator language and never implying an external delivery or rewriting permanent history; bounded pagination has accessible current-page context and keyboard-operable next/previous controls, with page size determined during surface design |
-| Intake workbench | Immutable source occurrence and evidence beside the distinct editable candidate/accepted Case projection; source/dispatch identity; `All`/`Instructions`/`Images` filter; fact versus suggestion versus confirmed value; provenance, ambiguity/conflict, association history, acceptance path and no-case consequence |
-| Request-scoped upload | Bound upload fields and immediate request-local result only; expired, revoked, limit, custody, replay and cross-request failures disclose no case/reference, request history or other material |
-| State action | One current Case and one named Core action; prerequisites, consequence, reason where required, recovery and history link; never a generic Close, bulk edit or external edit |
-| Identity header | Read-only Case/PO, principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state and EVA proxy limitation |
-| Due/chaser panel | Missing-material reason, next chase, most recent recorded channel/outcome, optional note and next permitted action together; preparation/copy is not sent or delivered |
-| Inspection address | Provider-determined default: the Principal's inspection-mode setting autofills exact `Image Based Assessment` or requires an explicit physical vehicle/repairer location; reasoned per-Case staff override; physical address fields appear only for the physical mode and never imply attendance |
-| Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
-| Evidence/document panel | The stored case files themselves — name, role, origin, size, arrival, download; the Box case folder; a reasoned per-file removal recorded on the case timeline; staff-confirmed third-party exclusions; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
-| Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
-| History | Read-only presentation of the Core-owned [permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history), including actor/caller/time and one-Case scope without message bodies or telemetry noise |
-| Reason dialog | Named requirement and consequence; labelled reason; confirmation/cancel; initial focus, focus containment, Escape where safe and focus return to the invoking control |
+| `app-shell`, `app-rail`, `app-column`, `app-main`, `content` | Grid, rail, column, main landmark, 1580px content |
+| `brand`, `brand-copy` | Rail lockup |
+| `primary-nav`, `nav-label`, `nav-link`, `nav-count` | Rail navigation; `nav-count` is absent when there is no figure |
+| `rail-health`, `rail-user` | Rail foot |
+| `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
+| `workspace-tabs`, `workspace-tab` | Tab strip (max 4 Case tabs, LRU) |
+| `external-shell`, `auth-card`, `auth-brand` | Navless frames |
+| `skip-link`, `sr-only` | Accessibility |
 
-Opening source evidence or other supporting detail preserves the current list/detail position and every unsaved edit; returning never silently discards or replaces the operator’s proposed values.
+### Page
 
-## Planned workflow patterns
-
-### Intake
-
-The Intake workbench presents the immutable [source occurrence and durable dispatch identity](../frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity), provenance, original custody, attachments/images, facts, and derivations separately from an editable candidate or accepted Case projection. A source never becomes the Case record merely because a candidate is accepted.
-
-The planned alpha surface includes:
-
-- manual upload;
-- automatic ingestion from `instructions@collisionengineers.co.uk`;
-- correct treatment of staff-forwarded email as real intake;
-- stable source-occurrence and dispatch identity, duplicate delivery, pending/retry state, and idempotent result;
-- EML and freehand email-body extraction;
-- PDF embedded text and embedded images;
-- DOCX text and every visible image placement without deduplicating repeated appearances;
-- JPEG and PNG image-led intake;
-- reviewed vehicle-registration suggestions from ordinary vehicle images;
-- bounded, fail-closed handling for unreadable, oversized or incomplete sources;
-- typed, editable, operator-reviewable drafts;
-- field provenance, validation, missing values and contradictions;
-- principal/provider identification;
-- `Needs sorting` and reasoned `Blocked intake`;
-- definitive and staff-resolved acceptance through the same business rules;
-- registration-based provisional identity for image-led work;
-- ambiguous/conflicting association review and reasoned manual link, unlink, reversal, or reassociation while preserving every prior relationship and original origin under the [Core association contract](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association);
-- missing, integrity, replay, retention, custody and persistence failures.
-
-A staff-created in-house upload request is permitted only through a temporary
-token bound to exactly one request, its allowed operation, and a server-enforced
-expiry. Staff can revoke it, and the isolated unauthenticated surface exposes
-only that request's upload fields and immediate structured result. It exposes no
-case/reference, request state/history, other document, token-management function,
-external account, or cross-request lookup. Success proves only request-local
-custody, not case creation, Box custody, EVA handoff, report generation, or
-external delivery. File type/count/size limits, expiry, revocation, idempotent
-retry, abuse handling, cross-request isolation, durable custody, and
-non-disclosing errors are acceptance gates.
-
-Policy-specific email predicates and acceptance evidence remain open gates for only their named automatic paths. They do not weaken manual or shared fail-closed acceptance.
-
-### Triage
-
-Triage is a distinct inbox classification/label and separate pre-case record, never a case state. The UI implements the [Core-owned normal workflow and completion evidence](../frd/frd-03-triage.md#normal-workflow-and-completion-evidence) rather than defining another transition policy.
-
-The detail workspace presents the normal sequence from registration-gated `Needs sorting`, through `Open`, missing-information correspondence, and an accepted finding, to exact reply-chain evidence and `Completed`. It must show acknowledgement, information request, or other ordinary correspondence as non-completing activity; display missing, ambiguous, unapproved, or technically failed reply evidence; and expose `Cancelled` as the separately named end without finding/reply.
-
-Finding correction/replacement, new response, reasoned reopen, and optional later Case link/unlink/relink remain visible in permanent history. The Case link is reference-only: Triage findings do not alter Case/PO, reference, lifecycle, final outcome, Engineer report, or Audit identity. Assignee remains optional, with no due date or chaser UI.
-
-### Case
-
-The Case workspace visibly preserves the immutable [Case/PO and principal identity](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), registration, [Inspection, standalone Audit, or Inspection + Audit type](../frd/frd-01-case-identity-and-lifecycle.md#case-types), secondary Audit identity where applicable, workflow state, `Due by`/overdue state, and EVA proxy limitation. It presents accepted case-party functions and the inspection-address snapshot for that Case without allowing later reusable organisation/repairer edits to rewrite historical case evidence.
-
-A wrong-principal repair is presented as the Core-owned `Created in error` original and its linked replacement, never as an editable Case/PO or principal field. Both references remain visible and the original has no reopen control.
-
-Case work includes:
-
-- source, provenance, and typed case data;
-- documents and images;
-- suggestion-first ordinary-image VRM with source-image/confirmed/no-result
-  distinction;
-- DVLA/DVSA and MOT/mileage observations with source/version/age and
-  supplied/external/estimated classification;
-- provider-determined inspection mode: explicit physical vehicle/repairer
-  location or exact `Image Based Assessment` autofilled from the Principal's
-  setting, with reasoned per-Case override;
-- separate Roadworthiness and Assessment findings plus correction history;
-- tasks and reminders;
-- `Due by`, missing-material reason, next chase, last channel/outcome, optional
-  note, and next permitted action in one work area;
-- seven-calendar-day missing-information chasers and `Held` behavior that
-  preserves the interval;
-- request-scoped upload-link creation and copyable manual chasers;
-- manual WhatsApp material;
-- successful deterministic EVA JSON/image generation as the
-  once-per-case `First sent to Engineer` proxy, with later revisions distinct;
-- issued report/addendum versions and exact report-Sent evidence;
-- lease/conflict recovery; and
-- permanent action history.
-
-Pegasus may record optional assignment to an eligible Engineer account, but the
-case can reach the Engineers queue and Assessment workspace while unassigned.
-The export proxy proves neither EVA receipt nor an external EVA assignment and
-must not be described as replacing EVA’s engineering workflow.
-
-No-result, unknown, stale, partial, unavailable, and failed vehicle/external
-states are distinct from a confirmed value. Refresh retains last-good data and
-never overwrites a staff-confirmed value. The UI shows source/version, prior and
-new value, actor, time, outcome, and reason when reconciliation changes business
-truth.
-
-Roadworthiness and Assessment are independent professional findings. Correction
-retains the earlier accepted finding and displays the reasoned superseding
-version; a closed Case must be reasonedly reopened before revision. A finding or
-report correction never implies a fee/invoice change.
-
-Report generation, PDF custody, Outlook Sent evidence, and external receipt are
-separate. Report sent enters post-report work rather than closing the Case.
-`CASE-23` query/dispute controls are `Next / 0.4.0` in the [capability inventory](../capabilities.md#capabilities); the alpha UI invents no reply state machine.
-
-Lifecycle actions use only the named [Core lifecycle and correspondence contract](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence): Post-report completion, Provider cancellation, Collision Engineers rejection, and Created in error remain distinct from acknowledgements, information requests, report-Sent evidence, queries, and other correspondence. The interface never substitutes a generic Close action. A closed Case is read-only; only a permitted reasoned reopen to a valid nonterminal state restores mutation controls, and `Created in error` offers only its linked-replacement route.
-
-Each Case has at most one authorised staff editor at a time through the [Core lease and mutation guard](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). Other authorised staff see the holder and that Case read-only. `Enter edit mode`, renewal, `Leave editing`, authoritative expiry, reload/compare, and reacquire are the only recovery interactions: lease loss or a stale version disables every mutation, preserves proposed values for comparison, and never overwrites the newer Case. There is no forced Administrator takeover, bulk Case edit, direct external edit, or collaborative merge control.
-
-### Documents and external evidence
-
-- Create the Box case folder using the immutable Case/PO name.
-- Retain source emails, instruction documents, images, correspondence, and reports.
-- Preserve document and issued report/addendum versions.
-- Use logical removal; never physically delete files through the workflow.
-- Closed-case documents are read-only until the Case is validly reopened.
-- Show Box unavailable, pending, retry, and unknown states rather than implying success.
-- Provide authorised staff upload, view, download, and export actions.
-- Treat request-scoped public upload as request-local receipt only, not Case creation, Box custody, EVA handoff, report generation, or delivery.
-- Private transient Worker staging is not a staff surface or downloadable area.
-- Keep picture upload, report-with-PDF handoff, PDF generation/custody, and external delivery as distinct evidence states.
-- Report evidence uses the exact Outlook Sent item and keeps discovery, link, and sent times distinct.
-- Manual link, unlink, or relink requires a reason and deterministically recomputes dependent events/counts.
-- Preserve the final accepted Sent association even if Outlook later moves or deletes the item.
-- Ambiguous or absent evidence remains visible.
-- Triage reply evidence and Case report-Sent evidence are separate contracts.
-- Chasers are copyable for manual sending; automated outbound messages are deferred.
-
-### Search and filters
-
-The exact UI-07 fields are:
-
-- Case/PO;
-- Image Intake Reference;
-- registration;
-- claimant;
-- claim number;
-- principal;
-- state;
-- Engineer;
-- received date;
-- instruction date;
-- date range;
-- origin.
-
-### Permanent history
-
-The History panel is a read-only presentation of the [Core-owned permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history). It shows the attributable staff or automated actor, caller, time, one affected Case or pre-case record, action/outcome, reason where required, and before/after or evidence reference needed to understand each business event. It does not render message bodies, routine views, refresh/polling, retries, lease heartbeats, or adapter/Worker mechanics; those remain telemetry or security evidence outside the operational UI.
-
-## Complete UI state contract
-
-| Scope | Required states |
+| Class | Role |
 | --- | --- |
-| Queries | Loading; empty; current success; stale with last-good time; partial; unavailable; failed/retry; unauthenticated; disabled; stale-role; denied |
-| Mutations | Validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
-| Intake | Empty/oversize; replay; retention/custody failure; Ready for case allocation; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; reasoned Blocked intake/resolve/retry; every acceptance path; refusal with no case/reference; upload token expired/revoked/cross-request/limit/abuse result |
-| Triage | Registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
-| Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; chaser last-outcome/next-action; gate refusal; physical address/Image Based Assessment; VRM and vehicle/MOT suggestion/no-result/stale/unavailable/failure; independent finding correction; documents locked; Box/external-effect states; EVA proxy/revision limitation; report generated/custodied/sent/externally received distinction; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
+| `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
+| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger` |
+| `metric-strip`, `metric-strip--3`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=` |
+| `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
+| `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
+| `status` and its tone modifiers | State chip ([Colour](#colour)) |
+| `tabs`, `tab` | `tablist` / `tab` with `aria-selected` |
+| `pane-layout`, `pane-layout--2`, `pane-layout--3`, `pane`, `pane-head`, `pane-body`, `pane-scroll` | Multi-pane workspaces |
+| `queue-layout` | The Cases three-pane variant |
+| `scope-list`, `scope-button` | Left-pane scopes with icon well and count |
+| `row-button`, `work-item` | Selectable rows (arrow navigation) |
+| `fact-grid`, `fact`, `definition-list`, `definition` | Label/value cells |
+| `pagination` | Bounded pagination with current-page context |
+| `empty` | Empty result; renders only where an action exists |
+| `table-wrap` | Horizontal scroll container for tables |
+
+### Record
+
+| Class | Role |
+| --- | --- |
+| `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
+| `record-ribbon`, `ribbon-item` | Identity ribbon (5 on the Case, 7 on the Assessment) |
+| `edit-bar` | Sticky edit bar: lease text, Unsaved chip, Discard, Save |
+| `case-workspace`, `case-section-nav`, `case-context` | Case side nav, main, context column |
+| `workflow-stepper`, `workflow-step` | Not ready → Review → With Engineer → Complete; Held badge |
+| `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
+| `blocker-list`, `blocker` | Outstanding requirements |
+| `timeline`, `notes-list`, `note-entry` | History and Notes |
+| `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
+| `mail-preview`, `decision-card` | Inbox preview and message decision |
+| `assessment-v3`, `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Assessment |
+| `ai-jobs-panel` | Operations AI Job List |
+| `admin-layout`, `admin-nav` | Administration |
+| `dropzone`, `file-list`, `file-row`, `upload-outcome` | Upload |
+| `report-preview` | Report draft preview dialog body |
+
+### Dialogs and feedback
+
+| Class | Role |
+| --- | --- |
+| `dialog-backdrop`, `dialog`, `dialog-head`, `dialog-body`, `dialog-foot` | Modal dialog ([contract](#keyboard-and-dialog-contract)) |
+| `command-dialog` | Command palette |
+| `toast-region`, `toast` | Toasts |
+
+### Utility classes
+
+The Content Security Policy forbids inline styles, so the prototype's
+`style=""` attributes become these utilities and nothing else:
+
+`mt-0`, `mt-1`, `mb-2`, `ml-auto`, `cluster--between`, `cluster--start`,
+`panel-body--compact`, `panel-body--tight`, `field--narrow`, `no-border`,
+`viewer-stage`, `metric-strip--3`, `metric-strip--5`.
+
+The names are fixed here and delivered by PLAT-029; a new utility needs a
+second caller and a reason in the ticket plan.
+
+### Shared partials
+
+| Partial | Role |
+| --- | --- |
+| `_Layout`, `_LayoutAuth`, `_LayoutExternal` | Frames |
+| `_LucideSprite` | The inlined sprite |
+| `_ShellDialogs` | Account, Add, Notifications, command palette |
+| `_AdminNav` | Administration panel nav |
+| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome`, `_Provenance` | Retained, restyled to the vocabulary |
+| `Presentation/OperatorLabels.cs` | The one label map |
+| `Presentation/RailCountsPageFilter.cs` | Rail counts |
+
+## Workspace contract
+
+The per-page contract is the EPIC-011 group `context.md` §1, transcribed
+here as the durable statement. Each page is delivered by its wave-2 ticket
+against the PLAT-029 shell; wave 4 adds the feature controls that need
+wave-3 backend.
+
+### Work Centre `/`
+
+Header "Work Centre", eyebrow "Office-wide work", freshness, Refresh and
+Create Case (primary). A five-metric strip (Not ready, Review, Held,
+Unidentified, Blocked), each a button to `/Cases?tab=…`. Two panes: left
+"Needs attention" — `work-item` buttons carrying kind · reference, title,
+priority chip, detail, owner and due; right "Today" / "Selected work" with
+"Open full record", the selected item's eyebrow, heading, lead, chip, a
+notice "Why this needs attention" (label and Core-derived value only), a fact
+grid (Source, Owner, Last recorded outcome, Due) and a "Next permitted action"
+panel (Open Case / Triage / Operations / Review source, Copy reference).
+Work-item kinds: Case (due chase, blockers, readiness), Mail (Unidentified),
+Triage (no finding), External work (retryable failure), Held decision. The
+Blocked metric is a real query, never a fixture.
+
+### Inbox `/Inbox`, message `/Inbox/{id}`
+
+List: header "Inbox" / "Retained mail"; filter bar (Mailbox, Folder, Queue
+selects, search input, Search dark, Refresh); three panes — Scope (All
+incoming, Unread, Receiving work, Case updates, Pre-instructions,
+Unidentified, Sent Items, each with icon well and count), Messages (sort
+toggle "Received ↓/↑", rows with unread dot, sender, date/time, subject,
+excerpt, outcome chip, Case reference or queue · attachments; bounded
+pagination), Preview (subject, route, chip, excerpt, attachment chips, fact
+grid Classification / Case association / Folder / Search match; Open full
+message, Open linked Case).
+
+Message: header subject / "Inbox message" / Back to Inbox; record head;
+record bar **Reply (dark), Forward, Compose, Flag, Delete (danger)**. Reply,
+Forward and Compose open the composer dialog (To, Subject, Message, Case,
+From) and Send creates Sent-Items evidence linked to the Case; Delete asks a
+reason and moves to Deleted Items (D4 — gated, production activation approved
+separately). Tabs Message / Attachments (n) / Thread / Case. Decision card
+(Classification, Destination, Filed to, Folder, Decided · Automatic; Correct
+classification; Move to X / Check move status) and a Corrections timeline.
+Attachments table (File, Type, Size, Search content, Custody, Preview). Case
+tab: summary card, Open Case, Change association.
+
+### Cases `/Cases`
+
+Header "Cases"; filters Principal select and, on Not ready only, a Missing
+select (All / Instructions / Images / Both missing), Clear. `queue-layout`:
+rail "Case workflow" with groups **Workflow** (Not ready, Review, With
+Engineer, Complete), **Pre-Case work** (Triage) and **Exceptions** in amber
+(Held, Unidentified), each an icon well and count. Middle pane rows by kind:
+case (reference · registration, chip, claimant · principal, origin ·
+received, due); image-initiated (reference · registration, files · custody);
+triage (reference · registration, provider · assignee); unidentified
+(reference · kind, handle, received · reason). Right "Quick detail": a Case
+shows eyebrow origin, heading, compact workflow stepper, Outstanding
+requirements and Current work (Due, Engineer, Next action, Open full Case);
+Triage, Unidentified and image records show a definition list and an open
+button. Cases in other terminal outcomes are excluded from this rail (D3).
+
+### Triage `/Triage/{id}`
+
+Header reference / "Triage" / Back to Cases (`/Cases?tab=triage`) and
+Refresh. Record head (reference; registration, provider; state chip). Record
+bar: eyebrow "Triage" and assignee. Body: Determinations panel
+(Roadworthiness select, Repair outcome select, Save determinations primary),
+Source panel (Material, Received, Case link), Notes panel (Date / Time / ID
+and text). The existing server-side transitions — await information, link,
+complete, cancel, reopen — stay available through the determinations flow and
+dialogs where a handler exists.
+
+### Unidentified `/Unidentified/{id}`
+
+Header reference / "Unidentified" / Back to Cases and Refresh. Record head;
+warning notice (the reason); Retained source panel (Permanent reference,
+Kind, Operator handle, Received, Source, Canonical reason; View retained
+source, Resolve destination dark); History panel. Resolve dialog: Destination
+select (Add to existing Case / Create Case from accepted instruction /
+Register Image-initiated Case / Close with reason), Case picker, reason.
+
+### Search `/Search`
+
+Header "Search" / freshness and Create Case. Advanced grid: Case/PO or image
+reference, Registration, Claimant, Claim/provider reference, Principal, State,
+Engineer, Received from/to, Origin, Search (dark), Clear. Two panes: results
+table (Case/PO and provider reference, Vehicle with make/model, Claimant,
+Principal, Type, State, Due; rows selectable by hover, focus, click or Enter)
+and "Selected Case" preview (eyebrow type, heading, chip, Accident
+circumstances, fact grid Provider ref / Engineer / Due / Next action,
+Outstanding (n), Open Case, Copy Case/PO). Closed cases show
+"Closed · <outcome>".
+
+### Case workspace `/Cases/{id}`
+
+Header reference / "Case workspace · registration" / Back to Cases and
+Refresh. Identity ribbon (Case/PO, Registration, Claimant, Principal, State
+chip). Presence strip. Action bar: Edit Case | Finish editing and Renew
+editing | "Editing held by X until T." | Reopen Case (closed); Place on Hold /
+Release Hold; Create upload link; **Send to EVA** (Review) / **Download EVA
+package** (With Engineer or Complete, exported) — both open the EVA handoff
+dialog (Engineer assignment; Export ZIP / Send via API); **Report sent**
+(primary, With Engineer — confirms detected Sent evidence, D10) / **Return to
+Engineer** (Complete); right: Open Assessment (dark, With Engineer or Complete
+only — D11), Close Case (danger, not Complete). Sticky edit bar while editing.
+
+Side nav **Case Overview, Vehicle, Valuations, Inspection address, Case
+Files, Notes** | main | context (Current position: State, Version, Due,
+Engineer, Edit authority; Next action card).
+
+- **Overview:** workflow stepper (Held exception badge); Outstanding
+  requirements (title, Source, Why, Resolve); the edit form when editing
+  (Claimant, Provider reference, Registration, Make, Model, Accident
+  circumstances); "Case overview" panel — Work facts (Case type, Provider
+  reference, Inspection, Engineer, Received, Due), Parties (Principal,
+  Claimant, Repairer/holder, Intermediary, Image source, Origin), accident
+  card (circumstances, Incident detail, Vehicle).
+- **Vehicle:** Registration, Make, Model, Year, Mileage, Mileage source;
+  "Vehicle checks" — Refresh DVLA, Refresh DVSA/MOT (the same lookup), Run
+  Experian check (disabled seam, ENG-001), state list, "Vehicle History"
+  textarea (`narrative.history_check`).
+- **Valuations:** table (Source, Date, Time, Mileage, Retail value, Trade
+  value, Edit) and Add valuation; dialog Source (Glass's / Cazana /
+  Engineer's Value), Date, Time, Mileage, Retail, Trade.
+- **Inspection address:** Recorded value, Provider default, Previous values
+  select; Edit → input with Cancel / Save.
+- **Case Files:** Documents (Add evidence → `/Upload`; rows name, type ·
+  size · source, custody chip, Preview, Save as | Open Operations), Vehicle
+  images gallery (viewer dialog: Rotate view, Save as), Correspondence
+  (Compose, Reply, Forward, Open Inbox; linked message rows).
+- **Notes:** Add Case note / Record chase (editing only); entries Date,
+  Time, ID (staff username / SYSTEM / AI) and text, newest first — Case
+  notes, business events, chase outcomes and AI events merged.
+
+Dialogs: reason (hold, release, close, reopen); Create upload request
+(Recipient, Reason; expiry, max files and max size shown as read-only policy
+values → one-time secret toast); Record chase (Recipient, Channel, Prepared
+content, Disposition, Reason); Case note; finish-edit; stale-version conflict
+(current versus proposed); save-in-Review warning.
+
+### Assessment `/Cases/{id}/Assessment`
+
+Opens for With Engineer or onwards, never Review; read-only once Complete
+(D11). Header "Assessment" / "reference · registration"; seven-item identity
+ribbon (adds Mileage and Vehicle); record bar: New estimate (dark), Import
+estimate, Glass's and Audatex (disabled seams, EXT-09), **Send to Claude**
+(primary); right: Generate report draft / Preview report draft.
+`assessment-v3`: collapsible Evidence rail (instruction and images) |
+"Estimates" pane — estimate tabs (tablist) and editor (Delete estimate
+danger, Duplicate, Use estimate / Current chip, Save estimate dark; fields
+Estimate name, Source, Repair days, Labour rate, Paint labour rate, Paint
+materials, Other costs, VAT %; lines table Operation (Replace / Repair / R&I /
+Paint / Other), Description, Part number, Qty, Labour h, Paint h, Part £,
+remove; notes; totals Parts / Labour / Paint / Other / Subtotal / VAT /
+Total). VAT % is free per estimate and the Current estimate's VAT % overrides
+the report's built-in rule (D9). Dialogs: Import estimate (name, source
+Audatex PDF / JSON / Other, file); Send to Claude (direction textarea, Target
+Estimate % slider of Engineer's Value, Case Valuation, Target amount;
+disabled without an Engineer's Value); Delete estimate; Report draft preview;
+image viewer.
+
+### Upload `/Upload`, public `/Uploads/{token}`
+
+Upload: header only; dropzone ("Drag files here or choose files" · "EML, MSG,
+PDF, DOC, DOCX, JPG or PNG · up to 25 MB each · 10 files" · Choose files
+dark); file rows (status chip, progress, per-file outcome with Open X / Add to
+existing Case / Create Case / Cancel); Upload (primary) and Clear. Public:
+external shell, company logo, "Secure file request", heading "Upload files
+for REF", request reference and expiry, dropzone, Submit files.
+
+### Operations `/Operations`
+
+Header "Operations"; partial-data notice; **AI Job List** panel (meta "n
+jobs", "Send Unidentified to AI" dark; table Job (kind and detail), Record,
+Started by, Created, State, Action: Review estimate / Open query / Review |
+Complete job | —); **Service health** table (Area, Service, State, Latest
+evidence, Dependency, Retry / View); **Attention required** (retryable
+external work: Case, Work, Item, Attempts, Failure, Retry this work);
+**Active upload links** (Case, Recipient, Last activity, Accepted, Expires,
+State, Withdraw link); **EVA handoffs** (Case, Route, Engineer, State,
+Result). AI job kinds are Estimate, Unidentified resolution, Query response
+and Unidentified-queue pass (D5); scheduled passes arrive through the
+Automation Actor under the `automation.jobs` scope (D6).
+
+### Administration `/Administration/{area}`
+
+`admin-layout`: panel nav — **Staff accounts & roles, Principals, Workflow
+configuration, Mail settings, Automation & AI, Service health, Action Logs,
+Reports** | content panel (heading, area label, meta).
+
+- **Accounts:** table Name, Username, Role (inline select), State, Save
+  (disabled until changed; reason prompt), Account (Disable danger / Review);
+  Create staff account.
+- **Principals:** table Name, Principal Code, Roles, State, Settings; Create
+  Principal (creates the backing Organisation inline, D2); Settings dialog —
+  route e-mail addresses (read-only), the two independent ADR-0034 EVA
+  toggles — Manual API submission, Automatic API submission (ZIP export
+  needs no setting) — Pegasus API key (masked, Show / Hide), Generate new
+  key (danger → reason), Save.
+- **Workflow configuration:** Instruction completeness (two checkboxes),
+  Review (two checkboxes), Due work (chase interval); Save configuration.
+- **Mail settings:** Approved mailboxes table (Mailbox, Scope, Last update,
+  State, Review folders / Refresh) and Mail categories table (Add category).
+- **Automation & AI:** Automation panel (status, Registered clients, Active
+  jobs, Failed jobs, Stop / Start automation danger → reason) and AI settings
+  (Proposal, Timeout, enabled checkbox, Save).
+- **Service health:** the Operations table.
+- **Action Logs:** filters (Search, Area, Actor, Result, From, To, sort
+  toggle, Clear) and table Time, Actor, Area, Action, Reference, Result.
+- **Reports:** From, To, Engineer; Generate / Preview / Export; "Engineer
+  Report" table (Engineer, Queries received, Reports). Queries received are
+  retained messages classified as post-report e-mails associated with the
+  Engineer's cases in the period (D12).
+
+### External frames
+
+Sign in: dark `external-shell`, `auth-card` with the company logo and
+"PEGASUS", heading "Sign in to Pegasus", Username, Password, Sign in. The
+signed-out, access-denied and error family keep the same card frame. The
+public upload page uses the external shell and the company logo.
+
+## Removed surfaces
+
+Removed by the integrated design and deleted by their wave tickets; none is
+stubbed, documented as delivered, or kept behind a flag:
+
+- the `/VehicleImages` list page (`ImageIntake/Index`) — the detail page
+  stays as the image record (D1);
+- Organisations, Access review and Roles as separate Administration areas —
+  folded into Staff accounts & roles and Principals (D2);
+- the Administration index card page (`Administration/Index`);
+- the Automation Activity page — replaced by Action Logs;
+- the old Assessment section tabs, the old Triage action bar and the
+  Additional case section;
+- the Dashboard, Queues and combined Cases-search routes, which the 301 stubs
+  cover until wave 5.
+
+## Reviewed divergences
+
+Divergences from the prototype are reviewed and recorded, never silent.
+
+### Prototype defects, not reproduced
+
+Recorded from the effective render layer (group `context.md` §1.15):
+
+| Defect | Resolution |
+| --- | --- |
+| Undefined icons `activity`, `spark`, `reply`, `flag`, `sort` | Lucide `activity`, `sparkles`, `reply`, `flag`, `arrow-up-down` |
+| "Create organisation" button | "Create Principal" (D2) |
+| Mixed casing of "Eva" | `EVA` |
+| Open Assessment offered on Review | With Engineer or onwards only (D11) |
+| Work Centre "Filter" button with no handler | Absent |
+| Unbounded Inbox "Next" | Bounded pagination with current-page context |
+| Fixture-driven "Blocked" metric | A real Core query |
+| Unused `.work-today-summary`, `.prototype-note`, `.console-status`, analyst, baseline and `assessment-v2` rules | Not ported |
+| Inline `style=""` attributes | The [utility classes](#utility-classes) under CSP |
+| Hand-drawn `iconPaths` | The Lucide sprite |
+
+### Retired: the `Send to Claude` flourish
+
+The 2026-08-03 reviewed divergence — a terracotta gradient, 12px radius,
+Poppins request, hover lift, blue focus ring, inline sparkle and ember canvas
+confined to the `.send-action` control — is retired. Under the integrated
+design **Send to Claude** is a `btn--primary` with the Lucide `send` glyph,
+the approved red focus ring and no local custom properties, so the recorded
+contrast shortfall no longer exists.
+
+## Deferred and absent UI seams
+
+Exact horizon and first-introduction release remain owned by the
+[capability inventory](../capabilities.md#capabilities). No future allocation
+creates a route, control, workflow, placeholder or dormant implementation
+beyond the seams named under [Absent versus disabled](#absent-versus-disabled).
+
+### Deferred integration and intake surfaces
+
+There is no control, route or placeholder for:
+
+- additional provider activation beyond the current source policy;
+- `desk@`, `engineers@` or `info@` automatic ingestion;
+- legacy DOC, MSG or scan-like PDF OCR extraction;
+- automatic matching beyond the operator-directed INT-28/INT-32
+  image/instruction pairing at the accepted ADR-0019 bar;
+- broader mailbox taxonomy mapping, folder recommendation or suggested
+  actions beyond the decision card;
+- post-report query/dispute work beyond the AI query-response job;
+- AI/vision assistance for vehicle images or damage evidence;
+- spreadsheet preparation of future inspection-address/repairer reference
+  data.
+
+Provider APIs and MCP are non-browser boundaries and do not create staff-shell
+destinations. The Provider API credential is administered through the
+Principal settings dialog only (D8).
+
+### Deferred casework and advanced surfaces
+
+There is no control, route or placeholder for:
+
+- automatic chaser or report sending;
+- Diminution or Commercial case workflows;
+- automated WhatsApp ingestion;
+- replacing EVA assignment or engineering workflow;
+- direct Experian, Glass's, Audatex, Cazana, finance or invoicing
+  integrations beyond their named disabled seams;
+- guided mobile image capture or third-party guided-capture integration;
+- a custom application domain;
+- management information beyond the Engineer Report.
+
+AI may propose but must not mutate, accept or send autonomously: every AI
+job ends in a staff review action on Operations. Future deterministic outputs
+must use one accepted structured case/engineering record, validate accepted
+data, calculate once and avoid duplicate truth owners.
+
+### Not planned
+
+The following are permanent absences, not backlog placeholders:
+
+- external/customer accounts;
+- public registration;
+- staff multi-factor authentication;
+- mobile/responsive staff product;
+- automated malware scanning;
+- document redaction;
+- digital signatures;
+- automated retention/deletion;
+- legal hold;
+- subject-access/correction/export/erasure workflow;
+- dedicated DPIA/compliance workflow;
+- GitHub Actions deployment with scoped OIDC;
+- separate staging, QA, UAT, training or demo environments;
+- deployment slots/Standard S1;
+- private networking, zone redundancy or multi-region failover;
+- quarterly restore exercises;
+- predecessor data import, predecessor availability after cutover or
+  predecessor code reuse;
+- SMS or Microsoft Teams integration;
+- customer/claimant portal (request-scoped upload links remain permitted; a
+  link exposes no case or request state and creates no account);
+- independent Engineer accounts;
+- solicitor, insurer, repairer or vehicle-owner accounts.
+
+A supported desktop reflow does not alter the permanent mobile-product
+boundary.
 
 ## Accessibility
 
@@ -831,169 +1207,28 @@ When a planned surface has a real caller, record:
 
 Each visible capability/state also needs authenticated Web-caller and named Core-owner evidence. Generated imagery or synthetic operational material cannot prove acceptance. Operator review uses approved, genuine, local immutable material only.
 
-## Deferred and absent UI seams
-
-Exact horizon and first-introduction release remain owned by the [capability inventory](../capabilities.md#capabilities). No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
-
-### Deferred integration and intake surfaces
-
-There is no alpha control, route or placeholder for:
-
-- additional provider activation beyond the alpha source policy;
-- `desk@`, `engineers@` or `info@` automatic ingestion;
-- legacy DOC, MSG or scan-like PDF OCR extraction;
-- automatic matching beyond the operator-directed INT-28/INT-32 image/instruction pairing at the accepted ADR-0019 bar;
-- broader mailbox identity, taxonomy mapping, folder recommendation/move, suggested actions, case association or mailbox browsing;
-- Receiving work, Queries, Other or a full email-management workspace;
-- post-report query/dispute work;
-- provider submission/status/result APIs;
-- broader classified-email MCP actions;
-- AI/vision assistance for vehicle images or damage evidence;
-- spreadsheet preparation of future inspection-address/repairer reference data.
-
-Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
-
-The narrow MAIL-23/MAIL-05 local exception activated after operator programme
-review on 2026-08-20 keeps the existing Administrator Mailboxes surface as the
-configured/unconfigured logical-folder binding owner, and lets authenticated staff
-message detail display the current policy-designated logical folder read-only. The
-opaque Outlook folder identity remains hidden. This is not a confirmation/move
-control, deployment claim, or authority for a live Outlook write; MAIL-06 and MAIL-07
-remain deferred to their own gates.
-
-The same 2026-08-20 programme review and instruction to implement the plan activates
-one further local prerequisite for MAIL-13: the Administrator-only Outlook categories
-card and `/Administration/MailCategories` form. The selected design reuses the existing
-Administration card, panel, labelled form, error-summary and status-notice pattern;
-alternatives rejected were a generic mailbox-rules editor and an ordinary-staff mail
-workspace. Independent PR #473 review (PR-026) required this explicit re-entry record
-and the local rendered desktop/200%-zoom inspection recorded on MAIL-004
-(2026-08-21). That inspection is local visual/manual-review evidence for the
-narrow administration control, not operator release acceptance, deployment, Graph
-permission, category synchronization, or Outlook message-mutation authority. MAIL-13
-keeps those separate delivery gates.
-
-### Deferred casework and advanced surfaces
-
-There is no alpha control, route or placeholder for:
-
-- automatic chaser or report sending;
-- authenticated compose/reply/forward/send in Pegasus;
-- Diminution or Commercial case workflows;
-- automated WhatsApp ingestion;
-- an in-app AI assistant or AI-assisted identification, action, extraction or address suggestion;
-- replacing EVA assignment, estimating, valuation, report preparation or engineering workflow;
-- direct EVA, Audatex, valuation, finance or invoicing integrations;
-- guided mobile image capture or third-party guided-capture integration;
-- a custom application domain;
-- a canonical Engineer workbench, repair specification, valuation, salvage or deterministic report-output workflow;
-- AI-generated query-response proposals or durable `Send to AI` work;
-- management information for Engineer throughput, query rates, Audit uplift, principal report/invoice measures or turnaround;
-- `AI Assessor`.
-
-Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
-
-One recorded exception (operator widening, 2026-08-03; extended by the
-operator-approved AI-09 specification —
-[ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md) and
-[FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md), the
-re-entry specification for exactly this slice): the Engineer assessment
-workbench (UI-15) exists as design markup under
-`src/Pegasus.Web/Pages/Cases/Assessment/`, and the AI-09 wiring task
-restored its route (`/Cases/{id}/Assessment`, unlinked from every
-navigation and case surface) to bind only the case-identity header, the
-readiness rail, the `Send to Claude` panel, and the PAV sensitivity
-slider. Every section form stays empty and unbound; the staff save paths
-and the review presentation of unconfirmed automation values remain
-forbidden until the full UI-15 re-entry approval.
-
-**Unbound markup proves nothing (recorded 2026-08-17).** Where a supplied
-design shows a capability the inventory allocates beyond this release, the
-markup may exist on this surface but is *implemented* only in the weakest sense
-of the evidence tiers above: no caller, no deployment, no acceptance. Three
-rules keep it from reading as more than that.
-
-- It carries **no model binding and no handler**. An unbound section that
-  posted somewhere would be the capability, not a picture of it.
-- It shows **no fabricated operator data**. Inputs render empty and read-only
-  figures render as an em dash or a named empty state — never a plausible
-  number. A convincing valuation nobody calculated is worse than no valuation.
-- Where the control is one that will genuinely arrive, it **stays visible and
-  states its condition** rather than vanishing, using the disabled-with-
-  condition idiom. The assessment's estimating-service links and assessment
-  import are the current instances: EXT-12 and EXT-13, both `Later / 1.0.0`,
-  each requiring its own accepted contract. A control that disappeared would
-  say the work is not coming; one that looked live would say it had arrived.
-
-This is a presentation allowance inside an already-recorded exception. It
-allocates nothing, and every deferred capability still re-enters the complete
-design route before it is wired.
-
-The `Send to Claude` panel states are server-rendered: `available` (the
-confirm dialog then a real POST), `sent` — "Sent. Changes will appear on
-this case for your review." with a `Check for completion` reconcile
-control (manual refresh, no auto-poll), `completed` — "Claude has
-finished" linking the case history, `failed` — "Nothing was sent" with a
-retry, and `unavailable` naming its reasons in text. The PAV slider on the
-Valuation section is a review aid only: a labelled `input type="range"`
-paired with a numeric input, tabular numerals, ranges only from recorded
-valuation figures, the indicative settlement (PAV − salvage) as text on a
-recorded total-loss outcome, named missing-evidence states for every
-absent input (a ratio without a costed repair total is not evidence), no
-animation, no new colour tokens, and it writes nothing.
-
-### Not planned
-
-The following are permanent absences, not backlog placeholders:
-
-- external/customer accounts;
-- public registration;
-- staff multi-factor authentication;
-- mobile/responsive staff product;
-- automated malware scanning;
-- document redaction;
-- digital signatures;
-- automated retention/deletion;
-- legal hold;
-- subject-access/correction/export/erasure workflow;
-- dedicated DPIA/compliance workflow;
-- GitHub Actions deployment with scoped OIDC;
-- separate staging, QA, UAT, training or demo environments;
-- deployment slots/Standard S1;
-- private networking, zone redundancy or multi-region failover;
-- quarterly restore exercises;
-- predecessor data import, predecessor availability after cutover or predecessor code reuse;
-- SMS or Microsoft Teams integration;
-- customer/claimant portal (request-scoped upload links under INT-31 remain permitted; a link exposes no case or request state and creates no account);
-- independent Engineer accounts;
-- solicitor, insurer, repairer or vehicle-owner accounts.
-
-A supported desktop reflow does not alter the permanent mobile-product boundary.
-
 ## Source and runtime map
 
 | Concern | Durable owner or source | Runtime consumer or evidence |
 | --- | --- | --- |
-| Product capability and horizon | [Requirements](../prd/README.md), [capabilities](../capabilities.md) | Planned staff routes; current caller is narrower |
+| Product capability and horizon | [Requirements](../prd/README.md), [capabilities](../capabilities.md) | Routed staff pages as each wave lands |
 | Open policy and token questions | [Open decisions](../open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../current-architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Production, release, monitoring, and recovery state | [Operations](../operations.md) | No deployment claim from design or source presence |
 | Setup, testing, release, and recovery procedure | [Runbook](../runbook.md) | Procedure is not execution evidence |
-| Engineering procedure | [Engineering](../engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
-| Design authority | This file | Approved Web tokens, assets, components and patterns |
-| Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
-| Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, conforming: approved colour, spacing, 2px radius, 1px border and focus ring, with no unapproved literal and no new token |
-| Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
-| Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
-| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_Layout.cshtml` |
+| Engineering procedure | [Engineering](../engineering.md) | Reviewed implementation and verification |
+| Design authority | This file | Approved tokens, assets, class vocabulary and page contracts |
+| Design contract of record | EPIC-011 group `context.md` §1 and D1–D13 (Kanmer board) | Transcribed here; the board record is the batch constraint |
+| Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` (PLAT-029) |
+| Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` (PLAT-029) |
+| Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` (PLAT-029) |
+| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_LayoutExternal.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | Embedded by `src/Pegasus.Infrastructure`; Core owns report policy and accepted presentation values |
 | Engineer signatures | Repository renderer signature sources | Infrastructure embeds only the active Andy Patterson asset; excluded from Web decorative imagery |
 | Retired renderer/skills/AI source | Git history and accepted integration records | No separate caller, runtime, or policy owner |
 | Decision rationale | [Decision records](../adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../../reference/README.md) | Reference presence never creates authority |
-
-The original `collision-engineers-design-dev` bundle supplied the shared logo, colour, type and icon foundation but explicitly did not define this internal command-centre application. The repository imports only approved shared essentials and renderer assets. Marketing layouts, imagery, fonts, WhatsApp styling, scroll reveals and mobile navigation are excluded. The source bundle is not retained as a second design system.
 
 The similarly named logo and signature files under `reference/rendererref1/`
 are retained supplied evidence. The logo and all three signature pairs are
@@ -1021,139 +1256,136 @@ A conforming change must:
 
 ## Operator experience requirements
 
-Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selected.** This is the canonical publication of the reviewed `0.1.0-alpha.1` inventory. Shell selection does not approve every comparison-raster detail or prove a staff caller.
+Status: **Planned — the Integrated Operations Workspace, to be delivered by
+PLAT-029 (wave 1) and EPIC-011 waves 2–5.** This is the canonical publication
+of the reviewed contract. Selection does not prove a staff caller, deployment
+or acceptance.
 
 ### Evidence state and scope
 
-The implemented route set is owned by [architecture — current callers](../current-architecture.md); the alpha shell spans intake, image intake, cases, triage, search, operations, and administration; the desktop evaluator is separately owned ([ADR-0016](../adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
+The implemented route set is owned by
+[architecture — current callers](../current-architecture.md); the desktop
+evaluator is separately owned
+([ADR-0016](../adr/0016-standalone-desktop-email-evaluator.md)).
+Implementation state does not by itself prove deployment or operator
+acceptance.
 
-The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
+The intended setting is a small office of approximately eight users. Staff
+accounts use Pegasus-managed usernames and passwords; authenticated Web
+callers derive the actor and roles server-side. Core owns the exact
+[staff role access matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix),
+automated-actor boundary, and
+[case edit authority and recovery](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery);
+this design must not create broader permissions or a second role policy. The
+actor boundary table is under [Access and permissions](#access-and-permissions).
 
-| Actor | Planned UI boundary |
-| --- | --- |
-| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, approved Outlook category display names, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
-| Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
-| Automated processing | No UI account or interactive control. |
-| Provider API client ([API-01–API-04, `Next / 0.4.0`](../capabilities.md#capabilities)) | No staff shell or Administration surface. |
-| External/customer | No application account. A capability-bearing `/Uploads/{token}` link exposes only bounded document submission and generic terminal outcomes, with no case or request identity disclosure. |
+### Flows
 
-Every protected route and action visibly handles unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Route or control hiding is never authorisation. The UI offers neither permanent deletion, credential/cloud/release administration, a generic mailbox-rule editor, bulk case editing, nor external direct Case editing.
+**Work** starts on the Work Centre: office-wide counts and the items that
+need attention, each opening its exact record or `/Cases?tab=` group.
 
-### `0.1.0-alpha.1` flows
+**Inbox** is the retained-mail workspace: scoped browsing, bounded
+pagination, a preview that changes no state, and a message record whose
+decision card is the only place classification, association and folder moves
+happen — one exact message, never bulk. Outbound Reply, Forward and Compose
+retain Sent evidence linked to the Case (D4).
 
-**Intake** presents the immutable source occurrence and its derived evidence separately from the editable candidate and accepted Case projection; matching conflict, ambiguity, manual association, reversal, and reassociation remain visible rather than rewriting the source. The evidence pane retains the exact `All`/`Instructions`/`Images` filters. Opening source evidence or supporting detail preserves the current list/detail position and every unsaved candidate edit; returning restores the Intake or Case-detail context without silently discarding or replacing proposed values. Controls invoke the Core-owned [source and Case association](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) and [mandatory pre-case gate](../frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates) contracts. The result view shows provenance, attachments/images, suggestions, validation, conflicts, origin, dispatch/retry state, the accepted `Review` or incomplete `Not ready` Case, or the explicit reason no case/reference exists.
+**Cases** is the workflow viewer: Not ready, Review, With Engineer and
+Complete as Case stages; Triage as pre-Case work; Held and Unidentified as
+exceptions. Triage and Unidentified records open on their own routes and
+never become Case states.
 
-**Triage** remains visually and navigationally distinct from a Case and from generic inbox sorting. Its list/detail workspace presents the registration gate, assignee, named findings and states, missing/ambiguous reply evidence, replacement history, completion/cancellation, reopen, and optional later Case association. Core owns the [normal Triage workflow and completion evidence](../frd/frd-03-triage.md#normal-workflow-and-completion-evidence); the design must distinguish ordinary acknowledgement or information correspondence from the exact reply-chain evidence required to complete the workflow.
+**Case** is read-only until an explicit edit lease. The identity ribbon keeps
+Case/PO, registration, claimant, principal and state visible; the context
+column keeps state, version, due, Engineer and edit authority. Outstanding
+requirements name their field, source, reason and resolution. Lifecycle
+actions are the named Core outcomes: hold, release, close with reason, reopen
+with reason; `Created in error` offers only its linked replacement.
+Report sent is evidence-driven (D10); the Assessment opens With Engineer or
+onwards (D11).
 
-**Case** keeps Case/PO, principal, registration, [Inspection, standalone Audit, or Inspection + Audit identity](../frd/frd-01-case-identity-and-lifecycle.md#case-types), workflow state, due date, and EVA proxy limitation visible. It presents the accepted Case projection alongside source/provenance, data, documents/images, parties and inspection address, vehicle/MOT, tasks/reminders, outbound evidence, external-work states, and permanent history. Core owns [principal and historical case-party identity](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), [lifecycle closure and correspondence](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence), [outbound correspondence evidence](../frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence), and one-case [edit authority and recovery](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). The workspace identifies the active editor and stale version, becomes read-only after lease loss or named closure, and offers only the authorised retry/reopen/reacquire routes; one control mutates one current Case at a time.
+**Search** runs the advanced query and previews the selected Case; closed
+cases show their outcome.
 
-**Administration** is an Administrator-only surface implementing the linked role matrix. It exposes account/access/role, principal successor, configuration, approved-mailbox-allowlist, and the global Active/Disabled Outlook category display-name allowlist consumed by MAIL-13. The category form exposes no Graph identifier or colour and performs no synchronization. Administration remains without a generic rules editor, credential/cloud operation, bulk predecessor import, bulk Case edit, or direct external Case-edit surface.
+**Operations** is the staff-wide work ledger: AI jobs ending in staff
+review, service health, retryable external work, upload links and EVA
+handoffs.
 
-### UI-07 search and filters
+**Administration** is Administrator-only and implements the linked role
+matrix through its eight areas. No generic rules editor, credential/cloud
+operation, bulk import or bulk Case edit.
 
-Case/PO, Image Intake Reference, registration, claimant, claim number, principal, state, Engineer, received/instruction dates and range, and origin. Each result is one keyboard-focusable full-row link or button with a visible affordance.
-
-### Operations and state boundaries
-
-Operations shows Not ready, Review, Held, Unidentified, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
-
-An intake row always presents received date above received time and its precise processing outcome. At constrained desktop width, long Case/PO or Image Intake Reference text moves to a labelled second line; it must not overlap the received timestamp or another row field.
-
-#### `0.1.0-alpha.1` surface inventory
-
-- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; Image-initiated registration with its Image Intake Reference, lifecycle/merge/closure outcome, and no formal Case/PO state; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures. Each row identifies its exact outcome rather than a generic `New`.
-- Case identity presents the Core-owned [Inspection, standalone Audit, and Inspection + Audit](../frd/frd-01-case-identity-and-lifecycle.md#case-types) distinctions, secondary Audit identity, immutable [Case/PO and principal](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), and linked `Created in error` replacement without offering identity rewrite.
-- Case work covers Not ready, Review and Held; separate mandatory instruction-completeness, image-completeness, and staff-review decisions before Engineers-queue eligibility, with optional Pegasus Engineer assignment kept separate from readiness; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created temporary, revocable, expiring, request-scoped in-house upload-token](../frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links) isolation, non-disclosure, and request-local custody contract; [copyable manual chasers](../frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history); tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; provider-determined inspection mode (physical address, or exact `Image Based Assessment` autofilled from the Principal's setting with reasoned override); and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
-
-- Case evidence shows retained source images, their provenance, category, staff-confirmed third-party exclusions, and advisory findings. It does not contain EVA or report-image selection/order controls; the focused alpha exports every eligible Case-vehicle image, EVA owns downstream ordering, and the accepted future Engineers screen owns those decisions after EVA replacement.
-- Documents/evidence covers automatic Box folder, upload/version, logical removal, closed-case lock/reopen-before-change, Box unavailable/pending/retry/unknown, exact report-Sent evidence and reasoned manual link/unlink/relink.
-- Terminal/aftercare presents the exact [Core-owned lifecycle and correspondence](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence) outcomes and reasoned recovery paths. It must not turn acknowledgement, report-Sent evidence, or other correspondence into a generic completion action.
-
-#### Complete state matrix
+### State matrix
 
 | Scope | Explicit states |
 | --- | --- |
 | Queries | loading; empty; success; stale/partial with last-good time; transient error/retry; unauthenticated/disabled/stale-role/denied |
 | Mutations | validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
-| Intake | empty/oversize; replay; retention/custody failure; Ready for case allocation; Unidentified; Unsupported; missing/integrity asset; evidence missing/contradictory; Blocked intake reason/resolve/retry; every acceptance path; refusal with no case/reference |
+| Upload and received material | empty/oversize; replay; retention/custody failure; per-file outcome (Open / Add to existing Case / Create Case); Unidentified; Unsupported; Blocked with reason; refusal with no case/reference; public-link expired/revoked/cross-request/limit/abuse |
 | Triage | registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
-| Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
+| Case | Not ready/chasing; Review; With Engineer; Complete; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA exported/sent/detected; report evidence absent/ambiguous/detected; every terminal outcome; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
+| AI jobs | created; running; awaiting review; completed; failed; cancelled |
 
-The UI presents the [Core-owned permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history) with enough actor, time, outcome, reason, and before/after context to understand each business event. Routine views, refresh/polling, retries, leases/heartbeats, and adapter/Worker mechanics stay out of the operational history panel.
+The UI presents the
+[Core-owned permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history)
+with enough actor, time, outcome, reason, and before/after context to
+understand each business event. Routine views, refresh/polling, retries,
+leases/heartbeats, and adapter/Worker mechanics stay out of the Notes and
+Action Logs panels.
 
 ### Accessibility, desktop and data boundary
 
-Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
+Use semantic landmarks/headings/tables, labels and associated errors, keyboard
+operation, visible focus, screen-reader announcements, practical 44px targets,
+forced-colours and reduced-motion support; state is never colour-only. At
+1580px the content is centred; the [breakpoints](#spacing-layout-and-breakpoints)
+reflow down to a single column at 760px. Mobile staff UI is **Not planned**.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the seventeen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The visual boundary is the [token table](#tokens): cool light ground, white
+panels, dark navigation, red primary, amber exceptions, navy Review, blue
+in-progress, green completion, Inter Variable, 3px corners, Lucide glyphs
+and the commissioned marks. Do not expose Azure, OCR, AI mechanics, queues or
+implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
-
-### Selected shell and open gates
-
-Operations-first is selected for the `0.1.0-alpha.1` landing and navigation strategy. The three retained comparison rasters are selection evidence; Direction A's shell strategy is approved, but no raster is pixel-level authority or runtime proof. Policy-specific email predicates and acceptance evidence still block only their named automatic paths. Deferred `Next` and `Later` UI remains outside this selection regardless of its exact allocated target.
-
-### Historical material
-
-The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are recorded in the [design authority](README.md) (product direction, and rejected alternatives retained as evidence). Their obsolete planning files and the three comparison rasters are retired to Git history. The current design route is [design](README.md), with interaction detail in [ui-spec.md](README.md#ui-specification).
+Evaluation and operator review use approved genuine local immutable material
+only. Do not invent operational inputs. Every deferred `Next` or `Later`
+capability carries its exact target in the
+[capability inventory](../capabilities.md#capabilities) and has no control,
+navigation, workflow, or placeholder beyond the named disabled seams.
 
 ## UI specification
 
-Status: **Specification for the shipped `0.1.0-alpha.1` interface. The shell and landing strategy are Operations-first as selected; the routes, presentation rules and vocabulary settled by the operator on 2026-08-04 shipped in releases 6 and 7. Detailed raster styling remains subject to this specification and the design system.**
+Status: **Specification for the Integrated Operations Workspace, planned.**
+The per-page contract is the [workspace contract](#workspace-contract) above;
+this section holds the cross-cutting rules every page is held to.
 
 ### Shared shell and hierarchy
 
-1. Authenticated identity/role, navigation and sign out.
-2. Surface title, the exact queue/filter, freshness and a safe primary action.
-3. Operational table, workbench or record.
+1. Shell: rail, utility bar, workspace tabs, account dialog.
+2. Page header: eyebrow, title, freshness and a safe primary action.
+3. Operational panes, table, workbench or record.
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
-
-The routes shipped in releases 6 and 7 are Dashboard, Inbox, Upload, Queues,
-Cases and authorised Administration (operator decision 2026-08-04). Operations
-is a scoped staff workspace in the implementation; its documentation does not
-prove a deployed or released route. Search merged into Cases, which has the
-identical backing query; the combined intake screen split into Inbox and Upload;
-`Triage` no longer names a route while keeping its settled meaning as a pre-case
-entity inside Queues. Each comparison direction uses the same focused-flow set.
-Production email allocated `Next / 0.3.0` appears only after its gates; every
-deferred `Next` or `Later` capability carries its exact target in the [capability
-inventory](../capabilities.md#capabilities). Deferred capabilities have no alpha
-placeholder route or control — except the recorded routeless UI-15/AI-09 review
-artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces),
-and the explicitly activated local administrator-only MAIL-23 binding configuration
-described in [Deferred integration and intake surfaces](README.md#deferred-integration-and-intake-surfaces).
-
-The Development/local email evaluator is separately owned and has no QDOS-alpha
-route, navigation, control, `unchecked`/`checked` workbench, review-report
-mechanic, or UI acceptance checkpoint. This does not remove the shared mail
-policy, production-intake surfaces, Graph replay/live adapters, or the genuine
-evidence required to activate them.
 
 ### Contracts
 
 | Component | Required contract |
-|---|---|
-| Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
-| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. Dashboard includes exact `Blocked`, Due today, New cases today, and day/week Sent to Engineer and Reports sent. |
-| Inbox/intake row | Received date above time; exact processing outcome rather than generic `New`; long Case/PO or Image Intake Reference moves to a labelled second line at constrained desktop width and never overlaps the timestamp. |
-| Intake workbench | Persistent source identity; `All`/`Instructions`/`Images` evidence filter; evidence/candidate; fact versus suggestion versus confirmed value; provenance/missing/conflict; acceptance path and no-case failure consequence. |
-| Search result | One full-row keyboard-focusable link or button with visible action affordance; all result text contributes to its accessible name without obscuring its identity fields. |
-| Field provenance | Every editable or source-derived Case datum shows its current origin marker. Direct values identify staff entry, extraction, AI, provider API, or external vehicle/estimate origin; derived values identify accepted inputs and calculation. Origin and status remain distinct. |
-| Supporting detail navigation | Opening source evidence or other supporting detail preserves list/detail position, the current Intake or Case-detail context, and every unsaved edit; returning never silently discards or replaces proposed values. |
-| Request-scoped in-house upload | Authenticated staff create a temporary token bound to one request/operation and server-enforced expiry. The isolated public edge exposes bound upload fields and an immediate request-local result only; expiry, revocation, cross-request isolation, limits, custody, retry, abuse, and non-disclosing failures are explicit. |
+| --- | --- |
+| Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation; rail counts absent, never zero. |
+| Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. |
+| Row | One keyboard-focusable full-row button with visible affordance; all row text contributes to its accessible name; arrow-key navigation within the list. |
+| Field provenance | Every editable or source-derived Case datum shows its current origin marker. Origin and status remain distinct. |
+| Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
+| Request-scoped upload | Staff create a temporary token bound to one request and server-enforced expiry. The public page exposes bound upload fields and an immediate request-local result only. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
-| Readiness blocker | Every unmet requirement names its exact field or material, source/provenance, reason, and permitted resolution. The UI has no opaque aggregate blocker; actions enable only from their explicit current prerequisites and no unrelated save resets state. |
-| Identity header | Read-only Case/PO/principal, registration, type/secondary Audit identity, workflow state, `Due by`/overdue state, and EVA proxy limitation. |
-| Due/chaser panel | Missing-material reason, next chase, last recorded channel/outcome, optional note, and next permitted action together. Copy/preparation is not sent or delivered; Triage has no such panel. |
-| Inspection address | Provider-determined default from the Principal's inspection-mode setting (exact `Image Based Assessment` autofilled, or physical vehicle/repairer address); reasoned per-Case staff override; address fields appear only for the physical mode and never imply attendance. |
-| Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions; correction reason/history; reopen requirement; no inferred fee/invoice mutation. |
-| Evidence/document panel | The stored case files themselves — name, role, origin, size, arrival, download; the Box case folder; a reasoned per-file removal recorded on the case timeline; staff-confirmed third-party exclusions; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
-| Evidence image preview | Loading and source-preserving enlarged-image states are explicit; opening or closing a preview preserves Case context and does not alter source, category, advisory, or report-image selection. |
-| Email quick preview | At allocated mailbox-workspace activation, keyboard and pointer intent exposes an accessible preview that neither clips/obscures adjacent controls nor changes message or Case state; focus departure dismisses it. It shows sender, subject, timestamp, excerpt, classification, association and attachment names, but no mutation controls. |
-| Mailbox refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains active list context and an open message where available. If it leaves the active scope or becomes unavailable, keep detail visible with explicit no-longer-in-this-view state and return-to-list action. |
-| Email-management workspace | Planned `Next / 0.3.0`: land on the incoming Inbox across all approved mailboxes, newest received message first. Mailbox, folder, queue and search filters narrow that view, remain visible and are preserved on return from message or Case detail; a fresh visit resets to the default all-Inboxes view. The workspace provides manual refresh, last successful update time and distinct stale/unavailable state, preserving active filters, page and open message where still available. Sent and read-only Deleted Items search are explicit folder scopes. General search includes retained message bodies, attachment filenames and searchable attachment content; unavailable content is explicit. Search remains in the current mailbox/folder scope unless explicitly broadened, and results are individual messages rather than collapsed conversations. Each result identifies body, attachment-name or attachment-content hits and names a matching attachment. Inbox and search-result lists use accessible pagination, not infinite scrolling. Inbox rows include a short body excerpt beneath sender and subject, and display read/unread state without changing it. Opened messages preserve list context and show full message, retained attachments and a chronological independently openable thread limited to retained messages in approved mailbox/folder scope. Show classification, queue, processing outcome and Case association before actions. Classification, linking and folder-move actions exist only in message detail and only for one exact message; no bulk actions. A folder move follows a saved classification as a separate confirmation to the policy-designated folder only; reclassification to a new designated folder requires another separate confirmation; failure preserves classification, remains visible and allows staff-initiated retry; success removes the message from Inbox without duplication and preserves it in destination-folder/search scope. Linking uses Case search, target summary, reason and confirmation; no `View in Outlook` action. Selecting a Case opens it in the same tab; Back restores the message detail and list context. Each Case has one newest-first chronological history of its associated received and Sent correspondence, with explicit oldest-first ordering; this workspace remains the cross-mailbox browsing and reconciliation surface. |
-| Report-image selection | Future Engineers-screen surface; no `0.1.0-alpha.1` surface. The Engineer report-generation section, not Case evidence, selects and orders report images. It requires a human-confirmed readable registration for the first overview, excludes reflections, and distinguishes an advisory from a human decision. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
+| Identity ribbon | Read-only Case/PO, registration, claimant, principal, state; the Assessment adds mileage and vehicle. |
+| Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
+| Estimates | Free VAT % per estimate; the Current estimate's VAT % overrides the report rule (D9); totals computed once in Core. |
+| Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
+| Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
+| Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state. |
+| Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
 | Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. |
@@ -1162,19 +1394,16 @@ evidence required to activate them.
 
 Product requirements own business gates and outcomes; this specification owns
 how they are presented and operated. Lists expose identity, state, freshness,
-filter, provenance, and permitted action. Detail pages expose source evidence,
+filter, provenance, and permitted action. Records expose source evidence,
 accepted facts, missing/conflicting values, history, leases, external status,
-and reasoned transitions without duplicating Core policy. The shell and
-dashboard own navigation and exact queue metrics; administration surfaces own
-authorised configuration journeys; error, empty, loading, denied, stale,
-partial, conflict, and unavailable states are explicit.
+and reasoned transitions without duplicating Core policy. The shell and Work
+Centre own navigation and exact counts; Administration areas own authorised
+configuration journeys; error, empty, loading, denied, stale, partial,
+conflict, and unavailable states are explicit.
 
 #### Enforced presentation rules
 
-These are the rules every operator surface is held to. They were the
-presentation contract of the 2026-08 UI implementation programme and outlived
-it; the programme's own review folder was deleted once its work landed, and
-these are what remained true.
+These are the rules every operator surface is held to.
 
 1. **Words, never codes.** No persisted enum, snake_case code, hash, storage
    key, path, byte count or version integer appears as operator text. One
@@ -1199,141 +1428,59 @@ these are what remained true.
    raw browser 404.
 6. **Absent versus disabled.** A capability that is not composed in this
    deployment is absent. A capability whose record does not yet satisfy a
-   condition is present, disabled, and states the condition.
+   condition is present, disabled, and states the condition. The only
+   disabled uncomposed capability is a named, ticketed integration seam
+   ([Absent versus disabled](#absent-versus-disabled), D7).
 7. **Counts and times cannot be proved locally.** A count query against an
    empty database returns the same zero as a correct one, and a rendered time
    against a Europe/London workstation clock matches the office by accident.
    Both need evidence from populated data and a non-London clock — a test that
    stores rows, or the deployed instance.
 
-### Focused flows
-
-**Intake:** source -> `All`/`Instructions`/`Images` evidence filter ->
-evidence/candidate -> safe processing plus deterministic Principal and Case type
-creates exactly one Case/reference. Incomplete ordinary data, images, or
-applicable progression requirements yield **Not ready**; **Review** follows
-only when the explicit route policy permits it. `Blocked intake` with a
-required reason creates no Case/reference when an identity-critical gate fails;
-unmatched received mail remains Unidentified, while Triage, Blocked intake, and
-incomplete Audit evidence retain their distinct meanings. Resolve/retry re-enters the same
-path and may create exactly one Case/reference only after it establishes the
-identity-critical facts. Manual image/instruction link and reasoned reversal
-retain original origins.
-
-Opening evidence or supporting detail from Intake preserves the active `All`/`Instructions`/`Images` filter, selected record, scroll/list-detail position, and every unsaved candidate edit. Return restores the originating Intake or Case-detail context without reloading over proposed values.
-
-The request-scoped in-house upload route is a distinct public edge of that
-intake flow. Authenticated staff create a temporary token bound to one request,
-its allowed operation, and a server-enforced expiry; staff can revoke it. The
-isolated unauthenticated surface uploads only to that request and returns an
-immediate structured result. Expired, revoked, cross-request, type/count/size
-limit, custody, retry, and abuse outcomes reveal no case, reference, request
-history, other upload, token-management function, or external account. Success
-proves request-local custody only, not case creation, Box custody, EVA handoff,
-report generation, or external delivery.
-
-**Triage:** distinct inbox classification/label plus dedicated pre-case
-list/detail; never a case state. Missing registration goes to `Needs sorting`;
-Open/Awaiting information/Finding recorded/Completed/Cancelled; two
-independently optional findings, with at least one required before Finding
-recorded/Completed: Roadworthiness = Roadworthy/Unroadworthy and Assessment =
-Repairable/Total loss. A case's `has Triage` is Boolean/reference-only. Triage
-findings are reference-only and do not affect Case/PO/reference, workflow,
-professional findings, final outcome, Engineer report, Audit suffix/allocation,
-fee, invoice, or any other case decision. Exact reply-chain evidence;
-reasoned pre-send replacement and post-send superseding finding/new response;
-optional assignee; reasoned case link. Reopen returns to Open and preserves the
-prior finding/reply. No due/chaser UI.
-
-**Case:** read-only until an explicit edit lease. The persistent header keeps
-Case/PO, principal, registration, type/secondary Audit identity, state,
-`Due by`/overdue, and EVA proxy limitation visible. The work area keeps the
-missing-material reason, next chase, last recorded channel/outcome, optional
-note, and next action together; due/chaser work is separate from `New cases today`.
-Overview, data, provenance, documents/images, vehicle/MOT, tasks/reminders,
-request-scoped in-house upload token, EVA export, report evidence, and history remain
-focused sections.
-
-Inspection address defaults from the Principal's inspection-mode setting:
-exact `Image Based Assessment` without fabricated address fields, or physical
-vehicle/repairer address with address fields; staff may override the default
-on a Case with a reason. Ordinary-image VRM and vehicle/MOT results show suggestion,
-confirmed, unknown/no-result, stale, unavailable, and failed distinctions with
-source/version/age; refresh never overwrites confirmed or last-good data.
-
-Image readiness display is a future surface: the advisory (registration overview, damage close-up, and the applicable reflection criterion, refreshed whenever current Case images change, with no Case-state, eligibility, or chase effect) is owned by [AI-05, `Later / 1.0.0`](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` surface.
-
-Roadworthiness and Assessment are separate professional findings. A correction
-shows the retained earlier version and reasoned superseding version; a closed
-case requires reasoned reopen before revision. Issued report/addendum versions
-and exact Sent evidence remain distinct; report sent enters post-report work
-and does not close the case. A Box PDF, upload, export, or queue result is not
-delivery evidence, and correction never implies a fee/invoice change.
-
-Named actions cover Not ready, Review, Held, terminal outcomes, archive/reopen.
-Held preserves the chase interval; Created in error offers only linked
-replacement and never Reopen.
-
-**Administration:** account creation/disable/access review/roles, principal
-successor cutover, configuration and mailbox allowlist. No generic rules editor
-or cloud/credential operation.
-
-The complete per-scope query, mutation, Intake, Triage and Case state contract
-is the [requirements state
-matrix](README.md#complete-state-matrix); this specification does not
-compress or replace it.
-
 ### Freshness and reconciliation
 
 Every query keeps the last successful value/time visible when a later refresh
-is stale, partial, unavailable, or failed. Manual refresh reruns the same
-filter; it never substitutes zero, marks an external action complete, or
-changes a business fact. Show start/completion feedback and a safe retry.
+is stale, partial, unavailable, or failed. Refresh — the page button or F5 —
+reruns the same query; it never substitutes zero, marks an external action
+complete, or changes a business fact. Show start/completion feedback and a
+safe retry.
 
 Routine refresh audit belongs to content-safe telemetry. When staff accept,
 reject, link, or change an external fact during reconciliation, show the
-source/version, prior and new value, actor, time, outcome, and required reason
-in permanent history.
-
-### UI-07 exact search and filters
-
-Case/PO, Image Intake Reference, registration, claimant, claim number, principal, Case stage, Engineer, received/instruction dates and range, and origin.
-
-These are the Cases filters. There is no separate Search route: the former
-Search screen ran the identical backing query, so it merged into Cases
-(operator decision 2026-08-04). The common filters sit on one line and the
-rest behind a `More filters` disclosure.
+source/version, prior and new value, actor, time, outcome, and required
+reason in permanent history.
 
 ### Exceptions and necessary copy
 
 Use guidance only where the operator must understand a consequence:
 
-- “Blocked — a reason is required.”
-- “No case or reference was created; review the missing or conflicting evidence.”
-- “Created in error cannot be reopened. Create and link the replacement case.”
-- “Unlinking this email cancels case <reference>.”
+- "Blocked — a reason is required."
+- "No case or reference was created; review the missing or conflicting evidence."
+- "Created in error cannot be reopened. Create and link the replacement case."
+- "Unlinking this email cancels case <reference>."
 
-Illustrative text must not fabricate operational input. Loading, empty, stale/partial, retryable error, denied/unauthenticated, validation, conflict, external-unknown and reopened behavior follows the full state matrix. Permanent consequences remain visible without hover or colour alone.
+Illustrative text must not fabricate operational input. Loading, empty,
+stale/partial, retryable error, denied/unauthenticated, validation, conflict,
+external-unknown and reopened behavior follows the state matrix. Permanent
+consequences remain visible without hover or colour alone.
 
 ### Accessibility and acceptance
 
-Use skip link, labelled navigation, semantic tables/captions/header/sort state, keyboard queue selection, pane/tab relationships, associated error summary, restrained live announcements, visible focus and safe modal focus handling. At 1280+ use dense panes; at 1024–1279 and 200% zoom, turn secondary panes into labelled tabs/drawers/ordered sections while identity/state/actions remain first. Mobile is `Not planned`.
+Use skip link, labelled navigation, semantic tables/captions/header/sort
+state, keyboard row selection, pane/tab relationships, associated error
+summary, restrained live announcements, visible focus and safe modal focus
+handling. The wave-5 final walk records the browser proof at 1580, 1100 and
+760px. Mobile is `Not planned`.
 
 When implemented:
 
-- each visible trace row and state needs authenticated Web-caller and named Core-owner evidence;
-- keyboard, screen-reader, focus/error, forced-colours, reduced-motion, 1280+ desktop, constrained desktop and 200%-zoom inspection must be recorded;
-- operator review uses approved genuine local immutable material only; generated imagery or synthetic operational material cannot prove acceptance; and
-- every UI capability allocated after `0.1.0-alpha.1` re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review before its exact target can be implemented.
-
-### Image-initiated Case surface
-
-Vehicle-image arrivals with one usable VRM use the Image-initiated Case route.
-List/detail surfaces show the immutable VRM reference, preserved group and
-filenames, and the lifecycle state — Awaiting definitive instruction, Merged
-into Instruction-initiated Case, or Staff-closed. Search accepts the exact
-reference or VRM. Merge links both histories; staff closure requires a reason
-and makes the record read-only. Conflicting or unreadable groups use
-Unidentified instead. There is no dedicated Box custody surface for the
-Image-initiated Case in this slice (see FRD-05); preserved source files remain
-reachable through the origin receipt.
+- each visible row and state needs authenticated Web-caller and named
+  Core-owner evidence;
+- keyboard, screen-reader, focus/error, forced-colours, reduced-motion and
+  the three widths must be recorded;
+- operator review uses approved genuine local immutable material only;
+  generated imagery or synthetic operational material cannot prove
+  acceptance; and
+- every UI capability beyond this contract re-enters specification,
+  independent review and explicit approval before its route, control or
+  workflow is added.

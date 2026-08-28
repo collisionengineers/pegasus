@@ -1,0 +1,161 @@
+@*
+    The four shell dialogs: account menu, Add, Notifications and the command
+    palette. Each is a hidden .dialog-backdrop that site.js opens from any
+    [data-dialog-open="<id>"] control, closes on [data-dialog-close], Escape
+    or a backdrop click, contains focus, sets inert on the shell while open,
+    and returns focus to the invoking control. Rendered once per page by
+    _Layout; the gating below mirrors the rail exactly.
+*@
+@{
+    var inboxEnabled = ViewData["ShellInboxEnabled"] is true;
+    var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
+    var userName = User.Identity?.Name ?? string.Empty;
+    var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
+}
+
+<div class="dialog-backdrop" data-dialog="account-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+        <div class="dialog-head">
+            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Name</dt><dd>@userName</dd></dl>
+                <dl class="definition"><dt>Role</dt><dd>@role</dd></dl>
+                <dl class="definition"><dt>Idle lock</dt><dd>@OperatorLabels.Duration(Pegasus.Core.Actors.StaffSessionPolicy.IdleLifetime)</dd></dl>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+            <a class="btn" asp-page="/Account/PasswordChange">
+                <svg class="icon" aria-hidden="true"><use href="#icon-key" /></svg>
+                <span>Change password</span>
+            </a>
+            <form method="post" asp-page="/Account/SignOut">
+                <button type="submit" class="btn btn--danger">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-log-out" /></svg>
+                    <span>Sign out</span>
+                </button>
+            </form>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="add-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="add-dialog-title">
+        <div class="dialog-head">
+            <h2 id="add-dialog-title" tabindex="-1">Add</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="grid grid-2">
+                @if (inboxEnabled)
+                {
+                    <a class="admin-card" asp-page="/Upload">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <h2>Upload files</h2>
+                    </a>
+                }
+                <a class="admin-card" asp-page="/Cases/Create">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <h2>Create Case</h2>
+                </a>
+                @if (inboxEnabled)
+                {
+                    <a class="admin-card" asp-page="/Mail/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <h2>Review Inbox</h2>
+                    </a>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="notifications-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
+        <div class="dialog-head">
+            <h2 id="notifications-dialog-title" tabindex="-1">Notifications</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            @* There is no notification source yet (wave 3/4 supplies one); the
+               empty state is the honest render, never an invented item. *@
+            <div class="empty">
+                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                <h3>No notifications</h3>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="command-dialog" hidden>
+    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
+        <div class="dialog-head">
+            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="command-search">
+            <label class="sr-only" for="command-input">Search</label>
+            <input id="command-input" type="search" autocomplete="off" data-command-palette-input aria-controls="command-results" />
+        </div>
+        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/">
+                <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                <span><strong>@OperatorLabels.Nav.WorkCentre</strong></span>
+            </button>
+            @if (inboxEnabled)
+            {
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                    <span><strong>@OperatorLabels.Nav.Inbox</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span><strong>@OperatorLabels.Nav.Upload</strong></span>
+                </button>
+            }
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
+                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                <span><strong>@OperatorLabels.Nav.Cases</strong></span>
+            </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                <span><strong>@OperatorLabels.Nav.Search</strong></span>
+            </button>
+            @if (inboxEnabled)
+            {
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Operations">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                    <span><strong>@OperatorLabels.Nav.Operations</strong></span>
+                </button>
+            }
+            @if (isAdministrator)
+            {
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                    <span><strong>@OperatorLabels.Nav.Administration</strong></span>
+                </button>
+            }
+            @* The fallback is always a match: it carries the typed text to
+               /Search so Enter never dead-ends. *@
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback>
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                <span><strong>Search Cases for <span data-command-fallback-term></span></strong></span>
+                <span class="kbd" aria-hidden="true">Enter</span>
+            </button>
+        </div>
+    </section>
+</div>
