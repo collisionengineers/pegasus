@@ -185,7 +185,13 @@ public sealed class EfAiJobStore(
                 eventKind = "ai_job_released";
                 break;
             case AiJobState.DraftReady:
-                entity.ResultKind = transition.Result!.Kind.ToString();
+                var expectedResultKind = AiJobPolicy.ResultKindFor(Parse<AiJobKind>(entity.Kind));
+                if (transition.Result!.Kind != expectedResultKind)
+                {
+                    throw new InvalidOperationException(
+                        $"A {entity.Kind} job completes with a {expectedResultKind} result.");
+                }
+                entity.ResultKind = transition.Result.Kind.ToString();
                 entity.ResultReference = transition.Result.Reference?.Trim();
                 entity.ResultText = transition.Result.Text?.Trim();
                 entity.LeaseExpiresAtUtc = null;

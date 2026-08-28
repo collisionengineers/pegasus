@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore;
+﻿using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -29,7 +29,9 @@ public sealed class AuthorizeModel : AdministrationPageModel
             [AutomationMcp.CasesScope] = "Search and read cases, take and renew edit leases, update case details.",
             [AutomationMcp.IntakeScope] = "List the intake queue and submit intake on the automation channel.",
             [AutomationMcp.DocumentsScope] = "Add, download and export case documents.",
-            [AutomationMcp.AssessmentScope] = "Read and update assessment values, generate EVA bundles."
+            [AutomationMcp.AssessmentScope] = "Read and update assessment values and estimate lines under an edit lease.",
+            [AutomationMcp.MailScope] = "List and read retained mail and correct a message's classification.",
+            [AutomationMcp.JobsScope] = "List, take, progress, complete, fail and release AI jobs; create Unidentified-queue passes."
         };
 
     public string ClientDisplayName { get; private set; } = string.Empty;
