@@ -488,13 +488,14 @@ public sealed class DetailsModel(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        var isSelf = string.Equals(
+        var isSelf = CaseEditAuthority.IsHolder(
+            activeLease.HolderKind,
             activeLease.Holder,
-            actor.SubjectId,
-            StringComparison.Ordinal);
+            actor);
         var holder = isSelf
             ? CaseEditAuthorityHolder.Unnamed
             : await _describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.HolderKind,
                 activeLease.Holder,
                 actor,
                 cancellationToken);

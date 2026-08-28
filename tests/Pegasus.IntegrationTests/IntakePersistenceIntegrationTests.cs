@@ -108,6 +108,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260828084644_GrantAiJobs",
                 "20260828104130_PrincipalApiCredentials",
                 "20260828104139_GrantPrincipalApiCredentials",
+                "20260828110108_CaseEditLeaseHolderKind",
                 "20260828111707_ProviderSubmissions",
                 "20260828111732_GrantProviderSubmissions"
             ],
