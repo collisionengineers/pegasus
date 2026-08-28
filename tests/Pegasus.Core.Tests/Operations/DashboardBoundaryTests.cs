@@ -71,7 +71,7 @@ public sealed class DashboardBoundaryTests
         public DateTimeOffset WeekStartUtc { get; private set; }
 
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new CaseStageCounts(0, 0, 0));
+            Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
 
         public Task<CaseActivityCounts> GetCaseActivityCountsAsync(
             DateTimeOffset dayStartUtc,

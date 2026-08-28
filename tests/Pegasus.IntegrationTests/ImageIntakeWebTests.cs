@@ -56,14 +56,14 @@ public sealed class ImageIntakeWebTests
         Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt.Decision);
         Assert.Equal("vehicle.png", receipt.SourceFileName);
 
-        var indexByReference = await GetAsync(client, "/VehicleImages?query=AB12CDE-01");
+        var indexByReference = await GetAsync(client, "/Search?query=AB12CDE-01&kind=images");
         Assert.Contains("AB12CDE-01", indexByReference);
-        var indexByVrm = await GetAsync(client, "/VehicleImages?query=AB12CDE");
+        var indexByVrm = await GetAsync(client, "/Search?registration=AB12CDE&kind=images");
         Assert.Contains("AB12CDE-01", indexByVrm);
 
-        var caseSearch = await GetAsync(client, "/Cases?query=AB12CDE-01");
+        var caseSearch = await GetAsync(client, "/Search?query=AB12CDE-01");
         Assert.Contains("AB12CDE-01", caseSearch);
-        var caseSearchImagesOnly = await GetAsync(client, "/Cases?kind=images");
+        var caseSearchImagesOnly = await GetAsync(client, "/Search?kind=images");
         Assert.Contains("AB12CDE-01", caseSearchImagesOnly);
 
         await using var scope = factory.Services.CreateAsyncScope();

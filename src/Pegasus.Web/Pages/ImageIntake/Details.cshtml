@@ -12,7 +12,7 @@
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
         <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)" />
     </div>
-    <a class="secondary-action" asp-page="/ImageIntake/Index">All Image-initiated Cases</a>
+    <a class="secondary-action" asp-page="/Cases/Index" asp-route-tab="not_ready">Cases</a>
 </header>
 
 <div class="review-grid">

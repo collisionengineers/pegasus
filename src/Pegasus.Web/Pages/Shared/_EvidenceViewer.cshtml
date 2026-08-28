@@ -1,40 +1,49 @@
 @*
     Evidence viewer (DOCS-011).
 
-    docs/design/README.md#contracts "Evidence image preview" requires explicit
-    loading and source-preserving enlarged-image states, and that opening or
-    closing a preview preserves Case context. It is an overlay, so the case
-    page, its tab and its unsaved edits stay behind it; the enlarged view reads
-    the same authorised URL as the thumbnail, so nothing is re-encoded.
-
-    It reuses .reason-dialog-backdrop and the [data-reason-dialog] behaviour
-    contract -- initial focus, focus containment, Escape, focus return -- rather
-    than declaring a second overlay convention. Render it once per page; the
-    triggers are the [data-evidence-item] links inside a [data-evidence-set].
+    An overlay, so the case page, its tab and its unsaved edits stay behind
+    it; the enlarged view reads the same authorised URL as the thumbnail, so
+    nothing is re-encoded. Render it once per page; the triggers are the
+    [data-evidence-item] links inside a [data-evidence-set]. site.js owns the
+    paging, the loading state, Escape, focus containment and focus return.
 
     PDFs use an <iframe> because the deployed CSP sets object-src 'none'.
 *@
 <div id="evidence-viewer"
-     class="reason-dialog-backdrop evidence-viewer"
-     role="dialog"
-     aria-modal="true"
-     aria-labelledby="evidence-viewer-name"
+     class="dialog-backdrop evidence-viewer"
      data-evidence-viewer
      hidden>
-    <div class="evidence-viewer__panel">
-        <div class="evidence-viewer__bar">
-            <h2 id="evidence-viewer-name" class="evidence-viewer__name" data-evidence-name></h2>
-            <span class="evidence-viewer__position" data-evidence-position></span>
-            <a class="secondary-action" data-evidence-download download>Download</a>
-            <button type="button" class="secondary-action" data-evidence-close>Close</button>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
+        <div class="dialog-head">
+            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
+            <span class="muted tabular" data-evidence-position></span>
+            <a class="btn btn--small" data-evidence-download download>
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Save as</span>
+            </a>
+            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
+                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+            </button>
+            <button type="button" class="dialog-close" data-evidence-close>
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span class="sr-only">Close</span>
+            </button>
         </div>
-        <div class="evidence-viewer__frame">
-            <button type="button" class="evidence-viewer__step" data-evidence-previous>Previous</button>
-            <div class="evidence-viewer__stage" data-evidence-stage>
-                <img class="evidence-viewer__image" data-evidence-image alt="" hidden />
-                <iframe class="evidence-viewer__document" data-evidence-document title="" hidden></iframe>
+        <div class="dialog-body">
+            <div class="viewer-stage" data-evidence-stage data-rotate-target>
+                <img data-evidence-image alt="" hidden />
+                <iframe data-evidence-document title="" hidden></iframe>
             </div>
-            <button type="button" class="evidence-viewer__step" data-evidence-next>Next</button>
         </div>
-    </div>
+        <div class="dialog-foot cluster--between">
+            <button type="button" class="btn" data-evidence-previous>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>Previous</span>
+            </button>
+            <button type="button" class="btn" data-evidence-next>
+                <span>Next</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+            </button>
+        </div>
+    </section>
 </div>
