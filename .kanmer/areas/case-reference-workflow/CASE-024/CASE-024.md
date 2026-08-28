@@ -20,6 +20,8 @@ labels:
   - concurrency
 links:
   - KANMER-005
+blocks:
+  - KANMER-005
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -35,7 +37,7 @@ prs:
   - '581'
 archived: false
 created: '2026-08-28T05:09:12.450Z'
-updated: '2026-08-28T07:05:45.536Z'
+updated: '2026-08-28T10:13:22.991Z'
 ---
 
 ## What
