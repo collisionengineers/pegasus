@@ -20,7 +20,7 @@ design assets remain under [`docs/design/`](design/).
 | What procedure governs task claims, plans, reviews, and Git safety? | [Repository task workflow](../AGENTS.md#repository-task-workflow) |
 | What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
 | What raw supplied evidence exists? | [Reference evidence](../reference/README.md) |
-| What are the UI rules? | [Design](design/README.md) |
+| What are the UI rules, and the Integrated Operations Workspace shell contract? | [Design](design/README.md) — visual, component and shell authority; route and page behaviour (Work Centre, Cases, Search, Case workspace) is [FRD-12](frd/frd-12-operator-experience.md) |
 | How is a provider's email identified, classified, and mapped? | [Principal rules and mappings](principal-rules-and-mappings/README.md) — descriptive companions; the cited FRD/ADR/policy owners bind |
 | What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) — the sole current-state owner; `.azure/deployment-plan.md` is the immutable 2026-08-02 execution record |
 | What do the imported source workspaces own? | [Workspaces](../workspaces/README.md) |
