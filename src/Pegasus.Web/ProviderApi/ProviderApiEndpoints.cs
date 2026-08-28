@@ -23,22 +23,15 @@ internal sealed record ProviderSubmissionReceiptResponse(
     bool Replayed,
     IReadOnlyList<ProviderSubmissionFileResponse> Files);
 
-internal sealed record ProviderSubmissionFileResultResponse(
-    int Ordinal,
-    string FileName,
-    QueuedIntakeStatusKind Status,
-    IntakeDecision? Decision,
-    IntakeAllocationFailureKind? AllocationFailure,
-    string? FailureCode,
-    string? CaseReference);
-
 internal sealed record ProviderSubmissionResultResponse(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
     string? ProviderReference,
     QueuedIntakeStatusKind Status,
-    string? CaseReference,
-    IReadOnlyList<ProviderSubmissionFileResultResponse> Files);
+    IntakeDecision? Decision,
+    IntakeAllocationFailureKind? AllocationFailure,
+    string? FailureCode,
+    string? CaseReference);
 
 /// <summary>
 /// Composition for the configuration-gated Provider API. Nothing here is
@@ -84,7 +77,8 @@ public static class ProviderApiEndpoints
             .RequireRateLimiting(ProviderApi.RateLimitPolicy)
             .DisableAntiforgery();
         group.MapPost(string.Empty, SubmitAsync)
-            .WithMetadata(new RequestSizeLimitAttribute(IntakeEnvelopeLimits.MaximumBatchContentLength));
+            .WithMetadata(new RequestSizeLimitAttribute(
+                IntakeEnvelopeLimits.MaximumProviderApiRequestLength));
         group.MapGet("/{id:guid}", GetAsync);
     }
 
@@ -103,40 +97,37 @@ public static class ProviderApiEndpoints
         }
 
         var request = context.Request;
-        if (request.ContentLength > IntakeEnvelopeLimits.MaximumBatchContentLength)
+        if (request.ContentLength > IntakeEnvelopeLimits.MaximumProviderApiRequestLength)
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
         }
-        if (!request.HasFormContentType)
+        if (!IsJson(request.ContentType))
         {
-            return Problem(StatusCodes.Status415UnsupportedMediaType, "The submission must be multipart/form-data.");
+            return Problem(StatusCodes.Status415UnsupportedMediaType, "The submission must be application/json.");
         }
 
-        var form = await request.ReadFormAsync(cancellationToken);
-        var files = new List<ProviderSubmissionFile>(form.Files.Count);
-        foreach (var file in form.Files)
+        // The body is retained exactly as it arrived, so the case's origin is
+        // the provider's own instruction rather than a rendering of it. It is
+        // read once, bounded, and both parsed and retained from the same bytes.
+        var body = await ReadBodyAsync(request, cancellationToken);
+        if (body is null)
         {
-            if (file.Length > IntakeEnvelopeLimits.MaximumContentLength)
-            {
-                return Problem(StatusCodes.Status413PayloadTooLarge, "A file exceeds the per-file limit.");
-            }
-
-            using var buffer = new MemoryStream((int)file.Length);
-            await file.CopyToAsync(buffer, cancellationToken);
-            files.Add(new(files.Count, file.FileName, file.ContentType, buffer.ToArray()));
+            return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
         }
 
         try
         {
+            var (instruction, files) = ProviderInstructionJson.Parse(body);
             var receipt = await submit.ExecuteAsync(
                 new(
                     credential,
                     request.Headers[ProviderApi.IdempotencyKeyHeader].ToString(),
-                    form[ProviderApi.ProviderReferenceField].ToString(),
+                    instruction,
                     files,
+                    body,
                     context.TraceIdentifier),
                 cancellationToken);
-            var body = new ProviderSubmissionReceiptResponse(
+            var responseBody = new ProviderSubmissionReceiptResponse(
                 receipt.SubmissionId,
                 receipt.ReceivedAtUtc,
                 receipt.ProviderReference,
@@ -151,13 +142,21 @@ public static class ProviderApiEndpoints
             }
 
             return Results.Json(
-                body,
+                responseBody,
                 ResponseJson,
                 statusCode: receipt.Replayed ? StatusCodes.Status200OK : StatusCodes.Status201Created);
         }
+        catch (ProviderInstructionValidationException exception)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: exception.Message,
+                extensions: new Dictionary<string, object?> { ["field"] = exception.Field });
+        }
         catch (ProviderSubmissionException exception)
         {
-            if (exception.Error == ProviderSubmissionError.CredentialPaused)
+            if (exception.Error is ProviderSubmissionError.CredentialPaused
+                or ProviderSubmissionError.PrincipalMismatch)
             {
                 await securityEvents.AppendAsync(
                     new SecurityEvent(
@@ -167,7 +166,9 @@ public static class ProviderApiEndpoints
                         credential.KeyId,
                         timeProvider.GetUtcNow(),
                         context.TraceIdentifier,
-                        "provider_credential_paused"),
+                        exception.Error == ProviderSubmissionError.CredentialPaused
+                            ? "provider_credential_paused"
+                            : "provider_principal_mismatch"),
                     cancellationToken);
             }
 
@@ -175,6 +176,8 @@ public static class ProviderApiEndpoints
             {
                 ProviderSubmissionError.CredentialPaused =>
                     Problem(StatusCodes.Status403Forbidden, "The provider credential is paused; submissions are refused until it is resumed."),
+                ProviderSubmissionError.PrincipalMismatch =>
+                    Problem(StatusCodes.Status403Forbidden, "The submission names a principal other than the authenticated one."),
                 ProviderSubmissionError.EnvelopeExceeded =>
                     Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit."),
                 ProviderSubmissionError.IdempotencyKeyConflict =>
@@ -194,6 +197,33 @@ public static class ProviderApiEndpoints
         {
             return Problem(StatusCodes.Status503ServiceUnavailable, "The submission could not be retained; retry with the same idempotency key.");
         }
+    }
+
+    private static bool IsJson(string? contentType) =>
+        contentType is not null
+        && contentType.StartsWith(ProviderInstructionPolicy.SourceMediaType, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The whole body, or null when it runs past the envelope bound. The bound
+    /// is enforced while reading rather than trusted from Content-Length, which
+    /// a caller controls and a chunked request omits.
+    /// </summary>
+    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > IntakeEnvelopeLimits.MaximumProviderApiRequestLength)
+            {
+                return null;
+            }
+
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+        }
+
+        return buffer.ToArray();
     }
 
     private static async Task<IResult> GetAsync(
@@ -220,17 +250,10 @@ public static class ProviderApiEndpoints
                 result.ReceivedAtUtc,
                 result.ProviderReference,
                 result.Status,
-                result.CaseReference,
-                result.Files
-                    .Select(file => new ProviderSubmissionFileResultResponse(
-                        file.Ordinal,
-                        file.FileName,
-                        file.Status,
-                        file.Decision,
-                        file.AllocationFailure,
-                        file.FailureCode,
-                        file.CaseReference))
-                    .ToArray()),
+                result.Decision,
+                result.AllocationFailure,
+                result.FailureCode,
+                result.CaseReference),
             ResponseJson);
     }
 

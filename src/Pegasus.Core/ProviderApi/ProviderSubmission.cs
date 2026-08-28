@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -18,7 +19,13 @@ public enum ProviderSubmissionError
     CredentialPaused,
     EnvelopeExceeded,
     IdempotencyKeyConflict,
-    OperationConflict
+    OperationConflict,
+
+    /// <summary>
+    /// The body named a Principal other than the one the credential
+    /// authenticated. Refused, never redirected (FRD-09).
+    /// </summary>
+    PrincipalMismatch
 }
 
 public sealed class ProviderSubmissionException(ProviderSubmissionError error)
@@ -27,17 +34,30 @@ public sealed class ProviderSubmissionException(ProviderSubmissionError error)
     public ProviderSubmissionError Error { get; } = error;
 }
 
+/// <summary>
+/// One submitted file. <paramref name="Role"/> is what the provider says the
+/// file is; it is optional, and when absent nothing is inferred — the file is
+/// retained as an ordinary attachment (operator decision, 2026-08-28).
+/// </summary>
 public sealed record ProviderSubmissionFile(
     int Ordinal,
     string FileName,
     string MediaType,
-    ReadOnlyMemory<byte> Content);
+    ReadOnlyMemory<byte> Content,
+    DocumentSemanticRole? Role = null);
 
+/// <summary>
+/// One submission. <paramref name="Instruction"/> is what the provider
+/// declared; <paramref name="RawBody"/> is the request exactly as it arrived and
+/// is what Pegasus retains as the source, so the case's origin is the
+/// provider's own words rather than a rendering of them.
+/// </summary>
 public sealed record ProviderSubmissionRequest(
     PrincipalCredentialAuthentication Credential,
     string IdempotencyKey,
-    string? ProviderReference,
+    ProviderInstruction Instruction,
     IReadOnlyList<ProviderSubmissionFile> Files,
+    ReadOnlyMemory<byte> RawBody,
     string CorrelationId);
 
 /// <summary>
@@ -52,7 +72,20 @@ public sealed record ProviderSubmissionRecord(
     string KeyId,
     string IdempotencyKey,
     string? ProviderReference,
-    DateTimeOffset ReceivedAtUtc);
+    DateTimeOffset ReceivedAtUtc,
+    ProviderInstruction? Instruction = null,
+    Guid? StagedReceiptId = null);
+
+/// <summary>
+/// What intake needs to know about the submission a source belongs to: which
+/// Principal it was bound to and what that Principal declared. Both come from
+/// the retained submission row, never from the submitted content.
+/// </summary>
+public sealed record ProviderSubmissionBinding(
+    Guid SubmissionId,
+    Guid PrincipalId,
+    string PrincipalCode,
+    ProviderInstruction Instruction);
 
 public sealed record ProviderSubmissionAcceptedFile(
     int Ordinal,
@@ -72,27 +105,21 @@ public sealed record ProviderSubmissionReceipt(
     IReadOnlyList<ProviderSubmissionAcceptedFile> Files,
     bool Replayed);
 
-public sealed record ProviderSubmissionFileResult(
-    int Ordinal,
-    string FileName,
-    QueuedIntakeStatusKind Status,
-    IntakeDecision? Decision,
-    IntakeAllocationFailureKind? AllocationFailure,
-    string? FailureCode,
-    string? CaseReference);
-
 /// <summary>
-/// The submission's own result: the Case/PO reference once one file's
-/// processing allocated it, otherwise the precise per-file decision and
-/// failure in the intake pipeline's own vocabulary (no provider-only list).
+/// The submission's own result: the Case/PO once processing allocated one,
+/// otherwise the intake pipeline's own decision and failure vocabulary (never a
+/// provider-only list). One submission is one receipt, so there is one outcome
+/// rather than a per-file table.
 /// </summary>
 public sealed record ProviderSubmissionResult(
     Guid SubmissionId,
     DateTimeOffset ReceivedAtUtc,
     string? ProviderReference,
     QueuedIntakeStatusKind Status,
-    string? CaseReference,
-    IReadOnlyList<ProviderSubmissionFileResult> Files);
+    IntakeDecision? Decision,
+    IntakeAllocationFailureKind? AllocationFailure,
+    string? FailureCode,
+    string? CaseReference);
 
 public interface IProviderSubmissionStore
 {
@@ -110,6 +137,24 @@ public interface IProviderSubmissionStore
         CancellationToken cancellationToken);
 
     Task<ProviderSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The authenticated Principal's code, or null when it no longer exists or
+    /// is not active. The credential proves which Principal is calling; this is
+    /// how the submission learns what that Principal is called, so the declared
+    /// value can be checked against it.
+    /// </summary>
+    Task<string?> FindPrincipalCodeAsync(Guid principalId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records which staged receipt the submission was retained as, so reading
+    /// its result is one indexed read of our own row rather than a search of the
+    /// intake work queue by source identity. Setting it twice is a no-op.
+    /// </summary>
+    Task RecordStagedReceiptAsync(
+        Guid submissionId,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -119,7 +164,7 @@ public interface IProviderSubmissionStore
 /// </summary>
 public interface IProviderSubmissionBindings
 {
-    Task<string?> FindPrincipalCodeAsync(
+    Task<ProviderSubmissionBinding?> FindAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken);
 }
@@ -189,9 +234,10 @@ public static class ProviderSubmissionPolicy
     }
 
     /// <summary>
-    /// The envelope bound is the staff Upload bound (<see cref="IntakeEnvelopeLimits"/>):
-    /// the same file count and per-file size, so a provider is capped
-    /// exactly where a staff member reproducing the job manually is.
+    /// The envelope bound is the Provider API's own
+    /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength"/>):
+    /// every file arrives inline as base64 in one request body, so the whole
+    /// submission is bounded together rather than only file by file.
     /// </summary>
     public static IReadOnlyList<ProviderSubmissionFile> RequireEnvelope(
         IReadOnlyList<ProviderSubmissionFile>? files)
@@ -201,7 +247,9 @@ public static class ProviderSubmissionPolicy
             throw new ArgumentException("At least one file is required.", nameof(files));
         }
         if (files.Count > IntakeEnvelopeLimits.MaximumBatchFileCount
-            || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumContentLength))
+            || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumContentLength)
+            || files.Sum(file => (long)file.Content.Length)
+                > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength)
         {
             throw new ProviderSubmissionException(ProviderSubmissionError.EnvelopeExceeded);
         }
@@ -235,6 +283,70 @@ public static class ProviderSubmissionPolicy
         return ordered;
     }
 
+    /// <summary>
+    /// The request body Pegasus retains as the source. It is bounded on its own
+    /// because it carries the files inline and is held whole to be decoded.
+    /// </summary>
+    public static void RequireRetainableBody(ReadOnlyMemory<byte> body)
+    {
+        if (body.IsEmpty)
+        {
+            throw new ArgumentException("The submitted request body is required.", nameof(body));
+        }
+        if (body.Length > IntakeEnvelopeLimits.MaximumProviderApiRequestLength)
+        {
+            throw new ProviderSubmissionException(ProviderSubmissionError.EnvelopeExceeded);
+        }
+    }
+
+    /// <summary>
+    /// An Audit needs its original report attached whoever states its outcome.
+    /// The operator ruled on 2026-08-28 that the declared verdict decides the
+    /// reference prefix, which settles who decides — not whether the Engineer
+    /// receives the report they are auditing.
+    /// </summary>
+    public static void RequireOriginalReport(
+        ProviderInstructionKind kind,
+        IReadOnlyList<ProviderSubmissionFile> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        if (!ProviderInstructionKinds.RequiresOriginalReport(kind))
+        {
+            return;
+        }
+        if (!files.Any(file => file.Role == DocumentSemanticRole.AuditReport))
+        {
+            throw new ProviderInstructionValidationException(
+                "files",
+                "An Audit submission must attach the original report, with its role stated as "
+                + $"'{ProviderFileRoles.OriginalReport}'.");
+        }
+    }
+
+    /// <summary>
+    /// The accepted files as the receipt reports them. A file repeated inside
+    /// one envelope is named as the duplicate it is rather than silently
+    /// counted twice.
+    /// </summary>
+    public static IReadOnlyList<ProviderSubmissionAcceptedFile> AcceptedFiles(
+        IReadOnlyList<ProviderSubmissionFile> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        return files
+            .OrderBy(file => file.Ordinal)
+            .Select(file =>
+            {
+                var hash = Sha256(file.Content);
+                return new ProviderSubmissionAcceptedFile(
+                    file.Ordinal,
+                    file.FileName,
+                    hash,
+                    !seen.Add(hash));
+            })
+            .ToArray();
+    }
+
     public static string SubmissionToken(Guid submissionId) => submissionId.ToString("N");
 
     public static string Sha256(ReadOnlyMemory<byte> content) =>
@@ -243,8 +355,7 @@ public static class ProviderSubmissionPolicy
 
 public sealed class SubmitProviderInstruction(
     IProviderSubmissionStore store,
-    IGroupedIntakeSubmission groupedSubmission,
-    IIntakeSubmissionGroupStore groupStore,
+    IIntakeSubmission intakeSubmission,
     IActionHistoryWriter actionHistory,
     TimeProvider timeProvider) : ISubmitProviderInstruction
 {
@@ -254,6 +365,7 @@ public sealed class SubmitProviderInstruction(
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Credential);
+        ArgumentNullException.ThrowIfNull(request.Instruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CorrelationId);
         var actor = ProviderSubmissionPolicy.Actor(request.Credential);
         StaffAuthorization.Require(actor, StaffAccessRight.SubmitProviderInstruction);
@@ -263,9 +375,22 @@ public sealed class SubmitProviderInstruction(
         }
 
         var idempotencyKey = ProviderSubmissionPolicy.NormalizeIdempotencyKey(request.IdempotencyKey);
-        var providerReference = ProviderSubmissionPolicy.NormalizeProviderReference(request.ProviderReference);
+        var instruction = ProviderInstructionPolicy.Normalize(request.Instruction);
         var files = ProviderSubmissionPolicy.RequireEnvelope(request.Files);
+        ProviderSubmissionPolicy.RequireRetainableBody(request.RawBody);
+        ProviderSubmissionPolicy.RequireOriginalReport(instruction.Kind, files);
         var principalId = request.Credential.PrincipalId;
+
+        // The credential establishes the Principal. A body that names a
+        // different one is refused rather than honoured: FRD-09 is explicit that
+        // content never selects a Principal, so the field can only ever catch a
+        // provider posting to the wrong account.
+        var principalCode = await store.FindPrincipalCodeAsync(principalId, cancellationToken)
+            ?? throw new ProviderSubmissionException(ProviderSubmissionError.CredentialPaused);
+        if (!ProviderInstructionPolicy.DeclaredPrincipalMatches(instruction, principalCode))
+        {
+            throw new ProviderSubmissionException(ProviderSubmissionError.PrincipalMismatch);
+        }
 
         var existing = await store.FindByIdempotencyKeyAsync(principalId, idempotencyKey, cancellationToken);
         if (existing is null)
@@ -275,8 +400,9 @@ public sealed class SubmitProviderInstruction(
                 principalId,
                 request.Credential.KeyId,
                 idempotencyKey,
-                providerReference,
-                timeProvider.GetUtcNow());
+                instruction.ClaimNumber,
+                timeProvider.GetUtcNow(),
+                instruction);
             try
             {
                 await store.CreateAsync(record, cancellationToken);
@@ -285,61 +411,46 @@ public sealed class SubmitProviderInstruction(
             catch (ProviderSubmissionException conflict)
                 when (conflict.Error == ProviderSubmissionError.OperationConflict)
             {
-                // A concurrent request with the same key won the insert; it
-                // is now a replay of that request, resolved below.
+                // A concurrent request with the same key won the insert; it is
+                // now a replay of that request, resolved below.
                 existing = await store.FindByIdempotencyKeyAsync(principalId, idempotencyKey, cancellationToken)
                     ?? throw new ProviderSubmissionException(ProviderSubmissionError.OperationConflict);
             }
         }
 
-        var submissionToken = ProviderSubmissionPolicy.SubmissionToken(existing.Id);
-        var replayed = await groupStore.FindAsync(
-            IntakeSourceChannel.ProviderApi,
-            submissionToken,
-            cancellationToken) is not null;
-
-        GroupedIntakeSubmissionResult grouped;
+        // One submission is one receipt, and the retained source is the request
+        // as it arrived — the provider's own instruction, carrying its files
+        // exactly as an e-mail carries its attachments. Retaining each file as
+        // its own receipt instead would scatter one instruction across many, and
+        // an Audit could not then find its original report on its own receipt.
+        ReceivedIntake received;
         try
         {
-            // The grouped owner dedups each member by content under the
-            // submission's own token, so a replay carrying identical files
-            // returns the same receipt and a different envelope under the
-            // same key fails closed.
-            grouped = await groupedSubmission.ExecuteAsync(
+            received = await intakeSubmission.ExecuteAsync(
                 new(
-                    submissionToken,
-                    MailClassificationActor.Format(actor),
+                    ProviderInstructionPolicy.SourceFileName,
+                    ProviderInstructionPolicy.SourceMediaType,
+                    request.RawBody,
                     existing.ReceivedAtUtc,
-                    files.Select(file => new GroupedIntakeFile(
-                            file.Ordinal,
-                            new IntakeSource(
-                                file.FileName,
-                                file.MediaType,
-                                file.Content,
-                                existing.ReceivedAtUtc,
-                                MailClassificationActor.Format(actor),
-                                new(IntakeSourceChannel.ProviderApi, submissionToken))))
-                        .ToArray(),
-                    IntakeSourceChannel.ProviderApi),
+                    MailClassificationActor.Format(actor),
+                    new(
+                        IntakeSourceChannel.ProviderApi,
+                        ProviderSubmissionPolicy.SubmissionToken(existing.Id))),
+                $"provider-submission:{existing.Id:N}",
                 cancellationToken);
         }
         catch (IntakeSourceIdentityConflictException)
         {
             await AppendHistoryAsync(actor, existing.Id, "Refused", request.CorrelationId,
-                "The idempotency key was reused with different content.", cancellationToken);
-            throw new ProviderSubmissionException(ProviderSubmissionError.IdempotencyKeyConflict);
-        }
-        if (replayed && grouped.Group.ExpectedMemberCount != files.Count)
-        {
-            await AppendHistoryAsync(actor, existing.Id, "Refused", request.CorrelationId,
-                "The idempotency key was reused with a different file count.", cancellationToken);
+                "The idempotency key was reused with a different submission.", cancellationToken);
             throw new ProviderSubmissionException(ProviderSubmissionError.IdempotencyKeyConflict);
         }
 
+        await store.RecordStagedReceiptAsync(existing.Id, received.StagedReceiptId, cancellationToken);
         await AppendHistoryAsync(
             actor,
             existing.Id,
-            replayed ? "Replayed" : "Accepted",
+            received.IsDuplicate ? "Replayed" : "Accepted",
             request.CorrelationId,
             null,
             cancellationToken);
@@ -347,15 +458,8 @@ public sealed class SubmitProviderInstruction(
             existing.Id,
             existing.ReceivedAtUtc,
             existing.ProviderReference,
-            grouped.Members
-                .OrderBy(member => member.Ordinal)
-                .Select(member => new ProviderSubmissionAcceptedFile(
-                    member.Ordinal,
-                    member.SourceFileName,
-                    member.SourceHash,
-                    member.IsDuplicate))
-                .ToArray(),
-            replayed);
+            ProviderSubmissionPolicy.AcceptedFiles(files),
+            received.IsDuplicate);
     }
 
     private Task AppendHistoryAsync(
@@ -381,7 +485,6 @@ public sealed class SubmitProviderInstruction(
 
 public sealed class GetProviderSubmissionResult(
     IProviderSubmissionStore store,
-    IIntakeSubmissionGroupStore groupStore,
     IQueuedIntakeStatusQueries statusQueries,
     IIntakeReceiptQueries receiptQueries) : IGetProviderSubmissionResult
 {
@@ -405,37 +508,20 @@ public sealed class GetProviderSubmissionResult(
             return null;
         }
 
-        var group = await groupStore.FindAsync(
-            IntakeSourceChannel.ProviderApi,
-            ProviderSubmissionPolicy.SubmissionToken(record.Id),
-            cancellationToken);
-        var files = new List<ProviderSubmissionFileResult>();
-        foreach (var member in (group?.Members ?? []).OrderBy(member => member.Ordinal))
-        {
-            var memberStatus = await statusQueries.GetAsync(member.StagedReceiptId, cancellationToken);
-            var receipt = memberStatus?.ProcessedReceiptId is { } processedId
-                ? await receiptQueries.GetAsync(processedId, cancellationToken)
-                : null;
-            files.Add(new(
-                member.Ordinal,
-                member.SourceFileName,
-                memberStatus?.Status ?? QueuedIntakeStatusKind.Received,
-                receipt?.Decision,
-                receipt?.AllocationState?.FailureKind,
-                receipt?.FailureCode ?? memberStatus?.FailureCode,
-                receipt?.CurrentCaseReference));
-        }
-
-        var caseReference = files.Select(file => file.CaseReference).FirstOrDefault(reference => reference is not null);
-        var status = files.Count == 0
-            ? QueuedIntakeStatusKind.Received
-            : files.Any(file => file.Status == QueuedIntakeStatusKind.Failed)
-                ? QueuedIntakeStatusKind.Failed
-                : files.All(file => file.Status == QueuedIntakeStatusKind.Complete)
-                    ? QueuedIntakeStatusKind.Complete
-                    : files.Any(file => file.Status == QueuedIntakeStatusKind.Processing)
-                        ? QueuedIntakeStatusKind.Processing
-                        : QueuedIntakeStatusKind.Received;
-        return new(record.Id, record.ReceivedAtUtc, record.ProviderReference, status, caseReference, files);
+        var status = record.StagedReceiptId is { } stagedReceiptId
+            ? await statusQueries.GetAsync(stagedReceiptId, cancellationToken)
+            : null;
+        var receipt = status?.ProcessedReceiptId is { } processedId
+            ? await receiptQueries.GetAsync(processedId, cancellationToken)
+            : null;
+        return new(
+            record.Id,
+            record.ReceivedAtUtc,
+            record.ProviderReference,
+            status?.Status ?? QueuedIntakeStatusKind.Received,
+            receipt?.Decision,
+            receipt?.AllocationState?.FailureKind,
+            receipt?.FailureCode ?? status?.FailureCode,
+            receipt?.CurrentCaseReference);
     }
 }

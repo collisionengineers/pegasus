@@ -26,7 +26,12 @@ internal sealed class EfProviderSubmissionStore(
             KeyId = record.KeyId,
             IdempotencyKey = record.IdempotencyKey,
             ProviderReference = record.ProviderReference,
-            ReceivedAtUtc = record.ReceivedAtUtc
+            ReceivedAtUtc = record.ReceivedAtUtc,
+            DeclaredInstructionJson = ProviderInstructionJson.Serialize(
+                record.Instruction
+                    ?? throw new ArgumentException(
+                        "A provider submission carries the instruction its Principal declared.",
+                        nameof(record)))
         });
         try
         {
@@ -62,33 +67,67 @@ internal sealed class EfProviderSubmissionStore(
         return entity is null ? null : ToRecord(entity);
     }
 
+    public async Task RecordStagedReceiptAsync(
+        Guid submissionId,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.ProviderSubmissions
+            .SingleOrDefaultAsync(item => item.Id == submissionId, cancellationToken);
+        if (entity is null || entity.StagedReceiptId == stagedReceiptId)
+        {
+            return;
+        }
+
+        entity.StagedReceiptId = stagedReceiptId;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<string?> FindPrincipalCodeAsync(
+        Guid principalId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Principals
+            .AsNoTracking()
+            .Where(item => item.Id == principalId && item.IsActive)
+            .Select(item => item.Code)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<ProviderSubmissionBinding?> FindAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sourceIdentity);
-        if (sourceIdentity.Channel != IntakeSourceChannel.ProviderApi)
-        {
-            return null;
-        }
-
-        // A member's token is the submission id, suffixed by ordinal past the
-        // first (GroupedIntakeMemberToken); the parent candidates name the row.
-        var ids = GroupedIntakeMemberToken.ParentTokenCandidates(sourceIdentity.ExternalReceiptToken)
-            .Select(candidate => Guid.TryParseExact(candidate, "N", out var id) ? id : (Guid?)null)
-            .OfType<Guid>()
-            .ToArray();
-        if (ids.Length == 0)
+        if (sourceIdentity.Channel != IntakeSourceChannel.ProviderApi
+            || !Guid.TryParseExact(sourceIdentity.ExternalReceiptToken, "N", out var id))
         {
             return null;
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.ProviderSubmissions
+        var row = await context.ProviderSubmissions
             .AsNoTracking()
-            .Where(item => ids.Contains(item.Id))
-            .Select(item => item.Principal.Code)
+            .Where(item => item.Id == id)
+            .Select(item => new
+            {
+                item.Id,
+                item.PrincipalId,
+                PrincipalCode = item.Principal.Code,
+                item.DeclaredInstructionJson
+            })
             .SingleOrDefaultAsync(cancellationToken);
+        if (row is null)
+        {
+            return null;
+        }
+
+        var instruction = ProviderInstructionJson.Deserialize(row.DeclaredInstructionJson)
+            ?? throw new InvalidDataException(
+                $"The retained provider submission '{row.Id:D}' has no readable declaration.");
+        return new(row.Id, row.PrincipalId, row.PrincipalCode, instruction);
     }
 
     private static ProviderSubmissionRecord ToRecord(ProviderSubmissionEntity entity) => new(
@@ -97,5 +136,7 @@ internal sealed class EfProviderSubmissionStore(
         entity.KeyId,
         entity.IdempotencyKey,
         entity.ProviderReference,
-        entity.ReceivedAtUtc);
+        entity.ReceivedAtUtc,
+        ProviderInstructionJson.Deserialize(entity.DeclaredInstructionJson),
+        entity.StagedReceiptId);
 }

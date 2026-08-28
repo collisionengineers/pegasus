@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,7 +37,9 @@ public sealed class ProviderApiSubmissionTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.PostAsync(Submissions, new MultipartFormDataContent());
+        using var response = await client.PostAsync(
+            Submissions,
+            new StringContent("{}", Encoding.UTF8, "application/json"));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -101,7 +104,8 @@ public sealed class ProviderApiSubmissionTests
             "QDOS instruction\r\nClaimant Name: Provider Claimant\r\nClaim Number: PROV-001\r\nVehicle Registration: AB12 CDE",
             senderAddress: "intermediary@example.test");
 
-        using var created = await SubmitAsync(client, secret, "order-1", [("instruction.eml", email.MediaType, email.Content)], "PROV-001");
+        using var created = await SubmitAsync(
+            client, secret, "order-1", [("instruction.eml", email.MediaType, email.Content)], "PROV-001");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var receipt = await ReadJsonAsync(created);
         var submissionId = receipt.GetProperty("submissionId").GetGuid();
@@ -120,7 +124,9 @@ public sealed class ProviderApiSubmissionTests
             Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
         }
 
-        using (var replay = await SubmitAsync(client, secret, "order-1", [("instruction.eml", email.MediaType, email.Content)]))
+        // The same key with the same body: a replay, not a new submission.
+        using (var replay = await SubmitAsync(
+                   client, secret, "order-1", [("instruction.eml", email.MediaType, email.Content)], "PROV-001"))
         {
             Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
             var replayed = await ReadJsonAsync(replay);
@@ -128,7 +134,9 @@ public sealed class ProviderApiSubmissionTests
             Assert.True(replayed.GetProperty("replayed").GetBoolean());
         }
 
-        using (var conflict = await SubmitAsync(client, secret, "order-1", [("other.eml", email.MediaType, [1, 2, 3])]))
+        // The same key with a different body: refused, and nothing new retained.
+        using (var conflict = await SubmitAsync(
+                   client, secret, "order-1", [("other.eml", email.MediaType, [1, 2, 3])], "PROV-001"))
         {
             Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
         }
@@ -142,9 +150,10 @@ public sealed class ProviderApiSubmissionTests
             Assert.Equal("Complete", result.GetProperty("status").GetString());
             var caseReference = result.GetProperty("caseReference").GetString();
             Assert.False(string.IsNullOrWhiteSpace(caseReference));
-            var processed = Assert.Single(result.GetProperty("files").EnumerateArray());
-            Assert.Equal("CaseCreated", processed.GetProperty("decision").GetString());
-            Assert.Equal(caseReference, processed.GetProperty("caseReference").GetString());
+            Assert.Equal("CaseCreated", result.GetProperty("decision").GetString());
+            // The declared claimant and registration reached the case, and the
+            // reference belongs to the Principal the credential authenticated.
+            Assert.StartsWith(QdosPrincipal.Code, caseReference, StringComparison.Ordinal);
         }
 
         await using var scope = api.Services.CreateAsyncScope();
@@ -165,6 +174,10 @@ public sealed class ProviderApiSubmissionTests
         var staged = await context.IntakeStagedReceipts.AsNoTracking().SingleAsync();
         Assert.Equal("provider_api", staged.SourceChannel);
         Assert.Equal($"provider:{principalId:D}", staged.Actor);
+        // One submission, one receipt: the request as sent, carrying its files
+        // as attachments rather than scattering them across receipts.
+        Assert.Equal(ProviderInstructionPolicy.SourceFileName, staged.SourceFileName);
+        Assert.Equal(submissionId.ToString("N"), staged.ExternalReceiptToken);
     }
 
     [Fact]
@@ -228,6 +241,97 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
     }
 
+    [Fact]
+    public async Task ADeclaredAuditTakesItsReferencePrefixFromTheDeclaredVerdict()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var created = await SubmitAsync(
+            client,
+            secret,
+            "audit-1",
+            [
+                ("instruction.pdf", "application/pdf", "instruction"u8.ToArray()),
+                ("original-report.pdf", "application/pdf", "report"u8.ToArray())
+            ],
+            caseType: "audit",
+            originalReportVerdict: "total-loss",
+            fileRole: "originalreport");
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
+
+        await DrainAsync(api, submissionId);
+
+        using var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret);
+        var result = await ReadJsonAsync(complete);
+        var caseReference = result.GetProperty("caseReference").GetString();
+        // The operator ruled on 2026-08-28 that the declared verdict decides the
+        // reference; `total loss` derives the ap. prefix (FRD-01).
+        Assert.StartsWith("ap.", caseReference, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADeclaredTriageOpensATriageAndAllocatesNoCase()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var created = await SubmitAsync(
+            client, secret, "triage-1",
+            [("request.pdf", "application/pdf", "triage"u8.ToArray())],
+            caseType: "triage");
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
+
+        await DrainAsync(api, submissionId);
+
+        using var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret);
+        var result = await ReadJsonAsync(complete);
+        // Triage is pre-case work: it opens a Triage record and allocates no
+        // Case/PO (FRD-03).
+        Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Triage"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases"));
+    }
+
+    [Fact]
+    public async Task ABodyNamingAnotherPrincipalIs403AndAMalformedFieldIs400()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using (var mismatch = await SubmitAsync(
+                   client, secret, "mismatch-1",
+                   [("note.pdf", "application/pdf", "x"u8.ToArray())],
+                   principal: "SOMEONE-ELSE"))
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, mismatch.StatusCode);
+        }
+
+        using (var badType = await SubmitAsync(
+                   client, secret, "bad-1",
+                   [("note.pdf", "application/pdf", "x"u8.ToArray())],
+                   caseType: "not-a-case-type"))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, badType.StatusCode);
+        }
+
+        // Nothing was retained by either refusal.
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'provider_principal_mismatch' AND Outcome = N'Denied'
+            """));
+    }
+
     private static HttpClient CreateClient(WebApplicationFactory<Program> api) =>
         api.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -240,21 +344,39 @@ public sealed class ProviderApiSubmissionTests
         string secret,
         string? idempotencyKey,
         IReadOnlyList<(string Name, string MediaType, byte[] Bytes)> files,
-        string? providerReference = null)
+        string claimNumber = "12345/1",
+        string caseType = "inspection",
+        string? principal = null,
+        string? originalReportVerdict = null,
+        string? fileRole = null)
     {
-        var multipart = new MultipartFormDataContent();
-        if (providerReference is not null)
+        var body = new Dictionary<string, object?>
         {
-            multipart.Add(new StringContent(providerReference), "providerReference");
-        }
-        foreach (var (name, mediaType, bytes) in files)
-        {
-            var content = new ByteArrayContent(bytes);
-            content.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
-            multipart.Add(content, "files", name);
-        }
+            ["principal"] = principal,
+            ["claimNumber"] = claimNumber,
+            ["caseType"] = caseType,
+            ["originalReportVerdict"] = originalReportVerdict,
+            ["claimant"] = new Dictionary<string, object?> { ["name"] = "Alex Mercer" },
+            ["vehicle"] = new Dictionary<string, object?> { ["registration"] = "AB12CDE" },
+            ["files"] = files
+                .Select((file, index) => new Dictionary<string, object?>
+                {
+                    ["ordinal"] = index,
+                    ["fileName"] = file.Name,
+                    ["mediaType"] = file.MediaType,
+                    ["role"] = index == 0 ? null : fileRole,
+                    ["contentBase64"] = Convert.ToBase64String(file.Bytes)
+                })
+                .ToArray()
+        };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, Submissions) { Content = multipart };
+        using var request = new HttpRequestMessage(HttpMethod.Post, Submissions)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(body),
+                Encoding.UTF8,
+                "application/json")
+        };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
         if (idempotencyKey is not null)
         {
@@ -328,20 +450,18 @@ public sealed class ProviderApiSubmissionTests
     }
 
     /// <summary>
-    /// Drains every member of the submission's intake group, standing in for
-    /// the Worker timer and queue trigger.
+    /// Drains the submission's one staged receipt, standing in for the Worker
+    /// timer and queue trigger. One submission is one receipt: its files are
+    /// that receipt's attachments, not receipts of their own.
     /// </summary>
     private static async Task DrainAsync(WebApplicationFactory<Program> api, Guid submissionId)
     {
         await using var scope = api.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>().FindAsync(
-            IntakeSourceChannel.ProviderApi,
-            ProviderSubmissionPolicy.SubmissionToken(submissionId))
-            ?? throw new InvalidOperationException("The submission group was not persisted.");
-        foreach (var member in group.Members.OrderBy(member => member.Ordinal))
-        {
-            _ = await IntakeWebDriver.DrainStagedAsync(services, member.StagedReceiptId);
-        }
+        var staged = await services.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
+            new(IntakeSourceChannel.ProviderApi, ProviderSubmissionPolicy.SubmissionToken(submissionId)),
+            CancellationToken.None)
+            ?? throw new InvalidOperationException("The submission was not retained as a staged receipt.");
+        _ = await IntakeWebDriver.DrainStagedAsync(services, staged.Id);
     }
 }

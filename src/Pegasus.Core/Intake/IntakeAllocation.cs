@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Cases;
@@ -207,7 +207,8 @@ public sealed class AllocateIntake(
     IAcceptIntake acceptIntake,
     TimeProvider timeProvider,
     IStandaloneAuditEvidenceQueries? standaloneAuditEvidenceQueries = null,
-    IProviderSubmissionBindings? providerSubmissionBindings = null) : IAllocateIntake
+    IProviderSubmissionBindings? providerSubmissionBindings = null,
+    IAddCaseNote? caseNotes = null) : IAllocateIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
@@ -246,8 +247,16 @@ public sealed class AllocateIntake(
             return null;
         }
 
-        var caseType = receipt.MailClassificationDecision?.CaseType;
-        var principalCode = await EstablishedPrincipalCodeAsync(receipt, cancellationToken)
+        var binding = receipt.SourceIdentity.Channel == IntakeSourceChannel.ProviderApi
+                && providerSubmissionBindings is not null
+            ? await providerSubmissionBindings.FindAsync(receipt.SourceIdentity, cancellationToken)
+            : null;
+        // A declared instruction states its own type; an e-mail has it read by
+        // the accepted route classification. Both arrive here as one CaseType.
+        var caseType = binding is null
+            ? receipt.MailClassificationDecision?.CaseType
+            : ProviderInstructionKinds.ToCaseType(binding.Instruction.Kind);
+        var principalCode = EstablishedPrincipalCode(receipt, binding)
             ?? throw new InvalidOperationException(
                 "Automatic allocation requires an accepted principal route or a provider submission binding.");
         if (!string.Equals(
@@ -272,7 +281,7 @@ public sealed class AllocateIntake(
             StandaloneAuditEvidenceId: standaloneAuditEvidenceId,
             receipt.InstructionDraft?.InspectionDate);
         var actor = ActionActor.SystemWorker(SystemActor);
-        return await ExecuteAsync(
+        var result = await ExecuteAsync(
             IntakeAllocationAttemptKind.Automatic,
             command,
             actor,
@@ -280,6 +289,12 @@ public sealed class AllocateIntake(
             "Created automatically from a definitive authorised instruction.",
             expectedCurrentAttemptId: null,
             cancellationToken);
+        if (binding is not null)
+        {
+            await WriteProviderNoteAsync(binding, receipt, result, cancellationToken);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -288,9 +303,9 @@ public sealed class AllocateIntake(
     /// retained submission bound it to — the same binding ProcessIntake
     /// established the instruction under (API-01).
     /// </summary>
-    private async Task<string?> EstablishedPrincipalCodeAsync(
+    private static string? EstablishedPrincipalCode(
         IntakeReceipt receipt,
-        CancellationToken cancellationToken)
+        ProviderSubmissionBinding? binding)
     {
         if (receipt.MailRouteDecision is
             {
@@ -301,16 +316,36 @@ public sealed class AllocateIntake(
             return selectedRoute.WorkProviderCode.Trim().ToUpperInvariant();
         }
 
-        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.ProviderApi
-            || providerSubmissionBindings is null)
+        return binding?.PrincipalCode.Trim().ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// The note the provider sent with its instruction, written onto the case it
+    /// created. It is the instructing party's own words about this job, so it
+    /// goes where a person's words go — the case timeline — attributed to the
+    /// Principal that wrote it, and never merged into an evidence field.
+    /// </summary>
+    private async Task WriteProviderNoteAsync(
+        ProviderSubmissionBinding binding,
+        IntakeReceipt receipt,
+        IntakeAllocationResult result,
+        CancellationToken cancellationToken)
+    {
+        if (caseNotes is null
+            || result.State.Status != IntakeAllocationProjectionStatus.Succeeded
+            || result.State.CaseId is not { } caseId
+            || string.IsNullOrWhiteSpace(binding.Instruction.Notes))
         {
-            return null;
+            return;
         }
 
-        var bound = await providerSubmissionBindings.FindPrincipalCodeAsync(
-            receipt.SourceIdentity,
+        await caseNotes.ExecuteAsync(
+            new(
+                caseId,
+                ActionActor.Provider(binding.PrincipalId),
+                $"provider-note:{receipt.Id:N}",
+                binding.Instruction.Notes),
             cancellationToken);
-        return bound?.Trim().ToUpperInvariant();
     }
 
     public Task<IntakeAllocationResult> AttemptStaffCreateAsync(

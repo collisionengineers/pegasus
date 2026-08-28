@@ -61,51 +61,83 @@ operator acceptance exist.
 
 > Owner capability: API-01 (with API-04 credentials). Operator decision
 > 2026-08-28 (EPIC-011 D8): the Principal's Pegasus API key is the Provider
-> API credential, delivered with the submission endpoint. Live activation for
-> a named provider still requires exact-target approval before any credential
-> is issued.
+> API credential, delivered with the submission endpoint. The same day, the
+> operator replaced the document-only request shape with the declared
+> instruction below. Live activation for a named provider still requires
+> exact-target approval before any credential is issued.
 
 The surface is a versioned machine surface, composed only where the
 `Features:ProviderApi` gate is on and otherwise absent (404). It accepts no
 cookie and no staff identity; a Principal credential is accepted nowhere
 else.
 
+**The provider states its instruction; Pegasus does not read it back out of a
+document.** The first drafted contract took files only and relied on the
+Principal's extraction policy to recover the business values. That policy
+recognises QDOS, which arrives by e-mail, so the route could not create a case
+for the providers it exists for and had no caller. A provider integrating over
+HTTP already holds the fields, and states them.
+
 - **Credential.** `Authorization: Bearer pgs_<key id>_<secret>` — the secret
   API-04 issued once. Unknown key, wrong secret, revoked credential, or
   inactive Principal is refused as 401 with a recorded security event that
   names the key id when one was well-formed and never the secret. Requests
   are rate-limited per key id.
-- **Submit.** `POST /api/provider/v1/submissions` as `multipart/form-data`:
-  one or more `files` parts in instruction order (the first is the
-  instruction; later parts are its attachments or images), an optional
-  `providerReference` field (at most 200 characters), and a required
-  `Idempotency-Key` header (at most 200 characters, unique per Principal).
-  The envelope bound is the staff Upload bound: at most 20 files, each at
-  most 10 MiB; a larger envelope is 413. The files enter the same grouped
-  durable intake path as a staff upload, on the `provider_api` source
-  channel, bound to the authenticated Principal — the content and any
-  sender inside it never select a route or a different Principal — and
-  attributed to the Provider actor (that Principal) in action history.
+- **Submit.** `POST /api/provider/v1/submissions` as `application/json`, with a
+  required `Idempotency-Key` header (at most 200 characters, unique per
+  Principal). The body declares the instruction and carries its files inline as
+  base64.
+- **Principal.** The credential establishes it. A `principal` in the body is
+  compared with it and a mismatch is refused (403, recorded); the field exists
+  to catch a provider posting to the wrong account and never to select one.
+- **Case type.** One of `inspection`, `audit`, `auditreport` or `triage`,
+  mapping to `Inspection`, `Audit` and `InspectionAndAudit`; `triage` allocates
+  no Case/PO and opens a Triage instead (see FRD-03).
+- **Audit.** A standalone `audit` states `originalReportVerdict`
+  (`repairable` or `total-loss`) and attaches the original report with its role
+  stated. The declared verdict derives the `a.`/`ap.` reference (see
+  [FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+  `auditreport` is Collision Engineers auditing its own report and carries
+  neither.
+- **Files.** One or more, each with a leaf `fileName`, a `mediaType` the intake
+  reader supports, and base64 `contentBase64`. An optional `role`
+  (`instruction`, `originalreport`, `image`, `correspondence`, `other`) says
+  what the file is; absent, nothing is inferred and the file is retained as an
+  ordinary attachment. At most 20 files, each at most 10 MiB, at most 30 MiB
+  decoded in total and 42 MiB of request body; a larger envelope is 413.
+- **Retention.** One submission is one intake receipt. The retained source is
+  the request exactly as it arrived, and the submitted files are that receipt's
+  attachments — the shape an e-mail instruction already has, which is what lets
+  an Audit find its original report among its own evidence. The receipt enters
+  the same durable intake path as a staff upload, on the `provider_api` source
+  channel, bound to the authenticated Principal, and the submission is the
+  attributable action actor in permanent history.
+- **Provenance.** Every declared value is written to the case as its own
+  provenance — provider API, distinct from extraction and from staff entry —
+  and is visible as such on the case.
 - **Receipt.** 201 with `submissionId`, `receivedAtUtc`, `providerReference`,
   `replayed: false` and the accepted files (ordinal, file name, SHA-256,
-  duplicate flag) the moment the envelope is durably received, before any
-  processing. A replay of the same key with identical files is 200 with the
-  same receipt and `replayed: true`; the same key with different files or a
-  different file count is 409 and retains nothing new.
-- **Pause.** A paused credential is refused for submission (403, recorded)
-  and still reads its own receipts and results; a revoked one is refused
+  duplicate flag) the moment the submission is durably received, before any
+  processing. A replay of the same key with the same body is 200 with the same
+  receipt and `replayed: true`; the same key with a different body is 409 and
+  retains nothing new.
+- **Validation.** A malformed or out-of-bounds field is 400 naming the field
+  that failed. The identity-critical fields — claimant name, claim number and
+  vehicle registration — are the only ones that withhold a reference; ordinary
+  detail missing from a declaration leaves the case `Not ready`, exactly as it
+  does for an e-mail.
+- **Pause.** A paused credential is refused for submission (403, recorded) and
+  still reads its own receipts and results; a revoked one is refused
   everywhere.
-- **Result.** `GET /api/provider/v1/submissions/{id}` returns the
-  submission's `status` (`Received`, `Processing`, `Complete`, `Failed` — the
-  intake work vocabulary, not a provider-only one), the `caseReference` once
-  processing allocated a Case/PO, and per file the intake `decision`,
-  `allocationFailure`, `failureCode` and `caseReference`. A submission that
-  does not exist or belongs to another Principal is 404 — the two are
-  indistinguishable.
-- **Fail closed.** A Principal without an instruction extraction policy, or
-  a source with no retained submission binding, is retained for sorting
-  rather than allocated. Custody failure is 503 and the caller retries with
-  the same key.
+- **Result.** `GET /api/provider/v1/submissions/{id}` returns the submission's
+  `status` (`Received`, `Processing`, `Complete`, `Failed` — the intake work
+  vocabulary, not a provider-only one), the intake `decision`,
+  `allocationFailure` and `failureCode`, and the `caseReference` once
+  processing allocated a Case/PO. A submission that does not exist or belongs
+  to another Principal is 404 — the two are indistinguishable.
+- **Fail closed.** A source with no retained submission binding is retained for
+  sorting rather than allocated. Custody failure is 503 and the caller retries
+  with the same key.
 
 ### Accepted QDOS automatic case-association predicates
 

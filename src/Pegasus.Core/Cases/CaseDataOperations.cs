@@ -141,6 +141,8 @@ public static class CaseDataPolicy
         var normalized = data with
         {
             ClaimantName = Text(data.ClaimantName, 300, nameof(data.ClaimantName)),
+            ClaimantContactNumber = Text(data.ClaimantContactNumber, 100, nameof(data.ClaimantContactNumber)),
+            ClaimantAddress = Paragraphs(data.ClaimantAddress, 1000, nameof(data.ClaimantAddress)),
             ClaimNumber = Text(data.ClaimNumber, 100, nameof(data.ClaimNumber)),
             VehicleRegistration = Registration(data.VehicleRegistration),
             VehicleMake = Text(data.VehicleMake, 100, nameof(data.VehicleMake)),

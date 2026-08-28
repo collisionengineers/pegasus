@@ -344,6 +344,8 @@ public sealed class EfCaseDataStore(
         DateTimeOffset now)
     {
         SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimantName, CaseDataCodes.Text, data.ClaimantName, actor, now);
+        SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimantContactNumber, CaseDataCodes.Text, data.ClaimantContactNumber, actor, now);
+        SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimantAddress, CaseDataCodes.Text, data.ClaimantAddress, actor, now);
         SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimNumber, CaseDataCodes.Text, data.ClaimNumber, actor, now);
         SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, data.VehicleRegistration, actor, now);
         SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleMake, CaseDataCodes.Text, data.VehicleMake, actor, now);
@@ -441,7 +443,9 @@ public sealed class EfCaseDataStore(
         ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDate),
         ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
         ConfirmedText(snapshot, CaseDataFieldNames.InspectionAddress),
-        ConfirmedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode));
+        ConfirmedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantContactNumber),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantAddress));
 
     private static string? ConfirmedText(CaseDataSnapshotEntity snapshot, string name) =>
         Confirmed(snapshot, name)?.Value;
@@ -611,7 +615,10 @@ public sealed class EfCaseDataStore(
                 snapshot.CompletenessPolicyKey,
                 snapshot.CompletenessPolicyVersion)),
         new(TextField(snapshot, CaseDataFieldNames.WorkProviderCode)),
-        new(TextField(snapshot, CaseDataFieldNames.ClaimantName)),
+        new(
+            TextField(snapshot, CaseDataFieldNames.ClaimantName),
+            TextField(snapshot, CaseDataFieldNames.ClaimantContactNumber),
+            TextField(snapshot, CaseDataFieldNames.ClaimantAddress)),
         new(TextField(snapshot, CaseDataFieldNames.ClaimNumber)),
         new(
             TextField(snapshot, CaseDataFieldNames.VehicleRegistration),
@@ -805,6 +812,7 @@ public sealed class EfCaseDataStore(
         CaseDataCodes.StaffCorrection => CaseDataSourceKind.StaffCorrection,
         CaseDataCodes.VehicleLookup => CaseDataSourceKind.VehicleLookup,
         CaseDataCodes.ProviderSetting => CaseDataSourceKind.ProviderSetting,
+        CaseDataCodes.ProviderApi => CaseDataSourceKind.ProviderApi,
         _ => throw new InvalidDataException(
             $"Unknown persisted case-data source kind '{value}'.")
     };

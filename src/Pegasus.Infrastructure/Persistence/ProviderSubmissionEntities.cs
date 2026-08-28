@@ -1,10 +1,11 @@
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// One Provider API submission (API-01, TICK-058): the idempotency record
-/// for a Principal's key and the Principal binding processing reads for the
-/// intake submission group whose token is <see cref="Id"/> in "N" form. The
-/// files themselves are ordinary staged receipts on the provider_api channel.
+/// One Provider API submission (API-01): the idempotency record for a
+/// Principal's key, the Principal binding processing reads, and the instruction
+/// that Principal declared. Its intake receipt carries the token
+/// <see cref="Id"/> in "N" form, and the submitted files are that receipt's
+/// attachments.
 /// </summary>
 internal sealed class ProviderSubmissionEntity
 {
@@ -15,4 +16,18 @@ internal sealed class ProviderSubmissionEntity
     public required string IdempotencyKey { get; set; }
     public string? ProviderReference { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
+
+    /// <summary>
+    /// What the Principal declared, as submitted. Kept whole rather than spread
+    /// across columns because it is retained evidence of one request, not
+    /// queryable case data — the case's own fields are written from it at
+    /// allocation and are what anything else reads.
+    /// </summary>
+    public required string DeclaredInstructionJson { get; set; }
+
+    /// <summary>
+    /// The staged receipt the submission was retained as. Null only between the
+    /// row being written and the retention that immediately follows it.
+    /// </summary>
+    public Guid? StagedReceiptId { get; set; }
 }
