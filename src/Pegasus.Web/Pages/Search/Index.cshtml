@@ -1,200 +1,258 @@
 @page
 @model Pegasus.Web.Pages.Search.IndexModel
+@using System.Globalization
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
 @{
     ViewData["Title"] = "Search";
-    var hasAdvancedFilter =
-        !string.IsNullOrWhiteSpace(Model.Registration)
-        || !string.IsNullOrWhiteSpace(Model.Claimant)
-        || !string.IsNullOrWhiteSpace(Model.ClaimNumber)
-        || Model.EngineerId is not null
-        || Model.ReceivedDate is not null
-        || Model.InstructionDate is not null
-        || Model.FromDate is not null
-        || Model.ToDate is not null
-        || !string.IsNullOrWhiteSpace(Model.Origin)
-        || !string.IsNullOrWhiteSpace(Model.RecordKindFilter);
+
+    // Refreshing reruns the query with its filters, page and selected row,
+    // not page one of everything.
+    ViewData["RefreshFields"] = Model.RefreshFields();
+
+    var results = Model.Results;
+    var listingImages = Model.RecordKindFilter == "images";
 }
 
-@* No lede. It narrated browser mechanics - that filters stay in the URL -
-   as if it were guidance. The filter bar is one line, with everything that is
-   used rarely behind a disclosure. *@
-<header class="page-heading">
-    <h1>Search</h1>
+@* No lede: the grid names its inputs and the two panes name themselves. *@
+<header class="page-header">
+    <div class="page-title">
+        <h1>Search</h1>
+    </div>
+    <div class="page-actions">
+        <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
+        <a class="btn btn--primary" asp-page="/Cases/Create">
+            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+            <span>Create Case</span>
+        </a>
+    </div>
 </header>
 
-<section class="panel filterbar" aria-labelledby="case-filters-title">
-    <h2 id="case-filters-title" class="vh">Filter cases</h2>
-    <form method="get">
-        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
-        <div class="filterbar__line">
-            <label for="case-query" class="vh">Case/PO or keyword</label>
-            <input id="case-query" name="query" value="@Model.Query" maxlength="300"
-                   placeholder="Case/PO, registration, claimant or claim number" />
-
-            <label for="case-state" class="vh">Case stage</label>
-            <select id="case-state" name="state">
-                <option value="">Any stage</option>
+@* The advanced grid: every UI-07 input in one panel. Search is the form's
+   one submit; Clear is the page itself. The State select is the lifecycle
+   enum through the one display mapping (D3), so a terminal outcome is a
+   choice here and a result here — the work views exclude those cases, this
+   page is where they stay findable. *@
+<form method="get" class="panel section-gap">
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <div class="panel-body advanced-search-grid">
+        <div class="field">
+            <label for="search-query">Case/PO or image reference</label>
+            <input id="search-query" name="query" value="@Model.Query" maxlength="300" />
+        </div>
+        <div class="field">
+            <label for="search-registration">Registration</label>
+            <input id="search-registration" name="registration" value="@Model.Registration" maxlength="20" />
+        </div>
+        <div class="field">
+            <label for="search-claimant">Claimant</label>
+            <input id="search-claimant" name="claimant" value="@Model.Claimant" maxlength="300" />
+        </div>
+        <div class="field">
+            <label for="search-claim-number">Claim/provider reference</label>
+            <input id="search-claim-number" name="claimNumber" value="@Model.ClaimNumber" maxlength="100" />
+        </div>
+        <div class="field">
+            <label for="search-principal">Principal</label>
+            <input id="search-principal" name="principal" value="@Model.Principal" maxlength="20" />
+        </div>
+        <div class="field">
+            <label for="search-state">State</label>
+            <select id="search-state" name="state">
+                <option value="">All states</option>
                 @foreach (var state in Enum.GetValues<CaseLifecycleState>())
                 {
                     <option value="@state" selected="@(Model.State == state)">@OperatorLabels.CaseStage(state)</option>
                 }
             </select>
-
-            <label for="case-principal" class="vh">Principal</label>
-            <input id="case-principal" name="principal" value="@Model.Principal" maxlength="20" placeholder="Principal" />
-
+        </div>
+        <div class="field">
+            <label for="search-engineer">Engineer</label>
+            <input id="search-engineer" name="engineerId" value="@Model.EngineerId?.ToString("D")" />
+            <span asp-validation-for="EngineerId" class="field-validation-error"></span>
+        </div>
+        <div class="field">
+            <label for="search-from-date">Received from</label>
+            <input id="search-from-date" name="fromDate" type="date"
+                   value="@Model.FromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+            <span asp-validation-for="FromDate" class="field-validation-error"></span>
+        </div>
+        <div class="field">
+            <label for="search-to-date">Received to</label>
+            <input id="search-to-date" name="toDate" type="date"
+                   value="@Model.ToDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+            <span asp-validation-for="ToDate" class="field-validation-error"></span>
+        </div>
+        <div class="field">
+            <label for="search-origin">Origin</label>
+            <input id="search-origin" name="origin" value="@Model.Origin" maxlength="100" />
+        </div>
+        <div class="button-row">
             <button type="submit" class="btn btn--dark">
                 <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                Search
+                <span>Search</span>
             </button>
-            <a asp-page="/Search/Index" class="btn">Clear</a>
+            <a asp-page="/Search/Index" class="btn">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span>Clear</span>
+            </a>
         </div>
-
-        <details class="filterbar__more" open="@(hasAdvancedFilter ? "open" : null)">
-            <summary>More filters</summary>
-            <div class="form-grid">
-                <div>
-                    <label asp-for="CaseReference">Case/PO</label>
-                    <input id="case-reference" name="case" value="@Model.CaseReference" maxlength="100" />
-                </div>
-                <div>
-                    <label asp-for="Registration">Registration</label>
-                    <input asp-for="Registration" maxlength="20" />
-                </div>
-                <div>
-                    <label asp-for="Claimant">Claimant</label>
-                    <input asp-for="Claimant" maxlength="300" />
-                </div>
-                <div>
-                    <label asp-for="ClaimNumber">Claim number</label>
-                    <input asp-for="ClaimNumber" maxlength="100" />
-                </div>
-                <div>
-                    <label asp-for="EngineerId">Engineer</label>
-                    <input asp-for="EngineerId" type="text" />
-                    <span asp-validation-for="EngineerId" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="ReceivedDate">Received on</label>
-                    <input asp-for="ReceivedDate" type="date" />
-                    <span asp-validation-for="ReceivedDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="InstructionDate">Instructed on</label>
-                    <input asp-for="InstructionDate" type="date" />
-                    <span asp-validation-for="InstructionDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="FromDate">Received from</label>
-                    <input asp-for="FromDate" type="date" />
-                    <span asp-validation-for="FromDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="ToDate">Received to</label>
-                    <input asp-for="ToDate" type="date" />
-                    <span asp-validation-for="ToDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="Origin">Origin</label>
-                    <input asp-for="Origin" maxlength="100" />
-                </div>
-                <div>
-                    <label for="record-kind">Record type</label>
-                    <select id="record-kind" name="kind">
-                        <option value="" selected="@(string.IsNullOrEmpty(Model.RecordKindFilter))">All</option>
-                        <option value="instructions" selected="@(Model.RecordKindFilter == "instructions")">Cases</option>
-                        <option value="images" selected="@(Model.RecordKindFilter == "images")">Vehicle images</option>
-                    </select>
-                </div>
-            </div>
-        </details>
-    </form>
-</section>
-@if (Model.QueryFailed)
-{
-    <section class="status-card status-card--error" role="alert">
-        <h2>Cases are unavailable</h2>
-        <p>The case query could not be completed; try again.</p>
-    </section>
-}
-else if (Model.Results is { Items.Count: 0 } && Model.ImageIntakeResults.Count == 0)
-{
-    @* A zero result is a line of business language, not a headed panel
-       announcing itself. Both settled sentences are kept: each is separately
-       relied on to tell an empty result from the unavailable state above. *@
-    <p class="empty-state" aria-live="polite">No matching cases. No cases match these filters.</p>
-}
-else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count == 0)
-{
-    <p class="empty-state" aria-live="polite">No vehicle images match these filters.</p>
-}
+    </div>
+</form>
 
 @if (Model.ImageIntakeResults.Count > 0)
 {
-    @* A queue list is already a panel; nesting it in another drew two boxes. *@
+    @* Image-initiated Cases answer the same reference or registration and
+       keep their own record shape and named states (FRD-12). *@
     <h2 class="section-label section-gap">Vehicle images</h2>
-    <div class="panel queue-list">
+    <div class="panel" data-row-list>
         @foreach (var item in Model.ImageIntakeResults)
         {
-            <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
-                <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                <span><strong>@Pegasus.Web.Pages.Search.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
+            <a class="row-button" asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
+                <span class="row-top">
+                    <span class="row-title">@IndexModel.Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration)</span>
+                    <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageIntakeLifecycleState(item.State)" />
+                </span>
+                @if (item.AssociatedCaseReference is { } caseReference)
+                {
+                    <span class="row-excerpt">Associated with @caseReference</span>
+                }
+                <span class="row-top">
+                    <span class="row-meta">Registered @OperatorLabels.OfficeTime(item.RegisteredAtUtc)</span>
+                </span>
             </a>
         }
     </div>
 }
-
-@if (Model.Results is { Items.Count: > 0 } results)
+else if (listingImages)
 {
-    @* The label names the table; the table's own border is the container. *@
-    <h2 class="section-label section-gap">Results</h2>
-    <div class="table-wrap">
-        <table>
-            <caption class="vh">Case search results</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Case/PO</th>
-                    <th scope="col">Registration</th>
-                    <th scope="col">Claimant</th>
-                    <th scope="col">Claim number</th>
-                    <th scope="col">Principal</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Engineer</th>
-                    <th scope="col">Received</th>
-                    <th scope="col">Instruction</th>
-                    <th scope="col">Origin</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var item in results.Items)
+    <p class="empty">No vehicle images match these filters.</p>
+}
+
+@if (!listingImages)
+{
+    <section class="pane-layout pane-layout--2 case-search-layout section-gap">
+        <div class="pane">
+            <div class="pane-head">
+                <div>
+                    <h2>Case results</h2>
+                    <span class="muted">@Model.Rows.Count result@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
+                </div>
+            </div>
+            <div class="pane-body pane-scroll" data-row-list>
+                @if (Model.QueryFailed)
                 {
-                    <tr>
-                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                        <td>@(item.Registration ?? "Not recorded")</td>
-                        <td>@(item.Claimant ?? "Not recorded")</td>
-                        <td>@(item.ClaimNumber ?? "Not recorded")</td>
-                        <td>@item.Principal</td>
-                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
-                        <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
-                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
-                        <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
-                        <td>@item.Origin</td>
-                    </tr>
+                    <div class="notice notice--danger" role="alert">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <div>
+                            <strong>Cases are unavailable</strong>
+                            <p>The case query could not be completed; try again.</p>
+                        </div>
+                    </div>
                 }
-            </tbody>
-        </table>
-    </div>
-    <nav class="pager" aria-label="Case result pages">
-        @if (results.HasPreviousPage)
-        {
-            <a href="@Model.PageUrl(results.Page - 1)">Previous</a>
-        }
-        <span class="pager__context">Page @results.Page · showing @results.Items.Count</span>
-        @if (results.HasNextPage)
-        {
-            <a href="@Model.PageUrl(results.Page + 1)">Next</a>
-        }
-    </nav>
+                else if (ViewData.ModelState.IsValid && Model.Rows.Count == 0 && Model.ImageIntakeResults.Count == 0)
+                {
+                    @* Both settled sentences are kept: each is separately
+                       relied on to tell an empty result from the unavailable
+                       state above — and neither runs when invalid input kept
+                       the query from executing at all. *@
+                    <p class="empty" aria-live="polite">No matching cases. No cases match these filters.</p>
+                }
+                else if (Model.Rows.Count > 0)
+                {
+                    @* A row previews itself beside the table through its own
+                       template, and carries its Case's link for the no-script
+                       path; the selected row is the one the pane reads,
+                       marked as the table's current row. *@
+                    <div class="table-wrap">
+                        <table>
+                            <caption class="sr-only">Case search results</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Case/PO</th>
+                                    <th scope="col">Vehicle</th>
+                                    <th scope="col">Claimant</th>
+                                    <th scope="col">Principal</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">State</th>
+                                    <th scope="col">Due</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.Rows)
+                                {
+                                    <tr data-select-href="@row.SelectHref" data-select-id="@row.Item.CaseId"
+                                        aria-selected="@(Model.SelectedId == row.Item.CaseId ? "true" : "false")">
+                                        <td>
+                                            <a class="table-row-link" href="@row.DetailHref">@row.Item.Reference</a>
+                                            @if (row.Item.ClaimNumber is { } providerReference)
+                                            {
+                                                <span class="secondary">@providerReference</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @(row.Item.Registration ?? "Not recorded")
+                                            @if (row.Vehicle.Length > 0)
+                                            {
+                                                <span class="secondary">@row.Vehicle</span>
+                                            }
+                                        </td>
+                                        <td>@(row.Item.Claimant ?? "Not recorded")</td>
+                                        <td>@row.Item.Principal</td>
+                                        <td>@OperatorLabels.CaseTypeName(row.Item.CaseType)</td>
+                                        <td><partial name="Shared/_StatusChip" model="@row.Chip" /></td>
+                                        <td>@row.Due</td>
+                                        <template>
+                                            <partial name="_CasePreview" model="row" />
+                                        </template>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            @if (results is { HasPreviousPage: true } or { HasNextPage: true })
+            {
+                <nav class="pagination" aria-label="Case result pages">
+                    @if (results.HasPreviousPage)
+                    {
+                        <a class="btn btn--small" href="@Model.Href(page: results.Page - 1)">Previous</a>
+                    }
+                    <span>Page @results.Page</span>
+                    @if (results.HasNextPage)
+                    {
+                        <a class="btn btn--small" href="@Model.Href(page: results.Page + 1)">Next</a>
+                    }
+                </nav>
+            }
+        </div>
+        <div class="pane">
+            <div class="pane-head">
+                <h2>Selected Case</h2>
+            </div>
+            <div class="pane-body pane-scroll">
+                <div data-preview-target>
+                    @if (Model.Selected is { } selected)
+                    {
+                        <partial name="_CasePreview" model="selected" />
+                    }
+                </div>
+                @if (Model.Selected is { } copySource)
+                {
+                    @* Copy Case/PO sits outside the swapped preview because
+                       the shell's copy control binds once at load; its value
+                       is the server-selected row's reference, selectable
+                       text without script. *@
+                    <div class="button-row">
+                        <span class="sr-only" id="search-copy-reference">@copySource.Item.Reference</span>
+                        <button type="button" class="btn btn--small" data-copy-target="search-copy-reference" hidden>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                            <span>Copy Case/PO</span>
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
 }
