@@ -34,7 +34,6 @@
     // that renders outside the filter.
     var renderedAt = ViewData["ShellRenderedAtUtc"] as DateTimeOffset? ?? DateTimeOffset.UtcNow;
     var clock = OperatorLabels.OfficeClock(renderedAt);
-    var freshness = $"{OperatorLabels.Freshness.Current} · {clock}";
 
     var userName = User.Identity?.Name ?? string.Empty;
     var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
@@ -114,7 +113,7 @@
             </nav>
             <div class="rail-spacer"></div>
             <div class="rail-health">
-                <div class="rail-health-line"><span class="health-dot"></span><span>@freshness</span></div>
+                <div class="rail-health-line"><span class="health-dot"></span><span>@OperatorLabels.Freshness.Current · @clock</span></div>
             </div>
             @if (User.Identity?.IsAuthenticated == true)
             {
@@ -129,7 +128,7 @@
         </header>
         <div class="app-column">
             <section class="utility-bar" aria-label="Utility bar">
-                <div class="utility-freshness"><span class="health-dot"></span><span>@freshness</span></div>
+                <div class="utility-freshness"><span class="health-dot"></span><span>@OperatorLabels.Freshness.Current · @clock</span></div>
                 <form class="utility-search" role="search" method="get" action="/Search">
                     <label class="sr-only" for="global-search">Search Pegasus</label>
                     <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
