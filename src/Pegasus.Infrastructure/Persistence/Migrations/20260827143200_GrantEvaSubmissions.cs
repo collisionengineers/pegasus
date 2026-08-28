@@ -30,12 +30,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         // Principals already carries SELECT for both roles from the
         // reconciliation baseline, so the two new toggle columns need no grant
         // of their own — SQL Server table permissions cover added columns.
-        private static readonly (string Role, string Table, string Permissions)[] Grants =
-        [
-            (WebRole, "EvaSubmissions", "SELECT, INSERT"),
-            (WorkerRole, "EvaSubmissions", "SELECT, INSERT")
-        ];
-
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -45,11 +39,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             }
 
             RequireRuntimeRoles(migrationBuilder);
-            foreach (var (role, table, permissions) in Grants)
-            {
-                migrationBuilder.Sql(
-                    $"GRANT {permissions} ON OBJECT::[dbo].[{table}] TO [{role}];");
-            }
+            migrationBuilder.Sql(
+                $"GRANT SELECT, INSERT ON OBJECT::[dbo].[EvaSubmissions] TO [{WebRole}];");
+            migrationBuilder.Sql(
+                $"GRANT SELECT, INSERT ON OBJECT::[dbo].[EvaSubmissions] TO [{WorkerRole}];");
         }
 
         /// <inheritdoc />
@@ -62,11 +55,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 return;
             }
 
-            foreach (var (role, table, permissions) in Grants)
-            {
-                migrationBuilder.Sql(
-                    $"REVOKE {permissions} ON OBJECT::[dbo].[{table}] FROM [{role}];");
-            }
+            migrationBuilder.Sql(
+                $"REVOKE SELECT, INSERT ON OBJECT::[dbo].[EvaSubmissions] FROM [{WebRole}];");
+            migrationBuilder.Sql(
+                $"REVOKE SELECT, INSERT ON OBJECT::[dbo].[EvaSubmissions] FROM [{WorkerRole}];");
         }
 
         private bool IsSqlServer() =>
