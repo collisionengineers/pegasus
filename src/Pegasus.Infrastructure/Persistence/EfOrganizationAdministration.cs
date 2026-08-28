@@ -690,7 +690,7 @@ public sealed class EfOrganizationAdministration(
             entity.Roles.Select(role => ParseRole(role.Role)).OrderBy(role => role).ToArray(),
             entity.Version);
 
-    private static Principal ToPrincipal(PrincipalEntity entity) =>
+    internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
             entity.Id,
             entity.OrganizationId,
@@ -831,8 +831,18 @@ public sealed class EfOrganizationAdministration(
                     JsonSerializer.Serialize(material, SerializerOptions))))
             .ToLowerInvariant();
 
-    private static async Task<T> ExecuteWithConcurrencyRetryAsync<T>(
+    private static Task<T> ExecuteWithConcurrencyRetryAsync<T>(
         Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken) =>
+        ExecuteWithConcurrencyRetryAsync(operation, IsRetryableConcurrencyFailure, cancellationToken);
+
+    /// <summary>
+    /// Three attempts, 25 ms × attempt apart, for the failures the caller
+    /// names as concurrency races; shared with the principal credential store.
+    /// </summary>
+    internal static async Task<T> ExecuteWithConcurrencyRetryAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        Func<Exception, bool> isRetryable,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= 3; attempt++)
@@ -843,7 +853,7 @@ public sealed class EfOrganizationAdministration(
             }
             catch (Exception exception) when (
                 attempt < 3
-                && IsRetryableConcurrencyFailure(exception))
+                && isRetryable(exception))
             {
                 await Task.Delay(
                     TimeSpan.FromMilliseconds(25 * attempt),

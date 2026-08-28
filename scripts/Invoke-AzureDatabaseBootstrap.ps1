@@ -360,6 +360,17 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
     }
+    # 20260828104139_GrantPrincipalApiCredentials: TICK-061 added one Provider
+    # API credential per Principal (API-04). Only Web touches it —
+    # Administrators issue, reset, pause, resume and revoke from the
+    # application and the Provider API verifies a presented secret in the
+    # same process; the Worker never authenticates a provider. A row is
+    # created once and then rotated or moved through its states in place, so
+    # Web holds SELECT, INSERT and UPDATE. A revoked credential stays as the
+    # record of what was revoked: no DELETE, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
