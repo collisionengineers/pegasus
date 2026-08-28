@@ -2,10 +2,17 @@
 id: TICK-077
 type: ticket
 title: EXT-04 — Direct EVA API integration
-status: backlog
+status: verifying
 area: engineering-assessment
-assignee: ''
+assignee: claude-code
 profile: feature
+stageEntered:
+  preparing: '2026-08-27T12:12:05.829Z'
+  review: '2026-08-27T16:11:29.517Z'
+  verifying: '2026-08-28T02:20:11.959Z'
+taken_at: '2026-08-27T12:14:41.724Z'
+branch: task/tick-077-eva-api-submission
+worktree: ../pegasus-worktrees/tick-077-eva-api-submission
 labels:
   - capability
   - EXT-04
@@ -14,12 +21,16 @@ labels:
 groups:
   - HZN-002
   - EPIC-009
-links: []
+links:
+  - ENG-019
+  - ENG-020
+  - ENG-021
+  - ENG-024
 refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.045Z'
-updated: '2026-08-25T06:46:33.221Z'
+updated: '2026-08-28T03:25:50.544Z'
 ---
 
 ## What

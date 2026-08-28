@@ -30,3 +30,14 @@ Re-save the mailbox in Administration › Mailboxes (Approved), then send a fres
 ## Simplification pass
 
 _(recorded before the PR)_
+
+### Simplification pass — 2026-08-27
+
+Diff: one raw-SQL migration (`Up` = single `UPDATE`, empty `Down`), its generated Designer, one migration-head test line, one `docs/operations.md` paragraph. Lenses applied over `git diff origin/dev`:
+
+- **Reuse** — uses the `migrationBuilder.Sql` pattern already in `20260826151807`; no helper added. No finding.
+- **Simplification** — `Down` left empty rather than nulling the column again: re-de-activating a mailbox is the defect being repaired, and the prior activation time is unrecoverable. Applied.
+- **Efficiency** — single set-based statement, predicate matches the seeded row only; runs once. No finding.
+- **Altitude** — the doc comment states why the migration exists, not how EF works; the `operations.md` note is one paragraph in the existing release-33 entry rather than a new section. Applied.
+
+No unapplied findings.
