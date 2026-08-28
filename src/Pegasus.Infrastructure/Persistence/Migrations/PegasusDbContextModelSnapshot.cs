@@ -2419,6 +2419,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("EditLeaseHolderKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("EditLeaseOperationKey")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");

@@ -144,7 +144,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             return;
         }
 
-        if (!string.Equals(activeLease.Holder, actor.SubjectId, StringComparison.Ordinal))
+        if (!CaseEditAuthority.IsHolder(activeLease.HolderKind, activeLease.Holder, actor))
         {
             ClearLeaseState();
             return;
