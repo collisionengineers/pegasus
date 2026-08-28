@@ -2,12 +2,15 @@
 id: UIIMP-006
 type: ticket
 title: Rewrite the design authority to the Integrated Operations Workspace
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-28T08:08:14.136Z'
+taken_at: '2026-08-28T08:12:15.816Z'
+branch: task/uiimp-006-design-authority
+worktree: ../pegasus-worktrees/uiimp-006-design-authority
 labels:
   - ui
   - design
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:05:30.031Z'
-updated: '2026-08-28T08:08:14.136Z'
+updated: '2026-08-28T08:12:15.816Z'
 ---
 
 ## What

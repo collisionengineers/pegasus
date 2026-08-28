@@ -2,12 +2,15 @@
 id: KANMER-006
 type: ticket
 title: Reconcile the current Kanmer setup drift
-status: preparing
+status: implementing
 area: kanmer-meta
-assignee: ''
+assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-28T08:08:09.750Z'
+taken_at: '2026-08-28T08:11:49.416Z'
+branch: task/kanmer-006-setup-drift
+worktree: ../pegasus-worktrees/kanmer-006-setup-drift
 labels:
   - kanmer
   - setup
@@ -19,7 +22,7 @@ links:
   - TICK-222
 archived: false
 created: '2026-08-25T06:35:41.710Z'
-updated: '2026-08-28T08:08:09.750Z'
+updated: '2026-08-28T08:11:49.416Z'
 ---
 
 ## What
