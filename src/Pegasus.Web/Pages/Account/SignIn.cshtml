@@ -5,35 +5,32 @@
     Layout = "Shared/_LayoutAuth";
 }
 
-<div class="auth-card">
-    <p class="auth-card__mark">COLLISION ENGINEERS</p>
-    @if (Model.SignedOut)
-    {
-        @* The one place green is earned on this family: a completed action.
-           Rendered as a one-time state rather than a bookmarkable page, so an
-           old bookmark can never assert something that did not just happen. *@
-        <h1 class="auth-card__done">
-            <svg class="icon icon--lg" aria-hidden="true"><use href="#icon-check-circle" /></svg>
-            <span>You are signed out</span>
-        </h1>
-    }
-    else
-    {
-        <h1>Sign in to Pegasus</h1>
-    }
-    <div asp-validation-summary="ModelOnly" class="validation-summary-errors" role="alert"></div>
-    <form method="post">
-        <input asp-for="ReturnUrl" type="hidden" />
-        <label asp-for="UserName">
-            Username
-            <input asp-for="UserName" autocomplete="username" autofocus />
-        </label>
-        <span asp-validation-for="UserName"></span>
-        <label asp-for="Password">
-            Password
-            <input asp-for="Password" autocomplete="current-password" />
-        </label>
-        <span asp-validation-for="Password"></span>
-        <button type="submit" class="primary-action">Sign in</button>
-    </form>
-</div>
+@if (Model.SignedOut)
+{
+    @* The one place green is earned on this family: a completed action.
+       Rendered as a one-time state rather than a bookmarkable page, so an
+       old bookmark can never assert something that did not just happen. *@
+    <h1 class="cluster success-text">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>You are signed out</span>
+    </h1>
+}
+else
+{
+    <h1>Sign in to Pegasus</h1>
+}
+<div asp-validation-summary="ModelOnly" class="validation-summary mt-1" role="alert"></div>
+<form method="post">
+    <input asp-for="ReturnUrl" type="hidden" />
+    <div class="field">
+        <label asp-for="UserName">Username</label>
+        <input asp-for="UserName" type="text" autocomplete="username" autofocus />
+        <span asp-validation-for="UserName" class="field-error"></span>
+    </div>
+    <div class="field">
+        <label asp-for="Password">Password</label>
+        <input asp-for="Password" type="password" autocomplete="current-password" />
+        <span asp-validation-for="Password" class="field-error"></span>
+    </div>
+    <button type="submit" class="btn btn--primary">Sign in</button>
+</form>
