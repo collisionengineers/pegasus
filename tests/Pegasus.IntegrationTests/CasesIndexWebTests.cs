@@ -21,7 +21,7 @@ public sealed class CasesIndexWebTests
         using var factory = Configure(baseFactory, search);
         using var client = CreateClient(factory);
         var engineerId = Guid.NewGuid();
-        var path = "/Cases?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
+        var path = "/Search?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
             + $"&principal=QDOS&state=Review&engineerId={engineerId:D}"
             + "&receivedDate=2031-05-01&instructionDate=2031-05-02"
             + "&fromDate=2031-04-01&toDate=2031-05-31&origin=Email&query=needle&page=2";
@@ -79,14 +79,14 @@ public sealed class CasesIndexWebTests
         using var factory = Configure(baseFactory, search);
         using var client = CreateClient(factory);
 
-        using var emptyResponse = await client.GetAsync("/Cases?principal=QDOS");
+        using var emptyResponse = await client.GetAsync("/Search?principal=QDOS");
         var emptyHtml = await emptyResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, emptyResponse.StatusCode);
         Assert.Contains("No matching cases", emptyHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("unauthorised", emptyHtml, StringComparison.OrdinalIgnoreCase);
 
         search.ThrowUnavailable = true;
-        using var failedResponse = await client.GetAsync("/Cases?principal=QDOS");
+        using var failedResponse = await client.GetAsync("/Search?principal=QDOS");
         var failedHtml = await failedResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.ServiceUnavailable, failedResponse.StatusCode);
         Assert.Contains("Cases are unavailable", failedHtml, StringComparison.Ordinal);
