@@ -1037,8 +1037,11 @@ public sealed partial class CaseDetailsWebTests
     {
         var start = html.IndexOf("class=\"record-bar\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The record bar is not rendered.");
-        var end = html.IndexOf("<nav", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The record bar is not closed before the side nav.");
+        // CASE-012 round 2: the workspace side nav is no longer a <nav>, so
+        // the record's own closing tag bounds the bar and everything under
+        // it (edit bar, workspace, context column).
+        var end = html.IndexOf("</article>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The record bar is not closed before the record ends.");
         return html[start..end];
     }
 
