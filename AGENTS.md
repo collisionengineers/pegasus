@@ -102,6 +102,13 @@ Identical on Windows and Linux (`pwsh` either way). Focused per-project forms
 and the two complementary integration-test filters are in
 [the runbook](docs/runbook.md#locked-restore-build-and-test).
 
+After changing a routed Razor page, regenerate the Test UI snapshots with
+`./scripts/Update-TestUiSnapshots.ps1`, then prove them with
+`./scripts/Update-TestUiSnapshots.ps1 -Verify` (a fresh capture; add
+`-SkipCapture` to reuse the last one) and `./scripts/Test-UiCatalogue.ps1`.
+Commit `docs/design/test-ui/` with the page change: CI runs the same verify
+in the build lane and the catalogue check on every change set.
+
 ## Architecture map
 
 - `src/Pegasus.Core` — business policy and ports; the one owner of business
