@@ -54,8 +54,6 @@
     var editing = !string.IsNullOrWhiteSpace(Model.LeaseToken) && !Model.CaseIsArchived;
     var canImport = Model.ImportCondition is null;
     var engineerValue = Model.EngineerValue;
-    var targetBase = engineerValue is null ? string.Empty
-        : engineerValue.Value.ToString("0.##", CultureInfo.InvariantCulture);
 }
 
 <header class="page-header">
@@ -191,6 +189,14 @@
                     </button>
                 </form>
             }
+        }
+        @if (!Model.CaseIsArchived && !Model.IsReadOnly && Model.ActorIsEngineer)
+        {
+            <a class="btn btn--dark" asp-page="/Cases/Assessment/Index" asp-route-id="@caseId"
+               asp-route-estimate="new">
+                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                <span>New estimate</span>
+            </a>
         }
         @if (canImport)
         {
@@ -334,131 +340,262 @@
                 </div>
             </aside>
 
-            @* Estimates pane: the case's current single estimate surfaces —
-               the accepted or draft repair specification with its lines and,
-               for a draft, the Engineer acceptance (ENG-002). Named
-               estimates, the tab strip and the per-estimate editor arrive
-               with ENG-026/ENG-028. *@
+            @* Estimates pane (ENG-026): one tab per named estimate, the
+               editor for the selected one, and totals from Core's single
+               owner. Only a Draft is editable; an accepted estimate is
+               duplicated, never changed, and Use estimate is the
+               Engineer's acceptance with its basis derived from the
+               estimate's own totals. *@
             <main class="pane assessment-v3-main" aria-label="Estimates">
                 <div class="pane-head"><h2>Estimates</h2></div>
                 <div class="pane-body pane-scroll">
                     <div class="detail-canvas">
                         <div class="assessment-estimates">
-                            @if (Model.AcceptedSpecification is { } acceptedSpec)
+                            @if (Model.Estimates.Count > 0 || Model.EditingNewEstimate)
                             {
-                                <section class="panel estimate-editor" aria-labelledby="estimate-current-title">
-                                    <div class="panel-head">
-                                        <div>
-                                            <h2 id="estimate-current-title">Repair specification</h2>
-                                            <span class="panel-title-meta">
-                                                Accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt
-                                                    ? $" {OperatorLabels.OfficeDate(acceptedAt)}"
-                                                    : "")
-                                                · @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route)
-                                            </span>
-                                        </div>
-                                        <partial name="Shared/_StatusChip" model="@("Current")" />
-                                    </div>
-                                    <div class="panel-body">
-                                        @if (acceptedSpec.CalculationBasis is { } basis)
-                                        {
-                                            <dl class="estimate-totals">
-                                                <div><dt>Labour</dt><dd class="tabular">&#163;@basis.Labour.ToString("N2")</dd></div>
-                                                <div><dt>Parts</dt><dd class="tabular">&#163;@basis.Parts.ToString("N2")</dd></div>
-                                                <div><dt>Paint materials</dt><dd class="tabular">&#163;@basis.PaintMaterials.ToString("N2")</dd></div>
-                                                <div><dt>Specialist and other</dt><dd class="tabular">&#163;@basis.SpecialistOther.ToString("N2")</dd></div>
-                                                <div><dt>VAT</dt><dd class="tabular">&#163;@basis.Vat.ToString("N2")</dd></div>
-                                                <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@basis.Total.ToString("N2")</dd></div>
-                                            </dl>
-                                        }
-                                        RenderSpecificationLines(acceptedSpec, "accepted");
-                                    </div>
-                                </section>
+                                <div class="estimate-tabs" role="tablist" aria-label="Estimates">
+                                    @foreach (var estimate in Model.Estimates)
+                                    {
+                                        var isSelected = Model.SelectedEstimate?.SpecificationId == estimate.SpecificationId
+                                            && !Model.EditingNewEstimate;
+                                        <a class="estimate-tab"
+                                           role="tab"
+                                           asp-page="/Cases/Assessment/Index" asp-route-id="@caseId"
+                                           asp-route-estimate="@estimate.SpecificationId"
+                                           aria-selected="@(isSelected ? "true" : "false")">
+                                            @estimate.Details.Name@(estimate.IsCurrent ? " · Current" : null)
+                                        </a>
+                                    }
+                                    @if (Model.EditingNewEstimate)
+                                    {
+                                        <a class="estimate-tab" role="tab" aria-selected="true"
+                                           asp-page="/Cases/Assessment/Index" asp-route-id="@caseId"
+                                           asp-route-estimate="new">New estimate</a>
+                                    }
+                                </div>
                             }
 
-                            @if (Model.DraftSpecification is { } draftSpec)
-                            {
-                                <section class="panel estimate-editor" aria-labelledby="estimate-draft-title">
-                                    <div class="panel-head">
-                                        <div>
-                                            <h2 id="estimate-draft-title">Draft estimate</h2>
-                                            <span class="panel-title-meta">
-                                                Awaiting an Engineer&#8217;s acceptance
-                                                · @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route)
-                                            </span>
-                                        </div>
-                                        <partial name="Shared/_StatusChip" model="@("Draft")" />
-                                    </div>
-                                    <div class="panel-body">
-                                        @if (draftSpec.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
-                                        {
-                                            <div class="notice notice--warning" role="status">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                                <span>These lines need source review before they can be accepted.</span>
-                                            </div>
-                                        }
-                                        RenderSpecificationLines(draftSpec, "draft");
-
-                                        @if (!Model.IsReadOnly)
-                                        {
-                                            if (Model.ActorIsEngineer)
-                                            {
-                                                <h3 class="section-label section-gap">Accept this specification</h3>
-                                                <form method="post" asp-page-handler="AcceptSpecification" asp-route-id="@caseId">
-                                                    <input type="hidden" name="operationKey" value="@Model.AcceptOperationKey" />
-                                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                                    <input type="hidden" name="specificationId" value="@draftSpec.SpecificationId" />
-                                                    <input type="hidden" name="specificationVersion" value="@draftSpec.Version" />
-                                                    <div class="form-grid">
-                                                        <div>
-                                                            <label for="accept-labour">Labour (&#163;)</label>
-                                                            <input type="number" id="accept-labour" name="labour" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                                        </div>
-                                                        <div>
-                                                            <label for="accept-parts">Parts (&#163;)</label>
-                                                            <input type="number" id="accept-parts" name="parts" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                                        </div>
-                                                        <div>
-                                                            <label for="accept-paint">Paint materials (&#163;)</label>
-                                                            <input type="number" id="accept-paint" name="paintMaterials" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                                        </div>
-                                                        <div>
-                                                            <label for="accept-specialist">Specialist and other (&#163;)</label>
-                                                            <input type="number" id="accept-specialist" name="specialistOther" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                                        </div>
-                                                        <div>
-                                                            <label for="accept-vat">VAT (&#163;)</label>
-                                                            <input type="number" id="accept-vat" name="vat" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                                        </div>
-                                                        <div>
-                                                            <fieldset class="role-choices role-choices--stacked">
-                                                                <legend>Is the repairer VAT registered?</legend>
-                                                                <label class="choice"><input type="radio" name="repairerVatRegistered" value="true" required /> <span>Yes</span></label>
-                                                                <label class="choice"><input type="radio" name="repairerVatRegistered" value="false" /> <span>No</span></label>
-                                                            </fieldset>
-                                                        </div>
-                                                        <div class="field-wide">
-                                                            <label for="accept-reason">Reason</label>
-                                                            <input type="text" id="accept-reason" name="reason" maxlength="500" />
-                                                        </div>
-                                                    </div>
-                                                    <div class="button-row section-gap">
-                                                        <button type="submit" class="btn btn--dark">Accept specification</button>
-                                                    </div>
-                                                </form>
-                                            }
-                                            else
-                                            {
-                                                <p class="empty-state">An Engineer accepts the specification.</p>
-                                            }
-                                        }
-                                    </div>
-                                </section>
-                            }
-
-                            @if (Model.AcceptedSpecification is null && Model.DraftSpecification is null)
+                            @if (Model.SelectedEstimate is null && !Model.EditingNewEstimate)
                             {
                                 <div class="empty estimate-empty">No estimates recorded</div>
+                            }
+                            else
+                            {
+                                var estimate = Model.SelectedEstimate;
+                                var editable = Model.SelectedEstimateIsEditable;
+                                var details = Model.EditorDetails!;
+                                var totals = Model.EditorTotals;
+                                var route = estimate?.Source.Route ?? RepairSpecificationSourceRoute.Manual;
+                                <section class="panel estimate-editor" aria-labelledby="estimate-editor-title">
+                                    <div class="panel-head">
+                                        <div>
+                                            <h2 id="estimate-editor-title">@(Model.EditingNewEstimate ? "New estimate" : details.Name)</h2>
+                                            <span class="panel-title-meta">@OperatorLabels.RepairSpecificationRoute(route)</span>
+                                        </div>
+                                        <div class="button-row">
+                                            @if (editable && estimate is not null && !estimate.IsCurrent)
+                                            {
+                                                <button type="button" class="btn btn--danger" data-dialog-open="delete-estimate-dialog">
+                                                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                                                    <span>Delete estimate</span>
+                                                </button>
+                                            }
+                                            @if (editable && estimate is not null)
+                                            {
+                                                <form method="post" asp-page-handler="DuplicateEstimate" asp-route-id="@caseId">
+                                                    <input type="hidden" name="operationKey" value="@Model.DuplicateOperationKey" />
+                                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                                    <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
+                                                    <button type="submit" class="btn">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                                                        <span>Duplicate</span>
+                                                    </button>
+                                                </form>
+                                                if (estimate.IsCurrent)
+                                                {
+                                                    <partial name="Shared/_StatusChip" model="@("Current")" />
+                                                }
+                                                else
+                                                {
+                                                    <form method="post" asp-page-handler="SetCurrentEstimate" asp-route-id="@caseId">
+                                                        <input type="hidden" name="operationKey" value="@Model.UseEstimateOperationKey" />
+                                                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                                        <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
+                                                        <button type="submit" class="btn">
+                                                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                                            <span>Use estimate</span>
+                                                        </button>
+                                                    </form>
+                                                }
+                                            }
+                                            else if (estimate?.IsCurrent == true)
+                                            {
+                                                <partial name="Shared/_StatusChip" model="@("Current")" />
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="panel-body">
+                                        @if (editable)
+                                        {
+                                            <form method="post" asp-page-handler="SaveEstimate" asp-route-id="@caseId">
+                                                <input type="hidden" name="operationKey" value="@Model.SaveEstimateOperationKey" />
+                                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                                <input type="hidden" name="estimateId" value="@(estimate?.SpecificationId)" />
+                                                <div class="estimate-form-grid">
+                                                    <div>
+                                                        <label for="estimate-name">Estimate name</label>
+                                                        <input id="estimate-name" name="estimateName" maxlength="100" required value="@details.Name" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="estimate-days">Repair days</label>
+                                                        <input id="estimate-days" name="estimateRepairDays" type="number" min="0" step="1" inputmode="numeric" class="tabular" value="@details.RepairDays" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="estimate-labour-rate">Labour rate (&#163;/h)</label>
+                                                        <input id="estimate-labour-rate" name="estimateLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.LabourRate" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="estimate-paint-rate">Paint labour rate (&#163;/h)</label>
+                                                        <input id="estimate-paint-rate" name="estimatePaintLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintLabourRate" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="estimate-materials">Paint materials (&#163;)</label>
+                                                        <input id="estimate-materials" name="estimatePaintMaterials" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintMaterials" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="estimate-other">Other costs (&#163;)</label>
+                                                        <input id="estimate-other" name="estimateOtherCosts" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.OtherCosts" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="estimate-vat">VAT %</label>
+                                                        <input id="estimate-vat" name="estimateVatPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@details.VatPercent" />
+                                                    </div>
+                                                </div>
+                                                @{ var editLineAction = Url.Page("/Cases/Assessment/Index", "EditLine", new { id = caseId }); }
+                                                <div class="estimate-table-head">
+                                                    <h3>Parts and operations</h3>
+                                                    <button type="submit" class="btn" name="addLine" value="true" formaction="@editLineAction">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                                        <span>Add line</span>
+                                                    </button>
+                                                </div>
+                                                <div class="table-wrap estimate-table">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th scope="col">Operation</th>
+                                                                <th scope="col">Description</th>
+                                                                <th scope="col">Part number</th>
+                                                                <th scope="col">Qty</th>
+                                                                <th scope="col">Labour h</th>
+                                                                <th scope="col">Paint h</th>
+                                                                <th scope="col">Part &#163;</th>
+                                                                <th scope="col"><span class="sr-only">Action</span></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @for (var line = 0; line < Model.EditorLines.Count; line++)
+                                                            {
+                                                                var row = Model.EditorLines[line];
+                                                                <tr>
+                                                                    <td>
+                                                                        <label class="vh" for="line-operation-@line">Operation, line @(line + 1)</label>
+                                                                        <select id="line-operation-@line" name="lineOperation">
+                                                                            @foreach (var (value, label) in new[] { ("Replace", "Replace"), ("Repair", "Repair"), ("RemoveAndRefit", "R&I"), ("Paint", "Paint"), ("Other", "Other") })
+                                                                            {
+                                                                                <option value="@value" selected="@(row.Operation == value ? "selected" : null)">@label</option>
+                                                                            }
+                                                                        </select>
+                                                                    </td>
+                                                                    <td>
+                                                                        <label class="vh" for="line-description-@line">Description, line @(line + 1)</label>
+                                                                        <input id="line-description-@line" name="lineDescription" value="@row.Description" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <label class="vh" for="line-part-@line">Part number, line @(line + 1)</label>
+                                                                        <input id="line-part-@line" name="linePartNumber" value="@row.PartNumber" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <label class="vh" for="line-quantity-@line">Quantity, line @(line + 1)</label>
+                                                                        <input id="line-quantity-@line" name="lineQuantity" type="number" min="0" step="1" inputmode="numeric" class="tabular" value="@row.Quantity" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <label class="vh" for="line-labour-@line">Labour hours, line @(line + 1)</label>
+                                                                        <input id="line-labour-@line" name="lineLabourHours" type="number" min="0" step="0.1" inputmode="decimal" class="tabular" value="@row.LabourHours" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <label class="vh" for="line-paint-@line">Paint hours, line @(line + 1)</label>
+                                                                        <input id="line-paint-@line" name="linePaintHours" type="number" min="0" step="0.1" inputmode="decimal" class="tabular" value="@row.PaintHours" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <label class="vh" for="line-pounds-@line">Part amount, line @(line + 1)</label>
+                                                                        <input id="line-pounds-@line" name="linePartPounds" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@row.PartPounds" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <button type="submit" class="btn btn--icon estimate-remove" name="removeLine" value="@line" formaction="@editLineAction" aria-label="Remove line @(line + 1)">
+                                                                            <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div class="estimate-bottom">
+                                                    <div class="estimate-notes">
+                                                        <label for="estimate-notes">Estimate notes</label>
+                                                        <textarea id="estimate-notes" name="estimateNotes" rows="4" maxlength="4000">@details.Notes</textarea>
+                                                    </div>
+                                                    <dl class="estimate-totals">
+                                                        <div><dt>Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
+                                                        <div><dt>Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
+                                                        <div><dt>Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
+                                                        <div><dt>Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
+                                                        <div><dt>Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
+                                                        <div><dt>VAT</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
+                                                        <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
+                                                    </dl>
+                                                </div>
+                                                <div class="button-row section-gap">
+                                                    <button type="submit" class="btn btn--dark">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                                        <span>Save estimate</span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <dl class="detail-list">
+                                                <div><dt>Repair days</dt><dd>@(details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? "Not recorded")</dd></div>
+                                                <div><dt>Labour rate</dt><dd>@(details.LabourRate is { } labourRate ? $"\u00A3{labourRate.ToString("N2")}/h" : "Not recorded")</dd></div>
+                                                <div><dt>Paint labour rate</dt><dd>@(details.PaintLabourRate is { } paintRate ? $"\u00A3{paintRate.ToString("N2")}/h" : "Not recorded")</dd></div>
+                                                <div><dt>Paint materials</dt><dd>@(details.PaintMaterials is { } paintMaterials ? $"\u00A3{paintMaterials.ToString("N2")}" : "Not recorded")</dd></div>
+                                                <div><dt>Other costs</dt><dd>@(details.OtherCosts is { } otherCosts ? $"\u00A3{otherCosts.ToString("N2")}" : "Not recorded")</dd></div>
+                                                <div><dt>VAT</dt><dd>@($"{totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%")</dd></div>
+                                            </dl>
+                                            <div class="estimate-bottom">
+                                                <div class="estimate-notes">
+                                                    <h3 class="section-label">Notes</h3>
+                                                    @(string.IsNullOrWhiteSpace(details.Notes) ? "None recorded" : details.Notes)
+                                                </div>
+                                                <dl class="estimate-totals">
+                                                    <div><dt>Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
+                                                    <div><dt>Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
+                                                    <div><dt>Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
+                                                    <div><dt>Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
+                                                    <div><dt>Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
+                                                    <div><dt>VAT</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
+                                                    <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
+                                                </dl>
+                                            </div>
+                                            @if (estimate is not null)
+                                            {
+                                                RenderSpecificationLines(estimate, "recorded");
+                                            }
+                                        }
+                                    </div>
+                                </section>
                             }
                         </div>
                     </div>
@@ -482,17 +619,29 @@
                 <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <div class="dialog-body stack">
+                    <div>
+                        <label for="import-name">Estimate name</label>
+                        <input type="text" id="import-name" name="name" maxlength="100" required data-dialog-initial-focus />
+                    </div>
+                    <div>
+                        <label for="import-source">Source</label>
+                        <select id="import-source" name="source">
+                            <option value="audatex-pdf" selected>Audatex PDF</option>
+                            <option value="json">JSON estimate</option>
+                            <option value="other" disabled>Other</option>
+                        </select>
+                    </div>
                     <div class="dropzone" data-dropzone>
                         <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
                         <label for="estimate-file">Drag an estimate here, or choose it</label>
-                        <span class="field-hint">An Audatex estimate report as a PDF &#8212; up to 10 MB.</span>
-                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,application/pdf" required />
+                        <span class="field-hint">An Audatex PDF report or a JSON estimate &#8212; up to 10 MB.</span>
+                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,.json,application/pdf,application/json" required />
                         <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose a file</button>
                         <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
                     </div>
                     <div>
                         <label for="import-reason">Reason</label>
-                        <input type="text" id="import-reason" name="reason" maxlength="500" data-dialog-initial-focus />
+                        <input type="text" id="import-reason" name="reason" maxlength="500" />
                     </div>
                 </div>
                 <div class="dialog-foot">
@@ -504,8 +653,41 @@
     </div>
 }
 
+@if (Model.SelectedEstimateIsEditable
+     && Model.SelectedEstimate is { IsCurrent: false } discardable
+     && !Model.EditingNewEstimate)
+{
+    <div class="dialog-backdrop" data-dialog="delete-estimate-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="delete-estimate-dialog-title">
+            <div class="dialog-head">
+                <h2 id="delete-estimate-dialog-title" tabindex="-1">Delete estimate</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page-handler="DiscardEstimate" asp-route-id="@caseId">
+                <input type="hidden" name="operationKey" value="@Model.DiscardOperationKey" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="estimateId" value="@discardable.SpecificationId" />
+                <div class="dialog-body stack">
+                    <p>Delete @discardable.Details.Name and its lines from this case?</p>
+                    <div>
+                        <label for="delete-reason">Reason</label>
+                        <input type="text" id="delete-reason" name="reason" maxlength="500" required data-dialog-initial-focus />
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--danger">Delete estimate</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
 @if (Model.SendToClaudeCondition is null)
 {
+    var targetBase = engineerValue!.Value.ToString("0.##", CultureInfo.InvariantCulture);
     <div class="dialog-backdrop" data-dialog="send-to-claude-dialog" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-claude-dialog-title">
             <div class="dialog-head">
