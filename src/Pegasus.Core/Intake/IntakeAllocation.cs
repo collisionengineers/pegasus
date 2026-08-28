@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ProviderApi;
 
 namespace Pegasus.Core.Intake;
 
@@ -205,7 +206,8 @@ public sealed class AllocateIntake(
     IIntakeAllocationStore allocationStore,
     IAcceptIntake acceptIntake,
     TimeProvider timeProvider,
-    IStandaloneAuditEvidenceQueries? standaloneAuditEvidenceQueries = null) : IAllocateIntake
+    IStandaloneAuditEvidenceQueries? standaloneAuditEvidenceQueries = null,
+    IProviderSubmissionBindings? providerSubmissionBindings = null) : IAllocateIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
@@ -245,14 +247,9 @@ public sealed class AllocateIntake(
         }
 
         var caseType = receipt.MailClassificationDecision?.CaseType;
-        var principalCode = receipt.MailRouteDecision is
-        {
-            Disposition: MailRouteDisposition.Accepted,
-            SelectedRoute: { } selectedRoute
-        }
-            ? selectedRoute.WorkProviderCode.Trim().ToUpperInvariant()
-            : throw new InvalidOperationException(
-                "Automatic mailbox allocation requires an accepted principal route.");
+        var principalCode = await EstablishedPrincipalCodeAsync(receipt, cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Automatic allocation requires an accepted principal route or a provider submission binding.");
         if (!string.Equals(
                 receipt.InstructionDraft?.SuggestedPrincipalCode,
                 principalCode,
@@ -283,6 +280,37 @@ public sealed class AllocateIntake(
             "Created automatically from a definitive authorised instruction.",
             expectedCurrentAttemptId: null,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// The Principal the automatic route allocates for: the accepted mail
+    /// route's work provider, or for a Provider API source the Principal its
+    /// retained submission bound it to — the same binding ProcessIntake
+    /// established the instruction under (API-01).
+    /// </summary>
+    private async Task<string?> EstablishedPrincipalCodeAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.MailRouteDecision is
+            {
+                Disposition: MailRouteDisposition.Accepted,
+                SelectedRoute: { } selectedRoute
+            })
+        {
+            return selectedRoute.WorkProviderCode.Trim().ToUpperInvariant();
+        }
+
+        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.ProviderApi
+            || providerSubmissionBindings is null)
+        {
+            return null;
+        }
+
+        var bound = await providerSubmissionBindings.FindPrincipalCodeAsync(
+            receipt.SourceIdentity,
+            cancellationToken);
+        return bound?.Trim().ToUpperInvariant();
     }
 
     public Task<IntakeAllocationResult> AttemptStaffCreateAsync(

@@ -468,14 +468,16 @@ public sealed class ProcessIntake(
                 mailRouteDecision);
         }
 
-        var mailClassificationDecision = EvaluateMailClassification(readResult, mailRouteDecision);
+        var principalContext = sourceChannel == IntakeSourceChannel.ProviderApi
+            ? await EstablishProviderPrincipalContextAsync(sourceIdentity, cancellationToken)
+            : EstablishPrincipalContext(mailRouteDecision);
+        var mailClassificationDecision = EvaluateMailClassification(
+            readResult,
+            principalContext?.PrincipalCode);
         var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
             readResult,
             mailRouteDecision,
             cancellationToken);
-        var principalContext = sourceChannel == IntakeSourceChannel.ProviderApi
-            ? await EstablishProviderPrincipalContextAsync(sourceIdentity, cancellationToken)
-            : EstablishPrincipalContext(mailRouteDecision);
         if (principalContext is null)
         {
             if (readResult.RequiresOcr)
@@ -657,12 +659,17 @@ public sealed class ProcessIntake(
             classification.PolicyVersion);
     }
 
+    /// <summary>
+    /// Classification belongs to the established Principal — the accepted
+    /// route's work provider, or the Principal a Provider API credential
+    /// bound the source to — so a provider-submitted instruction is typed by
+    /// the same policy as the equivalent e-mail (FRD-09).
+    /// </summary>
     private MailClassificationResult? EvaluateMailClassification(
         IntakeSourceReadResult readResult,
-        MailRouteEvaluationResult? mailRouteDecision)
+        string? principalCode)
     {
-        if (mailRouteDecision is not
-            { Disposition: MailRouteDisposition.Accepted, SelectedRoute: { } route })
+        if (principalCode is null)
         {
             return null;
         }
@@ -670,7 +677,7 @@ public sealed class ProcessIntake(
         var policy = mailClassificationPolicies.SingleOrDefault(candidate =>
             string.Equals(
                 candidate.WorkProviderCode,
-                route.WorkProviderCode,
+                principalCode,
                 StringComparison.Ordinal));
         if (policy is null)
         {
