@@ -220,7 +220,7 @@
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Principals/EvaSubmission.cshtml",
-    "route": "/Administration/Principals/{organizationId:guid}/{principalId:guid}/EvaSubmission",
+    "route": "/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}/EvaSubmission",
     "classification": "visual",
     "states": [
       {
