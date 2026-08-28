@@ -531,7 +531,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         var builder = new SqlConnectionStringBuilder
         {
             InitialCatalog = databaseName,
-            ConnectTimeout = 15,
+            // CI measured ~14-second waits behind DDL on shared LocalDB
+            // under shard parallelism. Keep this well below
+            // LifecycleCommandTimeoutSeconds so a genuinely wedged instance
+            // still fails inside the job timeout.
+            ConnectTimeout = 60,
+            ConnectRetryCount = 3,
+            ConnectRetryInterval = 10,
             MultipleActiveResultSets = true
         };
 
@@ -763,7 +769,21 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 $"DROP DATABASE [{DatabaseName}]; END";
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
             drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
-            await drop.ExecuteNonQueryAsync();
+
+            const int maximumAttempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await drop.ExecuteNonQueryAsync();
+                    break;
+                }
+                catch (SqlException exception)
+                    when (exception.Number == 5061 && attempt < maximumAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
+                }
+            }
         }
 
         await using var verify = connection.CreateCommand();
