@@ -4,12 +4,13 @@ type: ticket
 title: >-
   CI sql-integration shards intermittently fail with SqlException "Connection
   Timeout Expired" (pre-login/post-login) on the Windows runner
-status: implementing
+status: review
 area: delivery-repository
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-28T21:31:21.667Z'
+  review: '2026-08-28T21:32:25.990Z'
 taken_at: '2026-08-28T21:30:36.955Z'
 branch: task/deliv-031-sql-connect-timeout
 worktree: ../pegasus-worktrees/deliv-031-sql-connect-timeout
@@ -24,9 +25,13 @@ links:
   - UIIMP-005
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - cc543922cb45f8ecf743be678751964d2290c4a4
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/612'
 archived: false
 created: '2026-08-28T11:16:52.307Z'
-updated: '2026-08-28T21:31:21.667Z'
+updated: '2026-08-28T21:32:25.990Z'
 ---
 
 ## What
