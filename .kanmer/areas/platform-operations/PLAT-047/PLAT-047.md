@@ -26,6 +26,7 @@ links:
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-04-parties-accounts-and-access.md
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 commits:
   - 8f45f36d
   - ce56c28a
@@ -35,7 +36,7 @@ prs:
   - '583'
 archived: false
 created: '2026-08-28T08:05:30.098Z'
-updated: '2026-08-28T08:22:40.320Z'
+updated: '2026-08-28T08:22:59.512Z'
 ---
 
 ## What

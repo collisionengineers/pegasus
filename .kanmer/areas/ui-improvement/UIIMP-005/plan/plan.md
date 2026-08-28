@@ -29,3 +29,17 @@ Diff estimate: ~260 lines across 9 files (≈150 C#, ≈40 PowerShell, ≈45 YAM
 - `dotnet build ./Pegasus.slnx --configuration Release` green (implementer).
 - Orchestrator: `./scripts/Update-TestUiSnapshots.ps1` then `./scripts/Update-TestUiSnapshots.ps1 -Verify` (a second capture) exits 0 with no `git status` drift under `docs/design/test-ui/`; `./scripts/Test-UiCatalogue.ps1` exits 0; `./scripts/Test-CiChangeFlags.ps1` exits 0.
 - Committed pages contain no `data-auto-refresh`, `data-mail-preview-url`, `data-case-search-url`, 32-hex or trace-id values after regeneration.
+
+## Simplification pass — 2026-08-28
+
+Lenses run over `git diff origin/dev...HEAD` (reuse, simplification, efficiency, altitude).
+
+| Finding | Lens | Disposition |
+| --- | --- | --- |
+| `ReceiptImageUrlRegex` was defined in both `TestUiSnapshotTests` and `IntakeWebDriver` (second copy of one concept). | reuse | Fixed: one `internal` definition on `IntakeWebDriver`, reused by the snapshot generator. |
+| `WriteGenerated` and the verify orphan check each enumerated `pages/*.html` with their own path juggling. | simplification | Fixed: one `CommittedPages` helper feeds both. |
+| `CapturedAssetUrlRegex` callback decoded and split the URL inline, and the receipt-image check needed the same. | simplification | Fixed: `AssetPath` helper. |
+| `MissingReceiptImages` runs twice per candidate on a miss (eligibility filter, then the failure message). | efficiency | Rejected: a few dozen small strings per state; a cached pair would cost more lines than it saves. |
+| `CompactGuidRegex` (bounded 32-hex) could in principle match inside a base64 data URL. | altitude | Accepted risk: substitution is deterministic either way; the only data URLs are captured receipt images, and the 1x1 fixture PNG carries no such run. Noted in the report. |
+| `using Pegasus.Core.Identity` left over after removing `ActionActor`. | simplification | Fixed. |
+| CA1859 on `WriteGenerated(IReadOnlyDictionary)`. | analyzer | Fixed: takes the concrete `Dictionary` `Generate` returns. |
