@@ -68,3 +68,19 @@ lease state, `IStaffAccountQueries`, `AssessmentAccessState`.
 - `IListStaffAccounts` is Administrator-only; `IStaffAccountQueries` used.
 - Report approval (typed identity + SHA-256) leaves the UI per PLAT-015;
   the handler remains for the automated route.
+
+## Simplification pass — 2026-08-28
+
+Lenses: reuse, simplification, efficiency, altitude over the branch diff
+(`git diff origin/dev`).
+
+| Finding | Disposition |
+| --- | --- |
+| The section list (key, label, icon) was written twice: `_CaseWorkspaceNav` and a `SectionName` switch in `Details.cshtml` for the next-action card. | Applied: one static `DetailsModel.Sections` (`CaseSection` record); both read it. |
+| The "Due" expression (`DueWork.DueBy ?? Inspection.Deadline`) was written in the context column and in Work facts. | Applied: `DetailsModel.DueDate`. |
+| Every partial recomputed `!string.IsNullOrWhiteSpace(LeaseToken) && Archive is null`. | Applied: `DetailsModel.IsEditing`; partials read it. |
+| `DescribeBlockers` returns `List<T>` (CA1859) rather than the interface. | Applied (analyzer). |
+| "Discard" in the edit bar submits the same release form as "Finish editing". | Kept: the contract names both controls; one form, two entry points, no duplicated handler. |
+| `Send.cshtml.cs` keeps its own `EngineerListLimit` (200) instead of paging. | Kept: `IStaffAccountQueries.ListAsync` is offset/limit; the estate is far below the cap, and paging a select is speculative. |
+| The Reopen dialog is hand-written markup while Hold/Release use `_ReasonDialog`. | Kept: `_ReasonDialog` carries hidden fields only; a destination select needs its own body. Same for Close (outcome select) and Report sent (evidence radios). A `DialogFields` slot on `_ReasonDialog` would be a `Pages/Shared` change outside this lane — noted for CASE-030. |
+| Blockers are composed in `DetailsModel` rather than Core. | Kept: every condition is a Core value (completeness values and evaluation, custody `CanRetry`, due-work state); the rows carry labels only. The Cases quick-detail lane (§1.4) is the second caller — hoist to one place when it lands. |
