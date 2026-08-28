@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Eva;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -52,5 +53,55 @@ public sealed class EfEvaSubmissionQueries(
                 row.FileReference,
                 row.FailureCode,
                 row.SubmittedAtUtc);
+    }
+
+    public async Task<IReadOnlyList<EvaSubmissionFailure>> GetRecentFailuresAsync(
+        DateTimeOffset sinceUtc,
+        int maximumResults,
+        CancellationToken cancellationToken = default)
+    {
+        if (maximumResults is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumResults),
+                "An EVA failure query must return between one and 100 items.");
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.EvaSubmissions
+            .AsNoTracking()
+            .Where(item => !item.IsDelivered && item.SubmittedAtUtc >= sinceUtc)
+            .OrderByDescending(item => item.SubmittedAtUtc)
+            .ThenBy(item => item.Id)
+            .Take(maximumResults)
+            .Select(item => new { item.CaseId, item.Outcome, item.FailureCode, item.SubmittedAtUtc })
+            .ToListAsync(cancellationToken);
+        return rows
+            .Select(row => new EvaSubmissionFailure(
+                row.CaseId,
+                Enum.Parse<EvaSubmissionOutcome>(row.Outcome),
+                row.FailureCode,
+                row.SubmittedAtUtc))
+            .ToList();
+    }
+
+    public async Task<EvaSubmissionActivity> GetActivityAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // The same rows and state words EfEvaSubmissionWorkStore claims from:
+        // anything not yet completed or failed is still pending work.
+        var pending = await context.ExternalWorkItems
+            .AsNoTracking()
+            .CountAsync(
+                item => item.Kind == ExternalWorkKinds.SubmitCaseToEva
+                    && item.State != "completed"
+                    && item.State != "failed",
+                cancellationToken);
+        var latest = await context.EvaSubmissions
+            .AsNoTracking()
+            .MaxAsync(item => (DateTimeOffset?)item.SubmittedAtUtc, cancellationToken);
+        return new(pending, latest);
     }
 }

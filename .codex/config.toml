@@ -9,6 +9,7 @@ enabled = true
 [mcp_servers.kanmer]
 command = "powershell.exe"
 args = [ "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:LOCALAPPDATA 'Kanmer\\bin\\kanmer-mcp.cmd')" ]
+cwd = ".worktrees/kanmer"
 
 [mcp_servers.kanmer.env]
 KANMER_BOARD_BRANCH = "kanmer-board"
