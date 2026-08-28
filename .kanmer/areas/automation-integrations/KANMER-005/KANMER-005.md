@@ -2,12 +2,15 @@
 id: KANMER-005
 type: ticket
 title: Enforce exclusive editing leases between staff and Automation Actors
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-28T09:54:44.547Z'
+taken_at: '2026-08-28T10:57:56.937Z'
+branch: task/kanmer-005-lease-exclusivity
+worktree: ../pegasus-worktrees/kanmer-005-lease-exclusivity
 labels:
   - bug
   - lease
@@ -25,7 +28,7 @@ refs:
   - docs/adr/0031-automation-actor-contract-without-eva-export-tools.md
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-28T10:50:40.118Z'
+updated: '2026-08-28T10:57:56.937Z'
 ---
 
 ## What
