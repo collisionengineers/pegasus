@@ -186,11 +186,6 @@ public sealed partial class SendModel(
         _ => $"EVA could not be reached. {submission.FailureDetail}".TrimEnd()
     };
 
-    private static string RequireOperationKey(string value) =>
-        Guid.TryParseExact(value, "N", out var operationId)
-            ? operationId.ToString("N")
-            : throw new ArgumentException("The operation key is invalid.", nameof(value));
-
     [LoggerMessage(
         Level = LogLevel.Warning,
         Message = "EVA API submission failed for case {CaseId}.")]

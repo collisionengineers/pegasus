@@ -102,14 +102,21 @@ internal sealed class EfIntakeMutationStore(
             ?? throw new KeyNotFoundException("The matched case does not exist.");
         // The accepted eliminator predicates make every lifecycle state
         // eligible, but that operator decision does not cover an archived
-        // case or one under a live staff edit lease — those yield.
+        // case — that still yields.
+        //
+        // A live staff edit lease deliberately does not stop this write. What
+        // follows touches only the receipt: the association and history rows
+        // below, and receipt.Version. The case row is never written, its
+        // version never moves, and the history records ExpectedCaseVersion,
+        // BeforeCaseVersion and AfterCaseVersion as null to say so. FRD-01
+        // places exactly these append-only receipt records outside editable
+        // Case state, so waiting on an editor's lease guarded a Case write that
+        // never happens — and because the yield is one-shot rather than
+        // retried, it silently cost the association for the length of any
+        // editing session. An editor's own pending save still validates
+        // against the version they loaded. The image-intake path below does
+        // mutate the Case, and keeps its lease check.
         ArchivedCaseGuard.RequireNotArchived(caseWorkflow);
-        if (caseWorkflow.EditLeaseExpiresAtUtc is { } leaseExpiresAtUtc
-            && leaseExpiresAtUtc > occurredAtUtc)
-        {
-            throw new IntakeAssociationConflictException(
-                "The case is being edited by a staff member; the automatic association yields.");
-        }
 
         var @case = caseWorkflow.Case;
         var beforeVersion = receipt.Version;

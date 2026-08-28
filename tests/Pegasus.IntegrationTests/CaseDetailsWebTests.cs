@@ -853,7 +853,9 @@ public sealed partial class CaseDetailsWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains("Case locked - r.hughes is editing", note, StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", note, StringComparison.Ordinal);
+        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // becomes available is knowable here, and naming one would be a broken promise.
+        Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.Contains("Editing cannot be taken over", note, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
@@ -888,7 +890,9 @@ public sealed partial class CaseDetailsWebTests
             "Case locked - another member of staff is editing",
             note,
             StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", note, StringComparison.Ordinal);
+        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // becomes available is knowable here, and naming one would be a broken promise.
+        Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch(GuidRegex(), VisibleText(note));
     }
@@ -921,7 +925,9 @@ public sealed partial class CaseDetailsWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains("Case locked - AI is editing", note, StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", note, StringComparison.Ordinal);
+        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // becomes available is knowable here, and naming one would be a broken promise.
+        Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain("member of staff", note, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
         AssertNoBannedVocabulary(note);
