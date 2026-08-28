@@ -98,18 +98,11 @@ public sealed partial class DetailsModel(
 
     public bool QueryFailed { get; private set; }
 
-    public string? LeaseToken { get; private set; }
-
-    public string ClaimLeaseOperationKey { get; private set; } = NewOperationKey();
-
-    public bool CanRecoverLease { get; private set; }
-
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
 
     public Guid ReportApprovalId { get; } = Guid.NewGuid();
 
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
-    public string ReleaseLeaseOperationKey { get; private set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -395,79 +388,11 @@ public sealed partial class DetailsModel(
 
     private void RestoreLeaseState(Guid caseId, ActionActor actor)
     {
-        // An expired lease is already absent from the projection, so this page keeps no second rule.
-        var activeLease = Case!.ActiveEditLease;
-        if (activeLease is null)
+        RestoreLeaseState(caseId, actor, Case!.ActiveEditLease);
+        if (LeaseToken is not null)
         {
-            if (!string.IsNullOrWhiteSpace(PeekLeaseToken())
-                || PeekGuid(LeaseCaseIdKey) is not null)
-            {
-                ClearLeaseState();
-            }
-
-            ClaimLeaseOperationKey = GetOrCreateClaimLeaseOperation(caseId);
-            return;
-        }
-
-        if (!string.Equals(activeLease.Holder, actor.SubjectId, StringComparison.Ordinal))
-        {
-            ClearLeaseState();
-            return;
-        }
-
-        if (!Guid.TryParseExact(activeLease.OperationKey, "N", out var claimOperationId))
-        {
-            ClearLeaseState();
-            return;
-        }
-
-        ClaimLeaseOperationKey = claimOperationId.ToString("N");
-        StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
-        var storedToken = PeekLeaseToken();
-        if (PeekGuid(LeaseCaseIdKey) == caseId && !string.IsNullOrWhiteSpace(storedToken))
-        {
-            LeaseToken = storedToken;
             RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
-            ReleaseLeaseOperationKey = GetOrCreateOperationKey(ReleaseLeaseOperationKeyName);
-            return;
         }
-
-        ClearLeaseAuthority();
-        CanRecoverLease = true;
-    }
-
-    private string GetOrCreateClaimLeaseOperation(Guid caseId)
-    {
-        var storedOperationId = PeekGuid(ClaimLeaseOperationKeyName);
-        if (PeekGuid(ClaimLeaseCaseIdKey) == caseId
-            && storedOperationId is { } operationId
-            && operationId != Guid.Empty)
-        {
-            return operationId.ToString("N");
-        }
-
-        ClearLeaseState();
-        var operationKey = NewOperationKey();
-        StoreClaimLeaseOperation(caseId, operationKey);
-        return operationKey;
-    }
-
-    private string GetOrCreateOperationKey(string key)
-    {
-        if (PeekGuid(key) is { } operationId && operationId != Guid.Empty)
-        {
-            return operationId.ToString("N");
-        }
-
-        var operationKey = NewOperationKey();
-        TempData[key] = operationKey;
-        return operationKey;
-    }
-
-    private void StoreClaimLeaseOperation(Guid caseId, string operationKey)
-    {
-        TempData[ClaimLeaseCaseIdKey] = caseId;
-        TempData[ClaimLeaseOperationKeyName] = Guid.ParseExact(operationKey, "N");
     }
 
     private async Task DescribeEditAuthorityHolderAsync(
@@ -646,11 +571,6 @@ public sealed partial class DetailsModel(
 
         return text.ToString();
     }
-
-    private static string RequireOperationKey(string value) =>
-        Guid.TryParseExact(value, "N", out var operationId)
-            ? operationId.ToString("N")
-            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     [LoggerMessage(
         Level = LogLevel.Error,

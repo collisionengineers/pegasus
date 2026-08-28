@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -104,6 +105,116 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "instructionsReviewedByStaff",
         "imagesReviewedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>The lease this browser holds on the case being rendered, if it holds one.</summary>
+    public string? LeaseToken { get; private set; }
+
+    public string ClaimLeaseOperationKey { get; private set; } = NewOperationKey();
+
+    public string ReleaseLeaseOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>
+    /// The case is held by this viewer, but this browser no longer carries the token — the holder
+    /// re-enters edit mode deliberately rather than having it silently restored.
+    /// </summary>
+    public bool CanRecoverLease { get; private set; }
+
+    /// <summary>
+    /// Reconciles what this browser remembers against what the server says the case's edit
+    /// authority actually is. Every page that renders edit mode asks it, so the workspace and the
+    /// assessment agree about one lease without keeping two rules.
+    /// </summary>
+    protected void RestoreLeaseState(
+        Guid caseId,
+        ActionActor actor,
+        CaseEditLeaseSnapshot? activeLease)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        // An expired lease is already absent from the projection, so no page keeps a second rule.
+        if (activeLease is null)
+        {
+            if (!string.IsNullOrWhiteSpace(PeekLeaseToken())
+                || PeekGuid(LeaseCaseIdKey) is not null)
+            {
+                ClearLeaseState();
+            }
+
+            ClaimLeaseOperationKey = GetOrCreateClaimLeaseOperation(caseId);
+            return;
+        }
+
+        if (!string.Equals(activeLease.Holder, actor.SubjectId, StringComparison.Ordinal))
+        {
+            ClearLeaseState();
+            return;
+        }
+
+        if (!Guid.TryParseExact(activeLease.OperationKey, "N", out var claimOperationId))
+        {
+            ClearLeaseState();
+            return;
+        }
+
+        ClaimLeaseOperationKey = claimOperationId.ToString("N");
+        StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
+        var storedToken = PeekLeaseToken();
+        if (PeekGuid(LeaseCaseIdKey) == caseId && !string.IsNullOrWhiteSpace(storedToken))
+        {
+            LeaseToken = storedToken;
+            ReleaseLeaseOperationKey = GetOrCreateOperationKey(ReleaseLeaseOperationKeyName);
+            return;
+        }
+
+        ClearLeaseAuthority();
+        CanRecoverLease = true;
+    }
+
+    /// <summary>Forgets a claim key this page just spent, so the next claim gets a fresh one.</summary>
+    protected void ResetClaimLeaseOperationKey(Guid caseId, string operationKey)
+    {
+        ClaimLeaseOperationKey = operationKey;
+        StoreClaimLeaseOperation(caseId, operationKey);
+    }
+
+    protected string GetOrCreateClaimLeaseOperation(Guid caseId)
+    {
+        var storedOperationId = PeekGuid(ClaimLeaseOperationKeyName);
+        if (PeekGuid(ClaimLeaseCaseIdKey) == caseId
+            && storedOperationId is { } operationId
+            && operationId != Guid.Empty)
+        {
+            return operationId.ToString("N");
+        }
+
+        ClearLeaseState();
+        var operationKey = NewOperationKey();
+        StoreClaimLeaseOperation(caseId, operationKey);
+        return operationKey;
+    }
+
+    protected string GetOrCreateOperationKey(string key)
+    {
+        if (PeekGuid(key) is { } operationId && operationId != Guid.Empty)
+        {
+            return operationId.ToString("N");
+        }
+
+        var operationKey = NewOperationKey();
+        TempData[key] = operationKey;
+        return operationKey;
+    }
+
+    protected void StoreClaimLeaseOperation(Guid caseId, string operationKey)
+    {
+        TempData[ClaimLeaseCaseIdKey] = caseId;
+        TempData[ClaimLeaseOperationKeyName] = Guid.ParseExact(operationKey, "N");
+    }
+
+    protected static string RequireOperationKey(string value) =>
+        Guid.TryParseExact(value, "N", out var operationId)
+            ? operationId.ToString("N")
+            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
     protected Task<IActionResult> ExecuteCaseCommandAsync(
