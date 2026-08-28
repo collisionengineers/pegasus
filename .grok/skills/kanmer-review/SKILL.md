@@ -1,138 +1,119 @@
 ---
 name: kanmer-review
-description: Independently review a Kanmer ticket's PR against its packet, plan, governing docs, current head SHA, checks, and review threads; write the versioned whole-file review attestation, disposition every finding, then merge only with authorization and move one stage to Verifying. Use when a ticket sits in Review or a PR needs review. DO NOT USE for verifying the merged result (kanmer-verify), post-merge cleanup (kanmer-closeout), or implementing changes (kanmer-execute). An author must not self-review or merge.
+description: Review a Kanmer ticket's PR — write the review set to scratch, check the post-implementation report and the plan's Governing-docs section against the diff, turn feedback into blocking tickets, then merge and move the ticket to Verifying. Use when the user says "review" a ticket or PR, when a ticket sits in the review stage, or when PR review comments arrive and need tracking. DO NOT USE FOR verifying the merged result (kanmer-verify), post-merge cleanup (kanmer-closeout), or implementing changes (kanmer-execute).
 ---
 
 # Reviewing a Kanmer ticket
 
-Review is an independent evidence decision, not an author's self-description.
-The reviewer binds the decision to the current PR head, the plan document
-version, the ticket revision, required checks, and every review thread. The
-review record is a machine-facing `scratch/review.md` attestation; it is not a
-running note. GitHub owns merge physics, while Kanmer owns the evidence trail
-and the one-stage board transition.
+Review is where the claim ("done — see the post-implementation report") meets the
+evidence. The reviewer checks that meeting actually happens, then owns the **merge
+point**: a passing review merges the PR and moves the ticket to **Verifying**,
+where `kanmer-verify` validates the shipped result on merged main. Review is the
+sole owner of turning PR feedback into tickets.
 
 ## Workflow
 
-1. Confirm the live ticket is in Review, identify the PR, and verify that you
-   are not its author. A self-review may inspect and report but must set
-   `independent: false`, must not claim a pass, and must not merge.
-   Independence is a **distinct agent-role** boundary, not a distinct GitHub
-   credential: a separately assigned reviewer may use the same repository
-   account as the author. GitHub still decides whether that account can approve
-   or merge under its own permissions, review, conversation, and merge-policy
-   rules.
-2. Gather the ticket, every packet document, governing refs, group context,
-   current ticket timestamp, PR diff, current head SHA, checks, reviews,
-   comments, and unresolved threads.
-3. Compare the implementation and report to the plan and governing docs. Check
-   scope, production callers, tests, runtime artefacts, and every packet
-   acceptance claim.
-4. Replace `scratch/review.md` as one version-aware file with the exact
-   attestation schema. Never use `append_scratch` for this record.
-5. Re-gather the PR immediately before a merge decision. Only an independent
-   pass with all required checks green and no open blocker may merge.
-6. With explicit user or standing delegation, merge the PR, re-read gates, and
-   move only `review` → `verifying`. Stop for `kanmer-verify`.
+1. **Gather** — the ticket, its documents and the PR (below). Review runs in the
+   **review** stage; the ticket is already there and already taken. Read the diff
+   with `gh`, or from the ticket's own worktree — never by checking the branch
+   out over `.worktrees/kanmer`, which in a GUI-set-up repo is the board's own
+   worktree on the board branch, with MCP rooted in it.
+2. **Write the review to scratch** — changes, comments, disposition, verdict.
+3. **Check the open questions** before applying any fix.
+4. **Check** — report against diff, governing docs, then the code.
+5. **Decide** — pass, or turn the blocking points into tickets.
+6. On a pass: **merge**, then move the ticket to **verifying**.
 
-## Gather the immutable review inputs
+## Gather
 
-Use MCP first for the board and documents. Read the packet paths, plan and
-post-implementation report, `refs`, and the first feature-group `context.md`
-when present. Read `open-questions` before applying any fix. Record the
-`get_ticket_doc(doc: "plan").version` as `plan_hash` and the ticket's current
-`updated` timestamp as `ticket_updated`; these values bind the attestation.
+`get_item` for the ticket, `get_ticket_doc` for `plan` and
+`post-implementation-report`, its `refs` (the governing docs the plan must meet),
+and the PR itself (`gh pr view <branch> --json url,state,title`, then
+`gh pr diff <branch>`; the PR URL is in the ticket's scratch/notes and the id is
+in the PR body's `Kanmer:` footer).
 
-Use GitHub's current PR identity, not a branch name that can move:
+Also `get_doc_gates <id>` — review is the one skill that both reads evidence and
+**moves the ticket**, so self-check the move you are about to make instead of
+failing into it at the end of a passing review.
 
-```sh
-gh pr view <pr> --json url,state,title,headRefOid,reviewDecision,statusCheckRollup,reviews,comments
-gh pr diff <pr>
-```
+## Write the review to scratch
 
-`headRefOid` is the full SHA reviewed. Capture the full diff, review comments,
-requested changes, and unresolved threads; use the GitHub GraphQL review-thread
-surface when the JSON view does not expose whether a thread is resolved. A
-required check that is red, pending, or absent is not a pass. A check that is
-not required may still be recorded as evidence, but cannot be presented as a
-required green gate.
+**Reviews are not pipeline documents.** The legal document types are fixed
+(research, files, plan, checklist, open-questions, post-implementation-report,
+proof) and none of them is a review — `set_ticket_doc` rejects anything else.
+That is correct rather than a gap: the gated evidence entering this stage is the
+author's *report*, and a review written into the ticket's own document set would
+put the reviewer's verdict in the author's folder.
 
-Do not inspect a PR by checking a branch out over `.worktrees/kanmer`. That is
-the board worktree and remains on its board branch. If the ticket's
-implementation worktree is useful for context, keep it read-only and do not
-switch it to `main`.
+Write it with `append_scratch <id> review "…"`, which is never gated, covering:
 
-## The whole-file review attestation
+1. **Changes** — what the diff actually changes, file by file, in the reviewer's
+   own words, not the author's.
+2. **Comments** — every point raised, each tagged blocking / non-blocking.
+3. **Disposition** — for each comment: fixed-in-PR, filed-as-ticket, or
+   won't-do-because. Nothing said in review silently evaporates.
+4. **Verdict** — pass or needs-changes, and what was actually checked.
 
-Read `get_ticket_doc(id: <ID>, doc: "scratch/review")` first. Replace it with
-`set_ticket_doc`, passing the returned `version` as `expected_version`; do not
-append to it and do not overwrite a concurrent review. The frontmatter is
-exactly:
+## Before applying fixes: check the open questions
 
-```yaml
-kind: review-attestation
-pr: "123"
-head_sha: "<full reviewed PR head SHA>"
-verdict: pass
-reviewer: "<stable reviewer identity>"
-independent: true
-plan_hash: "<get_ticket_doc(doc: \"plan\").version>"
-ticket_updated: "<ticket updated timestamp read for review>"
-findings: []
-```
+Read `open-questions` before changing anything in response to review, and do not
+apply a fix that turns on a question still unticked — put it to the user first.
 
-`verdict` is exactly `pass` or `needs-changes`. `independent` is true only for
-an actual independent reviewer. Every finding has a stable id, severity
-(`blocker | major | minor | note`), non-empty summary, and a disposition:
-`open | fixed | rejected-with-reason | accepted-risk | deferred-to-ticket`.
-`rejected-with-reason` and `accepted-risk` require a reason; a
-`deferred-to-ticket` finding requires the linked ticket id. The Markdown body
-must explain changes, acceptance checks, findings, dispositions, and residual
-risk, while frontmatter remains the machine-facing authority.
+**This one is a convention, not a gate, and knowing the difference matters.**
+The `questions-resolved` requirement fires on stage *transitions*; review fixes
+happen inside the review stage with no `move_item`, so nothing enforces this and
+nothing will.
 
-Every comment gets a disposition. Fix it in the PR, reject it with a reason,
-accept the named risk, or file and link a blocking ticket. Do not silently
-drop a review thread. If changes are needed, write `needs-changes`, leave the
-ticket in Review, and do not merge. A stale head, stale plan version, changed
-ticket timestamp, unresolved blocker/major finding, or changed required checks
-requires a fresh gather and replacement attestation. Review does not silently
-implement a new scope: send an authorized change back through execute/current
-PR with its plan alignment intact.
+Be precise about what *is* enforced, because it is less than it looks. What holds
+universally is **Done**: every profile carries the requirement at `enter-done`,
+so no ticket closes with an open question. What does **not** hold is the merge —
+this skill merges *before* it moves, and `gh pr merge` is a GitHub operation the
+gate engine never sees. Gates constrain `move_item` and nothing else. So on every
+profile, `feature` included, a ticket with an unticked question has a PR exactly
+as mergeable as one without; the boundaries merely refuse the bookkeeping move
+afterwards. (Profiles also differ on which boundaries they declare at all — ask
+`get_doc_gates`, never assume.) Measured on all four profiles and recorded in
+[[SKILL-012]]'s proof.
 
-## Decide and merge
+That is the gap, and it is why this paragraph exists rather than a gate.
 
-`pass` requires all of the following:
+If you are both author and reviewer, say so in the first line. It is not an
+independent review and should not read as one.
 
-- the reviewer is independent and the attestation says so truthfully;
-- the diff matches the bounded packet and post-implementation report;
-- governing-doc obligations and the plan's acceptance checks are met;
-- all required checks exist and are green; and
-- every review finding/thread has a disposition with no open blocker or major.
+## Check
 
-Re-run the PR view, diff/head, check, and thread gather immediately before the
-merge command. If anything moved, replace the attestation with the new head
-and plan/ticket values. With authorization, merge through GitHub only after
-that final pass:
+1. **Report against diff.** Does `post-implementation-report.md` list every file
+   change with an honest rationale, and match what the diff does?
+2. **Governing docs.** Does the plan's **Governing docs** section hold against the
+   change — each linked PRD/FRD/ADR met, any modification actually authorized,
+   any new ADR actually written?
+3. **The code** — correctness, tests, and whether the ripple effects listed in
+   the ticket's `files` document (callers, docs, build artifacts) were followed
+   up. Unplanned extras belong in their own tickets, not smuggled in.
 
-```sh
-gh pr merge <pr> --squash --delete-branch=false
-```
+## Outcomes
 
-If the merge fails or GitHub reports a non-merged state, preserve the exact
-failure, leave the ticket in Review, and do not move it. After a confirmed
-merge, call `get_doc_gates` and move exactly one gated boundary, one stage,
-`review` → `verifying`.
-The merged SHA belongs to `kanmer-verify`; do not write proof here.
+- **Passes** — record the verdict in scratch, then (with the user's go-ahead, or their
+  standing delegation) **merge the PR** (`gh pr merge`), and `move_item <id>
+  verifying`. That is **one stage**, deliberately: a move crosses at most one
+  gated boundary, so reaching for `done` here is refused even with every
+  document written. Hand off to `kanmer-verify` to validate on merged main and
+  write `proof.md`.
+- **Needs changes** — file each substantive point as a ticket in the **PR Review**
+  area (`kanmer-tickets`; `PR-` prefix), linked with `rel: "blocks"` so the
+  original visibly can't close. Trivial nits go straight into the PR as review
+  comments. The blocking tickets are worked by `kanmer-execute`; re-review when
+  they land.
 
-Review feedback that needs implementation becomes a linked PR Review ticket;
-the original remains blocked until it is dispositioned and re-reviewed. Do not
-change an unticked open question while applying review fixes without the
-owner's decision. The whole-file `scratch/review.md` attestation is the current
-review record; deleted legacy `pr-*` assets are not part of this workflow.
+## Incoming PR feedback
+
+A human's review comments on a PR you're tracking follow the same rule: each
+substantive comment becomes a PR Review ticket blocking the original, captured in
+the scratch review's comments and disposition sections.
 
 ---
 
-**Hand off to `kanmer-verify`** only after an independent pass, authorized
-merge, confirmed merged PR, and the single Review → Verifying move. Verify
-owns exact-SHA evidence and the Done decision; this skill never self-reviews
-or silently merges an author's own work.
+**Hand off to `kanmer-verify`** once the PR is merged and the ticket is in
+Verifying: it validates the shipped result on merged `main` and writes `proof`.
+On a needs-changes verdict nothing is handed off — the blocking tickets go to
+`kanmer-execute`, and this skill runs again when they land.
