@@ -68,3 +68,7 @@ diff.
 
 Core enum, `AssessmentAccessPolicy`, FRD-07's two-flag EVA policy wording vs
 the three-valued dialog (reported), Presentation label code.
+
+## Simplification pass — 2026-08-28
+
+n/a — docs-only.

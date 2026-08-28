@@ -4,12 +4,13 @@ type: ticket
 title: >-
   FRD-01 and FRD-04 wording: workflow display labels, one Principals area,
   Action Logs
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-28T08:08:17.460Z'
+  review: '2026-08-28T08:14:35.621Z'
 taken_at: '2026-08-28T08:13:02.931Z'
 branch: task/plat-047-frd01-frd04
 worktree: ../pegasus-worktrees/plat-047-frd01-frd04
@@ -25,9 +26,13 @@ links:
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-04-parties-accounts-and-access.md
+commits:
+  - 8f45f36d
+prs:
+  - '583'
 archived: false
 created: '2026-08-28T08:05:30.098Z'
-updated: '2026-08-28T08:13:02.931Z'
+updated: '2026-08-28T08:14:35.621Z'
 ---
 
 ## What
