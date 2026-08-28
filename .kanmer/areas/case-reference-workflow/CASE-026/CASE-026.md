@@ -23,9 +23,11 @@ groups:
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/606'
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-08-28T19:04:46.136Z'
+updated: '2026-08-28T21:53:37.394Z'
 ---
 
 ## What
@@ -42,5 +44,5 @@ Wave 2 lane D of [[EPIC-011]]. Port `Pages/Search/Index.cshtml(.cs)` (moved from
 
 ## Verification
 
-- [ ] Old `/Cases?query=` bookmarks 301 to `/Search` with the same values.
-- [ ] No clipped text/overflow at 1580/1100/760.
+- [x] Old `/Cases?query=` bookmarks 301 to `/Search` with the same values. Proved 2026-08-28 by `AdministrationSearchAccountWebTests.OldCasesSearchLinksRedirectToSearchWithTheirValuesIntact`: a thirteen-parameter bookmark, the 301 target asserted byte for byte, and every value rendered back into its field (PASS 6/6).
+- [ ] No clipped text/overflow at 1580/1100/760. Needs a browser run; not done in the page lane, left for the orchestrator's walk.
