@@ -5,6 +5,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Identity;
@@ -440,6 +441,89 @@ public static class OperatorLabels
         RequestUploadStatus.Revoked => "Withdrawn",
         RequestUploadStatus.Failed => "Failed",
         _ => Humanise(status.ToString())
+    };
+
+    /// <summary>
+    /// The state of one Operations-listed request operation, as the operator
+    /// reads it on the Operations workspace.
+    /// </summary>
+    /// <remarks>
+    /// The Operations projection covers both upload links and external work
+    /// under one state vocabulary; <see cref="UploadRequestState"/> stays the
+    /// map for the request surface itself.
+    /// </remarks>
+    public static string RequestOperationState(RequestOperationState state) => state switch
+    {
+        Pegasus.Core.Operations.RequestOperationState.Pending => "Pending",
+        Pegasus.Core.Operations.RequestOperationState.Active => "Active",
+        Pegasus.Core.Operations.RequestOperationState.Expired => "Expired",
+        Pegasus.Core.Operations.RequestOperationState.Exhausted => "Exhausted",
+        Pegasus.Core.Operations.RequestOperationState.Revoked => "Revoked",
+        Pegasus.Core.Operations.RequestOperationState.Failed => "Failed",
+        Pegasus.Core.Operations.RequestOperationState.Completed => "Completed",
+        Pegasus.Core.Operations.RequestOperationState.UnknownExternal => "Unknown external",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The Service health table's area grouping, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// The Core enum name for the queued receiving pipeline is internal
+    /// vocabulary; the office word for that work is "Receiving".
+    /// </remarks>
+    public static string ServiceHealthAreaName(ServiceHealthArea area) => area switch
+    {
+        ServiceHealthArea.Mail => "Mail",
+        ServiceHealthArea.Intake => "Receiving",
+        ServiceHealthArea.Custody => "Custody",
+        ServiceHealthArea.Eva => "EVA",
+        ServiceHealthArea.Ai => "AI",
+        ServiceHealthArea.Automation => "Automation",
+        _ => Humanise(area.ToString())
+    };
+
+    /// <summary>The Service health row's state, as the operator reads it.</summary>
+    public static string ServiceHealthStateName(ServiceHealthState state) => state switch
+    {
+        ServiceHealthState.Current => "Current",
+        ServiceHealthState.Partial => "Partial",
+        ServiceHealthState.Failed => "Failed",
+        ServiceHealthState.Running => "Running",
+        ServiceHealthState.Configured => "Configured",
+        ServiceHealthState.ReviewRequired => "Review required",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>The external thing a service's recorded evidence depends on.</summary>
+    public static string ServiceHealthDependencyName(ServiceHealthDependency dependency) => dependency switch
+    {
+        ServiceHealthDependency.MicrosoftGraph => "Microsoft Graph",
+        ServiceHealthDependency.Worker => "Worker",
+        ServiceHealthDependency.Box => "Box",
+        ServiceHealthDependency.EvaApi => "EVA API",
+        ServiceHealthDependency.AiConnector => "AI",
+        ServiceHealthDependency.AutomationClient => "Automation client",
+        _ => Humanise(dependency.ToString())
+    };
+
+    /// <summary>
+    /// One Service health row's service name, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// Two Core service names contain words banned from operator-facing copy
+    /// ("Intake dispatch", "Automation ingress"); they are renamed here and
+    /// only here. Everything else — mailbox addresses, "Sent evidence",
+    /// "External work", "EVA submissions", "AI jobs" — is already the
+    /// operator's own word and passes through, as do external-work kind codes
+    /// via <see cref="Humanise"/>.
+    /// </remarks>
+    public static string ServiceHealthServiceName(string? service) => service switch
+    {
+        ServiceHealthPolicy.IntakeDispatchService => "Receiving dispatch",
+        ServiceHealthPolicy.AutomationService => "Automation clients",
+        null or "" => "Unknown",
+        _ => service.Contains('_') ? Humanise(service) : service
     };
 
     /// <summary>

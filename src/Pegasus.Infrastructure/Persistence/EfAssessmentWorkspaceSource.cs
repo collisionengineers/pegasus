@@ -81,10 +81,15 @@ internal sealed class EfAssessmentWorkspaceSource(
             .ThenByDescending(item => item.RequestId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var draftEntity = specificationEntities.SingleOrDefault(
-            item => item.State == RepairSpecificationState.Draft.ToString());
-        var acceptedEntity = specificationEntities.SingleOrDefault(
-            item => item.State == RepairSpecificationState.Accepted.ToString());
+        // Named estimates (ENG-026): a case may hold several drafts and
+        // several accepted estimates; the workspace shows the latest draft
+        // and the Current one, the same choice EfRepairSpecificationStore's
+        // DraftQuery / AcceptedQuery make.
+        var draftEntity = specificationEntities
+            .Where(item => item.State == RepairSpecificationState.Draft.ToString())
+            .OrderByDescending(item => item.Version)
+            .FirstOrDefault();
+        var acceptedEntity = specificationEntities.SingleOrDefault(item => item.IsCurrent);
         var currentSpecification = acceptedEntity ?? draftEntity;
         var data = EfCaseDataStore.Map(snapshot, workflow);
         var assessment = EfCaseAssessmentStore.Map(
