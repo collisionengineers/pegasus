@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Harden the generated Test UI snapshot tooling (deferred review findings from
   UIIMP-004)
-status: implementing
+status: review
 area: ui-improvement
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-28T08:08:12.055Z'
+  review: '2026-08-28T08:23:50.152Z'
 taken_at: '2026-08-28T08:16:04.127Z'
 branch: task/uiimp-005-test-ui-gate
 worktree: ../pegasus-worktrees/uiimp-005-test-ui-gate
@@ -23,10 +24,16 @@ links:
   - UIIMP-004
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - 40b56e8f
+  - b4d34912
+  - 04e580c5
+prs:
+  - '588'
 deployment: n/a
 archived: false
 created: '2026-08-27T08:17:30.643Z'
-updated: '2026-08-28T08:16:04.127Z'
+updated: '2026-08-28T08:23:50.152Z'
 ---
 
 ## What
