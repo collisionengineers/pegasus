@@ -52,3 +52,17 @@ Web MCP and tests, plus one EF migration and snapshot.
 - Existing import/accept callers compile and keep their behaviour.
 - Automation can only create/update AiDraft estimates that cite a Taken
   Estimate job for the case held by the same client.
+
+## Simplification pass — 2026-08-28
+
+Lenses: reuse, simplification, efficiency, altitude over the branch diff
+(`git diff origin/dev...HEAD`).
+
+| Finding | Disposition |
+| --- | --- |
+| `EfRepairSpecificationStore.GetRequiredVersionAsync` duplicated the new `ReplayedAsync` once `AcceptAsync` stamps `LastOperationKey` | Fixed — deleted; `AcceptAsync` replays through `ReplayedAsync` |
+| Automation-only-AiDraft rule appears in `ValidateSave` (route on create) and `ValidateEditable` (route of the stored row on update) | Accepted — the two checks guard different inputs; one would let an Automation update rewrite a Manual draft |
+| `pegasus_estimate_save` re-reads the workflow to report the new case version | Accepted — `RepairSpecificationVersion` does not carry the case version and the client needs it for the next lease; one indexed read |
+| `EstimateOperations.TryParse` has one production caller (the JSON parser) | Accepted — it is the design's operation vocabulary; ENG-028's editor is the second caller |
+| Migration `Designer.cs` and `.cs` were generated with a UTF-8 BOM | Fixed — stripped (ENG-022 precedent) |
+| Report `Prepare(assessment, costs)` still has the page as a caller passing `costs: null` | Deferred to ENG-028 — the page's readiness panel will name "Current estimate required" until it passes the workspace's Current estimate; the report generator path (`EfAssessmentReportProjectionSource`) is correct now |

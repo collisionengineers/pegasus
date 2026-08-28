@@ -2,12 +2,15 @@
 id: CASE-025
 type: ticket
 title: Port the Cases queues page (/Cases) with workflow rail groups and filters
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:42.203Z'
+taken_at: '2026-08-28T11:34:11.858Z'
+branch: task/case-025-cases-queues
+worktree: ../pegasus-worktrees/case-025-cases-queues
 labels:
   - ui
   - wave-2
@@ -20,7 +23,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-28T08:35:23.861Z'
-updated: '2026-08-28T11:25:42.203Z'
+updated: '2026-08-28T11:34:11.858Z'
 ---
 
 ## What
