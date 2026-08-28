@@ -3,12 +3,15 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -28,8 +31,12 @@ public sealed partial class DetailsModel(
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
+    IStaffAccountQueries staffAccountQueries,
+    IEvaSubmissionModeStore evaModeStore,
+    IEvaSubmissionQueries evaSubmissionQueries,
     TimeProvider timeProvider,
-    ILogger<DetailsModel> logger) : CaseMutationPageModel(logger)
+    ILogger<DetailsModel> logger,
+    ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
 {
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
@@ -47,31 +54,111 @@ public sealed partial class DetailsModel(
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     /// <summary>
-    /// Which section of the case container is open.
+    /// Which section of the case workspace is open.
     /// </summary>
     /// <remarks>
-    /// Overview, Evidence and History are alternatives, not a reading order,
-    /// so they are tabs rather than panels stacked down the page. The tab is
-    /// in the query string and the panels are server-rendered, so the screen
-    /// works with no script and every section is linkable.
+    /// The sections are alternatives, not a reading order, so they are one
+    /// query-selectable surface rather than panels stacked down the page. The
+    /// section is in the query string and the panels are server-rendered, so
+    /// the screen works with no script and every section is linkable.
     /// </remarks>
-    [BindProperty(SupportsGet = true, Name = "tab")]
-    public string? TabFilter { get; set; }
+    [BindProperty(SupportsGet = true, Name = "section")]
+    public string? SectionFilter { get; set; }
 
-    public string Tab => TabFilter?.ToLowerInvariant() switch
+    public string Section => SectionFilter?.ToLowerInvariant() switch
     {
-        "evidence" => "evidence",
-        "history" => "history",
+        "vehicle" => "vehicle",
+        "valuations" => "valuations",
+        "inspection-address" => "inspection-address",
+        "case-files" => "case-files",
+        "notes" => "notes",
         _ => "overview"
     };
 
     /// <summary>
-    /// Everything the case carries: files, vehicle images and linked e-mail.
+    /// Whether the case has been exported as an EVA bundle at least once,
+    /// read from the history event the export itself writes.
     /// </summary>
-    public int EvidenceCount =>
-        (Case is null ? 0 : CaseFiles.Live(Case.Documents).Count)
-        + ImageIntakes.Count
-        + EvidenceImages.Count;
+    public bool HasExportedBundle { get; private set; }
+
+    /// <summary>
+    /// The assigned Engineer's operator-facing name, resolved through the one
+    /// staff-account query; null while no Engineer is assigned.
+    /// </summary>
+    public string? EngineerDisplayName { get; private set; }
+
+    /// <summary>
+    /// The named Engineer accounts offered by the EVA handoff dialog, loaded
+    /// only while the case is in Review (the only state that hands off).
+    /// </summary>
+    public IReadOnlyList<EngineerOption> EngineerOptions { get; private set; } = [];
+
+    /// <summary>
+    /// Whether the EVA handoff dialog offers the API submission: the host
+    /// composed a transport, the principal enabled manual submission, and the
+    /// case has not already reached EVA.
+    /// </summary>
+    public bool CanSubmitToEva { get; private set; }
+
+    public sealed record EngineerOption(Guid Id, string Name);
+
+    /// <summary>
+    /// One outstanding requirement on the case: the completeness flags the
+    /// case's own projection reports as unmet, each with the missing-material
+    /// reason the due-work schedule carries. The flags are Core's; this only
+    /// names the ones that are false.
+    /// </summary>
+    public IReadOnlyList<CaseRequirement> OutstandingRequirements
+    {
+        get
+        {
+            if (Case?.Data is not { } data)
+            {
+                return [];
+            }
+
+            var why = Case.Workflow.DueWork is { } dueWork
+                ? Pegasus.Web.Presentation.OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)
+                : null;
+            List<CaseRequirement> requirements = [];
+            AddRequirement(
+                requirements,
+                data.Completeness.Values.InstructionComplete,
+                "Instructions incomplete",
+                why);
+            AddRequirement(
+                requirements,
+                data.Completeness.Values.ImagesComplete,
+                "Images incomplete",
+                why);
+            AddRequirement(
+                requirements,
+                data.Completeness.Values.InstructionConfirmedByStaff,
+                "Instructions not staff-reviewed",
+                why);
+            AddRequirement(
+                requirements,
+                data.Completeness.Values.ImagesConfirmedByStaff,
+                "Images not staff-reviewed",
+                why);
+            return requirements;
+        }
+    }
+
+    public sealed record CaseRequirement(string Title, string Source, string? Why);
+
+    private static void AddRequirement(
+        List<CaseRequirement> requirements,
+        bool satisfied,
+        string title,
+        string? why)
+    {
+        if (!satisfied)
+        {
+            requirements.Add(new CaseRequirement(title, "Instruction completeness", why));
+        }
+    }
+
 
     public CaseDetails? Case { get; private set; }
 
@@ -100,8 +187,6 @@ public sealed partial class DetailsModel(
 
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
 
-    public Guid ReportApprovalId { get; } = Guid.NewGuid();
-
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -127,7 +212,7 @@ public sealed partial class DetailsModel(
                 cancellationToken))?.CanOpen == true;
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
             EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
-            if (Tab == "evidence")
+            if (Section == "case-files")
             {
                 var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
                 foreach (var intake in ImageIntakes)
@@ -138,6 +223,7 @@ public sealed partial class DetailsModel(
                 }
                 ImagesByIntake = imagesByIntake;
             }
+            await DescribeWorkspaceExtrasAsync(cancellationToken);
             RestoreLeaseState(id, actor, Case.ActiveEditLease);
             if (LeaseToken is not null)
             {
@@ -347,6 +433,58 @@ public sealed partial class DetailsModel(
                 activeLease.Holder,
                 actor,
                 cancellationToken);
+    }
+
+    /// <summary>
+    /// The values the workspace frame names that the case projection does not
+    /// carry directly: whether an EVA bundle export has ever happened, the
+    /// assigned Engineer's account name, and — only in Review, the one state
+    /// that hands off — the named Engineer accounts and whether the API
+    /// submission is a route this principal allows.
+    /// </summary>
+    private async Task DescribeWorkspaceExtrasAsync(CancellationToken cancellationToken)
+    {
+        if (Case is not { Workflow: var workflow } details)
+        {
+            return;
+        }
+
+        HasExportedBundle = details.History.Any(entry =>
+            string.Equals(
+                entry.EventType,
+                EvaHandoffPolicy.BundleExportedHistoryEventKind,
+                StringComparison.Ordinal));
+
+        if (workflow.AssignedEngineerId is { } engineerId)
+        {
+            var account = await staffAccountQueries.GetAsync(engineerId, cancellationToken);
+            EngineerDisplayName = account?.UserName ?? ActorDisplayNames.UnknownStaff;
+        }
+
+        if (workflow.State != CaseLifecycleState.Review)
+        {
+            return;
+        }
+
+        var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
+        EngineerOptions = accounts.Accounts
+            .Where(account => account.IsEnabled && account.Roles.Contains(StaffRole.Engineer))
+            .Select(account => new EngineerOption(account.Id, account.UserName))
+            .ToArray();
+
+        var latestSubmission = await evaSubmissionQueries.GetLatestAsync(
+            workflow.CaseId,
+            cancellationToken);
+        var modes = submitCaseToEva is null
+            ? EvaSubmissionModes.Disabled
+            : await evaModeStore.GetForPrincipalAsync(
+                workflow.Identity.PrincipalCode,
+                cancellationToken);
+        // Delivered, not merely succeeded: an instruction EVA accepted without
+        // returning an identifier still created a claim, and offering the
+        // button again would create a second one no API call can withdraw.
+        CanSubmitToEva = EvaSubmissionPolicy.AllowsManualSubmission(modes)
+            && latestSubmission is not { IsDelivered: true };
     }
 
     /// <summary>
