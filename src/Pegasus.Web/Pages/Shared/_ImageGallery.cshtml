@@ -10,8 +10,8 @@
         @foreach (var image in Model)
         {
             <li>
-                <a class="gallery-item"
-                   href="@image.Href"
+                <a href="@image.Href"
+                   class="gallery-item"
                    data-evidence-item
                    data-download-href="@image.DownloadHref"
                    data-media-type="@image.MediaType"

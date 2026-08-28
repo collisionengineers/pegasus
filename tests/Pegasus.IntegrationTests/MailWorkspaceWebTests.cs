@@ -594,7 +594,7 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var current = await GetHtmlAsync(client, "/Inbox");
-        Assert.Contains("Updated", current, StringComparison.Ordinal);
+        Assert.Contains("Current ·", current, StringComparison.Ordinal);
         Assert.DoesNotContain(">Stale<", current, StringComparison.Ordinal);
 
         clock.Advance(GetRetainedMailFreshness.StaleAfter + TimeSpan.FromMinutes(1));
