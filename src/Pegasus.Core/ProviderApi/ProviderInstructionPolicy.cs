@@ -5,35 +5,6 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.ProviderApi;
 
-public sealed record ProviderInstructionParty(
-    string? Name = null,
-    string? EmailAddress = null,
-    string? PhoneNumber = null)
-{
-    public static readonly ProviderInstructionParty Empty = new();
-}
-
-public sealed record ProviderInstructionClaimant(
-    string? Name = null,
-    string? ContactNumber = null,
-    string? Address = null)
-{
-    public static readonly ProviderInstructionClaimant Empty = new();
-}
-
-/// <summary>
-/// One retained file, as the submission remembers it. The bytes live in the
-/// content-addressed artifact store; this is the manifest entry that names them
-/// and says what the provider called the file.
-/// </summary>
-public sealed record ProviderInstructionAsset(
-    int Ordinal,
-    string FileName,
-    string MediaType,
-    DocumentSemanticRole? Role,
-    string Sha256,
-    string StorageKey);
-
 /// <summary>
 /// The instruction a provider declared, normalised. Every value here was stated
 /// by the authenticated Principal; none was read out of a document.
