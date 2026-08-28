@@ -193,9 +193,9 @@ public sealed class IndexModel(
 
     /// <summary>
     /// ENG-006: one click on a damage region saves it as the case's impact
-    /// location through the assessment save seam, under a lease this handler
-    /// acquires — the same value the report prints and the Impact location
-    /// dropdown edits.
+    /// location through the assessment save seam, under the edit mode the
+    /// operator entered — the same value the report prints and the Impact
+    /// location dropdown edits.
     /// </summary>
     public async Task<IActionResult> OnPostSaveDamageAsync(
         Guid id,
