@@ -881,6 +881,24 @@ if (!intakeSurfaceEnabled)
     });
 }
 
+// The Provider API joins the same absence gates. Answering 404 before routing
+// matters: the static-assets fallback owns a GET/HEAD-only catch-all over
+// every file-shaped path, so an uncomposed POST here would otherwise surface
+// as a 405 that discloses the route's shape instead of its absence.
+if (!providerApiEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments(ProviderApi.BasePath))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+}
+
 app.UseHttpsRedirection();
 
 app.UseRouting();
