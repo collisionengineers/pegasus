@@ -9,6 +9,8 @@ public sealed class CaseEditAuthorityTests
     private static readonly DateTimeOffset Now =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private const string Holder = "6f0c2c9a-33b1-4f5d-8a2e-9b7c1d4e5f60";
+    private static readonly ActionActor HolderActor =
+        ActionActor.Staff(Guid.Parse(Holder), [StaffRole.User]);
 
     [Fact]
     public void StaleVersionIsRefusedBeforeAnyLeaseQuestionIsAsked()
@@ -44,8 +46,9 @@ public sealed class CaseEditAuthorityTests
             CaseEditAuthority.RequireLease(
                 CaseId,
                 caseVersion: 4,
-                actorSubjectId: Holder,
+                HolderActor,
                 presentedLeaseToken: "a-live-token",
+                retainedLeaseHolderKind: ActorKind.Staff,
                 retainedLeaseHolder: Holder,
                 hasRetainedLeaseTokenHash: true,
                 leaseExpiresAtUtc: null,
@@ -61,6 +64,58 @@ public sealed class CaseEditAuthorityTests
 
         Assert.Equal(CaseId, exception.CaseId);
         Assert.Equal(4, exception.CaseVersion);
+    }
+
+    /// <summary>
+    /// KANMER-005: a holder is an actor identity, kind and subject together. The Automation
+    /// Actor presenting the live token under the same subject text as the staff holder is a
+    /// competitor, and so is a staff account under an Automation holder's subject.
+    /// </summary>
+    [Fact]
+    public void TheSameSubjectUnderADifferentActorKindIsRefusedEvenWhenTheTokenMatches()
+    {
+        Assert.Throws<CaseEditLeaseConflictException>(() =>
+            Require(actor: ActionActor.Automation(Holder)));
+        Assert.Throws<CaseEditLeaseConflictException>(() =>
+            Require(
+                actor: HolderActor,
+                retainedLeaseHolderKind: ActorKind.Automation));
+
+        var automation = ActionActor.Automation("pegasus-automation");
+        Require(
+            actor: automation,
+            retainedLeaseHolderKind: ActorKind.Automation,
+            retainedLeaseHolder: automation.SubjectId);
+    }
+
+    /// <summary>
+    /// A lease retained before the holder's kind was recorded belongs to nobody: it is still
+    /// held, so it is not expired, but no actor of any kind can use it.
+    /// </summary>
+    [Fact]
+    public void AHolderRetainedWithoutAKindIsNobodysUntilItExpires()
+    {
+        Assert.Throws<CaseEditLeaseConflictException>(() =>
+            Require(retainedLeaseHolderKind: null));
+        Assert.False(CaseEditAuthority.IsHolder(null, Holder, HolderActor));
+        Assert.False(CaseEditAuthority.IsHolder(null, Holder, ActionActor.Automation(Holder)));
+    }
+
+    [Fact]
+    public void OnlyTheExactKindAndSubjectIsTheHolder()
+    {
+        Assert.True(CaseEditAuthority.IsHolder(ActorKind.Staff, Holder, HolderActor));
+        Assert.False(CaseEditAuthority.IsHolder(ActorKind.Automation, Holder, HolderActor));
+        Assert.False(CaseEditAuthority.IsHolder(
+            ActorKind.Staff,
+            Guid.NewGuid().ToString("D"),
+            HolderActor));
+        Assert.False(CaseEditAuthority.IsHolder(ActorKind.Staff, null, HolderActor));
+        Assert.False(CaseEditAuthority.IsHolder(ActorKind.Staff, " ", HolderActor));
+        Assert.True(CaseEditAuthority.IsHolder(
+            ActorKind.Automation,
+            "pegasus-automation",
+            ActionActor.Automation("pegasus-automation")));
     }
 
     [Fact]
@@ -100,6 +155,7 @@ public sealed class CaseEditAuthorityTests
         var viewer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
         var holder = await new DescribeCaseEditAuthorityHolder(accounts).ExecuteAsync(
+            ActorKind.Staff,
             staffId.ToString("D"),
             viewer,
             default);
@@ -116,11 +172,17 @@ public sealed class CaseEditAuthorityTests
         var describe = new DescribeCaseEditAuthorityHolder(accounts);
 
         Assert.Null((await describe.ExecuteAsync(
+            ActorKind.Staff,
             Guid.NewGuid().ToString("D"),
             viewer,
             default)).DisplayName);
-        Assert.Null((await describe.ExecuteAsync("automation", viewer, default)).DisplayName);
         Assert.Null((await describe.ExecuteAsync(
+            ActorKind.Staff,
+            "automation",
+            viewer,
+            default)).DisplayName);
+        Assert.Null((await describe.ExecuteAsync(
+            ActorKind.Staff,
             Guid.Empty.ToString("D"),
             viewer,
             default)).DisplayName);
@@ -128,8 +190,9 @@ public sealed class CaseEditAuthorityTests
 
     /// <summary>
     /// ADR-0011 keeps the Automation Actor attributable without impersonating staff, so the two
-    /// unresolvable cases must stay apart: a non-GUID holder is the Automation Actor, while a GUID
-    /// with no account behind it is still a member of staff.
+    /// unresolvable cases must stay apart. KANMER-005: the retained kind decides, never the shape
+    /// of the subject — a GUID-shaped Automation subject is still the Automation Actor, and a
+    /// staff GUID with no account behind it is still a member of staff.
     /// </summary>
     [Fact]
     public async Task TheAutomationHolderIsNotDescribedAsAMemberOfStaff()
@@ -139,13 +202,24 @@ public sealed class CaseEditAuthorityTests
         var describe = new DescribeCaseEditAuthorityHolder(accounts);
 
         var automation = await describe.ExecuteAsync(
+            ActorKind.Automation,
             ActionActor.Automation("pegasus-automation").SubjectId,
             viewer,
             default);
         Assert.True(automation.IsAutomation);
         Assert.Null(automation.DisplayName);
 
+        var guidShapedAutomation = await describe.ExecuteAsync(
+            ActorKind.Automation,
+            accounts.KnownStaffId.ToString("D"),
+            viewer,
+            default);
+        Assert.True(guidShapedAutomation.IsAutomation);
+        Assert.Null(guidShapedAutomation.DisplayName);
+        Assert.Null(accounts.Requested);
+
         var unresolvedStaff = await describe.ExecuteAsync(
+            ActorKind.Staff,
             Guid.NewGuid().ToString("D"),
             viewer,
             default);
@@ -153,11 +227,29 @@ public sealed class CaseEditAuthorityTests
         Assert.Null(unresolvedStaff.DisplayName);
 
         var namedStaff = await describe.ExecuteAsync(
+            ActorKind.Staff,
             accounts.KnownStaffId.ToString("D"),
             viewer,
             default);
         Assert.False(namedStaff.IsAutomation);
         Assert.Equal("r.hughes", namedStaff.DisplayName);
+    }
+
+    [Fact]
+    public async Task AHolderWithoutARetainedKindIsDescribedWithoutAnIdentifierOrAnAccountRead()
+    {
+        var accounts = new StubStaffAccounts(Guid.NewGuid(), "r.hughes");
+        var viewer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var holder = await new DescribeCaseEditAuthorityHolder(accounts).ExecuteAsync(
+            null,
+            accounts.KnownStaffId.ToString("D"),
+            viewer,
+            default);
+
+        Assert.False(holder.IsAutomation);
+        Assert.Null(holder.DisplayName);
+        Assert.Null(accounts.Requested);
     }
 
     [Fact]
@@ -167,6 +259,7 @@ public sealed class CaseEditAuthorityTests
 
         var exception = await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new DescribeCaseEditAuthorityHolder(accounts).ExecuteAsync(
+                ActorKind.Staff,
                 Guid.NewGuid().ToString("D"),
                 ActionActor.SystemWorker("case-worker"),
                 default));
@@ -203,15 +296,18 @@ public sealed class CaseEditAuthorityTests
 
     private static void Require(
         string? presentedLeaseToken = "a-live-token",
+        ActorKind? retainedLeaseHolderKind = ActorKind.Staff,
         string? retainedLeaseHolder = Holder,
         bool hasRetainedLeaseTokenHash = true,
         DateTimeOffset? leaseExpiresAtUtc = null,
-        bool presentedTokenMatchesRetainedHash = true) =>
+        bool presentedTokenMatchesRetainedHash = true,
+        ActionActor? actor = null) =>
         CaseEditAuthority.RequireLease(
             CaseId,
             caseVersion: 4,
-            actorSubjectId: Holder,
+            actor ?? HolderActor,
             presentedLeaseToken,
+            retainedLeaseHolderKind,
             retainedLeaseHolder,
             hasRetainedLeaseTokenHash,
             leaseExpiresAtUtc ?? Now.AddMinutes(5),
