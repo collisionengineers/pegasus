@@ -196,18 +196,21 @@ public sealed class GetOperationsSnapshot(
                 ?? (work.DueBy is { } dueBy
                     ? new DateTimeOffset(dueBy.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
                     : null);
+            // The row-meta already names the reference, so the title is the
+            // recorded blocker itself and the notice carries the chase state;
+            // repeating either would render one fact twice on the same row.
             items.Add(new(
                 NeedsAttentionKind.Case,
                 work.CaseId,
                 work.Reference,
-                work.Reference,
                 work.MissingMaterialReason,
-                work.MissingMaterialReason,
+                Detail: null,
+                work.State.ToString(),
                 DuePriority(due, asOfUtc, dayEndUtc),
                 Owner: null,
                 due,
                 work.MostRecentOutcome,
-                work.MostRecentChannel));
+                Source: null));
         }
 
         foreach (var held in heldCases)

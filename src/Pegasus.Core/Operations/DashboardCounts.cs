@@ -113,8 +113,8 @@ public enum NeedsAttentionPriority
 /// record behind <paramref name="Id"/>.
 /// </summary>
 /// <param name="Id">The record the row opens (Case, Unidentified item, Triage record; the Case for external work).</param>
-/// <param name="Reason">Why it needs attention — a chase's missing-material reason, a failure reason, an Unidentified reason code, a Triage state or a Case state.</param>
-/// <param name="Source">Where the work came from — a Case origin, media kind, principal or vehicle registration.</param>
+/// <param name="Reason">Why it needs attention — a Core enum name or a recorded failure fact: a chase state, a Case state, an Unidentified reason code, a Triage state or an external failure reason.</param>
+/// <param name="Source">Where the work came from — a Case origin, media kind or principal; null when the kind records none.</param>
 public sealed record NeedsAttentionItem(
     NeedsAttentionKind Kind,
     Guid Id,
