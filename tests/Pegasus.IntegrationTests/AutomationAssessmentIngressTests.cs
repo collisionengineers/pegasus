@@ -1,7 +1,9 @@
 using System.Net;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -431,6 +433,162 @@ public sealed class AutomationAssessmentIngressTests
             SELECT COUNT(*) FROM CaseDataFields
             WHERE CaseId = '{caseId:D}' AND FieldName = N'contact_name'
             """));
+    }
+
+    /// <summary>
+    /// KANMER-005, staff holds and the Automation Actor competes over real HTTP: begin, a write
+    /// presenting the staff holder's own token, and end are each refused with the existing
+    /// held-by-another-actor mapping; nothing moves; the staff holder then releases and the
+    /// Automation Actor claims the free lease.
+    /// </summary>
+    [Fact]
+    public async Task AStaffHeldLeaseRefusesAutomationBeginWriteAndEndOverHttp()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        await AssertRefusedByAnotherHolderAsync(
+            client,
+            token,
+            ToolCallPayload(
+                31,
+                "pegasus_case_edit_begin",
+                new { caseId, expectedVersion = 0, operationKey = "mcp:kanmer-005-begin" }));
+        await AssertRefusedByAnotherHolderAsync(
+            client,
+            token,
+            ToolCallPayload(
+                32,
+                "pegasus_assessment_update",
+                new
+                {
+                    caseId,
+                    expectedVersion = 0,
+                    editLeaseToken = staffLease.Token,
+                    operationKey = "mcp:kanmer-005-write",
+                    reason = "Automation attempted a write under a staff lease.",
+                    fields = new Dictionary<string, string?> { ["vehicle.condition"] = "good" }
+                }));
+        await AssertRefusedByAnotherHolderAsync(
+            client,
+            token,
+            ToolCallPayload(
+                33,
+                "pegasus_case_edit_end",
+                new { caseId, operationKey = "mcp:kanmer-005-end", leaseToken = staffLease.Token }));
+
+        Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
+        Assert.Equal(
+            "Staff",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(
+            staff.SubjectId,
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolder FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IReleaseCaseEditLease>().ExecuteAsync(
+                new(caseId, staff, Guid.NewGuid().ToString("N"), staffLease.Token),
+                CancellationToken.None);
+        }
+
+        var automationLease = await BeginEditAsync(client, token, caseId, 0, rpcId: 34);
+        Assert.Equal(0, automationLease.CaseVersion);
+        Assert.Equal(
+            "Automation",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+    }
+
+    /// <summary>
+    /// KANMER-005, the reported direction: the Automation Actor holds the lease over real HTTP,
+    /// the staff claim through the same Core port the workspace posts to is refused, the
+    /// workspace renders the case read-only with no claim control, and the holder still ends
+    /// its own lease afterwards — after which staff claim normally.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHeldLeaseRefusesTheStaffClaimAndLeavesTheWorkspaceReadOnly()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            TimeProvider.System,
+            useIntegrationTestAuthentication: true);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var automationLease = await BeginEditAsync(client, token, caseId, 0, rpcId: 41);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            ClaimAsStaffAsync(mcpFactory, caseId, staff));
+
+        using var staffClient = mcpFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        using var page = await staffClient.GetAsync($"/Cases/{caseId:D}");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var html = await page.Content.ReadAsStringAsync();
+        Assert.Contains("Case locked - AI is editing", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(ClientId, html, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(
+            "Automation",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+
+        using (var endResponse = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                42,
+                "pegasus_case_edit_end",
+                new { caseId, operationKey = "mcp:kanmer-005-holder-ends", leaseToken = automationLease.LeaseToken })))
+        {
+            Assert.Equal(HttpStatusCode.OK, endResponse.StatusCode);
+            _ = await ReadStructuredContentAsync(endResponse);
+        }
+
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        Assert.Equal(staff.SubjectId, staffLease.Holder);
+        Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
+    }
+
+    private static async Task<CaseEditLease> ClaimAsStaffAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId,
+        ActionActor staff)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            new(caseId, 0, staff, Guid.NewGuid().ToString("N")),
+            CancellationToken.None);
+    }
+
+    private static async Task AssertRefusedByAnotherHolderAsync(
+        HttpClient client,
+        string token,
+        string payload)
+    {
+        using var response = await PostMcpAsync(client, token, payload);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await ReadJsonRpcAsync(response);
+        Assert.Contains(
+            "case edit authority is held by another actor",
+            document.RootElement.ToString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

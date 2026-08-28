@@ -206,6 +206,7 @@ public sealed partial class OperationsWebTests
         public RevokeRequestUploadLinkCommand? PegasusRevoke { get; private set; }
         private bool LeaseIsActive { get; set; }
         private string? LeaseHolder { get; set; }
+        private ActorKind? LeaseHolderKind { get; set; }
         public string? LeaseOperationKey { get; private set; }
 
         public Task<EmailOperationsProjection> GetAsync(
@@ -262,6 +263,7 @@ public sealed partial class OperationsWebTests
         {
             LeaseIsActive = true;
             LeaseHolder = request.Actor.SubjectId;
+            LeaseHolderKind = request.Actor.Kind;
             LeaseOperationKey = request.OperationKey;
             return Task.FromResult(new CaseEditLease(
                 request.CaseId,
@@ -277,6 +279,7 @@ public sealed partial class OperationsWebTests
         {
             LeaseIsActive = false;
             LeaseHolder = null;
+            LeaseHolderKind = null;
             LeaseOperationKey = null;
             return Task.CompletedTask;
         }
@@ -288,6 +291,7 @@ public sealed partial class OperationsWebTests
             PegasusRevoke = command;
             LeaseIsActive = false;
             LeaseHolder = null;
+            LeaseHolderKind = null;
             LeaseOperationKey = null;
             return Task.CompletedTask;
         }
@@ -355,6 +359,7 @@ public sealed partial class OperationsWebTests
                 ActiveEditLease = LeaseIsActive
                     ? new CaseEditLeaseSnapshot(
                         LeaseHolder!,
+                        LeaseHolderKind,
                         FixedUtcNow.AddMinutes(5),
                         LeaseOperationKey!)
                     : null

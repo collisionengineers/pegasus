@@ -229,7 +229,39 @@ public interface IEvaSubmissionQueries
     Task<EvaSubmissionRecord?> GetLatestAsync(
         Guid caseId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Attempts since <paramref name="sinceUtc"/> that did not reach EVA,
+    /// newest first, at most <paramref name="maximumResults"/>. A person
+    /// decides what to do with each one; the health surface only shows that
+    /// they exist and when.
+    /// </summary>
+    Task<IReadOnlyList<EvaSubmissionFailure>> GetRecentFailuresAsync(
+        DateTimeOffset sinceUtc,
+        int maximumResults,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How much EVA work is queued and when EVA was last spoken to at all —
+    /// the two facts a health row can state without probing EVA.
+    /// </summary>
+    Task<EvaSubmissionActivity> GetActivityAsync(CancellationToken cancellationToken = default);
 }
+
+public sealed record EvaSubmissionFailure(
+    Guid CaseId,
+    EvaSubmissionOutcome Outcome,
+    string? FailureCode,
+    DateTimeOffset SubmittedAtUtc);
+
+/// <summary>
+/// <see cref="PendingWorkCount"/> counts queued automatic submissions that have
+/// neither completed nor failed; <see cref="LatestSubmittedAtUtc"/> is the
+/// newest attempt of any outcome, or null when no case has ever been sent.
+/// </summary>
+public sealed record EvaSubmissionActivity(
+    int PendingWorkCount,
+    DateTimeOffset? LatestSubmittedAtUtc);
 
 /// <summary>
 /// A case whose principal has not enabled the act that was attempted.
