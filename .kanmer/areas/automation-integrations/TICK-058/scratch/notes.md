@@ -54,3 +54,57 @@ The blocker is Audit: `RecordAutomaticAuditEvidenceAsync` resolves the original 
 from `receipt.AssetRecords` — the *same* receipt. With one receipt per file the report
 is a sibling receipt and is not reachable. Options recorded in the message to the
 operator; awaiting the ruling before writing code.
+
+## 2026-08-28 — structured contract implemented (Core, Infrastructure, Web build green)
+
+Operator ruled **B — one receipt for the whole submission**. The retained source is
+the request body exactly as sent (`instruction.json`, `application/json`), and the
+submitted files are that receipt's attachments — the e-mail shape. This is what makes
+a declared Audit able to find its original report among its own assets.
+
+### What is written
+
+- **`Pegasus.Core/ProviderApi/ProviderInstruction.cs`** — wire vocabulary in one place:
+  `inspection|audit|auditreport|triage`, `repairable|total-loss`, file roles, and the
+  mapping onto `CaseType` (`auditreport` → `InspectionAndAudit`; `triage` → no Case/PO).
+- **`ProviderInstructionPolicy.cs`** — the declared instruction, its normalisation, the
+  `InstructionDraft` projection, the review fields carrying
+  `IntakeEvidenceSource.ProviderDeclaration`, and the Triage/declaration evidence.
+  Bounds are the case store's own, not tighter wire numbers — a contract that refuses a
+  50-character claimant name the database would have stored refuses real work.
+- **`ProviderInstructionJson.cs`** — the wire schema and its single parser, used by both
+  the endpoint (incoming request) and the intake reader (retained body). One owner, so
+  the two cannot disagree about what a submission said.
+- **`ProcessIntake.AssessAsync`** — one substitution: a `provider_api` source with a
+  binding returns a declared assessment and never touches mail routing, classification
+  or the extraction policy. Everything downstream is unchanged.
+- **`IntakeAllocation`** — case type from the declaration, principal from the binding,
+  and the provider's note written onto the created case.
+- **`ProviderApiIntakeSourceReader`** (Infrastructure) — decorates the ordinary reader,
+  answers only for its own channel, recovers the files as attachments.
+- **`AddCaseNote`** — Staff-only guard replaced (operator decision). A Provider actor
+  needs `SubmitProviderInstruction`; Staff and Automation still need `PerformCasework`.
+- New case data: `claimant_contact_number`, `claimant_address`, and
+  `CaseDataSourceKind.ProviderApi`. The file handler reuses the existing Contact block.
+- `InstructionDraft` gained the eight declared-only fields; `InstructionDrafts` gained
+  their columns.
+
+### Corrections made while building
+
+- **`auditreport` carries no original report and no verdict.** FRD-01 § Case types:
+  Inspection + Audit is Collision Engineers auditing its *own* report, and its reference
+  is the ordinary Inspection Case/PO with no `a.`/`ap.` prefix. Only a standalone
+  `audit` has another firm's report to attach and a verdict to state.
+- **`inspection.deadline` dropped from the wire schema.** `CaseDataSnapshotFactory`
+  asserts `AcceptedInspectionDeadline == InstructionDraft.InspectionDate`; the deadline
+  is the inspection date, exactly as it is for the mail route.
+- **`CaseEditableData` and `CaseDataSnapshotFactory` construct positionally.** New record
+  parameters are appended, never inserted, or every value after them shifts silently.
+- **Envelope bound** (plan item C5): `MaximumProviderApiEnvelopeLength` 30 MiB decoded,
+  `MaximumProviderApiRequestLength` 42 MiB of JSON, enforced while reading the body
+  rather than trusted from `Content-Length`. Still wants the operator's confirmation.
+
+### Remaining
+
+Migrations + grants + bootstrap census; test fakes and new tests; FRD-01/03/09 and
+capabilities; simplification pass.
