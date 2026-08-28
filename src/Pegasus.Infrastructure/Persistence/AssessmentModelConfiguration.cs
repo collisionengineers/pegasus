@@ -64,12 +64,16 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint(
                     "CK_CaseEstimateLines_Unpriced",
                     "[Unpriced] = 0 OR [Price] IS NULL");
+                table.HasCheckConstraint(
+                    "CK_CaseEstimateLines_Quantity",
+                    "[Quantity] IS NULL OR [Quantity] > 0");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.LineType).HasMaxLength(20).IsRequired();
             entity.Property(item => item.GuideCode).HasMaxLength(50);
             entity.Property(item => item.Description).HasMaxLength(300);
             entity.Property(item => item.WorkUnits).HasPrecision(9, 1);
+            entity.Property(item => item.PaintWorkUnits).HasPrecision(9, 1);
             entity.Property(item => item.Price).HasPrecision(18, 2);
             entity.Property(item => item.PartNumber).HasMaxLength(100);
             entity.Property(item => item.Betterment).HasMaxLength(100);
@@ -104,7 +108,14 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint(
                     "CK_CaseRepairSpecifications_Acceptance",
                     "([State] IN ('Accepted', 'Superseded') AND [AcceptedBy] IS NOT NULL AND [AcceptedAtUtc] IS NOT NULL) OR "
-                    + "([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL)");
+                    + "([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL) OR "
+                    + "([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_CaseRepairSpecifications_Current",
+                    "[IsCurrent] = 0 OR [State] = 'Accepted'");
+                table.HasCheckConstraint(
+                    "CK_CaseRepairSpecifications_VatPercent",
+                    "[VatPercent] BETWEEN 0 AND 100");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).ValueGeneratedNever();
@@ -124,11 +135,22 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.AcceptedBy).HasMaxLength(200);
             entity.Property(item => item.SupersessionReason).HasMaxLength(500);
+            entity.Property(item => item.Name).HasMaxLength(EstimatePolicy.MaximumNameLength).IsRequired();
+            entity.Property(item => item.LabourRate).HasPrecision(18, 2);
+            entity.Property(item => item.PaintLabourRate).HasPrecision(18, 2);
+            entity.Property(item => item.PaintMaterials).HasPrecision(18, 2);
+            entity.Property(item => item.OtherCosts).HasPrecision(18, 2);
+            entity.Property(item => item.VatPercent).HasPrecision(5, 2);
+            entity.Property(item => item.Notes).HasMaxLength(EstimatePolicy.MaximumNotesLength);
+            entity.Property(item => item.DiscardedBy).HasMaxLength(200);
+            entity.Property(item => item.DiscardReason).HasMaxLength(500);
+            entity.Property(item => item.LastOperationKey).HasMaxLength(100);
             entity.HasIndex(item => new { item.CaseId, item.Version }).IsUnique();
             entity.HasIndex(item => new { item.CaseId, item.CreationOperationKey }).IsUnique();
             entity.HasIndex(item => item.CaseId)
                 .IsUnique()
-                .HasFilter("[State] = 'Accepted'");
+                .HasFilter("[IsCurrent] = 1");
+            entity.HasIndex(item => item.AiJobId);
             entity.HasOne(item => item.Case)
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)

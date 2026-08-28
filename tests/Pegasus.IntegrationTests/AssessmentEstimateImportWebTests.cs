@@ -287,7 +287,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         null,
         null,
         null,
-        null);
+        null,
+        new("Estimate 1", null, null, null, null, null, 20m, null));
 
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory, RecordingStores store) =>
@@ -490,6 +491,28 @@ public sealed partial class AssessmentEstimateImportWebTests
         public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
             Guid ownerCaseId, CancellationToken cancellationToken) =>
             Task.FromResult(CurrentDraft);
+
+        // The named-estimate path (ENG-026) has no caller on this page yet.
+        public Task<RepairSpecificationVersion> SaveEstimateAsync(
+            SaveEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> DuplicateEstimateAsync(
+            DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> DiscardEstimateAsync(
+            DiscardEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(
+            SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
+            Guid ownerCaseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
+                new[] { CurrentAccepted, CurrentDraft }.Where(item => item is not null).ToArray()!);
 
         public Task<AddCaseDocumentResult> ExecuteAsync(
             AddCaseDocumentCommand command, CancellationToken cancellationToken)
