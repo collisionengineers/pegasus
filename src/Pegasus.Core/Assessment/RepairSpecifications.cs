@@ -7,6 +7,7 @@ public enum RepairSpecificationState
     Draft,
     Accepted,
     Superseded,
+    Discarded,
 }
 
 public enum RepairSpecificationSourceRoute
@@ -16,6 +17,8 @@ public enum RepairSpecificationSourceRoute
     Glasses,
     AudatexPdf,
     ApprovedAiProposal,
+    Json,
+    AiDraft,
 }
 
 public enum RepairSpecificationDisplaySection
@@ -54,7 +57,11 @@ public sealed record RepairSpecificationVersion(
     string? AcceptedBy,
     DateTimeOffset? AcceptedAtUtc,
     Guid? SupersedesSpecificationId,
-    string? SupersessionReason);
+    string? SupersessionReason,
+    EstimateDetails Details,
+    bool IsCurrent = false,
+    Guid? AiJobId = null,
+    string? DiscardReason = null);
 
 public sealed record RepairSpecificationDisplayLists(
     IReadOnlyList<string> NewParts,
@@ -64,7 +71,13 @@ public sealed record RepairSpecificationDisplayLists(
 public static class RepairSpecificationPolicy
 {
     public const string PolicyKey = "repair-specification";
-    public const int PolicyVersion = 1;
+
+    /// <summary>
+    /// v2: the calculation basis of an estimate made Current is derived by
+    /// <see cref="EstimateTotals"/> (FRD-11 § Estimate VAT on the rendered
+    /// report) instead of being typed from the source document.
+    /// </summary>
+    public const int PolicyVersion = 2;
 
     public static void RequireEngineer(ActionActor actor)
     {
@@ -76,6 +89,16 @@ public static class RepairSpecificationPolicy
         }
     }
 
+    /// <summary>
+    /// Routes that stand on a retained document; every other route (Manual,
+    /// AiDraft) is typed into the estimate editor and carries no artifact.
+    /// </summary>
+    public static bool IsDocumentRoute(RepairSpecificationSourceRoute route) => route
+        is RepairSpecificationSourceRoute.Glasses
+        or RepairSpecificationSourceRoute.AudatexPdf
+        or RepairSpecificationSourceRoute.ApprovedAiProposal
+        or RepairSpecificationSourceRoute.Json;
+
     public static RepairSpecificationSource ValidateSource(RepairSpecificationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -83,6 +106,15 @@ public static class RepairSpecificationPolicy
         {
             throw new InvalidOperationException(
                 "Legacy repair lines require authoritative source review before acceptance.");
+        }
+        if (!IsDocumentRoute(source.Route))
+        {
+            return source with
+            {
+                ArtifactReference = Trimmed(source.ArtifactReference),
+                SourceVersion = Trimmed(source.SourceVersion),
+                Sha256 = source.Sha256?.ToLowerInvariant(),
+            };
         }
         Required(source.ArtifactReference, nameof(source.ArtifactReference));
         Required(source.SourceVersion, nameof(source.SourceVersion));
@@ -182,6 +214,9 @@ public static class RepairSpecificationPolicy
             throw new InvalidOperationException($"{name} is required.");
         }
     }
+
+    private static string? Trimmed(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public sealed record StartRepairSpecificationDraftRequest(
@@ -193,7 +228,8 @@ public sealed record StartRepairSpecificationDraftRequest(
     string Reason,
     string EditLeaseToken,
     Guid? SupersedesSpecificationId = null,
-    IReadOnlyList<EstimateLineInput>? Lines = null);
+    IReadOnlyList<EstimateLineInput>? Lines = null,
+    string? Name = null);
 
 public sealed record AcceptRepairSpecificationRequest(
     Guid CaseId,
@@ -227,6 +263,29 @@ public interface IRepairSpecificationStore
         CancellationToken cancellationToken);
 
     Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    // Named estimates (ENG-026). Validation lives in EstimatePolicy and the
+    // use cases in Estimates.cs; the store owns the transaction, the
+    // replay-by-operation-key, and the one-Current-per-case invariant.
+    Task<RepairSpecificationVersion> SaveEstimateAsync(
+        SaveEstimateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> DuplicateEstimateAsync(
+        DuplicateEstimateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> DiscardEstimateAsync(
+        DiscardEstimateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> SetCurrentEstimateAsync(
+        SetCurrentEstimateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
         CancellationToken cancellationToken);
 }
