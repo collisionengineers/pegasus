@@ -97,6 +97,9 @@ public sealed class AiJobTests
         Assert.Throws<ArgumentException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Taken, Client, "op")));
+        Assert.Throws<ArgumentException>(() =>
+            AiJobPolicy.ValidateTransition(new(
+                Guid.NewGuid(), 0, AiJobState.Taken, Client, "op", ProgressNote: " ", LeaseExpiresAtUtc: Now)));
         AiJobPolicy.ValidateTransition(new(
             Guid.NewGuid(), 0, AiJobState.DraftReady, Client, "op",
             Result: new(AiJobResultKind.DraftReply, null, "Draft reply text.")));

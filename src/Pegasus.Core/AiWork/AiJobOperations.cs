@@ -165,6 +165,8 @@ public static class AiJobPolicy
                 throw new ArgumentException(
                     $"Marking an AI job {transition.TargetState} requires a reason.",
                     nameof(transition));
+            case AiJobState.Taken when transition.ProgressNote is { } note && string.IsNullOrWhiteSpace(note):
+                throw new ArgumentException("A progress report carries a note.", nameof(transition));
             case AiJobState.DraftReady when transition.Result is null:
                 throw new ArgumentException("A Draft ready job names its result.", nameof(transition));
         }
