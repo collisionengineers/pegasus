@@ -20,7 +20,7 @@
 @if (Model.LastSubmission is { IsSucceeded: true } sent)
 {
     <div class="status-card" role="status">
-        <dl class="record__facts">
+        <dl class="detail-list">
             <div>
                 <dt>Sent to EVA</dt>
                 <dd>@sent.SubmittedAtUtc.UtcDateTime.ToString("dd/MM/yyyy HH:mm")</dd>
@@ -38,7 +38,7 @@
 else if (Model.LastSubmission is { } attempted)
 {
     <div class="status-card status-card--attention" role="status">
-        <dl class="record__facts">
+        <dl class="detail-list">
             <div>
                 <dt>Last attempt</dt>
                 <dd>@attempted.SubmittedAtUtc.UtcDateTime.ToString("dd/MM/yyyy HH:mm")</dd>

@@ -971,6 +971,15 @@ Two route facts recorded by release 9 (details in operations):
   provisioning, confirm every `*_SECRET_URI` azd input names
   `pegasusprodkv252ow37g` — the local azd environment is not authoritative and
   once carried the retired adopted vaults.
+- EXT-04 added six `Eva:*` keys to the Production fail-fast list, so a host
+  without them refuses to start and the whole app crash-loops, not only the
+  EVA route. The first release carrying EXT-04 must, before provisioning,
+  create the `eva-client-id` and `eva-client-secret` secrets in
+  `pegasusprodkv252ow37g` and `azd env set` the four inputs that have no
+  default: `EVA_CLIENT_ID_SECRET_URI`, `EVA_CLIENT_SECRET_SECRET_URI`,
+  `EVA_REQUEST_FROM` and `EVA_INSTRUCTION_EMAIL`. `EVA_BASE_URI` and
+  `EVA_INSPECTION_TYPE` default correctly. The credential pair alone decides
+  whether the deployment addresses EVA test or live.
 
 ### Durable Worker activation and rollback
 
