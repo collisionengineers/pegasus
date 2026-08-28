@@ -1,5 +1,4 @@
 using System.Data;
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -334,26 +333,13 @@ public sealed class EfPrincipalCredentialStore(
         }
     }
 
-    private static async Task<T> ExecuteWithConcurrencyRetryAsync<T>(
+    private static Task<T> ExecuteWithConcurrencyRetryAsync<T>(
         Func<CancellationToken, Task<T>> operation,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await operation(cancellationToken);
-            }
-            catch (Exception exception) when (
-                attempt < 3
-                && IsRetryableConcurrencyFailure(exception))
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new UnreachableException();
-    }
+        CancellationToken cancellationToken) =>
+        EfOrganizationAdministration.ExecuteWithConcurrencyRetryAsync(
+            operation,
+            IsRetryableConcurrencyFailure,
+            cancellationToken);
 
     // A deadlock or a unique-key race (two first submissions of one
     // operation key, or two concurrent issues for one Principal) is retried;
