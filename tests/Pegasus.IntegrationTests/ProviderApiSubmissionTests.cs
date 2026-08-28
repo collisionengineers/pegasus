@@ -337,6 +337,62 @@ public sealed class ProviderApiSubmissionTests
             """));
     }
 
+    [Fact]
+    public async Task AProviderCreatedCaseReadsItsDataSnapshotBack()
+    {
+        // The snapshot records the origin channel exactly as the receipt wrote
+        // it — "provider_api". Reading it back is the path the EVA send page
+        // and the assessment tools take through ICaseDataQueries, so a reader
+        // that does not know the channel fails the case after allocation
+        // rather than at submission, where nothing would have been retained.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            TimeProvider.System,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+        var email = IntakeTestEvidence.CreateEmail(
+            "instruction.eml",
+            "QDOS instruction\r\nClaimant Name: Provider Claimant\r\nClaim Number: PROV-002\r\nVehicle Registration: AB12 CDE",
+            senderAddress: "intermediary@example.test");
+
+        using var created = await SubmitAsync(
+            client, secret, "order-2", [("instruction.eml", email.MediaType, email.Content)], "PROV-002");
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
+
+        await DrainAsync(api, submissionId);
+
+        string caseReference;
+        using (var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret))
+        {
+            Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
+            var result = await ReadJsonAsync(complete);
+            Assert.Equal("CaseCreated", result.GetProperty("decision").GetString());
+            caseReference = result.GetProperty("caseReference").GetString()
+                ?? throw new InvalidOperationException(
+                    "The completed submission carried no case reference.");
+        }
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var caseId = await context.Cases
+            .Where(item => item.Reference == caseReference)
+            .Select(item => item.Id)
+            .SingleAsync();
+
+        var projection = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+
+        Assert.NotNull(projection);
+        Assert.Equal(IntakeSourceChannel.ProviderApi, projection.Origin.Channel);
+        Assert.Equal(ProviderInstructionPolicy.ReaderKey, projection.Origin.SourceReaderKey);
+        Assert.Equal(ProviderInstructionPolicy.ReaderVersion, projection.Origin.SourceReaderVersion);
+    }
+
     private static HttpClient CreateClient(WebApplicationFactory<Program> api) =>
         api.CreateClient(new WebApplicationFactoryClientOptions
         {

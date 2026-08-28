@@ -593,7 +593,7 @@ public sealed class EfCaseDataStore(
             snapshot.Case.AuditReference),
         new(
             snapshot.OriginIntakeReceiptId,
-            ParseSourceChannel(snapshot.OriginSourceChannel),
+            EfIntakeReceiptStore.ParseSourceChannel(snapshot.OriginSourceChannel),
             snapshot.OriginExternalReceiptToken,
             snapshot.OriginSourceHash,
             snapshot.OriginReceivedAtUtc,
@@ -778,15 +778,6 @@ public sealed class EfCaseDataStore(
         "image_based_assessment" => CaseInspectionMode.ImageBasedAssessment,
         _ => throw new InvalidDataException(
             $"Unknown persisted inspection mode '{value}'.")
-    };
-
-    private static IntakeSourceChannel ParseSourceChannel(string value) => value switch
-    {
-        "manual_upload" => IntakeSourceChannel.ManualUpload,
-        "mailbox" => IntakeSourceChannel.Mailbox,
-        "automation" => IntakeSourceChannel.Automation,
-        _ => throw new InvalidDataException(
-            $"Unknown persisted intake source channel '{value}'.")
     };
 
     private static CaseLifecycleState ParseLifecycleState(string value) =>
