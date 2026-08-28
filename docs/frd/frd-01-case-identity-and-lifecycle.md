@@ -80,6 +80,51 @@ an external EVA assignment.
 
 Incoming cancellation classification or association never changes a Case automatically. In the focused alpha, mailbox processing records the settled classification for every route-accepted received message and may automatically associate QDOS-direct correspondence with its Case under the accepted ADR-0020 predicates, but only an incoming instruction creates intake work and no classification or association mutates Case state; a separately retained and reasonedly associated cancellation message may support an authorised staff action to place a pre-report Case in `Held pending staff decision`, confirm `Provider cancelled`, or release it. Release requires the message to be reasonedly recategorised, unlinked, or reassociated first. Every original and corrected classification/association, actor, time, reason, and evidence remains permanent history.
 
+### Workflow display labels and stage-bound actions
+
+Core lifecycle states are unchanged. The operator sees display labels only,
+owned by the single code-to-words map
+`Pegasus.Web.Presentation.OperatorLabels` named in the design README's
+[Enforced presentation rules](../design/README.md#enforced-presentation-rules):
+
+| Core state | Display label |
+| --- | --- |
+| `Not ready` | Not ready |
+| `Review` | Review |
+| `Report preparation`, `Post report` | With Engineer |
+| `Post-report complete` | Complete |
+| `Held` | Held (exception, never a workflow step) |
+| `Provider cancelled`, `Collision Engineers rejected`, `Created in error`, source e-mail unlinked | Closed · `<outcome>` |
+
+The Cases workflow rail lists Not ready, Review, With Engineer and Complete,
+with Held as an exception group; the other terminal outcomes never appear in
+that rail and render as Closed · `<outcome>` in Search. A label is never a
+state: every transition remains a named Core action, and history records the
+Core state, not the label.
+
+- **Send to EVA** is offered in Review. The handoff carries the Engineer
+  assignment and offers ZIP export or API submission; the package, mapping,
+  and per-Principal submission policy are owned by
+  [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-and-external-engineering-handoff).
+- **Assessment** availability by state is owned by
+  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point):
+  With Engineer or onwards, never Review, read-only once Complete.
+- **Report sent** is evidence-driven; no manual "sent" assertion exists. A
+  report sent from Pegasus through an approved mailbox
+  ([FRD-08 outbound correspondence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence))
+  links its retained Sent item to the Case automatically. A report sent
+  through EVA is detected by the approved-mailbox report-mail match — the
+  Case reference and a PDF attachment — whereupon the PDF is attached to the
+  Case as the report document and the Sent item is linked. Either path
+  enters post-report work, still displayed as With Engineer. The Case action
+  offers only confirmation of detected evidence; `Post-report complete`
+  remains the separate, reasoned closure that ends post-report work.
+- **Return to Engineer** is the reasoned reopen from Complete to Report
+  preparation; it requires an assigned Engineer and the normal destination
+  gates.
+- **Close Case** is offered while the Case is not Complete and selects one
+  named terminal outcome as above.
+
 ### Case edit authority and recovery
 
 Every staff case mutation targets one identified case through a named Core action and requires the role permitted by the [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix). Entering edit mode acquires the case’s one server-owned expiring lease. Other authorised staff remain read-only and can see the holder and recovery state. Every save, transition, assignment, association, evidence change, and other staff mutation presents both the lease token and the Case version loaded by that editor.
