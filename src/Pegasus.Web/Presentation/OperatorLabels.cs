@@ -603,6 +603,7 @@ public static class OperatorLabels
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
+        IntakeSourceChannel.ProviderApi => "Provider API",
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };

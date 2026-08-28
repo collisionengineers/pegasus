@@ -18,6 +18,7 @@ using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Operations;
+using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
@@ -202,6 +203,16 @@ public static class DependencyInjection
         services.AddScoped<IRevokePrincipalCredential, RevokePrincipalCredential>();
         services.AddScoped<IGetPrincipalCredential, GetPrincipalCredential>();
         services.AddScoped<IAuthenticatePrincipalCredential, AuthenticatePrincipalCredential>();
+        // API-01: the submission row is both the idempotency record and the
+        // Principal binding processing reads, so the Worker composes the
+        // bindings port too.
+        services.AddScoped<EfProviderSubmissionStore>();
+        services.AddScoped<IProviderSubmissionStore>(
+            provider => provider.GetRequiredService<EfProviderSubmissionStore>());
+        services.AddScoped<IProviderSubmissionBindings>(
+            provider => provider.GetRequiredService<EfProviderSubmissionStore>());
+        services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
+        services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
         services.AddScoped<ICreateOrganization, CreateOrganization>();
         services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();

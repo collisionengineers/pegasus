@@ -127,7 +127,8 @@ public enum IntakeSourceChannel
 {
     ManualUpload,
     Mailbox,
-    Automation
+    Automation,
+    ProviderApi
 }
 
 public enum InstructionPolicyApplicability
