@@ -86,6 +86,11 @@
         "success" => "green",
         "unknown" => "neutral",
 
+        // Service health and request operations
+        "running" => "blue",
+        "review required" => "amber",
+        "active" => "navy",
+
         // Every other state, including the D3 "Closed · <outcome>" terminals,
         // is settled or absent and reads neutral.
         _ => "neutral"
