@@ -72,3 +72,30 @@ the three-valued dialog (reported), Presentation label code.
 ## Simplification pass — 2026-08-28
 
 n/a — docs-only.
+
+## Review fixes — 2026-08-28 (PR #583)
+
+- F1: owned files widened to
+  `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` (AUTO-009
+  merged; `origin/dev` merged into the branch). FRD-11 is the one owner of
+  Assessment access; FRD-01 only cross-references it.
+  **Operator-notes tension recorded:** ~line 559 says the Assessment "opens
+  only after a successful EVA export in the current Review cycle". The
+  operator's D11 decision narrows access to exclude Review; the export
+  precondition is kept. FRD-11 now reads: available once the Case is in Report
+  preparation or later and a successful export/submission exists for the
+  current Review cycle; never in Not ready, Review or Held; editable in Report
+  preparation and Post report, read-only in Post-report complete, unavailable
+  in the other terminal outcomes.
+- F2: FRD-04 no longer enumerates a three-value EVA policy; it names the two
+  EVA API submission settings owned by FRD-07/ADR-0034 (ZIP needs no setting).
+- F3: FRD-01 cites `Pegasus.Web.Presentation.OperatorLabels` via the design
+  README's Enforced presentation rules anchor.
+- F4: **Administrator "credential" wording reinterpreted** — the matrix's
+  must-not now reads "Pegasus's own credential-secret, cloud, or release
+  administration", distinct from the Principal's Provider API credential the
+  Administrator manages in the Principal settings dialog (D8). Operator-notes
+  ~line 400 ("credential, cloud, and release operations are not
+  staff-application administration") is untouched; this reading is for the
+  operator to confirm. Stated in the PR body.
+- F5: re-wrapped to ≤78 columns; `<outcome>` in backticks.

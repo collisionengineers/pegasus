@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Deliver the Integrated Operations Workspace shell, design system and route
   structure
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T08:12:48.789Z'
+taken_at: '2026-08-28T08:21:17.858Z'
+branch: task/plat-029-workspace-shell
+worktree: ../pegasus-worktrees/plat-029-workspace-shell
 labels:
   - ui
   - information-architecture
@@ -23,7 +26,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.464Z'
-updated: '2026-08-28T08:12:48.789Z'
+updated: '2026-08-28T08:21:17.858Z'
 ---
 
 ## What
