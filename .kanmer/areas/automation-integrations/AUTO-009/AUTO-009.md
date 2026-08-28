@@ -4,12 +4,15 @@ type: ticket
 title: >-
   FRD-10/FRD-11 and ADR-0035: AI job ledger, automation.jobs scope and
   per-estimate VAT
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-28T08:08:19.245Z'
+taken_at: '2026-08-28T08:13:06.610Z'
+branch: task/auto-009-ai-job-docs
+worktree: ../pegasus-worktrees/auto-009-ai-job-docs
 labels:
   - docs
   - ai
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-28T08:05:30.128Z'
-updated: '2026-08-28T08:08:19.245Z'
+updated: '2026-08-28T08:13:06.610Z'
 ---
 
 ## What

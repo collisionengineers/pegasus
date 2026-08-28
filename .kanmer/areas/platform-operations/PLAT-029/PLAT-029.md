@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Deliver the Integrated Operations Workspace shell, design system and route
   structure
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T08:12:48.789Z'
 labels:
   - ui
   - information-architecture
@@ -21,7 +23,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.464Z'
-updated: '2026-08-28T08:07:39.417Z'
+updated: '2026-08-28T08:12:48.789Z'
 ---
 
 ## What

@@ -4,12 +4,15 @@ type: ticket
 title: >-
   FRD-12, capabilities and boundaries for the new shell, routes and activated
   capabilities
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-28T08:08:15.950Z'
+taken_at: '2026-08-28T08:13:08.212Z'
+branch: task/uiimp-007-frd12-capabilities
+worktree: ../pegasus-worktrees/uiimp-007-frd12-capabilities
 labels:
   - ui
   - docs
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:05:30.058Z'
-updated: '2026-08-28T08:08:15.950Z'
+updated: '2026-08-28T08:13:08.212Z'
 ---
 
 ## What
