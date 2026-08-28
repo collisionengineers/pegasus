@@ -230,6 +230,11 @@ public sealed partial class IndexModel(
                 cancellationToken);
             if (byReference is not null && seen.Add(byReference.Record.Id))
             {
+                // The lifecycle state travels with the row. Omitting it took
+                // ImageIntakeSummary's AwaitingInstruction default, so an
+                // exact-reference hit on a merged or closed record rendered
+                // the wrong chip while the registration search beside it
+                // rendered the right one.
                 results.Add(new ImageIntakeSummary(
                     byReference.Record.Id,
                     byReference.Record.Origin.ReceiptId,
@@ -237,7 +242,9 @@ public sealed partial class IndexModel(
                     byReference.Record.NormalizedVehicleRegistration,
                     byReference.AssociatedCaseId,
                     byReference.AssociatedCaseReference,
-                    byReference.RegisteredAtUtc));
+                    byReference.RegisteredAtUtc,
+                    byReference.State,
+                    byReference.ClosureReason));
             }
         }
 
