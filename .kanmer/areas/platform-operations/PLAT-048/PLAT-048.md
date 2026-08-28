@@ -2,10 +2,12 @@
 id: PLAT-048
 type: ticket
 title: Service health snapshot and Engineer activity report queries
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T10:30:32.496Z'
 labels:
   - backend
   - wave-3
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-28T08:35:24.047Z'
-updated: '2026-08-28T08:35:24.047Z'
+updated: '2026-08-28T10:30:32.496Z'
 ---
 
 ## What

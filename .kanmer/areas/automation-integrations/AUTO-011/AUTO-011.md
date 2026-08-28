@@ -2,13 +2,14 @@
 id: AUTO-011
 type: ticket
 title: AI job ledger and automation.jobs connector tools
-status: review
+status: verifying
 area: automation-integrations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T08:36:05.746Z'
   review: '2026-08-28T08:55:41.485Z'
+  verifying: '2026-08-28T10:30:08.698Z'
 taken_at: '2026-08-28T08:40:07.967Z'
 branch: task/auto-011-ai-job-ledger
 worktree: ../pegasus-worktrees/auto-011-ai-job-ledger
@@ -30,7 +31,7 @@ prs:
   - '590'
 archived: false
 created: '2026-08-28T08:35:47.092Z'
-updated: '2026-08-28T08:55:41.485Z'
+updated: '2026-08-28T10:30:08.698Z'
 ---
 
 ## What
