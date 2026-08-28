@@ -16,10 +16,12 @@ groups:
   - EPIC-008
   - EPIC-011
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T11:25:40.733Z'
+updated: '2026-08-28T11:37:28.906Z'
 ---
 
 ## What
