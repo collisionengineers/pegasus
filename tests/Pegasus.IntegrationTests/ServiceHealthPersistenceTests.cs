@@ -179,6 +179,9 @@ public sealed class ServiceHealthPersistenceTests
             EvaId = outcome == EvaSubmissionOutcome.Succeeded ? "eva-1" : null,
             FileReference = outcome == EvaSubmissionOutcome.Succeeded ? "FR-1" : null,
             FailureCode = failureCode,
+            ImagesSent = outcome == EvaSubmissionOutcome.Succeeded ? 3 : 0,
+            AttemptCount = 1,
+            ActorSubjectId = Guid.NewGuid().ToString("D"),
             SubmittedAtUtc = submittedAtUtc
         };
 
