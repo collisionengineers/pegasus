@@ -202,8 +202,10 @@
                     </button>
                 }
             }
-            else if (!isComplete)
+            else if (!isComplete && state != CaseLifecycleState.CreatedInError)
             {
+                @* Created in error is never reopenable (Core rule); the
+                   replacement case is the way forward, linked from the bar. *@
                 <button type="button" class="btn" data-dialog-open="case-reopen-dialog">
                     <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
                     <span>Reopen Case</span>
