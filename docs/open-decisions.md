@@ -31,7 +31,7 @@ worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports)
 7. Web telemetry exporter (OPS-07) and minimum cutover alerts (Box custody failure, intake poison, chaser sweep), then the cutover date: all new QDOS instructions enter Pegasus; watch alerts and telemetry daily for the first week. **Before this date, confirm the retained rollback artifact runs against the live schema**, then the additive-migration requirement binds — the pre-cutover exemption in [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md) ends, because from here a rollback has live case work to preserve. Ending the exemption does not by itself repair a non-additive migration shipped before it, which is why the check is a prerequisite of this step rather than a rule that starts applying to later releases.
 8. Record operator acceptance and management approval (OPS-23, OPS-25) — this closes `0.1.0-alpha.1`.
 
-Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM reading, INT-31 upload links, the EVAL evaluator cluster, live DVLA/DVSA adapters (approved replay/`Unavailable` is fine), MAIL-14/16 report-sent detection (post-report tracking starts manual via MAIL-15), and OPS-09 recovery proof (removed as a release gate 2026-08-03). The Box production custody boundary was decided 2026-08-02:
+Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM reading, INT-31 upload links (activated in production at release 37 under interim limits, but still not a release gate), the EVAL evaluator cluster, live DVLA/DVSA adapters (approved replay/`Unavailable` is fine), MAIL-14/16 report-sent detection (post-report tracking starts manual via MAIL-15), and OPS-09 recovery proof (removed as a release gate 2026-08-03). The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
 [operations](operations.md#approved-box-integration-test-target)).
@@ -68,11 +68,30 @@ accepted match rules.
 [Operations § dated evidence](operations.md#dated-evidence-qualifications) owns
 the accepted numbers and their qualification.
 
-1. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
-   per-file byte limits, file count, allowed content types, per-token/per-IP
-   rate, one-time vs reuse, and revocation/expiry error contract. Interim bound:
-   the existing aggregate 10 MB intake limit; hashed 256-bit token; anonymous
-   `/Uploads/{token}` form; no case disclosure.
+1. **`INT-31` upload-link limits** — **Partially settled 2026-08-29.** Still
+   open: **one-time vs reuse**, and the **revocation/expiry error contract**.
+   Settled as an interim activation, not a closure: exact token lifetime,
+   aggregate and per-file byte limits, file count, allowed content types, and
+   per-token/per-IP rate. Unchanged and still binding: hashed 256-bit token,
+   anonymous `/Uploads/{token}` form, no case disclosure.
+
+   The operator accepted the interim set below on 2026-08-29 so upload links
+   compose in production from release 37 ([[INTK-051]]). It is named
+   `int-31-interim-v1` precisely so that accepting the full decision later is a
+   version change with a migration story, not an untracked edit:
+
+   | Setting | Interim value | Basis |
+   | --- | --- | --- |
+   | Aggregate bytes | 10 485 760 | the interim bound already recorded here — the same 10 MB as `IntakeContracts.MaximumContentLength` |
+   | Per-file bytes | 10 485 760 | one file may use the whole aggregate |
+   | File count | 10 | |
+   | Token lifetime | 168 h (7 days) | matches the existing chase cadence (CASE-17/18, MAIL-18) |
+   | Rate | 20 per 10 minutes | |
+   | Content types | `application/pdf`, `image/jpeg`, `image/png`, `text/plain`, `…wordprocessingml.document` | exactly what `MimeKitPdfPigOpenXmlIntakeSourceReader` already handles, so an upload link admits no file type the estate could not already read |
+
+   These are **not** the integration fixture's values
+   (`integration-fixture-v1`, 1-hour lifetime, 1 MB per file); those are test
+   values and must never become production policy.
 2. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
    and the provider-specific issue/rotate/revoke/emergency-disable procedure.
