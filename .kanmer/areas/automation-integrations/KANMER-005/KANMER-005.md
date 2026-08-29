@@ -2,7 +2,7 @@
 id: KANMER-005
 type: ticket
 title: Enforce exclusive editing leases between staff and Automation Actors
-status: verifying
+status: done
 area: automation-integrations
 assignee: claude-code
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-28T09:54:44.547Z'
   review: '2026-08-28T11:12:40.763Z'
   verifying: '2026-08-28T15:52:01.312Z'
+  done: '2026-08-29T10:24:46.383Z'
 taken_at: '2026-08-28T10:57:56.937Z'
 branch: task/kanmer-005-lease-exclusivity
 worktree: ../pegasus-worktrees/kanmer-005-lease-exclusivity
@@ -36,7 +37,7 @@ prs:
   - '593'
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-28T15:52:01.312Z'
+updated: '2026-08-29T10:24:46.383Z'
 ---
 
 ## What
