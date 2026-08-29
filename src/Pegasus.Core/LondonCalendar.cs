@@ -24,30 +24,21 @@ public static class LondonCalendar
     public static DateOnly DateAt(DateTimeOffset instant) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, TimeZone).DateTime);
 
+    /// <summary>
+    /// The start of the office's today and of its week, expressed in UTC.
+    /// </summary>
+    /// <remarks>
+    /// The week starts on Monday, which is the week the office works to.
+    /// "Today" means the office's today: counting from a UTC midnight would
+    /// move the boundary by an hour for half the year and silently reassign
+    /// work between days.
+    /// </remarks>
     public static (DateTimeOffset DayStartUtc, DateTimeOffset WeekStartUtc)
         DayAndWeekBoundariesAt(DateTimeOffset instant)
     {
         var date = DateAt(instant);
         var daysSinceMonday = ((int)date.DayOfWeek + 6) % 7;
         return (StartOfDay(date), StartOfDay(date.AddDays(-daysSinceMonday)));
-    }
-
-    public static (DateTimeOffset StartUtc, DateTimeOffset EndExclusiveUtc) ToUtcRange(
-        DateOnly from,
-        DateOnly toInclusive)
-    {
-        if (toInclusive < from)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(toInclusive),
-                "The inclusive end date cannot precede the start date.");
-        }
-
-        var endExclusiveUtc = StartOfNextDay(toInclusive)
-            ?? throw new ArgumentOutOfRangeException(
-                nameof(toInclusive),
-                "The inclusive end date must have a following calendar day.");
-        return (StartOfDay(from), endExclusiveUtc);
     }
 
     public static DateTimeOffset ToUtc(DateTime localTime)

@@ -67,26 +67,33 @@ public sealed class LondonCalendarTests
     }
 
     [Fact]
-    public void InclusiveDateRangeEndsAtTheStartOfTheDayAfterToDate()
+    public void DayAndWeekBoundariesOnTheGmtTransitionSundayUseBstMidnights()
     {
-        var from = new DateOnly(2026, 7, 15);
-        var to = new DateOnly(2026, 7, 16);
+        // The clocks go back at 02:00 local on Sunday 25 October 2026. Asked
+        // after the transition, both boundaries still fall on BST midnights:
+        // the day started at 23:00Z on the 24th, and Monday the 19th started
+        // at 23:00Z on the 18th.
+        var afterTheTransition = new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero);
 
-        var (start, endExclusive) = LondonCalendar.ToUtcRange(from, to);
+        var (dayStart, weekStart) =
+            LondonCalendar.DayAndWeekBoundariesAt(afterTheTransition);
 
-        Assert.Equal(new DateTimeOffset(2026, 7, 14, 23, 0, 0, TimeSpan.Zero), start);
-        Assert.Equal(new DateTimeOffset(2026, 7, 16, 23, 0, 0, TimeSpan.Zero), endExclusive);
+        Assert.Equal(new DateTimeOffset(2026, 10, 24, 23, 0, 0, TimeSpan.Zero), dayStart);
+        Assert.Equal(new DateTimeOffset(2026, 10, 18, 23, 0, 0, TimeSpan.Zero), weekStart);
     }
 
     [Fact]
-    public void InclusiveDateRangeRejectsAnEndBeforeItsStart()
+    public void DayAndWeekBoundariesOnTheBstTransitionSundayUseGmtMidnights()
     {
-        var from = new DateOnly(2026, 7, 16);
-        var to = new DateOnly(2026, 7, 15);
+        // The clocks go forward at 01:00 local on Sunday 29 March 2026. Asked
+        // after the transition, both boundaries still fall on GMT midnights:
+        // the day started at 00:00Z, and Monday the 23rd started at 00:00Z.
+        var afterTheTransition = new DateTimeOffset(2026, 3, 29, 12, 0, 0, TimeSpan.Zero);
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => LondonCalendar.ToUtcRange(from, to));
+        var (dayStart, weekStart) =
+            LondonCalendar.DayAndWeekBoundariesAt(afterTheTransition);
 
-        Assert.Equal("toInclusive", exception.ParamName);
+        Assert.Equal(new DateTimeOffset(2026, 3, 29, 0, 0, 0, TimeSpan.Zero), dayStart);
+        Assert.Equal(new DateTimeOffset(2026, 3, 23, 0, 0, 0, TimeSpan.Zero), weekStart);
     }
 }
