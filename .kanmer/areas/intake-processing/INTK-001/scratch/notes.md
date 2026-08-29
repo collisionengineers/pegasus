@@ -24,3 +24,11 @@ Facts checked by reading rather than assumed, for whoever reviews:
 
 Open for INTK-047: the hidden-tab behaviour has no executed test. It needs the
 Browser category, which this lane may not run.
+
+## 2026-08-29 - verifier remediation correction
+
+Supersedes the earlier "Open for INTK-047" note. INTK-001 now owns
+`Browser/UploadStatusRefreshBrowserTests.cs`; its focused Browser filter was
+executed locally and passed 1/1 after first reproducing the submitted scheduler
+failure. Returning visible reloads immediately; it does not wait a bounded
+retry. Commits `ce3c0cfe` and `6ff999b2` are pushed to PR #620.

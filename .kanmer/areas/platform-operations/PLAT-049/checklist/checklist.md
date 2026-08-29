@@ -25,3 +25,24 @@ Not run, and therefore not claimed: the full suite, the `Browser` category,
 and the snapshot capture script — all three are forbidden by the lane brief.
 `docs/design/test-ui/catalogue.json`'s two `/Operations` states are stale and
 need the once-per-merge regeneration on the merging branch.
+
+## Adversarial verifier corrections - 2026-08-29
+
+The following checked items supersede the earlier conflicting picker,
+assertion, label-count and simplification entries.
+
+- [x] Effective `Expired` rows use `ExpiresAtUtc` and remain visible on their
+  terminal office date
+- [x] Operations GET performs no `ListQueueAsync`; the global rail owns the one
+  remaining queue enumeration
+- [x] Send uses a canonical U-reference input and indexed point lookup on POST
+- [x] `OperatorLabels.AiJobs` is 67 insertions / 0 deletions against `origin/dev`
+- [x] One existing PLAT-049 assertion was intentionally inverted and renamed to
+  assert the new bounded-input behaviour; it was not weakened to obtain green
+- [x] Verifier dispositions and the missed queue-query efficiency finding are
+  recorded in the plan
+- [x] `dotnet build ./Pegasus.slnx --configuration Release` - exit 0, 0
+  warnings, 0 errors
+- [x] Focused `OperationsWebTests` solution filter - exit 0, 19 passed, 0
+  failed, 0 skipped
+- [x] Remediation commits `7df75798` and `3d5cdbb9` pushed to PR #617's branch

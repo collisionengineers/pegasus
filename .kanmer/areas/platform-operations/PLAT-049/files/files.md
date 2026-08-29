@@ -29,3 +29,17 @@
   here and are outside this lane's boundary.
 - `docs/design/test-ui/**` — snapshots are regenerated once per merge on the
   merging branch only (EPIC-011 decisions, 2026-08-29).
+
+## Adversarial verifier corrections - 2026-08-29
+
+This section supersedes conflicting entries in the changed-file table above.
+
+- `Index.cshtml.cs` no longer loads an open-Unidentified picker. GET reads no
+  Unidentified rows; POST validates one canonical reference and reuses
+  `IUnidentifiedStore.GetByReferenceAsync`.
+- `Index.cshtml` renders one reference input rather than an unbounded select.
+- `OperatorLabels.AiJobs` now adds 67 lines against `origin/dev` and
+  `StateToneOverride` contains only Queued, Taken and Draft ready. The shared
+  chip owns its existing Completed, Failed, Cancelled and Expired mappings.
+- `OperationsWebTests.cs` covers the effective Expired row, one rail queue query
+  on GET, the point lookup on POST, a not-open refusal, and canonical `U412`.

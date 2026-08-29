@@ -103,3 +103,18 @@ orchestrator can place it.
   single existing owner. No fifth `FindSystemTimeZoneById` call is added
   (PLAT-060 already counts four).
 - Retry: the existing `RetryExternal` handler and `RetryExternalWorkCommand`.
+
+## Adversarial verifier corrections - 2026-08-29
+
+These corrections supersede conflicting rows above.
+
+- `IConfirmAiJob` did have a production-code caller before this PR:
+  `SetCurrentEstimate` calls it. `ISetCurrentEstimate` itself had no Web caller,
+  so that path was registered but unreachable. `ICancelAiJob` had no production
+  caller. This PR adds a reachable Operations caller for both interfaces.
+- `ListQueueAsync(null, ct)` is no longer the Send action's U-reference source.
+  The form accepts a canonical reference and POST resolves one item through
+  `GetByReferenceAsync`, backed by the unique Sequence index.
+- A mapped effective `Expired` row from the persisted-open query has no
+  `ClosedAtUtc`. Its terminal instant is `ExpiresAtUtc`; the page now uses that
+  date so an unclaimed job expiring today remains visible.
