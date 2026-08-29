@@ -1,17 +1,28 @@
-﻿@page "/Upload/Status/{id:guid}"
+@page "/Upload/Status/{id:guid}"
 @model Pegasus.Web.Pages.UploadStatusModel
-@using Pegasus.Core.Intake
 @{
     ViewData["Title"] = "Upload status";
 }
 
-@* The same bounded column as the Upload screen it follows: one receipt, a
-   handful of facts and two actions do not want the full width of a monitor. *@
-<div class="form-column form-column--wide">
-<header class="page-heading">
-    <div>
+@* The state is the heading; the values are the panel. Nothing beneath the
+   heading narrates either of them back. *@
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Upload status</p>
         <h1>@Model.Heading</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn"
+           asp-page="/UploadStatus"
+           asp-route-id="@Model.Status.StagedReceiptId"
+           asp-route-duplicate="@(Model.IsDuplicate ? "true" : null)">
+            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span>@OperatorLabels.Upload.Refresh</span>
+        </a>
+        <a class="btn btn--primary" asp-page="/Upload">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>@OperatorLabels.Upload.Another</span>
+        </a>
     </div>
 </header>
 
@@ -26,41 +37,36 @@
 <section class="panel"
          aria-labelledby="upload-file-heading"
          data-auto-refresh="@Model.AutomaticRefreshMilliseconds">
-    <h2 id="upload-file-heading" class="section-label">@Model.Status.SourceFileName</h2>
-    <dl class="detail-list">
-        <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
-        @if (Model.IsDuplicate)
-        {
-            <div><dt>Duplicate</dt><dd>Already received</dd></div>
-        }
-        @if (Model.FailureReason is { } failureReason)
-        {
-            <div><dt>Reason</dt><dd>@failureReason</dd></div>
-        }
-    </dl>
+    <div class="panel-head">
+        <h2 id="upload-file-heading">@Model.Status.SourceFileName</h2>
+    </div>
+    <div class="panel-body">
+        <dl class="definition-list">
+            <div class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
+            @if (Model.IsDuplicate)
+            {
+                <div class="definition"><dt>Duplicate</dt><dd>Already received</dd></div>
+            }
+            @if (Model.FailureReason is { } failureReason)
+            {
+                <div class="definition"><dt>Reason</dt><dd>@failureReason</dd></div>
+            }
+        </dl>
 
-    @if (Model.Outcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
-    {
-        <a class="upload-thumb" href="/Received/@thumbnailReceiptId/Image" target="_blank">
-            <img src="/Received/@thumbnailReceiptId/Image"
-                 loading="lazy"
-                 alt="@Model.Status.SourceFileName" />
-        </a>
-    }
-    @if (Model.Outcome is { } outcome)
-    {
-        @* Processing has resolved: the confirmation decision replaces the
-           plain status text — what already happened automatically, or the
-           staff decision that is genuinely open. *@
-        <partial name="Shared/_UploadOutcome" model="@outcome" />
-    }
-
-    <div class="button-row">
-        <a class="secondary-action"
-           asp-page="/UploadStatus"
-           asp-route-id="@Model.Status.StagedReceiptId"
-           asp-route-duplicate="@(Model.IsDuplicate ? "true" : null)">Refresh</a>
-        <a class="secondary-action" asp-page="/Upload">Upload another file</a>
+        @if (Model.Outcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
+        {
+            <a class="upload-thumb section-gap" href="/Received/@thumbnailReceiptId/Image" target="_blank">
+                <img src="/Received/@thumbnailReceiptId/Image"
+                     loading="lazy"
+                     alt="@Model.Status.SourceFileName" />
+            </a>
+        }
+        @if (Model.Outcome is { } outcome)
+        {
+            @* Processing has resolved: the confirmation decision replaces the
+               plain status text — what already happened automatically, or the
+               staff decision that is genuinely open. *@
+            <partial name="Shared/_UploadOutcome" model="@outcome" />
+        }
     </div>
 </section>
-</div>
