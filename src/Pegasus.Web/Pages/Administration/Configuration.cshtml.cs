@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration;
 
@@ -13,6 +15,13 @@ public sealed class ConfigurationModel(
     : AdministrationPageModel
 {
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
+
+    /// <summary>
+    /// Whether the Automation ingress exists in this deployment, so the
+    /// administration rail lists the same areas here as on every sibling
+    /// administration page.
+    /// </summary>
+    public bool AutomationComposed { get; private set; }
 
     [BindProperty]
     public bool RequireStaffInstructionReviewBeforeEngineerAssignment { get; set; }
@@ -99,6 +108,8 @@ public sealed class ConfigurationModel(
         bool populateForm,
         CancellationToken cancellationToken)
     {
+        AutomationComposed =
+            HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
         if (!populateForm)
         {

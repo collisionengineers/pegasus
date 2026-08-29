@@ -40,7 +40,11 @@ public sealed class UploadDropzoneBrowserTests
 
                 const zone = document.querySelector('[data-dropzone]');
                 const input = zone.querySelector('input[type="file"]');
-                const readout = zone.querySelector('[data-dropzone-file]');
+                // site.js looks the readout up in the enclosing form when the zone
+                // does not carry it: EPIC-011 s1.10 draws the file list under the
+                // dashed area, not inside it. Mirror that lookup exactly.
+                const readout = zone.querySelector('[data-dropzone-file]')
+                    || zone.closest('form').querySelector('[data-dropzone-file]');
 
                 function fire(type) {
                     const event = new DragEvent(type, {
@@ -98,9 +102,9 @@ public sealed class UploadDropzoneBrowserTests
 
     /// <summary>
     /// The dashed rectangle is a small target on a real drag. The effective
-    /// target is the whole panel it sits in: a drop on the panel's own
-    /// heading — inside the panel, outside the dashed area — must still land
-    /// the files, not silently do nothing.
+    /// target is the whole panel it sits in: a drop on the panel's own button
+    /// row — inside the panel, outside the dashed area — must still land the
+    /// files, not silently do nothing.
     /// </summary>
     [Fact]
     public async Task NativeCdpDropOnThePanelOutsideTheDashedZoneStillPopulatesTheInput()
@@ -109,7 +113,7 @@ public sealed class UploadDropzoneBrowserTests
             useIntegrationTestAuthentication: true);
         await support.GoToAsync("/Upload");
 
-        var result = await DropOnAsync(support, "#upload-title");
+        var result = await DropOnAsync(support, ".button-row");
 
         Assert.Equal(2, result.InputFileCount);
         Assert.False(result.ReadoutHidden);
@@ -130,7 +134,7 @@ public sealed class UploadDropzoneBrowserTests
         await support.GoToAsync("/Upload");
         var uploadUrl = support.Page.Url;
 
-        var result = await DropOnAsync(support, ".page-heading");
+        var result = await DropOnAsync(support, ".page-header");
 
         Assert.Equal(uploadUrl, support.Page.Url);
         Assert.True(await support.Page.Locator("[data-dropzone]").IsVisibleAsync());
@@ -181,7 +185,11 @@ public sealed class UploadDropzoneBrowserTests
                 () => {
                     const zone = document.querySelector('[data-dropzone]');
                     const input = zone.querySelector('input[type="file"]');
-                    const readout = zone.querySelector('[data-dropzone-file]');
+                    // site.js looks the readout up in the enclosing form when
+                    // the zone does not carry it: EPIC-011 s1.10 draws the file
+                    // list under the dashed area, not inside it.
+                    const readout = zone.querySelector('[data-dropzone-file]')
+                        || zone.closest('form').querySelector('[data-dropzone-file]');
                     return {
                         inputFileCount: input.files ? input.files.length : -1,
                         readoutHidden: readout.hidden,

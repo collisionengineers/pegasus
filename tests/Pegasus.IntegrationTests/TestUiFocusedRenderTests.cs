@@ -36,7 +36,11 @@ public sealed class TestUiFocusedRenderTests
         using var emptyClient = IntakeWebDriver.CreateClient(emptyFactory);
         using var empty = await emptyClient.GetAsync("/Administration/Accounts");
         empty.EnsureSuccessStatusCode();
-        Assert.Contains("No staff accounts are available.", await empty.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        // PLAT-027: the consolidated Staff accounts & roles area states the
+        // empty result and nothing else; the old sentence explained how
+        // application initialization works, which is not the operator's
+        // business.
+        Assert.Contains("<h2>No staff accounts are available.</h2>", await empty.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

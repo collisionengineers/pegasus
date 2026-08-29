@@ -753,6 +753,7 @@ public sealed class EfIntakeWorkStore(
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
+        IntakeSourceChannel.ProviderApi => "provider_api",
         _ => throw new InvalidOperationException($"Unknown IntakeSourceChannel value '{(int)value}'.")
     };
 
@@ -761,6 +762,7 @@ public sealed class EfIntakeWorkStore(
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
         "automation" => IntakeSourceChannel.Automation,
+        "provider_api" => IntakeSourceChannel.ProviderApi,
         _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
     };
 

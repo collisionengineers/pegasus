@@ -437,6 +437,7 @@ public static class StaffAccountAdministrationPolicy
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
+        RequireDifferentStaffAccount(request.Actor, request.StaffId);
         return request with
         {
             Reason = NormalizeRequiredText(
@@ -483,6 +484,7 @@ public static class StaffAccountAdministrationPolicy
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor, StaffAccessRight.ReviewStaffAccess);
         RequireStaffId(request.StaffId);
+        RequireDifferentStaffAccount(request.Actor, request.StaffId);
         return request with
         {
             Reason = NormalizeRequiredText(
@@ -513,6 +515,17 @@ public static class StaffAccountAdministrationPolicy
         if (staffId == Guid.Empty)
         {
             throw new ArgumentException("A staff account identifier is required.", nameof(staffId));
+        }
+    }
+
+    internal static void RequireDifferentStaffAccount(ActionActor actor, Guid staffId)
+    {
+        if (actor.Kind == ActorKind.Staff
+            && Guid.TryParse(actor.SubjectId, out var actorStaffId)
+            && actorStaffId == staffId)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.SelfAction);
         }
     }
 
@@ -550,6 +563,7 @@ public enum StaffAccountAdministrationError
     InvalidAccount,
     StaffAccountNotFound,
     LastAdministrator,
+    SelfAction,
     OperationConflict
 }
 

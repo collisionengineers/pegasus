@@ -371,6 +371,27 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
+    # 20260828111732_GrantProviderSubmissions: TICK-058 added the Provider API
+    # submission record (API-01). Web hosts the API: it inserts one row per
+    # accepted submission and reads rows back for idempotent replay and the
+    # provider's own result lookup. The Worker processes the staged files and
+    # reads the row to bind each one to the Principal whose credential
+    # submitted it; it never writes one. The row is created when the
+    # submission is received and completed in place once the request has been
+    # durably retained — the staged receipt id the result lookup reads back —
+    # so Web also holds UPDATE. A submission is never removed: no DELETE for
+    # either role, and the Worker is granted no write at all.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
+    # 20260829095336_CaseValuations: the Web Case workspace creates and edits
+    # valuation rows, and the Assessment workspace reads the current Engineer
+    # value in the same process. Worker has no caller and no grant. Valuations
+    # remain Case records, so DELETE is deliberately absent.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseValuations")
+    }
     return @($expected | Sort-Object -Unique)
 }
 

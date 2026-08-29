@@ -1,10 +1,11 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Identity;
@@ -46,6 +47,17 @@ public static class OperatorLabels
         _ => Humanise(reason.ToString())
     };
 
+    /// <summary>
+    /// The reason label for an Unidentified reason code however the projection
+    /// carried it — the Work Centre's needs-attention rows hold Core enum
+    /// names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>.
+    /// </summary>
+    public static string UnidentifiedReason(string? reason) =>
+        Enum.TryParse<UnidentifiedReasonCode>(reason, ignoreCase: true, out var parsed)
+            ? UnidentifiedReason(parsed)
+            : Humanise(reason);
+
     public static string UnidentifiedState(UnidentifiedState state) => state switch
     {
         Pegasus.Core.Intake.Unidentified.UnidentifiedState.Open => "Unidentified",
@@ -69,10 +81,23 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The media-kind label for a persisted kind string, however the
+    /// projection carried it — the Work Centre's needs-attention rows hold
+    /// Core enum names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>; keeps the "E-mail" wording on the
+    /// one list rather than letting a bare <see cref="Humanise"/> spell it
+    /// "Email".
+    /// </summary>
+    public static string UnidentifiedMediaKind(string? kind) =>
+        Enum.TryParse<Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind>(kind, ignoreCase: true, out var parsed)
+            ? UnidentifiedMediaKind(parsed)
+            : Humanise(kind);
+
+    /// <summary>
     /// The operator-meaningful handle for a received e-mail: its subject and
     /// sender, or "(No subject)" when the subject could not be read. The one
-    /// formatting rule for both the Unidentified queue row
-    /// (<c>Triage.IndexModel.UnidentifiedHandle</c>) and its detail page
+    /// formatting rule for both the Cases queue's Unidentified rows
+    /// (<c>Cases.IndexModel</c>) and the Unidentified detail page
     /// (<c>Unidentified.DetailsModel.Handle</c>), which read the same
     /// subject/sender from two different shapes.
     /// </summary>
@@ -119,6 +144,38 @@ public static class OperatorLabels
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
         _ => Humanise(state.ToString())
     };
+
+    /// <summary>The Triage record's own lifecycle words (moved here from the Cases page by CASE-025).</summary>
+    public static string TriageState(Pegasus.Core.Triage.TriageState state) => state switch
+    {
+        Pegasus.Core.Triage.TriageState.Open => "Open",
+        Pegasus.Core.Triage.TriageState.AwaitingInformation => "Awaiting information",
+        Pegasus.Core.Triage.TriageState.FindingRecorded => "Finding recorded",
+        Pegasus.Core.Triage.TriageState.Completed => "Completed",
+        Pegasus.Core.Triage.TriageState.Cancelled => "Cancelled",
+        _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
+    };
+
+    /// <summary>
+    /// A Not ready case's outstanding requirement as the operator reads it:
+    /// the requirement and the action that resolves it. Both come from the
+    /// case's recorded completeness facts, never from a sentence written here.
+    /// </summary>
+    public sealed record CaseRequirement(string Requirement, string Resolve);
+
+    public static IReadOnlyList<CaseRequirement> CaseRequirements(bool instructionsMissing, bool imagesMissing)
+    {
+        var items = new List<CaseRequirement>(2);
+        if (instructionsMissing)
+        {
+            items.Add(new("Instructions", "Receive the instruction"));
+        }
+        if (imagesMissing)
+        {
+            items.Add(new("Images", "Receive the vehicle images"));
+        }
+        return items;
+    }
 
     /// <summary>The primary navigation and the shell's section labels — one list.</summary>
     public static class Nav
@@ -232,6 +289,56 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The chase-state label for a persisted state string, however the
+    /// projection carried it — the Work Centre's needs-attention rows hold
+    /// Core enum names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>.
+    /// </summary>
+    public static string ChaseState(string? state) =>
+        Enum.TryParse<CaseDueWorkState>(state, ignoreCase: true, out var parsed)
+            ? ChaseState(parsed)
+            : Humanise(state);
+
+    /// <summary>
+    /// The Work Centre's work-item kinds (FRD-12 § Work Centre): the row's
+    /// "kind · reference" lead-in and the selected-work eyebrow both read
+    /// from this one list.
+    /// </summary>
+    public static string NeedsAttentionKind(NeedsAttentionKind kind) => kind switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionKind.Case => "Case",
+        Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held decision",
+        Pegasus.Core.Operations.NeedsAttentionKind.Mail => "Mail",
+        Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
+        Pegasus.Core.Operations.NeedsAttentionKind.ExternalWork => "External work",
+        _ => Humanise(kind.ToString())
+    };
+
+    /// <summary>
+    /// The Work Centre's work-item priority chip: declaration order is the
+    /// list order, and the tone is the chip treatment <c>_StatusChip</c>
+    /// renders for that word (red for failed-or-overdue, amber for
+    /// in-the-day, neutral for the rest).
+    /// </summary>
+    public static string NeedsAttentionPriority(NeedsAttentionPriority priority) => priority switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Overdue",
+        Pegasus.Core.Operations.NeedsAttentionPriority.High => "High",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Today",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Normal => "Normal",
+        _ => Humanise(priority.ToString())
+    };
+
+    /// <summary>The chip tone for a work-item priority word.</summary>
+    public static string NeedsAttentionPriorityTone(NeedsAttentionPriority priority) => priority switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue
+            or Pegasus.Core.Operations.NeedsAttentionPriority.High => "red",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "amber",
+        _ => "neutral"
+    };
+
+    /// <summary>
     /// The Image-initiated Case side of chase visibility
     /// (<see cref="ImageIntakeChaseSchedule"/>): a derived due/not-due read
     /// with no held/stopped state, reusing the exact "Chase due" wording
@@ -274,6 +381,8 @@ public static class OperatorLabels
         RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
         RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
         RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
+        RepairSpecificationSourceRoute.Json => "imported from a JSON estimate",
+        RepairSpecificationSourceRoute.AiDraft => "drafted by AI",
         _ => "recorded before source tracking"
     };
 
@@ -384,6 +493,89 @@ public static class OperatorLabels
         RequestUploadStatus.Revoked => "Withdrawn",
         RequestUploadStatus.Failed => "Failed",
         _ => Humanise(status.ToString())
+    };
+
+    /// <summary>
+    /// The state of one Operations-listed request operation, as the operator
+    /// reads it on the Operations workspace.
+    /// </summary>
+    /// <remarks>
+    /// The Operations projection covers both upload links and external work
+    /// under one state vocabulary; <see cref="UploadRequestState"/> stays the
+    /// map for the request surface itself.
+    /// </remarks>
+    public static string RequestOperationState(RequestOperationState state) => state switch
+    {
+        Pegasus.Core.Operations.RequestOperationState.Pending => "Pending",
+        Pegasus.Core.Operations.RequestOperationState.Active => "Active",
+        Pegasus.Core.Operations.RequestOperationState.Expired => "Expired",
+        Pegasus.Core.Operations.RequestOperationState.Exhausted => "Exhausted",
+        Pegasus.Core.Operations.RequestOperationState.Revoked => "Revoked",
+        Pegasus.Core.Operations.RequestOperationState.Failed => "Failed",
+        Pegasus.Core.Operations.RequestOperationState.Completed => "Completed",
+        Pegasus.Core.Operations.RequestOperationState.UnknownExternal => "Unknown external",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The Service health table's area grouping, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// The Core enum name for the queued receiving pipeline is internal
+    /// vocabulary; the office word for that work is "Receiving".
+    /// </remarks>
+    public static string ServiceHealthAreaName(ServiceHealthArea area) => area switch
+    {
+        ServiceHealthArea.Mail => "Mail",
+        ServiceHealthArea.Intake => "Receiving",
+        ServiceHealthArea.Custody => "Custody",
+        ServiceHealthArea.Eva => "EVA",
+        ServiceHealthArea.Ai => "AI",
+        ServiceHealthArea.Automation => "Automation",
+        _ => Humanise(area.ToString())
+    };
+
+    /// <summary>The Service health row's state, as the operator reads it.</summary>
+    public static string ServiceHealthStateName(ServiceHealthState state) => state switch
+    {
+        ServiceHealthState.Current => "Current",
+        ServiceHealthState.Partial => "Partial",
+        ServiceHealthState.Failed => "Failed",
+        ServiceHealthState.Running => "Running",
+        ServiceHealthState.Configured => "Configured",
+        ServiceHealthState.ReviewRequired => "Review required",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>The external thing a service's recorded evidence depends on.</summary>
+    public static string ServiceHealthDependencyName(ServiceHealthDependency dependency) => dependency switch
+    {
+        ServiceHealthDependency.MicrosoftGraph => "Microsoft Graph",
+        ServiceHealthDependency.Worker => "Worker",
+        ServiceHealthDependency.Box => "Box",
+        ServiceHealthDependency.EvaApi => "EVA API",
+        ServiceHealthDependency.AiConnector => "AI",
+        ServiceHealthDependency.AutomationClient => "Automation client",
+        _ => Humanise(dependency.ToString())
+    };
+
+    /// <summary>
+    /// One Service health row's service name, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// Two Core service names contain words banned from operator-facing copy
+    /// ("Intake dispatch", "Automation ingress"); they are renamed here and
+    /// only here. Everything else — mailbox addresses, "Sent evidence",
+    /// "External work", "EVA submissions", "AI jobs" — is already the
+    /// operator's own word and passes through, as do external-work kind codes
+    /// via <see cref="Humanise"/>.
+    /// </remarks>
+    public static string ServiceHealthServiceName(string? service) => service switch
+    {
+        ServiceHealthPolicy.IntakeDispatchService => "Receiving dispatch",
+        ServiceHealthPolicy.AutomationService => "Automation clients",
+        null or "" => "Unknown",
+        _ => service.Contains('_') ? Humanise(service) : service
     };
 
     /// <summary>
@@ -690,6 +882,7 @@ public static class OperatorLabels
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
+        IntakeSourceChannel.ProviderApi => ProviderSubmissionApi.Source,
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
@@ -700,6 +893,7 @@ public static class OperatorLabels
         "manual_upload" => "Manual upload",
         "mailbox" => "E-mail",
         "automation" => "Automation",
+        "provider_api" => ProviderSubmissionApi.Source,
         _ => Humanise(code)
     };
 
@@ -719,6 +913,9 @@ public static class OperatorLabels
             CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
             CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
             CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
+            CaseDataSourceKind.ProviderApi => (
+                ProviderSubmissionApi.Source,
+                ProviderSubmissionApi.ProvenanceIcon),
             CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
             _ => ("Unknown", "icon-info")
         };
@@ -765,9 +962,407 @@ public static class OperatorLabels
             : prefixed;
     }
 
+    /// <summary>
+    /// The resolve dialog's destination words. The four contract wordings
+    /// (EPIC-011 §1.6) cover the kinds a staff resolution completes directly;
+    /// Triage and Blocked intake remain real Core destinations and keep their
+    /// settled names. The prototype's "Create Case from accepted instruction"
+    /// has no destination kind behind it — creating the case is the origin
+    /// receipt's action — so it is not a select option.
+    /// </summary>
+    public static string UnidentifiedResolutionTarget(
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind kind) => kind switch
+    {
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.InstructionCase =>
+            "Add to existing Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ImageIntake =>
+            "Register Image-initiated Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.Triage =>
+            "Link to Triage",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.BlockedIntake =>
+            "Blocked intake",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ExternalReference =>
+            "Close with reason",
+        _ => Humanise(kind.ToString())
+    };
+
+    /// <summary>
+    /// The AI job ledger's words on the Operations AI Job List (PLAT-049).
+    /// </summary>
+    /// <remarks>
+    /// The kind and state wordings are FRD-11 &#167; AI Job List's own; the Core
+    /// enum names are the writer's spelling of them. This is the only map of
+    /// either in the Web layer &#8212; nothing named these states before.
+    ///
+    /// <c>Shared/_StatusChip</c> already owns tones for Completed, Failed,
+    /// Cancelled and settled terminal labels. <see cref="StateToneOverride"/>
+    /// supplies only the three AI-specific labels that partial does not know.
+    /// </remarks>
+    public static class AiJobs
+    {
+        public const string PanelTitle = "AI Job List";
+        public const string SendUnidentified = "Send Unidentified to AI";
+        public const string CompleteJob = "Complete job";
+        public const string Cancel = "Cancel";
+        public const string ReviewEstimate = "Review estimate";
+        public const string OpenQuery = "Open query";
+        public const string Review = "Review";
+
+        /// <summary>
+        /// A queue pass names no record: its Core subject reference is the
+        /// internal token <c>unidentified-queue</c>, which no operator reads.
+        /// </summary>
+        public const string QueueRecord = "Unidentified queue";
+
+        public static string Kind(Pegasus.Core.AiWork.AiJobKind kind) => kind switch
+        {
+            Pegasus.Core.AiWork.AiJobKind.Estimate => "Estimate",
+            Pegasus.Core.AiWork.AiJobKind.UnidentifiedResolution => "Unidentified resolution",
+            Pegasus.Core.AiWork.AiJobKind.QueryResponse => "Query response",
+            Pegasus.Core.AiWork.AiJobKind.UnidentifiedQueuePass => "Unidentified-queue pass",
+            _ => Humanise(kind.ToString())
+        };
+
+        public static string State(Pegasus.Core.AiWork.AiJobState state) => state switch
+        {
+            Pegasus.Core.AiWork.AiJobState.Queued => "Queued",
+            Pegasus.Core.AiWork.AiJobState.Taken => "Taken",
+            Pegasus.Core.AiWork.AiJobState.DraftReady => "Draft ready",
+            Pegasus.Core.AiWork.AiJobState.Completed => "Completed",
+            Pegasus.Core.AiWork.AiJobState.Failed => "Failed",
+            Pegasus.Core.AiWork.AiJobState.Cancelled => "Cancelled",
+            Pegasus.Core.AiWork.AiJobState.Expired => "Expired",
+            _ => Humanise(state.ToString())
+        };
+
+        /// <summary>
+        /// The explicit chip tone only for AI state labels not owned by
+        /// Shared/_StatusChip. A null lets the shared partial apply its single
+        /// tone vocabulary.
+        /// </summary>
+        public static string? StateToneOverride(Pegasus.Core.AiWork.AiJobState state) => state switch
+        {
+            Pegasus.Core.AiWork.AiJobState.Queued or Pegasus.Core.AiWork.AiJobState.DraftReady => "amber",
+            Pegasus.Core.AiWork.AiJobState.Taken => "navy",
+            _ => null
+        };
+
+        /// <summary>The panel meta.</summary>
+        public static string Count(int jobs) => jobs == 1
+            ? "1 job"
+            : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
+    }
+
+    /// <summary>
+    /// The recorded EVA facts available to the Operations panel (PLAT-049).
+    /// </summary>
+    public static class EvaHandoffs
+    {
+        public const string PanelTitle = "EVA handoffs";
+        public const string PendingWork = "Pending work";
+        public const string LatestActivity = "Latest activity";
+        public const string Failures = "Failures";
+        public const string Failure = "Failure";
+        public const string Submitted = "Submitted";
+        public const string Failed = "Failed";
+    }
+
+    /// <summary>The Workflow configuration administration surface — one list.</summary>
+    public static class WorkflowConfiguration
+    {
+        public const string Description = "Staff review requirements";
+        public const string Review = "Review";
+        public const string InstructionReviewRequired = "Instruction review required";
+        public const string ImageReviewRequired = "Image review required";
+        public const string Reason = "Reason";
+        public const string Save = "Save configuration";
+
+        public static string Meta(int policyVersion) => $"Version {policyVersion}";
+    }
+
+    /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
+    public static class ProviderSubmissionApi
+    {
+        public const string Source = "Provider API";
+        public const string ProvenanceIcon = "icon-link";
+    }
+
     private static string HumanizeSlug(string slug)
     {
         var words = slug.Replace('-', ' ').Replace('_', ' ');
         return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
+    }
+
+    /// <summary>The Mail settings area labels and status values — one list.</summary>
+    public static class MailSettings
+    {
+        public const string Description = "Approved mailboxes and mail categories";
+        public const string ApprovedMailboxes = "Approved mailboxes";
+        public const string MailCategories = "Mail categories";
+        public const string Mailbox = "Mailbox";
+        public const string Scope = "Scope";
+        public const string LastUpdate = "Last update";
+        public const string State = "State";
+        public const string Activated = "Activated";
+        public const string Subscription = "Subscription";
+        public const string ReviewFoldersRefresh = "Review folders / Refresh";
+        public const string Category = "Category";
+        public const string Review = "Review";
+        public const string ReviewFolders = "Review folders";
+        public const string AddMailbox = "Add mailbox";
+        public const string AddCategory = "Add category";
+        public const string SaveMailbox = "Save mailbox";
+        public const string SaveCategory = "Save category";
+        public const string Refresh = "Refresh";
+        public const string ApprovedAddress = "Approved address";
+        public const string RouteScope = "Route scope";
+        public const string DisplayName = "Display name";
+        public const string Reason = "Reason";
+        public const string NoApprovedMailboxes = "No approved mailboxes";
+        public const string NoMailCategories = "No mail categories";
+        public const string NotActivated = "Not activated";
+        public const string NoSubscription = "None.";
+        public const string Configured = "Configured";
+        public const string NotConfigured = "Not configured";
+
+        public static string Meta(int mailboxCount, int categoryCount) =>
+            $"{mailboxCount} approved {(mailboxCount == 1 ? "mailbox" : "mailboxes")} · " +
+            $"{categoryCount} mail {(categoryCount == 1 ? "category" : "categories")}";
+
+        /// <summary>
+        /// Both state vocabularies are the enum names themselves, so they
+        /// delegate to <see cref="Humanise"/> rather than restating a second
+        /// copy of the same two words.
+        /// </summary>
+        public static string MailboxState(ApprovedMailboxState state) =>
+            Humanise(state.ToString());
+
+        public static string CategoryState(ApprovedOutlookCategoryState state) =>
+            Humanise(state.ToString());
+
+        public static string FolderState(bool configured) =>
+            configured ? Configured : NotConfigured;
+
+        /// <summary>
+        /// The folder disclosure's own control label: how many of the logical
+        /// folders this mailbox has bound, without expanding the list.
+        /// </summary>
+        public static string ReviewFoldersProgress(int configured, int total) =>
+            $"{ReviewFolders} ({configured} of {total})";
+
+        public static string PollStatus(
+            ApprovedMailbox mailbox,
+            ApprovedMailboxPollStatus? status)
+        {
+            if (status is null)
+            {
+                return mailbox.State == ApprovedMailboxState.Approved
+                    && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake)
+                        ? "Not yet polled."
+                        : "Not polled.";
+            }
+
+            var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
+                ? $"Last completed {OfficeTime(lastCompletedAtUtc)}."
+                : "No completed poll yet.";
+            var due = $" Next due {OfficeTime(status.DueAtUtc)}.";
+            var failure = status.LastFailureCode switch
+            {
+                null => string.Empty,
+                "mailbox_access_denied" =>
+                    " The tenant has not granted this application access to this mailbox.",
+                "mailbox_not_approved" =>
+                    " The last attempt stopped because this mailbox was no longer approved.",
+                var code => $" Last failure: {Humanise(code)}."
+            };
+            return $"{completed}{due}{failure}";
+        }
+
+        public static string SubscriptionStatus(ApprovedMailboxSubscription? subscription)
+        {
+            if (subscription is null)
+            {
+                return NoSubscription;
+            }
+
+            var state = $"{Humanise(subscription.LifecycleState.ToString())}.";
+            var expires = $" Expires {OfficeTime(subscription.ExpiresAtUtc)}.";
+            var failure = subscription.LastMaintenanceFailureCode is { } code
+                ? $" Last failure: {Humanise(code)}."
+                : string.Empty;
+            return $"{state}{expires}{failure}";
+        }
+    }
+
+    /// <summary>
+    /// The consolidated "Staff accounts &amp; roles" administration area
+    /// (EPIC-011 §1.12) — one list. The area's own name lives in
+    /// <see cref="Admin.Accounts"/>; the three <see cref="StaffRole"/> names
+    /// are already the settled operator words and go through
+    /// <see cref="Humanise(string?)"/> rather than being spelled a second
+    /// time here.
+    /// </summary>
+    public static class StaffAccounts
+    {
+        public const string Enabled = "Enabled";
+        public const string Disabled = "Disabled";
+        public const string PasswordChangeRequired = "Password change required";
+
+        /// <summary>
+        /// The chip shown where Core reports an outstanding access review
+        /// (<c>StaffAccessReviewProjection.ReviewIsOutstanding</c>). "Due"
+        /// is the word <c>_StatusChip</c> already tones amber.
+        /// </summary>
+        public const string ReviewDue = "Due";
+
+        public static string State(bool isEnabled) => isEnabled ? Enabled : Disabled;
+
+        public const string PasswordChangeComplete = "Password change complete";
+        public const string Disable = "Disable";
+        public const string Review = "Review";
+        public const string Reason = "Reason";
+        public const string Confirm = "Confirm";
+        public const string DisableConsequence =
+            "Disabling revokes existing browser sessions; the account is retained permanently.";
+    }
+
+    /// <summary>
+    /// The Automation &amp; AI administration area's words (EPIC-011 §1.12) —
+    /// one list. <see cref="Admin.Automation"/> above is the area's name in the
+    /// rail; these are the two panels inside it.
+    /// </summary>
+    public static class AutomationAdmin
+    {
+        public const string AutomationPanel = "Automation";
+        public const string AiSettingsPanel = "AI settings";
+        public const string Enabled = "Enabled";
+        public const string Stopped = "Stopped";
+        public const string RegisteredClients = "Registered clients";
+        public const string ActiveJobs = "Active jobs";
+        public const string FailedJobs = "Failed jobs";
+        public const string Stop = "Stop automation";
+        public const string Start = "Start automation";
+
+        /// <summary>
+        /// The one consequence sentence on the kill switch, from the design
+        /// authority's necessary-copy allowance for a destructive action.
+        /// </summary>
+        public const string StopConsequence =
+            "In-flight work remains visible and no result is discarded.";
+
+        public const string ChannelToken = "Channel token";
+        public const string ChannelTokenEntered = "Entered from Administration";
+        public const string ChannelTokenStandard = "Standard setting";
+        public const string ChannelTokenChanged = "Changed";
+        public const string ChannelAddress = "Channel address";
+        public const string Timeout = "Timeout in seconds";
+        public const string NewChannelToken = "New channel token";
+        public const string SendToAiEnabled = "Reviewed AI proposals enabled";
+        public const string Save = "Save AI settings";
+        public const string RemoveChannelToken = "Remove the channel token";
+        public const string Reason = "Reason";
+
+        /// <summary>The state word for a switch an administrator holds.</summary>
+        public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;
+
+        public const string ClientIdentifier = "Client identifier";
+        public const string GrantedScopes = "Granted scopes";
+    }
+
+    /// <summary>The retained post-report query's AI job words (AUTO-014).</summary>
+    public static class QueryResponseJobs
+    {
+        public const string Source = "Post-report";
+        /// <summary>
+        /// Deliberately not "Send query to AI", which would match the shape of
+        /// "Send Unidentified to AI" and "Send to Claude". Those two send a
+        /// record to be worked; this one queues a ledger row for a draft reply
+        /// and sends nothing. The sibling shape would misdescribe the action,
+        /// so the wording differs on purpose rather than by oversight.
+        /// </summary>
+        public const string Create = "Draft reply with AI";
+        public const string Created = "AI reply job created.";
+        public const string AutomationStopped = "Automation stopped";
+        public const string AvailableInPostReportWork = "Available in post-report work";
+        public const string CaseUnavailable = "Case unavailable";
+        public const string InvalidSource =
+            "This message is not a linked post-report message.";
+    }
+
+    /// <summary>
+    /// The Case workspace's Vehicle, Inspection address and Case Files
+    /// sections (EPIC-011 §1.8) — one list. Appended by CASE-027 inside its
+    /// own nested class; no member above is reordered or edited.
+    /// </summary>
+    public static class CaseWorkspace
+    {
+        public const string VehicleFactsPanel = "Vehicle";
+        public const string VehicleChecksPanel = "Vehicle checks";
+        public const string RefreshDvla = "Refresh DVLA";
+        public const string RefreshDvsaMot = "Refresh DVSA/MOT";
+        public const string RunExperianCheck = "Run Experian check";
+
+        /// <summary>
+        /// Why the Experian control is drawn disabled (EPIC-011 D7/D22,
+        /// ENG-001). Always supplied: <c>.gated::after</c> renders
+        /// <c>attr(data-condition)</c> unguarded, so a <c>.gated</c> span
+        /// without one paints an empty pill (PLAT-061).
+        /// </summary>
+        public const string ExperianSeamCondition = "Experian is not connected";
+
+        public const string VehicleChecksHistory = "Recorded checks";
+        public const string AcceptSuggestion = "Accept";
+        public const string CorrectSuggestion = "Correct";
+        public const string InspectionAddressPanel = "Inspection address";
+        public const string RecordedInspectionAddress = "Recorded value";
+        public const string ProviderDefaultInspectionAddress = "Provider default";
+        public const string FilesPanel = "Files";
+        public const string UploadRequestsPanel = "Public upload requests";
+        public const string InstructionPhotographs = "Instruction photographs";
+        public const string VehicleImages = "Vehicle images";
+        public const string AddEvidence = "Add evidence";
+        public const string OpenOperations = "Open Operations";
+        public const string Preview = "Preview";
+        public const string SaveAs = "Save as";
+        public const string ThirdPartyVehicle = "Third-party vehicle";
+
+        /// <summary>
+        /// Why a refresh control is disabled: the lookup searches on the
+        /// case's registration, and this case has none recorded. State, not a
+        /// seam — the control enables as soon as a registration is recorded.
+        /// </summary>
+        public const string NoRegistrationCondition = "No registration recorded";
+    }
+
+    /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
+    /// accepted-files line is built from <see cref="IntakeEnvelopeLimits"/>
+    /// rather than transcribed from the prototype, whose "25 MB each · 10
+    /// files" is fixture data and not this product's limits.
+    /// </summary>
+    public static class Upload
+    {
+        public const string Dropzone = "Drag files here or choose files";
+        public const string Choose = "Choose files";
+        public const string Submit = "Upload";
+        public const string Clear = "Clear";
+        public const string Another = "Upload another file";
+        public const string Refresh = "Refresh";
+
+        /// <summary>The public request page's single-file wording.</summary>
+        public const string RequestEyebrow = "Secure file request";
+        public const string RequestTitle = "Upload a file";
+        public const string RequestDropzone = "Drag a file here or choose one";
+        public const string RequestChoose = "Choose file";
+        public const string RequestSubmit = "Submit file";
+
+        /// <summary>The request's own size limit, which is set per request.</summary>
+        public static string RequestLimit(string maximumFileSize) =>
+            string.Create(CultureInfo.InvariantCulture, $"Up to {maximumFileSize}.");
+
+        /// <summary>The accepted types and the real envelope limits, as drawn.</summary>
+        public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"EML, MSG, PDF, DOC, DOCX, JPG or PNG · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
     }
 }

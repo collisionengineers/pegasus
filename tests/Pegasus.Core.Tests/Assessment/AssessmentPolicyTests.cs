@@ -14,13 +14,17 @@ public sealed class AssessmentPolicyTests
 
     [Theory]
     [InlineData(CaseLifecycleState.NotReady, 4L, 4L, false)]
-    [InlineData(CaseLifecycleState.Review, 4L, null, false)]
-    [InlineData(CaseLifecycleState.Review, 4L, 3L, false)]
-    [InlineData(CaseLifecycleState.Review, 4L, 4L, true)]
-    [InlineData(CaseLifecycleState.Review, 4L, 5L, true)]
+    [InlineData(CaseLifecycleState.Review, 4L, 4L, false)]
+    [InlineData(CaseLifecycleState.Held, 4L, 4L, false)]
+    [InlineData(CaseLifecycleState.CreatedInError, 4L, 4L, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, 4L, null, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, 4L, 3L, false)]
     [InlineData(CaseLifecycleState.ReportPreparation, 4L, 4L, true)]
-    [InlineData(CaseLifecycleState.PostReport, 4L, 4L, false)]
-    public void AssessmentAccessRequiresAnExportInTheCurrentReviewCycle(
+    [InlineData(CaseLifecycleState.ReportPreparation, 4L, 5L, true)]
+    [InlineData(CaseLifecycleState.PostReport, 4L, 4L, true)]
+    [InlineData(CaseLifecycleState.PostReportComplete, 4L, 4L, true)]
+    [InlineData(CaseLifecycleState.PostReportComplete, 4L, 3L, false)]
+    public void AssessmentAccessRequiresWithEngineerOrOnwardsAndACurrentCycleExport(
         CaseLifecycleState state,
         long latestReviewVersion,
         long? latestExportVersion,
@@ -32,6 +36,24 @@ public sealed class AssessmentPolicyTests
             latestExportVersion);
 
         Assert.Equal(expected, access.CanOpen);
+    }
+
+    /// <summary>
+    /// D11 (FRD-11): editable in Report preparation and Post report,
+    /// read-only in Post-report complete; the opening states before
+    /// Report preparation are refused outright so never reach the question.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation, false)]
+    [InlineData(CaseLifecycleState.PostReport, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true)]
+    public void AssessmentAccessIsReadOnlyOnlyOnceComplete(
+        CaseLifecycleState state,
+        bool expected)
+    {
+        var access = new AssessmentAccessState(state, 4L, 4L);
+
+        Assert.Equal(expected, access.IsReadOnly);
     }
 
     [Fact]
