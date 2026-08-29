@@ -36,11 +36,17 @@ public sealed class IndexModel(
     /// <summary>One row per staff account, in the Core query's order.</summary>
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
 
+    /// <summary>Whether the bounded account query has another page.</summary>
+    public bool HasMoreAccounts { get; private set; }
+
     /// <summary>Whether the Automation ingress exists in this deployment.</summary>
     public bool AutomationComposed { get; private set; }
 
     /// <summary>The username typed into Create staff account, kept over a failed post.</summary>
     public string NewUserName { get; private set; } = string.Empty;
+
+    /// <summary>The reason typed into Create staff account, kept over a failed post.</summary>
+    public string NewReason { get; private set; } = string.Empty;
 
     /// <summary>The operation key the Create staff account form carries.</summary>
     public string CreateOperationKey { get; private set; } = NewOperationKey();
@@ -50,6 +56,15 @@ public sealed class IndexModel(
 
     /// <summary>The role-change reason kept over a rejected post.</summary>
     public string RoleReason { get; private set; } = string.Empty;
+
+    /// <summary>The role names submitted by the most recent role post.</summary>
+    public IReadOnlyList<string> RolePostSelectedRoles { get; private set; } = [];
+
+    /// <summary>The account targeted by the most recent disable or review post.</summary>
+    public Guid AccountActionStaffId { get; private set; }
+
+    /// <summary>The reason submitted by the most recent disable or review post.</summary>
+    public string AccountActionReason { get; private set; } = string.Empty;
 
     public Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         RunAsync(_ => Task.FromResult<string?>(null), cancellationToken);
@@ -62,6 +77,7 @@ public sealed class IndexModel(
         CancellationToken cancellationToken)
     {
         NewUserName = userName?.Trim() ?? string.Empty;
+        NewReason = reason ?? string.Empty;
         return RunAsync(
             async actor =>
             {
@@ -76,6 +92,7 @@ public sealed class IndexModel(
                     new(actor, NewUserName, temporaryPassword!, reason!, operationKey!),
                     cancellationToken);
                 NewUserName = string.Empty;
+                NewReason = string.Empty;
                 return "The staff account was created and must change its password at first sign-in.";
             },
             cancellationToken);
@@ -90,6 +107,7 @@ public sealed class IndexModel(
     {
         RolePostStaffId = staffId;
         RoleReason = reason ?? string.Empty;
+        RolePostSelectedRoles = selectedRoles ?? [];
         return RunAsync(
             async actor =>
             {
@@ -129,8 +147,11 @@ public sealed class IndexModel(
         Guid staffId,
         string? reason,
         string? operationKey,
-        CancellationToken cancellationToken) =>
-        RunAsync(
+        CancellationToken cancellationToken)
+    {
+        AccountActionStaffId = staffId;
+        AccountActionReason = reason ?? string.Empty;
+        return RunAsync(
             async actor =>
             {
                 if (!Validate(operationKey, reason) | !RequireStaffId(staffId))
@@ -144,13 +165,17 @@ public sealed class IndexModel(
                 return "The account was disabled. Existing browser sessions were revoked.";
             },
             cancellationToken);
+    }
 
     public Task<IActionResult> OnPostReviewAsync(
         Guid staffId,
         string? reason,
         string? operationKey,
-        CancellationToken cancellationToken) =>
-        RunAsync(
+        CancellationToken cancellationToken)
+    {
+        AccountActionStaffId = staffId;
+        AccountActionReason = reason ?? string.Empty;
+        return RunAsync(
             async actor =>
             {
                 if (!Validate(operationKey, reason) | !RequireStaffId(staffId))
@@ -164,6 +189,15 @@ public sealed class IndexModel(
                 return "The access review was recorded.";
             },
             cancellationToken);
+    }
+
+    public bool IsRoleSelected(StaffAccountRow row, StaffRole role)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return row.Account.Id == RolePostStaffId
+            ? RolePostSelectedRoles.Contains(role.ToString(), StringComparer.Ordinal)
+            : row.Account.Roles.Contains(role);
+    }
 
     /// <summary>
     /// The one place an operation is authorised, run, translated into an
@@ -258,6 +292,8 @@ public sealed class IndexModel(
             "That username is already assigned.",
         StaffAccountAdministrationError.LastAdministrator =>
             "The change was denied because at least one enabled Administrator must remain.",
+        StaffAccountAdministrationError.SelfAction =>
+            "An account cannot disable or review itself.",
         StaffAccountAdministrationError.OperationConflict =>
             "The form was already used for a different operation. Retry from the current page.",
         _ => "The change was not accepted."
@@ -282,14 +318,20 @@ public sealed class IndexModel(
         var review = await getAccessReview.ExecuteAsync(
             new(actor, MaximumResults: ListStaffAccounts.MaximumPageSize),
             cancellationToken);
+        HasMoreAccounts = accounts.HasMoreAccounts || review.HasMoreAccounts;
         var outstanding = review.Accounts.ToDictionary(
             item => item.StaffId,
             item => item.ReviewIsOutstanding);
 
+        var currentOperatorId = Guid.TryParse(actor.SubjectId, out var actorStaffId)
+            ? actorStaffId
+            : (Guid?)null;
+
         Rows = accounts.Accounts
             .Select(account => new StaffAccountRow(
                 account,
-                outstanding.TryGetValue(account.Id, out var isOutstanding) && isOutstanding))
+                outstanding.TryGetValue(account.Id, out var isOutstanding) && isOutstanding,
+                account.Id == currentOperatorId))
             .ToArray();
     }
 }
@@ -300,4 +342,5 @@ public sealed class IndexModel(
 /// </summary>
 public sealed record StaffAccountRow(
     StaffAccountSummary Account,
-    bool ReviewIsOutstanding);
+    bool ReviewIsOutstanding,
+    bool IsCurrentOperator);

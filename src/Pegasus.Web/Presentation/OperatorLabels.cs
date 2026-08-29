@@ -1021,6 +1021,12 @@ public static class OperatorLabels
         public static string State(bool isEnabled) => isEnabled ? Enabled : Disabled;
 
         public const string PasswordChangeComplete = "Password change complete";
+        public const string Disable = "Disable";
+        public const string Review = "Review";
+        public const string Reason = "Reason";
+        public const string Confirm = "Confirm";
+        public const string DisableConsequence =
+            "Disabling revokes existing browser sessions; the account is retained permanently.";
     }
 
     /// <summary>

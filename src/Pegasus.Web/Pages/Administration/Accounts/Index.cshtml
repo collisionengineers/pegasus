@@ -23,7 +23,7 @@
         <section class="panel" aria-labelledby="staff-accounts-title">
             <div class="panel-head">
                 <h2 id="staff-accounts-title">Accounts</h2>
-                <span class="muted">@Model.Rows.Count accounts</span>
+                <span class="muted">@Model.Rows.Count@(Model.HasMoreAccounts ? "+" : string.Empty) accounts</span>
             </div>
             @if (Model.Rows.Count == 0)
             {
@@ -57,28 +57,27 @@
                             <tr>
                                 <td>@account.UserName</td>
                                 <td>
-                                    @* Core assigns a *set* of roles and gates engineer
-                                       eligibility on the Engineer role specifically, so the
-                                       inline select carries the whole set rather than
-                                       collapsing it to one value. It belongs to the row's
-                                       form in the Save cell. *@
-                                    <label class="sr-only" for="@roleSelect">Roles for @account.UserName</label>
-                                    <select id="@roleSelect" name="selectedRoles" form="@roleForm" multiple size="@staffRoles.Length">
+                                    <fieldset class="role-choices role-choices--stacked">
+                                        <legend>Roles for @account.UserName</legend>
                                         @foreach (var role in staffRoles)
                                         {
-                                            <option value="@role" selected="@account.Roles.Contains(role)">@OperatorLabels.Humanise(role.ToString())</option>
+                                            <label class="choice">
+                                                <input id="@roleSelect-@role" type="checkbox" name="selectedRoles" value="@role"
+                                                       form="@roleForm" checked="@Model.IsRoleSelected(row, role)" />
+                                                <span>@OperatorLabels.Humanise(role.ToString())</span>
+                                            </label>
                                         }
-                                    </select>
+                                    </fieldset>
                                 </td>
                                 <td>
                                     <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.State(account.IsEnabled)" />
                                     @if (account.MustChangePassword)
                                     {
-                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeRequired" />
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeRequired" view-data="@(new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" })" />
                                     }
                                     else
                                     {
-                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeComplete" />
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeComplete" view-data="@(new ViewDataDictionary(ViewData) { ["StatusTone"] = "green" })" />
                                     }
                                 </td>
                                 <td>
@@ -99,7 +98,7 @@
                                     <form id="@roleForm" method="post" asp-page-handler="Roles" class="field">
                                         <input type="hidden" name="staffId" value="@staffId" />
                                         <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                        <label class="req" for="@roleReason">Reason</label>
+                                        <label class="req" for="@roleReason">@OperatorLabels.StaffAccounts.Reason</label>
                                         <input id="@roleReason" name="reason"
                                                value="@(Model.RolePostStaffId == account.Id ? Model.RoleReason : string.Empty)"
                                                required maxlength="@reasonLimit" />
@@ -110,17 +109,24 @@
                                     </form>
                                 </td>
                                 <td>
-                                    @if (account.IsEnabled)
+                                    @if (!row.IsCurrentOperator && account.IsEnabled)
                                     {
-                                        <button type="button" class="btn btn--danger" data-dialog-open="disable-@staffId">
+                                        <a asp-page="/Administration/Accounts/Confirm"
+                                           asp-route-operation="Disable" asp-route-staffId="@account.Id"
+                                           class="btn btn--danger" data-dialog-open="disable-@staffId">
                                             <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-                                            <span>Disable</span>
-                                        </button>
+                                            <span>@OperatorLabels.StaffAccounts.Disable</span>
+                                        </a>
                                     }
-                                    <button type="button" class="btn" data-dialog-open="review-@staffId">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
-                                        <span>Review</span>
-                                    </button>
+                                    @if (!row.IsCurrentOperator)
+                                    {
+                                        <a asp-page="/Administration/Accounts/Confirm"
+                                           asp-route-operation="Review" asp-route-staffId="@account.Id"
+                                           class="btn" data-dialog-open="review-@staffId">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                                            <span>@OperatorLabels.StaffAccounts.Review</span>
+                                        </a>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -151,7 +157,7 @@
                     </div>
                     <div class="field field--narrow">
                         <label class="req" for="create-reason">Reason</label>
-                        <input id="create-reason" name="reason" required maxlength="@reasonLimit" />
+                        <input id="create-reason" name="reason" value="@Model.NewReason" required maxlength="@reasonLimit" />
                     </div>
                     <div>
                         <button type="submit" class="btn btn--primary">
@@ -171,15 +177,16 @@
 {
     var account = row.Account;
     var staffId = account.Id.ToString("D");
-    if (account.IsEnabled)
+    if (!row.IsCurrentOperator && account.IsEnabled)
     {
         <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
         {
             ["DialogId"] = "disable-" + staffId,
-            ["DialogTitle"] = "Disable " + account.UserName,
-            ["DialogConsequence"] = "Disabling revokes existing browser sessions; the account is retained permanently.",
+            ["DialogTitle"] = OperatorLabels.StaffAccounts.Disable + " " + account.UserName,
+            ["DialogConsequence"] = OperatorLabels.StaffAccounts.DisableConsequence,
             ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Disable"),
             ["DialogReasonMaxLength"] = reasonLimit,
+            ["DialogReason"] = Model.AccountActionStaffId == account.Id ? Model.AccountActionReason : string.Empty,
             ["DialogHiddenFields"] = new Dictionary<string, string?>
             {
                 ["staffId"] = staffId,
@@ -187,16 +194,20 @@
             }
         })" />
     }
-    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+    @if (!row.IsCurrentOperator)
     {
-        ["DialogId"] = "review-" + staffId,
-        ["DialogTitle"] = "Record access review for " + account.UserName,
-        ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Review"),
-        ["DialogReasonMaxLength"] = reasonLimit,
-        ["DialogHiddenFields"] = new Dictionary<string, string?>
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
         {
-            ["staffId"] = staffId,
-            ["operationKey"] = IndexModel.NewOperationKey()
-        }
-    })" />
+            ["DialogId"] = "review-" + staffId,
+            ["DialogTitle"] = OperatorLabels.StaffAccounts.Review + " access review for " + account.UserName,
+            ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Review"),
+            ["DialogReasonMaxLength"] = reasonLimit,
+            ["DialogReason"] = Model.AccountActionStaffId == account.Id ? Model.AccountActionReason : string.Empty,
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["staffId"] = staffId,
+                ["operationKey"] = IndexModel.NewOperationKey()
+            }
+        })" />
+    }
 }
