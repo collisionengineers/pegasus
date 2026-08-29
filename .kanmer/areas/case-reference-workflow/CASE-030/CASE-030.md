@@ -14,12 +14,14 @@ labels:
 groups:
   - EPIC-011
 links: []
+blocks:
+  - CASE-012
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:24.192Z'
-updated: '2026-08-28T08:35:24.192Z'
+updated: '2026-08-29T13:10:37.796Z'
 ---
 
 ## What

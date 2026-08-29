@@ -23,13 +23,15 @@ groups:
   - EPIC-011
 links:
   - TICK-223
+blocks:
+  - PLAT-029
 docs_todo: true
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/599'
   - 'https://github.com/collisionengineers/pegasus/pull/615'
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-29T13:03:24.362Z'
+updated: '2026-08-29T13:10:19.329Z'
 ---
 
 ## What

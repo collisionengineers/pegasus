@@ -22,12 +22,14 @@ groups:
   - EPIC-011
   - EPIC-006
 links: []
+blocks:
+  - PLAT-029
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-29T13:03:39.378Z'
+updated: '2026-08-29T13:10:22.861Z'
 ---
 
 ## What

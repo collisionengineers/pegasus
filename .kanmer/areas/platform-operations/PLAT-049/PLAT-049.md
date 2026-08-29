@@ -19,6 +19,8 @@ labels:
 groups:
   - EPIC-011
 links: []
+blocks:
+  - AUTO-011
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
@@ -30,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/617'
 archived: false
 created: '2026-08-28T08:35:24.068Z'
-updated: '2026-08-29T09:52:03.383Z'
+updated: '2026-08-29T13:09:59.643Z'
 ---
 
 ## What

@@ -17,11 +17,13 @@ groups:
   - EPIC-009
 links:
   - ENG-002
+blocks:
+  - ENG-025
 refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-08-25T06:39:08.833Z'
+updated: '2026-08-29T13:10:09.661Z'
 ---
 
 ## What

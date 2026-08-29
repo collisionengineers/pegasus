@@ -17,12 +17,14 @@ groups:
   - EPIC-011
 links:
   - AUTO-011
+blocks:
+  - AUTO-011
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-29T13:04:32.304Z'
-updated: '2026-08-29T13:04:32.304Z'
+updated: '2026-08-29T13:10:05.626Z'
 ---
 
 ## What

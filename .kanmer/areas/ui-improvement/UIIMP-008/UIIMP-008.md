@@ -21,6 +21,8 @@ groups:
   - EPIC-011
 links:
   - PLAT-058
+blocks:
+  - PLAT-029
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
@@ -40,7 +42,7 @@ prs:
   - '#610'
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-08-29T09:19:48.982Z'
+updated: '2026-08-29T13:10:28.066Z'
 ---
 
 ## What

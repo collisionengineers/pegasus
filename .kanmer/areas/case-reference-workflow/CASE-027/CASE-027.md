@@ -13,13 +13,15 @@ labels:
 groups:
   - EPIC-011
 links: []
+blocks:
+  - CASE-012
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-28T08:35:23.925Z'
-updated: '2026-08-28T08:35:23.925Z'
+updated: '2026-08-29T13:10:35.264Z'
 ---
 
 ## What
