@@ -26,6 +26,19 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     // QDOS grammar, supplied to the neutral engine per definition.
     private static readonly string[] ThirdPartyRowPrefixes = ["TP"];
 
+    /// <summary>
+    /// The whole-line row-skip guard, built once from the same prefix list
+    /// every definition is guarded against. A prefix added to
+    /// <see cref="ThirdPartyRowPrefixes"/> therefore extends both the
+    /// per-field guard and this skip; a pattern hardcoded here would silently
+    /// extend only the first.
+    /// </summary>
+    private static readonly Regex[] ThirdPartyRowRegexes =
+        [.. ThirdPartyRowPrefixes.Select(prefix => new Regex(
+            $@"(?i)^{Regex.Escape(prefix)}\b",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100)))];
+
     private static readonly InstructionFieldEngine.FieldDefinition[] BareFieldDefinitions =
     [
         new("Claimant name", ["Claimant Name", "Claimant", "Our Client", "Client Name"]),
@@ -263,7 +276,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             // hazard here, and these rules read labels mid-line, so the
             // guard is applied once to the whole line rather than being
             // repeated — and forgotten — per rule.
-            if (ThirdPartyRowRegex().IsMatch(rawLine))
+            if (ThirdPartyRowRegexes.Any(regex => regex.IsMatch(rawLine)))
             {
                 continue;
             }
@@ -559,9 +572,6 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
 
     [GeneratedRegex(ReportColumnCutPattern, RegexOptions.CultureInvariant, 100)]
     private static partial Regex ReportColumnCutRegex();
-
-    [GeneratedRegex(@"(?i)^TP\b", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex ThirdPartyRowRegex();
 
     [GeneratedRegex(@"(?i)^vehicle\s*:\s*(?<value>.+)$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex VehicleReportRowRegex();
