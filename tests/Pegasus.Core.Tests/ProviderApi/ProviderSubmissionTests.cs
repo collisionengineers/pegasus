@@ -67,9 +67,10 @@ public sealed class ProviderSubmissionTests
         FakeHistory history)
     {
         history.Store = store;
+        store.Intake = intake;
         store.HistoryEntries.Clear();
         store.HistoryEntries.AddRange(history.Entries);
-        return new(store, intake, history, new FixedTime());
+        return new(store, history, new FixedTime());
     }
 
     private static ProviderSubmissionRecord Submission(
@@ -424,7 +425,7 @@ public sealed class ProviderSubmissionTests
     }
 
     [Fact]
-    public async Task AcceptRecoveryLeavesABareReservationUntouched()
+    public async Task AcceptRecoveryNeverSelectsABareReservation()
     {
         var submissionId = Guid.NewGuid();
         var store = new FakeStore();
@@ -434,11 +435,43 @@ public sealed class ProviderSubmissionTests
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
-        Assert.Equal(1, result.Candidates);
+        Assert.Equal(0, result.Candidates);
         Assert.Equal(0, result.Repaired);
         Assert.Equal(0, result.Failures);
         Assert.Null(store.Records[submissionId].StagedReceiptId);
         Assert.Empty(history.Entries);
+    }
+
+    /// <summary>
+    /// Nothing ever removes a bare reservation, so if one could be selected a
+    /// run of them would hold the oldest-first window for good and every
+    /// repairable submission behind them would starve.
+    /// </summary>
+    [Fact]
+    public async Task AcceptRecoveryIsNotStarvedByOlderBareReservations()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        for (var index = 0; index < 60; index++)
+        {
+            var reservationId = Guid.NewGuid();
+            store.Records[reservationId] = Submission(
+                reservationId,
+                receivedAtUtc: Now - TimeSpan.FromDays(1));
+        }
+
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        store.Records[submissionId] = Submission(submissionId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
+        Assert.Equal("Accepted", Assert.Single(history.Entries).Outcome);
     }
 
     [Fact]
@@ -476,8 +509,8 @@ public sealed class ProviderSubmissionTests
         Assert.Equal(1, result.Candidates);
         Assert.Equal(0, result.Repaired);
         Assert.Null(store.Records[submissionId].StagedReceiptId);
+        Assert.Empty(store.RecordStagedReceiptCalls);
         Assert.Empty(history.Entries);
-        Assert.Empty(intake.SourceLookups);
     }
 
     [Fact]
@@ -557,6 +590,7 @@ public sealed class ProviderSubmissionTests
     {
         public Dictionary<Guid, ProviderSubmissionRecord> Records { get; } = [];
         public List<ActionHistoryEntry> HistoryEntries { get; } = [];
+        public FakeIntakeSubmission? Intake { get; set; }
         public Dictionary<Guid, Exception> RecordFailures { get; } = [];
         public Dictionary<Guid, int> RecordStagedReceiptCalls { get; } = [];
         public bool ConflictOnce { get; set; }
@@ -619,16 +653,19 @@ public sealed class ProviderSubmissionTests
         {
             var accepted = AcceptedSubmissionIds();
             IReadOnlyList<ProviderSubmissionAcceptCandidate> candidates = Records.Values
-                .Where(record => record.StagedReceiptId is null || !accepted.Contains(record.Id))
-                .OrderBy(record => record.ReceivedAtUtc)
-                .ThenBy(record => record.Id)
+                .Select(record => (Record: record, Retained: Intake?.FindStagedReceiptId(record.Id)))
+                .Where(item => item.Retained is not null
+                    && (item.Record.StagedReceiptId is null || !accepted.Contains(item.Record.Id)))
+                .OrderBy(item => item.Record.ReceivedAtUtc)
+                .ThenBy(item => item.Record.Id)
                 .Take(maximumItems)
-                .Select(record => new ProviderSubmissionAcceptCandidate(
-                    record.Id,
-                    record.PrincipalId,
-                    record.ReceivedAtUtc,
-                    record.StagedReceiptId,
-                    accepted.Contains(record.Id)))
+                .Select(item => new ProviderSubmissionAcceptCandidate(
+                    item.Record.Id,
+                    item.Record.PrincipalId,
+                    item.Record.ReceivedAtUtc,
+                    item.Record.StagedReceiptId,
+                    item.Retained!.Value,
+                    accepted.Contains(item.Record.Id)))
                 .ToArray();
             return Task.FromResult(candidates);
         }
@@ -639,14 +676,16 @@ public sealed class ProviderSubmissionTests
         {
             var accepted = AcceptedSubmissionIds();
             var record = Records.GetValueOrDefault(submissionId);
+            var retained = record is null ? null : Intake?.FindStagedReceiptId(record.Id);
             return Task.FromResult(
-                record is null
+                record is null || retained is null
                     ? null
                     : new ProviderSubmissionAcceptCandidate(
                         record.Id,
                         record.PrincipalId,
                         record.ReceivedAtUtc,
                         record.StagedReceiptId,
+                        retained.Value,
                         accepted.Contains(record.Id)));
         }
 
@@ -663,12 +702,11 @@ public sealed class ProviderSubmissionTests
     /// the real receiver enforces: the same token with different bytes is a
     /// visible conflict, never a second receipt.
     /// </summary>
-    private sealed class FakeIntakeSubmission : IIntakeSubmission, IIntakeWorkStore
+    private sealed class FakeIntakeSubmission : IIntakeSubmission
     {
         private readonly Dictionary<string, (IntakeStagedReceipt Receipt, string Hash)> retained = new(StringComparer.Ordinal);
 
         public List<IntakeSource> Sources { get; } = [];
-        public List<IntakeSourceIdentity> SourceLookups { get; } = [];
 
         public IReadOnlyCollection<Guid> StagedIds => retained.Values.Select(item => item.Receipt.Id).ToArray();
 
@@ -708,111 +746,16 @@ public sealed class ProviderSubmissionTests
             return Task.FromResult(new ReceivedIntake(id, IsDuplicate: false));
         }
 
-        public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
-            IntakeSourceIdentity sourceIdentity,
-            CancellationToken cancellationToken)
-        {
-            SourceLookups.Add(sourceIdentity);
-            return Task.FromResult(
-                retained.Values
-                    .Select(item => item.Receipt)
-                    .SingleOrDefault(receipt => receipt.SourceIdentity == sourceIdentity));
-        }
-
-        public Task<ReceivedIntake> ReceiveAsync(
-            IntakeStagedReceipt receipt,
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<IntakeWorkItem?> ClaimDispatchAsync(
-            DateTimeOffset nowUtc,
-            TimeSpan leaseDuration,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<IntakeWorkItem?> ClaimDispatchAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset nowUtc,
-            TimeSpan leaseDuration,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<IntakeWorkItem?> FindWorkItemAsync(
-            Guid stagedReceiptId,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task MarkDispatchedAsync(
-            Guid workItemId,
-            string leaseToken,
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task ReleaseDispatchAsync(
-            Guid workItemId,
-            string leaseToken,
-            DateTimeOffset dueAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset nowUtc,
-            TimeSpan leaseDuration,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<IntakeEvaluationRevision> CompleteProcessingAsync(
-            Guid workItemId,
-            string leaseToken,
-            Guid processedReceiptId,
-            DateTimeOffset completedAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(
-            Guid stagedReceiptId,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task RetryProcessingAsync(
-            Guid workItemId,
-            string leaseToken,
-            DateTimeOffset dueAtUtc,
-            string failureCode,
-            bool terminal,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task MarkPoisonedAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset failedAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<int> RecoverInterruptedWorkAsync(
-            DateTimeOffset nowUtc,
-            DateTimeOffset staleDispatchedBeforeUtc,
-            int maximumItems,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task ScheduleReevaluationAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset dueAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
-            Guid intakeReceiptId,
-            CancellationToken cancellationToken) =>
-            throw UnsupportedWorkStoreCall();
-
-        private static NotSupportedException UnsupportedWorkStoreCall() =>
-            new("The provider accept-recovery tests only use source-identity lookup.");
-
+        /// <summary>
+        /// The staged receipt the submission's source was retained as, which
+        /// is what the store's candidate query joins on.
+        /// </summary>
+        public Guid? FindStagedReceiptId(Guid submissionId) =>
+            retained.TryGetValue(
+                ProviderSubmissionPolicy.SubmissionToken(submissionId),
+                out var item)
+                ? item.Receipt.Id
+                : null;
     }
 
     private sealed class FakeHistory : IActionHistoryWriter

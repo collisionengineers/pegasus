@@ -76,11 +76,19 @@ public sealed record ProviderSubmissionRecord(
     ProviderInstruction? Instruction = null,
     Guid? StagedReceiptId = null);
 
+/// <summary>
+/// A submission whose accept writes stopped part-way and can still be
+/// completed. Its source is durably retained, so
+/// <paramref name="RetainedStagedReceiptId"/> is the receipt the interrupted
+/// accept would have written back; a bare reservation, whose retention never
+/// happened, is not a candidate at all.
+/// </summary>
 public sealed record ProviderSubmissionAcceptCandidate(
     Guid SubmissionId,
     Guid PrincipalId,
     DateTimeOffset ReceivedAtUtc,
     Guid? StagedReceiptId,
+    Guid RetainedStagedReceiptId,
     bool HasAcceptedHistory);
 
 /// <summary>
@@ -163,6 +171,14 @@ public interface IProviderSubmissionStore
         Guid stagedReceiptId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The oldest submissions whose accept writes are incomplete and whose
+    /// intake retention already exists, so every row returned can be
+    /// completed. A bare reservation is excluded by the query itself rather
+    /// than skipped by the sweep: nothing ever removes one, so a bounded
+    /// oldest-first window that admitted them would fill with rows it can
+    /// never repair and starve the ones it can.
+    /// </summary>
     Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
         int maximumItems,
         CancellationToken cancellationToken);

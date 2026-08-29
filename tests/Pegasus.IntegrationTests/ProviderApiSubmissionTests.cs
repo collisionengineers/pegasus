@@ -238,6 +238,80 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
     }
 
+    /// <summary>
+    /// A bare reservation — a submission row whose intake retention never
+    /// happened — can never be repaired here: nothing removes it, and only a
+    /// same-key retry can complete it. It must therefore never occupy the
+    /// bounded candidate window, or one storage outage's worth of them
+    /// permanently starves every genuinely repairable submission behind them.
+    /// </summary>
+    [Fact]
+    public async Task AcceptRecoveryIsNotStarvedByOlderBareReservations()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var created = await SubmitAsync(
+            client,
+            secret,
+            "starved-1",
+            [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var interruptedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2);
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE ProviderSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {interruptedAtUtc} WHERE Id = {submissionId}"));
+            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM ActionHistory WHERE AggregateType = {ProviderSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
+
+            // A day older than the interrupted accept, so oldest-first
+            // ordering puts every one of them ahead of it.
+            var template = await context.ProviderSubmissions
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == submissionId);
+            for (var index = 0; index < 60; index++)
+            {
+                context.ProviderSubmissions.Add(new ProviderSubmissionEntity
+                {
+                    Id = Guid.NewGuid(),
+                    PrincipalId = template.PrincipalId,
+                    KeyId = template.KeyId,
+                    IdempotencyKey = $"bare-reservation-{index}",
+                    ProviderReference = template.ProviderReference,
+                    ReceivedAtUtc = interruptedAtUtc.AddDays(-1),
+                    DeclaredInstructionJson = template.DeclaredInstructionJson
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        var result = await scope.ServiceProvider
+            .GetRequiredService<ReconcileProviderSubmissions>()
+            .ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(0, result.Failures);
+        await using var verification = await contextFactory.CreateDbContextAsync();
+        var submission = await verification.ProviderSubmissions
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == submissionId);
+        Assert.NotNull(submission.StagedReceiptId);
+        var accepted = await verification.ActionHistory
+            .AsNoTracking()
+            .SingleAsync(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                && item.AggregateId == submissionId.ToString("D"));
+        Assert.Equal("Accepted", accepted.Outcome);
+    }
+
     [Fact]
     public async Task PausedCredentialIsRefusedForSubmissionAndStillReadsItsOwnResult()
     {
