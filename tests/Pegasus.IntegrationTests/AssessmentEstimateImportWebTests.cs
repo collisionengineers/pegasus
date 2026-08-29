@@ -162,6 +162,88 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
+    /// An imported line with no value arrives <c>Unpriced</c> — "To be
+    /// confirmed". Pricing it is the point of the editor, and
+    /// <c>AssessmentPolicy</c> refuses a line that is both marked To be
+    /// confirmed and priced ("A line marked To be confirmed cannot also carry a
+    /// price."), so the flag must clear when a price is entered.
+    ///
+    /// Carrying every evidence field forward unconditionally — the first shape
+    /// of the fix for the evidence-destroying save — made this save impossible.
+    /// </summary>
+    [Fact]
+    public async Task PricingAnImportedUnpricedLineClearsItsToBeConfirmedFlag()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var importHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        using var importResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
+            ImportForm(
+                AntiforgeryValue(importHtml),
+                caseId,
+                NewOperationKey(),
+                AudatexEstimateFixture.Build()));
+        Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
+
+        var draft = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
+        var unpricedBefore = Assert.Single(draft.Lines, line => line.Description == "GRILLE BADGE");
+        Assert.True(unpricedBefore.Unpriced);
+        Assert.Null(unpricedBefore.Price);
+
+        var editorHtml = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}/Assessment?estimate={draft.SpecificationId:D}");
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(editorHtml)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateId", draft.SpecificationId.ToString("D")),
+            new("estimateName", draft.Details.Name),
+            new("estimateVatPercent", draft.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
+        };
+        foreach (var line in draft.Lines.OrderBy(line => line.Position))
+        {
+            // The operator prices the one line the import left To be confirmed.
+            var price = line.Id == unpricedBefore.Id
+                ? "125.00"
+                : line.Price?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+            fields.Add(new("lineId", line.Id.ToString("D")));
+            fields.Add(new("lineOperation", EstimateOperations.FromLineType(line.Type).ToString()));
+            fields.Add(new("lineDescription", line.Description ?? string.Empty));
+            fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
+            fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineLabourHours", line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePartPounds", price));
+        }
+
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=SaveEstimate",
+            new FormUrlEncodedContent(fields));
+
+        // A refusal here is the regression: Core rejects Unpriced with a price.
+        Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
+        Assert.Equal(2, store.SavedEstimates.Count);
+
+        var edited = store.SavedEstimates[1];
+        var priced = Assert.Single(edited.Lines, line => line.Description == "GRILLE BADGE");
+        Assert.Equal(125.00m, priced.Price);
+        Assert.False(priced.Unpriced);
+
+        // The rest of that line's imported evidence still survives the save.
+        Assert.Equal(unpricedBefore.GuideCode, priced.GuideCode);
+        Assert.Equal(unpricedBefore.Betterment, priced.Betterment);
+        Assert.Equal(unpricedBefore.EvidenceLabel, priced.EvidenceLabel);
+    }
+
+    /// <summary>
     /// CASE-024: a save submitted from a page that was never in edit mode is refused here rather
     /// than in Core, so nothing is retained and the operator is told what to do.
     /// </summary>
