@@ -32,7 +32,13 @@ public sealed partial class UploadModel(
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
 
-    public static int MaximumFileCount => IntakeEnvelopeLimits.MaximumBatchFileCount;
+    /// <summary>
+    /// The accepted types and limits line the dropzone draws, from the one
+    /// place the limits are declared.
+    /// </summary>
+    public string AcceptedFiles => OperatorLabels.Upload.AcceptedFiles(
+        IntakeEnvelopeLimits.MaximumContentLength,
+        IntakeEnvelopeLimits.MaximumBatchFileCount);
 
     [BindProperty]
     public IFormFile[] Upload { get; set; } = [];

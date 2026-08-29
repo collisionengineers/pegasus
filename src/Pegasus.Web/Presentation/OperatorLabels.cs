@@ -1254,4 +1254,37 @@ public static class OperatorLabels
         public const string InvalidSource =
             "This message is not a linked post-report message.";
     }
+
+    /// <summary>
+    /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
+    /// accepted-files line is built from <see cref="IntakeEnvelopeLimits"/>
+    /// rather than transcribed from the prototype, whose "25 MB each · 10
+    /// files" is fixture data and not this product's limits.
+    /// </summary>
+    public static class Upload
+    {
+        public const string Dropzone = "Drag files here or choose files";
+        public const string Choose = "Choose files";
+        public const string Submit = "Upload";
+        public const string Clear = "Clear";
+        public const string Another = "Upload another file";
+        public const string Refresh = "Refresh";
+
+        /// <summary>The public request page's single-file wording.</summary>
+        public const string RequestEyebrow = "Secure file request";
+        public const string RequestTitle = "Upload a file";
+        public const string RequestDropzone = "Drag a file here or choose one";
+        public const string RequestChoose = "Choose file";
+        public const string RequestSubmit = "Submit file";
+
+        /// <summary>The request's own size limit, which is set per request.</summary>
+        public static string RequestLimit(string maximumFileSize) =>
+            string.Create(CultureInfo.InvariantCulture, $"Up to {maximumFileSize}.");
+
+        /// <summary>The accepted types and the real envelope limits, as drawn.</summary>
+        public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"EML, MSG, PDF, DOC, DOCX, JPG or PNG · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
+    }
 }
