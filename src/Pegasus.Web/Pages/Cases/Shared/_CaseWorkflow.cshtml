@@ -163,6 +163,13 @@
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    @* CASE-027: the claimant's own contact number and address
+                       are editable values too, and SaveCase writes every one of
+                       the twenty — an omitted value is written as null and
+                       clears the confirmed field, so leaving these two out of
+                       the form silently discarded them on every save. *@
+                    <input type="hidden" name="claimantContactNumber" value="@data.Claimant.ContactNumber.Confirmed?.Value" />
+                    <input type="hidden" name="claimantAddress" value="@data.Claimant.Address.Confirmed?.Value" />
                     <input type="hidden" name="vehicleMileage" value="@data.Vehicle.Mileage.Confirmed?.Value" />
                     <input type="hidden" name="vehicleMileageUnit" value="@data.Vehicle.MileageUnit.Confirmed?.Value" />
                     <input type="hidden" name="incidentDate" value="@data.Accident.IncidentDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
