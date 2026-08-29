@@ -98,9 +98,9 @@ public sealed class UploadDropzoneBrowserTests
 
     /// <summary>
     /// The dashed rectangle is a small target on a real drag. The effective
-    /// target is the whole panel it sits in: a drop on the panel's own
-    /// heading — inside the panel, outside the dashed area — must still land
-    /// the files, not silently do nothing.
+    /// target is the whole panel it sits in: a drop on the panel's own button
+    /// row — inside the panel, outside the dashed area — must still land the
+    /// files, not silently do nothing.
     /// </summary>
     [Fact]
     public async Task NativeCdpDropOnThePanelOutsideTheDashedZoneStillPopulatesTheInput()
@@ -109,7 +109,7 @@ public sealed class UploadDropzoneBrowserTests
             useIntegrationTestAuthentication: true);
         await support.GoToAsync("/Upload");
 
-        var result = await DropOnAsync(support, "#upload-title");
+        var result = await DropOnAsync(support, ".button-row");
 
         Assert.Equal(2, result.InputFileCount);
         Assert.False(result.ReadoutHidden);
@@ -130,7 +130,7 @@ public sealed class UploadDropzoneBrowserTests
         await support.GoToAsync("/Upload");
         var uploadUrl = support.Page.Url;
 
-        var result = await DropOnAsync(support, ".page-heading");
+        var result = await DropOnAsync(support, ".page-header");
 
         Assert.Equal(uploadUrl, support.Page.Url);
         Assert.True(await support.Page.Locator("[data-dropzone]").IsVisibleAsync());
