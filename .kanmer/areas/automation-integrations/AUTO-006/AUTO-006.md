@@ -21,9 +21,16 @@ groups:
 links:
   - AUTO-007
 docs_todo: true
+commits:
+  - 62c9e2ace7598bf9de2385e7b2e5705cfd4a8288
+  - ef905e6af364bddc8caa34416f9f54281b3e0b12
+  - eb41188b0c48aa9a64547412bb833f389c11bb2b
+  - b4d0f88a21656a839246d1a12eb1290f4c794562
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/618'
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-08-29T09:31:06.707Z'
+updated: '2026-08-29T09:55:33.033Z'
 ---
 
 ## What
