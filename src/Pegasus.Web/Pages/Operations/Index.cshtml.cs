@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
@@ -28,6 +29,7 @@ public sealed class IndexModel(
     IConfirmAiJob confirmAiJob,
     ICancelAiJob cancelAiJob,
     IUnidentifiedStore unidentifiedStore,
+    IEvaSubmissionQueries evaSubmissionQueries,
     TimeProvider timeProvider,
     GetServiceHealth? getServiceHealth = null) : StaffPageModel
 {
@@ -69,6 +71,8 @@ public sealed class IndexModel(
         cancelAiJob ?? throw new ArgumentNullException(nameof(cancelAiJob));
     private readonly IUnidentifiedStore unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
+    private readonly IEvaSubmissionQueries evaSubmissionQueries =
+        evaSubmissionQueries ?? throw new ArgumentNullException(nameof(evaSubmissionQueries));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -96,6 +100,10 @@ public sealed class IndexModel(
     /// </summary>
     public IReadOnlyList<AiJobRecord> AiJobs { get; private set; } = [];
 
+    public EvaSubmissionActivity EvaActivity { get; private set; } = new(0, null);
+
+    public IReadOnlyList<EvaSubmissionFailure> EvaFailures { get; private set; } = [];
+
     public Guid? PreservedRequestId { get; private set; }
     public string? PreservedReason { get; private set; }
 
@@ -117,6 +125,11 @@ public sealed class IndexModel(
             ServiceHealth = await getServiceHealth.ExecuteAsync(actor, cancellationToken);
         }
         var nowUtc = timeProvider.GetUtcNow();
+        EvaActivity = await evaSubmissionQueries.GetActivityAsync(cancellationToken);
+        EvaFailures = await evaSubmissionQueries.GetRecentFailuresAsync(
+            nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,
+            ServiceHealthPolicy.MaximumEvaFailures,
+            cancellationToken);
         AiJobs = await ReadAiJobsAsync(nowUtc, cancellationToken);
         LoadedAtUtc = nowUtc;
         return Page();
@@ -192,6 +205,14 @@ public sealed class IndexModel(
             return Forbid();
         }
         if (!ModelState.IsValid || jobId == Guid.Empty)
+        {
+            StatusMessage = "The AI job could not be completed. Refresh and try again.";
+            return RedirectToPage();
+        }
+
+        var job = (await aiJobQueries.ListOpenAsync(cancellationToken))
+            .FirstOrDefault(candidate => candidate.JobId == jobId);
+        if (job is null || !CanCompleteByHand(job))
         {
             StatusMessage = "The AI job could not be completed. Refresh and try again.";
             return RedirectToPage();
