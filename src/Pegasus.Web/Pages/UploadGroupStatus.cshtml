@@ -1,4 +1,4 @@
-﻿@page "/Upload/Group/{id:guid}"
+@page "/Upload/Group/{id:guid}"
 @model Pegasus.Web.Pages.UploadGroupStatusModel
 @{
     ViewData["Title"] = "Upload received";
@@ -10,8 +10,17 @@
     }
 }
 
-<header class="page-heading">
-    <h1>Upload received</h1>
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Upload status</p>
+        <h1>Upload received</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn--primary" asp-page="/Upload">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>@OperatorLabels.Upload.Another</span>
+        </a>
+    </div>
 </header>
 
 @if (TempData["UploadConfirmationError"] is string confirmationError)
@@ -19,103 +28,138 @@
     <div class="validation-summary" role="alert">@confirmationError</div>
 }
 
-<div class="form-column">
+<div class="stack">
     @if (Model.OpenGroupDecision)
     {
         @* One decision for the whole submission — never per file. *@
-        <section class="panel form-panel" aria-labelledby="group-decision-title" data-refresh-hold>
-            <h2 id="group-decision-title" class="section-label">This submission</h2>
-            @if (Model.OfferGroupRegistration)
-            {
-                <form method="post" asp-page-handler="RegisterGroup" class="upload-group-register">
-                    <label for="group-registration">Vehicle registration</label>
-                    <input id="group-registration"
-                           name="vehicleRegistration"
-                           type="text"
-                           maxlength="20"
-                           required
-                           autocomplete="off"
-                           spellcheck="false" />
-                    <label for="group-registration-reason">Reason</label>
-                    <input id="group-registration-reason" name="reason" maxlength="500" required />
-                    <div class="button-row">
-                        <button type="submit" class="primary-action">Create a vehicle-image case</button>
-                    </div>
-                </form>
-            }
-            <details class="upload-attach" data-refresh-hold>
-                <summary class="secondary-action">Add to an existing case</summary>
-                <form method="post"
-                      asp-page-handler="AttachGroup"
-                      class="upload-attach__form"
-                      data-case-search
-                      data-case-search-url="@Url.Page(null, "CaseSearch")">
-                    <input type="hidden" name="caseId" value="" data-case-search-value />
-                    <label for="group-attach-input">Case</label>
-                    <input id="group-attach-input"
-                           name="reference"
-                           type="text"
-                           maxlength="60"
-                           required
-                           autocomplete="off"
-                           spellcheck="false"
-                           data-case-search-input />
-                    <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
-                    <label for="group-attach-reason">Reason</label>
-                    <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                    <div class="button-row">
-                        <button type="submit" class="secondary-action">Add the submission to this case</button>
-                    </div>
-                </form>
-            </details>
-            <div class="button-row">
-                <a class="secondary-action" asp-page="/Upload">Cancel</a>
+        <section class="panel" aria-labelledby="group-decision-title" data-refresh-hold>
+            <div class="panel-head">
+                <h2 id="group-decision-title">This submission</h2>
+            </div>
+            <div class="panel-body stack">
+                @if (Model.OfferGroupRegistration)
+                {
+                    <form method="post" asp-page-handler="RegisterGroup" class="stack">
+                        <div class="field">
+                            <label for="group-registration">Vehicle registration</label>
+                            <input id="group-registration"
+                                   name="vehicleRegistration"
+                                   type="text"
+                                   maxlength="20"
+                                   required
+                                   autocomplete="off"
+                                   spellcheck="false" />
+                        </div>
+                        <div class="field">
+                            <label for="group-registration-reason">Reason</label>
+                            <input id="group-registration-reason" name="reason" maxlength="500" required />
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">Create a vehicle-image case</button>
+                        </div>
+                    </form>
+                }
+                <details class="upload-attach" data-refresh-hold>
+                    <summary class="btn">Add to an existing case</summary>
+                    <form method="post"
+                          asp-page-handler="AttachGroup"
+                          class="upload-attach__form"
+                          data-case-search
+                          data-case-search-url="@Url.Page(null, "CaseSearch")">
+                        <input type="hidden" name="caseId" value="" data-case-search-value />
+                        <div class="field">
+                            <label for="group-attach-input">Case</label>
+                            <input id="group-attach-input"
+                                   name="reference"
+                                   type="text"
+                                   maxlength="60"
+                                   required
+                                   autocomplete="off"
+                                   spellcheck="false"
+                                   data-case-search-input />
+                            <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                        </div>
+                        <div class="field">
+                            <label for="group-attach-reason">Reason</label>
+                            <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn">Add the submission to this case</button>
+                        </div>
+                    </form>
+                </details>
+                <div class="button-row">
+                    <a class="btn btn--ghost" asp-page="/Upload">Cancel</a>
+                </div>
             </div>
         </section>
     }
     <section class="panel"
              aria-labelledby="group-status-title"
              data-auto-refresh="@Model.AutomaticRefreshMilliseconds">
-        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
-        @if (Model.GroupRegistrationOutcome is { } groupOutcome)
-        {
-            @* The whole submission registered as one vehicle-image case:
-               report that once for the group rather than repeating the
-               identical outcome under every file, which then lists by name
-               alone below. *@
-            <partial name="Shared/_UploadOutcome" model="@groupOutcome" />
-        }
-        <ol class="upload-outcome-list">
-            @foreach (var member in Model.Group.Members)
+        <div class="panel-head">
+            <h2 id="group-status-title">Files in this submission</h2>
+        </div>
+        <div class="panel-body">
+            @if (Model.GroupRegistrationOutcome is { } groupOutcome)
             {
-                var memberOutcome = Model.GroupRegistrationOutcome is null
-                    && Model.Outcomes.TryGetValue(member.StagedReceiptId, out var outcome)
-                    ? outcome
-                    : null;
-                <li>
-                    @if (memberOutcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
-                    {
-                        <a class="upload-thumb" href="/Received/@thumbnailReceiptId/Image" target="_blank">
-                            <img src="/Received/@thumbnailReceiptId/Image"
-                                 loading="lazy"
-                                 alt="@member.SourceFileName" />
-                        </a>
-                    }
-                    @if (Model.GroupRegistrationOutcome is not null || memberOutcome is not null)
-                    {
-                        <p class="upload-outcome__file">@member.SourceFileName</p>
-                    }
-                    else
-                    {
-                        <a asp-page="/UploadStatus" asp-route-id="@member.StagedReceiptId">@member.SourceFileName</a>
-                        <span class="field-hint">@(Model.Statuses[member.StagedReceiptId]?.Status is { } memberStatus ? Pegasus.Web.Presentation.OperatorLabels.Humanise(memberStatus.ToString()) : "Received")</span>
-                    }
-                    @if (memberOutcome is not null)
-                    {
-                        <partial name="Shared/_UploadOutcome" model="@memberOutcome" />
-                    }
-                </li>
+                @* The whole submission registered as one vehicle-image case:
+                   report that once for the group rather than repeating the
+                   identical outcome under every file, which then lists by name
+                   alone below. *@
+                <partial name="Shared/_UploadOutcome" model="@groupOutcome" />
             }
-        </ol>
+            <div class="file-list section-gap">
+                @foreach (var member in Model.Group.Members)
+                {
+                    var memberOutcome = Model.GroupRegistrationOutcome is null
+                        && Model.Outcomes.TryGetValue(member.StagedReceiptId, out var outcome)
+                        ? outcome
+                        : null;
+                    var memberState = Model.Statuses[member.StagedReceiptId]?.Status is { } status
+                        ? OperatorLabels.Humanise(status.ToString())
+                        : "Received";
+                    <div class="file-row">
+                        <span>
+                            @if (memberOutcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
+                            {
+                                <a class="upload-thumb" href="/Received/@thumbnailReceiptId/Image" target="_blank">
+                                    <img src="/Received/@thumbnailReceiptId/Image"
+                                         loading="lazy"
+                                         alt="@member.SourceFileName" />
+                                </a>
+                            }
+                            else
+                            {
+                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                            }
+                        </span>
+                        <span>
+                            @if (Model.GroupRegistrationOutcome is not null || memberOutcome is not null)
+                            {
+                                <strong>@member.SourceFileName</strong>
+                            }
+                            else
+                            {
+                                <strong><a asp-page="/UploadStatus" asp-route-id="@member.StagedReceiptId">@member.SourceFileName</a></strong>
+                            }
+                            @if (memberOutcome is not null)
+                            {
+                                <partial name="Shared/_UploadOutcome" model="@memberOutcome" />
+                            }
+                        </span>
+                        <span>
+                            @* A member with no outcome of its own and no
+                               group-wide one is still moving, so the queue
+                               state is the only honest thing to show. *@
+                            @if (Model.GroupRegistrationOutcome is null && memberOutcome is null)
+                            {
+                                <partial name="Shared/_StatusChip" model="@memberState" />
+                            }
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
     </section>
 </div>
