@@ -33,3 +33,50 @@ Tests prove RetryScheduled never appears Received, refresh is bounded/due-aware 
 - **Refresh loop/duplicate timer:** one visibility-aware scheduler with cleanup.
 - **State vocabulary drift:** Core maps persistence to public states; UI does not invent another enum.
 - **Overlap:** wait for blocking/claimed work, then fresh base.
+
+## Deviations from the chosen approach — 2026-08-29
+
+Recorded because the implementation did not follow two of the ordered steps as
+written, and both changes are load-bearing.
+
+**Step 3 is satisfied by deletion, not extraction.** The plan said to
+"extract/reuse one current-Case resolution expression matching
+`IntakeReceipt.CurrentCaseId`" and project it into `QueuedIntakeStatus.CaseId`.
+Read on the merged branch, `QueuedIntakeStatus.CaseId` has **no reader anywhere
+in `src/` or `tests/`**, and the "Open case" action the ticket asks for is
+already served by `UploadOutcomeQueries.BuildForReceiptAsync`, which branches on
+`receipt.CurrentCaseId` — Core's one owner of the accepted-versus-manual
+precedence. The unpushed commit `1594ff0e` had filled that dead field by writing
+the precedence a second time inside the EF projection, which is the third copy
+the ticket body explicitly forbids. Both the copy and the field are removed. The
+verification condition is met by the resolution that already exists, and is now
+pinned by a test.
+
+**`QueuedIntakeRefreshDelay` does not stay in Core.** A page's poll cadence in
+milliseconds, clamped between two and sixty seconds, is presentation, not
+business policy, and both of its callers are Web page models. It is now
+`src/Pegasus.Web/Presentation/UploadStatusRefresh.cs`. Core keeps
+`RetryDueAtUtc`, the durable fact.
+
+## Simplification pass — 2026-08-29
+
+Run over this branch's own diff (`4033e881..HEAD`) across the four lenses. All
+findings are inside this lane's own files, so under EPIC-011 D19 all were fixed
+here rather than deferred.
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Reuse | `EfQueuedIntakeStatusQueries` carried a second implementation of the accepted-versus-manual association precedence owned by `IntakeReceipt.CurrentCaseId`. | **Fixed** — removed, with the unread `QueuedIntakeStatus.CaseId` it fed. |
+| 2 | Altitude | `QueuedIntakeRefreshDelay` put a UI poll cadence in `Pegasus.Core`. | **Fixed** — moved to `Presentation/UploadStatusRefresh`. |
+| 3 | Simplification | `UploadGroupStatusModel` repeated the still-moving predicate in two properties and the 2 000 ms literal in two more places (a third and fourth copy of a constant Core already named). | **Fixed** — one derivation; `RefreshAutomatically` reads it as a boolean; the constant is named once, on `UploadStatusRefresh`. |
+| 4 | Simplification | `UploadStatusModel.RefreshAutomatically` became a public property with one private caller. | **Fixed** — folded into `AutomaticRefreshMilliseconds`. |
+| 5 | Correctness | The `visibilitychange` handler in `site.js` scheduled a *new* timer on every return to the tab without cancelling the previous one; timers accumulated for the life of the page, and each re-scheduled itself while a `data-refresh-hold` form was open. | **Fixed** — one timer, cancelled on hide, re-armed on show. |
+| 6 | Correctness | Removing the lede left `?duplicate=true` round-tripping through `UploadStatusModel.IsDuplicate` and rendering nothing: dead state, and a real fact lost to the operator. | **Fixed** — restated as a `notice`, the convention `Intake/Details` already uses for exactly this fact, so `QdosIntakeWebTests`' existing assertion holds honestly rather than being deleted. |
+| 7 | Efficiency | Both page models read `DateTimeOffset.UtcNow` directly, against a codebase where seven page models inject `TimeProvider`; the cadence was therefore untestable against the fixed clock the retry schedule uses. | **Fixed** — `TimeProvider` injected; the new `RecoveryTests` assertion depends on it. |
+
+Nothing was found and left unapplied. No finding was rejected, accepted as
+risk, or deferred to a ticket.
+
+## Defects outside this lane — 2026-08-29
+
+None found.
