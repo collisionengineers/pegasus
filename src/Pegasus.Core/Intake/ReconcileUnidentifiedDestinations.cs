@@ -33,8 +33,17 @@ public sealed class ReconcileUnidentifiedDestinations(
     ITriageQueries triageQueries,
     TimeProvider timeProvider)
 {
+    /// <summary>
+    /// The automation identity every resolution written here carries. Public
+    /// because <see cref="IUnidentifiedStore.ListResolutionsToRecheckAsync"/>
+    /// must select exactly the resolutions this owner wrote — a staff
+    /// resolution is authoritative and is never re-derived — so the identity
+    /// is written once, here, rather than repeated in persistence.
+    /// </summary>
+    public const string AutomationActorId = "intake-processing";
+
     private static readonly ActionActor ReconciliationActor =
-        ActionActor.Automation("intake-processing");
+        ActionActor.Automation(AutomationActorId);
 
     public async Task<ReconcileUnidentifiedDestinationsResult> ExecuteAsync(
         int maximumItems,

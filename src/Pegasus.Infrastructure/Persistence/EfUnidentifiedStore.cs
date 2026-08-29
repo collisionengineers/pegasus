@@ -314,6 +314,9 @@ public sealed class EfUnidentifiedStore(
         var resolved = UnidentifiedState.Resolved.ToString();
         var receipt = UnidentifiedOriginKind.Receipt.ToString();
         var automation = ActorKind.Automation.ToString();
+        // The reconciliation owner names its own identity; persistence must not
+        // keep a second copy of it.
+        var automationSubject = ReconcileUnidentifiedDestinations.AutomationActorId;
 
         // As with ListQueueAsync, origin receipt is polymorphic and has no
         // modelled foreign key, so join it directly to its manual association.
@@ -323,7 +326,7 @@ public sealed class EfUnidentifiedStore(
                 on item.OriginId equals association.IntakeReceiptId
             where item.State == resolved
                 && item.ResolvedByActorKind == automation
-                && item.ResolvedByActorSubjectId == "intake-processing"
+                && item.ResolvedByActorSubjectId == automationSubject
                 && item.OriginKind == receipt
                 && (association.LinkedAtUtc >= item.ResolvedAtUtc
                     || association.UnlinkedAtUtc >= item.ResolvedAtUtc)
