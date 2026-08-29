@@ -96,7 +96,11 @@ public sealed class CasesIndexWebTests
         using var emptyResponse = await client.GetAsync("/Search?principal=QDOS");
         var emptyHtml = await emptyResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, emptyResponse.StatusCode);
-        Assert.Contains("No matching cases", emptyHtml, StringComparison.Ordinal);
+        // The empty result is one sentence, matching the "No vehicle images
+        // match these filters." line the same page renders for the image
+        // section. The superseded second sentence must not come back.
+        Assert.Contains("No cases match these filters.", emptyHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("No matching cases", emptyHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("unauthorised", emptyHtml, StringComparison.OrdinalIgnoreCase);
 
         search.ThrowUnavailable = true;
