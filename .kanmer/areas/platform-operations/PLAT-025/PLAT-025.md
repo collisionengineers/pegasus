@@ -2,12 +2,13 @@
 id: PLAT-025
 type: ticket
 title: Redesign workflow configurations
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-29T10:23:54.528Z'
+  review: '2026-08-29T10:25:10.245Z'
 taken_at: '2026-08-29T10:06:05.927Z'
 branch: task/plat-025-workflow-configuration
 worktree: ../pegasus-worktrees/plat-025-workflow-configuration
@@ -22,9 +23,14 @@ groups:
 links:
   - PLAT-062
 docs_todo: true
+commits:
+  - 3fc8e45c3adf2cc0f7346680e45c8ea735af3de3
+  - 4ab6acbe77beb8d039e5c84d9e70e916aaac56b3
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/622'
 archived: false
 created: '2026-08-21T13:19:14.339Z'
-updated: '2026-08-29T10:23:54.528Z'
+updated: '2026-08-29T10:25:10.245Z'
 ---
 
 ## What
