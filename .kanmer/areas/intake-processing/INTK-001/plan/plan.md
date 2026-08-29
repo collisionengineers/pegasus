@@ -102,3 +102,47 @@ The remediation diff reuses `OperatorLabels.IntakeFailure`, the existing
 `data-auto-refresh` handler and Browser fixture. It adds no dependency, state
 list, service, or JavaScript test stack. One timer remains the only refresh
 mechanism; the page-model property exists only to expose a Razor value.
+
+## Review findings — dispositions (round 2, 2026-08-29)
+
+Remediation done by Codex (gpt-5.6-sol), driven by the Claude lane wrapper per
+EPIC-011's remediation protocol. All commands and diffs below were
+independently re-run/re-read by the wrapper, not copied from Codex's report.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | medium | Hidden-tab behaviour was parked on a reason CI itself refutes (Browser category runs on every PR); the riskiest file in the diff (shared `site.js`) shipped with zero executed proof. | **Fixed.** Added `tests/Pegasus.IntegrationTests/Browser/UploadStatusRefreshBrowserTests.cs` — loads the real production `site.js` in Chromium, hides the tab, asserts no reload, then asserts an immediate reload on return. Verified independently: `dotnet test ... --filter "FullyQualifiedName~UploadStatusRefreshBrowserTests"` → exit 0, 1 passed. This test genuinely failed against the pre-remediation scheduler (reproduction evidence kept in the post-implementation report) and passes after the fix below. Checklist's Parked section now carries only the one item whose premise still holds. |
+| 2 | low | `UploadOutcome.cs:198-201` comment still described `QueuedIntakeStatus.CaseId`, a member this branch had already deleted. | **Fixed.** Comment reworded to drop the dangling reference; no behaviour change. `git diff e739bc80..HEAD -- src/Pegasus.Web/Presentation/UploadOutcome.cs` shows exactly this. |
+| 3 | low | `site.js`'s comment claimed a returning-visible tab "reloads then," but the code waited the full delay (up to 60 s); separately, re-arming from zero on every `visibilitychange` could starve a fast-flipping tab. | **Fixed.** `trackVisibility` now calls the guarded `reload()` immediately on becoming visible instead of `schedule()`; hiding just cancels the one timer via `clearTimeout`. No re-arm-from-zero path remains, so the starvation case is gone, and the comment now matches the code. Proved by finding 1's Browser test (asserts reload within 2 s of becoming visible). |
+| 4 | low | On the Failed path, when `TryGetActor` fails, the page rendered a bare `<h1>Failed</h1>` with no reason, where the deleted lede always carried one. | **Fixed.** Added `UploadStatusModel.FailureReason` (renders `OperatorLabels.IntakeFailure(...)` as a `<dt>Reason</dt><dd>...</dd>` fact when `Outcome` is null) and a new test, `FailedUploadStatusShowsReasonWithoutAResolvedStaffActor`, that forces `TryGetActor` to fail by stripping the `NameIdentifier` claim. Verified independently in the focused run below. |
+| 5 | low | Checklist said "7 ticked, 2 parked" while the board showed 8/9 with a stray unticked duplicate of "Update FRD/design authority text" sitting above the `## Parked` heading. | **Fixed.** Checklist rewritten: the duplicate unticked line is gone, the board now shows 8 ticked / 1 genuinely parked, and the report's own summary matches it. |
+| 6 | low | Verification condition 3 ("auto-associated receipt offers Open case") needed no behaviour change — it already held on `origin/dev` — but the post-implementation report presented it in the same voice as the retry fix, without flagging that. | **Fixed (documentation).** Report's condition-3 section now states plainly that no user-visible behaviour changed, names `UploadOutcomeQueries`/`IntakeReceipt.CurrentCaseId` as the pre-existing owner, and frames the new assertions as regression protection for a deletion (the dead `QueuedIntakeStatus.CaseId` and its second precedence copy), not as new delivery. |
+| 7 | low | The retained duplicate sentence (`SourceFileName was already received. No duplicate was created.`) was two sentences of operator-facing prose on a non-destructive surface — a design-rule judgement call needing an explicit disposition rather than silent acceptance. | **Fixed, not merely accepted.** Rendered as a labelled fact instead: `<dt>Duplicate</dt><dd>Already received</dd>`, with no narrative sentence. `QdosIntakeWebTests` was changed (not weakened) to assert the new markup **and** `Assert.DoesNotContain("No duplicate was created", ...)` — net a stronger assertion than before, not a loosened one. |
+
+### Verification re-run by the wrapper (not copied from Codex)
+
+- `dotnet build ./Pegasus.slnx --configuration Release` → **exit 0**, 0
+  Warning(s), 0 Error(s).
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "(FullyQualifiedName~ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage|FullyQualifiedName~FailedUploadStatusShowsReasonWithoutAResolvedStaffActor|FullyQualifiedName~TransientProcessingFailureSchedulesARetry|FullyQualifiedName~UnexpectedProcessingFailureIsPersistedThenRethrown)&Category!=Corpus&Category!=Browser"`
+  → **exit 0**, 6 passed, 0 failed, 0 skipped.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~UploadStatusRefreshBrowserTests"` → **exit 0**, 1 passed,
+  0 failed, 0 skipped.
+- `git diff origin/dev...HEAD -- tests/` read in full: every changed assertion
+  is added or strengthened (renamed fixture parameters after a dead field was
+  removed; one `Assert.Equal` changed from the defect value to the correct
+  one, gaining three more assertions alongside it; one `Assert.Contains`
+  replaced by a stricter markup assertion plus a new `DoesNotContain`). No
+  assertion was weakened, skipped, or deleted.
+- `git diff e739bc80..HEAD --stat` confirms the remediation touched only
+  `UploadStatus.cshtml{,.cs}`, `UploadOutcome.cs`, `site.js`, and two test
+  files — all inside INTK-001's own file list; no neighbour-lane file was
+  touched.
+- Push confirmed: `git rev-parse HEAD` == `git rev-parse
+  origin/task/intk-001-truthful-status` == `6ff999b2`.
+- PR #620 remained OPEN/MERGEABLE throughout remediation; no PR or board stage
+  was touched by this pass.
+
+No high/blocker finding was issued by the verifier. No finding was deferred to
+a new ticket; nothing here needed one.
