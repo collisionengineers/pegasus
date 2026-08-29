@@ -27,9 +27,14 @@ blocks:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+commits:
+  - 5ad8b4d30e3da8fa75a507f244c90fe5f9a2ae53
+  - 448cd14e6e3c37e36bf9563c9491ef7ab40ceb27
+prs:
+  - '629'
 archived: false
 created: '2026-08-29T13:04:32.304Z'
-updated: '2026-08-29T17:38:49.541Z'
+updated: '2026-08-29T17:39:29.238Z'
 ---
 
 ## What
