@@ -989,7 +989,7 @@ public static class OperatorLabels
         public const string Reason = "Reason";
         public const string Save = "Save configuration";
 
-        public static string Meta(int policyVersion) => $"Version {policyVersion} · 2 settings";
+        public static string Meta(int policyVersion) => $"Version {policyVersion}";
     }
 
     private static string HumanizeSlug(string slug)
