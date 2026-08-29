@@ -235,3 +235,82 @@ rejected: the condition it guards against does not exist, and the failure mode
 if it ever did is already loud — foreign spans would re-enter the collection
 and `Assert.Single` would fail with the same clear message CI reported, not
 pass silently.
+
+## 2026-08-29 — PR #632 activation, and the dispositions its review demanded
+
+`gpt-5.6-terra` (xhigh) reviewed PR #632 — the one-line
+`Features__ProviderApi: 'true'` added to `infra/modules/platform.bicep` — and
+returned REQUEST_CHANGES. Every blocker it raised was a bookkeeping gap, not a
+code defect. Its substantive verification all came back clean, and two of its
+findings materially reduce the risk of this activation:
+
+- **No extra runtime configuration is required.** Unlike `Features:AutomationMcp`,
+  which ADR-0026 had to pair with `AutomationMcp__ClientId` and a Key Vault-backed
+  `AutomationMcp__ClientSecret`, the Provider API has no client-id/secret/options
+  binding at all — its credentials are database-backed. This matters because a
+  *required-but-absent* configuration key crash-loops the host at startup, the way
+  the `Eva:*` keys do. There is no such key here.
+- **The grants already exist.** `20260828111732_GrantProviderSubmissions.cs:37-41`
+  grants Web `SELECT, INSERT, UPDATE` on `ProviderSubmissions`, and the bootstrap
+  census expects the same set. Nothing further rides this flag.
+- **No ADR restricts the gate.** ADR-0004 fixes the authentication contract but
+  its allocation language is superseded as scheduling by `capabilities.md:227`;
+  ADR-0026 is Automation-MCP-specific. Confirmed independently.
+- The flag was set in exactly one place before this PR — the test at
+  `ProviderApiSubmissionTests.cs:33`. No `appsettings*.json`, workflow, script or
+  `azure.yaml` writer exists. A missing key defaults closed at `Program.cs:289`.
+
+### Dispositions
+
+**Blocker 1 — "PR #632 has no recorded ticket branch/worktree or PR reference;
+the recorded claim is a different branch and PR #594."** Accepted and recorded
+here. This branch is `task/tick-058-enable-provider-api`, worktree
+`../pegasus-worktrees/tick-058-enable`, PR #632, commit `19383f31`. The reason it
+is not TICK-058's original claim is that it is not TICK-058's original work: #594
+built the surface, #632 opens it.
+
+The activation *evidence* the reviewer asks for — exact-target deployment
+approval, confirmation that no production Provider credential exists, the
+migration and grant application, and the operations-doc correction — does not
+belong on this PR and cannot be produced by it. Per **EPIC-011 decision D26**
+every activation batches into the release-37 deploy under one approval
+conversation, and that is where the evidence is recorded. Merging this bicep line
+to `dev` changes nothing in production; the flag only takes effect when release 37
+provisions. Deferred to the release ticket, not dropped.
+
+**Blocker 2 — "no current-diff simplification pass or activation disposition."**
+Simplification pass for this diff: **n/a — one environment-setting line, no
+code.** The entry follows the adjacent convention in the same array. There is
+nothing to reuse, simplify, make more efficient, or re-level.
+
+### Findings, disposed
+
+- *medium* — "every request answers 401" is too broad: routing can answer **405**
+  before authorization, because there is no provider `OPTIONS` endpoint.
+  **Accepted as a correction to the PR's wording.** It does not change the
+  safety conclusion: no anonymous success path exists, and a 405 discloses
+  nothing a closed gate would have hidden.
+- *low* — `AddPegasusProviderApi()` is not intrinsically idempotent; a second
+  invocation would re-add its named authentication scheme. `Program.cs:711-714`
+  invokes it exactly once. **Accepted, no change** — not a runtime defect, and
+  guarding a single call site would be speculative.
+- *medium* — `docs/operations.md:121` still says the Provider API is "Not
+  implemented: no endpoint, client, credential, or caller", which the reviewer
+  notes is *already* stale against current source. **Agreed, and it becomes
+  actively false the moment release 37 deploys.** Owned by the release-37 docs
+  pass, which lands with the deployment evidence rather than ahead of it.
+- *medium* — the local SDK (10.0.303) skips `dotnet test` on
+  `Pegasus.IntegrationTests` because `IsTestProject` is absent, so a local exit 0
+  is not a pass. **Noted, and the reviewer was right not to treat it as one.**
+  Hosted CI on SDK 10.0.400 did execute the unchanged API head (run
+  `33254911537`, 345/345). This is a real local-tooling trap worth remembering.
+
+### AUTO-012 / AUTO-013
+
+The reviewer confirmed both are real and that **neither executes before
+authentication succeeds**, so the flag alone does not expose them. It agreed with
+AUTO-013's own judgement that the Work Provider fix must land *before or with the
+first issued credential* — which is a separate approval step
+(`docs/capabilities.md:227`) — rather than before this flag. Both are being built
+in this closeout, so the question is moot: they land in release 37 alongside the
+activation.
