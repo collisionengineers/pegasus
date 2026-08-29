@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Qdos extraction regexes thrash the static Regex cache and one has no match
   timeout
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-29T16:28:28.550Z'
 labels:
   - ci
   - flaky
@@ -23,7 +25,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T16:03:14.405Z'
-updated: '2026-08-29T16:03:14.405Z'
+updated: '2026-08-29T16:28:28.550Z'
 ---
 
 ## What
