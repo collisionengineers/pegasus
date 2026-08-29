@@ -2,12 +2,13 @@
 id: CASE-027
 type: ticket
 title: 'Port the Case Vehicle, Inspection address, Case Files and Notes views'
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T16:42:56.070Z'
+  review: '2026-08-29T17:53:05.230Z'
 taken_at: '2026-08-29T16:45:29.122Z'
 branch: task/case-027-case-detail-views
 worktree: ../pegasus-worktrees/case-027-case-detail-views
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/631'
 archived: false
 created: '2026-08-28T08:35:23.925Z'
-updated: '2026-08-29T17:52:59.503Z'
+updated: '2026-08-29T17:53:05.230Z'
 ---
 
 ## What
