@@ -983,7 +983,7 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(IntakeAllocationFailureKind.ConcurrencyConflict, concurrency?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, concurrency?.State.RecoveryDisposition);
         Assert.Equal(IntakeAllocationFailureKind.Unexpected, unexpected?.State.FailureKind);
-        Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, unexpected?.State.RecoveryDisposition);
+        Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, unexpected?.State.RecoveryDisposition);
         Assert.Equal(2, logs.Entries.Count(entry => entry.EventId.Id == 4721));
         Assert.All(
             logs.Entries.Where(entry => entry.EventId.Id == 4721),
@@ -996,6 +996,69 @@ public sealed class QdosAllocationRecoveryTests
             });
         Assert.Equal(2, await AllocationTestData.FailedAllocationEventCountAsync(factory.Services));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+    }
+
+    [Fact]
+    public async Task ConcurrentAutomaticAuditAndInspectionAllocationsForOnePrincipalBothSucceed()
+    {
+        // INTK-044: the live shape of 2026-08-27 — two automatic acceptances
+        // for one principal overlapping under Serializable, one of them a
+        // standalone Audit — must converge on two cases. Any allocation
+        // failure is reported with the exception the store logged, which is
+        // exactly what production could not keep.
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "PAIRED");
+        var logs = new CapturingLogger<EfIntakeAllocationStore>();
+        const int rounds = 6;
+
+        async Task<IntakeAllocationResult?> AllocateAsync(Guid receiptId)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var services = scope.ServiceProvider;
+            return await new AllocateIntake(
+                    services.GetRequiredService<IIntakeReceiptQueries>(),
+                    new EfIntakeAllocationStore(
+                        services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                        logs),
+                    services.GetRequiredService<IAcceptIntake>(),
+                    services.GetRequiredService<TimeProvider>(),
+                    services.GetRequiredService<IStandaloneAuditEvidenceQueries>())
+                .AttemptAutomaticAsync(receiptId, Guid.NewGuid());
+        }
+
+        for (var round = 0; round < rounds; round++)
+        {
+            var inspection = await AllocationTestData.StoreDefinitiveReceiptAsync(
+                factory.Services,
+                CaseType.InspectionAndAudit,
+                "PAIRED");
+            var audit = await AllocationTestData.StoreDefinitiveReceiptAsync(
+                factory.Services,
+                CaseType.Audit,
+                "PAIRED");
+            await AllocationTestData.SeedAutomaticAuditEvidenceAsync(factory.Services, audit.Id);
+
+            var inspectionAllocation = AllocateAsync(inspection.Id);
+            var auditAllocation = AllocateAsync(audit.Id);
+            var results = await Task.WhenAll(inspectionAllocation, auditAllocation);
+
+            if (results.Any(result => result?.State.Status != IntakeAllocationProjectionStatus.Succeeded))
+            {
+                Assert.Fail(
+                    $"Round {round}: "
+                    + string.Join(", ", results.Select(result =>
+                        $"{result?.State.Status}/{result?.State.FailureKind}/{result?.State.RecoveryDisposition}"))
+                    + Environment.NewLine
+                    + string.Join(
+                        Environment.NewLine,
+                        logs.Entries
+                            .Where(entry => entry.EventId.Id == 4721)
+                            .Select(entry => entry.Exception?.ToString())));
+            }
+            Assert.StartsWith("a.", (await auditAllocation)!.State.CaseReference, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(rounds * 2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
     }
 
     [Fact]
@@ -1066,13 +1129,13 @@ public sealed class QdosAllocationRecoveryTests
             throw new InvalidOperationException("test-only post-commit observer failure");
         }
     }
+}
 
-    private sealed class ThrowingAcceptIntake(Exception exception) : IAcceptIntake
-    {
-        public Task<CaseAcceptanceOutcome> ExecuteAsync(
-            AcceptIntakeRequest request,
-            CancellationToken cancellationToken) => Task.FromException<CaseAcceptanceOutcome>(exception);
-    }
+internal sealed class ThrowingAcceptIntake(Exception exception) : IAcceptIntake
+{
+    public Task<CaseAcceptanceOutcome> ExecuteAsync(
+        AcceptIntakeRequest request,
+        CancellationToken cancellationToken) => Task.FromException<CaseAcceptanceOutcome>(exception);
 }
 
 [Trait("Category", "SqlServer")]
@@ -1206,7 +1269,7 @@ public sealed class IntakeAllocationConsumerTests
                 DateTimeOffset.MinValue,
                 DateTimeOffset.MinValue,
                 CancellationToken.None);
-            Assert.Equal(new(0, 0, 0), stages);
+            Assert.Equal(new(0, 0, 0, 0), stages);
             Assert.Equal(0, activity.NewCasesToday);
         }
 
@@ -1607,6 +1670,48 @@ internal static class AllocationTestData
         return lineageId;
     }
 
+    /// <summary>
+    /// Records automatic standalone-Audit evidence for a receipt in the exact
+    /// shape the automatic route persists — system-worker literal record and
+    /// a 64-character hexadecimal request hash — or acceptance refuses the
+    /// audit. The original report is the receipt's first retained attachment
+    /// when one arrived (custody then reads its real bytes); a receipt stored
+    /// without assets gets one synthetic PDF attachment row instead.
+    /// </summary>
+    public static async Task<Guid> SeedAutomaticAuditEvidenceAsync(
+        IServiceProvider services,
+        Guid receiptId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var assetId = await context.Set<IntakeAssetEntity>()
+            .Where(asset => asset.IntakeReceiptId == receiptId && asset.Kind == "attachment")
+            .Select(asset => (Guid?)asset.Id)
+            .FirstOrDefaultAsync();
+        if (assetId is null)
+        {
+            assetId = Guid.NewGuid();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO IntakeAssets
+                    (Id, IntakeReceiptId, SourceLabel, FileName, MediaType, Kind, Disposition, ContentLength, ContentHash, StorageKey)
+                VALUES
+                    ({assetId}, {receiptId}, {"outer message, attachment Bodyshopreport-V1.pdf"}, {"Bodyshopreport-V1.pdf"}, {"application/pdf"}, {"attachment"}, {"attachment"}, {100L}, {new string('c', 64)}, {$"test-audit-report/{receiptId:N}"})
+                """);
+        }
+
+        var evidenceId = Guid.NewGuid();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO StandaloneAuditEvidence
+                (Id, IntakeReceiptId, OriginalReportAssetId, Assessment, ConfirmedByKind, ConfirmedBySubjectId, ConfirmedByRolesJson, ConfirmedAtUtc, OperationKey, Reason, RequestHash, ResultingReceiptVersion)
+            VALUES
+                ({evidenceId}, {receiptId}, {assetId}, {"repairable"}, {"SystemWorker"}, {"system-worker:automatic-standalone-audit"}, {"[]"}, {RecordedAtUtc}, {$"standalone-audit-{evidenceId:N}"}, {"Retained original report evidence"}, {new string('b', 64)}, {0L})
+            """);
+        return evidenceId;
+    }
+
     public static string CommandHash(
         IntakeAllocationAttemptKind kind,
         IntakeAllocationCommand command,
@@ -1654,16 +1759,20 @@ internal static class AllocationTestData
         IServiceProvider services,
         IntakeReceipt receipt)
     {
-        const string mailboxId = "allocation-recovery";
+        var mailboxId = TestMailboxId.From("allocation-recovery");
         const string mailboxAddress = "allocation-recovery@example.invalid";
         await using (var scope = services.CreateAsyncScope())
         {
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await factory.CreateDbContextAsync();
+            await TestMailboxId.EnsureApprovedAsync(
+                context, "allocation-recovery", mailboxAddress, receipt.ReceivedAtUtc.AddDays(-1));
             context.ApprovedInboxPollStates.Add(new()
             {
-                MailboxId = mailboxId,
+                ApprovedMailboxId = mailboxId,
                 MailboxAddress = mailboxAddress,
+                ScopeFingerprint = new string('A', 64),
+                ActivatedAtUtc = receipt.ReceivedAtUtc.AddDays(-1),
                 DueAtUtc = receipt.ReceivedAtUtc,
                 LastCompletedAtUtc = receipt.ReceivedAtUtc
             });

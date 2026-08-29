@@ -25,6 +25,7 @@ internal sealed class ApprovedMailboxEntity
     public string? MailboxIdentity { get; set; }
     public string? InboxFolderIdentity { get; set; }
     public string? SentFolderIdentity { get; set; }
+    public DateTimeOffset? ActivatedAtUtc { get; set; }
     public int Version { get; set; }
     public ICollection<ApprovedMailboxFolderBindingEntity> FolderBindings { get; } = [];
 }
@@ -35,6 +36,18 @@ internal sealed class ApprovedMailboxFolderBindingEntity
     public required string FolderType { get; set; }
     public required string FolderIdentity { get; set; }
     public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
+}
+
+internal sealed class ApprovedMailboxSubscriptionEntity
+{
+    public Guid ApprovedMailboxId { get; set; }
+    public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
+    public required string SubscriptionId { get; set; }
+    public required string Resource { get; set; }
+    public DateTimeOffset ExpiresAtUtc { get; set; }
+    public required string LifecycleState { get; set; }
+    public DateTimeOffset? LastMaintainedAtUtc { get; set; }
+    public string? LastMaintenanceFailureCode { get; set; }
 }
 
 internal sealed class ApprovedOutlookCategoryEntity

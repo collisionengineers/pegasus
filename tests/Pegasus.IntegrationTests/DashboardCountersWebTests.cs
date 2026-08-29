@@ -2,19 +2,48 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-012: the Dashboard's "Received today" tile sits under the E-mail
-/// activity section, so it must count mailbox-channel intake only. A manual
-/// upload is a different intake channel entirely and must not move it.
+/// UIIMP-008: the Work Centre's five metrics are page-queried figures, each
+/// an exact link to the Cases tab behind it. Blocked is the real Blocked
+/// intake count and links to the Unidentified tab, where Blocked intake rows
+/// carry their own chip (decision D14) — never a fixture number. The file
+/// also keeps PLAT-012's mailbox-channel guard, whose rule outlived the tile
+/// it was written against.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class DashboardCountersWebTests
 {
     [Fact]
-    public async Task ReceivedTodayCountsMailboxChannelOnlyNotManualUploads()
+    public async Task EveryMetricLinksToItsCasesTab()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/");
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // The strip's five destinations, including the D14 rule: Blocked
+        // shares the Unidentified tab because there is no Blocked tab.
+        foreach (var (key, tab) in new[]
+        {
+            ("not_ready", "not_ready"),
+            ("review", "review"),
+            ("held", "held"),
+            ("unidentified", "unidentified"),
+            ("blocked", "unidentified")
+        })
+        {
+            Assert.Contains($"data-value=\"{key}\" href=\"/Cases?tab={tab}\"", html);
+        }
+    }
+
+    [Fact]
+    public async Task BlockedMetricCountsBlockedIntakeReceipts()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -23,11 +52,7 @@ public sealed class DashboardCountersWebTests
         var timeProvider = services.GetRequiredService<TimeProvider>();
         var now = timeProvider.GetUtcNow();
 
-        // One mailbox receipt (should count) and one manual-upload receipt
-        // (must not) — both received "now", well inside the office day the
-        // fixed test clock reports.
-        await StoreReceiptAsync(services, IntakeSourceChannel.Mailbox, "instruction.eml", now);
-        await StoreReceiptAsync(services, IntakeSourceChannel.ManualUpload, "photo.jpg", now);
+        await StoreReceiptAsync(services, IntakeDecision.BlockedIntake, "blocked.eml", now);
 
         using var response = await client.GetAsync("/");
         var html = await response.Content.ReadAsStringAsync();
@@ -35,16 +60,52 @@ public sealed class DashboardCountersWebTests
 
         var match = Regex.Match(
             html,
-            "Received today[\\s\\S]*?metric__value\">(\\d+)</strong>");
-        Assert.True(match.Success, "Received today tile markup not found.");
+            "data-value=\"blocked\"[^>]*>[\\s\\S]*?metric-value\">(\\d+)</span>");
+        Assert.True(match.Success, "Blocked metric markup not found.");
         Assert.Equal(1, int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// PLAT-012: "Received today" counts mailbox-channel intake only — a
+    /// manual upload is a different intake channel entirely and must not move
+    /// it. The Work Centre port removed the E-mail activity tile this guard
+    /// used to scrape, but <see cref="IDashboardQueries"/> still runs the
+    /// channel filter on every load, so the guard reads the query where the
+    /// rule actually lives instead of being dropped with the tile. It retires
+    /// with the property under PLAT-058.
+    /// </summary>
+    [Fact]
+    public async Task ReceivedTodayCountsMailboxChannelOnlyNotManualUploads()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        var now = timeProvider.GetUtcNow();
+
+        // One mailbox receipt (should count) and one manual-upload receipt
+        // (must not) — both received "now", well inside the day the count is
+        // taken from.
+        await StoreReceiptAsync(services, IntakeDecision.CaseCreated, "instruction.eml", now);
+        await StoreReceiptAsync(
+            services,
+            IntakeDecision.CaseCreated,
+            "photo.jpg",
+            now,
+            IntakeSourceChannel.ManualUpload);
+
+        var counts = await services.GetRequiredService<IDashboardQueries>()
+            .GetMailActivityCountsAsync(now.AddHours(-1), CancellationToken.None);
+
+        Assert.Equal(1, counts.ReceivedToday);
     }
 
     private static async Task StoreReceiptAsync(
         IServiceProvider services,
-        IntakeSourceChannel channel,
+        IntakeDecision decision,
         string sourceFileName,
-        DateTimeOffset receivedAtUtc)
+        DateTimeOffset receivedAtUtc,
+        IntakeSourceChannel channel = IntakeSourceChannel.Mailbox)
     {
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
         await receiptStore.StoreAsync(
@@ -57,7 +118,7 @@ public sealed class DashboardCountersWebTests
                 receivedAtUtc,
                 receivedAtUtc,
                 "test-actor",
-                IntakeDecision.NeedsSorting,
+                decision,
                 "test decision reason",
                 [],
                 [],

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Razor Pages UI Design"
+  short_description: "Design clear Razor Pages user experiences"
+  default_prompt: "Use $razor-pages-ui-design to design this Razor Pages workflow and explain the key choices."

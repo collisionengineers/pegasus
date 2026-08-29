@@ -159,7 +159,8 @@ Use the owned commands rather than manually composing service terminals:
 ```powershell
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start # Live UI (default)
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop
@@ -172,6 +173,13 @@ failed check prints its exact repair command. Initialization restores the
 committed tool/package locks, installs the Playwright Chromium binary selected
 by the pinned package, checks the Offline profile, starts LocalDB, and creates
 only ignored local state.
+
+`-UiMode Live` is the default and uses the owned runtime lifecycle described
+below. `-UiMode Test` is a Start-only shortcut that opens
+`docs/design/test-ui/index.html` in the default browser. It does not require
+initialization and creates no database, storage, process, port, manifest, or
+artifact state. `Status`, `Smoke`, `Stop`, `Reset`, run IDs, startup timeouts,
+and failure controls apply only to Live UI runs.
 
 `Cloud` is a separate static prerequisite profile for an already-approved live
 operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
@@ -585,10 +593,13 @@ Run these commands from PowerShell 7 at the repository root:
 ```powershell
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start # Live UI (default)
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test
 ```
 
-Initialization resolves the exact checkout `HEAD` and requires the tracked and
+Test UI opens the tracked static catalogue without initialization or local
+runtime resources. Live UI initialization resolves the exact checkout `HEAD`
+and requires the tracked and
 untracked working tree to remain clean before restore, immediately before and
 after the Debug build, and before publishing its marker. The build disables
 incremental compilation so the dependency graph is rebuilt from those clean
@@ -596,6 +607,13 @@ inputs. The marker records the relative paths, byte lengths, and SHA-256 hashes
 of the Web and Worker runtime assemblies. `Start` refuses a changed revision,
 package lock, missing artifact, or runtime-byte mismatch before it creates or
 restarts a run.
+
+The Test UI files are generated from actual integration-test Razor responses,
+not maintained as parallel hand-written pages. Run
+`pwsh ./scripts/Update-TestUiSnapshots.ps1` to refresh them and
+`pwsh ./scripts/Update-TestUiSnapshots.ps1 -Verify` to fail when the committed
+catalogue differs from the current render. Capture requires the normal
+SQL Server integration-test prerequisite; opening Test UI does not.
 
 
 `Start` prints a generated 32-character run ID. It creates
@@ -854,6 +872,8 @@ The following contracts must be proved through the owning Core policy and actual
 - Case and later-Audit custody use the immutable business reference hierarchy with the database-stored remote folder id as the identity authority (no marker files inside folders), and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
 - manual EVA generation is refused outside `Review` or without readable bytes for an eligible Case image; there is no separate EVA activation, mapping-acceptance or custody-readiness gate, and download is an authenticated, idempotent command over the reviewed case that records permanent history;
 - the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
+- EVA API submission is refused outside `Review`, without an eligible Case image, for a Principal that has not enabled the attempted act, and for a case that already reached EVA — the last enforced by a unique index as well as by policy, because EVA has no idempotency and a second accepted instruction creates a second claim that no call can withdraw;
+- an EVA API submission records one of four distinct outcomes and only an unknown one is retried; a succeeded, rejected or partial outcome is never resent, and the export stays the only route by which a changed case reaches EVA again;
 - repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
 - absent or ambiguous automatic report evidence requires an exact manual link and reason;
 - `sentDateTime` is authoritative while discovery and link times remain distinct;
@@ -912,7 +932,10 @@ a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
 pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
 and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
 `Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial,
-https-redirect, and exact Worker activation assertions). The
+https-redirect, exact Worker activation, and inbox intake liveness
+assertions — an activated intake mailbox, an unexpired `Active` Graph
+subscription, and a completed inbound poll within 15 minutes, read from the
+production database with the bootstrap access-token pattern). The
 executed 2026-08-02 sequence and its evidence gates are recorded in the retired
 runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
@@ -948,16 +971,26 @@ Two route facts recorded by release 9 (details in operations):
   provisioning, confirm every `*_SECRET_URI` azd input names
   `pegasusprodkv252ow37g` — the local azd environment is not authoritative and
   once carried the retired adopted vaults.
+- EXT-04 added six `Eva:*` keys to the Production fail-fast list, so a host
+  without them refuses to start and the whole app crash-loops, not only the
+  EVA route. The first release carrying EXT-04 must, before provisioning,
+  create the `eva-client-id` and `eva-client-secret` secrets in
+  `pegasusprodkv252ow37g` and `azd env set` the four inputs that have no
+  default: `EVA_CLIENT_ID_SECRET_URI`, `EVA_CLIENT_SECRET_SECRET_URI`,
+  `EVA_REQUEST_FROM` and `EVA_INSTRUCTION_EMAIL`. `EVA_BASE_URI` and
+  `EVA_INSPECTION_TYPE` default correctly. The credential pair alone decides
+  whether the deployment addresses EVA test or live.
 
 ### Durable Worker activation and rollback
 
 The currently implemented production Worker gate is fail-closed and two-state.
 `PEGASUS_WORKER_ACTIVATION` maps to the infrastructure input with a default of
-`disabled`; only the exact value `approved-live-worker` renders the nine
+`disabled`; only the exact value `approved-live-worker` renders the seven
 `AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
 misspelled value, and every other value render them as `true`.
 
-The exact production Worker is currently **enabled**: all nine settings read
+Before the unified Worker release, the exact production Worker is **enabled**:
+all nine deployed settings read
 `false`, all nine function definitions remain discoverable, and the azd input
 `PEGASUS_WORKER_ACTIVATION` reads `approved-live-worker`. Every later release
 must retain that input (the enabled-estate preflight below). The dated
@@ -1021,7 +1054,7 @@ production subscription, tenant, resource group, and Worker, then confirms the
 deployed Worker's settings consistently match the expected activation. It does
 not require the previous release to already use the new release's function
 names. The post-provision smoke below enforces the new release's exact
-nine-setting census and one-minute recovery schedule. Do not provision if the
+seven-setting census and one-minute recovery schedule. Do not provision if the
 fresh inventory or activation baseline differs.
 
 Only after the separately approved exact-target gate passes, provision with
@@ -1053,7 +1086,10 @@ azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
 ```
 
 In the same later-release terminal, the full post-release smoke adds the same
-readback to the existing Web gates:
+readback and the inbox intake liveness gate (activated intake mailbox,
+unexpired `Active` subscription, poll completed within 15 minutes) to the
+existing Web gates; it needs the `SqlServer` module and an Azure CLI identity
+that can read `pegasus`:
 
 ```powershell
 ./scripts/Invoke-ProductionSmoke.ps1 `
@@ -1069,10 +1105,10 @@ Populate the three release variables from the approved immutable manifest and
 fresh exact Web inventory; do not trust stale local azd outputs as deployed
 evidence.
 
-Rollback is an explicit production mutation that disables all nine functions.
+Rollback is an explicit production mutation that disables all seven functions.
 It requires fresh inventory, exact-target approval, an accepted reason and
 recovery path, and confirmation that stopping polling, dispatch, poison,
-reconciliation, sent-evidence, due-work, and external-work triggers is the
+reconciliation, sent-evidence, due-work, and unified-work triggers is the
 intended outcome. The `-AllowWorkerDisable` switch is valid only for this
 reviewed enabled-to-disabled transition:
 

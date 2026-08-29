@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using Deque.AxeCore.Playwright;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.DataProtection;
@@ -325,7 +325,6 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["AzureIdentity:WebClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
             ["TransportStorage:AccountName"] = "pegasustransporttest",
             ["IntakeQueue:ServiceUri"] = "https://pegasustransporttest.queue.core.windows.net/",
-            ["ExternalWorkQueue:ServiceUri"] = "https://pegasustransporttest.queue.core.windows.net/",
             ["CustodyStorage:AccountName"] = "pegasuscustodytest",
             ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/",
             // The Production profile composes Box-backed custody, so a host needs
@@ -336,7 +335,18 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Box:RootFolderId"] = "405543781910",
             ["Box:ConfigJson"] = TestBoxConfigJson,
             ["Box:ClientSecret"] = "test-client-secret",
-            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/"
+            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state",
+            // EXT-04: Production composes the EVA API submission route, so a
+            // host needs EVA settings to start. These are inert test
+            // credentials; no EVA call is made by composing them.
+            ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
+            ["Eva:ClientId"] = "test-eva-client",
+            ["Eva:ClientSecret"] = "test-eva-secret",
+            ["Eva:RequestFrom"] = "COLLENGAPI",
+            ["Eva:InspectionType"] = "Vehicle Damage Inspection",
+            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
         };
         foreach (var setting in settings)
         {
@@ -351,6 +361,12 @@ internal sealed class ConfiguredWebApplicationFactory(
         builder.ConfigureAppConfiguration((_, configuration) =>
             configuration.AddInMemoryCollection(effectiveSettings));
         builder.ConfigureServices(services =>
-            services.AddDataProtection().UseEphemeralDataProtectionProvider());
+        {
+            services.AddDataProtection().UseEphemeralDataProtectionProvider();
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR")))
+            {
+                services.AddTransient<IStartupFilter, TestUiResponseCaptureStartupFilter>();
+            }
+        });
     }
 }

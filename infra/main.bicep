@@ -1,4 +1,4 @@
-targetScope = 'subscription'
+﻿targetScope = 'subscription'
 
 @allowed([
   'prod'
@@ -46,6 +46,8 @@ param graphMailboxId string
 param graphInboxFolderId string
 @description('Exact immutable Microsoft Graph Sent Items folder ID.')
 param graphSentFolderId string
+@description('Versioned Key Vault secret URI containing the Microsoft Graph notification clientState.')
+param graphChangeNotificationClientStateSecretUri string
 @description('Versioned Key Vault secret URI containing the Box JWT configuration JSON.')
 param boxConfigJsonSecretUri string
 @description('Versioned Key Vault secret URI containing the Box client secret.')
@@ -60,6 +62,18 @@ param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA OAuth client secret.')
 param dvsaClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the EVA API client ID. The credential pair alone decides whether this is EVA test or live.')
+param evaClientIdSecretUri string
+@description('Versioned Key Vault secret URI containing the EVA API client secret.')
+param evaClientSecretSecretUri string
+@description('Approved EVA Sentry API base URI, serving both test and live.')
+param evaBaseUri string
+@description('EVA contact code this deployment submits instructions as.')
+param evaRequestFrom string
+@description('EVA inspection type sent on every instruction.')
+param evaInspectionType string
+@description('Instruction contact address sent to EVA.')
+param evaInstructionEmail string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -98,6 +112,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     graphMailboxId: graphMailboxId
     graphInboxFolderId: graphInboxFolderId
     graphSentFolderId: graphSentFolderId
+    graphChangeNotificationClientStateSecretUri: graphChangeNotificationClientStateSecretUri
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxClientSecretSecretUri: boxClientSecretSecretUri
     automationMcpClientSecretUri: automationMcpClientSecretUri
@@ -105,6 +120,12 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri
     dvsaClientSecretSecretUri: dvsaClientSecretSecretUri
+    evaClientIdSecretUri: evaClientIdSecretUri
+    evaClientSecretSecretUri: evaClientSecretSecretUri
+    evaBaseUri: evaBaseUri
+    evaRequestFrom: evaRequestFrom
+    evaInspectionType: evaInspectionType
+    evaInstructionEmail: evaInstructionEmail
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

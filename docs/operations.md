@@ -116,7 +116,8 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 | Box | Fake SDK/HTTP contract for folder/file commands, custody, versions, idempotency, and failures; the approved Box integration-test target may also create/update controlled non-corpus artifacts for local or explicitly approved non-production deployment evidence | Real custody, permissions, versions, recovery, production target, and caller evidence |
 | Document Intelligence | Candidate-routing and response-contract tests with controlled non-corpus fixtures | OCR accuracy, confidence, API drift, cost, throttling, identity; licensed disconnected containers are not the default emulator |
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
-| EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
+| EVA | Exact local JSON/image-bundle contract and reconciliation metadata; API submission proved against the vendor's own recorded traffic — the camelCase success envelope, the `RequestFrom` and unbound-field rejections inside HTTP 200, and the `text/plain` 500 | Operator drag/drop acceptance; a first submission to EVA from Pegasus, which has never happened in any environment; and the operator-gated live-credential swap |
+| EVA API credentials | Required in Production from the release that ships EXT-04: `Eva__ClientId` and `Eva__ClientSecret` resolve from Key Vault through `EVA_CLIENT_ID_SECRET_URI` and `EVA_CLIENT_SECRET_SECRET_URI`; `Eva__BaseUri`, `Eva__RequestFrom`, `Eva__InspectionType` and `Eva__InstructionEmail` are plain settings. Web fails to start if any is missing. EVA serves test and live from one host, so the credential pair alone decides which environment a deployment talks to | Live credentials, which are a separate operator-gated change |
 | Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
 | Automation MCP | Implemented; composition gate **enabled in production by release 9** (ADR-0026) with a Key Vault-backed client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP; live token/inventory/denial/history/kill-switch evidence recorded on 2026-08-18 under Production environment | Real external client evidence, production certificate/transport decisions, and separately approved activation |
 | Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0031) |
@@ -292,7 +293,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 32**. A branch
+- **Deployed evidence:** the estate currently serves **release 35**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +311,10 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 36 | 2026-08-28 | `84132d01ccb0afca7af6c6ce519e6f3491aee160` | `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032` | `pegasus-prod-web-252ow37gij--84132d01ccb0` | `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions` |
+  | 35 | 2026-08-27 | `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f` | `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8` | `pegasus-prod-web-252ow37gij--3a1a017c8dea` | `20260827100901_ReactivateBoundApprovedMailboxes` (data-only, matched zero rows) |
+  | 34 | 2026-08-27 | `1ec65dc894f121f4bb5b31ae82c818a401d08beb` | `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0` | `pegasus-prod-web-252ow37gij--1ec65dc894f1` | none (head unchanged at `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`) |
+  | 33 | 2026-08-26 | `ee8067eca799eaa614a96488364d333093e21aaa` | `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6` | `pegasus-prod-web-252ow37gij--ee8067eca799` | `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions` |
   | 32 | 2026-08-26 | `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223` | `sha256:bac866eeb11215c2b0dbaf949e769280aefef246c34f6cbf9436d28a486274bf` | `pegasus-prod-web-252ow37gij--cfb3e6cfd838` | none (head unchanged at `20260825145216_MailboxImageIntake`) |
   | 31 | 2026-08-25 | `7dbb7c39…` | `sha256:a10dce43…` | `pegasus-prod-web-252ow37gij--7dbb7c3952fb` | `20260825145216_MailboxImageIntake` |
   | 30 | 2026-08-25 | `eaabf311…` | `sha256:40a44edb…` | `pegasus-prod-web-252ow37gij--eaabf31130be` | `20260825105037_AssessmentAccessExportVersion`, `20260825121453_GrantWorkerImageIntakeLifecycleEvents` |
@@ -344,6 +349,165 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 36** (2026-08-28, source
+    `84132d01ccb0afca7af6c6ce519e6f3491aee160`, image
+    `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032`,
+    manifest SHA-256
+    `A1E3707F39187C5991D8D8512166F5F418FE0B05DC7CA9F85105908BDB435C76`)
+    shipped the EXT-04 EVA API submission route. It applied
+    `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions`,
+    advancing the head to the latter; `EvaSubmissions` reads zero rows and no
+    Principal has either EVA toggle on, so the deployed behaviour of every
+    existing case is unchanged. Production SQL read back exactly the four
+    expected grants — `SELECT` and `INSERT` on `EvaSubmissions` for both
+    `pegasus_web_runtime_role` and `pegasus_worker_runtime_role`, with `UPDATE`
+    and `DELETE` granted to neither. The sole Web revision
+    `pegasus-prod-web-252ow37gij--84132d01ccb0` is `RunningAtMaxScale` with 100%
+    traffic in Single mode and its digest matches the manifest; the Worker
+    `config-zip` deployment succeeded and all eighteen of its Key Vault
+    references, the two new EVA ones included, read `Resolved`. Production smoke
+    matched the exact source and product version and included the inbox intake
+    liveness check (last poll 2026-08-28 03:00:03Z, subscription expiring
+    2026-09-02 10:25:00Z).
+
+    Two prerequisites were created by hand for this release, and both are
+    permanent: the secrets `eva-client-id` and `eva-client-secret` in
+    `pegasusprodkv252ow37g`, and two `Key Vault Secrets User` grants for the Web
+    identity scoped to those two secret resources. TICK-077 wired the secrets
+    into the container app's `configuration.secrets` but shipped no grants, and
+    the first provision failed with the Web identity unable to fetch either — a
+    gap no CI gate can catch, because `Test-AzureDeploymentPlan` prohibits a
+    vault-wide grant in bicep and secret-scoped grants are made outside it. A
+    provision before that one failed earlier still, on a UTF-8 BOM TICK-077 left
+    on `infra/main.parameters.json`, which azd's JSON decoder refuses; that is
+    fixed on `main` as ENG-022. Neither failure deployed anything: production
+    served release 35 unchanged throughout.
+
+    **Pegasus has still never called EVA, in any environment.** This release
+    proves deployment, schema, runtime permissions, secret resolution and
+    configuration. It proves nothing about the vendor contract — that EVA
+    accepts this payload, that images land, or what it returns — which remains
+    an operator-held live test with `EvaManualSubmission` on a Principal.
+
+    **Deviation recorded, not introduced by this release:** the Worker identity
+    holds a `Key Vault Secrets User` grant at *vault* scope in addition to its
+    six secret-scoped ones, which is how its EVA references resolved without a
+    grant being added for them. That contradicts the secret-level-only posture
+    described under the 2026-08-03 vault consolidation below, and is why only
+    the Web identity needed new grants here.
+
+  - **Release 35** (2026-08-27, source
+    `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f`, image
+    `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8`,
+    manifest SHA-256
+    `CA81E6F7D9A1A63C9CC8460614E728B601E206919CB6653E7CB5A681D9EF10CF`)
+    applied migration `20260827100901_ReactivateBoundApprovedMailboxes`
+    (data-only): `__EFMigrationsHistory` head advanced to that id and
+    `ApprovedMailboxes` still holds one row for `instructions@…` with
+    `ActivatedAtUtc = 2026-08-27 10:20:33Z` unchanged, confirming the UPDATE
+    matched zero rows as expected — the mailbox was already reactivated by
+    an earlier operator action. Bootstrap verified the unchanged 526
+    catalogued permission/denial rows and 359 effective runtime DML rows (no
+    grant-carrying migration this release). `azd provision` carried the
+    bicep-declared 0.5 GB daily cap to both `pegasus-prod-appi-252ow37gij`
+    (`dataVolumeCap.cap`) and `pegasus-prod-logs-252ow37gij`
+    (`workspaceCapping.dailyQuotaGb`) — both read back 0.5 immediately after
+    provision, raising the ceiling from the 0.1 GB that had silenced
+    telemetry by mid-morning since release 19. Azure read-back matched the
+    immutable image digest; the sole Web revision
+    `pegasus-prod-web-252ow37gij--3a1a017c8dea` is `RunningAtMaxScale` with
+    100% traffic in Single mode; the Worker `config-zip` deployment
+    completed and all seven released functions are enabled with
+    `ApprovedInboxPollSchedule=0 */5 * * * *` unchanged. Production smoke
+    matched the exact source and product version and, for the first time,
+    included `Inbox intake liveness smoke passed` (Graph subscription
+    `09018cc2…` read `Active`, expiring 2026-09-02 10:25:00Z, last poll
+    2026-08-27 19:45:12Z), and the same subscription row read back directly
+    from `ApprovedMailboxSubscriptions` matches. An `AppDependencies` query
+    over the 14 minutes following the Worker deploy (19:48–20:02Z) returned
+    223 Worker dependency records, all `Success = true`, with the workspace
+    still `RespectQuota` (not `OverQuota`) — no successful SQL dependency
+    rows appeared in that window, consistent with the deployed
+    `SqlDependencyTelemetryFilter` dropping them while non-SQL (Graph
+    polling) dependencies continued to report; this is a post-deploy
+    observation, not a controlled before/after comparison against the
+    unfiltered baseline. This proves deployment, schema (no change),
+    permissions (unchanged), configuration, the new telemetry caps and
+    technical health. It does not by itself prove the new 0.5 GB cap
+    survives a full working day of combined Web and Worker volume
+    (PLAT-034, open), nor the INTK-044 Audit-allocation recovery path or
+    the Mailboxes page's Activated/Subscription columns under a live
+    operator session — the latter's screenshot evidence is
+    operator-supplied and was not captured by this agent.
+
+  - **Release 34** (2026-08-27, source
+    `1ec65dc894f121f4bb5b31ae82c818a401d08beb`, image
+    `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0`,
+    manifest SHA-256
+    `B3984E24EC795C2E12A641039868341D116D3E84BC286133EF1D0031EA821CE2`)
+    corrected the MAIL-015 release defect: `azd provision` carried the
+    six-field `ApprovedInboxPollSchedule=0 */5 * * * *` to the live Worker,
+    and the host indexed all seven functions including
+    `InboxRecoveryFunction` (read back after the `config-zip` deployment).
+    No migration: the head stayed at
+    `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`. The only
+    `src/` change was the Worker example settings file; the release otherwise
+    carried the MAIL-016 test correction, the regenerated Test UI (UIIMP-004),
+    the release-33 record and the restored design authority (DELIV-028) after
+    the design-system removal in `9eec6dc2`. Two route traps fired again: the
+    workstation's azd environment held release 26's digest and suffix and
+    lacked `GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI` — set from the
+    live Worker's Key Vault reference before provisioning, otherwise the
+    explicit `env` array would have dropped the Graph `clientState` binding.
+    Azure read-back matched the immutable digest; the sole Web revision is
+    Healthy with 100% traffic; production smoke matched the exact source and
+    product version. **The fourth operator-approved test-data wipe**
+    (PLAT-045) ran after the smoke: **65 of 97 tables, 623 rows**, preserving
+    32 identity, automation-client, mailbox-configuration (now including
+    `ApprovedMailboxSubscriptions`), principal, provider-reference,
+    workflow-configuration, audit, schema and sequence tables, so the next
+    case is **QDOS26024** and no reference is reused. `transient-intake`
+    already held 0 blobs and the four queues were empty before and after;
+    poll cursors and Graph subscriptions were preserved so nothing is
+    re-ingested; Outlook and Box were untouched. Smoke passed again on the
+    emptied estate. This proves deployment, configuration and technical
+    health; it does not prove that the recovery timer fires on schedule.
+
+  - **Release 33** (2026-08-26, source
+    `ee8067eca799eaa614a96488364d333093e21aaa`, image
+    `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6`,
+    manifest SHA-256
+    `414D4958F5F468EE9A7AEDFA04ECDC706C0D6779C925B3CC3A31D4D3073678C1`)
+    deployed stable approved-mailbox identity, Microsoft Graph change-notification
+    wakes, the unified Worker work queue, and five-minute Inbox recovery. The
+    migration advanced the database to
+    `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`; the release
+    applied the four intended subscription-table denials omitted by the migration,
+    then bootstrap verified 526 catalogued permission/denial rows and 359 effective
+    runtime DML rows. The new Graph `clientState` is versioned in Key Vault with
+    secret-scoped Web and Worker access. Azure read-back matched the immutable image
+    digest; the sole Web revision is healthy with 100% traffic; all seven released
+    Worker functions are enabled. The deployed schedules are
+    `PendingWorkRecoverySchedule=0 * * * * *`,
+    `IntakeStagedArtifactReconciliationSchedule=*/10 * * * * *`,
+    `ApprovedInboxPollSchedule=0 */5 * * * * *` — **seven fields, invalid
+    NCRONTAB**, the MAIL-015 release defect; the six-field correction is
+    MAIL-015 (PR #566) and reaches the live Worker only with the first
+    provision after it merges — `SentEvidencePollSchedule=15 * * * * *`, and
+    `DueWorkSweepSchedule=0 */5 * * * *`; production smoke matched the exact source
+    and product version. This proves deployment, schema, permissions, configuration
+    and technical health. It does not prove that the Inbox recovery timer fires,
+    nor sub-five-second receipt of a fresh operator email. **Second release-33
+    defect (found 2026-08-27):** the migration's seed diff set
+    `ApprovedMailboxes.ActivatedAtUtc = NULL` on the live, identity-bound
+    instructions mailbox; every intake consumer requires an activation time, so
+    no poll ran and no Graph subscription was ever created
+    (`ApprovedMailboxSubscriptions` stayed empty) — the Mail page read stale and
+    the Graph-notification path was never exercised. The repair is MAIL-017's
+    `20260827100901_ReactivateBoundApprovedMailboxes`; the interim operator
+    action is re-saving the mailbox in Administration › Mailboxes, after which
+    mail received before the new activation time is skipped by design.
 
   - **Release 32** (2026-08-26, source
     `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223`, image
@@ -656,6 +820,20 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     why release 20's cause had to be found by reading the permission tables
     instead of a stack trace. The two alert rules are blind for the same window.
     Raising the quota is a billing decision and is left with the operator.
+
+    Taken on 2026-08-27 (MAIL-020), correcting the paragraph above: the
+    **component** cap, not the workspace quota, was the limit actually hit —
+    a second 0.1 GB limit resetting at 00:00Z (the workspace's resets at
+    03:00Z), gone by ~05:30Z, with `AppDependencies` (the Worker's per-query
+    SQL records) two thirds of the volume. The Worker now drops successful SQL dependency
+    telemetry (`SqlDependencyTelemetryFilter`; failed calls, HTTP
+    dependencies, requests, exceptions and traces are untouched), and
+    `platform.bicep` declares a single 0.5 GB daily cap for both the
+    component and the workspace, with the 90% warning and cap-hit
+    notifications kept on. Release 35 (2026-08-27) applied it: both the
+    component `dataVolumeCap.cap` on `pegasus-prod-appi-252ow37gij` and the
+    workspace `dailyQuotaGb` on `pegasus-prod-logs-252ow37gij` read back 0.5
+    immediately after that provision, and the deployed Worker filter is live.
 
   - **Release 18** (2026-08-22, source `1f3be493`, image `sha256:818fe360…`)
     carried the QDOS26009 operator findings. An automatically created case can
@@ -1113,8 +1291,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
   (git history).
-- **Monitoring/cost:** 31-day retention, adaptive sampling, 0.1 GB/day
-  Application Insights cap, £75 monthly budget notifying
+- **Monitoring/cost:** 31-day retention, adaptive sampling, a 0.5 GB/day
+  cap declared once in `infra/modules/platform.bicep` for both the
+  Application Insights component (resets 00:00Z) and the Log Analytics
+  workspace (resets 03:00Z) — release 35 (2026-08-27) applied it; both live
+  caps read back 0.5 GB after that provision — £75 monthly budget notifying
   `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
   Since release 16 the Sev1 application-exception scheduled-query rule
   deduplicates by operation and normalized signature over a 15-minute

@@ -204,7 +204,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseRepairSpecifications')
     # 20260819115323_UnidentifiedWork, per-object least privilege:
-    # - UnidentifiedItems: Worker (IntakeWorkFunction -> ProcessQueuedIntake ->
+    # - UnidentifiedItems: Worker (UnifiedWorkFunction -> ProcessQueuedIntake ->
     #   ProcessIntake.ExecuteRetainedAsync -> IRegisterUnidentified.RegisterAsync)
     #   gets SELECT/INSERT/UPDATE; the UPDATE is
     #   ProcessQueuedIntake.SynchronizeUnidentifiedAsync's reconciliation
@@ -328,6 +328,48 @@ function Get-MigrationPermissionMatrix {
     }
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|DocumentVersions")
+    }
+    # 20260826151807_ApprovedMailboxStableIdentityAndSubscriptions: Web resolves
+    # callbacks read-only; Worker owns subscription creation and maintenance.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|ApprovedMailboxSubscriptions')
+    foreach ($permission in @('INSERT', 'UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|D|$permission|ApprovedMailboxSubscriptions")
+    }
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|ApprovedMailboxSubscriptions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|ApprovedMailboxSubscriptions')
+    # 20260827143200_GrantEvaSubmissions: EXT-04 gave a case a second route to
+    # EVA. Web writes an attempt when an operator sends by hand, the Worker
+    # when a principal's automatic setting submits a case that reached Review,
+    # and both read prior attempts for the once-per-case and replay checks. An
+    # attempt is a fact about a moment and is never edited, so neither role is
+    # granted UPDATE or DELETE.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("$role|G|$permission|EvaSubmissions")
+        }
+    }
+    # 20260828084644_GrantAiJobs: AUTO-011 added the pull-based AI job ledger
+    # (ADR-0035). Only Web touches it — staff create, cancel and confirm from
+    # the application and external AI clients claim and finish jobs through
+    # the /mcp ingress that Web hosts; the Worker runs no AI timer. Rows are
+    # created once and then move through their states in place, so Web holds
+    # SELECT, INSERT and UPDATE. A job is a permanent record: no DELETE is
+    # granted, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
+    }
+    # 20260828104139_GrantPrincipalApiCredentials: TICK-061 added one Provider
+    # API credential per Principal (API-04). Only Web touches it —
+    # Administrators issue, reset, pause, resume and revoke from the
+    # application and the Provider API verifies a presented secret in the
+    # same process; the Worker never authenticates a provider. A row is
+    # created once and then rotated or moved through its states in place, so
+    # Web holds SELECT, INSERT and UPDATE. A revoked credential stays as the
+    # record of what was revoked: no DELETE, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
     return @($expected | Sort-Object -Unique)
 }

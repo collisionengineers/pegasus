@@ -1,6 +1,9 @@
-using Pegasus.Core.Vehicle;
+﻿using Pegasus.Core.Vehicle;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Transport;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -32,39 +35,113 @@ public sealed partial class PendingWorkRecoveryFunction(
         int externalWorkCount);
 }
 
-public sealed class IntakeWorkFunction(ProcessQueuedIntake processQueuedIntake)
+public sealed class UnifiedWorkFunction(
+    IProcessQueuedIntake processQueuedIntake,
+    IProcessQueuedExternalWork processQueuedExternalWork,
+    PollApprovedInbox pollApprovedInbox,
+    IApprovedMailboxSubscriptionStore mailboxSubscriptions,
+    TimeProvider timeProvider)
 {
-    [Function(nameof(IntakeWorkFunction))]
-    public Task RunAsync(
+    private static readonly ActionActor MailboxWakeActor =
+        ActionActor.SystemWorker("approved-inbox-notification");
+
+    [Function(nameof(UnifiedWorkFunction))]
+    public async Task RunAsync(
         [QueueTrigger("intake-work", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
-        if (!QueueMessageIdentifier.TryParse(message, out var stagedReceiptId))
+        if (UnifiedWorkQueueMessage.TryParseMailbox(
+                message,
+                out var approvedMailboxId,
+                out var subscriptionId,
+                out var wakeKind))
         {
-            throw new InvalidDataException(
-                "The intake work message does not contain one canonical staged receipt identifier.");
+            var subscription = await mailboxSubscriptions.GetActiveAsync(
+                subscriptionId.ToString("D"),
+                timeProvider.GetUtcNow(),
+                cancellationToken)
+                ?? throw new InvalidDataException("The mailbox wake subscription is no longer active.");
+            if (subscription.ApprovedMailboxId != approvedMailboxId)
+            {
+                throw new InvalidDataException("The mailbox wake does not match its subscription.");
+            }
+            await pollApprovedInbox.ExecuteMailboxAsync(
+                approvedMailboxId,
+                50,
+                MailboxWakeActor,
+                cancellationToken);
+            if (wakeKind != MailboxWakeKind.Created)
+            {
+                await mailboxSubscriptions.SaveAsync(
+                    subscription with { LifecycleState = LifecycleState(wakeKind) },
+                    cancellationToken);
+            }
+            return;
         }
 
-        return processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
-    }
-}
+        if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
+        {
+            throw new InvalidDataException(
+                "The unified work message does not contain one typed canonical durable identifier.");
+        }
 
-public sealed class IntakePoisonFunction(ReconcilePoisonedQueueWork reconcilePoisonedQueueWork)
+        switch (kind)
+        {
+            case UnifiedWorkQueueKind.Intake:
+                await processQueuedIntake.ExecuteAsync(identifier, cancellationToken);
+                return;
+            case UnifiedWorkQueueKind.External:
+                await processQueuedExternalWork.ExecuteAsync(identifier, cancellationToken);
+                return;
+            default:
+                throw new InvalidDataException("The unified work message has an unsupported kind.");
+        }
+    }
+
+    private static ApprovedMailboxSubscriptionLifecycleState LifecycleState(
+        MailboxWakeKind wakeKind) => wakeKind switch
+    {
+        MailboxWakeKind.Missed => ApprovedMailboxSubscriptionLifecycleState.Missed,
+        MailboxWakeKind.SubscriptionRemoved => ApprovedMailboxSubscriptionLifecycleState.Removed,
+        MailboxWakeKind.ReauthorizationRequired =>
+            ApprovedMailboxSubscriptionLifecycleState.ReauthorizationRequired,
+        _ => ApprovedMailboxSubscriptionLifecycleState.Active
+    };
+}
+public sealed class UnifiedWorkPoisonFunction(
+    ReconcilePoisonedQueueWork reconcilePoisonedQueueWork,
+    IApprovedMailboxSubscriptionStore mailboxSubscriptions,
+    TimeProvider timeProvider)
 {
-    [Function(nameof(IntakePoisonFunction))]
+    [Function(nameof(UnifiedWorkPoisonFunction))]
     public Task RunAsync(
         [QueueTrigger("intake-work-poison", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
-        if (!QueueMessageIdentifier.TryParse(message, out var stagedReceiptId))
+        if (UnifiedWorkQueueMessage.TryParseMailbox(
+                message,
+                out var approvedMailboxId,
+                out _,
+                out _))
+        {
+            return mailboxSubscriptions.RecordMaintenanceFailureAsync(
+                approvedMailboxId,
+                "notification_poison",
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+        }
+
+        if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
         {
             throw new InvalidDataException(
-                "The intake poison message does not contain one canonical staged receipt identifier.");
+                "The unified poison message does not contain one typed canonical durable identifier.");
         }
 
         return reconcilePoisonedQueueWork.ExecuteAsync(
-            PoisonedQueueWorkKind.Intake,
-            stagedReceiptId,
+            kind == UnifiedWorkQueueKind.Intake
+                ? PoisonedQueueWorkKind.Intake
+                : PoisonedQueueWorkKind.External,
+            identifier,
             cancellationToken);
     }
 }
@@ -74,7 +151,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
-    ILogger<StagedArtifactReconciliationFunction> logger)
+    ILogger<StagedArtifactReconciliationFunction> logger,
+    ReconcileAutomaticEvaSubmissions? reconcileAutomaticEvaSubmissions = null)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
@@ -119,11 +197,34 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
         // CASE-008: any active case whose current registration has never been
         // looked up gets one automatic vehicle lookup enqueued; the existing
-        // dispatch timer and external-work queue carry it from there. Same
+        // dispatch timer and unified work queue carry it from there. Same
         // existing timer trigger deliberately; this is not a new schedule.
         var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
         LogAutomaticVehicleLookups(logger, vehicleLookups);
+
+        // EXT-04: a case sitting in Review whose principal has automatic EVA
+        // submission switched on gets one submission enqueued; the existing
+        // dispatch timer and unified work queue carry it from there. Same
+        // existing timer trigger deliberately; this is not a new schedule.
+        //
+        // A sweep rather than a hook because three separate places write
+        // State = Review, each inside its own transaction — and because a
+        // sweep self-heals, where a missed hook would leave a case unsent
+        // forever. Null where EVA is not composed, which is the offline
+        // profile and any host without credentials.
+        if (reconcileAutomaticEvaSubmissions is not null)
+        {
+            var evaSubmissions = await reconcileAutomaticEvaSubmissions.ExecuteAsync(
+                50,
+                cancellationToken);
+            LogAutomaticEvaSubmissions(logger, evaSubmissions);
+        }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Enqueued {Enqueued} automatic EVA submissions.")]
+    private static partial void LogAutomaticEvaSubmissions(ILogger logger, int enqueued);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -160,20 +261,4 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int resolved,
         int failures);
-}
-
-internal static class QueueMessageIdentifier
-{
-    public static bool TryParse(string message, out Guid identifier)
-    {
-        if (Guid.TryParseExact(message, "D", out identifier)
-            && identifier != Guid.Empty
-            && string.Equals(message, identifier.ToString("D"), StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        identifier = Guid.Empty;
-        return false;
-    }
 }

@@ -1,200 +1,254 @@
 @page
-@model Pegasus.Web.Pages.Cases.IndexModel
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Cases.IndexModel
 @{
     ViewData["Title"] = "Cases";
-    var hasAdvancedFilter =
-        !string.IsNullOrWhiteSpace(Model.Registration)
-        || !string.IsNullOrWhiteSpace(Model.Claimant)
-        || !string.IsNullOrWhiteSpace(Model.ClaimNumber)
-        || Model.EngineerId is not null
-        || Model.ReceivedDate is not null
-        || Model.InstructionDate is not null
-        || Model.FromDate is not null
-        || Model.ToDate is not null
-        || !string.IsNullOrWhiteSpace(Model.Origin)
-        || !string.IsNullOrWhiteSpace(Model.RecordKindFilter);
+
+    // Refreshing reruns the scope, its filters, the page and the selected
+    // row, not page one of everything.
+    ViewData["RefreshFields"] = new Dictionary<string, string?>
+    {
+        ["tab"] = Model.Queue,
+        ["principal"] = Model.PrincipalFilter,
+        ["missing"] = Model.ShowingNotReady ? Model.MissingFilter : null,
+        ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null,
+        ["selected"] = Model.SelectedId?.ToString("D")
+    };
+
+    var hasFilters = Model.PrincipalFilter is not null || Model.MissingFilter is not null;
 }
 
-@* No lede. It narrated browser mechanics - that filters stay in the URL -
-   as if it were guidance. The filter bar is one line, with everything that is
-   used rarely behind a disclosure. *@
-<header class="page-heading">
-    <h1>Cases</h1>
+@* One page for the whole case workflow: the rail's groups are where the work
+   is, each count a queried figure, and the panes read the open group beside
+   the row the operator selected. *@
+<header class="page-header">
+    <div class="page-title">
+        <h1>Cases</h1>
+    </div>
+    <div class="page-actions">
+        <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
+    </div>
 </header>
 
-<section class="panel filterbar" aria-labelledby="case-filters-title">
-    <h2 id="case-filters-title" class="vh">Filter cases</h2>
-    <form method="get">
-        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
-        <div class="filterbar__line">
-            <label for="case-query" class="vh">Case/PO or keyword</label>
-            <input id="case-query" name="query" value="@Model.Query" maxlength="300"
-                   placeholder="Case/PO, registration, claimant or claim number" />
-
-            <label for="case-state" class="vh">Case stage</label>
-            <select id="case-state" name="state">
-                <option value="">Any stage</option>
-                @foreach (var state in Enum.GetValues<CaseLifecycleState>())
+@if (IndexModel.ListsCases(Model.Queue))
+{
+    @* Selects submit on change; the button is the no-script path. The
+       Principal select exists only where Principal rows are listed, and the
+       Missing select only on Not ready — a control that filters nothing is
+       never drawn. *@
+    <form method="get" class="filter-bar" data-auto-submit>
+        <input type="hidden" name="tab" value="@Model.Queue" />
+        <div class="field">
+            <label for="queue-principal">Principal</label>
+            <select id="queue-principal" name="principal">
+                <option value="">All</option>
+                @foreach (var principal in Model.Principals)
                 {
-                    <option value="@state" selected="@(Model.State == state)">@OperatorLabels.CaseStage(state)</option>
+                    <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
                 }
             </select>
-
-            <label for="case-principal" class="vh">Principal</label>
-            <input id="case-principal" name="principal" value="@Model.Principal" maxlength="20" placeholder="Principal" />
-
-            <button type="submit" class="btn btn--dark">
-                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                Search
-            </button>
-            <a asp-page="/Cases/Index" class="btn">Clear</a>
         </div>
-
-        <details class="filterbar__more" open="@(hasAdvancedFilter ? "open" : null)">
-            <summary>More filters</summary>
-            <div class="form-grid">
-                <div>
-                    <label asp-for="CaseReference">Case/PO</label>
-                    <input id="case-reference" name="case" value="@Model.CaseReference" maxlength="100" />
-                </div>
-                <div>
-                    <label asp-for="Registration">Registration</label>
-                    <input asp-for="Registration" maxlength="20" />
-                </div>
-                <div>
-                    <label asp-for="Claimant">Claimant</label>
-                    <input asp-for="Claimant" maxlength="300" />
-                </div>
-                <div>
-                    <label asp-for="ClaimNumber">Claim number</label>
-                    <input asp-for="ClaimNumber" maxlength="100" />
-                </div>
-                <div>
-                    <label asp-for="EngineerId">Engineer</label>
-                    <input asp-for="EngineerId" type="text" />
-                    <span asp-validation-for="EngineerId" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="ReceivedDate">Received on</label>
-                    <input asp-for="ReceivedDate" type="date" />
-                    <span asp-validation-for="ReceivedDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="InstructionDate">Instructed on</label>
-                    <input asp-for="InstructionDate" type="date" />
-                    <span asp-validation-for="InstructionDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="FromDate">Received from</label>
-                    <input asp-for="FromDate" type="date" />
-                    <span asp-validation-for="FromDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="ToDate">Received to</label>
-                    <input asp-for="ToDate" type="date" />
-                    <span asp-validation-for="ToDate" class="field-validation-error"></span>
-                </div>
-                <div>
-                    <label asp-for="Origin">Origin</label>
-                    <input asp-for="Origin" maxlength="100" />
-                </div>
-                <div>
-                    <label for="record-kind">Record type</label>
-                    <select id="record-kind" name="kind">
-                        <option value="" selected="@(string.IsNullOrEmpty(Model.RecordKindFilter))">All</option>
-                        <option value="instructions" selected="@(Model.RecordKindFilter == "instructions")">Cases</option>
-                        <option value="images" selected="@(Model.RecordKindFilter == "images")">Vehicle images</option>
-                    </select>
-                </div>
+        @if (Model.ShowingNotReady)
+        {
+            <div class="field">
+                <label for="queue-missing">Missing</label>
+                <select id="queue-missing" name="missing">
+                    <option value="">All</option>
+                    <option value="instructions" selected="@(Model.MissingFilter == "instructions" ? "selected" : null)">Instructions</option>
+                    <option value="images" selected="@(Model.MissingFilter == "images" ? "selected" : null)">Images</option>
+                    <option value="both" selected="@(Model.MissingFilter == "both" ? "selected" : null)">Both missing</option>
+                </select>
             </div>
-        </details>
+        }
+        <noscript><button type="submit" class="btn">Apply</button></noscript>
+        @if (hasFilters)
+        {
+            <a class="btn" href="@Model.Href(tab: Model.Queue, keepFilters: false)">Clear</a>
+        }
     </form>
-</section>
-@if (Model.QueryFailed)
-{
-    <section class="status-card status-card--error" role="alert">
-        <h2>Cases are unavailable</h2>
-        <p>The case query could not be completed; try again.</p>
-    </section>
-}
-else if (Model.Results is { Items.Count: 0 } && Model.ImageIntakeResults.Count == 0)
-{
-    @* A zero result is a line of business language, not a headed panel
-       announcing itself. Both settled sentences are kept: each is separately
-       relied on to tell an empty result from the unavailable state above. *@
-    <p class="empty-state" aria-live="polite">No matching cases. No cases match these filters.</p>
-}
-else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count == 0)
-{
-    <p class="empty-state" aria-live="polite">No vehicle images match these filters.</p>
 }
 
-@if (Model.ImageIntakeResults.Count > 0)
-{
-    @* A queue list is already a panel; nesting it in another drew two boxes. *@
-    <h2 class="section-label section-gap">Vehicle images</h2>
-    <div class="panel queue-list">
-        @foreach (var item in Model.ImageIntakeResults)
-        {
-            <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
-                <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
-            </a>
-        }
-    </div>
-}
-
-@if (Model.Results is { Items.Count: > 0 } results)
-{
-    @* The label names the table; the table's own border is the container. *@
-    <h2 class="section-label section-gap">Results</h2>
-    <div class="table-wrap">
-        <table>
-            <caption class="vh">Case search results</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Case/PO</th>
-                    <th scope="col">Registration</th>
-                    <th scope="col">Claimant</th>
-                    <th scope="col">Claim number</th>
-                    <th scope="col">Principal</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Engineer</th>
-                    <th scope="col">Received</th>
-                    <th scope="col">Instruction</th>
-                    <th scope="col">Origin</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var item in results.Items)
+<section class="pane-layout pane-layout--3 queue-layout">
+    <aside class="pane">
+        <div class="pane-head">
+            <h2>Case workflow</h2>
+        </div>
+        @* The rail is the shape the design system styles for a pressed
+           scope: buttons carrying tab=X, in one GET form, so a scope opens
+           with a plain native submit and keeps the Principal filter. Counts
+           are queried figures, never placeholders. *@
+        <form method="get" action="/Cases" class="scope-list" data-row-list>
+            @if (Model.PrincipalFilter is not null)
+            {
+                <input type="hidden" name="principal" value="@Model.PrincipalFilter" />
+            }
+            @{ var groupOrdinal = 0; }
+            @foreach (var group in IndexModel.Tabs.GroupBy(tab => tab.Group))
+            {
+                if (groupOrdinal++ > 0)
                 {
-                    <tr>
-                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                        <td>@(item.Registration ?? "Not recorded")</td>
-                        <td>@(item.Claimant ?? "Not recorded")</td>
-                        <td>@(item.ClaimNumber ?? "Not recorded")</td>
-                        <td>@item.Principal</td>
-                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
-                        <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
-                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
-                        <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
-                        <td>@item.Origin</td>
-                    </tr>
+                    <div class="queue-group-divider"></div>
                 }
-            </tbody>
-        </table>
+                <div class="queue-group-label">@group.Key</div>
+                @foreach (var tab in group)
+                {
+                    <button type="submit" name="tab" value="@tab.Key"
+                            class="scope-button @(tab.IsException ? "queue-exception" : null)"
+                            aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#@tab.Icon" /></svg>
+                        </span>
+                        <span>@tab.Label</span>
+                        <span>@Model.Count(tab)</span>
+                    </button>
+                }
+            }
+        </form>
+    </aside>
+
+    <div class="pane">
+        <div class="pane-head">
+            <div>
+                <h2>@Model.CurrentTab.Label</h2>
+                <span class="muted">@Model.Rows.Count item@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
+            </div>
+        </div>
+        <div class="pane-body pane-scroll" data-row-list>
+            @* A row links to its detail and nothing else; the selected row
+               is the one the quick detail beside it reads, marked as the
+               current item of the list (aria-current, the one current-state
+               token a link may legally carry). Blocked intake rows sit in
+               the Unidentified scope with their own chip and no count of
+               their own (D14). *@
+            @foreach (var row in Model.Rows)
+            {
+                <a class="row-button" href="@row.DetailHref" aria-current="@(Model.SelectedId == row.Id ? "true" : null)">
+                    <span class="row-top">
+                        <span class="row-title">@row.Title</span>
+                        <partial name="Shared/_StatusChip" model="@row.Chip" />
+                    </span>
+                    @if (!string.IsNullOrEmpty(row.Excerpt))
+                    {
+                        <span class="row-excerpt">@row.Excerpt</span>
+                    }
+                    <span class="row-top">
+                        <span class="row-meta">@row.Meta</span>
+                        @if (row.Time is { } time)
+                        {
+                            <span class="row-meta">@time</span>
+                        }
+                    </span>
+                </a>
+            }
+        </div>
+        @if (Model.HasPreviousPage || Model.HasNextPage)
+        {
+            <nav class="pagination" aria-label="Pages">
+                @if (Model.HasPreviousPage)
+                {
+                    <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage - 1)">Previous</a>
+                }
+                <span>Page @Model.CurrentPage</span>
+                @if (Model.HasNextPage)
+                {
+                    <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage + 1)">Next</a>
+                }
+            </nav>
+        }
     </div>
-    <nav class="pager" aria-label="Case result pages">
-        @if (results.HasPreviousPage)
-        {
-            <a href="@Model.PageUrl(results.Page - 1)">Previous</a>
-        }
-        <span class="pager__context">Page @results.Page · showing @results.Items.Count</span>
-        @if (results.HasNextPage)
-        {
-            <a href="@Model.PageUrl(results.Page + 1)">Next</a>
-        }
-    </nav>
-}
+
+    <div class="pane">
+        <div class="pane-head">
+            <h2>Quick detail</h2>
+        </div>
+        <div class="pane-body pane-scroll">
+            @if (Model.Selected is { } detail)
+            {
+                <div class="detail-canvas">
+                    <p class="eyebrow">@detail.Eyebrow</p>
+                    <h2>@detail.Heading</h2>
+                    @if (detail.Kind == IndexModel.RowKind.Case && detail.State is { } state)
+                    {
+                        var step = IndexModel.StepIndex(state);
+                        <ol class="workflow-stepper workflow-stepper--compact" aria-label="Case workflow">
+                            @for (var index = 0; index < IndexModel.Steps.Count; index++)
+                            {
+                                var current = IndexModel.Steps[index];
+                                <li class="workflow-step @(index < step ? "is-complete" : null) @(index == step ? "is-current" : null)">
+                                    <span class="workflow-step-icon">
+                                        <svg class="icon" aria-hidden="true"><use href="#@(index < step ? "icon-check" : current.Icon)" /></svg>
+                                    </span>
+                                    <span>@current.Label</span>
+                                </li>
+                            }
+                        </ol>
+                        if (state == CaseLifecycleState.Held)
+                        {
+                            <div class="workflow-exception">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                                <strong>@OperatorLabels.CaseStage(CaseLifecycleState.Held)</strong>
+                            </div>
+                        }
+                        @* Outstanding requirements are the case's recorded
+                           completeness facts: the requirement and the action
+                           that resolves it, nothing else. *@
+                        @if (detail.Outstanding is { Count: > 0 })
+                        {
+                            <section class="section-gap">
+                                <h3 class="section-label">Outstanding requirements</h3>
+                                <ul class="blocker-list">
+                                    @foreach (var requirement in detail.Outstanding)
+                                    {
+                                        <li class="blocker">
+                                            <strong>@requirement.Requirement</strong>
+                                            <small>@requirement.Resolve</small>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+                        <section class="panel section-gap">
+                            <div class="panel-head">
+                                <h3>Current work</h3>
+                            </div>
+                            <div class="panel-body">
+                                @foreach (var fact in detail.Facts)
+                                {
+                                    <div class="decision-row">
+                                        <span>@fact.Label</span>
+                                        <strong>@fact.Value</strong>
+                                    </div>
+                                }
+                                <div class="button-row section-gap">
+                                    <a class="btn btn--dark" href="@detail.DetailHref">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                        <span>@detail.OpenLabel</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </section>
+                    }
+                    else
+                    {
+                        <div class="definition-list section-gap">
+                            @foreach (var fact in detail.Facts)
+                            {
+                                <dl class="definition">
+                                    <dt>@fact.Label</dt>
+                                    <dd>@fact.Value</dd>
+                                </dl>
+                            }
+                        </div>
+                        <div class="button-row section-gap">
+                            <a class="btn btn--dark" href="@detail.DetailHref">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                <span>@detail.OpenLabel</span>
+                            </a>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</section>

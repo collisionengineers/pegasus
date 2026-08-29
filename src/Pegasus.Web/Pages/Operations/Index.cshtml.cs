@@ -20,7 +20,8 @@ public sealed class IndexModel(
     IAcquireCaseEditLease acquireCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
     IRevokeRequestUploadLink revokeRequestUploadLink,
-    TimeProvider timeProvider) : StaffPageModel
+    TimeProvider timeProvider,
+    GetServiceHealth? getServiceHealth = null) : StaffPageModel
 {
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
@@ -48,6 +49,14 @@ public sealed class IndexModel(
         ImmutableArray<RequestOperationProjection>.Empty,
         LimitReached: false);
 
+    /// <summary>
+    /// The Service health snapshot, when this deployment composes it. The
+    /// query is registered with the Automation Actor ingress, so a deployment
+    /// without that feature carries no snapshot and the page shows no Service
+    /// health section — an uncomposed capability is absent, never broken.
+    /// </summary>
+    public ServiceHealthSnapshot? ServiceHealth { get; private set; }
+
     public Guid? PreservedRequestId { get; private set; }
     public string? PreservedReason { get; private set; }
 
@@ -64,6 +73,10 @@ public sealed class IndexModel(
         Operations = await getRequestOperations.ExecuteAsync(actor, cancellationToken);
         PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
         PreservedReason = TempData[PreservedReasonKey] as string;
+        if (getServiceHealth is not null)
+        {
+            ServiceHealth = await getServiceHealth.ExecuteAsync(actor, cancellationToken);
+        }
         LoadedAtUtc = timeProvider.GetUtcNow();
         return Page();
     }
@@ -145,7 +158,7 @@ public sealed class IndexModel(
             exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
         {
             PreserveReason(requestId, reason);
-            StatusMessage = "This link's case is open for editing by someone else. Try again in a few minutes.";
+            StatusMessage = "This link's case is open for editing by someone else.";
             return RedirectToPage();
         }
 
@@ -173,18 +186,8 @@ public sealed class IndexModel(
         return RedirectToPage();
     }
 
-    public static string StateLabel(RequestOperationState state) => state switch
-    {
-        RequestOperationState.Pending => "Pending",
-        RequestOperationState.Active => "Active",
-        RequestOperationState.Expired => "Expired",
-        RequestOperationState.Exhausted => "Exhausted",
-        RequestOperationState.Revoked => "Revoked",
-        RequestOperationState.Failed => "Failed",
-        RequestOperationState.Completed => "Completed",
-        RequestOperationState.UnknownExternal => "Unknown external",
-        _ => throw new InvalidOperationException($"Unknown request operation state value '{(int)state}'.")
-    };
+    public static string StateLabel(RequestOperationState state) =>
+        Presentation.OperatorLabels.RequestOperationState(state);
 
     private async Task ReleaseQuietlyAsync(
         Guid caseId,

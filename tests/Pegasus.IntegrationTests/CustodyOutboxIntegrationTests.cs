@@ -1592,7 +1592,7 @@ public sealed class CustodyOutboxIntegrationTests
             CancellationToken.None);
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        var evidenceId = await SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
         var outcome = await AcceptAsync(
             services,
             receipt.Id,
@@ -1661,7 +1661,7 @@ public sealed class CustodyOutboxIntegrationTests
             CancellationToken.None);
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        var evidenceId = await SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
         var outcome = await AcceptAsync(
             services,
             receipt.Id,
@@ -1708,34 +1708,6 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(
             documents > 0,
             $"Custody completed but registered {documents} case documents.");
-    }
-
-    /// <summary>
-    /// Acceptance requires the automatic literal record — a SystemWorker actor
-    /// with the exact subject "system-worker:automatic-standalone-audit" — and
-    /// a 64-character hexadecimal request hash, or it refuses the audit.
-    /// </summary>
-    private static async Task<Guid> SeedAutomaticAuditEvidenceAsync(
-        IServiceProvider services,
-        Guid receiptId)
-    {
-        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        // The original report is the attachment that actually arrived, with its
-        // real retained bytes — inventing an asset with an unresolvable storage
-        // key makes custody fail for a reason production never has.
-        var assetId = await context.Set<IntakeAssetEntity>()
-            .Where(asset => asset.IntakeReceiptId == receiptId && asset.Kind == "attachment")
-            .Select(asset => asset.Id)
-            .FirstAsync();
-        var evidenceId = Guid.NewGuid();
-        var evidenceSql =
-            "INSERT INTO StandaloneAuditEvidence (Id, IntakeReceiptId, OriginalReportAssetId, Assessment, ConfirmedByKind, ConfirmedBySubjectId, ConfirmedByRolesJson, ConfirmedAtUtc, OperationKey, Reason, RequestHash, ResultingReceiptVersion) "
-            + $"VALUES ('{evidenceId:D}', '{receiptId:D}', '{assetId:D}', 'repairable', 'SystemWorker', 'system-worker:automatic-standalone-audit', '[]', '2026-07-29T09:00:00+00:00', 'standalone-audit-{evidenceId:N}', 'Retained original report evidence', '{new string('b', 64)}', 0)";
-#pragma warning disable EF1003
-        await context.Database.ExecuteSqlRawAsync(evidenceSql);
-#pragma warning restore EF1003
-        return evidenceId;
     }
 
     /// <summary>

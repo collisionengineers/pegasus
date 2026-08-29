@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -28,7 +28,7 @@ internal sealed class EfExternalWorkStore(
         var now = timeProvider.GetUtcNow();
         return await context.ExternalWorkItems.AsNoTracking().AnyAsync(
             item => item.Id == workItemId
-                && item.State == "processing"
+                && item.State == ExternalWorkStatePersistence.Processing
                 && item.LeaseToken == leaseToken
                 && item.LeaseExpiresAtUtc > now,
             cancellationToken);
@@ -75,7 +75,7 @@ internal sealed class EfExternalWorkStore(
             item.State,
             item.FailureReason,
             item.AttemptCount,
-            string.Equals(item.State, "failed", StringComparison.Ordinal)))
+            string.Equals(item.State, ExternalWorkStatePersistence.Failed, StringComparison.Ordinal)))
             .ToArray();
     }
 
@@ -128,7 +128,7 @@ internal sealed class EfExternalWorkStore(
                 false, false, null, true, workflow.Version, false, null,
                 false, null, false, true));
         }
-        if (!string.Equals(work.State, "failed", StringComparison.Ordinal))
+        if (!string.Equals(work.State, ExternalWorkStatePersistence.Failed, StringComparison.Ordinal))
         {
             var winner = await context.CaseWorkflowEvents
                 .AsNoTracking()
@@ -176,7 +176,7 @@ internal sealed class EfExternalWorkStore(
         {
             work.AuditFolderCreationToken ??= CustodyCreationOwner.Create();
         }
-        work.State = "pending";
+        work.State = ExternalWorkStatePersistence.Pending;
         work.DueAtUtc = timeProvider.GetUtcNow();
         work.LeaseToken = null;
         work.LeaseExpiresAtUtc = null;
@@ -204,7 +204,7 @@ internal sealed class EfExternalWorkStore(
             ResultJson = JsonSerializer.Serialize(new
             {
                 target = request.TargetKind.ToString(),
-                state = "pending"
+                state = ExternalWorkStatePersistence.Pending
             })
         });
         context.CaseHistory.Add(new()
@@ -234,7 +234,11 @@ internal sealed class EfExternalWorkStore(
             CorrelationId = request.OperationKey,
             Reason = normalizedReason,
             BeforeJson = JsonSerializer.Serialize(new { workflowVersion = beforeVersion }),
-            AfterJson = JsonSerializer.Serialize(new { workflowVersion = workflow.Version, state = "pending" }),
+            AfterJson = JsonSerializer.Serialize(new
+            {
+                workflowVersion = workflow.Version,
+                state = ExternalWorkStatePersistence.Pending
+            }),
             PolicyVersion = "custody-recovery-v1"
         });
         try
@@ -330,7 +334,7 @@ internal sealed class EfExternalWorkStore(
                     && item.LeaseToken == selected.LeaseToken
                     && item.LeaseExpiresAtUtc == selected.LeaseExpiresAtUtc)
                 .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(item => item.State, "dispatching")
+                    .SetProperty(item => item.State, ExternalWorkStatePersistence.Dispatching)
                     .SetProperty(item => item.LeaseToken, leaseToken)
                     .SetProperty(item => item.LeaseExpiresAtUtc, leaseExpiresAtUtc)
                     .SetProperty(item => item.FailureCode, (string?)null)
@@ -360,10 +364,10 @@ internal sealed class EfExternalWorkStore(
         var leaseExpiresAtUtc = nowUtc.Add(leaseDuration);
         var claimed = await context.ExternalWorkItems
             .Where(item => item.Id == workItemId
-                && item.State == "pending"
+                && item.State == ExternalWorkStatePersistence.Pending
                 && item.DueAtUtc <= nowUtc)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.State, "dispatching")
+                .SetProperty(item => item.State, ExternalWorkStatePersistence.Dispatching)
                 .SetProperty(item => item.LeaseToken, leaseToken)
                 .SetProperty(item => item.LeaseExpiresAtUtc, leaseExpiresAtUtc)
                 .SetProperty(item => item.FailureCode, (string?)null)
@@ -382,10 +386,10 @@ internal sealed class EfExternalWorkStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var updated = await context.ExternalWorkItems
             .Where(item => item.Id == workItemId
-                && item.State == "dispatching"
+                && item.State == ExternalWorkStatePersistence.Dispatching
                 && item.LeaseToken == leaseToken)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.State, "queued")
+                .SetProperty(item => item.State, ExternalWorkStatePersistence.Queued)
                 .SetProperty(item => item.DueAtUtc, dispatchedAtUtc)
                 .SetProperty(item => item.LeaseToken, (string?)null)
                 .SetProperty(item => item.LeaseExpiresAtUtc, (DateTimeOffset?)null)
@@ -408,10 +412,10 @@ internal sealed class EfExternalWorkStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var updated = await context.ExternalWorkItems
             .Where(item => item.Id == workItemId
-                && item.State == "dispatching"
+                && item.State == ExternalWorkStatePersistence.Dispatching
                 && item.LeaseToken == leaseToken)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.State, "pending")
+                .SetProperty(item => item.State, ExternalWorkStatePersistence.Pending)
                 .SetProperty(item => item.DueAtUtc, dueAtUtc)
                 .SetProperty(item => item.LeaseToken, (string?)null)
                 .SetProperty(item => item.LeaseExpiresAtUtc, (DateTimeOffset?)null)
@@ -447,7 +451,7 @@ internal sealed class EfExternalWorkStore(
             .Include(item => item.ImageIntake)
             .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The external work item is unavailable.");
-        if (work.State is "completed" or "failed")
+        if (work.State is ExternalWorkStatePersistence.Completed or ExternalWorkStatePersistence.Failed)
         {
             return;
         }
@@ -562,6 +566,14 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     "Vehicle lookup exhausted the queue retry policy.");
                 break;
 
+            case ExternalWorkKinds.SubmitCaseToEva:
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "EVA submission exhausted the queue retry policy.");
+                break;
+
             default:
                 FailWork(
                     work,
@@ -602,12 +614,12 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
             .Include(item => item.ImageIntake)
             .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The external work item is unavailable.");
-        if (work.State is "completed" or "failed")
+        if (work.State is ExternalWorkStatePersistence.Completed or ExternalWorkStatePersistence.Failed)
         {
             return;
         }
         var now = timeProvider.GetUtcNow();
-        if (!string.Equals(work.State, "processing", StringComparison.Ordinal)
+        if (!string.Equals(work.State, ExternalWorkStatePersistence.Processing, StringComparison.Ordinal)
             || !string.Equals(work.LeaseToken, leaseToken, StringComparison.Ordinal)
             || work.LeaseExpiresAtUtc <= now)
         {
@@ -730,7 +742,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
             return false;
         }
 
-        work.State = "pending";
+        work.State = ExternalWorkStatePersistence.Pending;
         work.DueAtUtc = failedAtUtc.Add(delay);
         work.LeaseToken = null;
         work.LeaseExpiresAtUtc = null;
@@ -743,7 +755,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         ExternalWorkItemEntity work,
         DateTimeOffset completedAtUtc)
     {
-        work.State = "completed";
+        work.State = ExternalWorkStatePersistence.Completed;
         work.CompletedAtUtc ??= completedAtUtc;
         work.LeaseToken = null;
         work.LeaseExpiresAtUtc = null;
@@ -757,7 +769,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         string failureCode,
         string failureReason)
     {
-        work.State = "failed";
+        work.State = ExternalWorkStatePersistence.Failed;
         work.DueAtUtc = failedAtUtc;
         work.LeaseToken = null;
         work.LeaseExpiresAtUtc = null;
@@ -775,7 +787,8 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         {
             var batch = await context.ExternalWorkItems
                 .AsNoTracking()
-                .Where(item => item.State == "pending" || item.State == "dispatching")
+                .Where(item => item.State == ExternalWorkStatePersistence.Pending
+                    || item.State == ExternalWorkStatePersistence.Dispatching)
                 .OrderBy(item => item.Id)
                 .Skip(offset)
                 .Take(CandidateBatchSize)
@@ -788,7 +801,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 .ToListAsync(cancellationToken);
             foreach (var candidate in batch)
             {
-                var availableAtUtc = candidate.State == "pending"
+                var availableAtUtc = candidate.State == ExternalWorkStatePersistence.Pending
                     ? candidate.DueAtUtc
                     : candidate.LeaseExpiresAtUtc ?? DateTimeOffset.MinValue;
                 if (availableAtUtc <= nowUtc
@@ -807,10 +820,10 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
 
     private static int Compare(DispatchCandidate left, DispatchCandidate right)
     {
-        var leftAvailableAtUtc = left.State == "pending"
+        var leftAvailableAtUtc = left.State == ExternalWorkStatePersistence.Pending
             ? left.DueAtUtc
             : left.LeaseExpiresAtUtc ?? DateTimeOffset.MinValue;
-        var rightAvailableAtUtc = right.State == "pending"
+        var rightAvailableAtUtc = right.State == ExternalWorkStatePersistence.Pending
             ? right.DueAtUtc
             : right.LeaseExpiresAtUtc ?? DateTimeOffset.MinValue;
         var comparison = leftAvailableAtUtc.CompareTo(rightAvailableAtUtc);

@@ -5,6 +5,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Identity;
@@ -46,6 +47,17 @@ public static class OperatorLabels
         _ => Humanise(reason.ToString())
     };
 
+    /// <summary>
+    /// The reason label for an Unidentified reason code however the projection
+    /// carried it — the Work Centre's needs-attention rows hold Core enum
+    /// names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>.
+    /// </summary>
+    public static string UnidentifiedReason(string? reason) =>
+        Enum.TryParse<UnidentifiedReasonCode>(reason, ignoreCase: true, out var parsed)
+            ? UnidentifiedReason(parsed)
+            : Humanise(reason);
+
     public static string UnidentifiedState(UnidentifiedState state) => state switch
     {
         Pegasus.Core.Intake.Unidentified.UnidentifiedState.Open => "Unidentified",
@@ -69,10 +81,23 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The media-kind label for a persisted kind string, however the
+    /// projection carried it — the Work Centre's needs-attention rows hold
+    /// Core enum names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>; keeps the "E-mail" wording on the
+    /// one list rather than letting a bare <see cref="Humanise"/> spell it
+    /// "Email".
+    /// </summary>
+    public static string UnidentifiedMediaKind(string? kind) =>
+        Enum.TryParse<Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind>(kind, ignoreCase: true, out var parsed)
+            ? UnidentifiedMediaKind(parsed)
+            : Humanise(kind);
+
+    /// <summary>
     /// The operator-meaningful handle for a received e-mail: its subject and
     /// sender, or "(No subject)" when the subject could not be read. The one
-    /// formatting rule for both the Unidentified queue row
-    /// (<c>Triage.IndexModel.UnidentifiedHandle</c>) and its detail page
+    /// formatting rule for both the Cases queue's Unidentified rows
+    /// (<c>Cases.IndexModel</c>) and the Unidentified detail page
     /// (<c>Unidentified.DetailsModel.Handle</c>), which read the same
     /// subject/sender from two different shapes.
     /// </summary>
@@ -98,20 +123,139 @@ public static class OperatorLabels
             (false, { } matched) => $"This was automatically associated with case {matched}."
         };
 
+    /// <summary>
+    /// The case lifecycle stage as the operator reads it (EPIC-011 D3): a
+    /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
+    /// and <see cref="CaseLifecycleState.PostReport"/> both read "With
+    /// Engineer", <see cref="CaseLifecycleState.PostReportComplete"/> reads
+    /// "Complete", and every other terminal outcome reads "Closed · outcome".
+    /// The Core enum is untouched.
+    /// </summary>
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",
         CaseLifecycleState.Held => "Held",
         CaseLifecycleState.Review => "Review",
-        CaseLifecycleState.ReportPreparation => "Report preparation",
-        CaseLifecycleState.PostReport => "Post report",
-        CaseLifecycleState.PostReportComplete => "Post-report complete",
-        CaseLifecycleState.ProviderCancelled => "Provider cancelled",
-        CaseLifecycleState.CollisionEngineersRejected => "Collision Engineers rejected",
-        CaseLifecycleState.CreatedInError => "Created in error",
-        CaseLifecycleState.SourceEmailUnlinked => "Cancelled — email unlinked",
+        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
+        CaseLifecycleState.PostReportComplete => "Complete",
+        CaseLifecycleState.ProviderCancelled => "Closed · Provider cancelled",
+        CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
+        CaseLifecycleState.CreatedInError => "Closed · Created in error",
+        CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
         _ => Humanise(state.ToString())
     };
+
+    /// <summary>The Triage record's own lifecycle words (moved here from the Cases page by CASE-025).</summary>
+    public static string TriageState(Pegasus.Core.Triage.TriageState state) => state switch
+    {
+        Pegasus.Core.Triage.TriageState.Open => "Open",
+        Pegasus.Core.Triage.TriageState.AwaitingInformation => "Awaiting information",
+        Pegasus.Core.Triage.TriageState.FindingRecorded => "Finding recorded",
+        Pegasus.Core.Triage.TriageState.Completed => "Completed",
+        Pegasus.Core.Triage.TriageState.Cancelled => "Cancelled",
+        _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
+    };
+
+    /// <summary>
+    /// A Not ready case's outstanding requirement as the operator reads it:
+    /// the requirement and the action that resolves it. Both come from the
+    /// case's recorded completeness facts, never from a sentence written here.
+    /// </summary>
+    public sealed record CaseRequirement(string Requirement, string Resolve);
+
+    public static IReadOnlyList<CaseRequirement> CaseRequirements(bool instructionsMissing, bool imagesMissing)
+    {
+        var items = new List<CaseRequirement>(2);
+        if (instructionsMissing)
+        {
+            items.Add(new("Instructions", "Receive the instruction"));
+        }
+        if (imagesMissing)
+        {
+            items.Add(new("Images", "Receive the vehicle images"));
+        }
+        return items;
+    }
+
+    /// <summary>The primary navigation and the shell's section labels — one list.</summary>
+    public static class Nav
+    {
+        public const string Work = "Work";
+        public const string Manage = "Manage";
+        public const string WorkCentre = "Work Centre";
+        public const string Inbox = "Inbox";
+        public const string Upload = "Upload";
+        public const string Cases = "Cases";
+        public const string Search = "Search";
+        public const string Operations = "Operations";
+        public const string Administration = "Administration";
+    }
+
+    /// <summary>The administration areas (§1.12) — one list.</summary>
+    public static class Admin
+    {
+        public const string Accounts = "Staff accounts & roles";
+        public const string Principals = "Principals";
+        public const string Configuration = "Workflow configuration";
+        public const string Mail = "Mail settings";
+        public const string Automation = "Automation & AI";
+    }
+
+    /// <summary>The freshness words the shell and every page header share.</summary>
+    public static class Freshness
+    {
+        public const string Current = "Current";
+        public const string Never = "Never updated";
+
+        public static string Label(string? status) => status switch
+        {
+            "loading" => "Refreshing",
+            "stale" => "Stale",
+            "partial" => "Partial",
+            "unavailable" => "Unavailable",
+            "failed" => "Failed",
+            _ => Current
+        };
+    }
+
+    /// <summary>A staff role name as the operator reads it.</summary>
+    public static string StaffRole(string? roleName) => roleName switch
+    {
+        StaffRoleNames.Administrator => "Administrator",
+        StaffRoleNames.Engineer => "Engineer",
+        StaffRoleNames.User => "User",
+        _ => Humanise(roleName)
+    };
+
+    /// <summary>
+    /// The avatar initials for a display name: the first letter of the first
+    /// two words, or the first two letters of a single word.
+    /// </summary>
+    public static string Initials(string? name)
+    {
+        var words = (name ?? string.Empty)
+            .Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries);
+        var letters = words.Length switch
+        {
+            0 => "?",
+            1 => words[0].Length > 1 ? words[0][..2] : words[0],
+            _ => string.Concat(words[0][0], words[1][0])
+        };
+        return letters.ToUpperInvariant();
+    }
+
+    /// <summary>A policy duration in the operator's words ("2 hours").</summary>
+    public static string Duration(TimeSpan value)
+    {
+        if (value.TotalHours >= 1 && value.TotalHours == Math.Floor(value.TotalHours))
+        {
+            var hours = (int)value.TotalHours;
+            return hours == 1 ? "1 hour" : $"{hours} hours";
+        }
+
+        var minutes = (int)Math.Round(value.TotalMinutes);
+        return minutes == 1 ? "1 minute" : $"{minutes} minutes";
+    }
 
     /// <summary>The stage name for a persisted stage string, however stored.</summary>
     public static string CaseStage(string? state) =>
@@ -142,6 +286,56 @@ public static class OperatorLabels
         CaseDueWorkState.Held => "Chasing paused",
         CaseDueWorkState.Stopped => "Chasing stopped",
         _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The chase-state label for a persisted state string, however the
+    /// projection carried it — the Work Centre's needs-attention rows hold
+    /// Core enum names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>.
+    /// </summary>
+    public static string ChaseState(string? state) =>
+        Enum.TryParse<CaseDueWorkState>(state, ignoreCase: true, out var parsed)
+            ? ChaseState(parsed)
+            : Humanise(state);
+
+    /// <summary>
+    /// The Work Centre's work-item kinds (FRD-12 § Work Centre): the row's
+    /// "kind · reference" lead-in and the selected-work eyebrow both read
+    /// from this one list.
+    /// </summary>
+    public static string NeedsAttentionKind(NeedsAttentionKind kind) => kind switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionKind.Case => "Case",
+        Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held decision",
+        Pegasus.Core.Operations.NeedsAttentionKind.Mail => "Mail",
+        Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
+        Pegasus.Core.Operations.NeedsAttentionKind.ExternalWork => "External work",
+        _ => Humanise(kind.ToString())
+    };
+
+    /// <summary>
+    /// The Work Centre's work-item priority chip: declaration order is the
+    /// list order, and the tone is the chip treatment <c>_StatusChip</c>
+    /// renders for that word (red for failed-or-overdue, amber for
+    /// in-the-day, neutral for the rest).
+    /// </summary>
+    public static string NeedsAttentionPriority(NeedsAttentionPriority priority) => priority switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Overdue",
+        Pegasus.Core.Operations.NeedsAttentionPriority.High => "High",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Today",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Normal => "Normal",
+        _ => Humanise(priority.ToString())
+    };
+
+    /// <summary>The chip tone for a work-item priority word.</summary>
+    public static string NeedsAttentionPriorityTone(NeedsAttentionPriority priority) => priority switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue
+            or Pegasus.Core.Operations.NeedsAttentionPriority.High => "red",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "amber",
+        _ => "neutral"
     };
 
     /// <summary>
@@ -297,6 +491,89 @@ public static class OperatorLabels
         RequestUploadStatus.Revoked => "Withdrawn",
         RequestUploadStatus.Failed => "Failed",
         _ => Humanise(status.ToString())
+    };
+
+    /// <summary>
+    /// The state of one Operations-listed request operation, as the operator
+    /// reads it on the Operations workspace.
+    /// </summary>
+    /// <remarks>
+    /// The Operations projection covers both upload links and external work
+    /// under one state vocabulary; <see cref="UploadRequestState"/> stays the
+    /// map for the request surface itself.
+    /// </remarks>
+    public static string RequestOperationState(RequestOperationState state) => state switch
+    {
+        Pegasus.Core.Operations.RequestOperationState.Pending => "Pending",
+        Pegasus.Core.Operations.RequestOperationState.Active => "Active",
+        Pegasus.Core.Operations.RequestOperationState.Expired => "Expired",
+        Pegasus.Core.Operations.RequestOperationState.Exhausted => "Exhausted",
+        Pegasus.Core.Operations.RequestOperationState.Revoked => "Revoked",
+        Pegasus.Core.Operations.RequestOperationState.Failed => "Failed",
+        Pegasus.Core.Operations.RequestOperationState.Completed => "Completed",
+        Pegasus.Core.Operations.RequestOperationState.UnknownExternal => "Unknown external",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The Service health table's area grouping, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// The Core enum name for the queued receiving pipeline is internal
+    /// vocabulary; the office word for that work is "Receiving".
+    /// </remarks>
+    public static string ServiceHealthAreaName(ServiceHealthArea area) => area switch
+    {
+        ServiceHealthArea.Mail => "Mail",
+        ServiceHealthArea.Intake => "Receiving",
+        ServiceHealthArea.Custody => "Custody",
+        ServiceHealthArea.Eva => "EVA",
+        ServiceHealthArea.Ai => "AI",
+        ServiceHealthArea.Automation => "Automation",
+        _ => Humanise(area.ToString())
+    };
+
+    /// <summary>The Service health row's state, as the operator reads it.</summary>
+    public static string ServiceHealthStateName(ServiceHealthState state) => state switch
+    {
+        ServiceHealthState.Current => "Current",
+        ServiceHealthState.Partial => "Partial",
+        ServiceHealthState.Failed => "Failed",
+        ServiceHealthState.Running => "Running",
+        ServiceHealthState.Configured => "Configured",
+        ServiceHealthState.ReviewRequired => "Review required",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>The external thing a service's recorded evidence depends on.</summary>
+    public static string ServiceHealthDependencyName(ServiceHealthDependency dependency) => dependency switch
+    {
+        ServiceHealthDependency.MicrosoftGraph => "Microsoft Graph",
+        ServiceHealthDependency.Worker => "Worker",
+        ServiceHealthDependency.Box => "Box",
+        ServiceHealthDependency.EvaApi => "EVA API",
+        ServiceHealthDependency.AiConnector => "AI",
+        ServiceHealthDependency.AutomationClient => "Automation client",
+        _ => Humanise(dependency.ToString())
+    };
+
+    /// <summary>
+    /// One Service health row's service name, in the operator's language.
+    /// </summary>
+    /// <remarks>
+    /// Two Core service names contain words banned from operator-facing copy
+    /// ("Intake dispatch", "Automation ingress"); they are renamed here and
+    /// only here. Everything else — mailbox addresses, "Sent evidence",
+    /// "External work", "EVA submissions", "AI jobs" — is already the
+    /// operator's own word and passes through, as do external-work kind codes
+    /// via <see cref="Humanise"/>.
+    /// </remarks>
+    public static string ServiceHealthServiceName(string? service) => service switch
+    {
+        ServiceHealthPolicy.IntakeDispatchService => "Receiving dispatch",
+        ServiceHealthPolicy.AutomationService => "Automation clients",
+        null or "" => "Unknown",
+        _ => service.Contains('_') ? Humanise(service) : service
     };
 
     /// <summary>
@@ -677,6 +954,30 @@ public static class OperatorLabels
             ? $"{prefixed} · {HumanizeSlug(subtype)}"
             : prefixed;
     }
+
+    /// <summary>
+    /// The resolve dialog's destination words. The four contract wordings
+    /// (EPIC-011 §1.6) cover the kinds a staff resolution completes directly;
+    /// Triage and Blocked intake remain real Core destinations and keep their
+    /// settled names. The prototype's "Create Case from accepted instruction"
+    /// has no destination kind behind it — creating the case is the origin
+    /// receipt's action — so it is not a select option.
+    /// </summary>
+    public static string UnidentifiedResolutionTarget(
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind kind) => kind switch
+    {
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.InstructionCase =>
+            "Add to existing Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ImageIntake =>
+            "Register Image-initiated Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.Triage =>
+            "Link to Triage",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.BlockedIntake =>
+            "Blocked intake",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ExternalReference =>
+            "Close with reason",
+        _ => Humanise(kind.ToString())
+    };
 
     private static string HumanizeSlug(string slug)
     {

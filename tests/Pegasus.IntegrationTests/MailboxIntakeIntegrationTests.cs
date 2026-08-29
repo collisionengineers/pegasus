@@ -470,6 +470,7 @@ public sealed class MailboxIntakeIntegrationTests
                         "instructions@collisionengineers.co.uk",
                         inboxRoot));
                 });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
 
             Guid stagedReceiptId;
             await using (var scope = database.CreateAsyncScope())
@@ -566,6 +567,7 @@ public sealed class MailboxIntakeIntegrationTests
                         "instructions@collisionengineers.co.uk",
                         inboxRoot));
                 });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
 
             Guid stagedReceiptId;
             Guid[] childReceiptIds;
@@ -723,6 +725,7 @@ public sealed class MailboxIntakeIntegrationTests
                         TestMailboxContentLength));
                 });
 
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
             string poisonStorageKey;
             await using (var firstScope = database.CreateAsyncScope())
             {
@@ -740,7 +743,7 @@ public sealed class MailboxIntakeIntegrationTests
                            p.CursorAfterMessage, s.[Cursor]
                     FROM ApprovedInboxPoisonMessages AS p
                     INNER JOIN ApprovedInboxPollStates AS s
-                        ON s.MailboxId = p.MailboxId;
+                        ON s.ApprovedMailboxId = p.ApprovedMailboxId;
                     """;
                 await using var reader = await command.ExecuteReaderAsync();
                 Assert.True(await reader.ReadAsync());
@@ -841,9 +844,11 @@ public sealed class MailboxIntakeIntegrationTests
                 var source = provider.GetRequiredService<IApprovedInboxSource>();
                 var page = await source.ReadAsync(
                     new(
+                        TestMailboxId.From("instructions"),
                         "instructions",
                         "instructions@collisionengineers.co.uk",
                         DefaultInboxFolderIdentity,
+                        DateTimeOffset.MinValue,
                         null,
                         "boundary-lease"),
                     10,
@@ -889,9 +894,11 @@ public sealed class MailboxIntakeIntegrationTests
                 restartedProvider.GetRequiredService<IApprovedInboxSource>();
             var replay = await restartedSource.ReadAsync(
                 new(
+                    TestMailboxId.From("instructions"),
                     "instructions",
                     "instructions@collisionengineers.co.uk",
                     DefaultInboxFolderIdentity,
+                    DateTimeOffset.MinValue,
                     nextCursor,
                     "restarted-boundary-lease"),
                 10,
@@ -963,6 +970,7 @@ public sealed class MailboxIntakeIntegrationTests
                         workingRoot));
                     services.AddSingleton<IApprovedInboxSource>(inboxSource);
                 });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
             var actor = ActionActor.SystemWorker("approved-inbox-poller");
 
             await using (var initialScope = database.CreateAsyncScope())
@@ -1014,7 +1022,7 @@ public sealed class MailboxIntakeIntegrationTests
                            p.FailureCode, s.[Cursor]
                     FROM ApprovedInboxPoisonMessages AS p
                     INNER JOIN ApprovedInboxPollStates AS s
-                        ON s.MailboxId = p.MailboxId;
+                        ON s.ApprovedMailboxId = p.ApprovedMailboxId;
                     """;
                 await using var reader = await command.ExecuteReaderAsync();
                 Assert.True(await reader.ReadAsync());
@@ -1096,6 +1104,7 @@ public sealed class MailboxIntakeIntegrationTests
                         "instructions@collisionengineers.co.uk",
                         workingRoot));
                 });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
             var actor = ActionActor.SystemWorker("approved-inbox-poller");
             await using (var initialScope = database.CreateAsyncScope())
             {
@@ -1423,6 +1432,17 @@ public sealed class MailboxIntakeIntegrationTests
                 Content = new MimeContent(new MemoryStream(bytes))
             };
     }
+
+    private static Task ActivateMailboxAsync(
+        LocalDbTestDatabase database,
+        DateTimeOffset activatedAtUtc) =>
+        database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET MailboxIdentity = 'instructions', InboxFolderIdentity = '{DefaultInboxFolderIdentity}',
+                ActivatedAtUtc = '{activatedAtUtc:O}'
+            WHERE Id = '{TestMailboxId.From("instructions"):D}';
+            """);
 
     private static byte[] CreateInlineForwardedProtocolMessage()
     {

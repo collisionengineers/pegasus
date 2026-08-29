@@ -1,285 +1,236 @@
 ---
 name: pegasus-release
-description: Release Pegasus to production — promote dev to main, build immutable artifacts, provision, deploy Web and Worker, smoke, verify and refresh the current-state docs. Use whenever a release, promotion or deployment to the Azure estate is requested.
+description: Promote and release Pegasus through its authorised terminal route, or perform a promotion-only update without redeploying unchanged application code. Use for Pegasus production promotion, deployment, rollback, or release verification.
 ---
 
-# Releasing Pegasus
+# Release Pegasus
 
-The whole route, in order, with the traps that have actually bitten. `azd up` is
-**not** the release procedure and never has been.
+Use the repository scripts and the exact source SHA. `azd up` and `azd deploy
+worker` are not release procedures.
 
-The authorities this compresses are [`docs/runbook.md`](../../../docs/runbook.md)
-(§ Deployment and release, § Release artifacts and bootstrap, § Durable Worker
-activation and rollback) and
-[`docs/engineering.md`](../../../docs/engineering.md) (§ Branches and delivery).
-Where this file and those disagree, they win — but everything below has been
-executed against the live estate, which the general guidance has not.
+[`docs/runbook.md`](../../../docs/runbook.md) and
+[`docs/engineering.md`](../../../docs/engineering.md) are authoritative. Stop
+if they disagree with this skill.
 
-## The estate
+## Fixed production target
 
-| Thing | Exact name |
+| Target | Name |
 | --- | --- |
-| Resource group | `rg-pegasus-prod` |
 | Subscription | `e6076573-23a5-46a8-acef-7e22d264e5db` |
+| Tenant | `858cf5b3-aa0a-47a6-9b40-4851fd0afa94` |
+| Resource group | `rg-pegasus-prod` |
 | azd environment | `pegasus-prod` |
-| Web (Container App) | `pegasus-prod-web-252ow37gij` |
-| Worker (Function App, Flex Consumption) | `pegasus-prod-worker-252ow37gij` |
-| Registry | `pegasusprodacr252ow37gij` |
+| Web | `pegasus-prod-web-252ow37gij` |
+| Worker | `pegasus-prod-worker-252ow37gij` |
+| ACR | `pegasusprodacr252ow37gij` |
 | Key Vault | `pegasusprodkv252ow37g` |
-| SQL | `pegasus-prod-sql-252ow37gij` / database `pegasus` |
+| SQL | `pegasus-prod-sql-252ow37gij` / `pegasus` |
 | App Insights | `pegasus-prod-appi-252ow37gij` |
 
-Read-only Azure checks need no approval. **Every write needs explicit operator
-approval for the exact target**, and the `main` update additionally needs the
-words `MERGE AUTH GRANTED` immediately before the push.
+Read-only GitHub and Azure checks need no approval. A `dev` to `main` update
+needs fresh `MERGE AUTH GRANTED` immediately before the push. Every Azure or
+database write needs explicit approval naming the exact targets and operation.
+Artifact approval does not grant either permission.
 
----
+Use PowerShell 7 throughout. Set these once and pass the environment explicitly:
 
-## 1. Preflight
+```powershell
+$releaseEnvironment = 'pegasus-prod'
+$subscriptionId = 'e6076573-23a5-46a8-acef-7e22d264e5db'
+$resourceGroup = 'rg-pegasus-prod'
+$webApp = 'pegasus-prod-web-252ow37gij'
+$workerApp = 'pegasus-prod-worker-252ow37gij'
+$registry = 'pegasusprodacr252ow37gij'
+$version = '0.1.0-alpha.1'
+```
 
-```bash
-gh pr checks <pr>                      # every check green, no exceptions
+## 1. Choose the route
+
+Inspect `origin/main..origin/dev` before doing anything else.
+
+- **Promotion only:** no deployable application, infrastructure, migration,
+  dependency, or runtime-configuration change. Promote the exact SHA, update no
+  Azure resource, and stop. Documentation, tests and release-tooling changes
+  alone are not a new deployed release.
+- **Full release:** any deployable application, infrastructure, migration,
+  dependency, or runtime-configuration change. Follow every remaining section.
+- **Rollback or diagnosis:** read
+  [references/troubleshooting.md](references/troubleshooting.md) only when the
+  normal route fails or rollback is requested.
+
+## 2. Preflight the candidate
+
+Do not alter the caller's checkout. Fetch, record both remote heads, verify the
+fast-forward, and inspect every commit and merged PR in the candidate range.
+Every included task PR must have passed its required review and CI unless the
+operator has explicitly waived that exact check for that exact PR.
+
+```powershell
 git fetch origin --prune
-git rev-parse origin/main origin/dev
-git merge-base --is-ancestor origin/main origin/dev && echo "fast-forward valid"
-git log --oneline origin/main..origin/dev   # exactly what is about to ship
+$mainSha = (git rev-parse origin/main).Trim()
+$releaseSha = (git rev-parse origin/dev).Trim()
+git merge-base --is-ancestor $mainSha $releaseSha
+if ($LASTEXITCODE -ne 0) { throw 'origin/main is not an ancestor of origin/dev.' }
+git log --oneline --decorate "$mainSha..$releaseSha"
+git diff --stat "$mainSha..$releaseSha"
 ```
 
-Also check what is deployed *now*, so the release has a before:
+Read the deployed state before requesting approval:
 
-```bash
-az containerapp revision list -g rg-pegasus-prod -n pegasus-prod-web-252ow37gij \
-  --query "[?properties.active].{name:name,image:properties.template.containers[0].image}" -o tsv
-az functionapp config appsettings list -g rg-pegasus-prod \
-  -n pegasus-prod-worker-252ow37gij --query "[?contains(name,'Schedule')].{n:name,v:value}" -o tsv
+```powershell
+az account show --query '{subscription:id,tenant:tenantId}' --output json
+az containerapp revision list --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp `
+  --query "[?properties.active].{name:name,image:properties.template.containers[0].image}" --output json
+az functionapp config appsettings list --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $workerApp `
+  --query "[?contains(name,'Schedule') || starts_with(name,'AzureWebJobs.')].{name:name,value:value}" --output json
 ```
 
-> **Trap — the deployed revision is not `main`.** The active revision is built from
-> whichever commit was released, and `main` may carry later docs-only commits.
-> Confirm with `git merge-base --is-ancestor <sha> <deployed-sha>` before claiming
-> anything is live.
+For a promotion-only change, obtain fresh `MERGE AUTH GRANTED`, perform section
+3, verify both remote refs, and stop without building or writing Azure state.
 
-## 2. Promote `dev` to `main` — exact-SHA atomic fast-forward
+## 3. Promote the reviewed exact SHA
 
-**Requires `MERGE AUTH GRANTED` from the operator, immediately before the push.**
+Immediately after fresh `MERGE AUTH GRANTED`, use the already recorded SHA. Do
+not recalculate it after approval.
 
-```bash
-SHA=$(git rev-parse origin/dev)
-git push --atomic --force-with-lease=refs/heads/dev:$SHA \
-  origin $SHA:refs/heads/main $SHA:refs/heads/dev
+```powershell
+git push --atomic --force-with-lease="refs/heads/dev:$releaseSha" origin `
+  "${releaseSha}:refs/heads/main" "${releaseSha}:refs/heads/dev"
+if ($LASTEXITCODE -ne 0) { throw 'Atomic promotion failed.' }
 git fetch origin --prune
-git rev-parse origin/main origin/dev     # both MUST equal $SHA
+$promotedMain = (git rev-parse origin/main).Trim()
+$promotedDev = (git rev-parse origin/dev).Trim()
+if ($promotedMain -ne $releaseSha -or $promotedDev -ne $releaseSha) {
+  throw 'Remote read-back does not equal the approved release SHA.'
+}
 ```
 
-A GitHub merge/rebase/squash is **not** this and does not replace it. A failed
-preflight, a rejected transaction or an unequal read-back **stops the release** —
-never repair it with a rebase, reset or force push.
+The lease is an equality guard, not permission to rewrite history. Never retry a
+failure with rebase, reset, an unleased force push, or a different SHA.
 
-## 3. Build immutable artifacts
+## 4. Build in an isolated exact-SHA worktree
 
-From a clean tree at the exact promoted SHA:
+Create a disposable detached worktree outside the caller's checkout. The ignored
+azd environment is required in that worktree; copy only `.azure/pegasus-prod`
+from the existing repository checkout and verify it before use.
 
-```bash
-git checkout main && git merge --ff-only origin/main
-git status --porcelain      # must be empty, including untracked
-pwsh ./scripts/Build-ReleaseArtifacts.ps1 -Version '0.1.0-alpha.1' -SourceRevision "$SHA"
-```
-
-`$Version` must match `^\d+\.\d+\.\d+-alpha\.\d+$` — it is the product version, not
-the release number. Output lands in `artifacts/releases/<version>/`: `web.zip`,
-`worker.zip`, `web-image.tar.gz` (OCI layout), `efbundle.exe`, `release-manifest.json`.
-
-Read the manifest. `migrationIdentity` tells you whether this release carries a new
-migration; if it equals the last release's, there is nothing to apply and you should
-say so rather than running a bundle for form's sake.
-
-```bash
+```powershell
+$gitCommonDirectory = (git rev-parse --path-format=absolute --git-common-dir).Trim()
+$primaryRepository = Split-Path -Parent $gitCommonDirectory
+$releaseRoot = Join-Path (Split-Path -Parent $primaryRepository) "pegasus-worktrees/release-$($releaseSha.Substring(0,8))"
+$environmentSource = Join-Path $primaryRepository '.azure/pegasus-prod'
+if (-not (Test-Path -LiteralPath $environmentSource)) { throw 'The pegasus-prod azd environment is unavailable.' }
+git worktree add --detach $releaseRoot $releaseSha
+New-Item -ItemType Directory -Force -Path (Join-Path $releaseRoot '.azure') | Out-Null
+Copy-Item -Recurse -LiteralPath $environmentSource `
+  -Destination (Join-Path $releaseRoot '.azure/pegasus-prod')
+Set-Location $releaseRoot
+if ((git status --porcelain).Count -ne 0) { throw 'Release worktree is not clean.' }
+pwsh ./scripts/Build-ReleaseArtifacts.ps1 -Version $version -SourceRevision $releaseSha
+$manifestPath = "artifacts/releases/$version/release-manifest.json"
 pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
-pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Artifact \
-  -ManifestPath artifacts/releases/<version>/release-manifest.json
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Artifact -ManifestPath $manifestPath
+$manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
+$manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 10
 ```
 
-## 4. Push the Web image to ACR
+Record the manifest SHA-256, source SHA, image digest, migration identity and
+exact Azure operations. Obtain explicit approval for that manifest and those
+targets before the first Azure write.
 
-> **Trap — there is no Docker on the release workstation.** `az acr login` fails
-> with `DOCKER_COMMAND_ERROR`. The image is an OCI archive built by the .NET SDK,
-> and `oras` moves it.
+## 5. Validate and upload the approved image
 
-```pwsh
-$t = az acr login -n pegasusprodacr252ow37gij --expose-token -o json | ConvertFrom-Json
-$t.accessToken | oras login $t.loginServer -u '00000000-0000-0000-0000-000000000000' --password-stdin
-oras cp --from-oci-layout "artifacts/releases/<version>/web-image.tar.gz:$SHA" `
-        "pegasusprodacr252ow37gij.azurecr.io/pegasus/web:$SHA"
+```powershell
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreUpload `
+  -ManifestPath $manifestPath -ManifestSha256 $manifestSha256
+$token = az acr login --subscription $subscriptionId --name $registry --expose-token --output json | ConvertFrom-Json
+$token.accessToken | oras login $token.loginServer `
+  --username '00000000-0000-0000-0000-000000000000' --password-stdin
+oras cp --from-oci-layout "artifacts/releases/$version/web-image.tar.gz:$releaseSha" `
+  "$($token.loginServer)/pegasus/web:$releaseSha"
+$remoteImage = oras manifest fetch "$($token.loginServer)/pegasus/web:$releaseSha" `
+  --descriptor | ConvertFrom-Json
+if ($remoteImage.digest -ne $manifest.webImage.digest) {
+  throw 'Uploaded Web digest differs from the approved manifest.'
+}
 ```
 
-Check the digest `oras` reports equals `webImage.digest` in the manifest. If it does
-not, you are about to deploy something other than what you built.
+The uploaded digest must equal `webImage.digest` in the approved manifest.
 
-## 5. Point the azd environment at *this* release
+## 6. Apply a new migration before application packages
 
-> **Trap — the azd environment is stale and is not authoritative.** It has been
-> found carrying the *previous* release's image digest and revision suffix, and
-> once carried retired Key Vault names. Provision will then either redeploy the old
-> image or fail with
-> `Field 'template.revisionsuffix' is invalid ... revision with suffix <old> already exists`.
-> That collision is the *lucky* outcome; without it you silently redeploy the old build.
+Compare `migrationIdentity` with the deployed release recorded in
+`docs/operations.md`. If unchanged, do not run the migration or database
+bootstrap. If new, read and follow
+[references/database-migration.md](references/database-migration.md). Migration
+and runtime grants must finish before provisioning Web or deploying Worker.
 
-```pwsh
-azd env get-values | Select-String 'SECRET_URI|PEGASUS_WEB_|WORKER_ACTIVATION|AZURE_'
+## 7. Provision Web and infrastructure
+
+Read the azd environment and refuse stale or wrong targets. Every secret URI
+must name `pegasusprodkv252ow37g`; `AZURE_RESOURCE_GROUP` must be
+`rg-pegasus-prod`; `PEGASUS_WORKER_ACTIVATION` must be
+`approved-live-worker`.
+
+```powershell
+azd env get-values -e $releaseEnvironment --no-prompt
+$revisionSuffix = $releaseSha.Substring(0,12)
+azd env set PEGASUS_WEB_IMAGE_DIGEST $manifest.webImage.digest -e $releaseEnvironment
+azd env set PEGASUS_WEB_REVISION_SUFFIX $revisionSuffix -e $releaseEnvironment
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision `
+  -Environment $releaseEnvironment -ManifestPath $manifestPath `
+  -WorkerActivation approved-live-worker `
+  -ExpectedLiveWorkerActivation approved-live-worker
+azd provision -e $releaseEnvironment --no-prompt
 ```
 
-Confirm before provisioning:
+Provision deploys the digest-pinned Web image and any infrastructure or app
+setting changes. Read back the active revision and digest; do not trust the
+command's success message alone.
 
-- every `*_SECRET_URI` names **`pegasusprodkv252ow37g`**;
-- `PEGASUS_WORKER_ACTIVATION` is exactly `approved-live-worker` (any other value,
-  or omission, disables all nine functions);
-- `AZURE_RESOURCE_GROUP` is `rg-pegasus-prod`.
+## 8. Deploy Worker
 
-Then set this release's two provisioning inputs:
-
-```pwsh
-azd env set PEGASUS_WEB_IMAGE_DIGEST '<webImage.digest from the manifest>'
-azd env set PEGASUS_WEB_REVISION_SUFFIX '<first 12 chars of the source SHA>'
+```powershell
+az functionapp deployment source config-zip --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $workerApp `
+  --src "./artifacts/releases/$version/worker.zip"
 ```
 
-`WEB_IMAGE_REFERENCE` and `WEB_CONTAINER_APP_REVISION` are **outputs**, not inputs —
-setting them achieves nothing.
+Never use `azd deploy worker`; it invokes a remote Oryx build against the
+already-published package.
 
-```pwsh
-pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision -Environment pegasus-prod `
-  -ManifestPath artifacts/releases/<version>/release-manifest.json `
-  -WorkerActivation 'approved-live-worker' -ExpectedLiveWorkerActivation 'approved-live-worker'
-```
+## 9. Smoke the exact release
 
-Pre-provision validates the currently deployed Worker's activation without
-requiring its function names to match the incoming artifact. Post-deployment
-smoke remains the exact function census gate.
-
-## 6. Provision
-
-```pwsh
-azd provision --no-prompt
-```
-
-Needed whenever `infra/` changed — timer schedules, app settings, roles. A code-only
-release still benefits from it as a no-op consistency check.
-
-> Note: a provision that fails on the Web app may still have **succeeded** for the
-> Function App. Re-read the worker settings before assuming nothing changed.
-
-## 7. Deploy
-
-Web is deployed by the provision above (the container app takes the digest).
-
-**Worker — use config-zip and nothing else:**
-
-```bash
-az functionapp deployment source config-zip \
-  --resource-group rg-pegasus-prod --name pegasus-prod-worker-252ow37gij \
-  --src ./artifacts/releases/<version>/worker.zip
-```
-
-> **Trap — never `azd deploy worker --from-package`.** It triggers a remote Oryx
-> build that rejects the pre-published package and crash-loops the host until a good
-> package lands.
-
-`host.json` ships **inside** `worker.zip`, so any queue/host setting change needs
-this step even when `infra/` did not change.
-
-## 8. Migrations, only if there is one
-
-`efbundle.exe` builds the **Web** host, so run it from `src/Pegasus.Web` with the
-Production process environment: `ASPNETCORE_ENVIRONMENT=Production`,
-`Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
-`AzureIdentity__WebClientId`, both storage account names, the custody service URI,
-`Box__BaseUri`/`Box__UploadUri`/`Box__RootFolderId`, and **shape-valid placeholder**
-`Box__ConfigJson`/`Box__ClientSecret` — the config must parse as Box JWT JSON or host
-construction fails. Set `AZURE_TOKEN_CREDENTIALS=AzureCliCredential` so
-`Authentication=Active Directory Default` uses the release operator's sign-in. The
-bundle itself takes only `--connection`.
-
-## 9. Smoke
-
-```pwsh
+```powershell
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 `
   -BaseUri 'https://pegasus-prod-web-252ow37gij.ashymushroom-676209e5.uksouth.azurecontainerapps.io' `
-  -ExpectedSourceRevision "$SHA" -ExpectedVersion '0.1.0-alpha.1' `
-  -ResourceGroupName 'rg-pegasus-prod' `
-  -SubscriptionId 'e6076573-23a5-46a8-acef-7e22d264e5db' `
-  -ExpectedWorkerActivation 'approved-live-worker'
+  -ExpectedSourceRevision $releaseSha -ExpectedVersion $version `
+  -ResourceGroupName $resourceGroup -SubscriptionId $subscriptionId `
+  -ExpectedWorkerActivation approved-live-worker
+az containerapp show --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp `
+  --query '{mode:properties.configuration.activeRevisionsMode,traffic:properties.configuration.ingress.traffic}' --output json
 ```
 
-Health, exact version/SHA, anonymous denial, https redirect, and all nine worker
-activation settings. Then confirm the revision is actually serving:
+The scripts at the released SHA own the exact Worker function and schedule
+census. Do not duplicate a function count in the skill. The full smoke also
+reads the production database (read-only) and fails unless an intake mailbox
+is activated, an unexpired `Active` Graph subscription exists, and an inbound
+poll completed within 15 minutes. Smoke proves the right bytes, configuration,
+and intake liveness, not the changed user journey. Run only the focused live
+behavioural check required by the released change and record its result without
+overclaiming.
 
-```bash
-az containerapp show -g rg-pegasus-prod -n pegasus-prod-web-252ow37gij \
-  --query "{mode:properties.configuration.activeRevisionsMode,traffic:properties.configuration.ingress.traffic}" -o json
-```
+## 10. Record and retain evidence
 
-Two active revisions during transition is normal in Single mode; 100% traffic goes to
-the latest.
+Update `docs/current-architecture.md` and `docs/operations.md` with the observed
+SHA, manifest hash, digest, revision, migration and evidence. Deliver those
+changes through the normal reviewed PR to `dev`, then use a fresh authorised
+promotion-only pass to put the docs on `main`; do not redeploy unchanged
+application code.
 
-## 10. Verify behaviour, not just deployment
-
-Smoke proves the right bytes are running. It proves nothing about the change. For
-anything touching intake, ask the operator to send a real instruction and read the
-result from production SQL, Box and the app.
-
-Querying production SQL needs an Entra token — `sqlcmd -G` fails with
-`Failed to resolve the UPN for the current windows account`:
-
-```pwsh
-$tok = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
-Add-Type -AssemblyName System.Data
-$c = New-Object System.Data.SqlClient.SqlConnection
-$c.ConnectionString = "Server=tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433;Database=pegasus;Encrypt=True;"
-$c.AccessToken = $tok; $c.Open()
-```
-
-## 11. Refresh the current-state docs — the release is not finished without this
-
-In the **same task**, before it merges:
-
-- [`docs/current-architecture.md`](../../../docs/current-architecture.md) — the as-built shape;
-- [`docs/operations.md`](../../../docs/operations.md) — the release row (number, date,
-  source SHA, image digest, revision name, migrations) and what the release proved
-  beyond smoke.
-
-Copy `artifacts/releases/<version>/` somewhere outside the worktree before removing
-any worktree — the release evidence is not recoverable afterwards.
-
----
-
-## Traps, collected
-
-| Symptom | Cause | Do this |
-| --- | --- | --- |
-| `revision with suffix <old> already exists` | azd env holds the previous release's suffix | set `PEGASUS_WEB_REVISION_SUFFIX` and `PEGASUS_WEB_IMAGE_DIGEST` for *this* release |
-| Deploy "succeeds", old code runs | same drift, without a suffix collision | always verify the active revision's digest against the manifest |
-| `DOCKER_COMMAND_ERROR` on `az acr login` | no Docker on the workstation | `--expose-token` + `oras login` + `oras cp` |
-| Worker crash-loops after deploy | `azd deploy worker --from-package` ran Oryx | redeploy with `config-zip` |
-| All nine worker functions disabled | `PEGASUS_WORKER_ACTIVATION` not exactly `approved-live-worker` | fix the azd env, re-provision |
-| `efbundle` fails constructing the host | `Box__ConfigJson` not shape-valid JWT JSON | supply placeholder JSON of the right shape |
-| `azd provision` reports **SUCCESS** and changes nothing | `platform.bicep` gates the whole Web container app on `webActivation == 'approved' && startsWith(digest,'sha256:') && length(digest) == 71 && length(webRevisionSuffix) == 12`. A suffix that is not **exactly 12 characters** makes the `if` false, so the resource is skipped and azd still reports success | keep the suffix at 12 characters; **always read the deployed environment back** rather than trusting the exit code |
-| A container-app setting vanishes at the next release | `infra/modules/platform.bicep` declares the `env` array explicitly, so `az containerapp update --set-env-vars` is drift with a fuse on it | declare it in bicep and provision; never set container-app configuration by CLI |
-| `revision with suffix <x> already exists` when only configuration changed | the image is unchanged, so the canonical SHA-derived suffix is already taken by this release's first provision | use a distinct 12-character suffix (e.g. `<sha8>-eva`) and record it as the deployed revision |
-| `MSB3027` / `MSB3021` file locked during build | a running host holds the DLL | `dotnet build-server shutdown`, rebuild |
-| MSBuild child node exited prematurely on a long test run | node contention | `dotnet test --no-build` in chunks |
-| CI dies in `actions/checkout` at ~5 min | stale merge ref | close and reopen the PR; rerunning does not help |
-| Nothing in App Insights | the workspace runs a **0.1 GB daily quota resetting at 03:00Z** and the estate exhausts it in hours — not missing instrumentation | check `workspaceCapping.dataIngestionStatus` before concluding anything; a query run in a UK working hour returns empty even when both hosts are healthy |
-| A new migration grants a runtime role | `Test-AzureDeploymentPlan -Mode Local` fails: *"Database bootstrap must account for grant-carrying migration …"* | mirror the grant in `Invoke-AzureDatabaseBootstrap.ps1`'s expected matrix; the guard scans every post-baseline migration for `GRANT ` |
-| A new migration of any kind | `CommittedMigrationCreatesTheSqlServerSchema` fails on a collection compare | add the migration id to the pinned census in `IntakePersistenceIntegrationTests.cs` — it is deliberate, not incidental |
-| A production fault with no telemetry to diagnose it | App Insights is `OverQuota` (0.1 GB/day, resets 03:00Z) — PLAT-036 — so `exceptions` and `traces` are simply empty | read the **container console stream** instead; check `workspaceCapping.dataIngestionStatus` first so you know which you are dealing with |
-| `az containerapp logs show --follow \| grep` emits nothing | `az` block-buffers its stdout through a pipe, so a streaming filter never flushes | poll instead: re-run `--tail 300` on a loop, dedupe lines, and let each invocation exit and flush |
-| The console tail contains only SQL | health checks log EF commands at Information continuously, so `--tail 300` spans seconds | filter on your own log categories (`Pegasus.Web`, `Pegasus.Infrastructure`) rather than guessing at message keywords — the message may say "denied" where you grepped for "export" |
-| A feature works locally, fails only in production, with no exception you can classify | the runtime role lacks a grant; tests run full-privilege and never see it | read `sys.database_permissions` for `pegasus_worker_runtime_role` / `pegasus_web_runtime_role` before suspecting the code — this class has shipped three times |
-
-## Never
-
-- `azd up` as the release procedure.
-- Force-pushing or rewriting `dev` or `main`.
-- Deploying the Worker with `azd deploy worker`.
-- Claiming a capability is live because its code is on `main` — check it is an
-  ancestor of the **deployed** revision.
-- Recording a release in `operations.md` that smoke did not actually prove.
+Copy `artifacts/releases/$version` outside the disposable worktree before
+removing it. The release is unfinished until both current-state documents match
+what was actually deployed.
