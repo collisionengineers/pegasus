@@ -16,13 +16,15 @@ public sealed class ValuationTests
     private static readonly string Lease = new('l', CaseEditAuthority.LeaseTokenLength);
 
     [Fact]
-    public void SourceVocabularyIsClosedAndHasOneNamePerSource()
+    public void SourceVocabularyIsClosed()
     {
-        Assert.Equal(Enum.GetValues<ValuationSource>(), ValuationSources.All.Select(item => item.Source));
-        Assert.All(ValuationSources.All, item => Assert.False(string.IsNullOrWhiteSpace(item.Name)));
+        Assert.All(
+            Enum.GetValues<ValuationSource>(),
+            source => Assert.True(ValuationSources.IsSupported(source)));
+        Assert.False(ValuationSources.IsSupported((ValuationSource)99));
         Assert.Equal(
-            ValuationSources.All.Count,
-            ValuationSources.All.Select(item => item.Name).Distinct(StringComparer.Ordinal).Count());
+            [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue],
+            Enum.GetValues<ValuationSource>());
     }
 
     [Fact]
