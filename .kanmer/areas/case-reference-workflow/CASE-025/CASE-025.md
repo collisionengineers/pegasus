@@ -2,7 +2,7 @@
 id: CASE-025
 type: ticket
 title: Port the Cases queues page (/Cases) with workflow rail groups and filters
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: zcode
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-28T11:25:42.203Z'
   review: '2026-08-28T14:19:29.199Z'
   verifying: '2026-08-28T17:13:10.884Z'
+  done: '2026-08-29T10:30:22.568Z'
 taken_at: '2026-08-28T13:42:54.483Z'
 branch: task/case-025-cases-queues
 worktree: ../pegasus-worktrees/case-025-cases-queues
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-28T08:35:23.861Z'
-updated: '2026-08-28T17:13:10.884Z'
+updated: '2026-08-29T10:30:22.568Z'
 ---
 
 ## What

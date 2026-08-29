@@ -13,28 +13,33 @@ wave 2 lane I3, alongside PLAT-025 (Configuration) and PLAT-027
 (Accounts/Access/Roles). All three run in parallel this wave, each owning a
 disjoint file set under `Pages/Administration/**`.
 
-### What existed before this ticket (pre-port baseline, `origin/dev` at
-`b92cb9a7`)
+### Correction (2026-08-29)
 
-- `Pages/Administration/Mailboxes.cshtml` / `.cshtml.cs` — the Approved
-  mailboxes table: Mailbox, Scope, Last update (poll status), State
-  (`_StatusChip`), Activated, Subscription, Review folders/Refresh
-  (`<details>` disclosure with the edit form), plus an "Add mailbox"
-  disclosure and, in the same file, a second section for Mail categories
-  (Category, State, Review) with its own "Add category" disclosure.
-- `Pages/Administration/MailCategories.cshtml.cs` — already a bare
-  `RedirectToPagePermanent("/Administration/Mailboxes")`; `MailCategories.cshtml`
-  a placeholder page for the same redirect.
+An earlier draft of this section was written after this session's own file
+reads landed mid-way through the implementing agent's in-progress edit, and
+wrongly described the already-ported markup as the pre-existing baseline.
+Corrected against `git show origin/dev:<path>` (the true `b92cb9a7` baseline):
 
-So the two tables were **already co-located on one physical page**
-(`Mailboxes.cshtml`), with `MailCategories` already a redirect stub — the
-prior ticket (pre-EPIC-011, `0d2be937`/`4d00c3b7` lineage) had already done
-the functional consolidation. What was missing against the EPIC-011 contract
-was the **admin-layout shell**: the page rendered its own bespoke header
-instead of `<div class="admin-layout">` + `<partial name="Shared/_AdminNav" />`
-+ the `panel`/`panel-head` h2/description/meta convention that PLAT-029
-(wave 1) established and that `Pages/Operations/Index.cshtml` (PLAT-023,
-merged) already demonstrates for a multi-table admin/ops page.
+- `Mailboxes.cshtml` / `.cshtml.cs` were the **existing bespoke layout**: a
+  `back-link` to `/Administration/Index`, a `<partial name="Shared/_PageHeader" />`,
+  a raw `status-card` notice, no `admin-layout`/`_AdminNav` shell. It held
+  only the Approved mailboxes table (Mailbox, Scope, Last update, State,
+  Activated, Subscription, Review folders/Refresh) with its own per-mailbox
+  edit form, keyed by top-level bound properties (`MailboxId`,
+  `ExpectedVersion`, `OperationKey`, `Address`, …) — no `MailboxForm` wrapper.
+- `MailCategories.cshtml` / `.cshtml.cs` was a **separate, fully independent
+  page** (its own bespoke layout, its own `Save` handler, its own
+  `ListApprovedOutlookCategories`/`UpdateApprovedOutlookCategory` calls, its
+  own top-level bound properties `CategoryId`/`DisplayName`/`SelectedState`/
+  `ExpectedVersion`/`Reason`/`OperationKey`) — **not** a redirect stub. It was
+  reachable at its own route and rendered its own "Current categories" /
+  "Add an approved category" sections.
+
+So this ticket's actual job was two things at once: (1) re-skin onto the
+`admin-layout` shell, and (2) physically **fold the two pages into one**
+(Mailboxes hosts both tables; `MailCategories` becomes a permanent redirect
+to `/Administration/Mailboxes`) — not just a shell re-skin of an
+already-combined page.
 
 ### Load-bearing state that must not regress (MAIL-017/018/020/021)
 
@@ -46,25 +51,27 @@ merged) already demonstrates for a multi-table admin/ops page.
   (`LifecycleState`, `ExpiresAtUtc`, `LastMaintenanceFailureCode`,
   App-Insights-capped maintenance) — real Graph subscription health, not
   decoration.
-- Both columns must survive the re-skin with their existing data sources
-  unchanged; only presentation/labels move.
+- Both columns must survive the re-skin/merge with their existing data
+  sources unchanged; only presentation/labels/binding-property-prefix moved.
+  Verified in the merged diff: both columns and their backing calls are
+  present unchanged in `Mailboxes.cshtml.cs`.
 
 ### Design authority
 
 `docs/design/README.md` §"No explanatory copy and page economy" (line 638)
 binds: labels/values/controls only, no hint text, no how-it-works prose, no
 empty-state paragraphs beyond a single "No approved mailboxes" /
-"No mail categories" row. The pre-existing page already followed this; the
-port preserves it.
+"No mail categories" row.
 
-### Consolidation decision (recorded, not newly made)
+### Consolidation decision (recorded)
 
 The contract folds Mailboxes + MailCategories into one "Mail settings" area.
-Deletion of the superseded `/Administration/MailCategories` route belongs to
-UIIMP-009 (wave 5), per the epic's greenfield-but-staged-deletion rule. This
-ticket keeps the existing `MailCategories` redirect-stub route intact (it
-already forwards to Mailboxes) and reports it as the surface for UIIMP-009's
-deletion list — no new seam was needed since the redirect already existed.
+Deletion of the superseded `/Administration/MailCategories` route (now a
+`RedirectToPagePermanent`) and the still-standing separate card on
+`Administration/Index.cshtml` belong to **UIIMP-009** (wave 5), per the
+epic's greenfield-but-staged-deletion rule. This ticket leaves the redirect
+stub as the smallest honest seam and reports both surfaces for UIIMP-009's
+deletion list.
 
 ### Reuse
 
@@ -73,6 +80,7 @@ deletion list — no new seam was needed since the redirect already existed.
 - `Pages/Operations/Index.cshtml` house style — multi-table panel-per-area
   pattern followed for the Mail settings panel head (h2 + description + meta
   line).
+- `MailLogicalFolders.All` — reused for the folder-bindings disclosure.
 - `OperatorLabels` — a new nested `MailSettings` static class appended at the
   end of the file (existing members untouched, per the shared-file rule for
   `OperatorLabels.cs`).
