@@ -106,17 +106,19 @@ public static class ProviderApiEndpoints
             return Problem(StatusCodes.Status415UnsupportedMediaType, "The submission must be application/json.");
         }
 
-        // The body is retained exactly as it arrived, so the case's origin is
-        // the provider's own instruction rather than a rendering of it. It is
-        // read once, bounded, and both parsed and retained from the same bytes.
-        var body = await ReadBodyAsync(request, cancellationToken);
-        if (body is null)
-        {
-            return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
-        }
-
         try
         {
+            ProviderSubmissionPolicy.RequireMaySubmit(credential);
+
+            // The body is retained exactly as it arrived, so the case's origin is
+            // the provider's own instruction rather than a rendering of it. It is
+            // read once, bounded, and both parsed and retained from the same bytes.
+            var body = await ReadBodyAsync(request, cancellationToken);
+            if (body is null)
+            {
+                return Problem(StatusCodes.Status413PayloadTooLarge, "The submission exceeds the envelope limit.");
+            }
+
             var (instruction, files) = ProviderInstructionJson.Parse(body);
             var receipt = await submit.ExecuteAsync(
                 new(
