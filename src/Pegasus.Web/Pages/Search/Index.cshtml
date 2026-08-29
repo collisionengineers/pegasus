@@ -21,9 +21,12 @@
     </div>
     <div class="page-actions">
         <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
-        @* A case is made from received material, so /Cases/Create answers only
-           for a receipt and returns 404 without one. The header action starts
-           where that receipt comes from. *@
+        @* A case is made from received material, so /Cases/Create is
+           receipt-bound (Create.cshtml.cs returns NotFound without one) and
+           every working call site reaches it with a receipt. This page holds
+           no receipt, so the contracted action starts where the receipt comes
+           from. The Add dialog and Ctrl N still point at the receipt-less
+           404; settling all of them is PLAT-059, whose files are PLAT-029's. *@
         <a class="btn btn--primary" asp-page="/Upload">
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
             <span>Create Case</span>
@@ -158,11 +161,11 @@ else if (listingImages)
             <div class="pane-body pane-scroll" data-row-list>
                 @if (ViewData.ModelState.IsValid && Model.Rows.Count == 0 && Model.ImageIntakeResults.Count == 0)
                 {
-                    @* Both settled sentences are kept: each is separately
-                       relied on to tell an empty result from the unavailable
-                       state above — and neither runs when invalid input kept
-                       the query from executing at all. *@
-                    <p class="empty" aria-live="polite">No matching cases. No cases match these filters.</p>
+                    @* One sentence, in the wording the page's own
+                       "No vehicle images match these filters." line uses.
+                       It does not run when invalid input kept the query
+                       from executing at all. *@
+                    <p class="empty" aria-live="polite">No cases match these filters.</p>
                 }
                 else if (Model.Rows.Count > 0)
                 {
