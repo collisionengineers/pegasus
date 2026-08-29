@@ -108,3 +108,66 @@ to the `[data-dropzone]` block.
   group-wide outcome", while the shipped page has collapsed them into a single
   submission-level decision card since INTK-011. Pre-existing, untouched here,
   and a documentation-versus-behaviour question for an owner to settle.
+
+## Browser gate — run by the orchestrator, 2026-08-29
+
+This lane correctly reported that it had edited two `Category=Browser` test
+classes it was **barred from executing**, and named that as "the single claim
+here not backed by an observed exit code". That disclosure was the right call and
+it is what made the following possible.
+
+The cross-model reviewer then found what the gap concealed: `Upload.cshtml:38`
+places `[data-dropzone-file]` **outside** `[data-dropzone]` — §1.10 draws the
+file list under the dashed area, not inside it — while both browser helpers still
+did `zone.querySelector('[data-dropzone-file]')`. That now returns `null`, and
+the next line dereferences `readout.hidden`. **All four tests in
+`UploadDropzoneBrowserTests` would have thrown before reaching an assertion.**
+
+The production code was already correct. `site.js:181-183`:
+
+```js
+var form = zone.closest('form');
+var readout = zone.querySelector('[data-dropzone-file]')
+    || (form && form.querySelector('[data-dropzone-file]'));
+```
+
+Both helpers (`UploadDropzoneBrowserTests.cs:46` and `:191`) now mirror that
+lookup, with a comment naming §1.10. **No assertion changed** — only the element
+lookup that feeds them.
+
+### The gate, executed
+
+```
+dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false
+  -> Build succeeded
+
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+  --configuration Release --no-build
+  --filter "FullyQualifiedName~UploadDropzoneBrowserTests|FullyQualifiedName~UploadRowsBrowserTests"
+  -- xUnit.MaxParallelThreads=2
+  -> Failed: 0, Passed: 6, Skipped: 0, Total: 6   (57 s)   exit 0
+```
+
+Commit `904da134`.
+
+### Why this is worth recording
+
+Neither half of the process would have caught it alone. The lane could not run
+the category. The reviewer did not run it either — it read the markup against the
+selector and reasoned to the null. The orchestrator then ran the gate that
+confirms both. **Honest disclosure of an unverified claim is what made the defect
+findable**; had the lane quietly asserted the tests passed, this would have
+reached `dev` and failed CI on someone else's PR.
+
+### One report correction
+
+The lane's summary implied both browser classes gained assertions. They did not:
+the five new progress assertions are all in
+`UploadRowsBrowserTests.cs:62-64,117-118`. `UploadDropzoneBrowserTests` only
+retargeted selectors, then and now.
+
+### Still outstanding
+
+CI on PR #627 against current `dev`, and the merge itself. Test UI snapshots
+remain deliberately un-regenerated — the orchestrator regenerates the corpus once
+per merge on the merging branch, per `decisions-2026-08-29.md`.
