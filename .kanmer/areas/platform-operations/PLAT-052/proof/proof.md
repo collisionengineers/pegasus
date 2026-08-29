@@ -94,3 +94,19 @@ CI on the branch head `1ac0fac6` (run 33254423411): **success**, all four
 - **PLAT-050 may supersede the page entirely** by folding it into the
   Principal settings dialog. This proof asserts the route is correct today,
   not that the page survives.
+
+## Run record — focused tests at `450b9234`
+
+```
+dotnet test ./Pegasus.slnx --configuration Release --no-build -nodeReuse:false
+  --filter "FullyQualifiedName~OrganizationAdministrationWebTests"
+
+Passed!  - Failed: 0, Passed: 2, Skipped: 0, Total: 2, Duration: 44 s
+         - Pegasus.IntegrationTests.dll (net10.0)
+exit 0
+```
+
+This is the test file the ticket required to be updated in the same diff as the
+route change; it exercises the page over HTTP at the corrected single-segment
+URL. No `SqlException` transport-level error and no build file lock occurred,
+so the result is a clean PASS rather than INCONCLUSIVE.

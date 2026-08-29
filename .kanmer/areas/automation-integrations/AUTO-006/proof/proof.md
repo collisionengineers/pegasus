@@ -108,3 +108,17 @@ CI on the branch head `7e5cf00c` (run 33254724609): **success**, with all four
 - **`AutomationAdministrationWebTests` is a test, not a caller.** It is cited
   as regression cover for the handlers, not as the production caller; the
   production callers are the routes and forms in the table above.
+
+## Run record — focused tests at `450b9234`
+
+```
+dotnet test ./Pegasus.slnx --configuration Release --no-build -nodeReuse:false
+  --filter "FullyQualifiedName~AutomationAdministrationWebTests"
+
+Passed!  - Failed: 0, Passed: 9, Skipped: 0, Total: 9, Duration: 1 m 34 s
+         - Pegasus.IntegrationTests.dll (net10.0)
+exit 0
+```
+
+No `SqlException` transport-level error and no `MSB3027`/`MSB3021` file lock
+occurred in this run, so the result is a clean PASS rather than INCONCLUSIVE.
