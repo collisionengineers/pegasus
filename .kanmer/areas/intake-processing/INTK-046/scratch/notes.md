@@ -39,3 +39,35 @@ the contract, not the code, is the stale side.
 
 Branch diff vs `origin/dev`: 5 files, all in lane. `tests/` byte-identical to
 `origin/dev`. Working tree clean.
+
+## 2026-08-29 — Audited under the strict rule 14 (D20/D21) and KEPT in Done
+
+An independent GPT-5.6 audit flagged this ticket, and the adjudication rejected the
+flag: `CLEAR_KEEP`.
+
+Reason: the audit measured INTK-046 against the whole of `context.md` §1.6 rather
+than the ticket's own text — the over-application D20's scope clause forbids. Both
+reversal grounds ("case picker" and the "Create Case from accepted instruction"
+destination) appear only at `context.md:50`, the contract line, and nowhere in this
+ticket's What / Owns / Verification. Owns is a file list, not a capability list.
+
+Everything the ticket does name is wired at `b92cb9a7`:
+`Pages/Unidentified/Details.cshtml:1` declares `@page "/Unidentified/{id:guid}"`;
+retained-source panel at `:51`, History at `:95`, resolve dialog at `:118` posting
+`asp-page-handler="Resolve"` to `Details.cshtml.cs:93 OnPostResolveAsync`, and the
+destination select at `:141-148` rendering all five
+`UnidentifiedResolutionTargetKind` values. Triage `/Triage/{id:guid}` dispatches
+thirteen action names through `Details.cshtml.cs:97 OnPostActionAsync`.
+
+No D21 failure either: `grep "Features:"` across `Pages/Triage/`,
+`Pages/Unidentified/`, `Pages/ImageIntake/` and `Pages/Intake/` returns no match. The
+single disabled control on any owned page is Triage `Complete` at
+`Details.cshtml:204-206`, `disabled="@(canComplete ? null : "disabled")"` where
+`canComplete = record.State == TriageState.FindingRecorded`, with its condition named
+on the control — D21's legitimate "conditionally disabled with a named condition"
+row, and named by hand in D21's own "What this touches" section.
+
+Note for the record: [[CASE-025]]'s `research.md:126` named INTK-046 as the supplier
+of the Triage/image queue-row projections. That was wrong — this ticket's Owns covers
+only the detail pages, not any Core queue projection — and that gap is now owned by
+[[CASE-032]]. It is not a finding against INTK-046.
