@@ -89,3 +89,61 @@ Per AGENTS.md rule 22 and EPIC-011 D19's preference order:
 ## Simplification pass
 
 Recorded under a dated heading once the diff exists (post-implementation).
+
+## Disposition record — 2026-08-29
+
+- **Backend gap (Instruction completeness / Due work chase interval):**
+  deferred to [[PLAT-062]] ("Add administrator-configurable instruction/image
+  completeness and chase-interval settings"), linked both ways. This is the
+  D19 last-resort case — the work needs a new Core port + migration (out of
+  scope for this lane) and an operator decision the two-line contract
+  sentence does not supply.
+- **`_AdminNav.cshtml` omits Service health/Action Logs/Reports** (flagged by
+  the driven agent as an out-of-scope observation): **rejected as a finding**
+  — `_AdminNav.cshtml`'s own doc comment already states those three join
+  "when their pages land (wave 4), never as dead links". This is documented,
+  intentional wave-4 gating, not a defect. No ticket filed.
+
+## Simplification pass — 2026-08-29
+
+Ran over the branch's own diff (`git diff origin/dev...HEAD`), three files:
+`Configuration.cshtml`, `OperatorLabels.cs` (append), `WorkflowConfigurationWebTests.cs`
+(new).
+
+- Reuse: confirmed every class used (`admin-layout`, `panel`, `panel-head`,
+  `panel-body`, `stack`, `cluster`, `field`, `req`, `field-error`,
+  `validation-summary`, `notice`/`notice--success`, `btn`/`btn--primary`,
+  `panel-title-meta`) and both icons (`icon-check`, `icon-save`) already exist
+  in `site.css` / `_LucideSprite.cshtml` — nothing invented, `site.css` not
+  touched.
+- Reuse: the non-administrator-denial test pattern
+  (`useIntegrationTestAuthentication: true` + `X-Test-Roles` header) matches
+  the existing convention used across the suite (e.g.
+  `ApprovedOutlookCategoryAdministrationWebTests.cs`), not a new pattern.
+- No dead code, no new abstraction, no speculative test found. The removed
+  read-only `<dl>` "Current configuration" block was a redundant duplicate of
+  the same two values the edit form's checkbox state already shows — dropping
+  it is page-economy, not a functionality loss (`PolicyKey`/`PolicyVersion`
+  are not in the design contract's drawn surface; `PolicyVersion` survives in
+  the new meta line).
+- No findings requiring a fix beyond what the driven agent already applied
+  (the CA1875 build fix during its own build/test loop).
+
+## Verification — run 2026-08-29 (orchestrator, independent of the driven agent)
+
+- `dotnet build ./Pegasus.slnx --configuration Release` — exit 0, 0
+  warnings, 0 errors (after clearing one stale MSBuild node file-lock in this
+  worktree; unrelated to the change).
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~WorkflowConfigurationWebTests"` — exit 0, 3 passed, 0
+  failed, 0 skipped.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~AdministrationSearchAccountWebTests"` (pre-existing
+  regression check, this page's route is asserted there) — exit 0, 6 passed,
+  0 failed, 0 skipped.
+- `git diff origin/dev...HEAD -- tests/` reviewed line by line: the test file
+  is new, no existing assertion was weakened, deleted, or inverted.
+- `git diff --stat origin/dev...HEAD`: exactly the three files this ticket
+  owns — `Configuration.cshtml`, `OperatorLabels.cs` (append-only, no
+  reordering), `WorkflowConfigurationWebTests.cs` (new). Nothing outside the
+  owned-files list.
