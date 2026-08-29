@@ -37,8 +37,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
         var fixture = AudatexEstimateFixture.Build();
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
-        Assert.Contains("Import an estimate", html, StringComparison.Ordinal);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains("Import estimate", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
         using var response = await client.PostAsync(
@@ -46,7 +46,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             ImportForm(AntiforgeryValue(html), caseId, operationKey, fixture));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Contains("section=estimate", response.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        Assert.DoesNotContain("section=", response.Headers.Location?.OriginalString, StringComparison.Ordinal);
 
         var document = Assert.Single(store.AddedDocuments);
         Assert.Equal("estimate.pdf", document.FileName);
@@ -78,7 +78,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(6, draft.Lines!.Count);
         Assert.Equal(620.20m, draft.Lines.Single(line => line.Description == "FRONT BUMPER" && line.Type == "new_part").Price);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("imported as a draft with 6 lines", afterHtml, StringComparison.Ordinal);
         Assert.Contains("The original document is kept on the case.", afterHtml, StringComparison.Ordinal);
     }
@@ -96,7 +96,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
             ImportForm(
@@ -111,7 +111,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.StartedDrafts);
         Assert.Empty(store.LeaseClaims);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Enter edit mode", afterHtml, StringComparison.Ordinal);
     }
 
@@ -128,7 +128,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Edit assessment", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
@@ -137,8 +137,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
                 ("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", NewOperationKey()),
-                ("section", "estimate")));
+                ("operationKey", NewOperationKey())));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var claim = Assert.Single(store.LeaseClaims);
@@ -157,7 +156,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         // The document's own parts sub-total disagrees with its lines.
         var fixture = AudatexEstimateFixture.Build(partsSubTotal: "£999.99");
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
             ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture));
@@ -167,7 +166,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.StartedDrafts);
         Assert.Empty(store.LeaseClaims);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("do not add up to the document", afterHtml, StringComparison.Ordinal);
         Assert.Contains("nothing was imported", afterHtml, StringComparison.Ordinal);
     }
@@ -182,7 +181,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         // The default test identity is an Administrator, not an Engineer.
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
             ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
@@ -191,7 +190,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.AddedDocuments);
         Assert.Empty(store.StartedDrafts);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Only an Engineer can import an estimate.", afterHtml, StringComparison.Ordinal);
     }
 
@@ -204,9 +203,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Awaiting an Engineer", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Import an estimate", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"import-estimate-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("A draft estimate is awaiting acceptance", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
@@ -227,7 +227,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Accept this specification", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
@@ -265,7 +265,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(RecordingStores.HeldLeaseToken, acceptance.EditLeaseToken);
         Assert.Empty(store.LeaseClaims);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("The repair specification was accepted.", afterHtml, StringComparison.Ordinal);
     }
 

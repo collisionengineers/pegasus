@@ -531,7 +531,12 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         var builder = new SqlConnectionStringBuilder
         {
             InitialCatalog = databaseName,
-            ConnectTimeout = 15,
+            // Four parallel collections (xunit.runner.json) drive DDL against
+            // one LocalDB instance, so an ordinary open queues behind it: CI
+            // measured 13999-14014 ms against the previous 15s budget. 60s
+            // clears that and still fails a wedged instance inside the
+            // 20-minute job timeout (DELIV-031).
+            ConnectTimeout = 60,
             MultipleActiveResultSets = true
         };
 
@@ -763,7 +768,27 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 $"DROP DATABASE [{DatabaseName}]; END";
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
             drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
-            await drop.ExecuteNonQueryAsync();
+
+            // CI hit 5061 here -- "a lock could not be placed ... Try again
+            // later" -- with a parallel collection holding the instance.
+            // Retry is the documented remedy; 10s of backoff, then the fifth
+            // attempt rethrows (DELIV-031).
+            const int lockNotPlacedErrorNumber = 5061;
+            const int maximumAttempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await drop.ExecuteNonQueryAsync();
+                    break;
+                }
+                catch (SqlException exception)
+                    when (exception.Number == lockNotPlacedErrorNumber
+                        && attempt < maximumAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(attempt));
+                }
+            }
         }
 
         await using var verify = connection.CreateCommand();

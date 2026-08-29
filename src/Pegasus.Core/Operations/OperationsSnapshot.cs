@@ -1,7 +1,11 @@
+using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Operations;
 
@@ -49,7 +53,8 @@ public sealed record OperationsSnapshot(
     IReadOnlyList<CaseDueWork> DueWork,
     CaseStageCounts CaseStages,
     CaseActivityCounts CaseActivity,
-    MailActivityCounts MailActivity);
+    MailActivityCounts MailActivity,
+    IReadOnlyList<NeedsAttentionItem> NeedsAttention);
 
 public interface IGetOperationsSnapshot
 {
@@ -63,9 +68,18 @@ public sealed class GetOperationsSnapshot(
     IListTriage listTriage,
     ICaseDueWorkQueries dueWorkQueries,
     IDashboardQueries dashboardQueries,
+    ISearchCases searchCases,
+    IUnidentifiedStore unidentifiedStore,
+    GetRequestOperations requestOperations,
+    IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider) : IGetOperationsSnapshot
 {
-    private const int MaximumDueWork = 20;
+    /// <summary>
+    /// The needs-attention list's bound, and the bound each of its source
+    /// queries is read to. Fifty rows is more than an operator works through
+    /// in one sitting; the Cases tabs carry the rest.
+    /// </summary>
+    public const int MaximumNeedsAttention = 50;
 
     private readonly IIntakeReceiptQueries intakeQueries =
         intakeQueries ?? throw new ArgumentNullException(nameof(intakeQueries));
@@ -75,6 +89,14 @@ public sealed class GetOperationsSnapshot(
         dueWorkQueries ?? throw new ArgumentNullException(nameof(dueWorkQueries));
     private readonly IDashboardQueries dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
+    private readonly ISearchCases searchCases =
+        searchCases ?? throw new ArgumentNullException(nameof(searchCases));
+    private readonly IUnidentifiedStore unidentifiedStore =
+        unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
+    private readonly GetRequestOperations requestOperations =
+        requestOperations ?? throw new ArgumentNullException(nameof(requestOperations));
+    private readonly IStaffAccountQueries staffAccounts =
+        staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -90,12 +112,20 @@ public sealed class GetOperationsSnapshot(
             LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
 
         var intake = await intakeQueries.GetCountsAsync(cancellationToken);
-        var triage = await listTriage.ExecuteAsync(
-            new(actor, State: null, Page: 1, PageSize: 1),
+        // The Triage kind is work without a finding, so both no-finding states
+        // are queried directly. One unfiltered page would not do: the list is
+        // newest-first across every state, so fifty settled records would
+        // silently bury an open one off page one.
+        var openTriagePage = await listTriage.ExecuteAsync(
+            new(actor, TriageState.Open, Page: 1, PageSize: MaximumNeedsAttention),
             cancellationToken);
+        var awaitingTriagePage = await listTriage.ExecuteAsync(
+            new(actor, TriageState.AwaitingInformation, Page: 1, PageSize: MaximumNeedsAttention),
+            cancellationToken);
+        var triageWithoutFinding = openTriagePage.Items.Concat(awaitingTriagePage.Items).ToArray();
         var dueWork = await dueWorkQueries.GetDueAsync(
             asOfUtc,
-            MaximumDueWork,
+            MaximumNeedsAttention,
             cancellationToken);
         var caseStages = await dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         var caseActivity = await dashboardQueries.GetCaseActivityCountsAsync(
@@ -106,13 +136,174 @@ public sealed class GetOperationsSnapshot(
             dayStartUtc,
             cancellationToken);
 
+        var held = await searchCases.ExecuteAsync(
+            new(actor, new(State: CaseLifecycleState.Held), Page: 1, PageSize: MaximumNeedsAttention),
+            cancellationToken);
+        var unidentified = await unidentifiedStore.ListQueueAsync(null, cancellationToken);
+        var requests = await requestOperations.ExecuteAsync(actor, cancellationToken);
+        var needsAttention = await ComposeNeedsAttentionAsync(
+            asOfUtc,
+            dayStartUtc,
+            dueWork,
+            held.Items,
+            unidentified,
+            triageWithoutFinding,
+            requests.Items,
+            cancellationToken);
+
         return new(
             asOfUtc,
             intake,
-            triage.TotalCount,
+            openTriagePage.TotalCount + awaitingTriagePage.TotalCount,
             dueWork,
             caseStages,
             caseActivity,
-            mailActivity);
+            mailActivity,
+            needsAttention);
     }
+
+    /// <summary>
+    /// The five needs-attention kinds, each read from the query that already
+    /// backs its Cases tab or Operations table, ordered by priority, then the
+    /// earliest due instant (work with no due instant last), then reference,
+    /// and cut at <see cref="MaximumNeedsAttention"/>.
+    /// </summary>
+    private async Task<IReadOnlyList<NeedsAttentionItem>> ComposeNeedsAttentionAsync(
+        DateTimeOffset asOfUtc,
+        DateTimeOffset dayStartUtc,
+        IReadOnlyList<CaseDueWork> dueWork,
+        IReadOnlyList<CaseSearchItem> heldCases,
+        IReadOnlyList<UnidentifiedQueueRow> unidentified,
+        IReadOnlyList<TriageSummary> triage,
+        IEnumerable<RequestOperationProjection> requests,
+        CancellationToken cancellationToken)
+    {
+        var dayEndUtc = dayStartUtc.AddDays(1);
+        // Both no-finding states arrive pre-filtered from their own queries.
+        var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccounts,
+            heldCases.Select(item => item.EngineerId ?? Guid.Empty)
+                .Concat(triage.Select(record => record.AssigneeId ?? Guid.Empty)),
+            cancellationToken);
+
+        var items = new List<NeedsAttentionItem>();
+        foreach (var work in dueWork)
+        {
+            var due = work.NextChaseAtUtc
+                ?? (work.DueBy is { } dueBy
+                    ? new DateTimeOffset(dueBy.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
+                    : null);
+            // The row-meta already names the reference, so the title is the
+            // recorded blocker itself and the notice carries the chase state;
+            // repeating either would render one fact twice on the same row.
+            items.Add(new(
+                NeedsAttentionKind.Case,
+                work.CaseId,
+                work.Reference,
+                work.MissingMaterialReason,
+                Detail: null,
+                work.State.ToString(),
+                DuePriority(due, asOfUtc, dayEndUtc),
+                Owner: null,
+                due,
+                work.MostRecentOutcome,
+                Source: null,
+                Attempts: null));
+        }
+
+        foreach (var held in heldCases)
+        {
+            items.Add(new(
+                NeedsAttentionKind.HeldDecision,
+                held.CaseId,
+                held.Reference,
+                held.Claimant ?? held.Reference,
+                held.Principal,
+                nameof(CaseLifecycleState.Held),
+                DuePriority(held.NextChaseAtUtc, asOfUtc, dayEndUtc),
+                OwnerName(held.EngineerId, staffNames),
+                held.NextChaseAtUtc,
+                LastOutcome: null,
+                held.Origin,
+                Attempts: null));
+        }
+
+        foreach (var row in unidentified)
+        {
+            items.Add(new(
+                NeedsAttentionKind.Mail,
+                row.Id,
+                row.Reference,
+                row.FileName ?? row.EmailSubject ?? row.Reference,
+                row.EmailSender,
+                row.ReasonCode.ToString(),
+                NeedsAttentionPriority.Normal,
+                Owner: null,
+                Due: null,
+                LastOutcome: null,
+                row.MediaKind.ToString(),
+                Attempts: null));
+        }
+
+        foreach (var record in triage)
+        {
+            items.Add(new(
+                NeedsAttentionKind.Triage,
+                record.Id,
+                record.NormalizedVehicleRegistration,
+                record.NormalizedVehicleRegistration,
+                Detail: null,
+                record.State.ToString(),
+                NeedsAttentionPriority.Normal,
+                OwnerName(record.AssigneeId, staffNames),
+                Due: null,
+                LastOutcome: null,
+                Source: null,
+                Attempts: null));
+        }
+
+        foreach (var request in requests)
+        {
+            if (request.Kind != RequestOperationKind.ExternalWork || !request.CanRetry)
+            {
+                continue;
+            }
+
+            items.Add(new(
+                NeedsAttentionKind.ExternalWork,
+                request.CaseId,
+                request.CaseReference,
+                request.ExternalKind ?? request.CaseReference,
+                Detail: null,
+                request.FailureReason ?? request.FailureCode ?? request.State.ToString(),
+                NeedsAttentionPriority.High,
+                Owner: null,
+                Due: null,
+                request.FailureCode,
+                request.PrincipalCode,
+                request.AttemptCount));
+        }
+
+        return items
+            .OrderBy(item => item.Priority)
+            .ThenBy(item => item.Due ?? DateTimeOffset.MaxValue)
+            .ThenBy(item => item.Reference, StringComparer.Ordinal)
+            .Take(MaximumNeedsAttention)
+            .ToArray();
+    }
+
+    private static NeedsAttentionPriority DuePriority(
+        DateTimeOffset? due,
+        DateTimeOffset asOfUtc,
+        DateTimeOffset dayEndUtc) => due switch
+    {
+        { } instant when instant <= asOfUtc => NeedsAttentionPriority.Overdue,
+        { } instant when instant < dayEndUtc => NeedsAttentionPriority.Today,
+        _ => NeedsAttentionPriority.Normal
+    };
+
+    private static string? OwnerName(Guid? staffId, IReadOnlyDictionary<Guid, string> staffNames) =>
+        staffId is { } id
+            ? ActorDisplayNames.Resolve(ActorKind.Staff, id.ToString(), staffNames)
+            : null;
 }
