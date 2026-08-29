@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Production callers for the AI job by-subject query and staff QueryResponse
   jobs
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: codex-gpt-5.6-sol
 profile: feature
 stageEntered:
   preparing: '2026-08-29T17:20:55.532Z'
+taken_at: '2026-08-29T17:38:49.541Z'
+branch: task/auto-014-ai-job-callers
+worktree: ../pegasus-worktrees/auto-014-ai-job-callers
 labels:
   - backend
   - ai
@@ -26,7 +29,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-29T13:04:32.304Z'
-updated: '2026-08-29T17:20:55.532Z'
+updated: '2026-08-29T17:38:49.541Z'
 ---
 
 ## What
