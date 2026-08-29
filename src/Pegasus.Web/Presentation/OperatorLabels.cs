@@ -1023,5 +1023,8 @@ public static class OperatorLabels
 
         /// <summary>The state word for a switch an administrator holds.</summary>
         public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;
+
+        public const string ClientIdentifier = "Client identifier";
+        public const string GrantedScopes = "Granted scopes";
     }
 }

@@ -29,10 +29,13 @@ public sealed partial class SendToAiIntegrationTests
         var caseId = await SeedAcceptedCaseAsync(factory);
         using var client = CreateClient(factory);
 
-        // Before any administration entry the panel states the fallback.
+        // Before any administration entry the token states the fallback and
+        // the address field carries no Administration override.
         var adminHtml = await GetHtmlAsync(client, "/Administration/Automation");
         Assert.Contains("AI settings", adminHtml, StringComparison.Ordinal);
         Assert.Contains("Standard setting", adminHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"ChannelAddress\"", adminHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(overrideReceiver.BaseUrl, adminHtml, StringComparison.Ordinal);
 
         // AUTO-006 gave the AI settings panel the one Save the design
         // authority specifies, so the address, the timeout and the replacement
@@ -55,6 +58,8 @@ public sealed partial class SendToAiIntegrationTests
         var heldHtml = await GetHtmlAsync(client, "/Administration/Automation");
         Assert.Contains("Entered from Administration", heldHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(RotatedToken, heldHtml, StringComparison.Ordinal);
+        Assert.Equal(overrideReceiver.BaseUrl, InputValue(heldHtml, "ChannelAddress"));
+        Assert.Equal("5", InputValue(heldHtml, "ChannelTimeoutSeconds"));
 
         // The next hand-off reaches the overridden channel with the rotated
         // token; the composed channel receives nothing. The hand-off is

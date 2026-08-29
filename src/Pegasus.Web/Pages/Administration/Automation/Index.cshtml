@@ -50,6 +50,16 @@
                             <dd>@(registration.IsRegistered ? registration.DisplayName ?? registration.ClientId : "—")</dd>
                         </dl>
                         <dl class="fact">
+                            <dt>@OperatorLabels.AutomationAdmin.ClientIdentifier</dt>
+                            <dd>@registration.ClientId</dd>
+                        </dl>
+                        <dl class="fact">
+                            <dt>@OperatorLabels.AutomationAdmin.GrantedScopes</dt>
+                            <dd>@(registration.GrantedScopes.Count == 0
+                                    ? "—"
+                                    : string.Join(", ", registration.GrantedScopes))</dd>
+                        </dl>
+                        <dl class="fact">
                             <dt>@OperatorLabels.AutomationAdmin.ActiveJobs</dt>
                             <dd class="tabular">@Model.JobCounts.Active</dd>
                         </dl>
