@@ -27,7 +27,8 @@ public sealed record EstimateEditorLine(
     string? Quantity,
     string? LabourHours,
     string? PaintHours,
-    string? PartPounds);
+    string? PartPounds,
+    Guid? ExistingLineId = null);
 
 /// <summary>
 /// The Assessment workspace (context.md §1.9, ENG-025). Access is owned by
@@ -513,7 +514,8 @@ public sealed class IndexModel(
                 line.Quantity?.ToString(CultureInfo.InvariantCulture),
                 line.WorkUnits?.ToString(CultureInfo.InvariantCulture),
                 line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture),
-                line.Price?.ToString("0.##", CultureInfo.InvariantCulture)))
+                line.Price?.ToString("0.##", CultureInfo.InvariantCulture),
+                line.Id))
             .ToList();
     }
 
@@ -688,6 +690,21 @@ public sealed class IndexModel(
         }
 
         var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
+        var existingLines = existing?.Lines.ToDictionary(line => line.Id)
+            ?? new Dictionary<Guid, CaseEstimateLineRecord>();
+        var lines = editor.Lines.Select((line, index) =>
+            editor.ExistingLineIds[index] is { } lineId
+            && existingLines.TryGetValue(lineId, out var previous)
+                ? line with
+                {
+                    GuideCode = previous.GuideCode,
+                    Unpriced = previous.Unpriced,
+                    Betterment = previous.Betterment,
+                    Status = previous.Status,
+                    EvidenceLabel = previous.EvidenceLabel,
+                    Justification = previous.Justification,
+                }
+                : line).ToArray();
         var details = new EstimateDetails(
             editor.Name ?? string.Empty,
             editor.RepairDays,
@@ -709,7 +726,7 @@ public sealed class IndexModel(
                     editLeaseToken!,
                     estimateId,
                     details,
-                    editor.Lines,
+                    lines,
                     existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
                     existing?.AiJobId),
                 cancellationToken);
@@ -723,7 +740,8 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
-            TempData["AssessmentError"] = exception.Message;
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception, "The estimate was not saved because the case changed or another editor holds it. Retry the operation.");
             return RedirectToPage(new { id, estimate = estimateId?.ToString("D") });
         }
     }
@@ -785,7 +803,8 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
-            TempData["AssessmentError"] = exception.Message;
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception, "The estimate was not duplicated because the case changed or another editor holds it. Retry the operation.");
             return RedirectToPage(new { id, estimate = estimateId.ToString("D") });
         }
     }
@@ -829,7 +848,8 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
-            TempData["AssessmentError"] = exception.Message;
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception, "The estimate was not deleted because the case changed or another editor holds it. Retry the operation.");
             return RedirectToPage(new { id, estimate = estimateId.ToString("D") });
         }
     }
@@ -870,7 +890,8 @@ public sealed class IndexModel(
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
-            TempData["AssessmentError"] = exception.Message;
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception, "The estimate was not made current because the case changed or another editor holds it. Retry the operation.");
             return RedirectToPage(new { id, estimate = estimateId.ToString("D") });
         }
     }
@@ -972,7 +993,8 @@ public sealed class IndexModel(
         string? Notes,
         Guid? EstimateId,
         IReadOnlyList<EstimateEditorLine> Rows,
-        IReadOnlyList<EstimateLineInput>? Lines);
+        IReadOnlyList<EstimateLineInput>? Lines,
+        IReadOnlyList<Guid?> ExistingLineIds);
 
     private EstimateEditorPost ReadEditorPost()
     {
@@ -991,8 +1013,10 @@ public sealed class IndexModel(
                     : -1;
 
         var operations = form["lineOperation"].ToArray();
+        var postedLineIds = form["lineId"].ToArray();
         var rows = new List<EstimateEditorLine>(operations.Length);
         var lines = new List<EstimateLineInput>(operations.Length);
+        var existingLineIds = new List<Guid?>(operations.Length);
         var linesAreValid = true;
         static string Field(string?[] values, int index) =>
             index >= 0 && index < values.Length && values[index] is not null ? values[index]! : string.Empty;
@@ -1005,8 +1029,11 @@ public sealed class IndexModel(
             var labourHours = Field(form["lineLabourHours"].ToArray(), index);
             var paintHours = Field(form["linePaintHours"].ToArray(), index);
             var partPounds = Field(form["linePartPounds"].ToArray(), index);
+            var existingLineId = Guid.TryParse(Field(postedLineIds, index), out var parsedLineId)
+                ? parsedLineId
+                : (Guid?)null;
             rows.Add(new EstimateEditorLine(
-                operation, description, partNumber, quantity, labourHours, paintHours, partPounds));
+                operation, description, partNumber, quantity, labourHours, paintHours, partPounds, existingLineId));
 
             var isEmpty = string.IsNullOrWhiteSpace(description)
                 && string.IsNullOrWhiteSpace(partNumber)
@@ -1018,6 +1045,7 @@ public sealed class IndexModel(
             {
                 continue;
             }
+            existingLineIds.Add(existingLineId);
 
             var typed = EstimateOperations.TryParse(operation, out var parsedOperation);
             var workUnits = Money(labourHours);
@@ -1078,7 +1106,8 @@ public sealed class IndexModel(
             form["estimateNotes"].ToString(),
             estimateId,
             rows,
-            linesAreValid ? lines : null);
+            linesAreValid ? lines : null,
+            existingLineIds);
     }
 
     /// <summary>

@@ -83,6 +83,84 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains("The original document is kept on the case.", afterHtml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AnImportedEstimatePreservesItsLineEvidenceWhenEditedAndSaved()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var importHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        using var importResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
+            ImportForm(
+                AntiforgeryValue(importHtml),
+                caseId,
+                NewOperationKey(),
+                AudatexEstimateFixture.Build()));
+
+        Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
+        var imported = Assert.Single(store.SavedEstimates);
+        var draft = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
+        var editorHtml = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}/Assessment?estimate={draft.SpecificationId:D}");
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(editorHtml)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateId", draft.SpecificationId.ToString("D")),
+            new("estimateName", draft.Details.Name),
+            new("estimateVatPercent", draft.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
+        };
+        foreach (var line in draft.Lines.OrderBy(line => line.Position))
+        {
+            fields.Add(new("lineId", line.Id.ToString("D")));
+            fields.Add(new("lineOperation", EstimateOperations.FromLineType(line.Type).ToString()));
+            fields.Add(new("lineDescription", line.Description ?? string.Empty));
+            fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
+            fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new(
+                "lineLabourHours",
+                line.Position == 1
+                    ? "9.9"
+                    : line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePartPounds", line.Price?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+        }
+
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=SaveEstimate",
+            new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
+        Assert.Equal(2, store.SavedEstimates.Count);
+        var edited = store.SavedEstimates[1];
+        Assert.Equal(imported.Source, edited.Source);
+        Assert.Equal(9.9m, edited.Lines[0].WorkUnits);
+        Assert.Equal(imported.Lines.Count, edited.Lines.Count);
+        foreach (var (before, after) in imported.Lines.Zip(edited.Lines))
+        {
+            Assert.Equal(before.GuideCode, after.GuideCode);
+            Assert.Equal(before.Unpriced, after.Unpriced);
+            Assert.Equal(before.Betterment, after.Betterment);
+            Assert.Equal(before.Status, after.Status);
+            Assert.Equal(before.EvidenceLabel, after.EvidenceLabel);
+            Assert.Equal(before.Justification, after.Justification);
+        }
+        var unpriced = Assert.Single(edited.Lines, line => line.Description == "GRILLE BADGE");
+        Assert.True(unpriced.Unpriced);
+        Assert.Null(unpriced.Price);
+        Assert.Contains(
+            $"name=\"lineId\" value=\"{draft.Lines[0].Id:D}\"",
+            editorHtml,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// CASE-024: a save submitted from a page that was never in edit mode is refused here rather
     /// than in Core, so nothing is retained and the operator is told what to do.
@@ -594,7 +672,9 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         public Task<RepairSpecificationVersion?> GetVersionAsync(
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
-            Task.FromResult<RepairSpecificationVersion?>(null);
+            Task.FromResult(
+                new[] { CurrentDraft, CurrentAccepted }
+                    .FirstOrDefault(item => item?.SpecificationId == specificationId));
 
         public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
             Guid ownerCaseId, CancellationToken cancellationToken) =>
@@ -644,6 +724,27 @@ public sealed partial class AssessmentEstimateImportWebTests
             {
                 Details = request.Details,
                 Source = request.Source,
+                Lines = request.Lines.Select((line, index) => new CaseEstimateLineRecord(
+                    Guid.NewGuid(),
+                    index + 1,
+                    line.Type,
+                    line.GuideCode,
+                    line.Description,
+                    line.WorkUnits,
+                    line.Price,
+                    line.Unpriced,
+                    line.PartNumber,
+                    line.Betterment,
+                    line.Status,
+                    line.EvidenceLabel,
+                    line.Justification,
+                    ActorKind.Staff,
+                    request.Actor.SubjectId,
+                    DateTimeOffset.UtcNow,
+                    null,
+                    null,
+                    line.PaintWorkUnits,
+                    line.Quantity)).ToArray(),
             };
             LastCreatedEstimateId = created.SpecificationId;
             CurrentDraft = created;

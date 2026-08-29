@@ -489,6 +489,7 @@
                                                                 var row = Model.EditorLines[line];
                                                                 <tr>
                                                                     <td>
+                                                                        <input type="hidden" name="lineId" value="@row.ExistingLineId" />
                                                                         <label class="vh" for="line-operation-@line">Operation, line @(line + 1)</label>
                                                                         <select id="line-operation-@line" name="lineOperation">
                                                                             @foreach (var (value, label) in new[] { ("Replace", "Replace"), ("Repair", "Repair"), ("RemoveAndRefit", "R&I"), ("Paint", "Paint"), ("Other", "Other") })
@@ -499,7 +500,7 @@
                                                                     </td>
                                                                     <td><label class="vh" for="line-description-@line">Description, line @(line + 1)</label><input id="line-description-@line" name="lineDescription" value="@row.Description" /></td>
                                                                     <td><label class="vh" for="line-part-@line">Part number, line @(line + 1)</label><input id="line-part-@line" name="linePartNumber" value="@row.PartNumber" /></td>
-                                                                    <td><label class="vh" for="line-quantity-@line">Quantity, line @(line + 1)</label><input id="line-quantity-@line" name="lineQuantity" type="number" min="0" step="1" inputmode="numeric" class="tabular" value="@row.Quantity" /></td>
+                                                                    <td><label class="vh" for="line-quantity-@line">Quantity, line @(line + 1)</label><input id="line-quantity-@line" name="lineQuantity" type="number" min="1" step="1" inputmode="numeric" class="tabular" value="@row.Quantity" /></td>
                                                                     <td><label class="vh" for="line-labour-@line">Labour hours, line @(line + 1)</label><input id="line-labour-@line" name="lineLabourHours" type="number" min="0" step="0.1" inputmode="decimal" class="tabular" value="@row.LabourHours" /></td>
                                                                     <td><label class="vh" for="line-paint-@line">Paint hours, line @(line + 1)</label><input id="line-paint-@line" name="linePaintHours" type="number" min="0" step="0.1" inputmode="decimal" class="tabular" value="@row.PaintHours" /></td>
                                                                     <td><label class="vh" for="line-pounds-@line">Part amount, line @(line + 1)</label><input id="line-pounds-@line" name="linePartPounds" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@row.PartPounds" /></td>
@@ -511,15 +512,7 @@
                                                 </div>
                                                 <div class="estimate-bottom">
                                                     <div class="estimate-notes"><label for="estimate-notes">Estimate notes</label><textarea id="estimate-notes" name="estimateNotes" rows="4" maxlength="4000">@details.Notes</textarea></div>
-                                                    <dl class="estimate-totals">
-                                                        <div><dt>Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
-                                                        <div><dt>Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
-                                                        <div><dt>Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
-                                                        <div><dt>Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
-                                                        <div><dt>Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
-                                                        <div><dt>VAT</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
-                                                        <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
-                                                    </dl>
+                                                    RenderEstimateTotals(totals);
                                                 </div>
                                                 <div class="button-row section-gap"><button type="submit" class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>Save estimate</span></button></div>
                                             </form>
@@ -536,15 +529,7 @@
                                             </dl>
                                             <div class="estimate-bottom">
                                                 <div class="estimate-notes"><h3 class="section-label">Notes</h3>@(string.IsNullOrWhiteSpace(details.Notes) ? "None recorded" : details.Notes)</div>
-                                                <dl class="estimate-totals">
-                                                    <div><dt>Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
-                                                    <div><dt>Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
-                                                    <div><dt>Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
-                                                    <div><dt>Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
-                                                    <div><dt>Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
-                                                    <div><dt>VAT</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
-                                                    <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
-                                                </dl>
+                                                RenderEstimateTotals(totals);
                                             </div>
                                             RenderSpecificationLines(estimate!, "recorded");
                                         }
@@ -692,6 +677,20 @@
 <partial name="Shared/_EditFinishConfirm" />
 
 @functions {
+    /// <summary>One totals renderer shared by editable and read-only estimates.</summary>
+    private void RenderEstimateTotals(EstimateTotals totals)
+    {
+        <dl class="estimate-totals">
+            <div><dt>Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
+            <div><dt>Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
+            <div><dt>Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
+            <div><dt>Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
+            <div><dt>Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
+            <div><dt>VAT</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
+            <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
+        </dl>
+    }
+
     /// <summary>
     /// ENG-002: one renderer for a specification's ordered lines, shared by
     /// the accepted and draft views so the two can never drift apart.
