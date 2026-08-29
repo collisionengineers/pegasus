@@ -47,6 +47,17 @@ public static class OperatorLabels
         _ => Humanise(reason.ToString())
     };
 
+    /// <summary>
+    /// The reason label for an Unidentified reason code however the projection
+    /// carried it — the Work Centre's needs-attention rows hold Core enum
+    /// names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>.
+    /// </summary>
+    public static string UnidentifiedReason(string? reason) =>
+        Enum.TryParse<UnidentifiedReasonCode>(reason, ignoreCase: true, out var parsed)
+            ? UnidentifiedReason(parsed)
+            : Humanise(reason);
+
     public static string UnidentifiedState(UnidentifiedState state) => state switch
     {
         Pegasus.Core.Intake.Unidentified.UnidentifiedState.Open => "Unidentified",
@@ -68,6 +79,19 @@ public static class OperatorLabels
         Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind.Document => "Document",
         _ => Humanise(kind.ToString())
     };
+
+    /// <summary>
+    /// The media-kind label for a persisted kind string, however the
+    /// projection carried it — the Work Centre's needs-attention rows hold
+    /// Core enum names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>; keeps the "E-mail" wording on the
+    /// one list rather than letting a bare <see cref="Humanise"/> spell it
+    /// "Email".
+    /// </summary>
+    public static string UnidentifiedMediaKind(string? kind) =>
+        Enum.TryParse<Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind>(kind, ignoreCase: true, out var parsed)
+            ? UnidentifiedMediaKind(parsed)
+            : Humanise(kind);
 
     /// <summary>
     /// The operator-meaningful handle for a received e-mail: its subject and
@@ -262,6 +286,56 @@ public static class OperatorLabels
         CaseDueWorkState.Held => "Chasing paused",
         CaseDueWorkState.Stopped => "Chasing stopped",
         _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The chase-state label for a persisted state string, however the
+    /// projection carried it — the Work Centre's needs-attention rows hold
+    /// Core enum names as strings. Same parse-then-delegate shape as
+    /// <see cref="CaseStage(string?)"/>.
+    /// </summary>
+    public static string ChaseState(string? state) =>
+        Enum.TryParse<CaseDueWorkState>(state, ignoreCase: true, out var parsed)
+            ? ChaseState(parsed)
+            : Humanise(state);
+
+    /// <summary>
+    /// The Work Centre's work-item kinds (FRD-12 § Work Centre): the row's
+    /// "kind · reference" lead-in and the selected-work eyebrow both read
+    /// from this one list.
+    /// </summary>
+    public static string NeedsAttentionKind(NeedsAttentionKind kind) => kind switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionKind.Case => "Case",
+        Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held decision",
+        Pegasus.Core.Operations.NeedsAttentionKind.Mail => "Mail",
+        Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
+        Pegasus.Core.Operations.NeedsAttentionKind.ExternalWork => "External work",
+        _ => Humanise(kind.ToString())
+    };
+
+    /// <summary>
+    /// The Work Centre's work-item priority chip: declaration order is the
+    /// list order, and the tone is the chip treatment <c>_StatusChip</c>
+    /// renders for that word (red for failed-or-overdue, amber for
+    /// in-the-day, neutral for the rest).
+    /// </summary>
+    public static string NeedsAttentionPriority(NeedsAttentionPriority priority) => priority switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Overdue",
+        Pegasus.Core.Operations.NeedsAttentionPriority.High => "High",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Today",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Normal => "Normal",
+        _ => Humanise(priority.ToString())
+    };
+
+    /// <summary>The chip tone for a work-item priority word.</summary>
+    public static string NeedsAttentionPriorityTone(NeedsAttentionPriority priority) => priority switch
+    {
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue
+            or Pegasus.Core.Operations.NeedsAttentionPriority.High => "red",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "amber",
+        _ => "neutral"
     };
 
     /// <summary>
