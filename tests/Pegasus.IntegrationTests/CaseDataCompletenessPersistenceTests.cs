@@ -30,6 +30,13 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(harness.SourceHash, projection.Origin.SourceHash);
         Assert.Equal("QDOS", projection.Provider.WorkProviderCode.Fact?.Value);
         Assert.True(projection.Provider.WorkProviderCode.Fact?.IsAccepted);
+        Assert.Equal(
+            CaseDataSourceKind.MailRoute,
+            projection.Provider.WorkProviderCode.Fact?.Source.Kind);
+        Assert.Equal(
+            "qdos_mail_route",
+            projection.Provider.WorkProviderCode.Fact?.Source.PolicyKey);
+        Assert.Equal(2, projection.Provider.WorkProviderCode.Fact?.Source.PolicyVersion);
         // INTK-021: an unambiguous extracted value is auto-added (Fact),
         // not parked as a suggestion awaiting confirmation.
         Assert.Null(projection.Claimant.Name.Suggestion);
