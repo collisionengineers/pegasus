@@ -60,7 +60,7 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
         NeedsAttentionKind.Case or NeedsAttentionKind.HeldDecision => "/Cases/Details",
         NeedsAttentionKind.Mail => "/Unidentified/Details",
         NeedsAttentionKind.Triage => "/Triage/Details",
-        _ => "/Operations"
+        _ => "/Operations/Index"
     };
 
     /// <summary>
