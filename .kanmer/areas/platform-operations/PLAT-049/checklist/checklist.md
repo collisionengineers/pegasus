@@ -1,0 +1,21 @@
+# PLAT-049 checklist
+
+- [ ] Merge `origin/dev` into the lane branch before any edit
+- [ ] `OperatorLabels.AiJobs` nested class appended, nothing existing reordered
+- [ ] Page model injects the four AI ports and the Unidentified store
+- [ ] `OnGetAsync` loads non-terminal jobs plus today's terminal jobs, newest first
+- [ ] `OnPostSendUnidentifiedToAiAsync` calls `ICreateAiJob` with `UnidentifiedResolution`
+- [ ] `OnPostCompleteAiJobAsync` calls `IConfirmAiJob`
+- [ ] `OnPostCancelAiJobAsync` calls `ICancelAiJob` with a required reason
+- [ ] Every handler surfaces its refusal; no catch-all, no empty catch
+- [ ] AI Job List panel renders first, Service health second (§1.11 order)
+- [ ] Every rendered action resolves to a real route or a real handler; otherwise `—`
+- [ ] Send control renders only when an open Unidentified item exists
+- [ ] Service health action cell renders `—` where Core names no retry target
+- [ ] No explanatory copy added beyond the contract's partial-data notice
+- [ ] New tests added; no existing assertion weakened, inverted or deleted
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release` green
+- [ ] `dotnet test --filter "FullyQualifiedName~OperationsWebTests"` green, real counts recorded
+- [ ] Simplification pass recorded in the plan
+- [ ] Core gaps 1-5 reported precisely, none silently absorbed
+- [ ] Commits pushed, PR opened against `dev`, not merged

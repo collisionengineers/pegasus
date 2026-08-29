@@ -2,10 +2,12 @@
 id: PLAT-049
 type: ticket
 title: 'Operations: AI Job List, Service health and Send Unidentified to AI'
-status: preparing
+status: implementing
 area: platform-operations
 assignee: claude-plat-049
 profile: feature
+stageEntered:
+  implementing: '2026-08-29T09:31:38.080Z'
 taken_at: '2026-08-29T09:27:42.833Z'
 branch: task/plat-049-operations-features
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-049-operations-features'
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-28T08:35:24.068Z'
-updated: '2026-08-29T09:27:42.833Z'
+updated: '2026-08-29T09:31:38.080Z'
 ---
 
 ## What

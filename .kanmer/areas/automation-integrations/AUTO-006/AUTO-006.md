@@ -2,10 +2,12 @@
 id: AUTO-006
 type: ticket
 title: Redesign the Automation & AI administration area
-status: preparing
+status: implementing
 area: automation-integrations
 assignee: claude-auto-006
 profile: feature
+stageEntered:
+  implementing: '2026-08-29T09:31:06.707Z'
 taken_at: '2026-08-29T09:28:43.736Z'
 branch: task/auto-006-automation-admin
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/auto-006-automation-admin'
@@ -21,7 +23,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-08-29T09:28:43.736Z'
+updated: '2026-08-29T09:31:06.707Z'
 ---
 
 ## What
