@@ -94,7 +94,7 @@ the record now says so.
 and `LocalDbTemplateDatabase.DropQuietlyAsync`.** Same SQL, different
 contract: `DropQuietlyAsync` is a best-effort sweep of a *previous* run's
 leftovers that deliberately swallows every exception and uses a shorter 60s
-budget, because giving up is the correct outcome there;`DisposeAsync` must
+budget, because giving up is the correct outcome there; `DisposeAsync` must
 succeed and asserts `DB_ID` is null afterwards. No second caller wants the
 same behaviour, so no abstraction (see `docs/engineering.md`
 §abstractions-and-deferred-capabilities).
@@ -134,6 +134,7 @@ Run over this branch's own diff (`git diff origin/dev...HEAD`, one file).
 | Simplification | `ConnectRetryCount` / `ConnectRetryInterval` gate nothing observed | **Fixed** — removed, 2 lines deleted |
 | Simplification | Bare magic number `5061` in the exception filter | **Fixed** — named `lockNotPlacedErrorNumber` |
 | Simplification | Comment conflated the connect-stall window with the lock-contention window | **Fixed** — the two comments now each describe their own failure |
+| Simplification | 13 lines of comment for a 2-line behavioural change | **Fixed** — both comments tightened to 9 lines total |
 | Efficiency | Retry reuses the open connection and command; backoff costs nothing on the happy path | No change needed |
 | Efficiency | `ConnectTimeout = 60` raises a ceiling, not a floor — no cost when connections succeed | No change needed |
 | Altitude | Change confined to the one builder and the one drop path; no new type, file, or abstraction | Correct altitude |
@@ -182,10 +183,10 @@ carries a premise table naming the check behind each claim.
 
 **Disposition: fixed.** Run over `git diff origin/dev...HEAD` and recorded
 above under "Simplification pass — 2026-08-29" with four lenses and per-lens
-dispositions. It produced three real changes (removed
+dispositions. It produced four real changes (removed
 `ConnectRetryCount`/`ConnectRetryInterval`, named the 5061 constant, split the
-conflated comment) and two recorded rejections. The stale
-"n/a at plan time" promise is gone.
+conflated comment, tightened both comments) and two recorded rejections. The
+stale "n/a at plan time" promise is gone.
 
 ### [major] The approach the ticket explicitly dispreferred was delivered, with no recorded justification
 
@@ -280,15 +281,17 @@ LocalDB instance. The real contention is the four parallel xUnit collections
 
 ### Verification after remediation
 
+Run against the final committed bytes:
+
 - `dotnet build ./Pegasus.slnx --configuration Release` — exit 0, 0 Warning(s),
   0 Error(s).
 - `--filter "FullyQualifiedName~IntakePersistenceIntegrationTests"` —
-  Failed: 0, Passed: 10, Skipped: 0, Total: 10 (1m16s).
+  Failed: 0, Passed: 10, Skipped: 0, Total: 10 (1m12s).
 - `--filter "FullyQualifiedName~CaseTaskArchivePersistenceTests|...
   OrganizationAdministrationWebTests|...AutomationConnectorAuthorizationTests|
   ...LocalDbTemplateDatabaseTests"` — Failed: 0, Passed: 48, Skipped: 0,
-  Total: 48 (2m31s). Added this round: these are the classes that actually
+  Total: 48 (2m18s). Added this round: these are the classes that actually
   failed in CI, including the one that raised the 5061.
 
-Net diff after remediation: one file, +26/-2 (was +22/-2). No assertion was
+Net diff after remediation: one file, **+27/-2** (was +22/-2). No assertion was
 weakened, skipped, deleted or inverted at any point.

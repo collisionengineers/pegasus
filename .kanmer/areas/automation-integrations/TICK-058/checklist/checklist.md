@@ -9,7 +9,7 @@ below describe the **declared JSON instruction** that replaced it.
 - [x] One submission is one intake receipt: retain the request exactly as it arrived and carry the submitted files as that receipt's attachments (`SubmitProviderInstruction` → `IIntakeSubmission`, `ActorKind.Provider`).
 - [x] One substitution, not a second pipeline: `ProcessIntake.AssessAsync` returns a declared assessment for the `provider_api` channel and never routes, classifies or extracts; allocation, Triage creation, custody, action history and the durable Worker path are unchanged.
 - [x] Preserve durability, replay/conflict, limits, pause/revoke, custody, and disclosure-safe failures.
-- [x] Reuse existing Azure resources; application-level throttling per key id (60/min default; live values parked).
+- [x] Reuse existing Azure resources; application-level throttling (60/min per calling address; live values parked).
 - [x] Prove no processing-status vocabulary of its own, no general lookup, no file/report response, no outbound delivery (result reuses `QueuedIntakeStatusKind`/`IntakeDecision`/`IntakeAllocationFailureKind`; GET is per-submission, own Principal only).
 - [x] Add Core and SqlServer integration tests (orchestrator runs them in the wave loop).
 - [x] Third migration `20260828185508_ProviderDeclaredInstruction` recorded in the committed-schema assertion.
@@ -18,8 +18,12 @@ below describe the **declared JSON instruction** that replaced it.
 - [x] Merge `origin/dev` (9868cf58) and prove the generated model snapshot survived the textual merge.
 - [x] Restore the UTF-8 BOM that commit 2804ebb6 stripped from `docs/capabilities.md`.
 - [x] Record dispositions for all 25 codex findings under a dated heading in the plan (AGENTS.md rule 22), including the missing simplification-pass entry for 387f5e26.
-- [ ] **Independent review of the rewritten contract.** No review — codex or human — has run against the current head; all 25 findings predate the rewrite. Required by AGENTS.md step 5 before merge.
-- [ ] **Resolve the confirmed live P1s before activation:** the missing UPDATE grant on `ProviderSubmissions`, the pre-authentication rate-limit partition, and the non-atomic `Accepted` history write. See the plan's dispositions.
+- [x] **Round 2 — narrow the undisclosed `AddCaseNote` widening back to the operator decision and restore its inverted negative assertion.** `Staff or Provider` only; `AnAutomationActorCannotWriteAnOperatorNote` restored byte-for-byte; the change disclosed in the report and the plan.
+- [x] **Round 2 — resolve the three confirmed-live P1s.** Missing `UPDATE` grant on `ProviderSubmissions` (migration + bootstrap census, same diff as the schema) and the pre-authentication rate-limit partition are **fixed**; the non-atomic accept path is **deferred to [[AUTO-012]]**.
+- [x] **Round 2 — restore the seven remaining BOM-stripped files** and disclose the full list.
+- [x] **Round 2 — reconcile the ticked acceptance-actor-guard question with the code**: the `AddCaseNote` half is recorded as shipped, the `AcceptIntake` / `EfCaseAcceptanceStore` half is parked with its reason.
+- [x] **Round 2 — close the round-1 deferrals that named no ticket.** Exactly-one original report and the declared-triage double-queue defect (Triage *and* an Unidentified item, INTK-033's defect on the new route) are **fixed with tests proved failing first**; the snapshot work-provider gap, the paused-credential body read and the existing-case-matching escalation are **deferred to [[AUTO-013]]**.
+- [ ] **Independent review of the current head.** No review — codex or human — has run against the rewritten contract or against this remediation round. Required by AGENTS.md step 5 before merge. This is the one thing still blocking the PR.
 - [ ] Orchestrator-run wave tests green on PR #594 and locked verification; DELIV-030 owns the post-deploy current-state docs refresh, then `proof/proof.md` on merged main.
 
 ## Progress notes
@@ -55,3 +59,12 @@ below describe the **declared JSON instruction** that replaced it.
   `FullyQualifiedName~ProviderApi` 17/17 Core + 9/9 integration;
   `FullyQualifiedName~IntakePersistenceIntegrationTests` 10/10. Not merged: the
   rewritten contract has never been reviewed.
+- 2026-08-29 (round 2, adversarial verification remediation): six code changes,
+  two new tickets, three documents corrected. The full dispositions are in the
+  plan under "Review findings — dispositions (round 2)". Two defects were
+  reproduced before being fixed: the exactly-one-original-report check
+  (`Assert.Throws() Failure: No exception was thrown`) and the declared-triage
+  double queue (`Expected: 0, Actual: 1` Unidentified items beside the Triage).
+  Clean Release rebuild 0/0; Core 1140/1140; Architecture 100/100; the
+  ProviderApi/Intake/Triage/Unidentified integration filter 60/60;
+  `Test-MigrationGrants` and `Test-MarkdownPlacement` pass. Still unreviewed.

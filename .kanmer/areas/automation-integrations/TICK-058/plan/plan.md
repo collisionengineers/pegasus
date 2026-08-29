@@ -154,3 +154,86 @@ step 5 requires before this PR may merge.
    base64 instruction with its files inline. The post-implementation report
    already flags these as "still wants operator confirmation"; they remain
    unconfirmed.
+
+## Review findings — dispositions (round 2), 2026-08-29
+
+An independent adversarial verifier re-ran this lane's build, tests and diff
+and returned `needs-work` with two honesty problems and five findings. Every
+one is dispositioned below (AGENTS.md rule 22); none is silenced. Where the
+verifier is right I say so and name the commit that closes it; where a round-1
+disposition was itself dishonest I say that too.
+
+### Honesty problems
+
+| # | What the verifier said | Disposition |
+| --- | --- | --- |
+| H1 | The outcome was reported `landed-pr-ready` while the report's own dispositions named a CONFIRMED merge blocker. | **Accepted — the verifier is right.** The label was wrong. The post-implementation report now opens with `PR-open, review-blocked` and says why. |
+| H2 | A material behavioural change on the pushed branch is absent from the report entirely: the `AddCaseNote` authorization guard was removed and its negative assertion inverted. | **Accepted — the verifier is right, and this is the worst of the round.** Disposed as B1 below; the report now discloses it under § Round 2. |
+
+### Findings
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| B1 | major | An existing negative assertion was inverted and a business-policy guard removed wider than the operator decision authorises. `2804ebb6` deleted `if (request.Actor.Kind != ActorKind.Staff)` outright — and because `PerformCasework` is granted to `Staff or Automation`, that admitted the Automation Actor, not only the Provider the decision named. `AnAutomationActorCannotWriteAnOperatorNote` was replaced by `AnAutomationActorMayWriteANote`, flipping the expected outcome to match the new code. | **Fixed — the production change is narrowed, not the test.** `AddCaseNote` now requires `Staff or Provider` and throws `StaffAuthorizationException` for anything else; Provider is admitted on its own `SubmitProviderInstruction` right, so no other Provider API permission follows from it. The original negative assertion is restored byte-for-byte (a doc comment added above it is the only change to those lines). `git diff origin/dev -- tests/Pegasus.Core.Tests/Cases/AddCaseNoteTests.cs` is now additions only. Two tests, one per direction: `AnAutomationActorCannotWriteAnOperatorNote` and `AProviderMayWriteTheNoteItSubmittedWithItsInstruction`. |
+| B2 | major | `outcome: landed-pr-ready` overstates a merge-blocked branch; the missing `UPDATE` grant on `ProviderSubmissions` is real. | **Fixed (the grant) and corrected (the label).** `20260828111732_GrantProviderSubmissions` now grants `SELECT, INSERT, UPDATE` to the Web role and revokes the same on `Down`; the bootstrap census in `Invoke-AzureDatabaseBootstrap.ps1` expects the same three. The migration is branch-only and undeployed, so its permissions ride the same diff as the schema (AGENTS.md rule 16) rather than trailing in a second migration. The Worker keeps `SELECT` only; neither role gets `DELETE`. `Test-MigrationGrants.ps1` passes, 85 files. The label is corrected at the head of the post-implementation report. |
+| M1 | minor | Seven files remain BOM-stripped, including two shared hot files, undisclosed. | **Fixed and disclosed.** All seven restored: `IntakeAllocation.cs`, `DependencyInjection.cs`, `CaseDataSnapshotFactory.cs`, `PegasusDbContext.cs`, `Browser/OperatorJourneyTests.cs`, `CaseDetailsWebTests.cs`, `IntakePersistenceIntegrationTests.cs`. A byte comparison of every file changed against `origin/dev` now reports no file whose BOM state differs. Nothing required the strip: neither `Test-MigrationGrants` nor `Test-MarkdownPlacement` reads a preamble on `.cs` files. The full list is in the report. |
+| M2 | minor | The stated reason for not fixing the `OperatorLabels.Provenance` P2 is contradicted by the branch's own content — it already appends into a switch in that same file. | **Accepted — the round-1 reason was false, and the defect is fixed.** The branch does append `IntakeSourceChannel.ProviderApi => "Provider API"` at line 809, so "may not edit its existing switches" did not distinguish the two cases. `CaseDataSourceKind.ProviderApi => ("Provider API", "icon-link")` is now appended beside it, and `"provider_api" => "Provider API"` in the string-code overload, which otherwise rendered "Provider api" through `Humanise`. Both are add-only appends with no reordering. |
+| M3 | minor | A ticked open-questions item records a decision the code does not implement (`AcceptIntake` and `EfCaseAcceptanceStore` were never widened). | **Fixed by correcting the record, not the code.** The ticked item now states only what shipped — `AddCaseNote`, widened by exactly one kind. The `AcceptIntake` / `EfCaseAcceptanceStore` half is moved below `## Parked (explicitly deferred)` with its reason: `AttemptAutomaticAsync` allocates as the system worker on every channel, so a Provider arm in either would have no caller, and registered-but-unreachable code is not done (rule 14). The decision's own rationale — do not lose FRD-09 attribution — is met by the submission's action history and the provider's case note. |
+| M4 | minor | Board documents are substantive; the gap is that the plan's dispositions never mention the `AddCaseNote` guard removal. | **Accepted; closed by this section.** |
+
+### The three confirmed-live P1s
+
+| P1 | Disposition |
+| --- | --- |
+| Missing `UPDATE` grant on `ProviderSubmissions` plus the bootstrap census | **Fixed in this PR** — see B2. |
+| Pre-authentication rate-limit partition | **Fixed in this PR.** The limiter runs at `app.UseRateLimiter()` (Program.cs:927), before `app.UseAuthentication()` (982), so a presented key id is a claim and cannot be the partition — two ways: naming a real provider's key id spends that provider's budget with a forged secret, and minting a fresh well-formed key id per request hands the caller a fresh 60/min budget every time, bounding nothing. The partition is now `context.Connection.RemoteIpAddress`, which is exactly what the staff sign-in and MCP policies in the same file already use (the existing convention wins, and it closes both holes with one change rather than a chained limiter). `RequestsPerKeyPerMinute` is renamed `RequestsPerCallerPerMinute`; FRD-09 and the open questions are amended. A per-credential budget, if one is wanted, needs a limiter that runs after authentication and is parked. |
+| Non-atomic accept path | **Deferred to [[AUTO-012]]**, created in `automation-integrations` and added to EPIC-011. Closing it means one transaction across the provider-submission store, the shared durable-intake path and action history — a design change to the path every intake lane uses, not a local fix. Not reachable while `Features:ProviderApi` is closed and no credential exists. |
+
+### Round-1 deferrals that named no ticket — closed
+
+Rule 22's "defer to a ticket" means a ticket exists. Three round-1 dispositions
+said "defer" and named none. Two are now fixed outright; the rest are
+[[AUTO-013]].
+
+| Round-1 finding | Disposition now |
+| --- | --- |
+| `ProviderSubmission.cs:317` — require exactly one original report | **Fixed.** The round-1 reason ("a file this lane was not asked to touch") was false: `ProviderSubmission.cs` is this ticket's own new file. `Any` became `Count(...) != 1`. Proved: with `Any` restored, `AnAuditMustAttachItsOriginalReportAndOnlyAnAuditCarriesAVerdict` fails with `Assert.Throws() Failure: No exception was thrown`; with the fix it passes. |
+| `ProcessIntake.cs:758` — recognise declared triage in the shared predicate | **Confirmed live by a real check, then fixed.** Round 1 called it "not disproved"; it is reproduced. `IsTriageRequest` read `MailClassificationDecision`, which is null for a declared instruction, so `IsUnidentifiedEligible` was true and every declared `triage` opened a Triage record **and** an Unidentified item beside it — the two-queues defect INTK-033 closed for the mail route. `IsTriageRequest` now also reads the `AcceptedTriageMatch` evidence, which is already what Triage creation itself keys off, so both routes get one answer from one owner. The classification clause stays because a reply in a Triage thread is deliberately given no accepted-match evidence. Pinned by a new assertion in `ADeclaredTriageOpensATriageAndAllocatesNoCase`; proved failing (`Expected: 0, Actual: 1`) before the fix. |
+| `CaseDataSnapshotFactory.AddProviderFact` — provider principal absent from the snapshot; `ProviderApiEndpoints` — paused credential checked after the body read; the existing-case-matching escalation | **Deferred to [[AUTO-013]]**, created in `automation-integrations` and added to EPIC-011, with the operator question carried in its body. |
+
+### Simplification pass — round 2
+
+Run over this round's own diff. (1) *Reuse* — the rate-limit partition was
+inlined in `Program.cs` rather than given a named helper in `ProviderApi`: one
+call site, and a wrapper existing only to carry one expression is the smell the
+rails name (applied). (2) *One list per concept* — `IsTriageRequest` gained a
+second reading rather than a second predicate, and both routes now answer from
+the evidence Triage creation already uses (applied). (3) *Efficiency* — no hot
+path changed (n/a). (4) *Altitude* — the `AddCaseNote` fix keeps `dev`'s
+structure exactly (Require, then a kind guard) and widens the kind set by one,
+instead of restructuring the guard (applied).
+
+### Verification — round 2 (real numbers)
+
+- `dotnet build ./Pegasus.slnx --configuration Release`: **succeeded, 0
+  warnings, 0 errors** (clean `--no-incremental` rebuild included).
+- `Pegasus.Core.Tests --filter "Category!=Corpus"`: **1140 passed, 0 failed, 0
+  skipped**.
+- `Pegasus.ArchitectureTests --filter "Category!=Corpus&Category!=Browser"`:
+  **100 passed, 0 failed, 0 skipped**.
+- `Pegasus.IntegrationTests --filter
+  "(FullyQualifiedName~ProviderApi|FullyQualifiedName~IntakePersistenceIntegrationTests|FullyQualifiedName~CaseNotePersistence|FullyQualifiedName~Triage|FullyQualifiedName~Unidentified)&Category!=Browser&Category!=Corpus"`:
+  **60 passed, 0 failed, 0 skipped**, 1 m 42 s.
+- `scripts/Test-MigrationGrants.ps1`: **passed**, 85 migration files.
+- `scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD`: **passed**.
+- Full solution suite, Browser category and the snapshot/catalogue scripts were
+  **not** run here; the orchestrator owns them.
+
+### Still open after this round
+
+- **No independent review has run against the current head.** The contract
+  rewrite and now this remediation are both unreviewed. AGENTS.md step 5 still
+  blocks the merge.
+- [[AUTO-012]] and [[AUTO-013]] carry the deferred API-01 residuals.
+- `IntakeEnvelopeLimits` (30 MiB decoded / 42 MiB body) still wants operator
+  confirmation.
