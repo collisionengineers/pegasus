@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Deliver the Integrated Operations Workspace shell, design system and route
   structure
-status: done
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: feature
@@ -31,7 +31,7 @@ prs:
   - '589'
 archived: false
 created: '2026-08-21T13:19:14.464Z'
-updated: '2026-08-29T10:11:25.518Z'
+updated: '2026-08-29T13:03:42.913Z'
 ---
 
 ## What

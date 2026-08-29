@@ -2,7 +2,7 @@
 id: MAIL-025
 type: ticket
 title: Port the Inbox list and message pages to the Integrated Operations Workspace
-status: done
+status: verifying
 area: mail-communications
 assignee: zcode
 profile: feature
@@ -27,7 +27,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-29T10:26:02.140Z'
+updated: '2026-08-29T13:03:39.378Z'
 ---
 
 ## What

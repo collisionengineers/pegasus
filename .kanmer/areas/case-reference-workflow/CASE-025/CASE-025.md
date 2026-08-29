@@ -2,7 +2,7 @@
 id: CASE-025
 type: ticket
 title: Port the Cases queues page (/Cases) with workflow rail groups and filters
-status: done
+status: verifying
 area: case-reference-workflow
 assignee: zcode
 profile: feature
@@ -26,7 +26,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-28T08:35:23.861Z'
-updated: '2026-08-29T10:30:22.568Z'
+updated: '2026-08-29T13:03:27.523Z'
 ---
 
 ## What
