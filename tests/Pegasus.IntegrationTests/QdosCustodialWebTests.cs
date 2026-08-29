@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Web.Pages.Uploads;
 
 namespace Pegasus.IntegrationTests;
 
@@ -29,6 +30,54 @@ public sealed class QdosCustodialWebTests
         Assert.DoesNotContain("case", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("request", body, StringComparison.OrdinalIgnoreCase);
     }
+    /// <summary>
+    /// INTK-051: opening the composition gate made the anonymous upload page
+    /// reachable, and with it a bound that did not previously exist.
+    ///
+    /// <see cref="RequestUploadAttemptLimiter"/> partitions on the token digest
+    /// and <see cref="Pegasus.Web.Pages.Uploads.RequestModel.OnPostAsync"/>
+    /// answers <c>NotFound</c> for an unknown token before the limiter is
+    /// consulted, so a caller holding no token spends nothing there. While the
+    /// gate was closed the middleware short-circuited every <c>/Uploads</c>
+    /// request to 404 before a body was read; once composed, Razor Pages'
+    /// antiforgery filter buffers the whole multipart body first.
+    ///
+    /// The per-address policy is what closes that, so it has to be proven to
+    /// actually refuse — a bound nobody has seen reject is not a bound.
+    /// </summary>
+    [Fact]
+    public async Task PublicRequestUploadRefusesAnAddressThatHoldsNoToken()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0;
+            attempt < PublicUploadLink.RequestsPerClientPerMinute + 5;
+            attempt++)
+        {
+            // A fresh unknown token each time, so nothing is shared with the
+            // per-token limiter and only the address bound can refuse this.
+            var token = RequestUploadToken.Create().Secret.Token;
+            using var response = await client.GetAsync(
+                $"/Uploads/{Uri.EscapeDataString(token)}");
+            statuses.Add(response.StatusCode);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                break;
+            }
+        }
+
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+
+        // And it refuses only after the allowance, not from the first request.
+        var refusedAt = statuses.IndexOf(HttpStatusCode.TooManyRequests);
+        Assert.Equal(PublicUploadLink.RequestsPerClientPerMinute, refusedAt);
+        Assert.All(
+            statuses.Take(refusedAt),
+            status => Assert.Equal(HttpStatusCode.NotFound, status));
+    }
+
     [Fact]
     public async Task PublicRequestUploadUsesOneCoreCommandAndPrgWithGenericCompletion()
     {
