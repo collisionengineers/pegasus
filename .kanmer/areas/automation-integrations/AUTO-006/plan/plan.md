@@ -115,3 +115,104 @@ lenses. Every finding is behaviour-preserving; nothing was silenced.
 | `Pages/Administration/Automation/Activity.cshtml:67` | The Target column prints the raw `AggregateId`. Inherited from [[PLAT-015]] through this ticket's body. | **Deferred to [[PLAT-051]]** — §1.14 supersedes the whole page (Automation Activity → Action Logs) and [[UIIMP-009]] deletes it; PLAT-051's table has the Reference column that must carry a business reference. Fixing a file scheduled for deletion is throwaway work. |
 | `Pages/Administration/Automation/Activity.cshtml:18` | "…each carries an activity reference you can filter by" — explanatory copy the design authority bans. | **Deferred to [[PLAT-051]]**, same reason. |
 | `Pages/Administration/Index.cshtml` | Still exists and still links `/Administration/Automation/Index` and `/Administration/Organizations/Index`. `waves.md` wave 1 allocated its deletion to [[PLAT-029]]; it was not deleted. | **Reported** — PLAT-029's file, and [[UIIMP-009]] owns the removals wave. Not touched. |
+
+## Review findings — dispositions (round 2) — 2026-08-29
+
+Remediated by an external engineer (GPT-5.6, `codex exec`) under supervision;
+every claim below was independently re-run in this worktree before being
+recorded. `remediatedBy: codex`.
+
+### High
+
+- **SendToAiEnabled redisplay bug** (a failed `SetEnabled` /
+  `ClearChannelToken` reason-dialog POST reset the AI settings checkbox to
+  unchecked regardless of stored state, so the next Save could silently
+  disable Send to AI). **Fixed** —
+  `src/Pegasus.Web/Pages/Administration/Automation/Index.cshtml.cs`,
+  `LoadAsync`: `SendToAiEnabled = SendToAiEnabledNow;` moved from
+  `OnGetAsync` into `LoadAsync`, so every invalid-model redisplay reseeds it
+  from the store. `SaveAiSettings`'s own invalid redisplay is unaffected —
+  the form posts `SendToAiEnabled`, so `asp-for`'s ModelState-first behaviour
+  still shows back what the operator typed. New test
+  `FailedReasonDialogPostKeepsTheStoredSendToAiState` (both handlers)
+  confirms the checkbox and the underlying `ISendToAiControl` state survive a
+  rejected reason-dialog POST.
+
+### Medium
+
+- **Undisclosed capability loss — Client identifier / Granted scopes.**
+  **Fixed** — both facts restored to the Automation panel's fact grid
+  (`Index.cshtml`), reusing the existing `AutomationClientStatus.ClientId` /
+  `.GrantedScopes` already on the model; no new port. Labels added to
+  `OperatorLabels.AutomationAdmin` (appended, not reordered). Covered by
+  `TheAutomationPanelStatesTheRegisteredClientAndTheLedgersOwnJobCounts`.
+- **Inherited [[PLAT-015]] scope not delivered** (raw `AggregateId` in the
+  Activity table; "you can filter by" narration). The prior simplification
+  pass deferred this to [[PLAT-051]] on the reasoning that the whole page is
+  superseded. **Overturned and fixed in-lane instead** — the file is inside
+  this lane's ownership, the change is small, and D19 puts in-lane fixing
+  ahead of deferral. `Activity.cshtml.cs` now resolves a `Guid` aggregate id
+  to its Case/PO reference via the existing `IGetCase` port (already used by
+  five other pages) and renders `—` for anything unresolved; the narration
+  paragraph is deleted. Covered by
+  `ActivityRendersCaseReferencesAndNoFilterNarration`. The deferral-to-PLAT-051
+  entry in the simplification-pass table above is superseded by this
+  disposition; PLAT-051 still separately deletes the page per §1.14.
+
+### Low
+
+- **Unconditional connector-history write on every Save.** **Fixed** —
+  `OnPostSaveAiSettingsAsync` now calls `store.UpdateAsync` only when the
+  submitted address or timeout differs from the stored connector, so a
+  checkbox-only Save writes exactly one history row
+  (`send_to_ai_disabled`/`_enabled`), not two. Covered by
+  `ACheckboxOnlySaveWritesNoUnchangedConnectorHistory`.
+- **Retargeted "Standard setting" assertion covered less than it used to.**
+  **Fixed** — `SendToAiConnectorAdministrationTests` now asserts the actual
+  `ChannelAddress` and `ChannelTimeoutSeconds` input values directly
+  (`Assert.Equal(overrideReceiver.BaseUrl, InputValue(...))`, `"5"`), in
+  addition to the pre-existing "Standard setting" / token-secrecy assertions,
+  so the address and timeout are pinned again under their own name.
+- **Browser/axe pass and test-UI snapshot unrun.** **Risk accepted** —
+  subagents in this lane do not run the Browser category or snapshot
+  scripts; that gate belongs to the orchestrator/merging branch per EPIC-011
+  context. Unchanged from round 1's disclosed residual risk.
+
+### Verified independently (not just re-quoted from the remediation report)
+
+- `git diff origin/dev...HEAD -- tests/` re-read in full: no assertion
+  deleted, weakened or inverted; the one removed `Assert.Equal(Redirect...)`
+  belongs to a POST that no longer exists (two handlers merged into one),
+  matching round 1's finding. New/changed assertions strictly add coverage
+  (pin `ChannelAddress`/`ChannelTimeoutSeconds`, pin checkbox/control state
+  on redisplay, pin case reference resolution, pin no-op history).
+- `git diff --stat origin/dev...HEAD`: 7 files, all inside AUTO-006's owned
+  set (`Pages/Administration/Automation/**`, `OperatorLabels.cs`, the two
+  test files already touched in round 1). No neighbour-lane file touched.
+- `dotnet build ./Pegasus.slnx --configuration Release` — exit 0, 0
+  warnings, 0 errors (re-run by the supervising session, not just quoted).
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~AutomationAdministrationWebTests|FullyQualifiedName~SendToAiIntegrationTests|FullyQualifiedName~AutomationActorLabelTests"`
+  — exit 0, 19 passed, 0 failed, 0 skipped (re-run by the supervising
+  session; the remediation report's own final count of 15 used a narrower
+  filter that dropped `AutomationActorLabelTests`, which still passes).
+- `git log origin/task/auto-006-automation-admin..HEAD` is empty and
+  `git rev-parse HEAD` equals the remote ref — both remediation commits
+  (`5dd27a27`, `7e5cf00c`) are already pushed; nothing further to push.
+- `IAiJobQueries` remains registered unconditionally
+  (`Infrastructure/DependencyInjection.cs:337`), so the restored job-count
+  read stays safe to call whenever the Automation panel renders.
+
+### Out of scope (reported, not touched)
+
+- `Pages/Administration/Index.cshtml` still links `/Administration/Automation/Index`
+  and `/Administration/Organizations/Index` — [[PLAT-029]]'s file, unchanged.
+
+### Still open
+
+- CI on PR #618 was pending as of this remediation; not independently
+  re-checked beyond the local build/test re-run above.
+- Board update: the live Kanmer MCP session Codex was given returned tunnel
+  HTTP 404 on every retry, so it could not record dispositions itself. This
+  entry supersedes that gap — no `.kanmer/` file was hand-edited by either
+  agent.
