@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
