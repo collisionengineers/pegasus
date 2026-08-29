@@ -1051,6 +1051,20 @@ public static class OperatorLabels
             : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
     }
 
+    /// <summary>
+    /// The recorded EVA facts available to the Operations panel (PLAT-049).
+    /// </summary>
+    public static class EvaHandoffs
+    {
+        public const string PanelTitle = "EVA handoffs";
+        public const string PendingWork = "Pending work";
+        public const string LatestActivity = "Latest activity";
+        public const string Failures = "Failures";
+        public const string Failure = "Failure";
+        public const string Submitted = "Submitted";
+        public const string Failed = "Failed";
+    }
+
     /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
     public static class ProviderSubmissionApi
     {
