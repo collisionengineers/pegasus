@@ -2271,6 +2271,7 @@ Note: Returns a 200 - Success, even when no reports are available to download.
  401 - Unauthorized      The user is unauthorised to access the endpoint
  500 - Internal Server Error An error occurred while processing the update request.
              Example 'GetAvailableReports' JSON Response
+```
 ```json
 [
 {
@@ -2279,7 +2280,6 @@ Note: Returns a 200 - Success, even when no reports are available to download.
 " releasedDate": "2026-05-06T10:30:00Z ",
 }
 ]
-```
 ```
 
 ### Response Model
