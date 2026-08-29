@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Qdos extraction regexes thrash the static Regex cache and one has no match
   timeout
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-gpt-5.6-luna
 profile: fix
 stageEntered:
   preparing: '2026-08-29T16:28:28.550Z'
+taken_at: '2026-08-29T16:29:48.131Z'
+branch: task/deliv-036-qdos-regex-cache
+worktree: ../pegasus-worktrees/deliv-036-qdos-regex-cache
 labels:
   - ci
   - flaky
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T16:03:14.405Z'
-updated: '2026-08-29T16:28:28.550Z'
+updated: '2026-08-29T16:29:48.131Z'
 ---
 
 ## What
