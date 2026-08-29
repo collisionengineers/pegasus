@@ -524,11 +524,11 @@
                     {
                         <section class="panel" aria-labelledby="case-ai-jobs-title">
                             <div class="panel-head">
-                                <h2 id="case-ai-jobs-title">@OperatorLabels.QueryResponseJobs.PanelTitle</h2>
+                                <h2 id="case-ai-jobs-title">@OperatorLabels.AiJobs.PanelTitle</h2>
                             </div>
                             <div class="table-wrap">
                                 <table>
-                                    <caption class="sr-only">@OperatorLabels.QueryResponseJobs.PanelTitle</caption>
+                                    <caption class="sr-only">@OperatorLabels.AiJobs.PanelTitle</caption>
                                     <thead>
                                         <tr>
                                             <th scope="col">Job</th>
@@ -540,11 +540,12 @@
                                     @foreach (var job in Model.AiJobs)
                                     {
                                         <tr>
-                                            <td>@OperatorLabels.Humanise(job.Kind.ToString())</td>
+                                            <td>@OperatorLabels.AiJobs.Kind(job.Kind)</td>
                                             <td><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
                                             <td>
                                                 <partial name="Shared/_StatusChip"
-                                                         model="@OperatorLabels.Humanise(job.State.ToString())" />
+                                                         model="@OperatorLabels.AiJobs.State(job.State)"
+                                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
                                             </td>
                                         </tr>
                                     }
