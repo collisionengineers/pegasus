@@ -52,6 +52,133 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is a Review act. Outside
+    /// Review the workspace offers no EVA control and draws no handoff, rather
+    /// than drawing a disabled one.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false)]
+    [InlineData(CaseLifecycleState.Review, true)]
+    public async Task SendToEvaRendersOnlyInReview(CaseLifecycleState state, bool offersHandoff)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { State = state };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Equal(offersHandoff, RecordBar(html).Contains("Send to EVA", StringComparison.Ordinal));
+        Assert.Equal(
+            offersHandoff,
+            html.Contains("data-dialog=\"eva-handoff-dialog\"", StringComparison.Ordinal));
+        // The handoff's own routes come with it: the export posts from the
+        // dialog, so the route is present exactly when the control is.
+        Assert.Equal(
+            offersHandoff,
+            html.Contains(
+                $"/Cases/{store.CaseId:D}/Documents/Export",
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// D10: "report sent" is confirmed from detected Sent evidence and is never
+    /// asserted by hand, so the action renders only while the case is With
+    /// Engineer, this browser holds the edit authority, and retained evidence
+    /// exists. The evidence is named by mailbox and time; the transport handles
+    /// and hashes it also carries stay internal.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false, false)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    public async Task ReportSentRendersOnlyWithDetectedEvidenceWhileWithEngineer(
+        CaseLifecycleState state,
+        bool hasEvidence,
+        bool offersConfirmation)
+    {
+        var evidence = new RetainedApprovedMailboxReportSentEvidence(
+            Guid.NewGuid(),
+            "reports@collisionengineers.example",
+            "sent-folder-handle",
+            "immutable-item-handle",
+            "internet-message-handle",
+            "conversation-handle",
+            "reply-chain-handle",
+            "source-occurrence-handle",
+            new string('b', 64),
+            new string('c', 64),
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2031, 5, 6, 9, 5, 0, TimeSpan.Zero),
+            ActionActor.SystemWorker("sent-mail-worker"));
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            AvailableReportSentEvidence = hasEvidence ? [evidence] : []
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(
+            offersConfirmation,
+            RecordBar(html).Contains("Mark report sent", StringComparison.Ordinal));
+        Assert.Equal(
+            offersConfirmation,
+            html.Contains("handler=LinkReportEvidence", StringComparison.Ordinal));
+        if (offersConfirmation)
+        {
+            var visible = VisibleText(html);
+            Assert.Contains("reports@collisionengineers.example", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("immutable-item-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("internet-message-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('b', 64), visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('c', 64), visible, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The workspace's six sections are alternatives addressed by
+    /// <c>?section=</c>, and exactly one is current. A value the workspace does
+    /// not own — including the pre-redesign <c>?tab=</c>, which no link in the
+    /// product still writes — selects Case Overview rather than nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("", "Case Overview")]
+    [InlineData("?section=overview", "Case Overview")]
+    [InlineData("?section=vehicle", "Vehicle")]
+    [InlineData("?section=valuations", "Valuations")]
+    [InlineData("?section=inspection-address", "Inspection address")]
+    [InlineData("?section=case-files", "Case Files")]
+    [InlineData("?section=notes", "Notes")]
+    [InlineData("?section=evidence", "Case Overview")]
+    [InlineData("?tab=case-files", "Case Overview")]
+    public async Task SectionQuerySelectsOneSectionAndUnknownValuesFallBackToOverview(
+        string query,
+        string currentSection)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}{query}");
+
+        Assert.Equal(currentSection, CurrentSectionLabel(html));
+    }
+
+    /// <summary>
     /// PLAT-011: the case history table shows the resolved actor name, never the
     /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
     /// username and an Automation row shows the client label, not either GUID.
@@ -1049,6 +1176,26 @@ public sealed partial class CaseDetailsWebTests
         return html[start..end];
     }
 
+    /// <summary>
+    /// The label of the workspace section marked current. Scoped to the section
+    /// nav so the shell rail's own current link cannot answer for it.
+    /// </summary>
+    private static string CurrentSectionLabel(string html)
+    {
+        var start = html.IndexOf("class=\"case-section-nav\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The workspace section nav is not rendered.");
+        var end = html.IndexOf("</div>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The section nav is not closed.");
+        var current = CurrentSectionRegex().Match(html[start..end]);
+        Assert.True(current.Success, "No section is marked current.");
+        return current.Groups[1].Value;
+    }
+
+    [GeneratedRegex(
+        "aria-current=\"page\"[^>]*>.*?<span>([^<]*)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex CurrentSectionRegex();
+
     private static string EditAuthorityNote(string html)
     {
         var start = html.IndexOf("data-edit-authority", StringComparison.Ordinal);
@@ -1208,6 +1355,13 @@ public sealed partial class CaseDetailsWebTests
 
         public bool ExposeCustody { get; init; }
 
+        /// <summary>The detected Sent evidence the projection offers for confirmation (D10).</summary>
+        public IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence
+        {
+            get;
+            init;
+        } = [];
+
         public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
 
         public string LeaseToken { get; } = "opaque-live-case-lease";
@@ -1260,7 +1414,7 @@ public sealed partial class CaseDetailsWebTests
                 null,
                 CaseCustodyState.Pending,
                 [],
-                [],
+                AvailableReportSentEvidence,
                 HistoryEntries)
             {
                 Data = CreateData(),

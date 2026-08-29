@@ -37,8 +37,13 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
 
         var html = await client.GetStringAsync("/");
 
-        Assert.Contains("Active cases", html, StringComparison.Ordinal);
-        Assert.Contains("E-mail activity", html, StringComparison.Ordinal);
+        // The landing page exposes the case-intake workspace: the Work
+        // Centre's heading, the one action that creates a Case, and the
+        // metrics that open each queue directly.
+        Assert.Contains("Work Centre", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Cases/Create\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-value=\"not_ready\" href=\"/Cases?tab=not_ready\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-value=\"unidentified\" href=\"/Cases?tab=unidentified\"", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified", html, StringComparison.Ordinal);
     }
 }

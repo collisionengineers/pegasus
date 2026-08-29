@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,6 +130,37 @@ public sealed class AdministrationSearchAccountWebTests
         search.EnsureSuccessStatusCode();
         var html = await search.Content.ReadAsStringAsync();
         Assert.Contains("No cases match these filters.", html, StringComparison.Ordinal);
+
+        // A real bookmark carries a whole filter set, including the two
+        // parameters the ported grid no longer draws. Every value survives the
+        // move byte for byte, in its original order, and the page it lands on
+        // accepts all of them.
+        const string wholeFilterSet =
+            "?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
+            + "&principal=QDOS&state=Review&receivedDate=2031-05-01"
+            + "&instructionDate=2031-05-02&fromDate=2031-04-01&toDate=2031-05-31"
+            + "&origin=Email&query=" + keyword + "&page=2";
+        using var wholeBookmark = await client.GetAsync("/Cases" + wholeFilterSet);
+        Assert.Equal(HttpStatusCode.MovedPermanently, wholeBookmark.StatusCode);
+        Assert.Equal(
+            "/Search" + wholeFilterSet,
+            wholeBookmark.Headers.Location?.OriginalString ?? string.Empty);
+
+        using var landed = await client.GetAsync("/Search" + wholeFilterSet);
+        landed.EnsureSuccessStatusCode();
+        var landedHtml = await landed.Content.ReadAsStringAsync();
+        foreach (var (field, value) in new[]
+                 {
+                     ("search-query", keyword), ("search-registration", "AB12CDE"),
+                     ("search-claimant", "Claimant"), ("search-claim-number", "CLM42"),
+                     ("search-principal", "QDOS"), ("search-from-date", "2031-04-01"),
+                     ("search-to-date", "2031-05-31"), ("search-origin", "Email")
+                 })
+        {
+            Assert.Matches(
+                $"id=\"{field}\"[^>]*value=\"{Regex.Escape(value)}\"",
+                landedHtml);
+        }
     }
 
     [Fact]
