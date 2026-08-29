@@ -6,282 +6,264 @@
     ViewData["Title"] = "New case";
 
     var draft = Model.DraftFields.Draft;
-
 }
 
-@* Where a value came from, in one word, using the approved glyph for that word.
-   The row still reads without it: provenance is supplementary. *@
-@{
-    void Prov(string fieldName)
-    {
-        var word = Model.DraftFields.ProvenanceWord(fieldName);
-        var icon = word == "Extracted" ? "icon-file-text" : "icon-user";
-        <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
-            <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
-        </span>
-    }
-}
 @*
     The second half of one operator action: a file was dropped on Upload, it
     was read while they waited, and this is where what came out of it becomes
     a case. The route carries no "intake" — the operator notes forbid the word
     in the interface — and no identifier, hash or version is printed as text.
+
+    Each read value is a definition row carrying its own provenance glyph:
+    where a value came from is one word on the icon's accessible name, never a
+    sentence, a source label or a third column. The row still reads with the
+    icon ignored, so provenance stays supplementary.
 *@
+@{
+    void Row(string label, string? value, string fieldName)
+    {
+        var word = Model.DraftFields.ProvenanceWord(fieldName);
+        var icon = word == "Extracted" ? "icon-file-text" : "icon-user";
+        var recorded = !string.IsNullOrWhiteSpace(value);
+        <dl class="definition">
+            <dt>@label</dt>
+            <dd class="@(recorded ? null : "quiet")">
+                @(recorded ? value : "Not recorded")
+                <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
+                    <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
+                </span>
+            </dd>
+        </dl>
+    }
+}
 
 @* The heading names the file this case is being made from. "New case" was the
    eyebrow, the H1 and the start of the lede — three lines saying it once. *@
-<div class="form-column form-column--wide">
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">New case</p>
         <h1>From @Model.Receipt.SourceFileName</h1>
     </div>
-    <div class="page-heading-actions">
-        <a class="secondary-action" asp-page="/Upload">Upload another</a>
+    <div class="page-actions">
+        <a class="btn" asp-page="/Upload">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>Upload another</span>
+        </a>
     </div>
 </header>
 
 @if (Model.RefusalMessage is { } refusal)
 {
-    <section class="panel section-gap" aria-labelledby="refusal-title">
-        <h2 id="refusal-title" class="section-label">This item cannot become a case</h2>
-        <p class="failure-detail">@refusal</p>
-        <a class="secondary-action" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id">Open the received item</a>
+    <section class="panel" aria-labelledby="refusal-title">
+        <div class="panel-head">
+            <h2 id="refusal-title">This item cannot become a case</h2>
+        </div>
+        <div class="panel-body stack">
+            <div class="notice notice--danger" role="alert">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                <span>@refusal</span>
+            </div>
+            <div class="cluster">
+                <a class="btn" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id">Open the received item</a>
+            </div>
+        </div>
     </section>
 }
 else
 {
-    <p class="status-card status-card--done" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
-        <span>File read — confirm the extracted values below.</span>
-    </p>
-
-    <form method="post" asp-page-handler="Create">
+    <form method="post" asp-page-handler="Create" class="stack">
         <input asp-for="ReceiptId" type="hidden" />
         <input asp-for="OperationId" type="hidden" />
         <input asp-for="ExpectedReceiptVersion" type="hidden" />
         <input asp-for="AddressSuggestionFingerprint" type="hidden" />
-        <div asp-validation-summary="All" class="validation-summary"></div>
+        <partial name="Shared/_ErrorSummary" />
 
         @* Read first, edit on demand. Eleven boxes asked the operator to check
            every one; the rows state what was read, and the fields open only
            when something is wrong. The inputs still post either way, so
            nothing depends on the disclosure being open. *@
-        <section class="panel section-gap" aria-labelledby="details-title">
-            <h2 id="details-title" class="section-label">Details</h2>
-            <div>
-                <div class="datarow">
-                    <span class="datarow__field">Claimant</span>
-                    @if (draft?.ClaimantName is { Length: > 0 } claimantName)
-                    {
-                        <span class="datarow__value">@claimantName</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    <span class="datarow__end">@{ Prov("Claimant name"); }</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Claim number</span>
-                    @if (draft?.ClaimNumber is { Length: > 0 } claimNumber)
-                    {
-                        <span class="datarow__value">@claimNumber</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    <span class="datarow__end">@{ Prov("Claim number"); }</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Registration</span>
-                    @if (draft?.VehicleRegistration is { Length: > 0 } registration)
-                    {
-                        <span class="datarow__value">@registration</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    <span class="datarow__end">@{ Prov("Vehicle registration"); }</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Vehicle</span>
-                    @{
-                        var vehicle = string.Join(
-                            " ",
-                            new[] { draft?.VehicleMake, draft?.VehicleModel }
-                                .Where(part => !string.IsNullOrWhiteSpace(part)));
-                    }
-                    @if (vehicle.Length > 0)
-                    {
-                        <span class="datarow__value">@vehicle</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    <span class="datarow__end">@{ Prov("Vehicle make"); }</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Incident date</span>
-                    @if (draft?.DateOfIncident is { } incidentDate)
-                    {
-                        <span class="datarow__value">@incidentDate.ToString("d MMM yyyy")</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    <span class="datarow__end">@{ Prov("Date of incident"); }</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Instruction date</span>
-                    @if (draft?.InstructionDate is { } instructionDate)
-                    {
-                        <span class="datarow__value">@instructionDate.ToString("d MMM yyyy")</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    <span class="datarow__end">@{ Prov("Instruction date"); }</span>
-                </div>
+        <section class="panel" aria-labelledby="details-title">
+            <div class="panel-head">
+                <h2 id="details-title">Details</h2>
             </div>
-            <details class="draft-edit">
-                <summary class="btn">Change a value</summary>
-                <p>Every value is retained with who put it there.</p>
-                <partial name="_InstructionDraftFields" model="Model.DraftFields" />
-            </details>
+            <div class="panel-body stack">
+                <div class="definition-list">
+                    @{
+                        Row("Claimant", draft?.ClaimantName, "Claimant name");
+                        Row("Claim number", draft?.ClaimNumber, "Claim number");
+                        Row("Registration", draft?.VehicleRegistration, "Vehicle registration");
+                        Row(
+                            "Vehicle",
+                            string.Join(
+                                " ",
+                                new[] { draft?.VehicleMake, draft?.VehicleModel }
+                                    .Where(part => !string.IsNullOrWhiteSpace(part))),
+                            "Vehicle make");
+                        Row(
+                            "Incident date",
+                            draft?.DateOfIncident?.ToString("d MMM yyyy"),
+                            "Date of incident");
+                        Row(
+                            "Instruction date",
+                            draft?.InstructionDate?.ToString("d MMM yyyy"),
+                            "Instruction date");
+                    }
+                </div>
+                <details>
+                    <summary class="btn">Change a value</summary>
+                    <partial name="_InstructionDraftFields" model="Model.DraftFields" />
+                </details>
+            </div>
         </section>
 
-        <section class="panel section-gap" aria-labelledby="address-title">
-            <h2 id="address-title" class="section-label">Inspection address</h2>
-            @if (Model.ProviderIsImageBased)
-            {
-                @* A rule that will override whatever the instruction says, so
-                   it is a notice rather than a paragraph. *@
-                <aside class="notice">
-                    <p>This work provider uses Image Based Assessment: the inspection address is recorded as &ldquo;Image Based Assessment&rdquo; even if the instruction mentions a physical location; a physical address can be added afterwards, with a reason.</p>
-                </aside>
-            }
-            else if (Model.AddressAlreadySettled)
-            {
-                <dl class="detail-list">
-                    <div><dt>Inspection address</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
-                    <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Cases.CreateModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
-                </dl>
-                <p>This address is already settled and will be used for the case.</p>
-            }
-            else if (Model.AddressSuggestion is { } suggestion)
-            {
-                <dl class="detail-list">
-                    <div><dt>Address found in the document</dt><dd>@suggestion.Value</dd></div>
-                    <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Cases.CreateModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
-                </dl>
-                <ul class="plain-list">
-                    @foreach (var provenance in suggestion.Provenance)
-                    {
-                        <li>Extracted from @provenance.SourceLabel</li>
-                    }
-                </ul>
-                @* The choice is always explicit: Pegasus will not decide for
-                   itself which of two addresses is the right one. *@
-                <fieldset>
-                    <legend>Which address should the case use?</legend>
-                    <label>
-                        <input type="radio" asp-for="AddressChoice" value="@Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseFoundAddress" required />
-                        Use the address found
-                    </label>
-                    <label>
-                        <input type="radio" asp-for="AddressChoice" value="@Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress" />
-                        Use this address instead
-                    </label>
-                </fieldset>
-                <label asp-for="InspectionAddress">Inspection address to use instead</label>
-                <textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea>
-                <span asp-validation-for="InspectionAddress" class="field-validation"></span>
-            }
-            else
-            {
-                <p>Nothing in this file said where the vehicle is, so enter the location yourself; it is retained as yours.</p>
-                @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+        <section class="panel" aria-labelledby="address-title">
+            <div class="panel-head">
+                <h2 id="address-title">Inspection address</h2>
+            </div>
+            <div class="panel-body stack">
+                @if (Model.ProviderIsImageBased)
                 {
-                    <p class="failure-detail">The file offered more than one address, so none of them is being used:</p>
-                    <ul class="evidence-list">
-                        @foreach (var evidence in Model.AddressResolution.Evaluation.ConflictingEvidence)
-                        {
-                            <li>
-                                <strong>@evidence.Value</strong>
-                                <span>Extracted from @evidence.Provenance.SourceLabel</span>
-                            </li>
-                        }
-                    </ul>
+                    @* A rule that overrides whatever the instruction says, so it
+                       is a notice rather than a paragraph. *@
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+                        <span>Image Based Assessment: the inspection address is recorded as &ldquo;Image Based Assessment&rdquo;.</span>
+                    </div>
                 }
-                <label asp-for="InspectionAddress">Inspection address</label>
-                <textarea asp-for="InspectionAddress" maxlength="1000" rows="3" required></textarea>
-                <span asp-validation-for="InspectionAddress" class="field-validation"></span>
-            }
+                else if (Model.AddressAlreadySettled)
+                {
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Inspection address</dt>
+                            <dd>@Model.AddressResolution.ResolvedValue</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Status</dt>
+                            <dd>@Pegasus.Web.Pages.Cases.CreateModel.AddressStateLabel(Model.AddressResolution.State)</dd>
+                        </dl>
+                    </div>
+                }
+                else if (Model.AddressSuggestion is { } suggestion)
+                {
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Address found in the document</dt>
+                            <dd>@suggestion.Value</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Status</dt>
+                            <dd>@Pegasus.Web.Pages.Cases.CreateModel.AddressStateLabel(Model.AddressResolution.State)</dd>
+                        </dl>
+                        @foreach (var provenance in suggestion.Provenance)
+                        {
+                            <dl class="definition">
+                                <dt>Extracted from</dt>
+                                <dd>@provenance.SourceLabel</dd>
+                            </dl>
+                        }
+                    </div>
+                    @* The choice is always explicit: Pegasus will not decide for
+                       itself which of two addresses is the right one. *@
+                    <fieldset class="field">
+                        <legend>Inspection address</legend>
+                        <label class="choice">
+                            <input type="radio" asp-for="AddressChoice" value="@Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseFoundAddress" required />
+                            <span>Use the address found</span>
+                        </label>
+                        <label class="choice">
+                            <input type="radio" asp-for="AddressChoice" value="@Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress" />
+                            <span>Use this address instead</span>
+                        </label>
+                    </fieldset>
+                    <div class="field">
+                        <label asp-for="InspectionAddress">Inspection address to use instead</label>
+                        <textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea>
+                        <span asp-validation-for="InspectionAddress" class="field-error"></span>
+                    </div>
+                }
+                else
+                {
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Nothing in this file said where the vehicle is.</span>
+                    </div>
+                    @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+                    {
+                        <div class="definition-list">
+                            @foreach (var evidence in Model.AddressResolution.Evaluation.ConflictingEvidence)
+                            {
+                                <dl class="definition">
+                                    <dt>Conflicting · @evidence.Provenance.SourceLabel</dt>
+                                    <dd>@evidence.Value</dd>
+                                </dl>
+                            }
+                        </div>
+                    }
+                    <div class="field">
+                        <label class="req" asp-for="InspectionAddress">Inspection address</label>
+                        <textarea asp-for="InspectionAddress" maxlength="1000" rows="3" required></textarea>
+                        <span asp-validation-for="InspectionAddress" class="field-error"></span>
+                    </div>
+                }
+            </div>
         </section>
 
         @* Completeness was its own panel, which read as a separate decision. It
-           is part of describing the case being created, so it sits with it. *@
-        <section class="panel section-gap" aria-labelledby="case-title">
-            <h2 id="case-title" class="section-label">Case</h2>
-            <div class="form-grid">
-                <div>
-                    <label asp-for="PrincipalCode">Confirmed principal code</label>
-                    <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" aria-describedby="principal-code-hint" />
-                    <small id="principal-code-hint" class="field-hint">The organisation this instruction is for.</small>
-                    <span asp-validation-for="PrincipalCode" class="field-validation"></span>
-                </div>
-                <div>
-                    <label asp-for="CaseType">Case type</label>
-                    <select asp-for="CaseType" data-case-type-selector>
-                        <option value="@CaseType.Inspection">Inspection</option>
-                        <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
-                    </select>
-                    <span asp-validation-for="CaseType" class="field-validation"></span>
-                </div>
+           is part of describing the case being created, so it sits with it, and
+           so does the reason the one committed action needs. *@
+        <section class="panel" aria-labelledby="case-title">
+            <div class="panel-head">
+                <h2 id="case-title">Case</h2>
             </div>
+            <div class="panel-body stack">
+                <div class="grid grid-2">
+                    <div class="field">
+                        <label asp-for="PrincipalCode">Confirmed principal code</label>
+                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
+                        <span asp-validation-for="PrincipalCode" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="CaseType">Case type</label>
+                        <select asp-for="CaseType" data-case-type-selector>
+                            <option value="@CaseType.Inspection">Inspection</option>
+                            <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+                        </select>
+                        <span asp-validation-for="CaseType" class="field-error"></span>
+                    </div>
+                </div>
 
-            <fieldset class="role-choices role-choices--stacked section-gap">
-                <legend>Evidence completeness</legend>
-                <label class="choice">
-                    <input asp-for="InstructionComplete" />
-                    <span>Instruction evidence is complete</span>
-                </label>
-                <label class="choice">
-                    <input asp-for="InstructionConfirmedByStaff" />
-                    <span>I have confirmed the instruction evidence</span>
-                </label>
-                <label class="choice">
-                    <input asp-for="ImagesComplete" />
-                    <span>Image evidence is complete</span>
-                </label>
-                <label class="choice">
-                    <input asp-for="ImagesConfirmedByStaff" />
-                    <span>I have confirmed the image evidence</span>
-                </label>
-            </fieldset>
-        </section>
+                <fieldset class="field">
+                    <legend>Evidence completeness</legend>
+                    <label class="choice">
+                        <input asp-for="InstructionComplete" />
+                        <span>Instruction evidence is complete</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="InstructionConfirmedByStaff" />
+                        <span>I have confirmed the instruction evidence</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="ImagesComplete" />
+                        <span>Image evidence is complete</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="ImagesConfirmedByStaff" />
+                        <span>I have confirmed the image evidence</span>
+                    </label>
+                </fieldset>
 
-        <section class="panel section-gap" aria-labelledby="reason-title">
-            <h2 id="reason-title" class="section-label">Reason</h2>
-            <div class="form-grid">
-                <div class="field-wide">
-                    <label asp-for="Reason">Why this case is being created</label>
+                <div class="field">
+                    <label class="req" asp-for="Reason">Why this case is being created</label>
                     <textarea asp-for="Reason" maxlength="500" rows="3" required></textarea>
-                    <span asp-validation-for="Reason" class="field-validation"></span>
+                    <span asp-validation-for="Reason" class="field-error"></span>
                 </div>
-            </div>
-            @* One committed action, and the way out beside it. *@
-            <div class="button-row section-gap">
-                <button type="submit" class="primary-action">Create case</button>
-                <a class="secondary-action" asp-page="/Upload">Cancel</a>
+
+                @* One committed action, and the way out beside it. *@
+                <div class="cluster">
+                    <button type="submit" class="btn btn--primary">Create case</button>
+                    <a class="btn" asp-page="/Upload">Cancel</a>
+                </div>
             </div>
         </section>
     </form>
 }
-</div>
