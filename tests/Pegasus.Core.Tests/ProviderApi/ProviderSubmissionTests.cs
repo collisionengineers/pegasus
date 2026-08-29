@@ -54,8 +54,61 @@ public sealed class ProviderSubmissionTests
     private static SubmitProviderInstruction Submit(
         FakeStore store,
         FakeIntakeSubmission intake,
-        FakeHistory? history = null) =>
-        new(store, intake, history ?? new FakeHistory(), new FixedTime());
+        FakeHistory? history = null)
+    {
+        history ??= new FakeHistory();
+        history.Store = store;
+        return new(store, intake, history, new FixedTime());
+    }
+
+    private static ReconcileProviderSubmissions Reconcile(
+        FakeStore store,
+        FakeIntakeSubmission intake,
+        FakeHistory history)
+    {
+        history.Store = store;
+        store.HistoryEntries.Clear();
+        store.HistoryEntries.AddRange(history.Entries);
+        return new(store, intake, history, new FixedTime());
+    }
+
+    private static ProviderSubmissionRecord Submission(
+        Guid id,
+        DateTimeOffset? receivedAtUtc = null,
+        Guid? stagedReceiptId = null) =>
+        new(
+            id,
+            PrincipalId,
+            KeyId,
+            $"key-{id:N}",
+            "12345/1",
+            receivedAtUtc ?? Now - ReconcileProviderSubmissions.AcceptHistoryGracePeriod - TimeSpan.FromSeconds(1),
+            Instruction(),
+            stagedReceiptId);
+
+    private static IntakeStagedReceipt StagedReceipt(Guid submissionId, Guid stagedReceiptId) =>
+        new(
+            stagedReceiptId,
+            ProviderInstructionPolicy.SourceFileName,
+            ProviderInstructionPolicy.SourceMediaType,
+            1,
+            "HASH",
+            new(IntakeSourceChannel.ProviderApi, ProviderSubmissionPolicy.SubmissionToken(submissionId)),
+            Now - ReconcileProviderSubmissions.AcceptHistoryGracePeriod - TimeSpan.FromSeconds(1),
+            "provider:0f149cac-e1d4-4a57-925f-7c35d33d7f5b",
+            $"staged:{stagedReceiptId:N}",
+            Now);
+
+    private static ActionHistoryEntry History(Guid submissionId, string outcome) =>
+        new(
+            Guid.NewGuid(),
+            ProviderSubmissionPolicy.ActionHistoryAggregateType,
+            submissionId.ToString("D"),
+            "Submitted",
+            ActionActor.Provider(PrincipalId),
+            Now,
+            outcome,
+            $"request:{submissionId:N}");
 
     [Fact]
     public async Task DeclaredSubmissionIsRetainedAsOneSourceOnTheProviderChannel()
@@ -296,6 +349,194 @@ public sealed class ProviderSubmissionTests
         Assert.Null(await result.ExecuteAsync(Active, Guid.NewGuid(), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task AcceptRecoveryRepairsTheRowAndAcceptedHistoryAfterIntakeRetention()
+    {
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(0, result.Failures);
+        Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
+        var accepted = Assert.Single(history.Entries);
+        Assert.Equal("Accepted", accepted.Outcome);
+        Assert.Equal(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
+        Assert.Equal(ActorKind.Provider, accepted.Actor.Kind);
+        Assert.Equal(PrincipalId.ToString("D"), accepted.Actor.SubjectId);
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryWritesAcceptedWhenOnlyTheBackReferenceWasWritten()
+    {
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId, stagedReceiptId: stagedReceiptId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(0, store.RecordStagedReceiptCalls.GetValueOrDefault(submissionId));
+        Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
+        Assert.Equal("Accepted", Assert.Single(history.Entries).Outcome);
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryAddsAcceptedWhenAReplayOnlyWroteReplayed()
+    {
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId, stagedReceiptId: stagedReceiptId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        history.Add(History(submissionId, "Replayed"));
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(["Replayed", "Accepted"], history.Entries.Select(entry => entry.Outcome));
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryLeavesABareReservationUntouched()
+    {
+        var submissionId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId);
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(0, result.Repaired);
+        Assert.Equal(0, result.Failures);
+        Assert.Null(store.Records[submissionId].StagedReceiptId);
+        Assert.Empty(history.Entries);
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryDoesNothingForAnInlineCompletedSubmission()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        var receipt = await Submit(store, intake, history).ExecuteAsync(
+            Request(Active),
+            CancellationToken.None);
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(0, result.Candidates);
+        Assert.Equal(0, result.Repaired);
+        Assert.Single(history.Entries);
+        Assert.Equal("Accepted", history.Entries[0].Outcome);
+        Assert.Equal(1, store.RecordStagedReceiptCalls[receipt.SubmissionId]);
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryDefersAJustCreatedSubmissionInsideTheGraceWindow()
+    {
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId, receivedAtUtc: Now);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(0, result.Repaired);
+        Assert.Null(store.Records[submissionId].StagedReceiptId);
+        Assert.Empty(history.Entries);
+        Assert.Empty(intake.SourceLookups);
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryCountsARecoverableFailureAndContinuesTheBatch()
+    {
+        var failedId = Guid.NewGuid();
+        var repairedId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[failedId] = Submission(failedId);
+        store.Records[repairedId] = Submission(repairedId);
+        intake.AddStagedReceipt(StagedReceipt(failedId, Guid.NewGuid()));
+        intake.AddStagedReceipt(StagedReceipt(repairedId, Guid.NewGuid()));
+        store.RecordFailures[failedId] = new IOException("temporary database failure");
+
+        var result = await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        Assert.Equal(2, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(1, result.Failures);
+        Assert.Null(store.Records[failedId].StagedReceiptId);
+        Assert.NotNull(store.Records[repairedId].StagedReceiptId);
+        Assert.Equal(repairedId.ToString("D"), Assert.Single(history.Entries).AggregateId);
+    }
+
+    [Fact]
+    public async Task AcceptRecoveryPropagatesANonRecoverableFailure()
+    {
+        var submissionId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, Guid.NewGuid()));
+        store.RecordFailures[submissionId] = new OperationCanceledException();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => Reconcile(store, intake, history).ExecuteAsync(50));
+    }
+
+    [Fact]
+    public async Task ProviderSubmissionResultChangesFromReceivedAfterAcceptRecovery()
+    {
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        var status = new FakeStatus();
+        status.Statuses[stagedReceiptId] = new(
+            stagedReceiptId,
+            ProviderInstructionPolicy.SourceFileName,
+            Now,
+            QueuedIntakeStatusKind.Processing,
+            ProcessedReceiptId: null,
+            FailureCode: null);
+        var getResult = new GetProviderSubmissionResult(store, status, status);
+
+        var before = await getResult.ExecuteAsync(Active, submissionId, CancellationToken.None);
+        Assert.Equal(QueuedIntakeStatusKind.Received, before?.Status);
+
+        await Reconcile(store, intake, history).ExecuteAsync(50);
+
+        var after = await getResult.ExecuteAsync(Active, submissionId, CancellationToken.None);
+        Assert.Equal(QueuedIntakeStatusKind.Processing, after?.Status);
+    }
+
     private sealed class FixedTime : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => Now;
@@ -304,6 +545,9 @@ public sealed class ProviderSubmissionTests
     private sealed class FakeStore : IProviderSubmissionStore
     {
         public Dictionary<Guid, ProviderSubmissionRecord> Records { get; } = [];
+        public List<ActionHistoryEntry> HistoryEntries { get; } = [];
+        public Dictionary<Guid, Exception> RecordFailures { get; } = [];
+        public Dictionary<Guid, int> RecordStagedReceiptCalls { get; } = [];
         public bool ConflictOnce { get; set; }
 
         public Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
@@ -341,13 +585,66 @@ public sealed class ProviderSubmissionTests
         public Task RecordStagedReceiptAsync(
             Guid submissionId, Guid stagedReceiptId, CancellationToken cancellationToken)
         {
+            RecordStagedReceiptCalls[submissionId] =
+                RecordStagedReceiptCalls.GetValueOrDefault(submissionId) + 1;
+            if (RecordFailures.TryGetValue(submissionId, out var exception))
+            {
+                throw exception;
+            }
             if (Records.TryGetValue(submissionId, out var record))
             {
-                Records[submissionId] = record with { StagedReceiptId = stagedReceiptId };
+                if (record.StagedReceiptId != stagedReceiptId)
+                {
+                    Records[submissionId] = record with { StagedReceiptId = stagedReceiptId };
+                }
             }
 
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            var accepted = AcceptedSubmissionIds();
+            IReadOnlyList<ProviderSubmissionAcceptCandidate> candidates = Records.Values
+                .Where(record => record.StagedReceiptId is null || !accepted.Contains(record.Id))
+                .OrderBy(record => record.ReceivedAtUtc)
+                .ThenBy(record => record.Id)
+                .Take(maximumItems)
+                .Select(record => new ProviderSubmissionAcceptCandidate(
+                    record.Id,
+                    record.PrincipalId,
+                    record.ReceivedAtUtc,
+                    record.StagedReceiptId,
+                    accepted.Contains(record.Id)))
+                .ToArray();
+            return Task.FromResult(candidates);
+        }
+
+        public Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
+            Guid submissionId,
+            CancellationToken cancellationToken)
+        {
+            var accepted = AcceptedSubmissionIds();
+            var record = Records.GetValueOrDefault(submissionId);
+            return Task.FromResult(
+                record is null
+                    ? null
+                    : new ProviderSubmissionAcceptCandidate(
+                        record.Id,
+                        record.PrincipalId,
+                        record.ReceivedAtUtc,
+                        record.StagedReceiptId,
+                        accepted.Contains(record.Id)));
+        }
+
+        private HashSet<Guid> AcceptedSubmissionIds() => HistoryEntries
+            .Where(entry =>
+                entry.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                && entry.Outcome == "Accepted")
+            .Select(entry => Guid.Parse(entry.AggregateId))
+            .ToHashSet();
     }
 
     /// <summary>
@@ -355,13 +652,17 @@ public sealed class ProviderSubmissionTests
     /// the real receiver enforces: the same token with different bytes is a
     /// visible conflict, never a second receipt.
     /// </summary>
-    private sealed class FakeIntakeSubmission : IIntakeSubmission
+    private sealed class FakeIntakeSubmission : IIntakeSubmission, IIntakeWorkStore
     {
-        private readonly Dictionary<string, (Guid Id, string Hash)> retained = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (IntakeStagedReceipt Receipt, string Hash)> retained = new(StringComparer.Ordinal);
 
         public List<IntakeSource> Sources { get; } = [];
+        public List<IntakeSourceIdentity> SourceLookups { get; } = [];
 
-        public IReadOnlyCollection<Guid> StagedIds => retained.Values.Select(item => item.Id).ToArray();
+        public IReadOnlyCollection<Guid> StagedIds => retained.Values.Select(item => item.Receipt.Id).ToArray();
+
+        public void AddStagedReceipt(IntakeStagedReceipt receipt) =>
+            retained[receipt.SourceIdentity.ExternalReceiptToken] = (receipt, receipt.SourceHash);
 
         public Task<ReceivedIntake> ExecuteAsync(
             IntakeSource source, string operationKey, CancellationToken cancellationToken = default)
@@ -375,24 +676,148 @@ public sealed class ProviderSubmissionTests
                     throw new IntakeSourceIdentityConflictException();
                 }
 
-                return Task.FromResult(new ReceivedIntake(existing.Id, IsDuplicate: true));
+                return Task.FromResult(new ReceivedIntake(existing.Receipt.Id, IsDuplicate: true));
             }
 
             var id = Guid.NewGuid();
-            retained[token] = (id, hash);
+            retained[token] = (
+                new IntakeStagedReceipt(
+                    id,
+                    source.FileName,
+                    source.MediaType,
+                    source.Content.Length,
+                    hash,
+                    source.SourceIdentity,
+                    source.ReceivedAtUtc,
+                    source.Actor,
+                    $"staged:{id:N}",
+                    Now),
+                hash);
             Sources.Add(source);
             return Task.FromResult(new ReceivedIntake(id, IsDuplicate: false));
         }
+
+        public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken)
+        {
+            SourceLookups.Add(sourceIdentity);
+            return Task.FromResult(
+                retained.Values
+                    .Select(item => item.Receipt)
+                    .SingleOrDefault(receipt => receipt.SourceIdentity == sourceIdentity));
+        }
+
+        public Task<ReceivedIntake> ReceiveAsync(
+            IntakeStagedReceipt receipt,
+            string operationKey,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(
+            Guid stagedReceiptId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<IntakeWorkItem?> FindWorkItemAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task MarkDispatchedAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task ReleaseDispatchAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(
+            Guid stagedReceiptId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            Guid processedReceiptId,
+            DateTimeOffset completedAtUtc,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task RetryProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            string failureCode,
+            bool terminal,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task MarkPoisonedAsync(
+            Guid stagedReceiptId,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<int> RecoverInterruptedWorkAsync(
+            DateTimeOffset nowUtc,
+            DateTimeOffset staleDispatchedBeforeUtc,
+            int maximumItems,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task ScheduleReevaluationAsync(
+            Guid stagedReceiptId,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnsupportedWorkStoreCall();
+
+        private static NotSupportedException UnsupportedWorkStoreCall() =>
+            new("The provider accept-recovery tests only use source-identity lookup.");
 
     }
 
     private sealed class FakeHistory : IActionHistoryWriter
     {
         public List<ActionHistoryEntry> Entries { get; } = [];
+        public FakeStore? Store { get; set; }
+
+        public void Add(ActionHistoryEntry entry)
+        {
+            Entries.Add(entry);
+            Store?.HistoryEntries.Add(entry);
+        }
 
         public Task AppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken)
         {
-            Entries.Add(entry);
+            Add(entry);
             return Task.CompletedTask;
         }
     }

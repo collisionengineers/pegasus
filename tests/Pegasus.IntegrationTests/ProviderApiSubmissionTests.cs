@@ -189,6 +189,56 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
+    public async Task AcceptRecoveryRepairsTheSqlCandidateAfterAnInterruptedAccept()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var created = await SubmitAsync(
+            client,
+            secret,
+            "recovery-1",
+            [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var oldReceivedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2);
+            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE ProviderSubmissions SET StagedReceiptId = NULL, ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
+            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM ActionHistory WHERE AggregateType = {ProviderSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
+        }
+
+        var result = await scope.ServiceProvider
+            .GetRequiredService<ReconcileProviderSubmissions>()
+            .ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Repaired);
+        Assert.Equal(0, result.Failures);
+
+        await using var verification = await contextFactory.CreateDbContextAsync();
+        var submission = await verification.ProviderSubmissions
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == submissionId);
+        Assert.NotNull(submission.StagedReceiptId);
+        var history = await verification.ActionHistory
+            .AsNoTracking()
+            .Where(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                && item.AggregateId == submissionId.ToString("D"))
+            .ToListAsync();
+        var accepted = Assert.Single(history);
+        Assert.Equal("Accepted", accepted.Outcome);
+        Assert.Equal(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
+    }
+
+    [Fact]
     public async Task PausedCredentialIsRefusedForSubmissionAndStillReadsItsOwnResult()
     {
         using var factory = new IntakeWebApplicationFactory();

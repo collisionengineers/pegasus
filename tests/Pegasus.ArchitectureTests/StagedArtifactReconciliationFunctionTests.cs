@@ -3,7 +3,9 @@ using Pegasus.Core.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.ProviderApi;
 using Pegasus.Worker;
 
 namespace Pegasus.ArchitectureTests;
@@ -36,18 +38,24 @@ public sealed class StagedArtifactReconciliationFunctionTests
         var vehicleLookupReconciler = new ReconcileAutomaticVehicleLookups(
             new UnreachableAutomaticVehicleLookupStore(),
             VehicleLookupAvailability.Unavailable);
+        var providerSubmissionReconciler = new ReconcileProviderSubmissions(
+            new EmptyProviderSubmissionStore(),
+            workStore,
+            new UnreachableActionHistoryWriter(),
+            TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             groupedImageReconciler,
             unidentifiedReconciler,
             vehicleLookupReconciler,
+            providerSubmissionReconciler,
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
 
         Assert.Equal(50, workStore.MaximumItems);
-        Assert.Equal(4, logger.States.Count);
+        Assert.Equal(5, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
@@ -69,6 +77,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
 
         var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[3]);
         Assert.Equal(0, vehicleLookupState["Enqueued"]);
+
+        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[4]);
+        Assert.Equal(0, providerSubmissionState["Candidates"]);
+        Assert.Equal(0, providerSubmissionState["Repaired"]);
+        Assert.Equal(0, providerSubmissionState["Failures"]);
     }
 
     [Fact]
@@ -83,6 +96,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
                 typeof(ReconcileGroupedImageIntake),
                 typeof(ReconcileUnidentifiedDestinations),
                 typeof(ReconcileAutomaticVehicleLookups),
+                typeof(ReconcileProviderSubmissions),
                 typeof(ILogger<StagedArtifactReconciliationFunction>),
                 // EXT-04: optional, because EVA composes only where its
                 // credentials exist. A host without them runs the same timer
@@ -97,6 +111,58 @@ public sealed class StagedArtifactReconciliationFunctionTests
         public Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "The sweep store must not be reached while lookups are unavailable.");
+    }
+
+    private sealed class EmptyProviderSubmissionStore : IProviderSubmissionStore
+    {
+        public Task CreateAsync(
+            ProviderSubmissionRecord record,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<ProviderSubmissionRecord?> FindByIdempotencyKeyAsync(
+            Guid principalId,
+            string idempotencyKey,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<ProviderSubmissionRecord?> GetAsync(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<string?> FindPrincipalCodeAsync(
+            Guid principalId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task RecordStagedReceiptAsync(
+            Guid submissionId,
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+            int maximumItems,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProviderSubmissionAcceptCandidate>>([]);
+
+        public Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
+            Guid submissionId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        private static InvalidOperationException UnexpectedCall() =>
+            new("An empty provider-submission reconciliation batch must not reach a write or unrelated read.");
+    }
+
+    private sealed class UnreachableActionHistoryWriter : IActionHistoryWriter
+    {
+        public Task AppendAsync(
+            ActionHistoryEntry entry,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "An empty provider-submission reconciliation batch must not append history.");
     }
 
     private sealed class ReconciliationWorkStore(int recoveredLeases) : IIntakeWorkStore
