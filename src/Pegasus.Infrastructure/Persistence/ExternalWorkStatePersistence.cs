@@ -1,10 +1,12 @@
-using Pegasus.Core.Eva;
-
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Owns the persisted <see cref="ExternalWorkItemEntity.State"/> vocabulary
-/// and its mapping to the Core EVA-submission work state.
+/// The persisted <see cref="ExternalWorkItemEntity.State"/> words. Stores
+/// compare and assign these constants instead of repeating the literals.
+///
+/// Not yet the vocabulary's only reader: the remaining Infrastructure stores
+/// on the same table still spell the words out, and folding them onto this
+/// class is PLAT-056.
 /// </summary>
 internal static class ExternalWorkStatePersistence
 {
@@ -14,25 +16,4 @@ internal static class ExternalWorkStatePersistence
     public const string Processing = "processing";
     public const string Completed = "completed";
     public const string Failed = "failed";
-
-    internal static EvaSubmissionWorkState ParseEvaSubmission(
-        string value,
-        int attemptCount) => value switch
-        {
-            Pending when attemptCount > 0 => EvaSubmissionWorkState.RetryScheduled,
-            Pending or Dispatching or Queued => EvaSubmissionWorkState.Pending,
-            Processing => EvaSubmissionWorkState.Processing,
-            Completed => EvaSubmissionWorkState.Completed,
-            Failed => EvaSubmissionWorkState.Failed,
-            _ => throw new InvalidDataException(
-                $"The EVA submission work item has unknown state '{value}'.")
-        };
-
-    internal static string FormatEvaSubmission(EvaSubmissionWorkState state) => state switch
-    {
-        EvaSubmissionWorkState.RetryScheduled => Pending,
-        EvaSubmissionWorkState.Completed => Completed,
-        EvaSubmissionWorkState.Failed => Failed,
-        _ => throw new ArgumentOutOfRangeException(nameof(state))
-    };
 }

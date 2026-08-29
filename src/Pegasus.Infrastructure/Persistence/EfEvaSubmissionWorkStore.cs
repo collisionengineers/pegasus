@@ -50,10 +50,7 @@ public sealed class EfEvaSubmissionWorkStore(
             {
                 throw new InvalidDataException("The external work item is not an EVA submission.");
             }
-            var state = ExternalWorkStatePersistence.ParseEvaSubmission(
-                work.State,
-                work.AttemptCount);
-            if (state is EvaSubmissionWorkState.Completed or EvaSubmissionWorkState.Failed)
+            if (work.State is ExternalWorkStatePersistence.Completed or ExternalWorkStatePersistence.Failed)
             {
                 return null;
             }
@@ -61,9 +58,17 @@ public sealed class EfEvaSubmissionWorkStore(
             {
                 return null;
             }
-            if (state == EvaSubmissionWorkState.Processing && work.LeaseExpiresAtUtc > nowUtc)
+            if (work.State == ExternalWorkStatePersistence.Processing && work.LeaseExpiresAtUtc > nowUtc)
             {
                 throw new InvalidOperationException("The EVA submission work item is already leased.");
+            }
+            if (work.State is not (ExternalWorkStatePersistence.Pending
+                or ExternalWorkStatePersistence.Dispatching
+                or ExternalWorkStatePersistence.Queued
+                or ExternalWorkStatePersistence.Processing))
+            {
+                throw new InvalidDataException(
+                    $"The EVA submission work item has unknown state '{work.State}'.");
             }
             if (work.CaseId is not { } caseId)
             {
@@ -157,17 +162,19 @@ public sealed class EfEvaSubmissionWorkStore(
         // another worker took over — recording anyway would overwrite their
         // outcome with ours, and a swallowed conflict here is a submission
         // recorded against the wrong attempt.
-        if (!string.Equals(
-                work.State,
-                ExternalWorkStatePersistence.Processing,
-                StringComparison.Ordinal)
+        if (!string.Equals(work.State, ExternalWorkStatePersistence.Processing, StringComparison.Ordinal)
             || !string.Equals(work.LeaseToken, leaseToken, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
                 "The EVA submission processing lease was lost before its outcome was recorded.");
         }
 
-        work.State = ExternalWorkStatePersistence.FormatEvaSubmission(state);
+        work.State = state switch
+        {
+            EvaSubmissionWorkState.Completed => ExternalWorkStatePersistence.Completed,
+            EvaSubmissionWorkState.Failed => ExternalWorkStatePersistence.Failed,
+            _ => ExternalWorkStatePersistence.Pending
+        };
         work.FailureCode = failureCode;
         work.FailureReason = Truncate(failureReason);
         work.LeaseToken = null;
