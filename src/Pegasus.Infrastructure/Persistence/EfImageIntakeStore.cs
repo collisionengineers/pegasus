@@ -1034,6 +1034,7 @@ public sealed class EfImageIntakeStore(
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
+        IntakeSourceChannel.ProviderApi => "provider_api",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
@@ -1041,6 +1042,7 @@ public sealed class EfImageIntakeStore(
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
+        "provider_api" => IntakeSourceChannel.ProviderApi,
         _ => throw new InvalidDataException($"Unknown intake source channel code '{value}'.")
     };
 
@@ -1149,6 +1151,7 @@ public sealed class EfImageIntakeOriginResolver(
         {
             "manual_upload" => IntakeSourceChannel.ManualUpload,
             "mailbox" => IntakeSourceChannel.Mailbox,
+            "provider_api" => IntakeSourceChannel.ProviderApi,
             _ => throw new InvalidDataException(
                 $"Unknown intake source channel code '{receipt.SourceChannel}'.")
         };

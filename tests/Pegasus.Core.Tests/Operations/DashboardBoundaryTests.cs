@@ -57,6 +57,25 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(recorder.DayStartUtc, recorder.WeekStartUtc);
     }
 
+    [Fact]
+    public async Task NeedsAttentionIncludesTheLastHourOfTheGmtTransitionSundayInToday()
+    {
+        var afterTheTransition =
+            new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero);
+        var dueBeforeOfficeMidnight =
+            new DateTimeOffset(2026, 10, 25, 23, 30, 0, TimeSpan.Zero);
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries(),
+            afterTheTransition,
+            dueWork: new StubDueWorkQueries
+            {
+                Due = [NewDueWork(Guid.NewGuid(), "C/2026/009", dueBeforeOfficeMidnight)],
+            });
+
+        var item = Assert.Single(snapshot.NeedsAttention);
+        Assert.Equal(NeedsAttentionPriority.Today, item.Priority);
+    }
+
     /// <summary>
     /// FRD-12 § Work Centre: a needs-attention item is exactly one of the
     /// five kinds, each read from the query that already backs its Cases tab

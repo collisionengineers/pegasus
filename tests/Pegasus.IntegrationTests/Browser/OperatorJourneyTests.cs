@@ -563,7 +563,7 @@ public sealed class OperatorJourneyTests
                 CaseLifecycleState.Review,
                 new(new(true, true, true, true), new(true, "browser-completeness", 1)),
                 new(CaseField(fixture.WorkProvider)),
-                new(CaseField(fixture.ClaimantName)),
+                new(CaseField(fixture.ClaimantName), EmptyCaseField<string>(), EmptyCaseField<string>()),
                 new(CaseField(fixture.Reference)),
                 new(
                     CaseField(fixture.Vrm),
