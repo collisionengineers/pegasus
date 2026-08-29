@@ -1,0 +1,96 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Web.Presentation
+@{
+    var details = Model.Case!;
+    var summary = details.Summary;
+}
+
+@* Case Files (EPIC-011 §1.8): the case's own documents, the photographs the
+   instruction carried, and the images each associated Image-initiated Case
+   registered. Every tile is a [data-evidence-item] inside a
+   [data-evidence-set], so the viewer Details.cshtml already renders once —
+   with its Rotate view and Save as controls — opens them.
+
+   Correspondence is absent: nothing queries retained mail by case, so there
+   are no linked message rows to draw. *@
+<div class="stack">
+    <partial name="Cases/Shared/_CaseDocuments" model="Model" />
+
+    @if (Model.EvidenceImages.Count > 0)
+    {
+        <section class="section-gap" aria-labelledby="instruction-photos-title">
+            <div class="blockhead">
+                <h2 id="instruction-photos-title">@OperatorLabels.CaseWorkspace.InstructionPhotographs</h2>
+            </div>
+            @{
+                // DOCS-007: an image registered as a case document is served
+                // from Box through the case-document route. The receipt-asset
+                // route remains only for a case accepted before those records
+                // existed. DOCS-011: the case-document route saves unless it is
+                // asked to display, so preview and download are two URLs.
+                var evidenceGallery = Model.EvidenceImages
+                    .Select(image =>
+                    {
+                        string preview;
+                        string download;
+                        if (image.IsCaseDocument)
+                        {
+                            download = Url.Page(
+                                "/Cases/Documents/Download",
+                                new
+                                {
+                                    caseId = summary.CaseId,
+                                    occurrenceId = image.OccurrenceId,
+                                    versionId = image.VersionId
+                                })!;
+                            preview = Url.Page(
+                                "/Cases/Documents/Download",
+                                new
+                                {
+                                    caseId = summary.CaseId,
+                                    occurrenceId = image.OccurrenceId,
+                                    versionId = image.VersionId,
+                                    inline = true
+                                })!;
+                        }
+                        else
+                        {
+                            download = Url.Page(
+                                "/Intake/Asset",
+                                new { id = image.ReceiptId, assetId = image.AssetId })!;
+                            preview = download;
+                        }
+                        return new GalleryImage(preview, download, image.FileName, image.MediaType);
+                    })
+                    .ToArray();
+            }
+            <partial name="Shared/_ImageGallery" model="evidenceGallery" />
+        </section>
+    }
+
+    @if (Model.ImageIntakes.Count > 0)
+    {
+        <section class="section-gap" aria-labelledby="case-images-title">
+            <div class="blockhead">
+                <h2 id="case-images-title">@OperatorLabels.CaseWorkspace.VehicleImages</h2>
+            </div>
+            @foreach (var image in Model.ImageIntakes)
+            {
+                <section class="section-gap">
+                    <h3><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></h3>
+                    <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
+                    @{
+                        var intakeGallery = Model.ImagesByIntake.GetValueOrDefault(image.Id, [])
+                            .Select(item =>
+                            {
+                                var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                                return new GalleryImage(href, href, item.FileName, item.MediaType);
+                            })
+                            .ToArray();
+                    }
+                    <partial name="Shared/_ImageGallery" model="intakeGallery" />
+                </section>
+            }
+        </section>
+    }
+</div>

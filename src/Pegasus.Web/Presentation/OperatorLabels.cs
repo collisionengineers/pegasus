@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -1288,6 +1288,50 @@ public static class OperatorLabels
     }
 
     /// <summary>
+    /// The Case workspace's Vehicle, Inspection address and Case Files
+    /// sections (EPIC-011 §1.8) — one list. Appended by CASE-027 inside its
+    /// own nested class; no member above is reordered or edited.
+    /// </summary>
+    public static class CaseWorkspace
+    {
+        public const string VehicleFactsPanel = "Vehicle";
+        public const string VehicleChecksPanel = "Vehicle checks";
+        public const string RefreshDvla = "Refresh DVLA";
+        public const string RefreshDvsaMot = "Refresh DVSA/MOT";
+        public const string RunExperianCheck = "Run Experian check";
+
+        /// <summary>
+        /// Why the Experian control is drawn disabled (EPIC-011 D7/D22,
+        /// ENG-001). Always supplied: <c>.gated::after</c> renders
+        /// <c>attr(data-condition)</c> unguarded, so a <c>.gated</c> span
+        /// without one paints an empty pill (PLAT-061).
+        /// </summary>
+        public const string ExperianSeamCondition = "Experian is not connected";
+
+        public const string VehicleChecksHistory = "Recorded checks";
+        public const string AcceptSuggestion = "Accept";
+        public const string CorrectSuggestion = "Correct";
+        public const string InspectionAddressPanel = "Inspection address";
+        public const string RecordedInspectionAddress = "Recorded value";
+        public const string ProviderDefaultInspectionAddress = "Provider default";
+        public const string FilesPanel = "Files";
+        public const string UploadRequestsPanel = "Public upload requests";
+        public const string InstructionPhotographs = "Instruction photographs";
+        public const string VehicleImages = "Vehicle images";
+        public const string AddEvidence = "Add evidence";
+        public const string OpenOperations = "Open Operations";
+        public const string Preview = "Preview";
+        public const string SaveAs = "Save as";
+        public const string ThirdPartyVehicle = "Third-party vehicle";
+
+        /// <summary>
+        /// Why a refresh control is disabled: the lookup searches on the
+        /// case's registration, and this case has none recorded. State, not a
+        /// seam — the control enables as soon as a registration is recorded.
+        /// </summary>
+        public const string NoRegistrationCondition = "No registration recorded";
+    }
+
     /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
     /// accepted-files line is built from <see cref="IntakeEnvelopeLimits"/>
     /// rather than transcribed from the prototype, whose "25 MB each · 10

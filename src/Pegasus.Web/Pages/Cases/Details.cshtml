@@ -266,12 +266,21 @@
             </button>
         }
         <span class="record-bar-end">
-            <span class="gated" data-condition="@(Model.CanOpenAssessment ? null : "Available after the current Review export")">
-                <a class="btn btn--dark @(Model.CanOpenAssessment ? string.Empty : "is-disabled")"
-                   asp-page="@(Model.CanOpenAssessment ? "/Cases/Assessment/Index" : null)"
-                   asp-route-id="@(Model.CanOpenAssessment ? summary.CaseId : null)"
-                   aria-disabled="@(Model.CanOpenAssessment ? "false" : "true")">Open Assessment</a>
-            </span>
+            @* CASE-027: the gate is written out only when it has a condition to
+               state. Razor keeps an attribute whose expression is null when the
+               attribute is written this way, and `.gated::after` renders
+               `attr(data-condition)` with no guard, so the enabled control was
+               painting an empty pill (PLAT-061). *@
+            @if (Model.CanOpenAssessment)
+            {
+                <a class="btn btn--dark" asp-page="/Cases/Assessment/Index" asp-route-id="@summary.CaseId">Open Assessment</a>
+            }
+            else
+            {
+                <span class="gated" data-condition="Available after the current Review export">
+                    <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
+                </span>
+            }
         </span>
     </div>
 
@@ -306,118 +315,22 @@
                 }
                 else if (Model.Section == "case-files")
                 {
-                    <partial name="Shared/_CaseDocuments" model="Model" />
-                    @if (Model.EvidenceImages.Count > 0)
-                    {
-                        <section class="section-gap" aria-labelledby="instruction-photos-title">
-                            <div class="blockhead"><h2 id="instruction-photos-title">Instruction photographs</h2></div>
-                            @{
-                                // DOCS-007: an image registered as a case document is served
-                                // from Box through the case-document route. The intake-asset
-                                // route remains only for a case accepted before those records
-                                // existed. DOCS-011: the case-document route saves unless it is
-                                // asked to display, so preview and download are two URLs.
-                                var evidenceGallery = Model.EvidenceImages
-                                    .Select(image =>
-                                    {
-                                        string preview;
-                                        string download;
-                                        if (image.IsCaseDocument)
-                                        {
-                                            download = Url.Page(
-                                                "/Cases/Documents/Download",
-                                                new
-                                                {
-                                                    caseId = details.Summary.CaseId,
-                                                    occurrenceId = image.OccurrenceId,
-                                                    versionId = image.VersionId
-                                                })!;
-                                            preview = Url.Page(
-                                                "/Cases/Documents/Download",
-                                                new
-                                                {
-                                                    caseId = details.Summary.CaseId,
-                                                    occurrenceId = image.OccurrenceId,
-                                                    versionId = image.VersionId,
-                                                    inline = true
-                                                })!;
-                                        }
-                                        else
-                                        {
-                                            download = Url.Page(
-                                                "/Intake/Asset",
-                                                new { id = image.ReceiptId, assetId = image.AssetId })!;
-                                            preview = download;
-                                        }
-                                        return new Pegasus.Web.Presentation.GalleryImage(
-                                            preview,
-                                            download,
-                                            image.FileName,
-                                            image.MediaType);
-                                    })
-                                    .ToArray();
-                            }
-                            <partial name="Shared/_ImageGallery" model="evidenceGallery" />
-                        </section>
-                    }
-                    <section class="section-gap" aria-labelledby="case-images-title">
-                        <div class="blockhead"><h2 id="case-images-title">Vehicle images</h2></div>
-                        @if (Model.ImageIntakes.Count == 0)
-                        {
-                            <div class="empty">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
-                                <h3>No vehicle images</h3>
-                            </div>
-                        }
-                        else
-                        {
-                            @foreach (var image in Model.ImageIntakes)
-                            {
-                                <section class="section-gap">
-                                    <h3><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></h3>
-                                    <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
-                                    @{
-                                        var intakeGallery = Model.ImagesByIntake.GetValueOrDefault(image.Id, [])
-                                            .Select(item =>
-                                            {
-                                                var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                                                return new Pegasus.Web.Presentation.GalleryImage(
-                                                    href,
-                                                    href,
-                                                    item.FileName,
-                                                    item.MediaType);
-                                            })
-                                            .ToArray();
-                                    }
-                                    <partial name="Shared/_ImageGallery" model="intakeGallery" />
-                                </section>
-                            }
-                        }
-                    </section>
+                    <partial name="Cases/Shared/_CaseFiles" model="Model" />
                 }
                 else if (Model.Section == "vehicle")
                 {
-                    @* The Vehicle view is CASE-027's; today the case's vehicle
-                       actions live on the vehicle page. *@
-                    <section class="panel">
-                        <div class="panel-head"><h2>Vehicle</h2></div>
-                        <div class="panel-body button-row">
-                            <a class="btn" asp-page="/Cases/Vehicle" asp-route-id="@summary.CaseId">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
-                                <span>Open vehicle record</span>
-                            </a>
-                        </div>
-                    </section>
+                    <partial name="Cases/Shared/_CaseVehicle" model="Model" />
                 }
-                else if (Model.Section == "valuations" || Model.Section == "inspection-address")
+                else if (Model.Section == "inspection-address")
                 {
-                    @* Valuations is wave 4 (CASE-029/ENG-027); the Inspection
-                       address view is CASE-027's. No inert controls render for
-                       a capability that is not composed. *@
+                    <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
+                }
+                else if (Model.Section == "valuations")
+                {
+                    @* Valuations is wave 4 (CASE-029/ENG-027); nothing inert
+                       renders for a capability that is not built yet. *@
                     <section class="panel">
-                        <div class="panel-head">
-                            <h2>@(Model.Section == "valuations" ? "Valuations" : "Inspection address")</h2>
-                        </div>
+                        <div class="panel-head"><h2>Valuations</h2></div>
                     </section>
                 }
                 else

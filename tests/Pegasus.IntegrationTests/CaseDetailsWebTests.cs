@@ -637,6 +637,62 @@ public sealed partial class CaseDetailsWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
+    /// <summary>
+    /// SaveCase writes every one of <c>CaseEditableData</c>'s twenty members, so
+    /// a value the handler does not bind is written as null and clears the
+    /// confirmed field. The claimant's own contact number and address were
+    /// omitted from both the form and the handler, so every Overview save
+    /// silently discarded them (CASE-027).
+    ///
+    /// This asserts the values reach <c>SaveCase</c>, not merely that the inputs
+    /// render: rendering them while the handler ignores them is exactly the
+    /// half-fix this test exists to refuse.
+    /// </summary>
+    [Fact]
+    public async Task ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected the registration"),
+                ("claimantName", "Rebecca Claimant"),
+                ("claimantContactNumber", "07700 900123"),
+                ("claimantAddress", "12 Example Street, Leeds, LS1 1AA")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("07700 900123", saved.Data.ClaimantContactNumber);
+        Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Data.ClaimantAddress);
+
+        // The values the operator did not touch still travel, because SaveCase
+        // nulls anything absent — the same defect one field over.
+        Assert.Equal("Rebecca Claimant", saved.Data.ClaimantName);
+    }
+
     [Fact]
     public async Task ARefusedSaveKeepsTheProposedValuesForComparisonAndOffersNoApplyControl()
     {
@@ -1397,7 +1453,7 @@ public sealed partial class CaseDetailsWebTests
                 workflow.Identity.PrincipalCode,
                 workflow.State,
                 null,
-                "AB12CDE",
+                OmitVehicleValues ? null : "AB12CDE",
                 "Case claimant",
                 "CLM-42",
                 _now.AddDays(-2),
@@ -1410,14 +1466,15 @@ public sealed partial class CaseDetailsWebTests
                 _leaseHolder is null
                     ? null
                     : new(_leaseHolder, _leaseHolderKind, _now.AddMinutes(5), _leaseOperationKey!),
-                [],
+                CaseDocuments,
                 null,
                 CaseCustodyState.Pending,
-                [],
+                RequestUploadLinks,
                 AvailableReportSentEvidence,
                 HistoryEntries)
             {
                 Data = CreateData(),
+                VehicleEvidence = VehicleLookupEvidence,
                 Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
                     : []
@@ -1464,12 +1521,14 @@ public sealed partial class CaseDetailsWebTests
                 new(Confirmed("QDOS")),
                 new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),
                 new(Confirmed("CLM-42")),
-                new(
-                    Confirmed("AB12CDE"),
-                    Confirmed("Ford"),
-                    Confirmed("Transit"),
-                    Confirmed(42_000L),
-                    Confirmed("miles")),
+                OmitVehicleValues
+                    ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
+                    : new(
+                        Confirmed("AB12CDE"),
+                        Confirmed("Ford"),
+                        Confirmed("Transit"),
+                        Confirmed(42_000L),
+                        Confirmed("miles")),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(Empty<DateOnly>(), Confirmed("Standard")),

@@ -378,6 +378,12 @@ public sealed partial class DetailsModel(
         DateOnly? inspectionDeadline,
         string? inspectionAddress,
         CaseInspectionMode? inspectionMode,
+        // CASE-027: SaveCase writes every one of CaseEditableData's members, so
+        // a value this handler does not bind is written as null and clears the
+        // confirmed field. These two were omitted, and every Overview save
+        // silently discarded the claimant's contact number and address.
+        string? claimantContactNumber,
+        string? claimantAddress,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -409,7 +415,9 @@ public sealed partial class DetailsModel(
                         inspectionDate,
                         inspectionDeadline,
                         inspectionAddress,
-                        inspectionMode)),
+                        inspectionMode,
+                        claimantContactNumber,
+                        claimantAddress)),
                 cancellationToken),
             "Case data was saved. The case is Not ready until completeness is confirmed again.");
 
