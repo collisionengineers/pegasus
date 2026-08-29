@@ -1,9 +1,11 @@
 @page "/Operations"
+@using Pegasus.Core.AiWork
 @using Pegasus.Core.Operations
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Operations.IndexModel
 @{
     ViewData["Title"] = "Operations";
+    var aiJobs = Model.AiJobs;
     var uploadLinks = Model.Operations.Items
         .Where(item => item.Kind == RequestOperationKind.PegasusUploadLink)
         .ToArray();
@@ -41,6 +43,117 @@
 }
 
 <div class="stack section-gap">
+    <section class="panel" aria-labelledby="ai-jobs-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="ai-jobs-title">@OperatorLabels.AiJobs.PanelTitle</h2>
+                <span class="muted">@OperatorLabels.AiJobs.Count(aiJobs.Count)</span>
+            </div>
+            @* Drawn only where there is an open item to name, so the control
+               always has a real subject behind it. *@
+            @if (Model.OpenUnidentified.Count > 0)
+            {
+                <details>
+                    <summary class="btn btn--dark">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <span>@OperatorLabels.AiJobs.SendUnidentified</span>
+                    </summary>
+                    <form method="post" asp-page-handler="SendUnidentifiedToAi" class="row-confirm">
+                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                        <label for="send-unidentified-id">Unidentified item</label>
+                        <select id="send-unidentified-id" name="unidentifiedId" required>
+                            @foreach (var item in Model.OpenUnidentified)
+                            {
+                                <option value="@item.Id">@item.Reference</option>
+                            }
+                        </select>
+                        <button class="btn btn--dark" type="submit">@OperatorLabels.AiJobs.SendUnidentified</button>
+                    </form>
+                </details>
+            }
+        </div>
+        @if (aiJobs.Count == 0)
+        {
+            <div class="empty">
+                <h2>No AI jobs</h2>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">@OperatorLabels.AiJobs.PanelTitle</caption>
+                    <thead><tr><th scope="col">Job</th><th scope="col">Record</th><th scope="col">Started by</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var job in aiJobs)
+                    {
+                        var recordPage = IndexModel.RecordPage(job);
+                        var review = IndexModel.ReviewAction(job);
+                        var canComplete = IndexModel.CanCompleteByHand(job);
+                        var canCancel = !AiJobStates.IsTerminal(job.State);
+                        <tr>
+                            <td>
+                                <strong>@OperatorLabels.AiJobs.Kind(job.Kind)</strong>
+                                <span class="muted">@job.Instruction</span>
+                            </td>
+                            <td>
+                                @if (recordPage is { } recordRoute && job.SubjectId is { } subjectId)
+                                {
+                                    <a asp-page="@recordRoute" asp-route-id="@subjectId">@job.SubjectReference</a>
+                                }
+                                else
+                                {
+                                    <span>@OperatorLabels.AiJobs.QueueRecord</span>
+                                }
+                            </td>
+                            <td>@job.CreatedBy</td>
+                            <td><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
+                            <td>
+                                <partial name="Shared/_StatusChip"
+                                         model="@OperatorLabels.AiJobs.State(job.State)"
+                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateTone(job.State) }' />
+                            </td>
+                            <td>
+                                @if (review is { } action && job.SubjectId is { } reviewSubjectId)
+                                {
+                                    <a class="btn btn--small" asp-page="@action.Page" asp-route-id="@reviewSubjectId">@action.Label</a>
+                                }
+                                @if (canComplete)
+                                {
+                                    <form method="post" asp-page-handler="CompleteAiJob">
+                                        <input type="hidden" name="jobId" value="@job.JobId" />
+                                        <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <button class="btn btn--small btn--dark" type="submit">@OperatorLabels.AiJobs.CompleteJob</button>
+                                    </form>
+                                }
+                                @if (canCancel)
+                                {
+                                    <details>
+                                        <summary class="btn btn--small btn--danger">@OperatorLabels.AiJobs.Cancel</summary>
+                                        <form method="post" asp-page-handler="CancelAiJob" class="row-confirm">
+                                            <input type="hidden" name="jobId" value="@job.JobId" />
+                                            <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                            <label for="cancel-job-reason-@job.JobId">Reason</label>
+                                            <input id="cancel-job-reason-@job.JobId" name="reason" maxlength="500" required />
+                                            <button class="btn btn--dark" type="submit">@OperatorLabels.AiJobs.Cancel</button>
+                                        </form>
+                                    </details>
+                                }
+                                @if (review is null && !canComplete && !canCancel)
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
     @* The snapshot exists only where this deployment composes the query; an
        uncomposed capability is absent, never an empty panel. *@
     @if (serviceHealth is not null)
@@ -86,6 +199,10 @@
                                             <span>Retry</span>
                                         </button>
                                     </form>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
                                 }
                             </td>
                         </tr>
