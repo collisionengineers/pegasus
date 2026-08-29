@@ -4,60 +4,46 @@
     ViewData["Title"] = "Upload";
 }
 
-@* A surface of its own, not a panel wedged above the Inbox list. The words
-   "Receive intake", "Queue instruction" and "Original bytes are retained
-   before durable processing" are all gone: the first two are pipeline
-   vocabulary, and the third narrates storage at someone who just wants to
-   send a file. *@
-<header class="page-heading">
-    <h1>Upload</h1>
+@* §1.10 draws this screen as a header and one panel. The "What happens next"
+   steps and the "Accepted files" chips that used to sit beside the form are
+   gone: both narrated the page's own mechanics, which the page-economy rule
+   forbids, and the accepted types are already stated on the dropzone where
+   the choice is actually made. *@
+<header class="page-header">
+    <div class="page-title">
+        <h1>Upload</h1>
+    </div>
 </header>
 
-@* One thing happens here, so the form is a bounded column rather than a panel
-   floating at full page width; what happens after the button sits beside it,
-   because the status page is the wrong place to learn that for the first
-   time. *@
-<div class="upload-layout">
-    <section class="panel" aria-labelledby="upload-title">
-        <h2 id="upload-title" class="section-label">Upload documents or images</h2>
+<section class="panel">
+    <div class="panel-body">
         <form method="post" enctype="multipart/form-data" data-upload-progress>
             <input asp-for="ExternalReceiptToken" type="hidden" />
-            <div asp-validation-summary="ModelOnly" class="validation-summary-errors" role="alert"></div>
+            <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
             @* The dashed area is the destination. site.js makes the whole
-               of it a drop target and gives it a real button; the native
-               input stays the control underneath and is the visible
-               control when script is off. *@
+               panel the drop target and reveals the dark "Choose files"
+               button; the native input stays the control underneath and is
+               the visible control when script is off. *@
             <div class="dropzone" data-dropzone>
-                <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
-                <label asp-for="Upload">Drag files here, or choose them</label>
-                @* The accepted types are stated, not left in an `accept`
-                   attribute the operator cannot read. *@
-                <span class="field-hint">E-mail, Word document, PDF or image — up to @Pegasus.Web.Pages.UploadModel.MaximumSizeLabel.</span>
-                <input asp-for="Upload" type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
-                <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose files</button>
-                <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <div>
+                    <h2><label asp-for="Upload">@OperatorLabels.Upload.Dropzone</label></h2>
+                    <p>@Model.AcceptedFiles</p>
+                    <button type="button" class="btn btn--dark" hidden data-dropzone-browse>@OperatorLabels.Upload.Choose</button>
+                    <input asp-for="Upload" type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
+                </div>
             </div>
-            <span asp-validation-for="Upload" class="field-validation-error"></span>
-            <button type="submit" class="primary-action primary-action--block">Upload</button>
+            @* One row per chosen file, filled in by site.js from the input's
+               own FileList. Empty and hidden until something is chosen. *@
+            <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
+            <span asp-validation-for="Upload" class="field-error"></span>
+            <div class="button-row section-gap">
+                <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.Submit</button>
+                @* A native reset: it empties the file input with no script at
+                   all, and site.js re-renders the rows from the emptied
+                   input. *@
+                <button type="reset" class="btn">@OperatorLabels.Upload.Clear</button>
+            </div>
         </form>
-    </section>
-
-    @* Every sentence here is the real flow: each row ticks once its file is
-       durably stored (Upload.cshtml.cs), the status page refreshes itself
-       while the state is Received or Processing (UploadStatus), and Complete
-       shows what happens next — a case was found, or one can be created.
-       Nothing is promised that the Worker does not do. *@
-    <section class="panel" aria-labelledby="upload-next-title">
-        <h2 id="upload-next-title" class="section-label">What happens next</h2>
-        <ol class="upload-steps">
-            <li><b>Each file is safely stored.</b><span>Its row ticks the moment it is stored; a failed file states why.</span></li>
-            <li><b>It is processed in the background.</b><span>The status page refreshes itself until processing is complete.</span></li>
-            <li><b>Decide where it goes.</b><span>You'll see a case it was matched to, or be offered to create one; a failure is stated clearly.</span></li>
-        </ol>
-        <h2 class="section-label section-gap">Accepted files</h2>
-        <ul class="accepted-list" aria-label="Accepted file types">
-            <li>.eml</li><li>.msg</li><li>.pdf</li><li>.doc</li><li>.docx</li><li>.jpg</li><li>.png</li>
-        </ul>
-        <p class="field-hint">Up to @Pegasus.Web.Pages.UploadModel.MaximumSizeLabel each, and up to @Pegasus.Web.Pages.UploadModel.MaximumFileCount files per submission.</p>
-    </section>
-</div>
+    </div>
+</section>
