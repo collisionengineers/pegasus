@@ -20,10 +20,84 @@ internal static partial class InstructionFieldEngine
         string[]? GuardedPrefixes = null,
         bool PrefersLatestFragment = false);
 
+    /// <summary>
+    /// Regexes whose patterns depend on a field definition's labels. The QDOS
+    /// definition set is fixed, so construct these once with the definitions
+    /// and reuse the instances for every fragment and line.
+    /// </summary>
+    internal sealed class LabelRegexCache
+    {
+        private sealed class DefinitionPatterns(
+            Regex[] candidate,
+            Regex[] explicitCandidate,
+            Regex[] startsWith,
+            Regex[] followingLabel)
+        {
+            internal Regex Candidate(int index, bool requiresExplicitSeparator) =>
+                (requiresExplicitSeparator ? explicitCandidate : candidate)[index];
+
+            internal Regex StartsWith(int index) => startsWith[index];
+
+            internal Regex FollowingLabel(int index) => followingLabel[index];
+        }
+
+        private readonly Dictionary<FieldDefinition, DefinitionPatterns> patterns = [];
+
+        internal LabelRegexCache(IReadOnlyList<FieldDefinition> definitions)
+        {
+            foreach (var definition in definitions)
+            {
+                var guard = definition.GuardedPrefixes is { Length: > 0 } prefixes
+                    ? $@"(?<!\b(?:{string.Join('|', prefixes.Select(Regex.Escape))})\s)"
+                    : string.Empty;
+                var candidate = new Regex[definition.Labels.Length];
+                var explicitCandidate = new Regex[definition.Labels.Length];
+                var startsWith = new Regex[definition.Labels.Length];
+                var followingLabel = new Regex[definition.Labels.Length];
+
+                for (var index = 0; index < definition.Labels.Length; index++)
+                {
+                    var label = Regex.Escape(definition.Labels[index]);
+                    candidate[index] = new(
+                        $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){guard}{label}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
+                        RegexOptions.CultureInvariant,
+                        TimeSpan.FromMilliseconds(100));
+                    explicitCandidate[index] = new(
+                        $@"(?i)(?:^|\s){guard}{label}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
+                        RegexOptions.CultureInvariant,
+                        TimeSpan.FromMilliseconds(100));
+                    startsWith[index] = new(
+                        $@"(?i)^{label}(?:\s*(?::|-|\|)\s*|\s+|$)",
+                        RegexOptions.CultureInvariant,
+                        TimeSpan.FromMilliseconds(100));
+                    followingLabel[index] = new(
+                        $@"(?i)(?:^|\s){label}\s*(?::|-)",
+                        RegexOptions.CultureInvariant,
+                        TimeSpan.FromMilliseconds(100));
+                }
+
+                patterns.Add(definition, new(candidate, explicitCandidate, startsWith, followingLabel));
+            }
+        }
+
+        internal Regex Candidate(
+            FieldDefinition definition,
+            int labelIndex,
+            bool requiresExplicitSeparator) =>
+            patterns[definition].Candidate(labelIndex, requiresExplicitSeparator);
+
+        internal Regex StartsWith(FieldDefinition definition, int labelIndex) =>
+            patterns[definition].StartsWith(labelIndex);
+
+        internal Regex FollowingLabel(FieldDefinition definition, int labelIndex) =>
+            patterns[definition].FollowingLabel(labelIndex);
+    }
+
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
             IReadOnlyList<IntakeContentFragment> fragments,
             IReadOnlyList<FieldDefinition> definitions,
+            LabelRegexCache regexCache,
             DateTimeOffset processedAtUtc)
     {
         var fields = new List<InstructionReviewField>();
@@ -33,7 +107,7 @@ internal static partial class InstructionFieldEngine
         foreach (var definition in definitions)
         {
             var discovered = fragments
-                .SelectMany((fragment, rank) => FindCandidates(fragment, definition, definitions)
+                .SelectMany((fragment, rank) => FindCandidates(fragment, definition, definitions, regexCache)
                     .Select(candidate => (Candidate: candidate, FragmentRank: rank)))
                 .DistinctBy(entry => entry.Candidate.Value, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -131,7 +205,8 @@ internal static partial class InstructionFieldEngine
     private static IEnumerable<InstructionFieldCandidate> FindCandidates(
         IntakeContentFragment fragment,
         FieldDefinition definition,
-        IReadOnlyList<FieldDefinition> definitions)
+        IReadOnlyList<FieldDefinition> definitions,
+        LabelRegexCache regexCache)
     {
         // The real correspondence writes typographic apostrophes (\u2019); labels
         // and lookaheads reason in ASCII, so the line text is normalized once here.
@@ -144,7 +219,7 @@ internal static partial class InstructionFieldEngine
 
         for (var index = 0; index < lines.Length; index++)
         {
-            foreach (var label in definition.Labels)
+            for (var labelIndex = 0; labelIndex < definition.Labels.Length; labelIndex++)
             {
                 // A bare label token must sit at a plausible label position (line
                 // start or after a clear separator); a label immediately followed by
@@ -152,21 +227,10 @@ internal static partial class InstructionFieldEngine
                 // A definition's guarded prefixes reject a label that is really
                 // another party's row — the provider policy supplies the words
                 // (this engine carries no provider grammar).
-                var guard = definition.GuardedPrefixes is { Length: > 0 } prefixes
-                    ? $@"(?<!\b(?:{string.Join('|', prefixes.Select(Regex.Escape))})\s)"
-                    : string.Empty;
-                var match = Regex.Match(
-                    lines[index],
-                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){guard}{Regex.Escape(label)}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromMilliseconds(100));
+                var match = regexCache.Candidate(definition, labelIndex, false).Match(lines[index]);
                 if (!match.Success)
                 {
-                    match = Regex.Match(
-                        lines[index],
-                        $@"(?i)(?:^|\s){guard}{Regex.Escape(label)}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
-                        RegexOptions.CultureInvariant,
-                        TimeSpan.FromMilliseconds(100));
+                    match = regexCache.Candidate(definition, labelIndex, true).Match(lines[index]);
                 }
 
                 if (!match.Success)
@@ -180,12 +244,12 @@ internal static partial class InstructionFieldEngine
                     var nextLine = lines
                         .Skip(index + 1)
                         .FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
-                    value = nextLine is not null && !StartsWithKnownFieldLabel(nextLine, definitions)
+                    value = nextLine is not null && !StartsWithKnownFieldLabel(nextLine, definitions, regexCache)
                         ? nextLine
                         : string.Empty;
                 }
 
-                value = TruncateAtFollowingFieldLabel(value, definitions);
+                value = TruncateAtFollowingFieldLabel(value, definitions, regexCache);
                 value = TruncateAtColumnBoundary(value);
                 value = WhitespaceRegex().Replace(value, " ").Trim();
                 if (!string.IsNullOrWhiteSpace(value)
@@ -201,13 +265,22 @@ internal static partial class InstructionFieldEngine
 
     private static bool StartsWithKnownFieldLabel(
         string line,
-        IReadOnlyList<FieldDefinition> definitions) =>
-        definitions.Any(definition => definition.Labels.Any(label =>
-            Regex.IsMatch(
-                line,
-                $@"(?i)^{Regex.Escape(label)}(?:\s*(?::|-|\|)\s*|\s+|$)",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100))));
+        IReadOnlyList<FieldDefinition> definitions,
+        LabelRegexCache regexCache)
+    {
+        foreach (var definition in definitions)
+        {
+            for (var labelIndex = 0; labelIndex < definition.Labels.Length; labelIndex++)
+            {
+                if (regexCache.StartsWith(definition, labelIndex).IsMatch(line))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Deterministic resolution of multiple distinct candidates: candidates whose
@@ -329,18 +402,15 @@ internal static partial class InstructionFieldEngine
     /// </summary>
     private static string TruncateAtFollowingFieldLabel(
         string value,
-        IReadOnlyList<FieldDefinition> definitions)
+        IReadOnlyList<FieldDefinition> definitions,
+        LabelRegexCache regexCache)
     {
         var cut = value.Length;
         foreach (var definition in definitions)
         {
-            foreach (var label in definition.Labels)
+            for (var labelIndex = 0; labelIndex < definition.Labels.Length; labelIndex++)
             {
-                var match = Regex.Match(
-                    value,
-                    $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)",
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromMilliseconds(100));
+                var match = regexCache.FollowingLabel(definition, labelIndex).Match(value);
                 if (match.Success && match.Index < cut)
                 {
                     cut = match.Index;
@@ -380,7 +450,7 @@ internal static partial class InstructionFieldEngine
     internal static bool IsCurrentFormatRegistration(string value) =>
         !string.IsNullOrWhiteSpace(value)
         && CurrentFormatRegistrationRegex().IsMatch(
-            Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
+            WhitespaceHyphenRegex().Replace(value, string.Empty)
                 .ToUpperInvariant());
 
     /// <summary>
@@ -394,15 +464,8 @@ internal static partial class InstructionFieldEngine
     internal static bool IsUkRegistration(string value) =>
         !string.IsNullOrWhiteSpace(value)
         && UkRegistrationRegex().IsMatch(
-            Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
+            WhitespaceHyphenRegex().Replace(value, string.Empty)
                 .ToUpperInvariant());
-
-    internal static bool ContainsLabel(string text, string label) =>
-        Regex.IsMatch(
-            text,
-            $@"(?i)\b{Regex.Escape(label)}\b",
-            RegexOptions.CultureInvariant,
-            TimeSpan.FromMilliseconds(100));
 
     internal static string? TypedString(string? value, int maximumLength) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength ? value : null;
@@ -414,7 +477,7 @@ internal static partial class InstructionFieldEngine
             return null;
         }
 
-        var normalized = Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
+        var normalized = WhitespaceHyphenRegex().Replace(value, string.Empty)
             .ToUpperInvariant();
         return normalized.Length <= 20 && RegistrationRegex().IsMatch(normalized) ? normalized : null;
     }
@@ -457,11 +520,7 @@ internal static partial class InstructionFieldEngine
             return null;
         }
 
-        var normalized = Regex.Replace(
-            value,
-            @"(?i)\s*(?:miles?|mi)\s*$",
-            string.Empty,
-            RegexOptions.CultureInvariant);
+        var normalized = MileageSuffixRegex().Replace(value, string.Empty);
         return long.TryParse(
             normalized,
             NumberStyles.AllowThousands,
@@ -471,35 +530,42 @@ internal static partial class InstructionFieldEngine
             : null;
     }
 
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant, 100)]
     private static partial Regex WhitespaceRegex();
 
-    [GeneratedRegex(@"(?<=\d)(?:st|nd|rd|th)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<=\d)(?:st|nd|rd|th)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
     private static partial Regex OrdinalDaySuffixRegex();
 
-    [GeneratedRegex(@"^\s*(?:\d+|\d{1,3}(?:,\d{3})+)\s*(?:miles?|mi)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^\s*(?:\d+|\d{1,3}(?:,\d{3})+)\s*(?:miles?|mi)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
     private static partial Regex MileageRegex();
 
-    [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex RegistrationRegex();
 
-    [GeneratedRegex(@"[\t|]|\s{2,}|\s+:", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"[\t|]|\s{2,}|\s+:", RegexOptions.CultureInvariant, 100)]
     private static partial Regex ColumnBoundaryRegex();
 
     [GeneratedRegex(
         @"\b(?:NSF|OSF|NSR|OSR|SATISFACTORY|ADVISORY|DANGEROUS|FOOTBRAKE|HANDBRAKE|PASS|FAIL|MOT)\b",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
     private static partial Regex MotVocabularyRegex();
 
-    [GeneratedRegex(@"^[\p{L}\p{N}\s\-.'&/()+]+$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^[\p{L}\p{N}\s\-.'&/()+]+$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex MakeModelCharsetRegex();
 
-    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2} ?[A-Z]{3}\b", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2} ?[A-Z]{3}\b", RegexOptions.CultureInvariant, 100)]
     private static partial Regex UnlabelledRegistrationRegex();
 
-    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z]{3}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z]{3}$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex CurrentFormatRegistrationRegex();
 
-    [GeneratedRegex("^(?:[A-Z]{2}[0-9]{2}[A-Z]{3}|[A-Z][0-9]{1,3}[A-Z]{3}|[A-Z]{3}[0-9]{1,3}[A-Z])$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^(?:[A-Z]{2}[0-9]{2}[A-Z]{3}|[A-Z][0-9]{1,3}[A-Z]{3}|[A-Z]{3}[0-9]{1,3}[A-Z])$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex UkRegistrationRegex();
+
+    [GeneratedRegex(@"[\s-]", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex WhitespaceHyphenRegex();
+
+    [GeneratedRegex(@"(?i)\s*(?:miles?|mi)\s*$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex MileageSuffixRegex();
 }
