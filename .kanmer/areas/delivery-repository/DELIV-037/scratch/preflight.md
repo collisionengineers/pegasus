@@ -107,3 +107,164 @@ None of this is written before the deploy. Per the skill it is written **after**
 carrying the observed SHA, manifest hash, image digest, revision and migration
 head, then delivered by reviewed PR to `dev` and put on `main` by a **second,
 freshly authorised promotion-only pass**.
+
+## Phase 0 complete — two blockers found and closed, 2026-08-29
+
+An independent read-only readiness audit returned **NOT READY**, on two blockers
+that every existing gate would have passed. Both are now closed. Each finding
+below was re-verified independently against the live estate, not taken on the
+auditor's word.
+
+### B1 — the broken `az` extension would have stopped the migration
+
+`az account show` and `az account get-access-token` both died with
+`PermissionError: [Errno 13] ... cliextensions\account\azext_account\azext_metadata.json`.
+The CLI reads every installed extension's metadata while building its command
+table, so one unreadable file breaks the whole CLI, not just extension commands.
+
+**Why that is a release blocker and not an annoyance:** `efbundle.exe` runs with
+`AZURE_TOKEN_CREDENTIALS=AzureCliCredential`, and `AzureCliCredential` shells out
+to `az account get-access-token`. The migration simply cannot run. It also breaks
+`Invoke-AzureDatabaseBootstrap.ps1`'s subscription guard and token fetch, and
+`Invoke-ProductionSmoke.ps1`'s intake-liveness token.
+
+**Closed** by exporting `AZURE_EXTENSION_DIR` to an empty directory, which the
+child `az` inherits from the process environment, so `efbundle` is covered.
+Verified: `az account show` returns the subscription, and
+`az account get-access-token --resource https://database.windows.net/` returns a
+token. `az containerapp`, `az functionapp`, `az acr` and `az sql` all work this
+way because they are core commands, not extensions.
+
+The cleaner repairs both failed: `az extension remove --name account` is denied
+on `account-0.2.5.dist-info`, and `icacls /grant` is denied on the same files —
+the current user does not own them, so a permanent fix needs elevation. The env
+var must therefore be exported in **every** terminal that runs a release script.
+
+### B2 — five deployment parameters were missing, and would have detonated after the promotion
+
+`infra/main.parameters.json` requires five `${VAR}` with **no default** that the
+`pegasus-prod` azd environment did not carry:
+
+```
+EVA_CLIENT_ID_SECRET_URI
+EVA_CLIENT_SECRET_SECRET_URI
+EVA_INSTRUCTION_EMAIL
+EVA_REQUEST_FROM
+GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI
+```
+
+**`Test-AzureDeploymentPlan.ps1 -Mode PreProvision` does not check them.** It
+requires only `AZURE_SUBSCRIPTION_ID`, `AZURE_TENANT_ID`,
+`AZURE_RESOURCE_GROUP`, `WORKER_APP_NAME` and `PEGASUS_WORKER_ACTIVATION`
+(`Test-AzureDeploymentPlan.ps1:421-427`). So this passes every gate in the
+procedure and fails at `azd provision` — which is **step 7, after the promotion
+to `main` and after the migrations have already been applied**. Worse, if azd
+substituted empty strings rather than failing, Web would lose its EVA secret
+references and, per `operations.md:120`, refuse to start — crash-looping the
+whole application, not merely the EVA route.
+
+**Closed.** All five values were read from the live estate and verified before
+being written:
+
+| Parameter | Verified against |
+| --- | --- |
+| `GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI` | live Container App secret `graph-change-notification-client-state` |
+| `EVA_CLIENT_ID_SECRET_URI` | live secret `eva-client-id` |
+| `EVA_CLIENT_SECRET_SECRET_URI` | live secret `eva-client-secret` |
+| `EVA_REQUEST_FROM` = `COLLENGAPI` | live `Eva__RequestFrom` |
+| `EVA_INSTRUCTION_EMAIL` = `digital@collisionengineers.co.uk` | live `Eva__InstructionEmail` |
+
+These are Key Vault *identifiers* and plain configuration, not secret material.
+
+Rather than stop at the five, every parameter was then checked:
+**27 of 27 resolve, zero missing.** The three that fall back to a default were
+each confirmed to match live — `AUTOMATION_MCP_REDIRECT_URIS`
+(`https://claude.ai/api/mcp/auth_callback`, matches live
+`AutomationMcp__RedirectUris`), `EVA_BASE_URI`
+(`https://sentry.evasoftware.co.uk/api/`) and `EVA_INSPECTION_TYPE`
+(`Vehicle Damage Inspection`).
+
+`azd` offered an upgrade to 1.32.0 and it was **not** taken; upgrading azd
+mid-release is its own risk.
+
+### The grant question is definitively closed
+
+The auditor proved it against live SQL rather than by reading code. The
+bootstrap's own permission query run against production returns **530 rows**;
+the matrix derived from `dev` expects **543**. The 13-row difference is exactly
+the four pending grant migrations (Web `S/I/U` on `AiJobs`,
+`PrincipalApiCredentials`, `ProviderSubmissions`, `CaseValuations`, plus Worker
+`SELECT` on `ProviderSubmissions`). **Nothing is live that `dev` does not
+expect** — zero drift in either direction.
+
+`Invoke-AzureDatabaseBootstrap.ps1` never revokes anything (all 602 lines read):
+its only DDL is idempotent `CREATE USER … IF NULL`, `ALTER ROLE … ADD MEMBER`
+and `GRANT CONNECT`. Lines 169-186 *read
+`20260814092852_AddWorkerCaseCreationGrants.cs`'s `WorkerGrants` block at
+runtime* and fold it into the expected matrix, precisely so that hotfix cannot
+drift out.
+
+**The residual risk is inverted from what was assumed:** the bootstrap is an
+*equality* gate in both directions, so any manual `GRANT` applied between now
+and the release would itself become a stop condition. Do not hand-patch grants.
+
+### Migration risk is lower than feared
+
+Live `__EFMigrationsHistory` holds 76 rows, head `20260827143200_GrantEvaSubmissions`.
+`dev` carries 86 files, head `20260829095336_CaseValuations` — 10 pending. The
+two structurally risky ones are harmless against current data:
+
+- `20260828112103_NamedEstimates` reshapes `CaseRepairSpecifications` with a data
+  `UPDATE` and six new check constraints — but that table and
+  `CaseEstimateLines` both hold **0 rows**.
+- `20260828185508_ProviderDeclaredInstruction` widens
+  `CK_CaseDataFields_FieldName` and `CK_CaseDataFields_SourceKind`. The new lists
+  are strict **supersets** of the live ones; live `CaseDataFields` (98 rows) uses
+  13 field names and 4 source kinds, all inside both.
+
+Nothing in the set is non-additive in a way that breaks the running release-36
+revision during the migration window.
+
+### `/health` does not exist — a smoke trap
+
+`GET /health` returns **302** to `/Account/SignIn`. The real endpoints are
+`/health/live` and `/health/ready` (both 200 `Healthy`) and
+`/diagnostics/version`, which is what `Invoke-ProductionSmoke.ps1:194-197`
+asserts against. Anything that probes `/health` gets a sign-in redirect and a
+false negative. Live version today:
+`{"version":"0.1.0-alpha.1","sourceSha":"84132d01ccb0afca7af6c6ce519e6f3491aee160"}`.
+
+Also: **the Web's `AppRoleName` is an empty string** — only the Worker sets a
+role name — so post-deploy KQL must not filter Web telemetry by `AppRoleName`.
+
+## Four things that need the operator's decision
+
+**1. The `claudeuiverification` Administrator is live and will be re-asserted.**
+Production SQL holds two accounts: `alex` and `claudeuiverification`, both
+enabled Administrators. `ReconcileVerificationAccountAsync`
+(`Program.cs:1145-1180`) re-converges its password and role on **every**
+Production start, so release 37 re-asserts it. Its password is a plaintext
+literal in a tracked file that ships inside the container image. The file's own
+comment says to retire it by replacing `UserName`/`Password` with
+`{ "Removed": "claudeuiverification" }`, which deletes the account on next start.
+Not changed — this is a go-live decision, not a release step.
+
+**2. "Nothing gated off" cannot include document upload links.** They stay
+unavailable in production regardless of any `Features:` flag, because
+`Program.cs:241-250` requires `DocumentRequests:AcceptedLimitsVersion` and
+production sets none — it is absent from both `platform.bicep` and the live app
+settings. The code comment says this is deliberately blocked pending the INT-31
+open decision. Opening it is a separate decision, not part of this release.
+
+**3. Worker rollback is not one command on this workstation.**
+`./artifacts/releases/release-36-84132d01/worker.zip` does not exist here;
+releases 33-36 were run from `C:/Users/Alex/Documents/GitHub/pegasus`, which is
+not on this machine. The Web rollback *is* clean — release 36's image
+(`sha256:5ba65f61…`, tag `84132d01ccb0…`, pushed 2026-08-28T02:48:25Z) is still
+in the ACR, whose retention policy is disabled so nothing auto-purges. A Worker
+rollback would have to be rebuilt from source at `84132d01ccb0`.
+
+**4. The Graph subscription expires 2026-09-02T10:25Z.** `Invoke-ProductionSmoke.ps1`
+fails unless an unexpired `Active` subscription exists. If the release slips past
+that date the smoke fails on a live-estate condition rather than on anything the
+release did.
