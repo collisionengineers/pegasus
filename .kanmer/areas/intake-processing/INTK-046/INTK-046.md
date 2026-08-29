@@ -20,7 +20,9 @@ labels:
   - unidentified
 groups:
   - EPIC-011
-links: []
+links:
+  - UIIMP-012
+  - PLAT-061
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-03-triage.md
@@ -36,12 +38,18 @@ prs:
   - '#605'
 archived: false
 created: '2026-08-28T08:35:23.884Z'
-updated: '2026-08-28T21:35:36.002Z'
+updated: '2026-08-29T08:36:14.231Z'
 ---
 
 ## What
 
 Wave 2 lane C2 of [[EPIC-011]]. Port `Pages/Triage/Details` (§1.5: determinations panel saving both findings through the existing `OnPostActionAsync` record_finding path, source panel, notes panel; the other transitions stay reachable through dialogs where a handler exists), `Pages/Unidentified/Details` (§1.6: retained source panel, history, resolve dialog with destination select), `Pages/Intake/Details` (Received workbench restyled, handlers unchanged) and `Pages/ImageIntake/Details` (the image record per D1, gallery retained, back link to `/Cases?tab=not_ready`).
+
+> §1.5's "notes panel" ships under the name `dev` already used and
+> `QdosTriageIntegrationTests.cs:477` pins — "Permanent history". §1.5's
+> entry shape (Date/Time/ID + text) is unchanged. The name divergence is
+> [[UIIMP-012]]'s to settle; it cannot be closed inside this lane without
+> breaking a pre-existing assertion in a file this lane does not own.
 
 ## Owns
 
@@ -51,7 +59,12 @@ Wave 2 lane C2 of [[EPIC-011]]. Port `Pages/Triage/Details` (§1.5: determinatio
 
 [[PLAT-029]].
 
+## Raised out of this lane
+
+[[UIIMP-012]] — §1.5's panel name and D7's disabled-control clause vs merged code.
+[[PLAT-061]] — `.gated::after` empty tooltip pill; `site.css` is PLAT-029's file.
+
 ## Verification
 
-- [ ] Every button posts an existing handler; no inert control.
-- [ ] No clipped text/overflow at 1580/1100/760.
+- [x] Every button posts an existing handler; no inert control. — audited 2026-08-29 over all four owned pages: every `data-dialog-open` target resolves to a declared dialog, every form posts a handler that exists on its page model, and the one disabled control (Complete) posts the same `complete` action in both states. Audit recorded in the plan's round-2 dispositions.
+- [ ] No clipped text/overflow at 1580/1100/760. — the orchestrator's browser walk (UIIMP-010) per EPIC-011; not this lane's to claim.
