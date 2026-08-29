@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -110,34 +111,56 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task SearchIsAbsorbedByCasesAndItsRouteCarriesTheKeywordThrough()
+    public async Task OldCasesSearchLinksRedirectToSearchWithTheirValuesIntact()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        // Search and Cases ran the identical Core query and differed only in
-        // which filters they exposed, so two nav items led to one capability —
-        // and the two screens disagreed about what a query failure meant.
-        // Cases absorbs it; the route redirects so bookmarks land on results.
-        using var bare = await client.GetAsync("/Search");
-        Assert.Equal(HttpStatusCode.MovedPermanently, bare.StatusCode);
-        Assert.Contains(
-            "/Cases",
-            bare.Headers.Location?.OriginalString ?? string.Empty,
-            StringComparison.Ordinal);
-
+        // EPIC-011 moved the case search to /Search and the workflow tabs to
+        // /Cases. A /Cases link that carries a search-only parameter is an
+        // old search bookmark and lands on its results, values intact.
         const string keyword = "QDOS-search-no-match";
-        using var withKeyword = await client.GetAsync($"/Search?query={keyword}");
-        Assert.Equal(HttpStatusCode.MovedPermanently, withKeyword.StatusCode);
-        Assert.Contains(
-            keyword,
-            withKeyword.Headers.Location?.OriginalString ?? string.Empty,
-            StringComparison.Ordinal);
+        using var oldLink = await client.GetAsync($"/Cases?query={keyword}");
+        Assert.Equal(HttpStatusCode.MovedPermanently, oldLink.StatusCode);
+        Assert.Equal(
+            $"/Search?query={keyword}",
+            oldLink.Headers.Location?.OriginalString ?? string.Empty);
 
-        using var cases = await client.GetAsync($"/Cases?query={keyword}");
-        cases.EnsureSuccessStatusCode();
-        var html = await cases.Content.ReadAsStringAsync();
+        using var search = await client.GetAsync($"/Search?query={keyword}");
+        search.EnsureSuccessStatusCode();
+        var html = await search.Content.ReadAsStringAsync();
         Assert.Contains("No cases match these filters.", html, StringComparison.Ordinal);
+
+        // A real bookmark carries a whole filter set, including the two
+        // parameters the ported grid no longer draws. Every value survives the
+        // move byte for byte, in its original order, and the page it lands on
+        // accepts all of them.
+        const string wholeFilterSet =
+            "?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
+            + "&principal=QDOS&state=Review&receivedDate=2031-05-01"
+            + "&instructionDate=2031-05-02&fromDate=2031-04-01&toDate=2031-05-31"
+            + "&origin=Email&query=" + keyword + "&page=2";
+        using var wholeBookmark = await client.GetAsync("/Cases" + wholeFilterSet);
+        Assert.Equal(HttpStatusCode.MovedPermanently, wholeBookmark.StatusCode);
+        Assert.Equal(
+            "/Search" + wholeFilterSet,
+            wholeBookmark.Headers.Location?.OriginalString ?? string.Empty);
+
+        using var landed = await client.GetAsync("/Search" + wholeFilterSet);
+        landed.EnsureSuccessStatusCode();
+        var landedHtml = await landed.Content.ReadAsStringAsync();
+        foreach (var (field, value) in new[]
+                 {
+                     ("search-query", keyword), ("search-registration", "AB12CDE"),
+                     ("search-claimant", "Claimant"), ("search-claim-number", "CLM42"),
+                     ("search-principal", "QDOS"), ("search-from-date", "2031-04-01"),
+                     ("search-to-date", "2031-05-31"), ("search-origin", "Email")
+                 })
+        {
+            Assert.Matches(
+                $"id=\"{field}\"[^>]*value=\"{Regex.Escape(value)}\"",
+                landedHtml);
+        }
     }
 
     [Fact]

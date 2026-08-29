@@ -1,0 +1,106 @@
+@page "/Cases/{caseId:guid}/Eva/Send"
+@using Pegasus.Core.Eva
+@model Pegasus.Web.Pages.Cases.Eva.SendModel
+@{
+    ViewData["Title"] = "EVA handoff";
+}
+
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Case workspace · @Model.Reference</p>
+        <h1>EVA handoff</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-page="/Cases/Details" asp-route-id="@Model.CaseId">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to @Model.Reference</span>
+        </a>
+    </div>
+</header>
+
+<section class="panel" aria-labelledby="eva-handoff-title">
+    <div class="panel-head">
+        <h2 id="eva-handoff-title">@Model.Reference</h2>
+    </div>
+    <div class="panel-body stack">
+        @* A case that already reached EVA still offers the export — an operator
+           may need the archive for their own records — but the API control is
+           gone, and the recorded send is what says why. The file reference is
+           what an operator quotes to EVA, so it is the value shown; no EVA
+           identifier, handle or hash is printed. *@
+        @if (Model.LastSubmission is { IsSucceeded: true } sent)
+        {
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Sent to EVA</dt>
+                    <dd>@OperatorLabels.OfficeTime(sent.SubmittedAtUtc)</dd>
+                </dl>
+                @if (sent.FileReference is { } fileReference)
+                {
+                    <dl class="definition">
+                        <dt>File reference</dt>
+                        <dd>@fileReference</dd>
+                    </dl>
+                }
+            </div>
+        }
+        else if (Model.LastSubmission is { } attempted)
+        {
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Last attempt</dt>
+                    <dd>@OperatorLabels.OfficeTime(attempted.SubmittedAtUtc)</dd>
+                </dl>
+                <dl class="definition">
+                    <dt>Outcome</dt>
+                    <dd>
+                        <partial name="Shared/_StatusChip" model="@OutcomeLabel(attempted.Outcome)"
+                                 view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OutcomeTone(attempted.Outcome) }' />
+                    </dd>
+                </dl>
+            </div>
+        }
+
+        <div class="cluster">
+            @if (Model.CanSubmitToApi)
+            {
+                <form method="post" asp-page-handler="Submit" asp-route-caseId="@Model.CaseId">
+                    <input type="hidden" name="operationKey" value="@Model.SubmitOperationKey" />
+                    <button type="submit" class="btn btn--dark">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>Send via API</span>
+                    </button>
+                </form>
+            }
+            @* The export route is unchanged and reaches its own handler directly,
+               so the archive an operator drags into EVA is the same archive it has
+               always been. *@
+            <form method="post" asp-page="/Cases/Documents/Export"
+                  asp-route-caseId="@Model.CaseId" asp-page-handler="Bundle">
+                <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
+                <button type="submit" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <span>Download export</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</section>
+
+@functions {
+    private static string OutcomeLabel(EvaSubmissionOutcome outcome) => outcome switch
+    {
+        EvaSubmissionOutcome.Rejected => "Refused by EVA",
+        EvaSubmissionOutcome.Partial => "Sent, no reference returned",
+        _ => "EVA could not be reached"
+    };
+
+    // _StatusChip's rule (docs/design/README.md): red is blocked/failed/denied,
+    // amber is incomplete/pending. A refusal and an unreachable transport are
+    // both failures; only Partial actually reached EVA with something missing.
+    private static string OutcomeTone(EvaSubmissionOutcome outcome) => outcome switch
+    {
+        EvaSubmissionOutcome.Partial => "amber",
+        _ => "red"
+    };
+}

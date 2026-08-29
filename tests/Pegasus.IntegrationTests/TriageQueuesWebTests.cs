@@ -14,8 +14,10 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// INTK-009: Unidentified as a Queues tab with media-kind filters, and the
-/// Not ready tab's Instruction-initiated/Image-initiated origin filter.
+/// CASE-025: the Cases page's workflow rail, Principal/Missing filters,
+/// per-kind rows and the D14 rule that Blocked intake rows are listed in the
+/// Unidentified scope but never counted. Unidentified-as-a-scope (INTK-009)
+/// and the Not ready merge across both origins (INTK-013) stay covered here.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class TriageQueuesWebTests
@@ -24,72 +26,84 @@ public sealed class TriageQueuesWebTests
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
 
+    /// <summary>
+    /// The Missing filter is exclusive: "Instructions" lists the cases whose
+    /// instruction is the only thing missing, "Images" the converse, and
+    /// "Both missing" the remainder — an image-initiated row is
+    /// instruction-missing with images present, so it is listed for All and
+    /// Instructions only.
+    /// </summary>
     [Fact]
-    public async Task NotReadyOriginFilterReturnsOnlyTheMatchingOriginsRows()
+    public async Task NotReadyMissingFilterReturnsOnlyTheMatchingRows()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        var instructionReceiptId = await StoreMinimalReceiptAsync(services, "instruction-source.pdf");
-        var instructionCaseReference = "QDOS" + DateTime.UtcNow.Ticks % 1_000_000;
-        await SeedNotReadyCaseAsync(services, instructionReceiptId, instructionCaseReference);
+        var ticks = DateTime.UtcNow.Ticks % 1_000_000;
+        var instructionOnly = $"QDOSA{ticks}";
+        var imagesOnly = $"QDOSB{ticks}";
+        var bothMissing = $"QDOSC{ticks}";
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "instruction-only.pdf"),
+            instructionOnly,
+            instructionComplete: false,
+            imagesComplete: true);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "images-only.pdf"),
+            imagesOnly,
+            instructionComplete: true,
+            imagesComplete: false);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "both-missing.pdf"),
+            bothMissing,
+            instructionComplete: false,
+            imagesComplete: false);
 
-        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            "vehicle.png",
-            "image/png",
-            TinyPng,
-            Guid.NewGuid().ToString("N"));
-        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
-        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
-        var register = services.GetRequiredService<IRegisterImageIntake>();
-        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
-        var imageIntake = await register.ExecuteAsync(
-            new(
-                origin!,
-                "AB12CDE",
-                StaffActor(),
-                $"image-intake-register:{Guid.NewGuid():N}",
-                "Staff confirmed the registration from the retained image."),
-            CancellationToken.None);
+        using var instructions = await client.GetAsync("/Cases?tab=not_ready&missing=instructions");
+        var instructionsHtml = await instructions.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, instructions.StatusCode);
+        Assert.Contains(instructionOnly, instructionsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(imagesOnly, instructionsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(bothMissing, instructionsHtml, StringComparison.Ordinal);
 
-        using var instructionOnly = await client.GetAsync("/Triage?queue=not_ready&origin=instruction");
-        var instructionOnlyHtml = await instructionOnly.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, instructionOnly.StatusCode);
-        Assert.Contains(instructionCaseReference, instructionOnlyHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(imageIntake.ImageIntakeReference, instructionOnlyHtml, StringComparison.Ordinal);
+        using var images = await client.GetAsync("/Cases?tab=not_ready&missing=images");
+        var imagesHtml = await images.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, images.StatusCode);
+        Assert.Contains(imagesOnly, imagesHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(instructionOnly, imagesHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(bothMissing, imagesHtml, StringComparison.Ordinal);
 
-        using var imageOnly = await client.GetAsync("/Triage?queue=not_ready&origin=image");
-        var imageOnlyHtml = await imageOnly.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, imageOnly.StatusCode);
-        Assert.Contains(imageIntake.ImageIntakeReference, imageOnlyHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(instructionCaseReference, imageOnlyHtml, StringComparison.Ordinal);
+        using var both = await client.GetAsync("/Cases?tab=not_ready&missing=both");
+        var bothHtml = await both.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, both.StatusCode);
+        Assert.Contains(bothMissing, bothHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(instructionOnly, bothHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(imagesOnly, bothHtml, StringComparison.Ordinal);
 
-        using var all = await client.GetAsync("/Triage?queue=not_ready");
+        using var all = await client.GetAsync("/Cases?tab=not_ready");
         var allHtml = await all.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, all.StatusCode);
-        Assert.Contains(instructionCaseReference, allHtml, StringComparison.Ordinal);
-        Assert.Contains(imageIntake.ImageIntakeReference, allHtml, StringComparison.Ordinal);
+        Assert.Contains(instructionOnly, allHtml, StringComparison.Ordinal);
+        Assert.Contains(imagesOnly, allHtml, StringComparison.Ordinal);
+        Assert.Contains(bothMissing, allHtml, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// INTK-013: the operator saw two Not ready cases (one instruction, one
-    /// image-initiated) but a badge of 1, because the count query
+    /// image-initiated) but a rail count of 1, because the count query
     /// (<c>EfDashboardQueries.GetCaseStageCountsAsync</c>) only counted
-    /// CaseWorkflows rows while the row query
-    /// (<c>Triage/Index.cshtml.cs LoadNotReadyAsync</c>) also lists
-    /// awaiting-instruction Image Intakes. The badge must equal the number
-    /// of rows across both origins, and the Dashboard's Not-ready tile reads
-    /// the same count so it must agree too.
+    /// CaseWorkflows rows while the row query also lists awaiting-instruction
+    /// Image Intakes. The rail count must equal the number of rows across
+    /// both origins, and the Work Centre's Not ready metric reads the same
+    /// count so it must agree too.
     /// </summary>
     [Fact]
-    public async Task NotReadyBadgeCountMatchesRowsAcrossBothOrigins()
+    public async Task NotReadyRailCountMatchesRowsAcrossBothOrigins()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -99,67 +113,54 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        var instructionReceiptId = await StoreMinimalReceiptAsync(services, "instruction-source.pdf");
         var instructionCaseReference = "QDOS" + DateTime.UtcNow.Ticks % 1_000_000;
-        await SeedNotReadyCaseAsync(services, instructionReceiptId, instructionCaseReference);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "instruction-source.pdf"),
+            instructionCaseReference);
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "AB12CDE");
 
-        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            "vehicle.png",
-            "image/png",
-            TinyPng,
-            Guid.NewGuid().ToString("N"));
-        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
-        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
-        var register = services.GetRequiredService<IRegisterImageIntake>();
-        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
-        var imageIntake = await register.ExecuteAsync(
-            new(
-                origin!,
-                "AB12CDE",
-                StaffActor(),
-                $"image-intake-register:{Guid.NewGuid():N}",
-                "Staff confirmed the registration from the retained image."),
-            CancellationToken.None);
-
-        using var notReady = await client.GetAsync("/Triage?queue=not_ready");
+        using var notReady = await client.GetAsync("/Cases?tab=not_ready");
         var notReadyHtml = await notReady.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, notReady.StatusCode);
 
-        var badgeMatch = Regex.Match(notReadyHtml, "Not ready\\s*<span class=\"count\">(\\d+)</span>");
-        Assert.True(badgeMatch.Success, "Not ready badge markup not found.");
-        var badgeCount = int.Parse(badgeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+        // The rail scope button's count span: label span then figure span.
+        var countMatch = Regex.Match(
+            notReadyHtml,
+            "scope-button[\\s\\S]*?<span>Not ready</span>\\s*<span>(\\d+)</span>");
+        Assert.True(countMatch.Success, "Not ready rail scope markup not found.");
+        var railCount = int.Parse(countMatch.Groups[1].Value, CultureInfo.InvariantCulture);
 
-        // The row count actually rendered: both origins must be present, and
-        // the badge must equal exactly that many rows (2 — one of each
-        // origin), not one or the other alone.
+        // The rows actually rendered: both origins must be present, and the
+        // count must equal exactly that many rows (2 — one of each origin),
+        // not one or the other alone.
         Assert.Contains(instructionCaseReference, notReadyHtml, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, notReadyHtml, StringComparison.Ordinal);
-        Assert.Equal(2, badgeCount);
+        Assert.Equal(2, Regex.Count(notReadyHtml, "class=\"row-button\""));
+        Assert.Equal(2, railCount);
 
-        // The Dashboard's Not-ready tile reads the same count query, so it
-        // must report the identical figure — a queue whose badge disagrees
-        // with its own tab's tile is exactly the defect being fixed here.
+        // The Work Centre's Not ready metric reads the same count query, so
+        // it must report the identical figure — a rail count that disagrees
+        // with its own metric is exactly the defect being fixed here.
         using var dashboard = await client.GetAsync("/");
         var dashboardHtml = await dashboard.Content.ReadAsStringAsync();
         var tileMatch = Regex.Match(
             dashboardHtml,
-            "data-state=\"not-ready\"[\\s\\S]*?metric__value\">(\\d+)</strong>");
-        Assert.True(tileMatch.Success, "Dashboard Not ready tile markup not found.");
-        Assert.Equal(badgeCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
+            "data-value=\"not_ready\"[\\s\\S]*?metric-value\">(\\d+)</span>");
+        Assert.True(tileMatch.Success, "Work Centre Not ready metric markup not found.");
+        Assert.Equal(railCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
     /// <summary>
-    /// TICK-065 (INT-32): the Not ready tab's Image-initiated table renders a
-    /// derived chase-state column (<c>ImageIntakeChaseSchedule</c>) alongside
-    /// the existing Received column. A record registered moments ago is well
-    /// inside the seven-day window, so it must read "Not yet due" rather than
-    /// "Chase due" — the boundary itself is covered at the Core level
+    /// An image-initiated row carries its retained-image count and its
+    /// derived chase state (<c>ImageIntakeChaseSchedule</c>, TICK-065): a
+    /// record registered moments ago is well inside the seven-day window, so
+    /// it must read "Not yet due" rather than "Chase due" — the boundary
+    /// itself is covered at the Core level
     /// (<c>ImageIntakeChaseScheduleTests</c>).
     /// </summary>
     [Fact]
-    public async Task NotReadyImageTableRendersChaseColumnForARecentRegistration()
+    public async Task NotReadyImageRowRendersRetainedImageCountAndChaseState()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -169,32 +170,14 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            "vehicle.png",
-            "image/png",
-            TinyPng,
-            Guid.NewGuid().ToString("N"));
-        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
-        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
-        var register = services.GetRequiredService<IRegisterImageIntake>();
-        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
-        var imageIntake = await register.ExecuteAsync(
-            new(
-                origin!,
-                "CD34EFG",
-                StaffActor(),
-                $"image-intake-register:{Guid.NewGuid():N}",
-                "Staff confirmed the registration from the retained image."),
-            CancellationToken.None);
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "CD34EFG");
 
-        using var response = await client.GetAsync("/Triage?queue=not_ready&origin=image");
+        using var response = await client.GetAsync("/Cases?tab=not_ready");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
-        Assert.Contains("Chase", html, StringComparison.Ordinal);
+        Assert.Contains("1 retained image", html, StringComparison.Ordinal);
         Assert.Contains("Not yet due", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Chase due", html, StringComparison.Ordinal);
     }
@@ -208,7 +191,7 @@ public sealed class TriageQueuesWebTests
         using var response = await client.GetAsync("/Unidentified");
 
         Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal("/Triage?queue=unidentified", response.Headers.Location?.OriginalString);
+        Assert.Equal("/Cases?tab=unidentified", response.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -254,7 +237,7 @@ public sealed class TriageQueuesWebTests
                 DateTimeOffset.UtcNow),
             CancellationToken.None);
 
-        using var response = await client.GetAsync("/Triage?queue=unidentified");
+        using var response = await client.GetAsync("/Cases?tab=unidentified");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -263,26 +246,82 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain("intake", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("custody", html, StringComparison.OrdinalIgnoreCase);
 
-        // A GUID legitimately appears in the row link's href (routing to
-        // /Unidentified/Details/{id}); the design rule bans it from what the
-        // operator reads, not from a URL they never see. Strip attribute
-        // values before scanning so only visible text is checked.
-        var visibleOnly = Regex.Replace(html, "\\s(href|asp-route-\\w+)=\"[^\"]*\"", "");
+        // A GUID legitimately appears in the row link's href and in the
+        // freshness form's hidden `selected` input (both routing state the
+        // operator never sees as text); the design rule bans it from what
+        // the operator reads. Strip attribute values and hidden inputs
+        // before scanning so only visible text is checked.
+        var visibleOnly = Regex.Replace(
+            html,
+            "<input[^>]*type=\"hidden\"[^>]*>|\\s(href|asp-route-\\w+)=\"[^\"]*\"",
+            "");
         Assert.False(
             Regex.IsMatch(visibleOnly, @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"),
             "A raw GUID must never reach the operator-visible text of the Unidentified tab.");
     }
 
-    private static readonly byte[] TinyPng = Convert.FromBase64String(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
-
     /// <summary>
-    /// INTK-022: the Not ready tab is one merged table across both case
-    /// origins, with dropdown filters instead of pills and dash cells where a
-    /// field does not apply to an image-initiated row.
+    /// D14: Blocked intake receipts are listed inside the Unidentified scope
+    /// with their own chip, but the scope's count stays the Unidentified
+    /// items' own — the two meanings stay distinct.
     /// </summary>
     [Fact]
-    public async Task NotReadyRendersOneMergedTableAcrossOrigins()
+    public async Task UnidentifiedTabListsBlockedIntakeRowsUncounted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
+
+        var blocked = await receiptStore.StoreAsync(
+            new IntakeReceiptDraft(
+                "blocked-file.msg",
+                "message/rfc822",
+                2048,
+                Guid.NewGuid().ToString("N"),
+                new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                "test-actor",
+                IntakeDecision.BlockedIntake,
+                "blocked for the test",
+                [],
+                [],
+                null,
+                [],
+                "unsupported_file_type",
+                "unsupported for the test",
+                "test-reader",
+                "1",
+                null,
+                null),
+            CancellationToken.None);
+
+        using var response = await client.GetAsync("/Cases?tab=unidentified");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("blocked-file.msg", html, StringComparison.Ordinal);
+        Assert.Contains("Blocked intake", html, StringComparison.Ordinal);
+        Assert.Contains($"/Received/{blocked.Id:D}", html, StringComparison.Ordinal);
+
+        // One Blocked intake row, zero Unidentified items: the scope count
+        // must read zero, not one — the row is listed but never counted.
+        var countMatch = Regex.Match(
+            html,
+            "scope-button[\\s\\S]*?<span>Unidentified</span>\\s*<span>(\\d+)</span>");
+        Assert.True(countMatch.Success, "Unidentified rail scope markup not found.");
+        Assert.Equal(0, int.Parse(countMatch.Groups[1].Value, CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// INTK-022: Not ready is one row list across both case origins, with
+    /// dropdown filters rather than pills, and the rail replaces the old tab
+    /// strip.
+    /// </summary>
+    [Fact]
+    public async Task NotReadyRendersOneMergedRowListAcrossOrigins()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -292,54 +331,38 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        var instructionReceiptId = await StoreMinimalReceiptAsync(services, "instruction-source.pdf");
         var instructionCaseReference = "QDOS" + DateTime.UtcNow.Ticks % 1_000_000;
-        await SeedNotReadyCaseAsync(services, instructionReceiptId, instructionCaseReference);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "instruction-source.pdf"),
+            instructionCaseReference);
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "EF56GHJ");
 
-        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            "vehicle.png",
-            "image/png",
-            TinyPng,
-            Guid.NewGuid().ToString("N"));
-        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
-        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
-        var register = services.GetRequiredService<IRegisterImageIntake>();
-        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
-        var imageIntake = await register.ExecuteAsync(
-            new(
-                origin!,
-                "EF56GHJ",
-                StaffActor(),
-                $"image-intake-register:{Guid.NewGuid():N}",
-                "Staff confirmed the registration from the retained image."),
-            CancellationToken.None);
-
-        using var response = await client.GetAsync("/Triage?queue=not_ready");
+        using var response = await client.GetAsync("/Cases?tab=not_ready");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(instructionCaseReference, html, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
-        // One table, not one per origin.
-        Assert.Equal(1, Regex.Count(html, "<table"));
-        // Dropdown filters replaced the origin pills.
-        Assert.Contains("name=\"origin\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
+        // One row list, not one per origin; rows are links, not tables.
+        Assert.DoesNotContain("<table", html, StringComparison.Ordinal);
         Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
-        // The image row fills inapplicable cells with a dash and keeps its
-        // TICK-065 derived chase chip.
+        // The rail groups the workflow; the filters are selects.
+        Assert.Contains("Case workflow", html, StringComparison.Ordinal);
+        Assert.Contains("Workflow", html, StringComparison.Ordinal);
+        Assert.Contains("Exceptions", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"missing\"", html, StringComparison.Ordinal);
+        // The image row keeps its own state chip.
         Assert.Contains("Awaiting definitive instruction", html, StringComparison.Ordinal);
-        Assert.Contains("Not yet due", html, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// INTK-022: the Received header sorts newest-first by default and its
-    /// link flips the direction.
+    /// The row list renders newest received first (INTK-022's default order,
+    /// kept by CASE-025's single order).
     /// </summary>
     [Fact]
-    public async Task NotReadySortDefaultsNewestFirstAndHeaderTogglesDirection()
+    public async Task NotReadyRowsRenderNewestReceivedFirst()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -362,21 +385,47 @@ public sealed class TriageQueuesWebTests
                 $"UPDATE IntakeReceipts SET ReceivedAtUtc = {new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero)} WHERE Id = {newerReceiptId}");
         }
 
-        using var newestFirst = await client.GetAsync("/Triage?queue=not_ready");
-        var newestFirstHtml = await newestFirst.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, newestFirst.StatusCode);
+        using var response = await client.GetAsync("/Cases?tab=not_ready");
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(
-            newestFirstHtml.IndexOf($">{newerReference}</a>", StringComparison.Ordinal)
-                < newestFirstHtml.IndexOf($">{olderReference}</a>", StringComparison.Ordinal),
-            "The default order must put the newest received case first.");
+            html.IndexOf($">{newerReference}</span>", StringComparison.Ordinal)
+                < html.IndexOf($">{olderReference}</span>", StringComparison.Ordinal),
+            "The row order must put the newest received case first.");
+    }
 
-        using var oldestFirst = await client.GetAsync("/Triage?queue=not_ready&sort=received_asc");
-        var oldestFirstHtml = await oldestFirst.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, oldestFirst.StatusCode);
-        Assert.True(
-            oldestFirstHtml.IndexOf($">{olderReference}</a>", StringComparison.Ordinal)
-                < oldestFirstHtml.IndexOf($">{newerReference}</a>", StringComparison.Ordinal),
-            "sort=received_asc must put the oldest received case first.");
+    private static readonly byte[] TinyPng = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+
+    /// <summary>
+    /// Registers one Image-initiated Case from a fresh upload — the same
+    /// sequence every Not ready merge test needs.
+    /// </summary>
+    private static async Task<ImageIntakeRecord> RegisterImageIntakeAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        IServiceProvider services,
+        string registration)
+    {
+        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            TinyPng,
+            Guid.NewGuid().ToString("N"));
+        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var register = services.GetRequiredService<IRegisterImageIntake>();
+        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
+        return await register.ExecuteAsync(
+            new(
+                origin!,
+                registration,
+                StaffActor(),
+                $"image-intake-register:{Guid.NewGuid():N}",
+                "Staff confirmed the registration from the retained image."),
+            CancellationToken.None);
     }
 
     private static async Task<Guid> StoreMinimalReceiptAsync(IServiceProvider services, string sourceFileName)
@@ -410,15 +459,18 @@ public sealed class TriageQueuesWebTests
 
     /// <summary>
     /// A raw-SQL Not-ready Case fixture: exercising the full instruction
-    /// pipeline just to get one NotReady case row is unrelated to what this
-    /// test verifies (the origin filter reads whatever the Cases table
-    /// holds). This mirrors the equivalent fixture in
+    /// pipeline just to get one NotReady case row is unrelated to what these
+    /// tests verify (the queue reads whatever the Cases table holds). The
+    /// completeness flags are the Missing filter's entire input. This
+    /// mirrors the equivalent fixture in
     /// <c>ImageIntakePersistenceTests.SeedCaseAsync</c>.
     /// </summary>
     private static async Task SeedNotReadyCaseAsync(
         IServiceProvider services,
         Guid originReceiptId,
-        string reference)
+        string reference,
+        bool instructionComplete = true,
+        bool imagesComplete = true)
     {
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -435,7 +487,7 @@ public sealed class TriageQueuesWebTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {"pending"}, {originReceiptId}, {true}, {true}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {"pending"}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(

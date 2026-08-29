@@ -1,1355 +1,557 @@
-﻿@page "/Cases/{id:guid}/Assessment"
+@page "/Cases/{id:guid}/Assessment"
 @model Pegasus.Web.Pages.Cases.Assessment.IndexModel
-@using Pegasus.Core.AiWork
+@using System.Globalization
 @using Pegasus.Core.Assessment
 @using Pegasus.Core.Cases
 @using Pegasus.Web.Presentation
 @*
-    Engineers assessment screen.
-
-    The route, case-identity header, readiness rail, Send to Claude panel,
-    and PAV slider are wired by the AI-09 Send to AI task
-    (ADR-0031 / FRD-11: docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
-    docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md) — that
-    plan is the re-entry specification docs/design/README.md § Deferred casework
-    requires, and the page stays unlinked from navigation. Every section form
-    below remains empty and unbound: field `name` attributes follow the
-    report job definition under reference/rendererref1/, and the staff
-    save paths belong to the UI-15 activation task.
+    The Assessment workspace (context.md §1.9, ENG-025). Access is owned by
+    Core's AssessmentAccessPolicy (D11: With Engineer or onwards plus a
+    current-cycle export; read-only once Complete). The evidence rail and
+    the Estimates pane render custody facts and the repair-specification
+    seam; the multi-estimate editor (tabs, per-estimate fields, lines and
+    totals) is ENG-028, and no placeholder is drawn for it here.
 *@
 @{
     ViewData["Title"] = "Assessment";
 
     var caseId = ViewContext.RouteData.Values["id"]?.ToString() ?? string.Empty;
-    var assessmentUrl = $"/Cases/{caseId}/Assessment";
-
-    var sections = new (string Key, string Label)[]
-    {
-        ("vehicle", "Vehicle"),
-        ("incident", "Incident and impact"),
-        ("inspection", "Inspection"),
-        ("valuation", "Valuation"),
-        ("estimate", "Estimate"),
-        ("findings", "Findings"),
-        ("report", "Report content"),
-    };
-
-    var requested = Model.Request.Query["section"].ToString().Trim();
-    var current = "vehicle";
-    foreach (var candidate in sections)
-    {
-        if (string.Equals(candidate.Key, requested, StringComparison.OrdinalIgnoreCase))
-        {
-            current = candidate.Key;
-        }
-    }
 }
 
-<a class="back-link" href="/Cases/@caseId">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    <span>Back to the case</span>
-</a>
+@if (Model.UnavailableReference is not null)
+{
+    var gateEyebrow = string.IsNullOrWhiteSpace(Model.UnavailableRegistration)
+        ? Model.UnavailableReference
+        : $"{Model.UnavailableReference} · {Model.UnavailableRegistration}";
+    <header class="page-header">
+        <div class="page-title">
+            <p class="eyebrow">@gateEyebrow</p>
+            <h1>Assessment unavailable</h1>
+        </div>
+        <div class="page-actions">
+            <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Back to Case</span>
+            </a>
+        </div>
+    </header>
+    <div class="notice notice--warning" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>A current Review-cycle EVA export is required before the assessment opens.</span>
+    </div>
+    return;
+}
 
-@*
-    A screen about one record is one record container: the dark identity band,
-    then the actions valid now, then the sections. The identity used to be a
-    definition list in a panel, which read as one more block of content rather
-    than as the case being worked.
-*@
 @{
     var caseStage = OperatorLabels.CaseStage(Model.Case!.Header.State);
+    var registration = string.IsNullOrWhiteSpace(Model.Case.Header.Registration)
+        ? "No registration"
+        : Model.Case.Header.Registration!;
+    var vehicle = Model.VehicleDisplay;
+    var mileage = Model.MileageDisplay;
+    var claimant = string.IsNullOrWhiteSpace(Model.Claimant) ? "Not recorded" : Model.Claimant!;
+    var editing = !string.IsNullOrWhiteSpace(Model.LeaseToken) && !Model.CaseIsArchived;
+    var canImport = Model.ImportCondition is null;
+    var engineerValue = Model.EngineerValue;
+    var targetBase = engineerValue is null ? string.Empty
+        : engineerValue.Value.ToString("0.##", CultureInfo.InvariantCulture);
 }
-<article class="record" data-state="review">
-    <header class="record__head">
-        <h1>@Model.Case.Header.Reference</h1>
-        <span class="record__identity">
-            <span><b>@Model.Case.Header.Principal</b></span>
-            <span>@(Model.Case.Header.Registration ?? "No registration")</span>
-            <span>@OperatorLabels.CaseTypeName(Model.Case.Header.CaseType)</span>
-            @if (Model.Case.Header.DueBy is { } dueBy)
-            {
-                <span>Report due @dueBy.ToString("d MMM yyyy")</span>
-            }
-        </span>
-        <span class="record__head-end">
-            <partial name="Shared/_StatusChip" model="@caseStage" />
-        </span>
-    </header>
-    <div class="record__accent"></div>
 
-    @*
-        The estimating-service links stay visible and state their condition
-        rather than vanishing: the work is real and will become available, so
-        removing the control would say something false. EXT-13 (independently
-        licensed valuation-source adapters) still needs its own accepted
-        contract. Estimate import (ENG-002 / EXT-12) is delivered: the link
-        goes to the estimate section's import surface.
-    *@
-    <div class="record__bar">
-        <span class="gated" data-condition="Available once the estimating-service link is agreed">
-            <a class="btn is-disabled" aria-disabled="true">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Open in Glass's
-            </a>
-        </span>
-        <span class="gated" data-condition="Available once the estimating-service link is agreed">
-            <a class="btn is-disabled" aria-disabled="true">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Open in Audatex
-            </a>
-        </span>
-        <a class="btn" href="@assessmentUrl?section=estimate">
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-            Import estimate
-        </a>
-        <span class="record__bar-end">
-            <span class="record__bar-rule" aria-hidden="true"></span>
-            <a class="btn btn--dark" href="/Cases/@caseId">Back to the case</a>
-        </span>
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">@Model.HeaderEyebrow</p>
+        <h1>Assessment</h1>
     </div>
-
-    <nav class="section-tabs" aria-label="Assessment sections">
-        @* `tab`, not `section`: `@section` is the Razor section directive. *@
-        @foreach (var tab in sections)
-        {
-            <a href="@assessmentUrl?section=@tab.Key"
-               aria-current="@(tab.Key == current ? "page" : null)">@tab.Label</a>
-        }
-    </nav>
-
-    <div class="record__body">
+    <div class="page-actions">
+        <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Case</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
+</header>
 
 @if (TempData["AssessmentStatus"] is string assessmentStatus)
 {
-    <div role="status" class="status-card">@assessmentStatus</div>
+    <div class="notice notice--success mb-2" role="status" data-confirmation>
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@assessmentStatus</span>
+    </div>
 }
 @if (TempData["AssessmentError"] is string assessmentError)
 {
-    <div role="status" class="status-card status-card--error">@assessmentError</div>
+    <div class="notice notice--danger mb-2" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@assessmentError</span>
+    </div>
+}
+@if (Model.ReportDraftNotReady)
+{
+    <div class="notice notice--warning mb-2" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>
+            Report draft not ready: @string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement)).
+        </span>
+    </div>
 }
 
-<div class="workbench-grid">
-    <aside aria-label="Assessment readiness">
-        <section class="panel" aria-labelledby="readiness-title">
-            <h2 id="readiness-title" class="section-label">Readiness</h2>
-            @* ENG-003: the readiness rail collapses into one combined
-               indicator instead of a per-issue list; the itemised detail is
-               the same content, reached through this one disclosure — the
-               report-draft panel below no longer repeats it. Native
-               <details>/<summary> gives click and Enter/Space plus
-               screen-reader semantics for free; the hover script in
-               @section Scripts only adds mouse hover and bare keyboard focus
-               as two more ways in. *@
-            @if (Model.CombinedReadiness.Count > 0)
-            {
-                <details class="readiness-summary" data-hover-disclosure>
-                    <summary>
-                        <span class="status-chip status-chip--amber">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>@IndexModel.IssueSummaryText(Model.CombinedReadiness.Count)</span>
-                        </span>
-                    </summary>
-                    <ul class="blocker-list">
-                        @foreach (var item in Model.CombinedReadiness)
-                        {
-                            <li class="blocker" data-state="not-ready">
-                                <strong>@item.Requirement</strong>
-                                <small>@item.Source. @item.WhyOutstanding @item.HowToResolve</small>
-                            </li>
-                        }
-                    </ul>
-                </details>
-            }
-            else
-            {
-                <p class="empty-state">No outstanding requirements are listed.</p>
-            }
-        </section>
+<article class="record">
+    <div class="record-ribbon assessment-identity-ribbon" aria-label="Case identity">
+        <div class="ribbon-item ribbon-ref">
+            <div class="ribbon-label">Case/PO</div>
+            <div class="ribbon-value">@Model.Case.Header.Reference</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Registration</div>
+            <div class="ribbon-value">@registration</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Claimant</div>
+            <div class="ribbon-value">@claimant</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Principal</div>
+            <div class="ribbon-value">@Model.Case.Header.Principal</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">State</div>
+            <div class="ribbon-value"><partial name="Shared/_StatusChip" model="@caseStage" /></div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Mileage</div>
+            <div class="ribbon-value">@(mileage is null ? "Not recorded" : mileage)</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Vehicle</div>
+            <div class="ribbon-value">@(vehicle.Length == 0 ? "Not recorded" : vehicle)</div>
+        </div>
+    </div>
 
-        @if (Model.SendComposed)
+    @* Presence: who holds the case's one edit authority, as the Case
+       workspace shows it (FRD-01, CASE-024). *@
+    @if (Model.ViewerHoldsEditAuthority)
+    {
+        <div class="presence-strip" role="status">
+            <span class="presence-dot" aria-hidden="true"></span>
+            <span>You are editing this case.</span>
+        </div>
+    }
+    else if (Model.EditAuthorityHolder is { } holder)
+    {
+        <div class="presence-strip" role="status">
+            <span class="presence-dot" aria-hidden="true"></span>
+            <span data-edit-authority>@EditModeDisplay.HeldBy(holder, false) Editing cannot be taken over.</span>
+        </div>
+    }
+
+    @* The bar carries the actions valid now; each posts to the Core action
+       that owns it. The estimate controls are lease-carrying acts, so they
+       need the edit mode entered here; a read-only case (D11) offers none
+       of them. Glass's and Audatex are the D7 disabled seams (EXT-09). *@
+    <div class="record-bar">
+        @if (!Model.CaseIsArchived && !Model.IsReadOnly)
         {
-        <section class="panel" aria-labelledby="send-title">
-            <h2 id="send-title" class="section-label">Send to Claude</h2>
-            <p>Every change Claude makes is recorded with its author and stays unconfirmed until you review it.</p>
-
-            @if (Model.PanelState == "available")
+            @if (editing)
             {
-                <form id="send-to-claude-form" method="post" asp-page-handler="Send" asp-route-id="@caseId">
-                    <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
-                    <div class="button-row" data-send-available>
-                        <button type="button" class="secondary-action send-action" data-send-open>
-                            <svg class="send-action__sparkle" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 1.5c.6 4.6 1.9 7.6 4.2 9.9 2.3 2.3 5.3 3.6 9.9 4.2-4.6.6-7.6 1.9-9.9 4.2-2.3 2.3-3.6 5.3-4.2 9.9-.6-4.6-1.9-7.6-4.2-9.9C5.5 17.5 2.5 16.2-2 15.6c4.6-.6 7.6-1.9 9.9-4.2C10.1 9.1 11.4 6.1 12 1.5Z" fill="currentColor" /></svg>
-                            <span>Send to Claude</span>
-                        </button>
-                    </div>
+                <form method="post" asp-page-handler="ReleaseLease" data-edit-toggle-off>
+                    <input type="hidden" name="id" value="@caseId" />
+                    <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <button type="submit" class="btn btn--dark">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <span>Finish editing</span>
+                    </button>
+                </form>
+                <partial name="Shared/_EditHeartbeat" view-data='new ViewDataDictionary(ViewData) { ["HeartbeatCaseId"] = caseId, ["HeartbeatLeaseToken"] = Model.LeaseToken }' />
+            }
+            else if (Model.CanRecoverLease)
+            {
+                <form method="post" asp-page-handler="ClaimLease">
+                    <input type="hidden" name="id" value="@caseId" />
+                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Header.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <button type="submit" class="btn">Recover editing</button>
                 </form>
             }
-
-            <div role="status" aria-live="polite">
-                <p class="empty-state" data-send-state="in-flight" hidden>Sending.</p>
-                @if (Model.PanelState == "sent")
-                {
-                    <p class="empty-state" data-send-state="sent">Sent. Changes will appear on this case for your review.</p>
-                    <form method="post" asp-page-handler="Reconcile" asp-route-id="@caseId">
-                        <input type="hidden" name="requestId" value="@Model.LatestRequest!.RequestId" />
-                        <input type="hidden" name="operationKey" value="@Model.ReconcileOperationKey" />
-                        <div class="button-row">
-                            <button type="submit" class="secondary-action">Check for completion</button>
-                        </div>
-                    </form>
-                }
-                @if (Model.PanelState == "completed")
-                {
-                    <div class="status-card" data-send-state="completed">
-                        <h3>Claude has finished</h3>
-                        <p>Every change is listed in the <a href="/Cases/@caseId">case history</a>.</p>
-                    </div>
-                }
-                @if (Model.PanelState == "unavailable")
-                {
-                    <div class="status-card status-card--attention" data-send-state="unavailable">
-                        <h3>Not available</h3>
-                        @if (Model.UnavailableReasons.Count > 0)
-                        {
-                            <p>@string.Join(" ", Model.UnavailableReasons)</p>
-                        }
-                        else
-                        {
-                            <p>The readiness list above names what is outstanding.</p>
-                        }
-                    </div>
-                }
-                @if (Model.PanelState == "failed")
-                {
-                    <div class="status-card status-card--error" data-send-state="failed">
-                        <h3>Nothing was sent</h3>
-                        <p>The case is unchanged. You can try again.@(Model.FailureReason is { } failure ? " " + failure : string.Empty)</p>
-                    </div>
-                    <form method="post" asp-page-handler="Send" asp-route-id="@caseId">
-                        <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
-                        <div class="button-row">
-                            <button type="submit" class="secondary-action">Try again</button>
-                        </div>
-                    </form>
-                }
-            </div>
-        </section>
-        }
-
-        @*
-            DELIV-012: the reachable report-draft entry point. It renders
-            from already-saved assessment values (the same store the
-            readiness list above reads), never from the unbound section
-            forms below. A case that is not ready stays visible with every
-            outstanding reason named, per docs/design/README.md's
-            absent-versus-disabled rule.
-        *@
-        <section class="panel" aria-labelledby="report-draft-title">
-            <h2 id="report-draft-title" class="section-label">Report draft</h2>
-            <p>Nothing is saved or sent.</p>
-
-            @if (Model.ReportDraftPreparation is null)
+            else if (Model.EditAuthorityHolder is null)
             {
-                <p class="empty-state">Not available for this case.</p>
+                <form method="post" asp-page-handler="ClaimLease">
+                    <input type="hidden" name="id" value="@caseId" />
+                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Header.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                        <span>Edit assessment</span>
+                    </button>
+                </form>
             }
-            else if (Model.ReportDraftPreparation.CanGenerate)
+        }
+        @if (canImport)
+        {
+            <button type="button" class="btn" data-dialog-open="import-estimate-dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <span>Import estimate</span>
+            </button>
+        }
+        else if (Model.ImportCondition is not null && !Model.CaseIsArchived)
+        {
+            <span class="gated" data-condition="@Model.ImportCondition">
+                <button type="button" class="btn" disabled aria-disabled="true">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span>Import estimate</span>
+                </button>
+            </span>
+        }
+        <span class="gated" data-condition="@Model.EstimatingServiceCondition">
+            <button type="button" class="btn" disabled aria-disabled="true">Glass's</button>
+        </span>
+        <span class="gated" data-condition="@Model.EstimatingServiceCondition">
+            <button type="button" class="btn" disabled aria-disabled="true">Audatex</button>
+        </span>
+        @if (Model.SendToClaudeCondition is null)
+        {
+            <button type="button" class="btn btn--primary" data-dialog-open="send-to-claude-dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                <span>Send to Claude</span>
+            </button>
+        }
+        else
+        {
+            <span class="gated" data-condition="@Model.SendToClaudeCondition">
+                <button type="button" class="btn btn--primary" disabled aria-disabled="true">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                    <span>Send to Claude</span>
+                </button>
+            </span>
+        }
+        <span class="record-bar-end">
+            @if (Model.ReportDraftCondition is null)
             {
                 <form method="post" asp-page-handler="GenerateReportDraft" asp-route-id="@caseId">
                     <input type="hidden" name="operationKey" value="@Model.ReportDraftOperationKey" />
-                    <div class="button-row">
-                        <button type="submit" class="secondary-action">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                            <span>Generate report draft</span>
-                        </button>
-                    </div>
-                </form>
-            }
-            else
-            {
-                @* ENG-003: the readiness panel above owns the one itemised
-                   list — this card names the same count and points back to
-                   it rather than repeating every reason a second time. *@
-                <div class="status-card status-card--attention">
-                    <h3>Not ready</h3>
-                    <p>@IndexModel.IssueSummaryText(Model.ReportDraftPreparation.Reasons.Count) — see Readiness above for the list.</p>
-                </div>
-            }
-        </section>
-    </aside>
-
-    <div>
-        @if (current == "vehicle")
-        {
-            <section class="panel" aria-labelledby="vehicle-title">
-                <h2 id="vehicle-title">Vehicle</h2>
-                <div class="form-grid section-gap">
-                    <div>
-                        <label class="req" for="vehicle-registration">Registration</label>
-                        <input type="text" aria-required="true" id="vehicle-registration" name="vehicle.registration" />
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-type">Vehicle type</label>
-                        <select aria-required="true" id="vehicle-type" name="vehicle.vehicle_type">
-                            <option value=""></option>
-                            <option value="car">Car</option>
-                            <option value="van">Van</option>
-                            <option value="motorcycle">Motorcycle</option>
-                            <option value="scooter">Scooter</option>
-                            <option value="bicycle">Bicycle</option>
-                            <option value="trailer">Trailer</option>
-                            <option value="caravan">Caravan</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-make">Make</label>
-                        <input type="text" aria-required="true" id="vehicle-make" name="vehicle.make" value='@Model.VehiclePrefill("vehicle.make")' />
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-model">Model</label>
-                        <input type="text" aria-required="true" id="vehicle-model" name="vehicle.model" value='@Model.VehiclePrefill("vehicle.model")' />
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-year">Year</label>
-                        <input type="text" aria-required="true" id="vehicle-year" name="vehicle.year" class="tabular" value='@Model.VehiclePrefill("vehicle.year")' />
-                    </div>
-                    <div>
-                        <label for="vehicle-vin">VIN</label>
-                        <input type="text" id="vehicle-vin" name="vehicle.vin" />
-                    </div>
-                    <div>
-                        <label for="vehicle-engine">Engine size</label>
-                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" value='@Model.VehiclePrefill("vehicle.engine_cc")' />
-                    </div>
-                    <div>
-                        <label for="vehicle-fuel">Fuel</label>
-                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" value='@Model.VehiclePrefill("vehicle.fuel")' />
-                    </div>
-                    <div>
-                        <label for="vehicle-odometer">Mileage</label>
-                        <input type="number" id="vehicle-odometer" name="vehicle.odometer_miles" min="0" step="1" class="tabular" value="@Model.MileagePrefill" />
-                    </div>
-                    <div>
-                        <label for="vehicle-mileage-source">Source</label>
-                        <select id="vehicle-mileage-source" name="vehicle.mileage_source">
-                            <option value=""></option>
-                            <option value="online_data" selected="@(Model.MileageSourcePrefill == "online_data" ? "selected" : null)">Online data</option>
-                            <option value="owner" selected="@(Model.MileageSourcePrefill == "owner" ? "selected" : null)">Owner</option>
-                            <option value="repairer" selected="@(Model.MileageSourcePrefill == "repairer" ? "selected" : null)">Repairer</option>
-                            <option value="principal" selected="@(Model.MileageSourcePrefill == "principal" ? "selected" : null)">Principal</option>
-                            <option value="average" selected="@(Model.MileageSourcePrefill == "average" ? "selected" : null)">Average</option>
-                            <option value="tbc" selected="@(Model.MileageSourcePrefill == "tbc" ? "selected" : null)">To be confirmed</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-condition">Pre-incident condition</label>
-                        <select aria-required="true" id="vehicle-condition" name="vehicle.condition">
-                            <option value=""></option>
-                            <option value="poor">Poor</option>
-                            <option value="below_average">Below average</option>
-                            <option value="average">Average</option>
-                            <option value="good">Good</option>
-                            <option value="excellent">Excellent</option>
-                        </select>
-                    </div>
-                </div>
-                @*
-                    Vehicle history check. Not in docs/capabilities.md at all:
-                    before it is more than markup it needs an inventory entry,
-                    a supplier contract and an accepted ADR. Inactive — the
-                    control renders and posts nowhere, and no result is shown,
-                    because a history report nobody ran is not evidence.
-                *@
-                <h3 class="section-label section-gap">Vehicle history</h3>
-                <div class="history-check">
-                    <button type="button" class="btn" disabled>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                        Check vehicle history
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>Generate report draft</span>
                     </button>
-                    <p class="empty-state">No history check has been run for this vehicle.</p>
-                </div>
-
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save vehicle</button>
-                </div>
-            </section>
-        }
-
-        @if (current == "incident")
-        {
-            <section class="panel" aria-labelledby="incident-title">
-                <h2 id="incident-title">Incident and impact</h2>
-                <div class="form-grid section-gap">
-                    <div>
-                        <label for="incident-date">Incident date</label>
-                        <input type="date" id="incident-date" name="incident.date" class="tabular" />
-                    </div>
-                    <div>
-                        <label class="req" for="incident-instructions">Instructions received</label>
-                        <input type="date" aria-required="true" id="incident-instructions" name="incident.instructions_received" class="tabular" />
-                    </div>
-                    <div>
-                        <label class="req" for="incident-assessed">Assessed</label>
-                        <input type="date" aria-required="true" id="incident-assessed" name="incident.assessed" class="tabular" />
-                    </div>
-                    <div>
-                        <label class="req" for="impact-severity">Impact severity</label>
-                        <select aria-required="true" id="impact-severity" name="assessment.impact_severity">
-                            <option value=""></option>
-                            <option value="light">Light</option>
-                            <option value="light_to_moderate">Light to moderate</option>
-                            <option value="moderate">Moderate</option>
-                            <option value="moderate_to_heavy">Moderate to heavy</option>
-                            <option value="heavy">Heavy</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="impact-location">Impact location</label>
-                        <select aria-required="true" id="impact-location" name="assessment.impact_location" data-saved="@Model.SavedImpactLocation">
-                            <option value=""></option>
-                            <option value="front" selected='@(Model.SavedImpactLocation == "front" ? "selected" : null)'>Front</option>
-                            <option value="left_front" selected='@(Model.SavedImpactLocation == "left_front" ? "selected" : null)'>Left front</option>
-                            <option value="right_front" selected='@(Model.SavedImpactLocation == "right_front" ? "selected" : null)'>Right front</option>
-                            <option value="left_side" selected='@(Model.SavedImpactLocation == "left_side" ? "selected" : null)'>Left side</option>
-                            <option value="right_side" selected='@(Model.SavedImpactLocation == "right_side" ? "selected" : null)'>Right side</option>
-                            <option value="rear" selected='@(Model.SavedImpactLocation == "rear" ? "selected" : null)'>Rear</option>
-                            <option value="left_rear" selected='@(Model.SavedImpactLocation == "left_rear" ? "selected" : null)'>Left rear</option>
-                            <option value="right_rear" selected='@(Model.SavedImpactLocation == "right_rear" ? "selected" : null)'>Right rear</option>
-                            <option value="roof" selected='@(Model.SavedImpactLocation == "roof" ? "selected" : null)'>Roof</option>
-                            <option value="underside" selected='@(Model.SavedImpactLocation == "underside" ? "selected" : null)'>Underside</option>
-                            <option value="wheel" selected='@(Model.SavedImpactLocation == "wheel" ? "selected" : null)'>Wheel</option>
-                            <option value="interior" selected='@(Model.SavedImpactLocation == "interior" ? "selected" : null)'>Interior</option>
-                            <option value="mechanical" selected='@(Model.SavedImpactLocation == "mechanical" ? "selected" : null)'>Mechanical</option>
-                            <option value="multiple" selected='@(Model.SavedImpactLocation == "multiple" ? "selected" : null)'>Multiple</option>
-                        </select>
-                    </div>
-                    <div class="field-wide">
-                        <label for="incident-nature">Nature of the incident</label>
-                        <textarea id="incident-nature" name="narrative.nature_of_incident" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save incident and impact</button>
-                </div>
-            </section>
-        }
-
-        @if (current == "inspection")
-        {
-            <section class="panel" aria-labelledby="inspection-title">
-                <h2 id="inspection-title">Inspection</h2>
-
-                <fieldset class="role-choices role-choices--stacked">
-                    <legend>Assessment method</legend>
-                    <label class="choice" for="method-image">
-                        <input type="radio" id="method-image" name="assessment.method" value="image_based"
-                               checked="@(Model.RecordedInspectionMode == CaseInspectionMode.ImageBasedAssessment ? "checked" : null)" />
-                        <span>Image Based Assessment</span>
-                    </label>
-                    <label class="choice" for="method-physical">
-                        <input type="radio" id="method-physical" name="assessment.method" value="physical"
-                               checked="@(Model.RecordedInspectionMode == CaseInspectionMode.PhysicalAddress ? "checked" : null)" />
-                        <span>Physical</span>
-                    </label>
-                </fieldset>
-
-                <div class="form-grid section-gap">
-                    <div class="field-wide">
-                        <label class="req" for="inspection-address">Inspection address</label>
-                        <textarea aria-required="true" id="inspection-address" name="assessment.location_address" rows="4"></textarea>
-                    </div>
-                </div>
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save inspection</button>
-                </div>
-            </section>
-        }
-
-        @if (current == "valuation")
-        {
-            <section class="panel" aria-labelledby="valuation-title">
-                <h2 id="valuation-title">Valuation</h2>
-
-                <h3 class="section-label section-gap">Guide evidence</h3>
-                <div class="form-grid">
-                    <div class="evidence-figure">
-                        <span class="evidence-figure__label">CAP retail</span>
-                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
-                        <span class="evidence-figure__source">No figure recorded</span>
-                    </div>
-                    <div class="evidence-figure">
-                        <span class="evidence-figure__label">CAP trade</span>
-                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
-                        <span class="evidence-figure__source">No figure recorded</span>
-                    </div>
-                    <div class="evidence-figure">
-                        <span class="evidence-figure__label">Glass's retail</span>
-                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
-                        <span class="evidence-figure__source">No figure recorded</span>
-                    </div>
-                    <div class="evidence-figure">
-                        <span class="evidence-figure__label">Glass's trade</span>
-                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
-                        <span class="evidence-figure__source">No figure recorded</span>
-                    </div>
-                    <div class="evidence-figure">
-                        <span class="evidence-figure__label">Cazana retail</span>
-                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
-                        <span class="evidence-figure__source">No figure recorded</span>
-                    </div>
-                    <div class="evidence-figure">
-                        <span class="evidence-figure__label">Cazana trade</span>
-                        <span class="evidence-figure__value"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></span>
-                        <span class="evidence-figure__source">No figure recorded</span>
-                    </div>
-                </div>
-
-                @{
-                    var pavFigures = new[]
-                    {
-                        Model.MoneyField(AssessmentVocabulary.ValueRetail),
-                        Model.MoneyField(AssessmentVocabulary.ValueTrade),
-                        Model.MoneyField(AssessmentVocabulary.ValueEngineer)
-                    }.Where(figure => figure is not null).Select(figure => figure!.Value).ToArray();
-                    var pavMinimum = pavFigures.Length == 0 ? 0m : pavFigures.Min();
-                    var pavMaximum = pavFigures.Length == 0 ? 0m : pavFigures.Max();
-                    var pavDefault = Model.MoneyField(AssessmentVocabulary.ValueEngineer)
-                        ?? (pavFigures.Length == 0 ? 0m : pavFigures.Max());
-                    var pavHasRange = pavFigures.Length >= 2 && pavMinimum < pavMaximum;
-                    var pavSalvage = Model.MoneyField(AssessmentVocabulary.SalvageValue);
-                    var pavOutcomeIsTotalLoss = Model.FieldValue(AssessmentVocabulary.Outcome) == "total_loss";
-                }
-
-                <h3 class="section-label">Chosen figures</h3>
-                <div class="form-grid">
-                    <div>
-                        <label class="req" for="value-retail">Retail value (&#163;)</label>
-                        <input type="number" aria-required="true" id="value-retail" name="assessment.values.retail" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                    <div>
-                        <label class="req" for="value-trade">Trade value (&#163;)</label>
-                        <input type="number" aria-required="true" id="value-trade" name="assessment.values.trade" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                    <div>
-                        <label class="req" for="value-engineer">Engineer's value (&#163;)</label>
-                        <input type="number" aria-required="true" id="value-engineer" name="assessment.values.engineer" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                </div>
-
-                <h3 class="section-label section-gap">Pre-accident value sensitivity</h3>
-                @* A review aid only: it writes nothing, its value is never
-                   copied into an input, and no figure is ever invented — a
-                   missing input renders its named missing-evidence state. *@
-                @if (pavHasRange)
-                {
-                    <div data-pav-slider
-                         data-pav-minimum="@pavMinimum.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
-                         data-pav-maximum="@pavMaximum.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
-                         data-pav-default="@pavDefault.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
-                         data-pav-salvage="@(pavSalvage?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"
-                         data-pav-total-loss="@(pavOutcomeIsTotalLoss ? "true" : "false")">
-                        <p>Drag the pre-accident value across the recorded figures to see how sensitive the recorded outcome is to the PAV opinion.</p>
-                        <div class="form-grid">
-                            <div class="field-wide">
-                                <label for="pav-range">Pre-accident value (&#163;)</label>
-                                <input type="range" id="pav-range" min="@pavMinimum" max="@pavMaximum" step="1" value="@pavDefault" />
-                            </div>
-                            <div>
-                                <label for="pav-value">Exact figure (&#163;)</label>
-                                <input type="number" id="pav-value" class="tabular" min="@pavMinimum" max="@pavMaximum" step="1" value="@pavDefault" inputmode="numeric" />
-                            </div>
-                        </div>
-                        <dl class="detail-list section-gap" aria-live="polite">
-                            <div>
-                                <dt>Repair-cost-to-PAV ratio</dt>
-                                <dd class="empty-state">No costed repair total is recorded on this case. A ratio without a costed repair total is not evidence.</dd>
-                            </div>
-                            <div>
-                                <dt>Position against threshold</dt>
-                                <dd class="empty-state">No accepted total-loss threshold is recorded for this instruction.</dd>
-                            </div>
-                            <div>
-                                <dt>Indicative settlement (PAV &#8722; salvage)</dt>
-                                @if (pavOutcomeIsTotalLoss && pavSalvage is not null)
-                                {
-                                    <dd class="tabular" data-pav-settlement></dd>
-                                }
-                                else
-                                {
-                                    <dd class="empty-state">Shown when the recorded outcome is Total loss with a salvage value.</dd>
-                                }
-                            </div>
-                        </dl>
-                    </div>
-                }
-                else
-                {
-                    <p class="empty-state">The slider needs at least two distinct recorded valuation figures to give a range. Record the retail, trade, and engineer's values above.</p>
-                }
-
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save valuation</button>
-                </div>
-            </section>
-        }
-
-        @if (current == "estimate")
-        {
-            @* ENG-002: the case's current repair specification and the
-               estimate import. Imported and AI-recorded material lands as a
-               draft; only an Engineer's acceptance, with the money figures
-               typed from the retained original, makes it the case's accepted
-               specification. The report's own cost figures still wait on
-               EXT-09's accepted derivation formula. *@
-            <section class="panel" aria-labelledby="estimate-current-title">
-                <h2 id="estimate-current-title">Repair specification</h2>
-
-                @if (Model.AcceptedSpecification is { } acceptedSpec)
-                {
-                    <div class="status-card" role="status">
-                        Accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt ? $" {OperatorLabels.OfficeDate(acceptedAt)}" : "") — @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route).
-                    </div>
-                    @if (acceptedSpec.CalculationBasis is { } basis)
-                    {
-                        <dl class="detail-list">
-                            <div><dt>Labour</dt><dd class="tabular">&#163;@basis.Labour.ToString("N2")</dd></div>
-                            <div><dt>Parts</dt><dd class="tabular">&#163;@basis.Parts.ToString("N2")</dd></div>
-                            <div><dt>Paint materials</dt><dd class="tabular">&#163;@basis.PaintMaterials.ToString("N2")</dd></div>
-                            <div><dt>Specialist and other</dt><dd class="tabular">&#163;@basis.SpecialistOther.ToString("N2")</dd></div>
-                            <div><dt>VAT</dt><dd class="tabular">&#163;@basis.Vat.ToString("N2")</dd></div>
-                            <div><dt>Repair cost</dt><dd class="tabular">&#163;@basis.Total.ToString("N2")</dd></div>
-                        </dl>
-                    }
-                    RenderSpecificationLines(acceptedSpec, "accepted");
-                }
-
-                @if (Model.DraftSpecification is { } draftSpec)
-                {
-                    <div class="status-card status-card--attention" role="status">
-                        Awaiting an Engineer&#8217;s acceptance — @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route).
-                    </div>
-                    RenderSpecificationLines(draftSpec, "draft");
-
-                    @if (draftSpec.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
-                    {
-                        <p class="empty-state">These lines were recorded without source evidence and need review before they can be accepted.</p>
-                    }
-                    else if (Model.ActorIsEngineer)
-                    {
-                        <h3 class="section-label section-gap">Accept this specification</h3>
-                        <form method="post" asp-page-handler="AcceptSpecification">
-                            <input type="hidden" name="operationKey" value="@Model.AcceptOperationKey" />
-                            <input type="hidden" name="specificationId" value="@draftSpec.SpecificationId" />
-                            <input type="hidden" name="specificationVersion" value="@draftSpec.Version" />
-                            <div class="form-grid">
-                                <div>
-                                    <label for="accept-labour">Labour (&#163;)</label>
-                                    <input type="number" id="accept-labour" name="labour" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                </div>
-                                <div>
-                                    <label for="accept-parts">Parts (&#163;)</label>
-                                    <input type="number" id="accept-parts" name="parts" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                </div>
-                                <div>
-                                    <label for="accept-paint">Paint materials (&#163;)</label>
-                                    <input type="number" id="accept-paint" name="paintMaterials" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                </div>
-                                <div>
-                                    <label for="accept-specialist">Specialist and other (&#163;)</label>
-                                    <input type="number" id="accept-specialist" name="specialistOther" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                </div>
-                                <div>
-                                    <label for="accept-vat">VAT (&#163;)</label>
-                                    <input type="number" id="accept-vat" name="vat" min="0" step="0.01" inputmode="decimal" class="tabular" required />
-                                </div>
-                                <div>
-                                    <fieldset class="role-choices role-choices--stacked">
-                                        <legend>Is the repairer VAT registered?</legend>
-                                        <label class="choice"><input type="radio" name="repairerVatRegistered" value="true" required /> <span>Yes</span></label>
-                                        <label class="choice"><input type="radio" name="repairerVatRegistered" value="false" /> <span>No</span></label>
-                                    </fieldset>
-                                </div>
-                                <div class="field-wide">
-                                    <label for="accept-reason">Reason</label>
-                                    <input type="text" id="accept-reason" name="reason" maxlength="500" />
-                                </div>
-                            </div>
-                            <div class="button-row section-gap">
-                                <button type="submit" class="primary-action">Accept specification</button>
-                            </div>
-                        </form>
-                    }
-                    else
-                    {
-                        <p class="empty-state">An Engineer accepts the specification.</p>
-                    }
-                }
-                else
-                {
-                    @if (Model.AcceptedSpecification is null)
-                    {
-                        <p class="empty-state">No repair specification is recorded on this case yet.</p>
-                    }
-
-                    <h3 class="section-label section-gap">Import an estimate</h3>
-                    <form method="post" enctype="multipart/form-data" asp-page-handler="ImportEstimate">
-                        <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
-                        <div class="dropzone" data-dropzone>
-                            <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
-                            <label for="estimate-file">Drag an estimate here, or choose it</label>
-                            <span class="field-hint">An Audatex estimate report as a PDF &#8212; up to 10 MB. Every line and the document&#8217;s own totals must read cleanly or nothing is imported.</span>
-                            <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,application/pdf" disabled="@(Model.ActorIsEngineer ? null : "disabled")" />
-                            <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose a file</button>
-                            <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
-                        </div>
-                        <div class="form-grid">
-                            <div class="field-wide">
-                                <label for="import-reason">Reason</label>
-                                <input type="text" id="import-reason" name="reason" maxlength="500" disabled="@(Model.ActorIsEngineer ? null : "disabled")" />
-                            </div>
-                        </div>
-                        @if (Model.ActorIsEngineer)
-                        {
-                            <div class="button-row section-gap">
-                                <button type="submit" class="primary-action">Import estimate</button>
-                            </div>
-                        }
-                        else
-                        {
-                            <span class="gated" data-condition="Only an Engineer can import an estimate">
-                                <button type="submit" class="primary-action is-disabled" disabled>Import estimate</button>
-                            </span>
-                        }
-                    </form>
-                }
-            </section>
-
-            @*
-                EXT-09 (Later / 1.0.0): several estimates can sit on one case —
-                an import from an estimating service, the engineer's own, one
-                recorded by automation — and the engineer works whichever is
-                selected. Inactive: the strip renders, nothing switches, and no
-                estimate is stored. Versioned estimate lines, source versions
-                and the original-versus-assessed comparison need their own
-                accepted formula authority before any of this is wired.
-            *@
-            <div class="est-tabs" role="tablist" aria-label="Estimates on this case">
-                <button type="button" role="tab" class="est-tab" aria-selected="true" disabled>Estimate</button>
-                <button type="button" class="est-add" aria-label="New estimate" title="New estimate" disabled>+</button>
-                <span class="est-tabs__state">
-                    <partial name="Shared/_StatusChip" model="@("Unconfirmed")" />
-                </span>
-            </div>
-
-            <section class="panel est-body" aria-labelledby="estimate-title">
-                <h2 id="estimate-title">Estimate</h2>
-
-                <h3 class="section-label section-gap">Rate card</h3>
-                @* Rates are published reference data with their own dates and caveat, not a
-                   Pegasus tariff, so no figure is written into this page. The card supplies
-                   them and the rate in use is shown back as a derived value. *@
-                <div class="form-grid">
-                    <div class="field-wide">
-                        <label for="rate-card">Rate card</label>
-                        <select id="rate-card" name="rates.card">
-                            <option value="">Choose a rate card</option>
-                        </select>
-                    </div>
-                    <div>
-                        <fieldset class="role-choices role-choices--stacked">
-                            <legend>Rate class</legend>
-                            <label class="choice"><input type="radio" name="rates.class" value="standard" /> <span>Standard</span></label>
-                            <label class="choice"><input type="radio" name="rates.class" value="prestige" /> <span>Prestige</span></label>
-                            <label class="choice"><input type="radio" name="rates.class" value="van" /> <span>Vans up to 3.5 tonnes</span></label>
-                        </fieldset>
-                    </div>
-                    <div>
-                        <fieldset class="role-choices role-choices--stacked">
-                            <legend>Adjustments</legend>
-                            <label class="choice"><input type="checkbox" name="rates.manufacturer_approved" value="true" /> <span>Manufacturer-approved repairer</span></label>
-                            <label class="choice"><input type="checkbox" name="rates.regional_uplift" value="true" /> <span>Higher-cost area</span></label>
-                        </fieldset>
-                        <small>Say what the case shows before applying either one.</small>
-                    </div>
-                    <div>
-                        <dl class="detail-list">
-                            <div>
-                                <dt>Labour rate in use</dt>
-                                <dd class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No rate card chosen</span></dd>
-                            </div>
-                            <div>
-                                <dt>Paint rate in use</dt>
-                                <dd class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No rate card chosen</span></dd>
-                            </div>
-                        </dl>
-                    </div>
-                </div>
-
-                <h3 class="section-label section-gap">Repair lines</h3>
-                <div class="table-wrap">
-                    <table class="line-grid">
-                        <thead>
-                            <tr>
-                                <th scope="col">Line</th>
-                                <th scope="col">Type</th>
-                                <th scope="col">Code</th>
-                                <th scope="col">Description</th>
-                                <th scope="col">Work units</th>
-                                <th scope="col">Price</th>
-                                <th scope="col">Part number</th>
-                                <th scope="col">Betterment</th>
-                                <th scope="col">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (var line = 0; line < 3; line++)
-                            {
-                                <tr>
-                                    <th scope="row">Line @(line + 1)</th>
-                                    <td>
-                                        <label class="vh" for="line-type-@line">Type, line @(line + 1)</label>
-                                        <select id="line-type-@line" name="operations[@line].type">
-                                            <option value="">Choose</option>
-                                            <option value="rnr">Remove and refit</option>
-                                            <option value="repair">Repair</option>
-                                            <option value="new_part">New part</option>
-                                            <option value="check_labour">Check</option>
-                                            <option value="paint_new">Paint &#8212; new part</option>
-                                            <option value="paint_repair">Paint &#8212; repair</option>
-                                            <option value="paint_blend">Paint &#8212; blend</option>
-                                            <option value="paint_prep">Paint &#8212; preparation</option>
-                                            <option value="specialist_fixed">Specialist, fixed price</option>
-                                            <option value="specialist_wu">Specialist, by work units</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-guide-@line">Code, line @(line + 1)</label>
-                                        <input type="text" id="line-guide-@line" name="operations[@line].guide" />
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-desc-@line">Description, line @(line + 1)</label>
-                                        <input type="text" id="line-desc-@line" name="operations[@line].desc" />
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-wu-@line">Work units, line @(line + 1)</label>
-                                        <input type="number" id="line-wu-@line" name="operations[@line].wu" min="0" step="0.1" inputmode="decimal" class="tabular" />
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-price-@line">Price, line @(line + 1)</label>
-                                        <input type="number" id="line-price-@line" name="operations[@line].price" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                                        <label class="choice" for="line-unpriced-@line">
-                                            <input type="checkbox" id="line-unpriced-@line" name="operations[@line].unpriced" value="true" />
-                                            <span>To be confirmed</span>
-                                        </label>
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-part-@line">Part number, line @(line + 1)</label>
-                                        <input type="text" id="line-part-@line" name="operations[@line].part_num" />
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-bet-@line">Betterment, line @(line + 1)</label>
-                                        <input type="text" id="line-bet-@line" name="operations[@line].bet" />
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-status-@line">Status, line @(line + 1)</label>
-                                        <select id="line-status-@line" name="operations[@line].status">
-                                            <option value="">Choose</option>
-                                            <option value="confirmed">Confirmed</option>
-                                            <option value="estimated">Estimated</option>
-                                            <option value="provisional">Provisional</option>
-                                        </select>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <div class="button-row">
-                    <button type="button" class="secondary-action">Add a repair line</button>
-                </div>
-
-                <h3 class="section-label section-gap">Charges and VAT</h3>
-                <div class="form-grid">
-                    <div>
-                        <label for="cost-recovery">Recovery charge (&#163;)</label>
-                        <input type="number" id="cost-recovery" name="costs.recovery_charge" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                    <div>
-                        <label for="cost-storage">Storage charge (&#163;)</label>
-                        <input type="number" id="cost-storage" name="costs.storage_charge" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                    <div>
-                        @* A required answer, so it is a two-way choice with no default. A single
-                           checkbox could not tell "not registered" apart from "not answered",
-                           and the two produce different VAT. *@
-                        <fieldset class="role-choices role-choices--stacked">
-                            <legend>Is the repairer VAT registered?</legend>
-                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="true" /> <span>Yes</span></label>
-                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="false" /> <span>No</span></label>
-                        </fieldset>
-                    </div>
-                </div>
-
-                <h3 class="section-label section-gap">What the lines add up to</h3>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th scope="col">Item</th>
-                                <th scope="col">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <th scope="row">Body labour</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Paint labour</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Parts</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Paint materials</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Specialist and extras</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <th scope="row">Repair cost before VAT</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                            <tr>
-                                <th scope="row">VAT</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Repair cost</th>
-                                <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <h3 class="section-label section-gap">What goes on the report</h3>
-                @* The three lists the report prints are grouped from the lines above, not
-                   entered separately. Paint work is named among the additional operations;
-                   there is no fourth list. *@
-                <div class="field-grid">
-                    <div class="field-card">
-                        <h4>Main new parts</h4>
-                        <p class="empty-state">No new part lines yet.</p>
-                    </div>
-                    <div class="field-card">
-                        <h4>Repairs</h4>
-                        <p class="empty-state">No repair lines yet.</p>
-                    </div>
-                    <div class="field-card">
-                        <h4>Additional operations</h4>
-                        <p class="empty-state">No check, paint or specialist lines yet.</p>
-                    </div>
-                </div>
-
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save estimate</button>
-                    <button type="button" class="secondary-action">Discard changes</button>
-                </div>
-            </section>
-        }
-
-        @if (current == "findings")
-        {
-            <section class="panel" aria-labelledby="findings-title">
-                <h2 id="findings-title">Findings</h2>
-
-                <div class="status-card status-card--attention">
-                    <h3>A correction keeps the earlier finding</h3>
-                    <p>Changing a recorded finding needs a reason and never changes the fee or invoice.</p>
-                </div>
-
-                <div class="form-grid">
-                    <div>
-                        <label class="req" for="finding-outcome">Assessment outcome</label>
-                        <select aria-required="true" id="finding-outcome" name="assessment.outcome">
-                            <option value=""></option>
-                            <option value="total_loss">Total loss</option>
-                            <option value="repairable">Repairable</option>
-                            <option value="cash_in_lieu">Cash in lieu</option>
-                            <option value="contract_repair">Contract repair</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="finding-roadworthiness">Roadworthiness</label>
-                        <select aria-required="true" id="finding-roadworthiness" name="assessment.legal_status">
-                            <option value=""></option>
-                            <option value="roadworthy">Roadworthy</option>
-                            <option value="unroadworthy">Unroadworthy</option>
-                        </select>
-                    </div>
-                    <div class="field-wide">
-                        <label class="req" for="finding-unroadworthy-reason">Reason the vehicle is unroadworthy</label>
-                        <textarea aria-required="true" id="finding-unroadworthy-reason" name="assessment.unroadworthy_reason" rows="3"></textarea>
-                    </div>
-                    <div>
-                        <label class="req" for="finding-category">Salvage category</label>
-                        <select aria-required="true" id="finding-category" name="assessment.category">
-                            <option value=""></option>
-                            <option value="A">Category A</option>
-                            <option value="B">Category B</option>
-                            <option value="S">Category S</option>
-                            <option value="N">Category N</option>
-                            <option value="N/A">Not applicable</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="finding-salvage-value">Salvage value (&#163;)</label>
-                        <input type="number" aria-required="true" id="finding-salvage-value" name="assessment.salvage_value" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                </div>
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save findings</button>
-                </div>
-            </section>
-        }
-
-        @if (current == "report")
-        {
-            <section class="panel" aria-labelledby="report-title">
-                <h2 id="report-title">Report content</h2>
-
-                <div class="form-grid">
-                    <div class="field-wide">
-                        <label class="req" for="report-history-check">Vehicle history check</label>
-                        <textarea aria-required="true" id="report-history-check" name="narrative.history_check" rows="4"></textarea>
-                    </div>
-                    <div class="field-wide">
-                        <label for="report-comments">Engineer's comments</label>
-                        <textarea id="report-comments" name="narrative.engineers_comments" rows="5"></textarea>
-                    </div>
-                    <div>
-                        <label class="req" for="report-engineer-name">Engineer name</label>
-                        <input type="text" aria-required="true" id="report-engineer-name" name="engineer.name" />
-                    </div>
-                    <div>
-                        <label class="req" for="report-engineer-qualifications">Qualifications</label>
-                        <input type="text" aria-required="true" id="report-engineer-qualifications" name="engineer.qualifications" />
-                    </div>
-                    <div>
-                        <label class="req" for="report-signature">Signature</label>
-                        <select aria-required="true" id="report-signature" name="engineer.signature">
-                            <option value=""></option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="report-fee">Agreed fee (&#163;)</label>
-                        <input type="number" aria-required="true" id="report-fee" name="fee.agreed_fee" min="0" step="0.01" inputmode="decimal" class="tabular" />
-                    </div>
-                    <div class="field-wide">
-                        <label for="report-fee-description">Fee description</label>
-                        <textarea id="report-fee-description" name="fee.description_lines" rows="3"></textarea>
-                    </div>
-                    <div class="field-wide">
-                        <label for="report-statement-of-truth">Statement of truth</label>
-                        <textarea id="report-statement-of-truth" name="statement_of_truth" rows="4"></textarea>
-                    </div>
-                </div>
-                @*
-                    UI-15 (Later / 1.0.0): the two things the engineer sets on
-                    the report that are not text — where the damage is, and
-                    which photographs the report prints, in what order.
-                    Inactive: the diagram takes no marks, the list has no
-                    photographs to order, and neither is stored.
-                *@
-                <h3 class="section-label section-gap">Damage locations</h3>
-                <form method="post" asp-page-handler="SaveDamage" class="damage-grid" data-damage-grid>
-                    <input type="hidden" name="id" value="@Model.Case!.Header.CaseId" />
-                    <input type="hidden" name="operationKey" value="@Model.DamageOperationKey" />
-                    @foreach (var (code, label) in new[]
-                    {
-                        ("left_front", "Left front"), ("left_side", "Left side"), ("left_rear", "Left rear"),
-                        ("front", "Front"), ("roof", "Roof"), ("rear", "Rear"),
-                        ("right_front", "Right front"), ("right_side", "Right side"), ("right_rear", "Right rear")
-                    })
-                    {
-                        <button type="submit" name="impactLocation" value="@code"
-                                class="damage-region" aria-pressed="@(Model.SavedImpactLocation == code ? "true" : "false")">@label</button>
-                    }
                 </form>
+                <a class="btn" asp-page="/Cases/Assessment/Index" asp-route-id="@caseId"
+                   asp-page-handler="PreviewReportDraft" target="_blank" rel="noopener">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                    <span>Preview report draft</span>
+                </a>
+            }
+            else if (Model.ReportDraftPreparation is not null)
+            {
+                <span class="gated" data-condition="@Model.ReportDraftCondition">
+                    <button type="button" class="btn" disabled aria-disabled="true">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>Generate report draft</span>
+                    </button>
+                </span>
+            }
+        </span>
+    </div>
 
-                <h3 class="section-label section-gap">Report images</h3>
-                <p class="empty-state">No photographs are on this case yet.</p>
+    <div class="record-body">
+        <section class="assessment-v3" aria-label="Assessment workspace">
+            @* Evidence rail: the instruction documents and custody-confirmed
+               images, each opening the shared evidence viewer through the
+               same authorised download-inline routes the Case Files view
+               uses (DOCS-011). *@
+            <aside class="pane assessment-v3-evidence" aria-label="Evidence">
+                <div class="pane-head">
+                    <h2>Evidence</h2>
+                    <button type="button" class="assessment-rail-toggle" data-rail-toggle
+                            aria-expanded="true" aria-label="Collapse Evidence rail">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                    </button>
+                </div>
+                <div class="pane-body pane-scroll">
+                    <div class="assessment-evidence-list" data-evidence-set>
+                        @foreach (var file in Model.InstructionFiles)
+                        {
+                            var previewHref = Url.Page("/Cases/Documents/Download", new
+                            {
+                                caseId,
+                                occurrenceId = file.Occurrence.Id,
+                                versionId = file.Version.Id,
+                                inline = true
+                            });
+                            var downloadHref = Url.Page("/Cases/Documents/Download", new
+                            {
+                                caseId,
+                                occurrenceId = file.Occurrence.Id,
+                                versionId = file.Version.Id
+                            });
+                            <a class="row-button" href="@previewHref" data-evidence-item
+                               data-download-href="@downloadHref"
+                               data-media-type="@file.Version.MediaType"
+                               data-file-name="@file.Version.FileName">
+                                <span class="row-title">@file.Version.FileName</span>
+                                <span class="row-meta">Instruction</span>
+                            </a>
+                        }
+                        @foreach (var image in Model.EvidenceImages)
+                        {
+                            string previewHref;
+                            string downloadHref;
+                            if (image.IsCaseDocument)
+                            {
+                                downloadHref = Url.Page("/Cases/Documents/Download", new
+                                {
+                                    caseId,
+                                    occurrenceId = image.OccurrenceId,
+                                    versionId = image.VersionId
+                                })!;
+                                previewHref = Url.Page("/Cases/Documents/Download", new
+                                {
+                                    caseId,
+                                    occurrenceId = image.OccurrenceId,
+                                    versionId = image.VersionId,
+                                    inline = true
+                                })!;
+                            }
+                            else
+                            {
+                                downloadHref = Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!;
+                                previewHref = downloadHref;
+                            }
+                            <a class="row-button" href="@previewHref" data-evidence-item
+                               data-download-href="@downloadHref"
+                               data-media-type="@image.MediaType"
+                               data-file-name="@image.FileName">
+                                <span class="row-title">@image.FileName</span>
+                                <span class="row-meta">Vehicle image</span>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </aside>
 
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save report content</button>
+            @* Estimates pane: the case's current single estimate surfaces —
+               the accepted or draft repair specification with its lines and,
+               for a draft, the Engineer acceptance (ENG-002). Named
+               estimates, the tab strip and the per-estimate editor arrive
+               with ENG-028. *@
+            <section class="pane assessment-v3-main">
+                <div class="pane-head"><h2>Estimates</h2></div>
+                <div class="pane-body pane-scroll">
+                    <div class="detail-canvas">
+                        <div class="assessment-estimates">
+                            @if (Model.AcceptedSpecification is { } acceptedSpec)
+                            {
+                                <section class="panel estimate-editor" aria-labelledby="estimate-current-title">
+                                    <div class="panel-head">
+                                        <div>
+                                            <h2 id="estimate-current-title">Repair specification</h2>
+                                            <span class="panel-title-meta">
+                                                Accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt
+                                                    ? $" {OperatorLabels.OfficeDate(acceptedAt)}"
+                                                    : "")
+                                                · @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route)
+                                            </span>
+                                        </div>
+                                        <partial name="Shared/_StatusChip" model="@("Current")" />
+                                    </div>
+                                    <div class="panel-body">
+                                        @if (acceptedSpec.CalculationBasis is { } basis)
+                                        {
+                                            <dl class="estimate-totals">
+                                                <div><dt>Labour</dt><dd class="tabular">&#163;@basis.Labour.ToString("N2")</dd></div>
+                                                <div><dt>Parts</dt><dd class="tabular">&#163;@basis.Parts.ToString("N2")</dd></div>
+                                                <div><dt>Paint materials</dt><dd class="tabular">&#163;@basis.PaintMaterials.ToString("N2")</dd></div>
+                                                <div><dt>Specialist and other</dt><dd class="tabular">&#163;@basis.SpecialistOther.ToString("N2")</dd></div>
+                                                <div><dt>VAT</dt><dd class="tabular">&#163;@basis.Vat.ToString("N2")</dd></div>
+                                                <div class="estimate-total"><dt>Total</dt><dd class="tabular">&#163;@basis.Total.ToString("N2")</dd></div>
+                                            </dl>
+                                        }
+                                        RenderSpecificationLines(acceptedSpec, "accepted");
+                                    </div>
+                                </section>
+                            }
+
+                            @if (Model.DraftSpecification is { } draftSpec)
+                            {
+                                <section class="panel estimate-editor" aria-labelledby="estimate-draft-title">
+                                    <div class="panel-head">
+                                        <div>
+                                            <h2 id="estimate-draft-title">Draft estimate</h2>
+                                            <span class="panel-title-meta">
+                                                Awaiting an Engineer&#8217;s acceptance
+                                                · @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route)
+                                            </span>
+                                        </div>
+                                        <partial name="Shared/_StatusChip" model="@("Draft")" />
+                                    </div>
+                                    <div class="panel-body">
+                                        @if (draftSpec.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
+                                        {
+                                            <div class="notice notice--warning" role="status">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                                <span>These lines need source review before they can be accepted.</span>
+                                            </div>
+                                        }
+                                        RenderSpecificationLines(draftSpec, "draft");
+
+                                        @if (!Model.IsReadOnly)
+                                        {
+                                            if (Model.ActorIsEngineer)
+                                            {
+                                                <h3 class="section-label section-gap">Accept this specification</h3>
+                                                <form method="post" asp-page-handler="AcceptSpecification" asp-route-id="@caseId">
+                                                    <input type="hidden" name="operationKey" value="@Model.AcceptOperationKey" />
+                                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                                    <input type="hidden" name="specificationId" value="@draftSpec.SpecificationId" />
+                                                    <input type="hidden" name="specificationVersion" value="@draftSpec.Version" />
+                                                    <div class="form-grid">
+                                                        <div>
+                                                            <label for="accept-labour">Labour (&#163;)</label>
+                                                            <input type="number" id="accept-labour" name="labour" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                                        </div>
+                                                        <div>
+                                                            <label for="accept-parts">Parts (&#163;)</label>
+                                                            <input type="number" id="accept-parts" name="parts" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                                        </div>
+                                                        <div>
+                                                            <label for="accept-paint">Paint materials (&#163;)</label>
+                                                            <input type="number" id="accept-paint" name="paintMaterials" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                                        </div>
+                                                        <div>
+                                                            <label for="accept-specialist">Specialist and other (&#163;)</label>
+                                                            <input type="number" id="accept-specialist" name="specialistOther" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                                        </div>
+                                                        <div>
+                                                            <label for="accept-vat">VAT (&#163;)</label>
+                                                            <input type="number" id="accept-vat" name="vat" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                                        </div>
+                                                        <div>
+                                                            <fieldset class="role-choices role-choices--stacked">
+                                                                <legend>Is the repairer VAT registered?</legend>
+                                                                <label class="choice"><input type="radio" name="repairerVatRegistered" value="true" required /> <span>Yes</span></label>
+                                                                <label class="choice"><input type="radio" name="repairerVatRegistered" value="false" /> <span>No</span></label>
+                                                            </fieldset>
+                                                        </div>
+                                                        <div class="field-wide">
+                                                            <label for="accept-reason">Reason</label>
+                                                            <input type="text" id="accept-reason" name="reason" maxlength="500" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="button-row section-gap">
+                                                        <button type="submit" class="btn btn--dark">Accept specification</button>
+                                                    </div>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <p class="empty-state">An Engineer accepts the specification.</p>
+                                            }
+                                        }
+                                    </div>
+                                </section>
+                            }
+
+                            @if (Model.AcceptedSpecification is null && Model.DraftSpecification is null)
+                            {
+                                <div class="empty estimate-empty">No estimates recorded</div>
+                            }
+                        </div>
+                    </div>
                 </div>
             </section>
-        }
-    </div>
-</div>
-
+        </section>
     </div>
 </article>
 
-@if (Model.SendComposed)
+@if (canImport)
 {
-<div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
-    <div class="reason-dialog">
-        <h2 id="send-confirm-title">Send this case to Claude?</h2>
-        <p id="send-confirm-body">Claude records its working values directly on this case; every change is attributed, stays unconfirmed until you review it, and nothing is sent outward on your behalf.</p>
-        <div class="button-row">
-            <button type="button" class="secondary-action" data-send-cancel>Cancel</button>
-            <button type="button" class="secondary-action send-action" data-send-confirm>
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                <span>Send to Claude</span>
-            </button>
-        </div>
+    <div class="dialog-backdrop" data-dialog="import-estimate-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="import-estimate-dialog-title">
+            <div class="dialog-head">
+                <h2 id="import-estimate-dialog-title" tabindex="-1">Import estimate</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" enctype="multipart/form-data" asp-page-handler="ImportEstimate" asp-route-id="@caseId">
+                <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <div class="dialog-body stack">
+                    <div class="dropzone" data-dropzone>
+                        <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
+                        <label for="estimate-file">Drag an estimate here, or choose it</label>
+                        <span class="field-hint">An Audatex estimate report as a PDF &#8212; up to 10 MB.</span>
+                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,application/pdf" required />
+                        <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose a file</button>
+                        <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
+                    </div>
+                    <div>
+                        <label for="import-reason">Reason</label>
+                        <input type="text" id="import-reason" name="reason" maxlength="500" data-dialog-initial-focus />
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--dark">Import estimate</button>
+                </div>
+            </form>
+        </section>
     </div>
-</div>
 }
 
-@section Scripts {
-    <script>
-        // ENG-003: the readiness summary is a native <details> disclosure,
-        // so click and Enter/Space already open it and a screen reader
-        // already announces it correctly with no script at all. This only
-        // adds mouse hover and bare keyboard focus as two more ways in,
-        // without touching the native toggle — an operator with JavaScript
-        // disabled still reaches every item.
-        (function () {
-            document.querySelectorAll('[data-hover-disclosure]').forEach(function (details) {
-                var summary = details.querySelector('summary');
-                if (!summary) { return; }
-
-                function openNow() { details.open = true; }
-                function closeIfIdle() {
-                    if (!details.matches(':hover') && !details.matches(':focus-within')) {
-                        details.open = false;
-                    }
-                }
-
-                details.addEventListener('mouseenter', openNow);
-                details.addEventListener('mouseleave', closeIfIdle);
-                summary.addEventListener('focus', openNow);
-                summary.addEventListener('blur', closeIfIdle);
-            });
-        }());
-    </script>
-    <script>
-        // PAV sensitivity slider: a review aid that writes nothing. It keeps
-        // the range and numeric inputs in step and recomputes the indicative
-        // settlement as text. No animation, no colour signalling, no network.
-        (function () {
-            var host = document.querySelector('[data-pav-slider]');
-            if (!host) { return; }
-
-            var range = host.querySelector('#pav-range');
-            var exact = host.querySelector('#pav-value');
-            var settlement = host.querySelector('[data-pav-settlement]');
-            var salvage = parseFloat(host.getAttribute('data-pav-salvage'));
-            var isTotalLoss = host.getAttribute('data-pav-total-loss') === 'true';
-            if (!range || !exact) { return; }
-
-            function formatPounds(value) {
-                return '£' + value.toLocaleString('en-GB', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2
-                });
-            }
-
-            function update(value) {
-                var figure = parseFloat(value);
-                if (!isFinite(figure)) { return; }
-                range.value = String(figure);
-                exact.value = String(figure);
-                if (settlement && isTotalLoss && isFinite(salvage)) {
-                    settlement.textContent = formatPounds(figure - salvage)
-                        + ' at a PAV of ' + formatPounds(figure);
-                }
-            }
-
-            range.addEventListener('input', function () { update(range.value); });
-            exact.addEventListener('input', function () { update(exact.value); });
-            update(range.value);
-        }());
-    </script>
-    <script>
-        // Ember field behind the Send to Claude glyph. Decoration only: it draws
-        // to a canvas layered under the label and reads nothing from the page.
-        //
-        // The particle placement comes from a seeded generator rather than
-        // Math.random, so every load of a given button produces the same drift
-        // instead of fresh noise each time.
-        //
-        // It does not start at all under reduced motion, and it stops itself
-        // when the button leaves the document, so a hidden panel does not keep
-        // an animation frame alive.
-        (function () {
-            var motionIsWelcome = !window.matchMedia
-                || !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            if (!motionIsWelcome) { return; }
-
-            var palette = ['#ffd9c2', '#a9c7e8', '#c3d1ad'];
-
-            function seededRandom(seed) {
-                return function () {
-                    seed |= 0;
-                    seed = seed + 0x6D2B79F5 | 0;
-                    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-                    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-                };
-            }
-
-            function attachEmbers(button, seed) {
-                var canvas = document.createElement('canvas');
-                canvas.setAttribute('aria-hidden', 'true');
-                button.prepend(canvas);
-
-                var context = canvas.getContext('2d');
-                if (!context) { return; }
-
-                var random = seededRandom(seed);
-                var particles = [];
-                for (var i = 0; i < 10; i++) {
-                    particles.push({
-                        baseX: random(),
-                        baseY: random(),
-                        radius: 1.1 + random() * 1.6,
-                        speed: 0.4 + random() * 0.5,
-                        phase: random() * Math.PI * 2,
-                        colour: palette[i % palette.length]
-                    });
-                }
-
-                function resize() {
-                    var box = button.getBoundingClientRect();
-                    canvas.width = box.width;
-                    canvas.height = box.height;
-                }
-
-                resize();
-                window.addEventListener('resize', resize);
-
-                var time = 0;
-                var hovered = false;
-                button.addEventListener('mouseenter', function () { hovered = true; });
-                button.addEventListener('mouseleave', function () { hovered = false; });
-
-                function draw() {
-                    if (!button.isConnected) { return; }
-
-                    time += hovered ? 0.028 : 0.012;
-                    context.clearRect(0, 0, canvas.width, canvas.height);
-
-                    particles.forEach(function (particle) {
-                        var x = (particle.baseX * canvas.width)
-                            + Math.sin(time * particle.speed + particle.phase) * (canvas.width * 0.06);
-                        var y = (particle.baseY * canvas.height)
-                            + Math.cos(time * particle.speed * 1.3 + particle.phase) * (canvas.height * 0.22);
-
-                        context.beginPath();
-                        context.fillStyle = particle.colour;
-                        context.globalAlpha = Math.max(0, 0.35 + 0.25 * Math.sin(time * 2 + particle.phase));
-                        context.shadowBlur = 6;
-                        context.shadowColor = particle.colour;
-                        context.arc(x, y, particle.radius, 0, Math.PI * 2);
-                        context.fill();
-                    });
-
-                    context.globalAlpha = 1;
-                    window.requestAnimationFrame(draw);
-                }
-
-                window.requestAnimationFrame(draw);
-            }
-
-            document.querySelectorAll('.send-action').forEach(function (button, index) {
-                attachEmbers(button, 90210 + index);
-            });
-        }());
-    </script>
-    <script>
-        // Presentation only: opens the confirm dialog, keeps focus inside it,
-        // returns focus to the invoking control, and reveals the in-flight
-        // state so each state in this panel can be seen. No case data moves.
-        (function () {
-            var dialog = document.getElementById('send-confirm');
-            if (!dialog) { return; }
-
-            var opener = document.querySelector('[data-send-open]');
-            var available = document.querySelector('[data-send-available]');
-            var inFlight = document.querySelector('[data-send-state="in-flight"]');
-            var invoker = null;
-
-            function focusable() {
-                return Array.prototype.filter.call(
-                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                    function (element) { return !element.disabled && !element.hidden; });
-            }
-
-            function close() {
-                dialog.hidden = true;
-                document.removeEventListener('keydown', onKeydown, true);
-                if (invoker) { invoker.focus(); }
-            }
-
-            function onKeydown(event) {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    close();
-                    return;
-                }
-                if (event.key !== 'Tab') { return; }
-                var items = focusable();
-                if (items.length === 0) { return; }
-                var first = items[0];
-                var last = items[items.length - 1];
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-
-            if (opener) {
-                opener.addEventListener('click', function () {
-                    invoker = opener;
-                    dialog.hidden = false;
-                    document.addEventListener('keydown', onKeydown, true);
-                    var items = focusable();
-                    if (items.length > 0) { items[0].focus(); }
-                });
-            }
-
-            dialog.addEventListener('click', function (event) {
-                if (event.target === dialog) { close(); }
-            });
-
-            var cancel = dialog.querySelector('[data-send-cancel]');
-            if (cancel) { cancel.addEventListener('click', close); }
-
-            var confirmButton = dialog.querySelector('[data-send-confirm]');
-            if (confirmButton) {
-                confirmButton.addEventListener('click', function () {
-                    close();
-                    if (available) { available.hidden = true; }
-                    if (inFlight) { inFlight.hidden = false; }
-                    var form = document.getElementById('send-to-claude-form');
-                    if (form) { form.submit(); }
-                });
-            }
-        }());
-    </script>
+@if (Model.SendToClaudeCondition is null)
+{
+    <div class="dialog-backdrop" data-dialog="send-to-claude-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-claude-dialog-title">
+            <div class="dialog-head">
+                <h2 id="send-to-claude-dialog-title" tabindex="-1">Send to Claude</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page-handler="SendToClaude" asp-route-id="@caseId">
+                <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
+                <div class="dialog-body stack">
+                    <div>
+                        <label for="claude-direction">Direction</label>
+                        <textarea id="claude-direction" name="direction" rows="4" maxlength="1000"
+                                  data-dialog-initial-focus></textarea>
+                    </div>
+                    <div>
+                        <label for="claude-target">
+                            Target Estimate <output id="claude-target-value">75%</output>
+                        </label>
+                        <input type="range" id="claude-target" name="targetPercent" min="1" max="100" step="1" value="75"
+                               data-range-output="claude-target-value"
+                               data-range-base="@targetBase"
+                               data-range-amount-output="claude-target-amount" />
+                    </div>
+                    <dl class="definition-list">
+                        <div class="definition">
+                            <dt>Case Valuation</dt>
+                            <dd>&#163;@engineerValue!.Value.ToString("N0")</dd>
+                        </div>
+                        <div class="definition">
+                            <dt>Target amount</dt>
+                            <dd id="claude-target-amount">&#8212;</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--primary">Send to Claude</button>
+                </div>
+            </form>
+        </section>
+    </div>
 }
+
+<partial name="Shared/_EvidenceViewer" />
+<partial name="Shared/_EditFinishConfirm" />
 
 @functions {
     /// <summary>

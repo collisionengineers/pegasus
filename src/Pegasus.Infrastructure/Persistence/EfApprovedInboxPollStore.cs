@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
@@ -20,7 +22,7 @@ internal sealed class EfApprovedInboxPollStore(
             leaseDuration,
             TimeSpan.Zero);
 
-        var mailboxId = mailbox.MailboxId;
+        var approvedMailboxId = mailbox.ApprovedMailboxId;
         var mailboxAddress = mailbox.Address;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -31,28 +33,32 @@ internal sealed class EfApprovedInboxPollStore(
         // disable committed between listing and claiming cannot slip a poll through. A
         // withdrawn mailbox yields no lease; it is not an error.
         var approvedState = ApprovedMailboxState.Approved.ToString();
-        var stillApproved = await context.Set<ApprovedMailboxEntity>()
-            .AnyAsync(
-                item => item.Address == mailboxAddress
+        var approvedMailbox = await context.Set<ApprovedMailboxEntity>()
+            .SingleOrDefaultAsync(
+                item => item.Id == approvedMailboxId
+                    && item.Address == mailboxAddress
                     && item.State == approvedState
                     && item.AllowInboundIntake,
                 cancellationToken);
-        if (!stillApproved)
+        if (approvedMailbox?.ActivatedAtUtc is not { } activatedAtUtc
+            || activatedAtUtc != mailbox.ActivatedAtUtc)
         {
             await transaction.RollbackAsync(cancellationToken);
             return null;
         }
 
         var state = await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
-                item => item.MailboxId == mailboxId,
-                cancellationToken)
-            ?? await AdoptStateForAddressAsync(context, mailboxId, mailboxAddress, cancellationToken);
+                item => item.ApprovedMailboxId == approvedMailboxId,
+                cancellationToken);
         if (state is null)
         {
+            var scopeFingerprint = ScopeFingerprint(mailbox.GraphMailboxId, mailbox.InboxFolderIdentity);
             state = new()
             {
-                MailboxId = mailboxId,
+                ApprovedMailboxId = approvedMailboxId,
                 MailboxAddress = mailboxAddress,
+                ScopeFingerprint = scopeFingerprint,
+                ActivatedAtUtc = activatedAtUtc,
                 DueAtUtc = nowUtc
             };
             context.ApprovedInboxPollStates.Add(state);
@@ -64,6 +70,22 @@ internal sealed class EfApprovedInboxPollStore(
         {
             throw new InvalidOperationException(
                 "The approved mailbox identity is already bound to another address.");
+        }
+
+        var currentScopeFingerprint = ScopeFingerprint(
+            mailbox.GraphMailboxId,
+            mailbox.InboxFolderIdentity);
+        if (!string.Equals(state.ScopeFingerprint, currentScopeFingerprint, StringComparison.Ordinal)
+            || state.ActivatedAtUtc != activatedAtUtc)
+        {
+            state.ScopeFingerprint = currentScopeFingerprint;
+            state.ActivatedAtUtc = activatedAtUtc;
+            state.Cursor = null;
+            state.DueAtUtc = nowUtc;
+            state.LeaseToken = null;
+            state.LeaseExpiresAtUtc = null;
+            state.LastCompletedAtUtc = null;
+            state.LastFailureCode = null;
         }
 
         if ((state.LeaseToken is null) != (state.LeaseExpiresAtUtc is null))
@@ -84,85 +106,26 @@ internal sealed class EfApprovedInboxPollStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
-            state.MailboxId,
+            state.ApprovedMailboxId,
+            mailbox.GraphMailboxId,
             state.MailboxAddress,
             mailbox.InboxFolderIdentity,
+            activatedAtUtc,
             state.Cursor,
             state.LeaseToken);
     }
 
-    /// <summary>
-    /// Takes over the poll state this address already has, when it carries a
-    /// different mailbox identity, and returns it re-keyed to the identity now
-    /// in force. Null when the address has no poll state at all.
-    /// </summary>
-    /// <remarks>
-    /// One address has one poll state — <c>MailboxAddress</c> is unique — so
-    /// looking a state up by identity alone is not enough. The deployed mailbox
-    /// polls under the deployment's configured fallback identity until an
-    /// administrator saves the mailbox's real one, which is exactly how the
-    /// fallback is meant to retire. Inserting a second row for the same address
-    /// at that moment violates the unique index on that tick and on every tick
-    /// after it, stopping all inbound intake permanently.
-    ///
-    /// Adoption is also the right answer rather than merely the safe one: the
-    /// row carries the delta cursor, so re-keying it resumes where the mailbox
-    /// had got to instead of replaying or skipping mail, which is the
-    /// disable-and-resume model ADR-0022 specified. A primary key cannot be
-    /// changed through a tracked entity, so the re-key is a statement; the
-    /// retained-message and quarantine rows that reference it follow by
-    /// cascade, and the whole thing is inside the claiming transaction.
-    ///
-    /// Known gap, tracked on the Kanmer board: against Graph the carried cursor is a URI
-    /// scoped to the identity that minted it, so ValidateDeltaUri rejects it
-    /// after the re-key and the mailbox stalls. Simply clearing the cursor is
-    /// not the fix — the external receipt token embeds the mailbox identity
-    /// (MailboxIntake.PrepareMessage), so a replay after adoption re-receives
-    /// every message in the folder under a new identity and duplicates the
-    /// receipts. Both halves have to move together. ADR-0024 supersedes this
-    /// resume model with a per-mailbox fresh start (no carried cursor);
-    /// reconciling this store to ADR-0024 is the tracked work.
-    /// </remarks>
-    private static async Task<ApprovedInboxPollStateEntity?> AdoptStateForAddressAsync(
-        PegasusDbContext context,
-        string mailboxId,
-        string mailboxAddress,
-        CancellationToken cancellationToken)
-    {
-        var adopted = await context.ApprovedInboxPollStates
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.MailboxAddress == mailboxAddress,
-                cancellationToken);
-        if (adopted is null)
-        {
-            return null;
-        }
-
-        var previousMailboxId = adopted.MailboxId;
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            UPDATE ApprovedInboxPollStates
-            SET MailboxId = {mailboxId}
-            WHERE MailboxId = {previousMailboxId}
-            """,
-            cancellationToken);
-        return await context.ApprovedInboxPollStates.SingleAsync(
-            item => item.MailboxId == mailboxId,
-            cancellationToken);
-    }
-
     public Task AdvanceAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         string nextCursor,
         DateTimeOffset advancedAtUtc,
         CancellationToken cancellationToken)
     {
-        ValidateIdentity(mailboxId, leaseToken);
+        ValidateIdentity(approvedMailboxId, leaseToken);
         ValidateCursor(nextCursor);
         return UpdateOwnedStateAsync(
-            mailboxId,
+            approvedMailboxId,
             leaseToken,
             "advancement",
             state =>
@@ -174,14 +137,14 @@ internal sealed class EfApprovedInboxPollStore(
     }
 
     public async Task QuarantineAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         ApprovedInboxPoisonMessage message,
         string nextCursor,
         DateTimeOffset quarantinedAtUtc,
         CancellationToken cancellationToken)
     {
-        ValidateIdentity(mailboxId, leaseToken);
+        ValidateIdentity(approvedMailboxId, leaseToken);
         ArgumentNullException.ThrowIfNull(message);
         ValidateCursor(nextCursor);
         ValidatePoisonMessage(message);
@@ -192,12 +155,12 @@ internal sealed class EfApprovedInboxPollStore(
             cancellationToken);
         var state = await GetOwnedStateAsync(
             context,
-            mailboxId,
+            approvedMailboxId,
             leaseToken,
             "quarantine",
             cancellationToken);
         var existing = await context.ApprovedInboxPoisonMessages.SingleOrDefaultAsync(
-            item => item.MailboxId == mailboxId
+            item => item.ApprovedMailboxId == approvedMailboxId
                 && item.OccurrenceKey == message.OccurrenceKey,
             cancellationToken);
         if (existing is null)
@@ -205,7 +168,7 @@ internal sealed class EfApprovedInboxPollStore(
             context.ApprovedInboxPoisonMessages.Add(new()
             {
                 Id = Guid.NewGuid(),
-                MailboxId = mailboxId,
+                ApprovedMailboxId = approvedMailboxId,
                 OccurrenceKey = message.OccurrenceKey,
                 ImmutableMessageId = message.ImmutableMessageId,
                 FileName = message.FileName,
@@ -232,16 +195,16 @@ internal sealed class EfApprovedInboxPollStore(
     }
 
     public Task CompleteAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         string nextCursor,
         DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken)
     {
-        ValidateIdentity(mailboxId, leaseToken);
+        ValidateIdentity(approvedMailboxId, leaseToken);
         ValidateCursor(nextCursor);
         return UpdateOwnedStateAsync(
-            mailboxId,
+            approvedMailboxId,
             leaseToken,
             "completion",
             state =>
@@ -257,13 +220,13 @@ internal sealed class EfApprovedInboxPollStore(
     }
 
     public Task ReleaseAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         DateTimeOffset dueAtUtc,
         string failureCode,
         CancellationToken cancellationToken)
     {
-        ValidateIdentity(mailboxId, leaseToken);
+        ValidateIdentity(approvedMailboxId, leaseToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCode);
         if (failureCode.Length > 100)
         {
@@ -273,7 +236,7 @@ internal sealed class EfApprovedInboxPollStore(
         }
 
         return UpdateOwnedStateAsync(
-            mailboxId,
+            approvedMailboxId,
             leaseToken,
             "release",
             state =>
@@ -287,7 +250,7 @@ internal sealed class EfApprovedInboxPollStore(
     }
 
     private async Task UpdateOwnedStateAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         string operation,
         Action<ApprovedInboxPollStateEntity> update,
@@ -299,7 +262,7 @@ internal sealed class EfApprovedInboxPollStore(
             cancellationToken);
         var state = await GetOwnedStateAsync(
             context,
-            mailboxId,
+            approvedMailboxId,
             leaseToken,
             operation,
             cancellationToken);
@@ -310,21 +273,28 @@ internal sealed class EfApprovedInboxPollStore(
 
     private static async Task<ApprovedInboxPollStateEntity> GetOwnedStateAsync(
         PegasusDbContext context,
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         string operation,
         CancellationToken cancellationToken) =>
         await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
-            item => item.MailboxId == mailboxId && item.LeaseToken == leaseToken,
+            item => item.ApprovedMailboxId == approvedMailboxId && item.LeaseToken == leaseToken,
             cancellationToken)
         ?? throw new InvalidOperationException(
             $"The approved-inbox lease was lost before {operation}.");
 
-    private static void ValidateIdentity(string mailboxId, string leaseToken)
+    private static void ValidateIdentity(Guid approvedMailboxId, string leaseToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(mailboxId);
+        if (approvedMailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("The approved mailbox identity is required.");
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(leaseToken);
     }
+
+    private static string ScopeFingerprint(string graphMailboxId, string inboxFolderIdentity) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{graphMailboxId.Length}:{graphMailboxId}{inboxFolderIdentity}")));
 
     private static void ValidateCursor(string nextCursor) =>
         ArgumentException.ThrowIfNullOrWhiteSpace(nextCursor);

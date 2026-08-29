@@ -1,4 +1,4 @@
-using Pegasus.Core.Cases;
+﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Cases;
@@ -223,12 +223,95 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(0, replacement.Successor.Version);
     }
 
+    /// <summary>
+    /// EXT-04. The settings change in place and nothing else does — the code,
+    /// the organization and the lineage are what a replacement is for.
+    /// </summary>
+    [Fact]
+    public void EvaSubmissionSettingsChangeInPlaceAndMoveTheVersion()
+    {
+        var current = Principal(version: 3);
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+            current,
+            expectedVersion: 3,
+            evaManualSubmission: true,
+            evaAutomaticSubmission: true);
+
+        Assert.True(updated.EvaManualSubmission);
+        Assert.True(updated.EvaAutomaticSubmission);
+        Assert.Equal(4, updated.Version);
+        Assert.Equal(current.Id, updated.Id);
+        Assert.Equal(current.Code, updated.Code);
+        Assert.Equal(current.OrganizationId, updated.OrganizationId);
+        Assert.Equal(current.SequenceLineageId, updated.SequenceLineageId);
+    }
+
+    /// <summary>
+    /// Saving the settings unchanged is not a change, so it does not move the
+    /// version and cannot invalidate another administrator's open form.
+    /// </summary>
+    [Fact]
+    public void SavingUnchangedEvaSubmissionSettingsLeavesTheVersionAlone()
+    {
+        var current = Principal(version: 3) with { EvaManualSubmission = true };
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+            current,
+            expectedVersion: 3,
+            evaManualSubmission: true,
+            evaAutomaticSubmission: false);
+
+        Assert.Equal(3, updated.Version);
+    }
+
+    [Fact]
+    public void EvaSubmissionSettingsRefuseAStaleVersion()
+    {
+        var error = Assert.Throws<OrganizationAdministrationException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+                Principal(version: 4),
+                expectedVersion: 3,
+                evaManualSubmission: true,
+                evaAutomaticSubmission: false));
+
+        Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
+    }
+
+    /// <summary>
+    /// A replaced principal keeps its settings as a record of what it did.
+    /// Its successor is the one that decides what happens next.
+    /// </summary>
+    [Fact]
+    public void ADisabledPrincipalsEvaSubmissionSettingsCannotBeChanged()
+    {
+        var error = Assert.Throws<OrganizationAdministrationException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+                Principal(version: 3) with { IsActive = false },
+                expectedVersion: 3,
+                evaManualSubmission: true,
+                evaAutomaticSubmission: false));
+
+        Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
+    }
+
+    private static Principal Principal(long version) => new(
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        "QDOS",
+        Guid.NewGuid(),
+        null,
+        null,
+        true,
+        version);
+
     private sealed class RecordingStore : IOrganizationAdministrationStore
     {
         public List<CreateOrganizationRequest> OrganizationCreates { get; } = [];
         public List<UpdateOrganizationRolesRequest> OrganizationUpdates { get; } = [];
         public List<CreatePrincipalRequest> PrincipalCreates { get; } = [];
         public List<ReplacePrincipalRequest> PrincipalReplacements { get; } = [];
+        public List<UpdatePrincipalEvaSubmissionRequest> EvaSubmissionUpdates { get; } = [];
 
         public Task<Organization> CreateOrganizationAsync(
             CreateOrganizationRequest request,
@@ -252,6 +335,25 @@ public sealed class OrganizationAdministrationTests
                 "Organization",
                 request.Roles,
                 request.ExpectedVersion + 1));
+        }
+
+        public Task<Principal> UpdatePrincipalEvaSubmissionAsync(
+            UpdatePrincipalEvaSubmissionRequest request,
+            CancellationToken cancellationToken)
+        {
+            EvaSubmissionUpdates.Add(request);
+            return Task.FromResult(new Principal(
+                request.PrincipalId,
+                Guid.NewGuid(),
+                "QDOS",
+                Guid.NewGuid(),
+                null,
+                null,
+                true,
+                request.ExpectedVersion + 1,
+                CaseInspectionMode.PhysicalAddress,
+                request.EvaManualSubmission,
+                request.EvaAutomaticSubmission));
         }
 
         public Task<Principal> CreatePrincipalAsync(

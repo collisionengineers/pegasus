@@ -10,6 +10,8 @@ namespace Pegasus.Core.Tests.Intake;
 /// </summary>
 public sealed class RetainedMailTests
 {
+    private static readonly Guid MailboxA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid MailboxB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     [Fact]
     public void SearchProjectionKeepsDuplicateAttachmentNamesAsDistinctOccurrences()
     {
@@ -115,7 +117,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<ArgumentException>(() =>
             new ListRetainedMail(queries).ExecuteAsync(
                 Caseworker(),
-                new(new string('m', 101), MailFolderScope.Inbox),
+                new(Guid.Empty, MailFolderScope.Inbox),
                 1,
                 25,
                 CancellationToken.None));
@@ -146,13 +148,13 @@ public sealed class RetainedMailTests
 
         await new ListRetainedMail(queries).ExecuteAsync(
             Caseworker(),
-            new("mailbox-a", MailFolderScope.Sent),
+            new(MailboxA, MailFolderScope.Sent),
             3,
             25,
             CancellationToken.None);
 
         var scope = Assert.Single(queries.Scopes);
-        Assert.Equal("mailbox-a", scope.Scope.MailboxId);
+        Assert.Equal(MailboxA, scope.Scope.MailboxId);
         Assert.Equal(MailFolderScope.Sent, scope.Scope.Folder);
         Assert.Equal(3, scope.Page);
         Assert.Equal(25, scope.PageSize);
@@ -165,12 +167,55 @@ public sealed class RetainedMailTests
 
         await new ListRetainedMail(queries).ExecuteAsync(
             Caseworker(),
-            new("mailbox-a", MailFolderScope.Inbox, "  estimate  "),
+            new(MailboxA, MailFolderScope.Inbox, "  estimate  "),
             1,
             25,
             CancellationToken.None);
 
         Assert.Equal("estimate", Assert.Single(queries.Scopes).Scope.SearchTerm);
+    }
+
+    [Fact]
+    public async Task CountRequiresCaseworkAuthorization()
+    {
+        var queries = new Queries();
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new ListRetainedMail(queries).CountAsync(
+                ActionActor.RequestLink(Guid.NewGuid()),
+                new(null, MailFolderScope.Inbox),
+                CancellationToken.None));
+
+        Assert.Empty(queries.CountedScopes);
+    }
+
+    [Fact]
+    public async Task CountNormalizesTheScopeExactlyAsTheListDoes()
+    {
+        var queries = new Queries();
+
+        await new ListRetainedMail(queries).CountAsync(
+            Caseworker(),
+            new(MailboxA, MailFolderScope.Inbox, "  estimate  ", UnreadOnly: true),
+            CancellationToken.None);
+
+        var scope = Assert.Single(queries.CountedScopes);
+        Assert.Equal(MailboxA, scope.MailboxId);
+        Assert.Equal(MailFolderScope.Inbox, scope.Folder);
+        Assert.Equal("estimate", scope.SearchTerm);
+        Assert.True(scope.UnreadOnly);
+        // The count refuses what the list refuses, through the same guards.
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            new ListRetainedMail(queries).CountAsync(
+                Caseworker(),
+                new(null, (MailFolderScope)7),
+                CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new ListRetainedMail(queries).CountAsync(
+                Caseworker(),
+                new(null, MailFolderScope.Inbox, new string('x', 201)),
+                CancellationToken.None));
+        Assert.Single(queries.CountedScopes);
     }
 
     [Fact]
@@ -258,13 +303,13 @@ public sealed class RetainedMailTests
 
         var page = await new SearchDeletedMail(source).ExecuteAsync(
             Caseworker(),
-            " mailbox-a ",
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
             " estimate ",
             2,
             2,
             CancellationToken.None);
 
-        Assert.Equal("mailbox-a", source.MailboxId);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), source.MailboxId);
         Assert.Equal("estimate", source.SearchTerm);
         Assert.Equal(SearchDeletedMail.MaximumMessages, source.MaximumMessages);
         Assert.Equal(["old"], page.Items.Select(item => item.ImmutableMessageId));
@@ -289,7 +334,7 @@ public sealed class RetainedMailTests
     }
 
     private static DeletedMailSearchItem Deleted(string id, DateTimeOffset receivedAtUtc) => new(
-        "mailbox-a",
+        MailboxA,
         "instructions@collisionengineers.co.uk",
         id,
         null,
@@ -333,7 +378,7 @@ public sealed class RetainedMailTests
                 new(2, result, result, $"staff:{staffId:D}", "Corrected.", NowUtc)
             ]);
         var summary = new RetainedMailSummary(
-            Guid.NewGuid(), "mailbox-a", "mailbox-a@example.test", true, null, null, null,
+            Guid.NewGuid(), MailboxA, "mailbox-a@example.test", true, null, null, null,
             null, null, NowUtc, true, 0, null, null, null, null);
         var detail = new RetainedMailDetail(
             summary, [], [], null, [], [], MailFolderScope.Inbox, null, null, dossier);
@@ -594,8 +639,8 @@ public sealed class RetainedMailTests
             MailFreshnessState.Unavailable,
             GetRetainedMailFreshness.Evaluate(
                 [
-                    new("mailbox-a", NowUtc.AddMinutes(-1), "mailbox_access_denied", NowUtc.AddMinutes(1)),
-                    new("mailbox-b", NowUtc.AddMinutes(-2), "mailbox_poll_failure", NowUtc.AddMinutes(2))
+                    new(MailboxA, NowUtc.AddMinutes(-1), "mailbox_access_denied", NowUtc.AddMinutes(1)),
+                    new(MailboxB, NowUtc.AddMinutes(-2), "mailbox_poll_failure", NowUtc.AddMinutes(2))
                 ],
                 NowUtc).State);
 
@@ -604,8 +649,8 @@ public sealed class RetainedMailTests
     {
         var freshness = GetRetainedMailFreshness.Evaluate(
             [
-                new("mailbox-a", NowUtc.AddMinutes(-1), "mailbox_access_denied", NowUtc.AddMinutes(1)),
-                new("mailbox-b", NowUtc.AddSeconds(-30), null, NowUtc)
+                new(MailboxA, NowUtc.AddMinutes(-1), "mailbox_access_denied", NowUtc.AddMinutes(1)),
+                new(MailboxB, NowUtc.AddSeconds(-30), null, NowUtc)
             ],
             NowUtc);
 
@@ -617,10 +662,10 @@ public sealed class RetainedMailTests
     public void FreshnessTurnsStaleOnceThePollIsOlderThanTheThreshold()
     {
         var justInside = GetRetainedMailFreshness.Evaluate(
-            [new("mailbox-a", NowUtc - GetRetainedMailFreshness.StaleAfter, null, NowUtc)],
+            [new(MailboxA, NowUtc - GetRetainedMailFreshness.StaleAfter, null, NowUtc)],
             NowUtc);
         var justOutside = GetRetainedMailFreshness.Evaluate(
-            [new("mailbox-a", NowUtc - GetRetainedMailFreshness.StaleAfter - TimeSpan.FromSeconds(1), null, NowUtc)],
+            [new(MailboxA, NowUtc - GetRetainedMailFreshness.StaleAfter - TimeSpan.FromSeconds(1), null, NowUtc)],
             NowUtc);
 
         Assert.Equal(MailFreshnessState.Current, justInside.State);
@@ -632,7 +677,7 @@ public sealed class RetainedMailTests
         Assert.Equal(
             new MailFreshness(MailFreshnessState.Unavailable, null),
             GetRetainedMailFreshness.Evaluate(
-                [new("mailbox-a", null, null, NowUtc)],
+                [new(MailboxA, null, null, NowUtc)],
                 NowUtc));
 
     private static ActionActor Caseworker() =>
@@ -655,18 +700,25 @@ public sealed class RetainedMailTests
         MailClassificationDossier dossier)
     {
         var summary = new RetainedMailSummary(
-            Guid.NewGuid(), mailboxId, "mailbox@example.test", true, null, null, null,
+            Guid.NewGuid(), MailboxId(mailboxId), "mailbox@example.test", true, null, null, null,
             null, null, NowUtc, true, 0, null, null, null, null);
         return new(summary, [], [], null, [], [], MailFolderScope.Inbox,
             dossier.Current.Outcome, null, dossier);
     }
+
+    private static Guid MailboxId(string value) => value switch
+    {
+        "mailbox-a" => MailboxA,
+        "mailbox-b" => MailboxB,
+        _ => Guid.Parse("33333333-3333-3333-3333-333333333333")
+    };
 
     private static ApprovedMailbox ApprovedMailbox(
         string mailboxIdentity,
         ApprovedMailboxState state,
         int version,
         params ApprovedMailboxFolderBinding[] bindings) => new(
-            Guid.NewGuid(),
+            MailboxId(mailboxIdentity),
             "mailbox@example.test",
             [ApprovedMailboxRouteScope.InboundIntake],
             state,
@@ -674,12 +726,15 @@ public sealed class RetainedMailTests
             "inbox-folder",
             "sent-folder",
             true,
+            DateTimeOffset.UtcNow,
             version,
             bindings);
 
     private sealed class Queries : IRetainedMailQueries
     {
         internal List<(MailWorkspaceScope Scope, int Page, int PageSize)> Scopes { get; } = [];
+
+        internal List<MailWorkspaceScope> CountedScopes { get; } = [];
 
         internal RetainedMailDetail? DetailToReturn { get; set; }
 
@@ -691,6 +746,14 @@ public sealed class RetainedMailTests
         {
             Scopes.Add((scope, page, pageSize));
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
+        }
+
+        public Task<int> CountAsync(
+            MailWorkspaceScope scope,
+            CancellationToken cancellationToken)
+        {
+            CountedScopes.Add(scope);
+            return Task.FromResult(0);
         }
 
         public Task<RetainedMailDetail?> GetAsync(
@@ -710,7 +773,7 @@ public sealed class RetainedMailTests
 
     private sealed class DeletedSource(DeletedMailSourceResult result) : IDeletedMailSearchSource
     {
-        internal string? MailboxId { get; private set; }
+        internal Guid? MailboxId { get; private set; }
         internal string? SearchTerm { get; private set; }
         internal int MaximumMessages { get; private set; }
 
@@ -719,7 +782,7 @@ public sealed class RetainedMailTests
             Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
 
         public Task<DeletedMailSourceResult> SearchAsync(
-            string? mailboxId,
+            Guid? mailboxId,
             string searchTerm,
             int maximumMessages,
             CancellationToken cancellationToken)

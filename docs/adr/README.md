@@ -40,7 +40,10 @@ never renumbered or reused.
 | [0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | FRD-01/02/05/06/12 |
 | [0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | — |
 | [0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | FRD-07, FRD-10, FRD-11 |
-| [0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | FRD-02, FRD-08 |
+| [0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | FRD-02, FRD-08 |
+| [0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | FRD-07 |
+| [0035](0035-ai-job-ledger.md) | AI job ledger | FRD-10, FRD-11 |
+| [0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | FRD-08 |
 
 ## Superseded and relocated
 
@@ -53,6 +56,7 @@ never renumbered or reused.
 | [0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as a database setting | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) — estate decision carried forward; behaviour in [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md) |
 | [0023](0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |
 | [0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract | [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) |
+| [0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

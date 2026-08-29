@@ -8,7 +8,7 @@
     "Intake__LocalArtifactPath": "../../artifacts/local-development/default/intake",
     "PendingWorkRecoverySchedule": "0 * * * * *",
     "IntakeStagedArtifactReconciliationSchedule": "*/10 * * * * *",
-    "ApprovedInboxPollSchedule": "*/15 * * * * *",
+    "ApprovedInboxPollSchedule": "0 */5 * * * *",
     "SentEvidencePollSchedule": "15 * * * * *",
     "DueWorkSweepSchedule": "0 */5 * * * *",
     "ApprovedInbox__MailboxId": "instructions",

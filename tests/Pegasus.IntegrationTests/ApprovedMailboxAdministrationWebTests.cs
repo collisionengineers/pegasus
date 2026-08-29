@@ -1,7 +1,10 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -156,6 +159,51 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("Version</th>", page, StringComparison.Ordinal);
         // The per-mailbox polling column is present for the seeded mailbox.
         Assert.Contains("Not yet polled.", page, StringComparison.Ordinal);
+        // The seeded mailbox has not been activated and has no Graph subscription yet.
+        Assert.Contains("<td>Not activated</td>", page, StringComparison.Ordinal);
+        Assert.Contains("<td>None.</td>", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ThePageShowsActivationAndSubscriptionHealthPerMailbox()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var mailboxId = TestMailboxId.From("instructions");
+        var activatedAtUtc = new DateTimeOffset(2026, 8, 27, 10, 20, 33, TimeSpan.Zero);
+        var expiresAtUtc = new DateTimeOffset(2026, 9, 2, 9, 5, 0, TimeSpan.Zero);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using (var context = await contextFactory.CreateDbContextAsync())
+            {
+                var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+                mailbox.ActivatedAtUtc = activatedAtUtc;
+                await context.SaveChangesAsync();
+            }
+
+            await scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>().SaveAsync(
+                new(
+                    mailboxId,
+                    "subscription-id",
+                    "users/mailbox-id/mailFolders/inbox-id/messages",
+                    expiresAtUtc,
+                    ApprovedMailboxSubscriptionLifecycleState.Missed,
+                    activatedAtUtc.AddHours(6),
+                    "graph_subscription_renew_failed"),
+                CancellationToken.None);
+        }
+
+        var page = await GetPageAsync(client);
+
+        // Office time (Europe/London) for both instants: BST is UTC+1.
+        Assert.Contains("<td>27 Aug 2026 11:20</td>", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "<td>Missed. Expires 02 Sep 2026 10:05. Last failure: Graph subscription renew failed.</td>",
+            page,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("subscription-id", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("mailFolders", page, StringComparison.Ordinal);
     }
 
     [Fact]

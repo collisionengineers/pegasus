@@ -542,9 +542,14 @@ public sealed class AllocateIntake(
             IntakeAllocationFailureKind.SequenceExhausted,
             IntakeAllocationRecoveryDisposition.Blocked,
             "The Principal's case reference sequence is exhausted. No case was created."),
+        // INTK-044: an unclassified fault used to be terminal, which left an
+        // automatic standalone Audit with no route at all — staff cannot
+        // create an Audit by hand. Only sequence exhaustion is genuinely
+        // blocked; anything else is a reasoned staff retry of the same
+        // immutable command, which re-runs the retained evidence path.
         _ => (
             IntakeAllocationFailureKind.Unexpected,
-            IntakeAllocationRecoveryDisposition.Blocked,
+            IntakeAllocationRecoveryDisposition.ReloadThenRetry,
             "The case could not be created. No reference was allocated."),
     };
 

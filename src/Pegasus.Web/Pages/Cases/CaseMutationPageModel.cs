@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -105,6 +106,219 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "imagesReviewedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
 
+    /// <summary>The lease this browser holds on the case being rendered, if it holds one.</summary>
+    public string? LeaseToken { get; private set; }
+
+    public string ClaimLeaseOperationKey { get; private set; } = NewOperationKey();
+
+    public string ReleaseLeaseOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>
+    /// The case is held by this viewer, but this browser no longer carries the token — the holder
+    /// re-enters edit mode deliberately rather than having it silently restored.
+    /// </summary>
+    public bool CanRecoverLease { get; private set; }
+
+    /// <summary>
+    /// Reconciles what this browser remembers against what the server says the case's edit
+    /// authority actually is. Every page that renders edit mode asks it, so the workspace and the
+    /// assessment agree about one lease without keeping two rules.
+    /// </summary>
+    protected void RestoreLeaseState(
+        Guid caseId,
+        ActionActor actor,
+        CaseEditLeaseSnapshot? activeLease)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        // An expired lease is already absent from the projection, so no page keeps a second rule.
+        if (activeLease is null)
+        {
+            if (!string.IsNullOrWhiteSpace(PeekLeaseToken())
+                || PeekGuid(LeaseCaseIdKey) is not null)
+            {
+                ClearLeaseState();
+            }
+
+            ClaimLeaseOperationKey = GetOrCreateClaimLeaseOperation(caseId);
+            return;
+        }
+
+        if (!CaseEditAuthority.IsHolder(activeLease.HolderKind, activeLease.Holder, actor))
+        {
+            ClearLeaseState();
+            return;
+        }
+
+        if (!Guid.TryParseExact(activeLease.OperationKey, "N", out var claimOperationId))
+        {
+            ClearLeaseState();
+            return;
+        }
+
+        ClaimLeaseOperationKey = claimOperationId.ToString("N");
+        StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
+        var storedToken = PeekLeaseToken();
+        if (PeekGuid(LeaseCaseIdKey) == caseId && !string.IsNullOrWhiteSpace(storedToken))
+        {
+            LeaseToken = storedToken;
+            ReleaseLeaseOperationKey = GetOrCreateOperationKey(ReleaseLeaseOperationKeyName);
+            return;
+        }
+
+        ClearLeaseAuthority();
+        CanRecoverLease = true;
+    }
+
+    /// <summary>
+    /// Where this page puts what it wants to say next. The workspace and its capability pages
+    /// share one pair; a page whose messages are read somewhere else overrides them.
+    /// </summary>
+    protected virtual string StatusTempDataKey => "CaseStatus";
+
+    protected virtual string ErrorTempDataKey => "CaseError";
+
+    /// <summary>
+    /// Enters edit mode. Every page that offers it enters it the same way, including what happens
+    /// to the claim key when the claim is refused: a lost lease clears this page's state, and any
+    /// other refusal keeps the same key, because the claim is idempotent by that key and a retry
+    /// must replay rather than claim twice.
+    /// </summary>
+    protected async Task<IActionResult> ClaimLeaseAsync(
+        IAcquireCaseEditLease acquireLease,
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+
+        try
+        {
+            var normalizedOperationKey = RequireOperationKey(operationKey);
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, expectedVersion, actor, normalizedOperationKey),
+                cancellationToken);
+            StoreClaimLeaseOperation(id, normalizedOperationKey);
+            StoreLeaseAuthority(id, lease.Token);
+            TempData.Remove(RenewLeaseOperationKeyName);
+            TempData.Remove(ReleaseLeaseOperationKeyName);
+            TempData[StatusTempDataKey] = "Edit mode is active.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            if (IsLeaseLoss(exception))
+            {
+                ClearLeaseState();
+            }
+            else if (Guid.TryParseExact(operationKey, "N", out var operationId))
+            {
+                StoreClaimLeaseOperation(id, operationId.ToString("N"));
+            }
+            TempData[ErrorTempDataKey] =
+                "Edit mode could not be entered because the case changed or is being edited by another member of staff.";
+        }
+
+        return redirect();
+    }
+
+    /// <summary>Leaves edit mode, releasing the server-owned authority rather than forgetting it.</summary>
+    protected async Task<IActionResult> ReleaseLeaseAsync(
+        IReleaseCaseEditLease releaseLease,
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+
+        try
+        {
+            await releaseLease.ExecuteAsync(
+                new(id, actor, RequireOperationKey(operationKey), editLeaseToken),
+                cancellationToken);
+            ClearLeaseState();
+            TempData[StatusTempDataKey] = "Edit mode was left safely.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "release_lease", exception);
+            if (IsLeaseLoss(exception))
+            {
+                ClearLeaseState();
+            }
+            else
+            {
+                StoreLeaseAuthority(id, editLeaseToken);
+                TempData[ReleaseLeaseOperationKeyName] = operationKey;
+            }
+            TempData[ErrorTempDataKey] =
+                "Edit mode could not be released. Reload the case to confirm its current state.";
+        }
+
+        return redirect();
+    }
+
+    protected string GetOrCreateClaimLeaseOperation(Guid caseId)
+    {
+        var storedOperationId = PeekGuid(ClaimLeaseOperationKeyName);
+        if (PeekGuid(ClaimLeaseCaseIdKey) == caseId
+            && storedOperationId is { } operationId
+            && operationId != Guid.Empty)
+        {
+            return operationId.ToString("N");
+        }
+
+        ClearLeaseState();
+        var operationKey = NewOperationKey();
+        StoreClaimLeaseOperation(caseId, operationKey);
+        return operationKey;
+    }
+
+    protected string GetOrCreateOperationKey(string key)
+    {
+        if (PeekGuid(key) is { } operationId && operationId != Guid.Empty)
+        {
+            return operationId.ToString("N");
+        }
+
+        var operationKey = NewOperationKey();
+        TempData[key] = operationKey;
+        return operationKey;
+    }
+
+    protected void StoreClaimLeaseOperation(Guid caseId, string operationKey)
+    {
+        TempData[ClaimLeaseCaseIdKey] = caseId;
+        TempData[ClaimLeaseOperationKeyName] = Guid.ParseExact(operationKey, "N");
+    }
+
+    protected static string RequireOperationKey(string value) =>
+        Guid.TryParseExact(value, "N", out var operationId)
+            ? operationId.ToString("N")
+            : throw new ArgumentException("The operation key is invalid.", nameof(value));
+
     /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
     protected Task<IActionResult> ExecuteCaseCommandAsync(
         Guid id,
@@ -155,7 +369,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         {
             await execute(actor);
             ClearLeaseState();
-            TempData["CaseStatus"] = successMessage;
+            TempData[StatusTempDataKey] = successMessage;
         }
         catch (StaffAuthorizationException)
         {
@@ -167,7 +381,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
             RetainProposedValues(id);
-            TempData["CaseError"] = failureMessage;
+            TempData[ErrorTempDataKey] = failureMessage;
         }
 
         return RedirectToDetails(id);
@@ -175,6 +389,44 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
     protected RedirectToPageResult RedirectToDetails(Guid id) =>
         RedirectToPage("/Cases/Details", new { id });
+
+    /// <summary>
+    /// Tells the server the editor is still here, so an open page is never timed out mid-edit.
+    /// Every page that carries edit mode answers it the same way, and none of them redirect: the
+    /// browser only needs to know whether to keep beating.
+    /// </summary>
+    /// <remarks>
+    /// It reads and writes no TempData on any path — not even to forget a lost lease. TempData
+    /// here is cookie-backed, so re-issuing that cookie from a request the operator did not make
+    /// can race a form post they did and lose them the token mid-edit. A refusal needs no state
+    /// anyway: the page it lands on already renders the case's real edit state.
+    /// </remarks>
+    protected async Task<IActionResult> HeartbeatLeaseAsync(
+        IHeartbeatCaseEditLease heartbeat,
+        Guid id,
+        string editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await heartbeat.ExecuteAsync(new(id, actor, editLeaseToken), cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsLeaseLoss(exception))
+        {
+            return new StatusCodeResult(StatusCodes.Status409Conflict);
+        }
+
+        return new StatusCodeResult(StatusCodes.Status204NoContent);
+    }
 
     protected void StoreLeaseAuthority(Guid caseId, string leaseToken)
     {

@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Cases;
 
@@ -34,7 +34,9 @@ public sealed record PrincipalAdministrationSummary(
     bool IsActive,
     long Version,
     int AllocatedCaseCount,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress);
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
+    bool EvaManualSubmission = false,
+    bool EvaAutomaticSubmission = false);
 
 public sealed record OrganizationListItem(
     Guid Id,
@@ -117,6 +119,15 @@ public interface IOrganizationAdministrationStore
 
     Task<Principal> ReplacePrincipalAsync(
         ReplacePrincipalRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// EXT-04: change an existing principal's EVA submission settings. Unlike
+    /// a replacement this creates no new principal and moves no reference — it
+    /// is the one principal attribute that may change in place.
+    /// </summary>
+    Task<Principal> UpdatePrincipalEvaSubmissionAsync(
+        UpdatePrincipalEvaSubmissionRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -263,6 +274,20 @@ public sealed class ReplacePrincipal(IOrganizationAdministrationStore store)
             cancellationToken);
 }
 
+public sealed class UpdatePrincipalEvaSubmission(IOrganizationAdministrationStore store)
+    : IUpdatePrincipalEvaSubmission
+{
+    private readonly IOrganizationAdministrationStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<Principal> ExecuteAsync(
+        UpdatePrincipalEvaSubmissionRequest request,
+        CancellationToken cancellationToken) =>
+        _store.UpdatePrincipalEvaSubmissionAsync(
+            OrganizationAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
 public sealed record PrincipalReplacementPlan(
     Principal Predecessor,
     Principal Successor);
@@ -320,7 +345,9 @@ public static class OrganizationAdministrationPolicy
         Organization organization,
         string code,
         bool codeAlreadyExists,
-        CaseInspectionMode inspectionMode = CaseInspectionMode.PhysicalAddress)
+        CaseInspectionMode inspectionMode = CaseInspectionMode.PhysicalAddress,
+        bool evaManualSubmission = false,
+        bool evaAutomaticSubmission = false)
     {
         RequireIdentifier(principalId, nameof(principalId));
         RequireIdentifier(sequenceLineageId, nameof(sequenceLineageId));
@@ -337,7 +364,9 @@ public static class OrganizationAdministrationPolicy
             null,
             true,
             0,
-            inspectionMode);
+            inspectionMode,
+            evaManualSubmission,
+            evaAutomaticSubmission);
     }
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
@@ -387,7 +416,9 @@ public static class OrganizationAdministrationPolicy
                 null,
                 true,
                 0,
-                predecessor.InspectionMode));
+                predecessor.InspectionMode,
+                predecessor.EvaManualSubmission,
+                predecessor.EvaAutomaticSubmission));
     }
 
     public static void RequireOrganizationCanOwnPrincipals(Organization organization)
@@ -442,6 +473,65 @@ public static class OrganizationAdministrationPolicy
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason))
+        };
+    }
+
+    public static UpdatePrincipalEvaSubmissionRequest Normalize(
+        UpdatePrincipalEvaSubmissionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor);
+        RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
+        return request with
+        {
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey)),
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason))
+        };
+    }
+
+    /// <summary>
+    /// EXT-04: the settings change, and nothing else does. The code, the
+    /// organization, the lineage and the allocation history are untouched —
+    /// this is the one principal attribute that may change without replacing
+    /// the principal, because switching a delivery route on is not a change of
+    /// who the work belongs to.
+    /// </summary>
+    public static Principal PlanPrincipalEvaSubmissionUpdate(
+        Principal current,
+        long expectedVersion,
+        bool evaManualSubmission,
+        bool evaAutomaticSubmission)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
+        if (current.Version != expectedVersion)
+        {
+            throw new OrganizationAdministrationException(
+                OrganizationAdministrationError.StaleVersion);
+        }
+
+        // A replaced principal keeps its settings as a record of what it did;
+        // changing them would rewrite history for work already allocated, and
+        // the successor is the one that decides what happens next.
+        if (!current.IsActive)
+        {
+            throw new OrganizationAdministrationException(
+                OrganizationAdministrationError.PrincipalInactive);
+        }
+
+        var changed = current.EvaManualSubmission != evaManualSubmission
+            || current.EvaAutomaticSubmission != evaAutomaticSubmission;
+        return current with
+        {
+            EvaManualSubmission = evaManualSubmission,
+            EvaAutomaticSubmission = evaAutomaticSubmission,
+            Version = changed ? checked(current.Version + 1) : current.Version
         };
     }
 
@@ -573,7 +663,7 @@ public static class OrganizationAdministrationPolicy
         }
     }
 
-    private static string NormalizeRequiredText(
+    internal static string NormalizeRequiredText(
         string value,
         int maximumLength,
         string parameterName)

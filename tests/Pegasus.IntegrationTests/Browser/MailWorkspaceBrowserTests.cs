@@ -46,11 +46,16 @@ public sealed class MailWorkspaceBrowserTests
             await preview.Locator("[data-mail-preview-association]").TextContentAsync());
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
 
+        // The port wrapped the preview in the drawn third pane with its own
+        // "Message preview" head, so the side-by-side relationship is measured
+        // between the panes — the preview article itself starts below that
+        // head by design.
         var desktopRelationship = await support.Page.EvaluateAsync<bool>(
             "(() => {" +
-            " const table = document.querySelector('.mail-workspace > .table-wrap').getBoundingClientRect();" +
+            " const messages = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(2)').getBoundingClientRect();" +
+            " const previewPane = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(3)').getBoundingClientRect();" +
             " const preview = document.querySelector('[data-mail-preview]').getBoundingClientRect();" +
-            " return Math.abs(table.top - preview.top) < 2 && preview.left >= table.right;" +
+            " return Math.abs(messages.top - previewPane.top) < 2 && previewPane.left >= messages.right && preview.left >= messages.right;" +
             "})()");
         Assert.True(desktopRelationship);
 
@@ -68,28 +73,40 @@ public sealed class MailWorkspaceBrowserTests
         Assert.False(await HasHorizontalDocumentOverflowAsync(support.Page));
         Assert.True(await support.Page.EvaluateAsync<bool>(
             "(() => {" +
-            " const table = document.querySelector('.mail-workspace > .table-wrap').getBoundingClientRect();" +
-            " const preview = document.querySelector('[data-mail-preview]').getBoundingClientRect();" +
-            " return preview.top >= table.bottom;" +
+            " const messages = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(2)').getBoundingClientRect();" +
+            " const previewPane = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(3)').getBoundingClientRect();" +
+            " return previewPane.top >= messages.bottom;" +
             "})()"));
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
     }
 
     [Fact]
-    public async Task SubjectRemainsTheFullDetailLinkWithoutJavaScript()
+    public async Task SubjectSelectsTheServerRenderedPreviewAndThePaneOpensFullDetailWithoutJavaScript()
     {
         await using var support = await BrowserTestSupport.StartAsync(
             javaScriptEnabled: false,
             useIntegrationTestAuthentication: true);
         var messageId = await SeedMessageAsync(support.Services);
 
+        // The newest row renders its preview server-side before any click.
         var response = await support.GoToAsync("/Inbox");
         Assert.Equal(200, response.Status);
-        Assert.True(await support.Page.Locator("[data-mail-preview]").IsHiddenAsync());
+        var preview = support.Page.Locator("[data-mail-preview]");
+        Assert.True(await preview.IsVisibleAsync());
+        Assert.Equal(
+            "Browser preview message",
+            await preview.Locator("[data-mail-preview-subject]").TextContentAsync());
 
+        // The subject selects its row: same page, selected state in the query.
         var trigger = support.Page.Locator("[data-mail-preview-trigger]");
-        Assert.Equal($"/Inbox/{messageId:D}", await trigger.GetAttributeAsync("href"));
         await trigger.ClickAsync();
+        await support.Page.WaitForURLAsync($"**/Inbox?selected={messageId:D}");
+        Assert.Equal(
+            "Browser preview message",
+            await preview.Locator("[data-mail-preview-subject]").TextContentAsync());
+
+        // The pane, not the row, is the full-detail entry.
+        await preview.Locator("a.btn--dark").ClickAsync();
         await support.Page.WaitForURLAsync($"**/Inbox/{messageId:D}");
         Assert.Equal("Browser preview message", await support.Page.Locator("h1").TextContentAsync());
     }
@@ -99,17 +116,22 @@ public sealed class MailWorkspaceBrowserTests
 
     private static async Task<Guid> SeedMessageAsync(IServiceProvider services)
     {
-        const string mailboxId = "browser-mail";
+        const string mailboxKey = "browser-mail";
+        var mailboxId = TestMailboxId.From(mailboxKey);
         const string mailboxAddress = "browser-mail@collisionengineers.co.uk";
         await using var scope = services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
+            await TestMailboxId.EnsureApprovedAsync(
+                context, mailboxKey, mailboxAddress, NowUtc.AddDays(-1));
             context.ApprovedInboxPollStates.Add(new()
             {
-                MailboxId = mailboxId,
+                ApprovedMailboxId = mailboxId,
                 MailboxAddress = mailboxAddress,
+                ScopeFingerprint = new string('A', 64),
+                ActivatedAtUtc = NowUtc.AddDays(-1),
                 DueAtUtc = NowUtc,
                 LastCompletedAtUtc = NowUtc.AddMinutes(-1)
             });
@@ -122,7 +144,7 @@ public sealed class MailWorkspaceBrowserTests
                     mailboxId,
                     mailboxAddress,
                     "browser-message-1",
-                    $"{mailboxId.Length}:{mailboxId}browser-message-1",
+                    $"{mailboxKey.Length}:{mailboxKey}browser-message-1",
                     NowUtc,
                     1024,
                     new string('A', 64),

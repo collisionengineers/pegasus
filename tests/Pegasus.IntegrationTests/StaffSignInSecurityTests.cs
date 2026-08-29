@@ -64,6 +64,13 @@ public sealed partial class StaffSignInSecurityTests
             $"Expected the anonymous sign-in page, but received {(int)signInPage.StatusCode} " +
             $"with Location '{signInPage.Headers.Location}'.");
 
+        using var signedOutPage = await client.GetAsync("/Account/SignIn?signedOut=true");
+        signedOutPage.EnsureSuccessStatusCode();
+        Assert.Contains(
+            "You are signed out",
+            await signedOutPage.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+
         using var deniedResponse = await client.PostAsync(
             "/Account/SignIn",
             CreateSignInForm(ReadAntiforgeryToken(signInHtml), "incorrect password"));

@@ -558,6 +558,7 @@ public sealed class ProcessQueuedIntake(
     SubmitMailboxImageIntake? mailboxImageIntake = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
+    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan[] RetryDelays =
     [
@@ -572,11 +573,15 @@ public sealed class ProcessQueuedIntake(
         Guid stagedReceiptId,
         CancellationToken cancellationToken = default)
     {
-        var claimed = await workStore.ClaimProcessingAsync(
-            stagedReceiptId,
-            timeProvider.GetUtcNow(),
-            ProcessingLeaseDuration,
-            cancellationToken);
+        (IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)? claimed;
+        using (StartStage("queue_claim"))
+        {
+            claimed = await workStore.ClaimProcessingAsync(
+                stagedReceiptId,
+                timeProvider.GetUtcNow(),
+                ProcessingLeaseDuration,
+                cancellationToken);
+        }
         if (claimed is null)
         {
             var completedEvaluation = await workStore.GetCompletedEvaluationAsync(
@@ -669,36 +674,44 @@ public sealed class ProcessQueuedIntake(
         var mailboxImagesHandled = false;
         try
         {
-            var content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
-                ?? throw new IntakeArtifactIntegrityException();
-            var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-            if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
+            ReadOnlyMemory<byte> content;
+            string durableStorageKey;
+            using (StartStage("artifact_read_and_retain"))
             {
-                throw new IntakeArtifactIntegrityException();
-            }
+                content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
+                    ?? throw new IntakeArtifactIntegrityException();
+                var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
+                if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
+                {
+                    throw new IntakeArtifactIntegrityException();
+                }
 
-            var durableStorageKey = await artifactStore.StoreAsync(
-                stagedReceipt.SourceHash,
-                content,
-                cancellationToken);
+                durableStorageKey = await artifactStore.StoreAsync(
+                    stagedReceipt.SourceHash,
+                    content,
+                    cancellationToken);
+            }
             // Mirrors the terminal check below: once this attempt is the last
             // one the retry schedule allows, a transient reader fault must be
             // recorded as a terminal technical-failure receipt (and registered
             // Unidentified) here rather than deferred to a retry that will
             // never happen.
             var isFinalAttempt = workItem.AttemptCount >= RetryDelays.Length;
-            processed = await processIntake.ExecuteRetainedAsync(
-                new(
-                    stagedReceipt.SourceFileName,
-                    stagedReceipt.MediaType,
-                    content,
-                    stagedReceipt.ReceivedAtUtc,
-                    stagedReceipt.Actor,
-                    stagedReceipt.SourceIdentity),
-                durableStorageKey,
-                workItem.IsReevaluation,
-                isFinalAttempt,
-                cancellationToken);
+            using (StartStage("source_read_and_process"))
+            {
+                processed = await processIntake.ExecuteRetainedAsync(
+                    new(
+                        stagedReceipt.SourceFileName,
+                        stagedReceipt.MediaType,
+                        content,
+                        stagedReceipt.ReceivedAtUtc,
+                        stagedReceipt.Actor,
+                        stagedReceipt.SourceIdentity),
+                    durableStorageKey,
+                    workItem.IsReevaluation,
+                    isFinalAttempt,
+                    cancellationToken);
+            }
             if (mailboxImageIntake is not null)
             {
                 mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
@@ -748,27 +761,31 @@ public sealed class ProcessQueuedIntake(
             stagedReceipt.StorageKey,
             cancellationToken);
 
-        var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
-        if (associated)
+        TriageCreationOutcome triage;
+        using (StartStage("association_and_allocation"))
         {
-            processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
-        }
-        if (await AssociateRetainedMailAsync(processed, cancellationToken))
-        {
-            processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
-        }
+            var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
+            if (associated)
+            {
+                processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+            }
+            if (await AssociateRetainedMailAsync(processed, cancellationToken))
+            {
+                processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+            }
 
-        var allocation = await allocateIntake.AttemptAutomaticAsync(
-            processed.Id,
-            evaluation.Id,
-            cancellationToken);
-        var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-        var triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
-        if (allocated)
-        {
-            // Allocation wrote CurrentCaseId durably; image automation must
-            // see the associated state rather than attempt a conflicting link.
-            processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+            var allocation = await allocateIntake.AttemptAutomaticAsync(
+                processed.Id,
+                evaluation.Id,
+                cancellationToken);
+            var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
+            triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+            if (allocated)
+            {
+                // Allocation wrote CurrentCaseId durably; image automation must
+                // see the associated state rather than attempt a conflicting link.
+                processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+            }
         }
 
         var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
@@ -786,6 +803,13 @@ public sealed class ProcessQueuedIntake(
         return triage == TriageCreationOutcome.Failed
             ? QueuedIntakeProcessingOutcome.RetryScheduled
             : QueuedIntakeProcessingOutcome.Completed;
+    }
+
+    private static Activity? StartStage(string stage)
+    {
+        var activity = Telemetry.StartActivity($"intake.{stage}", ActivityKind.Internal);
+        activity?.SetTag("intake.stage", stage);
+        return activity;
     }
 
     /// <summary>

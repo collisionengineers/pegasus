@@ -1,4 +1,4 @@
-using Pegasus.Core.AiWork;
+﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -54,6 +54,7 @@ public static class DependencyInjection
             configureDatabase(serviceProvider, options);
         });
 
+        services.AddLogging();
         services.AddSingleton(TimeProvider.System);
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
@@ -160,6 +161,8 @@ public static class DependencyInjection
         // Infrastructure.
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
+        services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
+        services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
@@ -188,10 +191,22 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
+        services.AddScoped<EfPrincipalCredentialStore>();
+        services.AddScoped<IPrincipalCredentialStore>(
+            provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
+        services.AddScoped<IPrincipalCredentialQueries>(
+            provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
+        services.AddScoped<IIssuePrincipalCredential, IssuePrincipalCredential>();
+        services.AddScoped<IPausePrincipalCredential, PausePrincipalCredential>();
+        services.AddScoped<IResumePrincipalCredential, ResumePrincipalCredential>();
+        services.AddScoped<IRevokePrincipalCredential, RevokePrincipalCredential>();
+        services.AddScoped<IGetPrincipalCredential, GetPrincipalCredential>();
+        services.AddScoped<IAuthenticatePrincipalCredential, AuthenticatePrincipalCredential>();
         services.AddScoped<ICreateOrganization, CreateOrganization>();
         services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
+        services.AddScoped<IUpdatePrincipalEvaSubmission, UpdatePrincipalEvaSubmission>();
         services.AddScoped<IListOrganizations, ListOrganizations>();
         services.AddScoped<IGetOrganization, GetOrganization>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
@@ -219,6 +234,8 @@ public static class DependencyInjection
         services.AddScoped<IAutomaticVehicleLookupStore>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
+        services.AddScoped<IAutomaticEvaSubmissionStore, EfAutomaticEvaSubmissionStore>();
+        services.AddScoped<ReconcileAutomaticEvaSubmissions>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
@@ -237,6 +254,9 @@ public static class DependencyInjection
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
+        services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
+        services.AddScoped<GetEngineerActivityReport>();
         services.AddScoped<EfWorkflowConfigurationStore>();
         services.AddScoped<IWorkflowConfigurationStore>(
             provider => provider.GetRequiredService<EfWorkflowConfigurationStore>());
@@ -252,6 +272,7 @@ public static class DependencyInjection
         services.AddScoped<IApprovedIntakeMailboxes>(
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());
         services.AddScoped<IApprovedMailboxPollStatusQueries, EfApprovedMailboxPollStatusQueries>();
+        services.AddScoped<IApprovedMailboxSubscriptionStore, EfApprovedMailboxSubscriptionStore>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
         services.AddScoped<EfApprovedOutlookCategoryStore>();
@@ -274,6 +295,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
+        services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -293,6 +315,14 @@ public static class DependencyInjection
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
+        // the import dialog selects the parser by the chosen source route.
+        services.AddSingleton<JsonEstimateParser>();
+        services.AddScoped<ISaveEstimate, SaveEstimate>();
+        services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
+        services.AddScoped<IDiscardEstimate, DiscardEstimate>();
+        services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
+        services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();
@@ -302,6 +332,13 @@ public static class DependencyInjection
         services.AddScoped<ISaveAssessment, SaveAssessment>();
         services.AddScoped<IAiWorkRequestStore, EfAiWorkRequestStore>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
+        services.AddScoped<EfAiJobStore>();
+        services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
+        services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
+        services.AddScoped<ICreateAiJob, CreateAiJob>();
+        services.AddScoped<IWorkAiJob, WorkAiJob>();
+        services.AddScoped<ICancelAiJob, CancelAiJob>();
+        services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
             provider => provider.GetRequiredService<EfCaseTaskStore>());
@@ -389,6 +426,9 @@ public static class DependencyInjection
             services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
             services.AddScoped<ProcessIntake>();
 
+            // Shared by both EVA routes so the archive and the API submission
+            // cannot state the same case differently.
+            services.AddScoped<EvaCaseImageReader>();
             services.AddScoped<EvaHandoffStore>();
             services.AddScoped<IExportCaseBundle>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
@@ -455,12 +495,6 @@ public static class DependencyInjection
             provider.GetRequiredService<LocalApprovedInboxOptions>());
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
-        // Only a polling composition carries the configuration fallback; Web reads the
-        // estate as saved and never borrows a mailbox identity from configuration. The
-        // fallback reports an unidentified mailbox by address, so it needs logging even
-        // in a host that composed none.
-        services.AddLogging();
-        services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
         services.AddScoped<IRetainedMailboxMessageStore>(
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
@@ -548,6 +582,46 @@ public static class DependencyInjection
     }
 
     /// <summary>
+    /// EXT-04: the EVA API submission route.
+    ///
+    /// Composed separately from the document surface and from the other
+    /// external adapters, because it is the one route that is switched on per
+    /// principal rather than per deployment. A host that does not call this
+    /// has no <see cref="ISubmitCaseToEva"/> at all, which is the honest
+    /// shape: the case page then offers only the export, and a principal's
+    /// toggles are unreachable rather than half-working.
+    ///
+    /// The options come through a factory rather than a value so they are
+    /// parsed at first use. Parsing at host build is what crash-looped the
+    /// worker when the platform handed over an unresolved Key Vault reference
+    /// (PLAT-013), and EVA's credentials arrive by exactly that route.
+    /// </summary>
+    public static IServiceCollection AddEvaApiSubmission(
+        this IServiceCollection services,
+        Func<IServiceProvider, EvaApiOptions> optionsFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(optionsFactory);
+
+        services.AddSingleton(optionsFactory);
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<EvaApiOptions>().Instruction);
+        services.TryAddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton<IEvaApiTransport>(provider => new EvaApiTransport(
+            provider.GetRequiredService<EvaApiOptions>(),
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddScoped<EvaSubmissionStore>();
+        services.AddScoped<ISubmitCaseToEva>(provider =>
+            provider.GetRequiredService<EvaSubmissionStore>());
+        services.AddScoped<IEvaSubmissionWorkStore, EfEvaSubmissionWorkStore>();
+        return services;
+    }
+
+    /// <summary>
     /// The mailbox and vehicle-lookup adapters. Box custody is not registered here —
     /// it belongs to the storage profile (<see cref="AddProductionBoxCustody"/>) so a
     /// host can compose custody without also composing mailbox polling.
@@ -573,16 +647,11 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<HttpClient>()));
+        services.AddSingleton<GraphMailboxChangeSubscriptions>();
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
         services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
-        // Only a polling composition carries the configuration fallback; Web reads the
-        // estate as saved and never borrows a mailbox identity from configuration. The
-        // fallback reports an unidentified mailbox by address, so it needs logging even
-        // in a host that composed none.
-        services.AddLogging();
-        services.AddScoped<IApprovedIntakeMailboxes, ConfiguredApprovedIntakeMailboxes>();
         services.AddScoped<IRetainedMailboxMessageStore>(
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();

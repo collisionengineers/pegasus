@@ -666,12 +666,14 @@ public sealed class EfCaseAcceptanceStore(
                 .Select(role => role.ToString())
                 .ToArray());
 
+    // EF's non-retrying strategy wraps a deadlock two layers deep, so unwrap
+    // every layer, as EfIntakeReceiptStore does (INTK-044).
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {
         DbUpdateConcurrencyException => true,
         SqlException { Number: 1205 or 2601 or 2627 } => true,
-        DbUpdateException { InnerException: { } innerException } =>
-            IsRetryableConcurrencyFailure(innerException),
+        _ when exception.InnerException is not null =>
+            IsRetryableConcurrencyFailure(exception.InnerException),
         _ => false
     };
 }

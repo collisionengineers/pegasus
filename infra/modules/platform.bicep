@@ -1,4 +1,4 @@
-param location string
+﻿param location string
 param tags object
 param sqlAdministratorObjectId string
 param sqlAdministratorLogin string
@@ -14,6 +14,7 @@ param webRevisionSuffix string
 param graphMailboxId string
 param graphInboxFolderId string
 param graphSentFolderId string
+param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
 param automationMcpClientSecretUri string
@@ -24,9 +25,18 @@ param dvsaClientSecretSecretUri string
 param dvsaApiKeySecretUri string
 param dvsaTokenUri string
 param dvsaScope string
+// EXT-04. EVA serves test and live from one host, so the environment is
+// decided entirely by which credential pair these two URIs resolve to.
+param evaClientIdSecretUri string
+param evaClientSecretSecretUri string
+param evaBaseUri string
+param evaRequestFrom string
+param evaInspectionType string
+param evaInstructionEmail string
 
 var suffix = take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
+var telemetryDailyCapGb = json('0.5')
 var transportStorageName = 'pegtrans${suffix}'
 var custodyStorageName = 'pegcustody${suffix}'
 var keyVaultName = 'pegasusprodkv${take(suffix, 8)}'
@@ -51,6 +61,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   properties: {
     sku: { name: 'PerGB2018' }
     retentionInDays: 31
+    workspaceCapping: { dailyQuotaGb: telemetryDailyCapGb }
   }
 }
 
@@ -63,6 +74,18 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalytics.id
     DisableLocalAuth: true
+  }
+}
+
+// MAIL-020: one number governs the component and workspace daily caps.
+resource applicationInsightsDailyCap 'Microsoft.Insights/components/pricingPlans@2017-10-01' = {
+  parent: applicationInsights
+  name: 'current'
+  properties: {
+    planType: 'Basic'
+    cap: telemetryDailyCapGb
+    warningThreshold: 90
+    stopSendNotificationWhenHitCap: false
   }
 }
 
@@ -140,16 +163,6 @@ resource intakeQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@202
 resource intakePoisonQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
   parent: transportQueueService
   name: 'intake-work-poison'
-}
-
-resource externalQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
-  parent: transportQueueService
-  name: 'external-work'
-}
-
-resource externalPoisonQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
-  parent: transportQueueService
-  name: 'external-work-poison'
 }
 
 resource custodyStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -328,12 +341,6 @@ resource webIntakeQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: { roleDefinitionId: queueDataMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
-resource webExternalQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(externalQueue.id, webIdentity.id, queueDataMessageSenderRole)
-  scope: externalQueue
-  properties: { roleDefinitionId: queueDataMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
-}
-
 resource workerTransientCustodyOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(transientIntakeContainer.id, workerIdentity.id, blobDataOwnerRole)
   scope: transientIntakeContainer
@@ -408,6 +415,21 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
           keyVaultUrl: automationMcpClientSecretUri
           identity: webIdentity.id
         }
+        {
+          name: 'graph-change-notification-client-state'
+          keyVaultUrl: graphChangeNotificationClientStateSecretUri
+          identity: webIdentity.id
+        }
+        {
+          name: 'eva-client-id'
+          keyVaultUrl: evaClientIdSecretUri
+          identity: webIdentity.id
+        }
+        {
+          name: 'eva-client-secret'
+          keyVaultUrl: evaClientSecretSecretUri
+          identity: webIdentity.id
+        }
       ]
     }
     template: {
@@ -429,13 +451,14 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
             { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
             { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
-            { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
             { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
             { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
             // Mailbox administration's "add an address" resolve port alone (MAIL-002):
             // Web never polls a mailbox, so no Graph__MailboxId/InboxFolderId/SentFolderId
             // here — only the base URI, matching the Worker's Graph__BaseUri exactly.
             { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
+            { name: 'Graph__TenantId', value: tenant().tenantId }
+            { name: 'Graph__ChangeNotificationClientState', secretRef: 'graph-change-notification-client-state' }
             { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
             { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
             { name: 'Box__RootFolderId', value: '405543781910' }
@@ -444,6 +467,12 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Features__AutomationMcp', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
+            { name: 'Eva__ClientId', secretRef: 'eva-client-id' }
+            { name: 'Eva__ClientSecret', secretRef: 'eva-client-secret' }
+            { name: 'Eva__BaseUri', value: evaBaseUri }
+            { name: 'Eva__RequestFrom', value: evaRequestFrom }
+            { name: 'Eva__InspectionType', value: evaInspectionType }
+            { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
             { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
           ]
@@ -489,7 +518,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
       }
     }
   }
-  dependsOn: [webRegistryPull, webTelemetryPublisher, webIntakeQueueSender, webExternalQueueSender]
+  dependsOn: [webRegistryPull, webTelemetryPublisher, webIntakeQueueSender]
 }
 
 resource functionPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
@@ -521,7 +550,16 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         }
       }
       runtime: { name: 'dotnet-isolated', version: '10.0' }
-      scaleAndConcurrency: { maximumInstanceCount: 20, instanceMemoryMB: 2048 }
+      scaleAndConcurrency: {
+        maximumInstanceCount: 20
+        instanceMemoryMB: 2048
+        alwaysReady: [
+          {
+            name: 'function:UnifiedWorkFunction'
+            instanceCount: 1
+          }
+        ]
+      }
     }
     siteConfig: {
       ftpsState: 'Disabled'
@@ -534,22 +572,19 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'AzureIdentity__WorkerClientId', value: workerIdentity.properties.clientId }
         { name: 'IntakeStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
-        { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         // Recovery only: every committing caller attempts exact-ID publication.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
-        { name: 'ApprovedInboxPollSchedule', value: '*/15 * * * * *' }
+        { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.IntakeWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.IntakePoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.InboxPollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.InboxRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.SentEvidencePollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.DueWorkSweepFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.ExternalWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.ExternalPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${workerIdentity.properties.clientId}' }
         { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
@@ -562,6 +597,9 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Graph__MailboxAddress', value: 'instructions@collisionengineers.co.uk' }
         { name: 'Graph__InboxFolderId', value: graphInboxFolderId }
         { name: 'Graph__SentFolderId', value: graphSentFolderId }
+        { name: 'Graph__TenantId', value: tenant().tenantId }
+        { name: 'Graph__ChangeNotificationUrl', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/hooks/microsoft-graph/mail' }
+        { name: 'Graph__ChangeNotificationClientState', value: '@Microsoft.KeyVault(SecretUri=${graphChangeNotificationClientStateSecretUri})' }
         { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
         { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
         { name: 'Box__RootFolderId', value: '405543781910' }
@@ -573,6 +611,12 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Dvsa__TokenUri', value: dvsaTokenUri }
         { name: 'Dvsa__ClientId', value: '@Microsoft.KeyVault(SecretUri=${dvsaClientIdSecretUri})' }
         { name: 'Dvsa__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${dvsaClientSecretSecretUri})' }
+        { name: 'Eva__ClientId', value: '@Microsoft.KeyVault(SecretUri=${evaClientIdSecretUri})' }
+        { name: 'Eva__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${evaClientSecretSecretUri})' }
+        { name: 'Eva__BaseUri', value: evaBaseUri }
+        { name: 'Eva__RequestFrom', value: evaRequestFrom }
+        { name: 'Eva__InspectionType', value: evaInspectionType }
+        { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
         { name: 'Dvsa__ApiKey', value: '@Microsoft.KeyVault(SecretUri=${dvsaApiKeySecretUri})' }
         { name: 'Dvsa__Scope', value: dvsaScope }
       ]

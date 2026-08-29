@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -99,7 +99,17 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260825001401_RemoveWorkflowCompletenessWaivers",
                 "20260825105037_AssessmentAccessExportVersion",
                 "20260825121453_GrantWorkerImageIntakeLifecycleEvents",
-                "20260825145216_MailboxImageIntake"
+                "20260825145216_MailboxImageIntake",
+                "20260826151807_ApprovedMailboxStableIdentityAndSubscriptions",
+                "20260827100901_ReactivateBoundApprovedMailboxes",
+                "20260827143132_EvaApiSubmissions",
+                "20260827143200_GrantEvaSubmissions",
+                "20260828084601_AiJobs",
+                "20260828084644_GrantAiJobs",
+                "20260828104130_PrincipalApiCredentials",
+                "20260828104139_GrantPrincipalApiCredentials",
+                "20260828110108_CaseEditLeaseHolderKind",
+                "20260828112103_NamedEstimates"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -201,6 +211,62 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
+    }
+
+    [Fact]
+    public async Task StableMailboxMigrationPreservesRetainedEvidenceAndRestrictiveDependants()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync("20260825145216_MailboxImageIntake");
+
+        var mailboxId = Guid.Parse("49f47eb9-c5b0-464f-b8f0-8c90ba061728");
+        var messageId = Guid.NewGuid();
+        var attachmentId = Guid.NewGuid();
+        var moveId = Guid.NewGuid();
+        var poisonId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes SET MailboxIdentity = 'legacy-graph', InboxFolderIdentity = 'inbox'
+            WHERE Id = '{mailboxId:D}';
+            INSERT INTO ApprovedInboxPollStates (MailboxId, MailboxAddress, [Cursor], DueAtUtc)
+            VALUES ('legacy-graph', 'instructions@collisionengineers.co.uk', 'retained-cursor', '2031-05-06T10:30:00+00:00');
+            INSERT INTO ApprovedInboxPoisonMessages
+                (Id, MailboxId, OccurrenceKey, ImmutableMessageId, FileName, ReceivedAtUtc, FailureCode, CursorAfterMessage, QuarantinedAtUtc)
+            VALUES
+                ('{poisonId:D}', 'legacy-graph', '{new string('a', 64)}', 'poison-message', 'poison.eml', '2031-05-06T10:30:00+00:00', 'fixture', 'cursor-after', '2031-05-06T10:31:00+00:00');
+            INSERT INTO RetainedMailboxMessages
+                (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ExternalReceiptToken,
+                 ToAddressesJson, CcAddressesJson, IsRead, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc)
+            VALUES
+                ('{messageId:D}', 'legacy-graph', 'instructions@collisionengineers.co.uk', 'inbox', 'inbox', 'retained-message',
+                 'retained-token', '[]', '[]', 0, 10, '{new string('b', 64)}', '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00');
+            INSERT INTO RetainedMailboxAttachments
+                (Id, RetainedMailboxMessageId, Ordinal, FileName, MediaType, ContentLength)
+            VALUES ('{attachmentId:D}', '{messageId:D}', 0, 'evidence.pdf', 'application/pdf', 10);
+            INSERT INTO RetainedMailFolderMoves
+                (Id, RetainedMailboxMessageId, OperationKey, RequestHash, ExpectedClassificationVersion,
+                 ExpectedRecommendationPolicyKey, ExpectedRecommendationPolicyVersion, ExpectedMailboxVersion,
+                 MailboxId, ImmutableMessageId, SourceFolderId, DestinationFolderId, FolderType, Actor,
+                 ActorRolesJson, Reason, Outcome, RecordedAtUtc)
+            VALUES
+                ('{moveId:D}', '{messageId:D}', '{Guid.NewGuid():D}', '{new string('c', 64)}', 1,
+                 'fixture-policy', 1, 1, 'legacy-graph', 'retained-message', 'inbox', 'processed', 'Processed',
+                 'system:fixture', '[]', 'fixture', 'pending', '2031-05-06T10:32:00+00:00');
+            """);
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
+            $"SELECT MailboxId FROM RetainedMailboxMessages WHERE Id = '{messageId:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM RetainedMailboxAttachments WHERE RetainedMailboxMessageId = '{messageId:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM RetainedMailFolderMoves WHERE RetainedMailboxMessageId = '{messageId:D}'"));
+        Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
+            "SELECT ApprovedMailboxId FROM ApprovedInboxPollStates"));
+        Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
+            "SELECT ApprovedMailboxId FROM ApprovedInboxPoisonMessages"));
     }
 
     /// <remarks>
@@ -465,7 +531,12 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         var builder = new SqlConnectionStringBuilder
         {
             InitialCatalog = databaseName,
-            ConnectTimeout = 15,
+            // Four parallel collections (xunit.runner.json) drive DDL against
+            // one LocalDB instance, so an ordinary open queues behind it: CI
+            // measured 13999-14014 ms against the previous 15s budget. 60s
+            // clears that and still fails a wedged instance inside the
+            // 20-minute job timeout (DELIV-031).
+            ConnectTimeout = 60,
             MultipleActiveResultSets = true
         };
 
@@ -697,7 +768,27 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 $"DROP DATABASE [{DatabaseName}]; END";
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
             drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
-            await drop.ExecuteNonQueryAsync();
+
+            // CI hit 5061 here -- "a lock could not be placed ... Try again
+            // later" -- with a parallel collection holding the instance.
+            // Retry is the documented remedy; 10s of backoff, then the fifth
+            // attempt rethrows (DELIV-031).
+            const int lockNotPlacedErrorNumber = 5061;
+            const int maximumAttempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await drop.ExecuteNonQueryAsync();
+                    break;
+                }
+                catch (SqlException exception)
+                    when (exception.Number == lockNotPlacedErrorNumber
+                        && attempt < maximumAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(attempt));
+                }
+            }
         }
 
         await using var verify = connection.CreateCommand();

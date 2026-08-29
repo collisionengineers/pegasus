@@ -1,0 +1,29 @@
+@*
+    CASE-024: the form an open editor beats to keep its own lease alive, so a
+    real editing session is never timed out mid-edit.
+
+    It is a real posted form rather than a scripted request so its antiforgery
+    token rides in the FormData, exactly as the upload enhancement does; there
+    is no second antiforgery mechanism. Without script it does nothing and is
+    never submitted - the visible "Renew editing" button is the no-script path.
+
+    The interval is rendered from the one Core value; the script keeps no copy.
+*@
+@using Pegasus.Core.Workflow
+@{
+    var heartbeatCaseId = ViewData["HeartbeatCaseId"];
+    var heartbeatLeaseToken = ViewData["HeartbeatLeaseToken"] as string;
+}
+@if (heartbeatCaseId is not null && !string.IsNullOrWhiteSpace(heartbeatLeaseToken))
+{
+    @* No asp-page: it posts to whichever page rendered it, so the workspace and
+       the assessment share one partial and each answers its own handler. *@
+    <form method="post"
+          asp-page-handler="HeartbeatLease"
+          data-edit-heartbeat
+          data-heartbeat-seconds="@((int)CaseEditAuthority.HeartbeatInterval.TotalSeconds)"
+          hidden>
+        <input type="hidden" name="id" value="@heartbeatCaseId" />
+        <input type="hidden" name="editLeaseToken" value="@heartbeatLeaseToken" />
+    </form>
+}

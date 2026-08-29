@@ -113,10 +113,11 @@ queue claim, source reading, identification, classification, extraction,
 association/allocation, case creation, custody hand-off, and terminal state.
 Those timings contain identifiers and bounded outcome data, never source
 content. From durable receipt, ordinary supported QDOS email and manual-upload
-work reaches Complete with its case destination, or its truthful terminal
-non-case outcome, within ten seconds at p95. A large, retrying, or legitimately
-incomplete item remains Received or Processing with no older terminal outcome
-projected over it.
+work reaches its case destination, or its truthful terminal non-case outcome,
+within five seconds at p95. Case custody confirmation is measured as the final
+best-effort segment and any Box/provider delay is attributed separately. A
+large, retrying, or legitimately incomplete item remains Received or Processing
+with no older terminal outcome projected over it.
 
 ### Mandatory pre-case gates
 
@@ -364,3 +365,5 @@ non-probabilistic range and never defaults into the Case.
 Definitive authorised intake creates exactly one instructed Case idempotently. A definitive match to an existing instructed Case allocates no duplicate. A new instructed Case enters `Not ready` until its ordinary business detail, required source images, and applicable progression requirements are satisfied; the route may move it to `Review` only when its explicit policy permits that transition. The allocation decision adds no universal manual acceptance gate.
 
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
+
+Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does, and so does the Image-initiated Case merge transition.

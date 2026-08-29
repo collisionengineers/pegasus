@@ -176,6 +176,11 @@ public sealed class AssignCaseEngineerTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task ReleaseAsync(
             ReleaseCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>

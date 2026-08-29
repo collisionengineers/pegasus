@@ -54,6 +54,18 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "queue")]
     public string? QueueFilter { get; set; }
 
+    /// <summary>The Unread scope of the list this message was opened from.</summary>
+    [BindProperty(SupportsGet = true, Name = "unread")]
+    public string? UnreadFilter { get; set; }
+
+    /// <summary>The list's sort toggle state this message was opened from.</summary>
+    [BindProperty(SupportsGet = true, Name = "sort")]
+    public string? SortOrder { get; set; }
+
+    public bool UnreadOnly { get; private set; }
+
+    public bool OldestFirst { get; private set; }
+
     private MailOperationalDestination? DestinationFilter { get; set; }
 
     private MailCategory? DetailedClassificationFilter { get; set; }
@@ -504,7 +516,9 @@ public sealed class MessageModel(
             folder = FolderFilter,
             pageNumber = PageNumber,
             search = SearchTerm,
-            queue = QueueFilter
+            queue = QueueFilter,
+            unread = UnreadOnly ? "true" : null,
+            sort = OldestFirst ? "oldest" : null
         });
     }
 
@@ -551,7 +565,9 @@ public sealed class MessageModel(
                 folder = FolderFilter,
                 pageNumber = PageNumber,
                 search = SearchTerm,
-                queue = QueueFilter
+                queue = QueueFilter,
+                unread = UnreadOnly ? "true" : null,
+                sort = OldestFirst ? "oldest" : null
             });
         }
         catch (StaffAuthorizationException)
@@ -676,6 +692,8 @@ public sealed class MessageModel(
         pageNumber = PageNumber,
         search = SearchTerm,
         queue = QueueFilter,
+        unread = UnreadOnly ? "true" : null,
+        sort = OldestFirst ? "oldest" : null,
         section = "case"
     });
 
@@ -688,6 +706,8 @@ public sealed class MessageModel(
             pageNumber = PageNumber,
             search = SearchTerm,
             queue = QueueFilter,
+            unread = UnreadOnly ? "true" : null,
+            sort = OldestFirst ? "oldest" : null,
             section = "case",
             caseQuery = CaseQuery,
             targetCaseId = caseId
@@ -896,13 +916,24 @@ public sealed class MessageModel(
             && detail.Summary.CurrentFolderType is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
-                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
+                && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
             || !MatchesQueue(detail.Classification);
 
-    private bool TryParseListContext(out MailFolderScope listFolder) =>
-        IndexModel.TryParseFolder(FolderFilter, out listFolder)
-        && ParseQueueFilter(listFolder);
+    private bool TryParseListContext(out MailFolderScope listFolder)
+    {
+        if (!IndexModel.TryParseFolder(FolderFilter, out listFolder)
+            || !ParseQueueFilter(listFolder)
+            || !IndexModel.TryParseUnread(UnreadFilter, listFolder, out var unreadOnly)
+            || !IndexModel.TryParseSort(SortOrder, out var oldestFirst))
+        {
+            return false;
+        }
+
+        UnreadOnly = unreadOnly;
+        OldestFirst = oldestFirst;
+        return true;
+    }
 
     private bool ParseQueueFilter(MailFolderScope listFolder)
     {

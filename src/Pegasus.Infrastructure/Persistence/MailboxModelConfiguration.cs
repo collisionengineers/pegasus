@@ -9,20 +9,23 @@ internal static class MailboxModelConfiguration
         builder.Entity<ApprovedInboxPollStateEntity>(entity =>
         {
             entity.ToTable("ApprovedInboxPollStates");
-            entity.HasKey(item => item.MailboxId);
-            entity.Property(item => item.MailboxId).HasMaxLength(100);
+            entity.HasKey(item => item.ApprovedMailboxId);
             entity.Property(item => item.MailboxAddress).HasMaxLength(320).IsRequired();
+            entity.Property(item => item.ScopeFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.LeaseToken).HasMaxLength(64);
             entity.Property(item => item.LastFailureCode).HasMaxLength(100);
             entity.HasIndex(item => item.MailboxAddress).IsUnique();
-            entity.HasIndex(item => new { item.DueAtUtc, item.MailboxId }).IsDescending(true, false);
+            entity.HasIndex(item => new { item.DueAtUtc, item.ApprovedMailboxId }).IsDescending(true, false);
+            entity.HasOne(item => item.ApprovedMailbox)
+                .WithOne()
+                .HasForeignKey<ApprovedInboxPollStateEntity>(item => item.ApprovedMailboxId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<ApprovedInboxPoisonMessageEntity>(entity =>
         {
             entity.ToTable("ApprovedInboxPoisonMessages");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.MailboxId).HasMaxLength(100).IsRequired();
             entity.Property(item => item.OccurrenceKey).HasMaxLength(64).IsRequired();
             entity.Property(item => item.ImmutableMessageId).IsRequired();
             entity.Property(item => item.FileName).IsRequired();
@@ -32,11 +35,11 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.StorageKey).HasMaxLength(200);
             entity.Property(item => item.FailureCode).HasMaxLength(100).IsRequired();
             entity.Property(item => item.CursorAfterMessage).IsRequired();
-            entity.HasIndex(item => new { item.MailboxId, item.OccurrenceKey }).IsUnique();
+            entity.HasIndex(item => new { item.ApprovedMailboxId, item.OccurrenceKey }).IsUnique();
             entity.HasIndex(item => new { item.QuarantinedAtUtc, item.Id }).IsDescending(true, false);
             entity.HasOne<ApprovedInboxPollStateEntity>()
                 .WithMany()
-                .HasForeignKey(item => item.MailboxId)
+                .HasForeignKey(item => item.ApprovedMailboxId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -44,7 +47,6 @@ internal static class MailboxModelConfiguration
         {
             entity.ToTable("RetainedMailboxMessages");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.MailboxId).HasMaxLength(100).IsRequired();
             entity.Property(item => item.MailboxAddress).HasMaxLength(320).IsRequired();
             entity.Property(item => item.FolderScope).HasMaxLength(40).IsRequired();
             entity.Property(item => item.FolderIdentity).HasMaxLength(500).IsRequired();

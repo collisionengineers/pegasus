@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
@@ -46,8 +48,13 @@ public sealed partial class OperationsWebTests
         Assert.Contains("Operations", html, StringComparison.Ordinal);
         Assert.Contains("Attention required", html, StringComparison.Ordinal);
         Assert.Contains("Active upload links", html, StringComparison.Ordinal);
-        Assert.Contains("AI operations", html, StringComparison.Ordinal);
-        Assert.Contains("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
+        // The AI Job List is PLAT-049's to add; until it is composed it is
+        // absent, not announced by a placeholder section.
+        Assert.DoesNotContain("AI operations", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
+        // This host does not compose the service-health snapshot (it rides
+        // the Automation Actor composition), so the section is absent too.
+        Assert.DoesNotContain("Service health", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Automation MCP", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Send-to-AI transport", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Box file request", html, StringComparison.Ordinal);
@@ -56,6 +63,42 @@ public sealed partial class OperationsWebTests
         Assert.DoesNotContain("/Operations/Requests", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/Operations/Email", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Received through API", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComposedServiceHealthRenamesInternalVocabularyAndRetriesThroughTheCanonicalCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        using var factory = Configure(baseFactory, store, withServiceHealth: true);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Contains("Service health", html, StringComparison.Ordinal);
+        Assert.Contains("Receiving dispatch", html, StringComparison.Ordinal);
+        Assert.Contains("Automation clients", html, StringComparison.Ordinal);
+        // The Core service names carry internal vocabulary; the operator
+        // never reads it.
+        Assert.DoesNotContain("Intake dispatch", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Automation ingress", html, StringComparison.Ordinal);
+        // The retryable custody failure is one row, and its control is the
+        // same RetryExternal command the Attention required table carries.
+        Assert.Contains("Vehicle lookup", html, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync(
+            "/Operations?handler=RetryExternal",
+            Form(
+                AntiforgeryValue(html),
+                ("workItemId", store.ExternalWorkId.ToString("D")),
+                ("expectedAttemptCount", store.ExternalAttemptCount.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", OperationKeyValue(html))));
+
+        AssertPrg(response, "/Operations");
+        var command = Assert.IsType<RetryExternalWorkCommand>(store.ExternalRetry);
+        Assert.Equal(store.ExternalWorkId, command.WorkItemId);
+        Assert.Equal(store.ExternalAttemptCount, command.ExpectedAttemptCount);
+        Assert.Equal(ActorKind.Staff, command.Actor.Kind);
     }
 
     [Fact]
@@ -113,7 +156,8 @@ public sealed partial class OperationsWebTests
 
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
-        RecordingOperationsStore store) => baseFactory.WithWebHostBuilder(builder =>
+        RecordingOperationsStore store,
+        bool withServiceHealth = false) => baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IEmailOperationsProjectionStore>();
@@ -130,6 +174,23 @@ public sealed partial class OperationsWebTests
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IReleaseCaseEditLease>(store);
                 services.AddSingleton<IRevokeRequestUploadLink>(store);
+                if (withServiceHealth)
+                {
+                    // The snapshot rides the Automation Actor composition in
+                    // production; here it is composed by hand over the same
+                    // recording store so the retry identity is shared.
+                    services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>(_ =>
+                        new Pegasus.Core.Operations.GetServiceHealth(
+                            new NoMailboxPolls(),
+                            new NoServiceHealthFacts(),
+                            new GetRequestOperations(store, TimeProvider.System),
+                            new NoEvaSubmissions(),
+                            new NoAiJobs(),
+                            new DisabledSendToAi(),
+                            new DisabledAutomationIngress(),
+                            new NoAutomationActivity(),
+                            TimeProvider.System));
+                }
             }));
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -206,6 +267,7 @@ public sealed partial class OperationsWebTests
         public RevokeRequestUploadLinkCommand? PegasusRevoke { get; private set; }
         private bool LeaseIsActive { get; set; }
         private string? LeaseHolder { get; set; }
+        private ActorKind? LeaseHolderKind { get; set; }
         public string? LeaseOperationKey { get; private set; }
 
         public Task<EmailOperationsProjection> GetAsync(
@@ -262,6 +324,7 @@ public sealed partial class OperationsWebTests
         {
             LeaseIsActive = true;
             LeaseHolder = request.Actor.SubjectId;
+            LeaseHolderKind = request.Actor.Kind;
             LeaseOperationKey = request.OperationKey;
             return Task.FromResult(new CaseEditLease(
                 request.CaseId,
@@ -277,6 +340,7 @@ public sealed partial class OperationsWebTests
         {
             LeaseIsActive = false;
             LeaseHolder = null;
+            LeaseHolderKind = null;
             LeaseOperationKey = null;
             return Task.CompletedTask;
         }
@@ -288,6 +352,7 @@ public sealed partial class OperationsWebTests
             PegasusRevoke = command;
             LeaseIsActive = false;
             LeaseHolder = null;
+            LeaseHolderKind = null;
             LeaseOperationKey = null;
             return Task.CompletedTask;
         }
@@ -355,9 +420,100 @@ public sealed partial class OperationsWebTests
                 ActiveEditLease = LeaseIsActive
                     ? new CaseEditLeaseSnapshot(
                         LeaseHolder!,
+                        LeaseHolderKind,
                         FixedUtcNow.AddMinutes(5),
                         LeaseOperationKey!)
                     : null
             };
+    }
+
+    /// <summary>
+    /// Empty ports behind a hand-composed <see cref="GetServiceHealth"/>: the
+    /// page test only needs the rows the recording projection already feeds
+    /// it, so every other source reports nothing recorded.
+    /// </summary>
+    private sealed class NoMailboxPolls : IApprovedMailboxPollStatusQueries
+    {
+        public Task<IReadOnlyList<ApprovedMailboxPollStatus>> ListAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ApprovedMailboxPollStatus>>([]);
+    }
+
+    private sealed class NoServiceHealthFacts : IServiceHealthQueries
+    {
+        public Task<IReadOnlyList<SentEvidencePollStatus>> ListSentEvidencePollStatusAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SentEvidencePollStatus>>([]);
+
+        public Task<IntakeDispatchHealth> GetIntakeDispatchHealthAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new IntakeDispatchHealth(0, 0, 0, null));
+    }
+
+    private sealed class NoEvaSubmissions : IEvaSubmissionQueries
+    {
+        Task<EvaSubmissionRecord?> IEvaSubmissionQueries.GetLatestAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<EvaSubmissionRecord?>(null);
+
+        public Task<IReadOnlyList<EvaSubmissionFailure>> GetRecentFailuresAsync(
+            DateTimeOffset sinceUtc,
+            int maximumResults,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
+
+        public Task<EvaSubmissionActivity> GetActivityAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new EvaSubmissionActivity(0, null));
+    }
+
+    private sealed class NoAiJobs : IAiJobQueries
+    {
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
+            Guid subjectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(
+            int max,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+
+        public Task<AiJobCounts> GetCountsAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new AiJobCounts(0, 0));
+    }
+
+    private sealed class DisabledSendToAi : ISendToAiControl
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task<bool> SetEnabledAsync(
+            bool enabled,
+            ActionActor actor,
+            string reason,
+            string operationKey,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The read-only page never writes the Send to AI switch.");
+    }
+
+    private sealed class DisabledAutomationIngress : IAutomationIngressStatusQueries
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class NoAutomationActivity : IAutomationActivityQueries
+    {
+        public Task<ListAutomationActivityResult> ListAsync(
+            ListAutomationActivityRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new ListAutomationActivityResult([], null, 1, 1, false, false));
     }
 }

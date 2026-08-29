@@ -238,7 +238,7 @@ public sealed class DetailsModel(
         return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
     }
 
-    public static string StateLabel(TriageState state) => IndexModel.StateLabel(state);
+    public static string StateLabel(TriageState state) => Presentation.OperatorLabels.TriageState(state);
 
     public static string SourceChannelLabel(IntakeSourceChannel channel) =>
         Presentation.OperatorLabels.SourceChannel(channel);
@@ -488,17 +488,18 @@ public sealed class DetailsModel(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        var isSelf = string.Equals(
+        var isSelf = CaseEditAuthority.IsHolder(
+            activeLease.HolderKind,
             activeLease.Holder,
-            actor.SubjectId,
-            StringComparison.Ordinal);
+            actor);
         var holder = isSelf
             ? CaseEditAuthorityHolder.Unnamed
             : await _describeEditAuthorityHolder.ExecuteAsync(
+                activeLease.HolderKind,
                 activeLease.Holder,
                 actor,
                 cancellationToken);
-        return EditModeDisplay.CaseHeldBy(holder, activeLease.ExpiresAtUtc, isSelf);
+        return EditModeDisplay.CaseHeldBy(holder, isSelf);
     }
 
     /// <summary>

@@ -12,7 +12,8 @@ var host = new HostBuilder()
     {
         services
             .AddApplicationInsightsTelemetryWorkerService()
-            .ConfigureFunctionsApplicationInsights();
+            .ConfigureFunctionsApplicationInsights()
+            .AddApplicationInsightsTelemetryProcessor<SqlDependencyTelemetryFilter>();
 
         // PLAT-034: ingestion is configured for Entra — the deployed app sets
         // APPLICATIONINSIGHTS_AUTHENTICATION_STRING naming the Worker's

@@ -19,13 +19,17 @@ public enum MailFolderScope
 /// <summary>
 /// Which slice of retained mail the operator is looking at. A null
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
+/// <paramref name="UnreadOnly"/> is the Unread scope; <paramref name="OldestFirst"/>
+/// is the list's sort toggle (newest first by default).
 /// </summary>
 public sealed record MailWorkspaceScope(
-    string? MailboxId,
+    Guid? MailboxId,
     MailFolderScope Folder,
     string? SearchTerm = null,
     MailOperationalDestination? Destination = null,
-    MailCategory? DetailedClassification = null);
+    MailCategory? DetailedClassification = null,
+    bool UnreadOnly = false,
+    bool OldestFirst = false);
 
 public enum MailSearchMatchKind
 {
@@ -41,7 +45,7 @@ public sealed record RetainedMailSearchMatch(
 
 public sealed record RetainedMailSummary(
     Guid Id,
-    string MailboxId,
+    Guid MailboxId,
     string MailboxAddress,
     bool MailboxIsPolled,
     string? SenderAddress,
@@ -337,7 +341,7 @@ public sealed class CorrectRetainedMailClassification(
 /// read model already knows.
 /// </remarks>
 public sealed record RetainedMailMailbox(
-    string MailboxId,
+    Guid MailboxId,
     string MailboxAddress,
     bool IsPolled);
 
@@ -358,7 +362,7 @@ public sealed record MailFreshness(
 /// <see cref="GetRetainedMailFreshness"/>.
 /// </summary>
 public sealed record MailPollHealth(
-    string MailboxId,
+    Guid MailboxId,
     DateTimeOffset? LastCompletedAtUtc,
     string? LastFailureCode,
     DateTimeOffset DueAtUtc);
@@ -369,6 +373,11 @@ public interface IRetainedMailQueries
         MailWorkspaceScope scope,
         int page,
         int pageSize,
+        CancellationToken cancellationToken);
+
+    /// <summary>How many retained messages the scope holds — the scope list's count wells.</summary>
+    Task<int> CountAsync(
+        MailWorkspaceScope scope,
         CancellationToken cancellationToken);
 
     Task<RetainedMailDetail?> GetAsync(
@@ -409,6 +418,21 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(pageSize),
                 "The requested page size is outside the supported range.");
         }
+        return await queries.ListAsync(Normalize(scope), page, pageSize, cancellationToken);
+    }
+
+    public async Task<int> CountAsync(
+        ActionActor actor,
+        MailWorkspaceScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await queries.CountAsync(Normalize(scope), cancellationToken);
+    }
+
+    private static MailWorkspaceScope Normalize(MailWorkspaceScope scope)
+    {
         if (!Enum.IsDefined(scope.Folder))
         {
             throw new ArgumentOutOfRangeException(
@@ -437,19 +461,15 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
             }
         }
         var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
-        if (scope.MailboxId is { } mailboxId
-            && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
+        if (scope.MailboxId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "The mailbox identity is outside the supported range.",
-                nameof(scope));
+            throw new ArgumentException("The mailbox identity is required.", nameof(scope));
         }
 
-        var normalizedScope = scope with
+        return scope with
         {
             SearchTerm = searchTerm
         };
-        return await queries.ListAsync(normalizedScope, page, pageSize, cancellationToken);
     }
 
     internal static string? NormalizeSearchTerm(string? value, string parameterName)
@@ -583,9 +603,7 @@ public sealed class GetRetainedMail(
         }
 
         var mailboxes = await approvedMailboxStore.ListAsync(cancellationToken);
-        var mailbox = mailboxes.SingleOrDefault(item =>
-            item.MailboxIdentity is { } identity
-            && string.Equals(identity, detail.Summary.MailboxId, StringComparison.Ordinal));
+        var mailbox = mailboxes.SingleOrDefault(item => item.Id == detail.Summary.MailboxId);
         if (mailbox is null || mailbox.State != ApprovedMailboxState.Approved)
         {
             return Unavailable(
@@ -652,10 +670,12 @@ public sealed class GetRetainedMailFreshness(
     /// current.
     /// </summary>
     /// <remarks>
-    /// PROVISIONAL. Inbound polling is a one-minute timer, so fifteen minutes is
-    /// fifteen consecutive missed ticks — long enough that a single slow or skipped
-    /// run never shows a chip, short enough that a stopped Worker is visible within
-    /// a quarter of an hour. No operator statement fixes this number; it is recorded
+    /// PROVISIONAL. Graph change notifications are the primary wake; the recovery
+    /// poll (<c>InboxRecoveryFunction</c>, <c>ApprovedInboxPollSchedule</c>) runs
+    /// every five minutes, so fifteen minutes is three consecutive missed recovery
+    /// ticks — long enough that a single slow or skipped run never shows a chip,
+    /// short enough that a stopped Worker is visible within a quarter of an hour.
+    /// No operator statement fixes this number; it is recorded
     /// as open in docs/open-decisions.md and moves when observed behaviour, not
     /// taste, says it should.
     /// </remarks>

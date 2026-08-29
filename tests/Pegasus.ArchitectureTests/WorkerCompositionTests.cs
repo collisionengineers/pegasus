@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -10,7 +10,6 @@ using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Worker;
-using Pegasus.Worker.Functions;
 
 namespace Pegasus.ArchitectureTests;
 
@@ -58,14 +57,12 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalPoisonFunction>(scopedServices));
         }
         finally
         {
@@ -136,14 +133,12 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<ReconcileStagedArtifacts>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalPoisonFunction>(scopedServices));
         }
         finally
         {
@@ -223,7 +218,6 @@ public sealed class WorkerCompositionTests
         ["AzureIdentity:WorkerClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
         ["IntakeStorage:ServiceUri"] = "https://custody.example.test/",
         ["IntakeQueue:ServiceUri"] = "https://transport.example.test/",
-        ["ExternalWorkQueue:ServiceUri"] = "https://transport.example.test/",
         ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
         ["Graph:MailboxId"] = "mailbox-object-id",
         ["Graph:MailboxAddress"] = "instructions@collisionengineers.co.uk",
@@ -241,7 +235,15 @@ public sealed class WorkerCompositionTests
         ["Dvsa:ClientId"] = "resolved-key-vault-reference",
         ["Dvsa:ClientSecret"] = "resolved-key-vault-reference",
         ["Dvsa:ApiKey"] = "resolved-key-vault-reference",
-        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default"
+        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default",
+        // EXT-04: production now composes the EVA API submission route,
+        // so its configuration is part of what a production Worker needs.
+        ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
+        ["Eva:ClientId"] = "eva-client",
+        ["Eva:ClientSecret"] = "eva-secret",
+        ["Eva:RequestFrom"] = "COLLENGAPI",
+        ["Eva:InspectionType"] = "Vehicle Damage Inspection",
+        ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
     };
 
     private static string CreateTemporaryRoot()

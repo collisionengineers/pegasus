@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,8 +37,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
         var fixture = AudatexEstimateFixture.Build();
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
-        Assert.Contains("Import an estimate", html, StringComparison.Ordinal);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains("Import estimate", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
         using var response = await client.PostAsync(
@@ -45,7 +46,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             ImportForm(AntiforgeryValue(html), caseId, operationKey, fixture));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Contains("section=estimate", response.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        Assert.DoesNotContain("section=", response.Headers.Location?.OriginalString, StringComparison.Ordinal);
 
         var document = Assert.Single(store.AddedDocuments);
         Assert.Equal("estimate.pdf", document.FileName);
@@ -55,7 +56,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal($"estimate-import:{operationKey}", document.SourceOccurrenceIdentity);
         Assert.Equal(fixture, document.Content.ToArray());
         Assert.Equal(RecordingStores.CaseVersion, document.ExpectedCaseVersion);
-        Assert.Equal("lease-1", document.EditLeaseToken);
+        // The operator's own edit mode, not a lease this handler claimed for itself.
+        Assert.Equal(RecordingStores.HeldLeaseToken, document.EditLeaseToken);
 
         var draft = Assert.Single(store.StartedDrafts);
         Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, draft.Source.Route);
@@ -63,16 +65,84 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal("TEST01 V1/1", draft.Source.SourceVersion);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(fixture)), draft.Source.Sha256);
         Assert.Equal(RecordingStores.CaseVersion + 1, draft.ExpectedCaseVersion);
-        Assert.Equal("lease-2", draft.EditLeaseToken);
+        // Retaining the document was itself a case mutation, so it ended edit mode and moved the
+        // version; the draft is the second half of one action and re-enters on the operator's
+        // behalf. That single re-claim is the only one the import still makes.
+        Assert.Equal("lease-1", draft.EditLeaseToken);
+        Assert.Equal(
+            RecordingStores.CaseVersion + 1,
+            Assert.Single(store.LeaseClaims).ExpectedVersion);
         Assert.Equal(operationKey, draft.OperationKey);
         Assert.Null(draft.SupersedesSpecificationId);
         Assert.NotNull(draft.Lines);
         Assert.Equal(6, draft.Lines!.Count);
         Assert.Equal(620.20m, draft.Lines.Single(line => line.Description == "FRONT BUMPER" && line.Type == "new_part").Price);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("imported as a draft with 6 lines", afterHtml, StringComparison.Ordinal);
         Assert.Contains("The original document is kept on the case.", afterHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// CASE-024: a save submitted from a page that was never in edit mode is refused here rather
+    /// than in Core, so nothing is retained and the operator is told what to do.
+    /// </summary>
+    [Fact]
+    public async Task AnImportIsRefusedWhenEditModeWasNeverEntered()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
+            ImportForm(
+                AntiforgeryValue(html),
+                caseId,
+                NewOperationKey(),
+                AudatexEstimateFixture.Build(),
+                editLeaseToken: null));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Empty(store.AddedDocuments);
+        Assert.Empty(store.StartedDrafts);
+        Assert.Empty(store.LeaseClaims);
+
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains("Enter edit mode", afterHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The assessment offers the same edit mode the workspace does, over the same lease, so an
+    /// engineer working an assessment is visible to other staff as the case's editor.
+    /// </summary>
+    [Fact]
+    public async Task TheAssessmentOffersEditModeAndClaimsTheCasesOwnLease()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        Assert.Contains("Edit assessment", html, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", NewOperationKey())));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var claim = Assert.Single(store.LeaseClaims);
+        Assert.Equal(caseId, claim.CaseId);
+        Assert.Equal(RecordingStores.CaseVersion, claim.ExpectedVersion);
     }
 
     [Fact]
@@ -86,7 +156,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         // The document's own parts sub-total disagrees with its lines.
         var fixture = AudatexEstimateFixture.Build(partsSubTotal: "£999.99");
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
             ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture));
@@ -96,7 +166,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.StartedDrafts);
         Assert.Empty(store.LeaseClaims);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("do not add up to the document", afterHtml, StringComparison.Ordinal);
         Assert.Contains("nothing was imported", afterHtml, StringComparison.Ordinal);
     }
@@ -111,7 +181,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         // The default test identity is an Administrator, not an Engineer.
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
             ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
@@ -120,7 +190,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.AddedDocuments);
         Assert.Empty(store.StartedDrafts);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Only an Engineer can import an estimate.", afterHtml, StringComparison.Ordinal);
     }
 
@@ -133,9 +203,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Awaiting an Engineer", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Import an estimate", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"import-estimate-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("A draft estimate is awaiting acceptance", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=ImportEstimate",
@@ -156,7 +227,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Accept this specification", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
@@ -166,6 +237,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
                 ("operationKey", operationKey),
+                ("editLeaseToken", RecordingStores.HeldLeaseToken),
                 ("specificationId", draft.SpecificationId.ToString("D")),
                 ("specificationVersion", "1"),
                 ("labour", "1193.34"),
@@ -189,9 +261,11 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(867.91m, acceptance.CalculationBasis.Vat);
         Assert.Equal(5207.46m, acceptance.CalculationBasis.Total);
         Assert.Equal("Checked against the original document", acceptance.Reason);
-        Assert.Equal("lease-1", acceptance.EditLeaseToken);
+        // Accepting runs under the operator's edit mode and claims no lease of its own.
+        Assert.Equal(RecordingStores.HeldLeaseToken, acceptance.EditLeaseToken);
+        Assert.Empty(store.LeaseClaims);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("The repair specification was accepted.", afterHtml, StringComparison.Ordinal);
     }
 
@@ -213,7 +287,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         null,
         null,
         null,
-        null);
+        null,
+        new("Estimate 1", null, null, null, null, null, 20m, null));
 
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory, RecordingStores store) =>
@@ -248,18 +323,33 @@ public sealed partial class AssessmentEstimateImportWebTests
             BaseAddress = new Uri("https://localhost:7139"),
         });
 
+    /// <summary>
+    /// CASE-024: the import runs under edit mode the operator entered, so the form carries the
+    /// lease token the page was rendered with. Pass null for the token to submit as a page that
+    /// was never in edit mode.
+    /// </summary>
     private static MultipartFormDataContent ImportForm(
-        string antiforgeryToken, Guid caseId, string operationKey, byte[] pdfBytes)
+        string antiforgeryToken,
+        Guid caseId,
+        string operationKey,
+        byte[] pdfBytes,
+        string? editLeaseToken = RecordingStores.HeldLeaseToken)
     {
         var file = new ByteArrayContent(pdfBytes);
         file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
-        return new MultipartFormDataContent
+        var form = new MultipartFormDataContent
         {
             { new StringContent(antiforgeryToken), "__RequestVerificationToken" },
             { new StringContent(caseId.ToString("D")), "id" },
             { new StringContent(operationKey), "operationKey" },
             { file, "estimateFile", "estimate.pdf" },
         };
+        if (editLeaseToken is not null)
+        {
+            form.Add(new StringContent(editLeaseToken), "editLeaseToken");
+        }
+
+        return form;
     }
 
     private static FormUrlEncodedContent Form(
@@ -302,6 +392,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         : IGetCase, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument, IAcquireCaseEditLease
     {
         public const long CaseVersion = 7;
+
+        /// <summary>
+        /// The lease the operator entered edit mode with, which the assessment's forms carry into
+        /// each save. Only the import's second half still claims one of its own.
+        /// </summary>
+        public const string HeldLeaseToken = "lease-held";
 
         private int leaseCounter;
 
@@ -395,6 +491,28 @@ public sealed partial class AssessmentEstimateImportWebTests
         public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
             Guid ownerCaseId, CancellationToken cancellationToken) =>
             Task.FromResult(CurrentDraft);
+
+        // The named-estimate path (ENG-026) has no caller on this page yet.
+        public Task<RepairSpecificationVersion> SaveEstimateAsync(
+            SaveEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> DuplicateEstimateAsync(
+            DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> DiscardEstimateAsync(
+            DiscardEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(
+            SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
+            Guid ownerCaseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
+                new[] { CurrentAccepted, CurrentDraft }.Where(item => item is not null).ToArray()!);
 
         public Task<AddCaseDocumentResult> ExecuteAsync(
             AddCaseDocumentCommand command, CancellationToken cancellationToken)

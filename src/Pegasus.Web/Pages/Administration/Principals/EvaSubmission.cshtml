@@ -1,0 +1,57 @@
+@page "{organizationId:guid}/{principalId:guid}/EvaSubmission"
+@model Pegasus.Web.Pages.Administration.Principals.EvaSubmissionModel
+@{
+    ViewData["Title"] = "EVA API submission";
+}
+
+<a class="back-link" asp-page="Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Principals
+</a>
+
+@* Defensive only: the handler returns 404 when the principal or its
+   organization is absent, so the not-found surface is owned by the error page. *@
+@if (Model.Organization is not null && Model.Principal is not null)
+{
+    <div class="page-heading">
+        <div>
+            <h1>EVA API submission for @Model.Principal.Code</h1>
+        </div>
+        <div class="page-heading-actions">
+            <partial name="Shared/_StatusChip" model="@(Model.Principal.IsActive ? "Active" : "Disabled")" />
+        </div>
+    </div>
+
+    <div class="panel form-panel">
+        <form method="post" asp-page-handler="Update"
+              asp-route-organizationId="@Model.Organization.Id"
+              asp-route-principalId="@Model.Principal.Id">
+            <div asp-validation-summary="All" class="status-card status-card--error" role="alert"></div>
+            <input type="hidden" asp-for="ExpectedVersion" />
+            <input type="hidden" asp-for="OperationKey" />
+            @* Two independent settings, so two checkboxes rather than one
+               mode: a principal may submit automatically and offer no button,
+               which one mode could not express. *@
+            <div>
+                <label>
+                    <input asp-for="EvaManualSubmission" type="checkbox" />
+                    Manual API submission
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input asp-for="EvaAutomaticSubmission" type="checkbox" />
+                    Automatic API submission
+                </label>
+            </div>
+            <div>
+                <label asp-for="Reason">Reason</label>
+                <input asp-for="Reason" autocomplete="off" />
+                <span asp-validation-for="Reason"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save settings</button>
+            </div>
+        </form>
+    </div>
+}

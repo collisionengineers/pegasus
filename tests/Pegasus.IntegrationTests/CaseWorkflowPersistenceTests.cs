@@ -1443,6 +1443,272 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Null(afterExpiry?.ActiveEditLease);
     }
 
+    /// <summary>
+    /// CASE-024: a heartbeat extends the lease and records nothing. It is issued once a minute for
+    /// as long as an editor is open, so a replay row per beat would grow a table nothing prunes,
+    /// and rewriting the operation key would destroy the claim key the workspace reads back to
+    /// recover edit mode.
+    /// </summary>
+    [Fact]
+    public async Task HeartbeatExtendsTheLeaseWithoutWritingAReplayRowOrTouchingTheClaimKey()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-heartbeat"),
+            default);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(4));
+        var beaten = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, actor, lease.Token),
+            default);
+
+        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), beaten.ExpiresAtUtc);
+        Assert.Equal(lease.Token, beaten.Token);
+        Assert.Equal(lease.Holder, beaten.Holder);
+        Assert.Equal(lease.Version, beaten.Version);
+        // One row for the claim, and none for the beat.
+        Assert.Equal(
+            1,
+            await harness.LeaseOperationCountAsync(harness.CaseId, "claim-heartbeat"));
+        Assert.Equal(1, await harness.LeaseOperationCountAsync(harness.CaseId));
+        Assert.Equal("claim-heartbeat", await harness.LeaseOperationKeyAsync(harness.CaseId));
+    }
+
+    [Fact]
+    public async Task HeartbeatIsRefusedForANonHolderAndForALeaseThatAlreadyLapsed()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var other = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "claim-refusals"),
+            default);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, other, lease.Token), default));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
+    }
+
+    /// <summary>
+    /// The first requirement, end to end: an editor that keeps beating is never timed out, however
+    /// long the session runs; one that stops frees the case for someone else.
+    /// </summary>
+    [Fact]
+    public async Task RepeatedHeartbeatsHoldTheLeaseIndefinitelyAndStoppingThemLetsItLapse()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var waiting = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, editor, "claim-long-session"),
+            default);
+
+        // Ten beats at the rendered interval - well past the point the lease would have lapsed
+        // unattended, which is the whole complaint this fixes.
+        for (var beat = 0; beat < 10; beat++)
+        {
+            harness.TimeProvider.Advance(CaseEditAuthority.HeartbeatInterval);
+            await harness.Store.HeartbeatAsync(new(harness.CaseId, editor, lease.Token), default);
+        }
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, waiting, "claim-while-beating"),
+                default));
+        Assert.Equal(1, await harness.LeaseOperationCountAsync(harness.CaseId));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        var reacquired = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, waiting, "claim-after-beats-stopped"),
+            default);
+
+        Assert.Equal(waiting.SubjectId, reacquired.Holder);
+    }
+
+    /// <summary>
+    /// The second requirement: a save ends edit mode as it commits, and a beat still in flight
+    /// cannot bring back the lease that save just cleared.
+    /// </summary>
+    [Fact]
+    public async Task ASaveEndsEditModeImmediatelyAndALaterHeartbeatCannotResurrectIt()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-before-save"),
+            default);
+        await harness.Store.HeartbeatAsync(new(harness.CaseId, actor, lease.Token), default);
+
+        await new PutCaseOnHold(harness.Store).ExecuteAsync(
+            new(harness.CaseId, 0, actor, "hold-ends-edit-mode", "Waiting", lease.Token),
+            default);
+
+        var afterSave = await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default);
+        Assert.Null(afterSave?.ActiveEditLease);
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, actor, lease.Token), default));
+    }
+
+    /// <summary>
+    /// KANMER-005, Automation holds and staff competes: the staff claim, a write presenting the
+    /// holder's own token, renew, heartbeat, and release are all refused; the retained lease is
+    /// untouched by every refusal; and the holder then heartbeats, saves, and finds its lease
+    /// consumed by that save exactly as before.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHeldLeaseRefusesEveryStaffOperationAndTheHolderStillSaves()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var automation = ActionActor.Automation("pegasus-automation");
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, automation, "mcp:automation-holds"),
+            default);
+        var held = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(nameof(ActorKind.Automation), held.HolderKind);
+        Assert.Equal(automation.SubjectId, held.Holder);
+
+        await AssertCompetitorIsRefusedAsync(harness, staff, lease.Token, "staff-competes");
+
+        Assert.Equal(held, await harness.ReadLeaseRowAsync(harness.CaseId));
+        var projected = await harness.QueryStore.GetAsync(new(harness.CaseId, staff), default);
+        Assert.Equal(ActorKind.Automation, projected?.ActiveEditLease?.HolderKind);
+        Assert.Equal(automation.SubjectId, projected?.ActiveEditLease?.Holder);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var beaten = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, automation, lease.Token),
+            default);
+        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), beaten.ExpiresAtUtc);
+
+        await new PutCaseOnHold(harness.Store).ExecuteAsync(
+            new(harness.CaseId, 0, automation, "automation-saves", "Waiting", lease.Token),
+            default);
+
+        var afterSave = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(1, afterSave.Version);
+        Assert.Null(afterSave.Holder);
+        Assert.Null(afterSave.HolderKind);
+        Assert.Null(afterSave.Token);
+        // The save consumed the lease, so ending it afterwards is refused as having none.
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.ReleaseAsync(
+                new(harness.CaseId, automation, "mcp:automation-ends-after-save", lease.Token),
+                default));
+    }
+
+    /// <summary>
+    /// KANMER-005, staff holds and Automation competes: the mirror of the case above, ending
+    /// with the holder releasing without saving and the competitor then claiming the free lease.
+    /// </summary>
+    [Fact]
+    public async Task AStaffHeldLeaseRefusesEveryAutomationOperationAndTheHolderStillReleases()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var automation = ActionActor.Automation("pegasus-automation");
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, staff, "staff-holds"),
+            default);
+        var held = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(nameof(ActorKind.Staff), held.HolderKind);
+        Assert.Equal(staff.SubjectId, held.Holder);
+
+        await AssertCompetitorIsRefusedAsync(harness, automation, lease.Token, "mcp:automation-competes");
+
+        Assert.Equal(held, await harness.ReadLeaseRowAsync(harness.CaseId));
+        var projected = await harness.QueryStore.GetAsync(new(harness.CaseId, automation), default);
+        Assert.Equal(ActorKind.Staff, projected?.ActiveEditLease?.HolderKind);
+
+        var renewed = await harness.Store.RenewAsync(
+            new(harness.CaseId, 0, staff, "staff-renews", lease.Token),
+            default);
+        Assert.Equal(lease.Token, renewed.Token);
+        await harness.Store.ReleaseAsync(
+            new(harness.CaseId, staff, "staff-releases", lease.Token),
+            default);
+
+        var released = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(0, released.Version);
+        Assert.Null(released.Holder);
+        Assert.Null(released.HolderKind);
+        Assert.Null(released.Token);
+        Assert.Null(released.ExpiresAtUtc);
+
+        var reclaimed = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, automation, "mcp:automation-claims-free-lease"),
+            default);
+        Assert.Equal(automation.SubjectId, reclaimed.Holder);
+        Assert.Equal(
+            nameof(ActorKind.Automation),
+            (await harness.ReadLeaseRowAsync(harness.CaseId)).HolderKind);
+    }
+
+    /// <summary>
+    /// The identity gap KANMER-005 closes: a holder is kind and subject together, so an
+    /// Automation Actor given the staff holder's own subject text, presenting the live token, is
+    /// still a competitor — and its refused attempts leave the row byte-for-byte as it was.
+    /// </summary>
+    [Fact]
+    public async Task TheSameSubjectTextUnderAnotherActorKindIsACompetitorEvenWithTheLiveToken()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var staffId = Guid.NewGuid();
+        var staff = ActionActor.Staff(staffId, [StaffRole.User]);
+        var impostor = ActionActor.Automation(staffId.ToString("D"));
+        Assert.Equal(staff.SubjectId, impostor.SubjectId);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, staff, "staff-holds-guid-subject"),
+            default);
+        var held = await harness.ReadLeaseRowAsync(harness.CaseId);
+
+        await AssertCompetitorIsRefusedAsync(harness, impostor, lease.Token, "mcp:same-subject");
+        // The claim replay path is also identity-checked: the holder's own claim key under
+        // the other kind is a different request, not a replay of the staff claim.
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, impostor, "staff-holds-guid-subject"),
+                default));
+
+        Assert.Equal(held, await harness.ReadLeaseRowAsync(harness.CaseId));
+        var replay = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, staff, "staff-holds-guid-subject"),
+            default);
+        Assert.Equal(lease, replay);
+    }
+
+    private static async Task AssertCompetitorIsRefusedAsync(
+        WorkflowHarness harness,
+        ActionActor competitor,
+        string holdersToken,
+        string operationKeyPrefix)
+    {
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-claim"),
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            new PutCaseOnHold(harness.Store).ExecuteAsync(
+                new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-write", "Waiting", holdersToken),
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.RenewAsync(
+                new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-renew", holdersToken),
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.HeartbeatAsync(
+                new(harness.CaseId, competitor, holdersToken),
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ReleaseAsync(
+                new(harness.CaseId, competitor, $"{operationKeyPrefix}-release", holdersToken),
+                default));
+    }
+
     [Fact]
     public async Task AnAbandonedLeaseExpiresAndIsReacquiredByADifferentHolder()
     {
@@ -2044,7 +2310,7 @@ public sealed class CaseWorkflowPersistenceTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseDueWork (CaseId, MissingMaterialReason, State, NextChaseAtUtc, NextChaseAtUtcTicks, Version, ConcurrencyToken) VALUES ({notReadyCaseId}, {"Waiting for images"}, {nameof(CaseDueWorkState.Scheduled)}, {timeProvider.GetUtcNow().AddDays(3)}, {timeProvider.GetUtcNow().AddDays(3).UtcDateTime.Ticks}, {0L}, {Guid.NewGuid()})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO ApprovedInboxPollStates (MailboxId, MailboxAddress, DueAtUtc) VALUES ({"approved-mailbox-identity-1"}, {"instructions@collisionengineers.co.uk"}, {timeProvider.GetUtcNow()})");
+                    $"INSERT INTO ApprovedInboxPollStates (ApprovedMailboxId, MailboxAddress, ScopeFingerprint, ActivatedAtUtc, DueAtUtc) SELECT Id, Address, REPLICATE('0', 64), {StartUtc}, {timeProvider.GetUtcNow()} FROM ApprovedMailboxes WHERE Address = {"instructions@collisionengineers.co.uk"}");
                 return new(database, factory, caseId, secondCaseId, notReadyCaseId, timeProvider);
             }
             catch
@@ -2083,6 +2349,24 @@ public sealed class CaseWorkflowPersistenceTests
             context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {$"workflow-{sequence}.eml"}, {"message/rfc822"}, {1L}, {sequence.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {"manual_upload"}, {$"workflow-{sequence}"}, {StartUtc}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {0L}, {"case_created"}, {"Workflow persistence fixture"}, {"""{"version":1,"data":[]}"""}, {"""{"version":1,"data":[]}"""}, {"""{"version":1,"data":[]}"""})");
 
+        /// <summary>Every retained lease column, so a refusal can be proved to have changed none of them.</summary>
+        public async Task<RetainedLeaseRow> ReadLeaseRowAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.AsNoTracking()
+                .SingleAsync(item => item.CaseId == caseId);
+            return new(
+                workflow.Version,
+                workflow.ConcurrencyToken,
+                workflow.EditLeaseToken,
+                workflow.EditLeaseTokenHash,
+                workflow.EditLeaseRequestHash,
+                workflow.EditLeaseHolder,
+                workflow.EditLeaseHolderKind,
+                workflow.EditLeaseOperationKey,
+                workflow.EditLeaseExpiresAtUtc);
+        }
+
         public async Task<bool> HasLeaseReplayMaterialAsync(Guid caseId)
         {
             await using var context = await factory.CreateDbContextAsync();
@@ -2100,6 +2384,26 @@ public sealed class CaseWorkflowPersistenceTests
             return await context.CaseEditLeaseOperations.LongCountAsync(
                 item => item.CaseId == caseId
                     && item.OperationKey == operationKey);
+        }
+
+        /// <summary>Every lease operation row the case carries, whatever its key.</summary>
+        public async Task<long> LeaseOperationCountAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            return await context.CaseEditLeaseOperations.LongCountAsync(
+                item => item.CaseId == caseId);
+        }
+
+        /// <summary>
+        /// The operation key retained on the case row — the claim key the workspace parses back to
+        /// restore edit mode, which a heartbeat must leave alone.
+        /// </summary>
+        public async Task<string?> LeaseOperationKeyAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.AsNoTracking()
+                .SingleAsync(item => item.CaseId == caseId);
+            return workflow.EditLeaseOperationKey;
         }
 
         public async Task<long> WorkflowEventCountAsync(string operationKey)
@@ -2177,6 +2481,17 @@ public sealed class CaseWorkflowPersistenceTests
             return Task.FromResult(new ApprovedSentPage([item], item.NextCursor, HasMore: false));
         }
     }
+
+    public sealed record RetainedLeaseRow(
+        long Version,
+        Guid ConcurrencyToken,
+        string? Token,
+        string? TokenHash,
+        string? RequestHash,
+        string? Holder,
+        string? HolderKind,
+        string? OperationKey,
+        DateTimeOffset? ExpiresAtUtc);
 
     public sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {

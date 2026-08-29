@@ -92,6 +92,17 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
     }
 
+    public async Task<int> CountAsync(
+        MailWorkspaceScope scope,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The same filter pipeline the list reads, so a scope's count is
+        // exactly the number of rows clicking that scope would page through.
+        return await BuildMatches(context, scope).CountAsync(cancellationToken);
+    }
+
     public async Task<RetainedMailPage> ListAsync(
         MailWorkspaceScope scope,
         int page,
@@ -101,39 +112,16 @@ internal sealed class EfRetainedMailboxMessageStore(
         ArgumentNullException.ThrowIfNull(scope);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var searchTerm = scope.SearchTerm?.Trim();
-        var folderScope = ToCode(scope.Folder);
-        var matches = context.RetainedMailboxMessages
-            .AsNoTracking()
-            .Where(item => item.FolderScope == folderScope);
-        if (scope.Folder == MailFolderScope.Inbox && searchTerm is null)
-        {
-            matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
-                move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
-        }
-        if (scope.MailboxId is { } mailboxId)
-        {
-            matches = matches.Where(item => item.MailboxId == mailboxId);
-        }
-        if (searchTerm is not null)
-        {
-            matches = matches.Where(item =>
-                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
-                || context.IntakeReceipts.Any(receipt =>
-                    receipt.SourceChannel == "mailbox"
-                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
-                    && receipt.SearchDocuments.Any(document =>
-                        document.Text != null
-                        && document.Text.Contains(searchTerm))));
-        }
-        matches = ApplyClassificationFilter(matches, context, scope);
+        var matches = BuildMatches(context, scope);
 
         // Counted and paged in SQL. Reading every row to take twenty-five of them
         // makes the list slower the more mail is retained, which is the one thing a
         // mailbox is guaranteed to accumulate.
         var totalCount = await matches.CountAsync(cancellationToken);
-        var rows = await matches
-            .OrderByDescending(item => item.ReceivedAtUtc)
-            .ThenByDescending(item => item.Id)
+        var ordered = scope.OldestFirst
+            ? matches.OrderBy(item => item.ReceivedAtUtc).ThenBy(item => item.Id)
+            : matches.OrderByDescending(item => item.ReceivedAtUtc).ThenByDescending(item => item.Id);
+        var rows = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(item => new SummaryRow(
@@ -351,7 +339,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         return await context.ApprovedInboxPollStates
             .AsNoTracking()
             .Select(item => new MailPollHealth(
-                item.MailboxId,
+                item.ApprovedMailboxId,
                 item.LastCompletedAtUtc,
                 item.LastFailureCode,
                 item.DueAtUtc))
@@ -629,7 +617,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         var retained = context.RetainedMailboxMessages.AsNoTracking();
         if (scope.MailboxId is { } mailboxId)
         {
-            completedPolls = completedPolls.Where(item => item.MailboxId == mailboxId);
+            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == mailboxId);
             retained = retained.Where(item => item.MailboxId == mailboxId);
         }
 
@@ -784,6 +772,46 @@ internal sealed class EfRetainedMailboxMessageStore(
             .ToArray();
     }
 
+    /// <summary>
+    /// The one filter pipeline for a workspace scope: folder, the not-moved
+    /// Inbox exclusion, mailbox, unread, search and classification. The list
+    /// pages it and the scope-rail counts it; neither owns a second copy.
+    /// </summary>
+    private static IQueryable<RetainedMailboxMessageEntity> BuildMatches(
+        PegasusDbContext context,
+        MailWorkspaceScope scope)
+    {
+        var searchTerm = scope.SearchTerm?.Trim();
+        var matches = context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.FolderScope == ToCode(scope.Folder));
+        if (scope.Folder == MailFolderScope.Inbox && searchTerm is null)
+        {
+            matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
+                move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
+        }
+        if (scope.MailboxId is { } mailboxId)
+        {
+            matches = matches.Where(item => item.MailboxId == mailboxId);
+        }
+        if (scope.UnreadOnly)
+        {
+            matches = matches.Where(item => !item.IsRead);
+        }
+        if (searchTerm is not null)
+        {
+            matches = matches.Where(item =>
+                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
+                || context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.Text != null
+                        && document.Text.Contains(searchTerm))));
+        }
+        return ApplyClassificationFilter(matches, context, scope);
+    }
+
     private static IQueryable<RetainedMailboxMessageEntity> ApplyClassificationFilter(
         IQueryable<RetainedMailboxMessageEntity> messages,
         PegasusDbContext context,
@@ -908,7 +936,7 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     private sealed record SummaryRow(
         Guid Id,
-        string MailboxId,
+        Guid MailboxId,
         string MailboxAddress,
         string? SenderAddress,
         string? SenderDisplayName,

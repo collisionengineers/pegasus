@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore;
@@ -27,6 +27,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Uploads;
+using Pegasus.Web;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -34,6 +35,7 @@ using Azure.Storage.Queues;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -107,7 +109,6 @@ var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
 QueueClient? intakeWorkQueue = null;
-QueueClient? externalWorkQueue = null;
 var allowLocalQueueCreation = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
     && !builder.Environment.IsDevelopment())
@@ -139,15 +140,25 @@ if (productionProfile)
         "AzureIdentity:WebClientId",
         "TransportStorage:AccountName",
         "IntakeQueue:ServiceUri",
-        "ExternalWorkQueue:ServiceUri",
         "CustodyStorage:AccountName",
         "CustodyStorage:ServiceUri",
         "Graph:BaseUri",
+        "Graph:TenantId",
+        "Graph:ChangeNotificationClientState",
         "Box:BaseUri",
         "Box:UploadUri",
         "Box:RootFolderId",
         "Box:ConfigJson",
-        "Box:ClientSecret"
+        "Box:ClientSecret",
+        // EXT-04. Listed here so a deployment missing EVA's credentials fails
+        // at startup naming the key, rather than at the first submission with
+        // a case in front of an operator.
+        "Eva:BaseUri",
+        "Eva:ClientId",
+        "Eva:ClientSecret",
+        "Eva:RequestFrom",
+        "Eva:InspectionType",
+        "Eva:InstructionEmail"
     })
     {
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
@@ -188,21 +199,14 @@ if (productionProfile)
     var intakeQueueServiceUri = new Uri(
         builder.Configuration["IntakeQueue:ServiceUri"]!,
         UriKind.Absolute);
-    var externalWorkQueueServiceUri = new Uri(
-        builder.Configuration["ExternalWorkQueue:ServiceUri"]!,
-        UriKind.Absolute);
     if (intakeQueueServiceUri.Scheme != Uri.UriSchemeHttps
-        || externalWorkQueueServiceUri.Scheme != Uri.UriSchemeHttps
-        || !intakeQueueServiceUri.Host.EndsWith(".queue.core.windows.net", StringComparison.OrdinalIgnoreCase)
-        || !externalWorkQueueServiceUri.Host.EndsWith(".queue.core.windows.net", StringComparison.OrdinalIgnoreCase))
+        || !intakeQueueServiceUri.Host.EndsWith(".queue.core.windows.net", StringComparison.OrdinalIgnoreCase))
     {
         throw new InvalidOperationException(
-            "IntakeQueue:ServiceUri and ExternalWorkQueue:ServiceUri must be Azure Queue HTTPS service URIs in Production.");
+            "IntakeQueue:ServiceUri must be an Azure Queue HTTPS service URI in Production.");
     }
     intakeWorkQueue = new QueueServiceClient(intakeQueueServiceUri, credential)
         .GetQueueClient("intake-work");
-    externalWorkQueue = new QueueServiceClient(externalWorkQueueServiceUri, credential)
-        .GetQueueClient("external-work");
     // The mailbox-administration "add an address" resolve port alone (AddPegasusInfrastructure
     // below always composes ListApprovedMailboxes/UpdateApprovedMailbox; Web never composes
     // the Worker-only pollers that go with AddProductionExternalAdapters).
@@ -230,7 +234,6 @@ else
         ?? throw new InvalidOperationException(
             "AzureWebJobsStorage is required for DevelopmentOffline queue transport.");
     intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
-    externalWorkQueue = new QueueClient(queueConnectionString, "external-work");
     allowLocalQueueCreation = true;
 }
 var localDocumentCustodyConfigured =
@@ -598,6 +601,15 @@ documentStorage: !productionProfile
             builder.Configuration["Box:RootFolderId"],
             builder.Configuration["Box:ConfigJson"],
             builder.Configuration["Box:ClientSecret"]))));
+// EXT-04: the manual Send to EVA route. Production only — the offline
+// profile reaches no vendor — and the options are read lazily for the same
+// PLAT-013 reason as Box's.
+if (productionProfile)
+{
+    builder.Services.AddEvaApiSubmission(
+        _ => EvaApiOptions.Create(key => builder.Configuration[key]));
+}
+
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
@@ -635,7 +647,11 @@ builder.Services.AddSingleton<IIntakeWorkEnqueuer>(
         allowLocalQueueCreation));
 builder.Services.AddSingleton<IExternalWorkEnqueuer>(
     new AzureQueueExternalWorkEnqueuer(
-        externalWorkQueue ?? throw new InvalidOperationException("The external-work queue is not configured."),
+        intakeWorkQueue ?? throw new InvalidOperationException("The unified work queue is not configured."),
+        allowLocalQueueCreation));
+builder.Services.AddSingleton<IMailboxWakeEnqueuer>(
+    new AzureQueueMailboxWakeEnqueuer(
+        intakeWorkQueue ?? throw new InvalidOperationException("The unified work queue is not configured."),
         allowLocalQueueCreation));
 builder.Services.AddScoped<DispatchPendingIntakeWork>();
 builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
@@ -1003,6 +1019,9 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
     version = productVersion,
     sourceSha
 })).AllowAnonymous();
+app.MapPost("/hooks/microsoft-graph/mail", GraphMailWebhook.HandleAsync)
+    .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(64 * 1024))
+    .AllowAnonymous();
 app.MapRazorPages()
    .WithStaticAssets();
 if (automationMcpOptions is not null)
