@@ -20,12 +20,9 @@ public sealed class EfQueuedIntakeStatusQueries(
                 item.SourceFileName,
                 item.ReceivedAtUtc,
                 State = item.WorkItem!.State,
+                item.WorkItem.DueAtUtc,
                 item.WorkItem.ProcessedReceiptId,
-                item.WorkItem.FailureCode,
-                CaseId = context.CaseIntakeLinks
-                    .Where(link => link.IntakeReceiptId == item.WorkItem.ProcessedReceiptId)
-                    .Select(link => (Guid?)link.CaseId)
-                    .FirstOrDefault()
+                item.WorkItem.FailureCode
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (staged is null)
@@ -33,13 +30,17 @@ public sealed class EfQueuedIntakeStatusQueries(
             return null;
         }
 
+        // The due time is a retry fact only: every other state carries a due
+        // time meaning something else (the next dispatch sweep, the lease
+        // expiry), which no surface should read as "this cannot move yet".
+        var workState = EfIntakeWorkStore.ParseState(staged.State);
         return new(
             staged.Id,
             staged.SourceFileName,
             staged.ReceivedAtUtc,
-            QueuedIntakeStatusKinds.FromWorkState(EfIntakeWorkStore.ParseState(staged.State)),
+            QueuedIntakeStatusKinds.FromWorkState(workState),
             staged.ProcessedReceiptId,
-            staged.CaseId,
-            staged.FailureCode);
+            staged.FailureCode,
+            workState == IntakeWorkState.RetryScheduled ? staged.DueAtUtc : null);
     }
 }
