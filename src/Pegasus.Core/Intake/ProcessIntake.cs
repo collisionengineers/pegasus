@@ -330,12 +330,25 @@ public sealed class ProcessIntake(
             || SubmitMailboxImageIntake.IsCandidate(receipt));
 
     /// <summary>
-    /// Whether the accepted route classified this receipt's message as a
-    /// Triage request. One reading of the recorded decision, so no surface
+    /// Whether this receipt is a Triage request. One reading, so no surface
     /// re-derives it from the taxonomy.
+    ///
+    /// Two routes reach the same answer. A mail instruction has it read by the
+    /// accepted route classification; a Provider API submission has its
+    /// Principal declare it, and carries no classification at all. Both record
+    /// the same <see cref="IntakeEvidenceFinding.AcceptedTriageMatch"/>, which
+    /// is already what Triage creation itself keys off — so reading the
+    /// evidence keeps one answer for both. Without the second clause a declared
+    /// Triage opened its Triage record and an Unidentified item beside it, the
+    /// two-queues defect INTK-033 closed for the mail route.
+    ///
+    /// The classification clause stays: a reply in a Triage thread classifies
+    /// as a Triage request but is deliberately given no accepted-match
+    /// evidence, and must still read as one here.
     /// </summary>
     public static bool IsTriageRequest(IntakeReceipt receipt) =>
-        receipt.MailClassificationDecision is { IsTriageRequest: true };
+        receipt.MailClassificationDecision is { IsTriageRequest: true }
+        || receipt.Evidence.Any(item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
 
     internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
         new(
