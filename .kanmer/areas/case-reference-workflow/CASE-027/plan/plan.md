@@ -121,3 +121,24 @@ handler-binding tests and are untouched.
 
 Run over this branch's own diff before the PR. Findings and dispositions
 appended below at that point.
+
+### Findings and dispositions — 2026-08-29
+
+Run over this branch's own diff (reuse, simplification, efficiency, altitude),
+plus the review lenses AGENTS.md rule 22 requires.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `Details.cshtml:405` linked "Open vehicle record" to `/Cases/{id}/Vehicle`, which has no `OnGet` and renders an empty 200. | **Fixed in lane.** The Vehicle section now renders its own body; the dead link is gone. |
+| 2 | `IRequestVehicleLookup` and `IAcceptVehicleSuggestion` had no production caller — PR #599 removed the forms. | **Fixed in lane.** Both are called from `_CaseVehicle.cshtml`. |
+| 3 | `_CaseWorkflow.cshtml`'s edit form omits `claimantContactNumber` and `claimantAddress`; `SaveCase` writes null for an omitted value and clears the confirmed field. | **Fixed in lane, in lane E1's file.** Two hidden inputs. Reported loudly (D19 rule 2 — the lane is at `verifying`, not in flight). |
+| 4 | `Details.cshtml`'s Open Assessment gate rendered `data-condition=""` whenever the control was enabled, painting an empty pill (PLAT-061). Razor omits a *bool false* attribute, not a *null string* one, on a plain HTML attribute — so the `? null :` idiom leaves the attribute present and empty. | **Fixed in lane, in lane E1's file**, and pinned by a new theory. Reported loudly. |
+| 5 | The same idiom appears in `Pages/Triage/Details.cshtml:202` and behind `ImportCondition`, `SendToClaudeCondition`, `ReportDraftCondition` in `Pages/Cases/Assessment/Index.cshtml`. | **Deferred to the ticket that already exists.** PLAT-061 owns `.gated::after`; the one-selector fix is a `[data-condition]` guard in `site.css`, which is PLAT-029's file. Four call sites named in the report. |
+| 6 | The `"Not recorded"` placeholder is a literal in `_CaseSummary.cshtml`, `Details.cshtml` and now `_CaseVehicle.cshtml`/`_CaseInspectionAddress.cshtml`. | **Rejected.** Hoisting it to `OperatorLabels` while two of the four sites are lane E1's would add a fourth spelling rather than remove three. Recorded for the simplification wave. |
+| 7 | Mileage rendered `"{n} miles"` when the case recorded a figure with no unit. | **Fixed in lane.** A figure with no recorded unit reads as the figure; assuming miles states something the case does not hold. |
+| 8 | The inspection-address editor renders whenever edit authority is held, but Core refuses `SaveCase` once an Engineer is assigned or the case is past Review (`EfCaseDataStore.SaveAsync`). | **Risk accepted, with a reason.** The Overview editor in `_CaseWorkflow.cshtml` has exactly the same property; gating only the new form would put Core's save precondition in one of two places and create a second rule. The refusal surfaces as an error notice. Named in the report for whichever lane next owns both forms. |
+| 9 | The upload-request withdraw moved from an always-visible inline reason form to `_ReasonDialog`, which is `hidden` without script. | **Risk accepted, with a reason.** Every other destructive action on this workspace — including the file removal in the same partial — is already a dialog, and the scriptless-dialog gap is a known frame-level item owned by PLAT-029's `site.js` ([[CASE-012]] reported it). One convention beats two. |
+| 10 | Two "recorded value" readings of one field (`.Current` in the new partial, `.Confirmed` in `_CaseSummary`). | **Fixed in lane.** The new partial reads `Confirmed`, matching its neighbours. |
+| 11 | `Cases/Custody?handler=RetryCustody` (sole consumer of `IRetryCaseCustody`) and the four `Cases/Tasks` task-CRUD handlers have no UI caller. | **Rejected as this lane's work.** Deleting them removes the only consumer of five Core ports and their DI registrations — a cross-layer removal that belongs to UIIMP-009 (wave 5, removals). Named in the report with `file:line`. |
+| 12 | Two refresh controls posting one handler could read as two capabilities. | **Rejected.** `context.md` §1.8 and the design authority both draw both and state they are the same lookup; `VehicleLookupResult` carries the vehicle record and the MOT observations together. The comment in the partial records why. |
+| 13 | Efficiency: no new query, no new DI registration, no new package, no new CSS, no new script. `VehicleEvidence` was already loaded by `GetCase`. | No action. |

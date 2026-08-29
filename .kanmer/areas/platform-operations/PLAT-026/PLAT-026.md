@@ -2,13 +2,14 @@
 id: PLAT-026
 type: ticket
 title: Redesign Approved Mailboxes administration
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T10:10:09.934Z'
   review: '2026-08-29T10:41:24.059Z'
+  verifying: '2026-08-29T17:40:12.645Z'
 taken_at: '2026-08-29T10:14:01.102Z'
 branch: task/plat-026-mail-settings
 worktree: ../pegasus-worktrees/plat-026-mail-settings
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/623'
 archived: false
 created: '2026-08-21T13:19:14.361Z'
-updated: '2026-08-29T16:27:54.832Z'
+updated: '2026-08-29T17:40:12.645Z'
 ---
 
 ## What
