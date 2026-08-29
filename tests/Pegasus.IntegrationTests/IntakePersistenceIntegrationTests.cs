@@ -109,7 +109,10 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260828104130_PrincipalApiCredentials",
                 "20260828104139_GrantPrincipalApiCredentials",
                 "20260828110108_CaseEditLeaseHolderKind",
-                "20260828112103_NamedEstimates"
+                "20260828111707_ProviderSubmissions",
+                "20260828111732_GrantProviderSubmissions",
+                "20260828112103_NamedEstimates",
+                "20260828185508_ProviderDeclaredInstruction"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

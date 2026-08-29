@@ -45,12 +45,22 @@ public sealed class AddCaseNote(ICaseNoteStore store, TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         // The operator asked for a note a *user* writes. The Automation Actor
         // holds casework rights and already records what it does on this same
         // timeline under its own events; letting it author a note as well would
         // put machine text where a colleague's words are expected.
-        if (request.Actor.Kind != ActorKind.Staff)
+        //
+        // One kind is admitted beside Staff: the instructing Principal
+        // (operator decision, 2026-08-28, TICK-058). A provider's note is not
+        // machine text — it is the instruction's own words about this job, and
+        // withholding it loses what the provider actually said. It is admitted
+        // on its own right, so no other Provider API permission follows from it.
+        StaffAuthorization.Require(
+            request.Actor,
+            request.Actor.Kind == ActorKind.Provider
+                ? StaffAccessRight.SubmitProviderInstruction
+                : StaffAccessRight.PerformCasework);
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Provider))
         {
             throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
         }
