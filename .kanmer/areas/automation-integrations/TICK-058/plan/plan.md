@@ -237,3 +237,138 @@ instead of restructuring the guard (applied).
 - [[AUTO-012]] and [[AUTO-013]] carry the deferred API-01 residuals.
 - `IntakeEnvelopeLimits` (30 MiB decoded / 42 MiB body) still wants operator
   confirmation.
+
+## CI unit-test failure — disposition, 2026-08-29 (round 3)
+
+CI job `unit` failed one test of 1140:
+`ImmediateIntakeDispatchTests.ImmediatePublicationRecordsTheReceiptIdentifierAndBoundedOutcome`,
+`Assert.Single() Failure: The collection contained 2 items` —
+`process_intake` and `publish_committed_intake_work`.
+
+### The question asked: production defect, or an incidental assertion?
+
+Neither answer as posed. The extra span is **not produced by the code under
+test at all**, so there is no production defect to fix; and it is **not new
+behaviour this branch introduces** either. It is a second test's span,
+collected by a process-wide listener. The `Assert.Single` was pinning an
+incidental fact — that nothing else in the process emits on the shared
+`Pegasus.Core.Intake` ActivitySource while this test runs — so the fix is
+shaped like option (b): assert the receipt identifier and the bounded outcome
+on the right activity, by name, and stop counting other tests' spans.
+
+### Evidence
+
+- One production emitter, one call site:
+  `git grep -n 'publish_committed_intake_work'` returns
+  `src/Pegasus.Core/Intake/DurableIntake.cs:413` and the test's own name
+  assertion. `ExecuteCommittedAsync` starts exactly one activity
+  (`using var activity = Telemetry.StartActivity("publish_committed_intake_work")`)
+  and starts no other.
+- `process_intake` has one emitter too — `src/Pegasus.Core/Intake/ProcessIntake.cs:71`,
+  inside `ProcessIntake.ExecuteCoreAsync`. `DispatchPendingIntakeWork` never
+  constructs or calls `ProcessIntake`; its collaborators are `IIntakeWorkStore`,
+  `IIntakeWorkEnqueuer` and `TimeProvider`. In this test the store is
+  `RecordingStore`, whose `ClaimProcessingAsync` and
+  `CompleteProcessingAsync` both `throw new NotSupportedException()`. The code
+  under test cannot reach `process_intake`.
+- Both classes declare `new ActivitySource("Pegasus.Core.Intake")`
+  (`DurableIntake.cs:397`, `ProcessIntake.cs:24`). An `ActivityListener` is
+  registered process-wide by name, so it sees every span on that source, and
+  this assembly runs its test classes in parallel — `ProcessIntakeTests.cs` is
+  a separate class.
+- Reproduced exactly that way. Focused
+  (`--filter "FullyQualifiedName~ImmediateIntakeDispatchTests"`): **5 passed**.
+  Whole project: **1 failed, 1151 passed**, with the same two-span collection
+  CI reported. A test that passes alone and fails only beside 1147 others is a
+  cross-test leak, not a behaviour of the call.
+- The test file is byte-identical to `origin/dev`
+  (`git diff origin/dev HEAD -- tests/.../ImmediateIntakeDispatchTests.cs`
+  is empty), so the flake is latent on `dev`; this branch's timing made it
+  manifest.
+
+### The fix, and why it is stronger than what it replaces
+
+`tests/Pegasus.Core.Tests/Intake/ImmediateIntakeDispatchTests.cs` only. The
+call is rooted in an `Activity` scope of its own and the listener keeps the
+spans carrying that trace, so foreign spans are excluded and the count
+assertion is about the call again. The assertions kept and added:
+
+| Assertion | Old | New |
+| --- | --- | --- |
+| exactly one span | any span on the source, anywhere in the process | exactly one span produced by this call |
+| span name | yes | yes |
+| span parent | — | `Assert.Same(scope, activity.Parent)` |
+| `intake.staged_receipt_id` | yes | yes |
+| `intake.publication.path` | — | `"immediate"` |
+| `intake.publication.outcome` | yes | yes |
+| status | — | `ActivityStatusCode.Ok` |
+
+Nothing was loosened: `Assert.Single` stays `Assert.Single`, no assertion was
+deleted or inverted, and three assertions were added.
+
+### Mutation-tested — the new assertions bite
+
+Each mutation was applied to `DurableIntake.cs`, built, run focused, then
+reverted; the file was restored byte-identical (`git diff` empty).
+
+| Mutation | Result |
+| --- | --- |
+| drop `activity?.SetTag("intake.staged_receipt_id", ...)` | **fails** — `Assert.Equal() Failure: Values differ` |
+| drop `activity?.SetTag("intake.publication.outcome", "published")` | **fails** — `Assert.Equal() Failure: Values differ` |
+| emit a second sibling span inside `ExecuteCommittedAsync` | **fails** — `Assert.Single() Failure: The collection contained 2 items` |
+
+The third matters most: it proves the isolation did not weaken the count. Had
+the extra span been a real production defect, the repaired test would still
+fail — it does not.
+
+### Other intake paths
+
+None affected. `publish_committed_intake_work` has one emitter and one caller
+pair (`Program.cs:682`, `WorkerDependencyInjection.cs:119`), and
+`git grep -l ActivityListener -- tests` returns this file alone, so no other
+test observes the shared source.
+
+### Merge of `origin/dev`
+
+`git merge origin/dev` brought seven merged PRs and one conflict:
+`tests/Pegasus.IntegrationTests/AssessmentDamageAndCopyWebTests.cs`, deleted on
+`dev` by ENG-025 (`7b919b69`) and modified here. This branch's only edit to it
+was a mechanical widening of `CaseClaimantData` from one field to three; the
+replacement, `AssessmentCopyWebTests.cs`, does not construct that record, and
+`AssessmentWorkspaceTestData.cs` already carries the three-argument form from
+the same merge. The deletion was accepted; no reference to the deleted class
+remains.
+
+### Verification — round 3 (real numbers, this session)
+
+- `dotnet build ./Pegasus.slnx --configuration Release`: **succeeded, 0
+  warnings, 0 errors**.
+- `dotnet test ./tests/Pegasus.Core.Tests/... --filter "FullyQualifiedName~ImmediateIntakeDispatchTests"`:
+  **5 passed, 0 failed, 0 skipped**.
+- `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build`
+  (whole project, unfiltered): **1152 passed, 0 failed, 0 skipped** — run three
+  consecutive times, green each time. 1152 rather than CI's 1140 because the
+  merge brought `dev`'s new Core tests in.
+- Not run here: the full solution suite, the Browser category, the integration
+  projects and the snapshot scripts. The orchestrator owns those.
+
+### Simplification pass — round 3
+
+Test-only diff, 21 lines added and 1 changed. (1) *Reuse* — the scope is a
+plain `new Activity(...).Start()`, not a new test helper; one call site, and
+`ActivityListener` is already this file's own convention (applied).
+(2) *One list per concept* — n/a, no vocabulary changed. (3) *Efficiency* —
+the listener now filters before adding, so it allocates less than before under
+parallel load (n/a, incidental). (4) *Altitude* — the fix stays inside the one
+test that was wrong; `DurableIntake.cs` and `ProcessIntake.cs` are untouched
+(applied).
+
+### Reported, not fixed — outside this lane
+
+The string `"Pegasus.Core.Intake"` is declared three times as three separate
+`ActivitySource` fields (`DurableIntake.cs:397`, `DurableIntake.cs:540`,
+`ProcessIntake.cs:24`). That is what lets one test's listener see another's
+spans, and it reads against "one list per concept". It is pre-existing on
+`dev`, is not needed to make CI green, and consolidating a telemetry source
+across two files is scope this lane was not given. Reported to the
+orchestrator; no ticket filed.
