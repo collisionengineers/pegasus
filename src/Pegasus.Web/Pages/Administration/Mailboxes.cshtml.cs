@@ -66,7 +66,7 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
-        var input = RequireMailboxForm();
+        var input = RequireForm(MailboxForm, value => MailboxForm = value);
         ValidateForm(input, nameof(MailboxForm));
         var routeScopes = ParseRouteScopes(input.SelectedRouteScopes);
         if (!Enum.TryParse<ApprovedMailboxState>(
@@ -167,7 +167,7 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
-        var input = RequireMailboxForm();
+        var input = RequireForm(MailboxForm, value => MailboxForm = value);
         ValidateForm(input, nameof(MailboxForm));
         var mailbox = Mailboxes.SingleOrDefault(item => item.Id == input.MailboxId);
         if (mailbox is null
@@ -241,7 +241,7 @@ public sealed class MailboxesModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedOutlookCategories);
-        var input = RequireCategoryForm();
+        var input = RequireForm(CategoryForm, value => CategoryForm = value);
         ValidateForm(input, nameof(CategoryForm));
         if (!Enum.TryParse<ApprovedOutlookCategoryState>(
                 input.SelectedState,
@@ -387,26 +387,18 @@ public sealed class MailboxesModel(
             ? input.SelectedState == state.ToString()
             : state == ApprovedOutlookCategoryState.Active;
 
-    private MailboxFormInput RequireMailboxForm()
+    private TForm RequireForm<TForm>(TForm? form, Action<TForm> assign)
+        where TForm : class, new()
     {
-        if (MailboxForm is not null)
+        if (form is not null)
         {
-            return MailboxForm;
+            return form;
         }
 
         ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        return MailboxForm = new();
-    }
-
-    private CategoryFormInput RequireCategoryForm()
-    {
-        if (CategoryForm is not null)
-        {
-            return CategoryForm;
-        }
-
-        ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        return CategoryForm = new();
+        var created = new TForm();
+        assign(created);
+        return created;
     }
 
     private void ValidateForm<TForm>(TForm form, string prefix)
