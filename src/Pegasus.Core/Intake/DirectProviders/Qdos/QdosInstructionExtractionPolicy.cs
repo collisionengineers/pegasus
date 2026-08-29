@@ -26,6 +26,19 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     // QDOS grammar, supplied to the neutral engine per definition.
     private static readonly string[] ThirdPartyRowPrefixes = ["TP"];
 
+    /// <summary>
+    /// The whole-line row-skip guard, built once from the same prefix list
+    /// every definition is guarded against. A prefix added to
+    /// <see cref="ThirdPartyRowPrefixes"/> therefore extends both the
+    /// per-field guard and this skip; a pattern hardcoded here would silently
+    /// extend only the first.
+    /// </summary>
+    private static readonly Regex[] ThirdPartyRowRegexes =
+        [.. ThirdPartyRowPrefixes.Select(prefix => new Regex(
+            $@"(?i)^{Regex.Escape(prefix)}\b",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100)))];
+
     private static readonly InstructionFieldEngine.FieldDefinition[] BareFieldDefinitions =
     [
         new("Claimant name", ["Claimant Name", "Claimant", "Our Client", "Client Name"]),
@@ -109,6 +122,9 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             GuardedPrefixes = [.. ThirdPartyRowPrefixes.Concat(definition.GuardedPrefixes ?? [])]
         })];
 
+    private static readonly InstructionFieldEngine.LabelRegexCache FieldRegexCache =
+        new(FieldDefinitions);
+
     /// <summary>
     /// Makes written as two words, so a combined vehicle description splits
     /// on the right boundary. Deterministic and deliberately small.
@@ -153,6 +169,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         var (fields, missingFields, fieldEvidence) = InstructionFieldEngine.ExtractFields(
             WithDerivedFacts(readResult),
             FieldDefinitions,
+            FieldRegexCache,
             processedAtUtc);
         fields = DeriveVehicleFields(fields, out var derivedNames);
         fields = WithLabelledDamageArea(fields, readResult.Content);
@@ -237,11 +254,8 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     /// Trims a column value where the line's next column label begins, so a
     /// value never carries its neighbours.
     /// </summary>
-    private static string CutAtNextColumnLabel(string value) => Regex.Replace(
-            value,
-            ReportColumnCutPattern,
-            string.Empty,
-            RegexOptions.CultureInvariant)
+    private static string CutAtNextColumnLabel(string value) => ReportColumnCutRegex()
+        .Replace(value, string.Empty)
         .Trim();
 
     /// <summary>
@@ -262,20 +276,12 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             // hazard here, and these rules read labels mid-line, so the
             // guard is applied once to the whole line rather than being
             // repeated — and forgotten — per rule.
-            if (ThirdPartyRowPrefixes.Any(prefix => Regex.IsMatch(
-                    rawLine,
-                    $@"(?i)^{Regex.Escape(prefix)}\b",
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromMilliseconds(100))))
+            if (ThirdPartyRowRegexes.Any(regex => regex.IsMatch(rawLine)))
             {
                 continue;
             }
 
-            var vehicle = Regex.Match(
-                rawLine,
-                @"(?i)^vehicle\s*:\s*(?<value>.+)$",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            var vehicle = VehicleReportRowRegex().Match(rawLine);
             if (vehicle.Success)
             {
                 var value = CutAtNextColumnLabel(vehicle.Groups["value"].Value);
@@ -290,11 +296,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
 
             // Anchored to the label, not to the start of the line: the
             // Speedo column is almost never first (INTK-028).
-            var speedo = Regex.Match(
-                rawLine,
-                @"(?i)\bspeedo(?:meter)?\s*:\s*(?<value>.*)$",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            var speedo = SpeedoColumnRegex().Match(rawLine);
             if (speedo.Success)
             {
                 var value = CutAtNextColumnLabel(speedo.Groups["value"].Value);
@@ -311,11 +313,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
             // did: it is followed on the same line by "Registered:",
             // "Type:", "Trans:", so the raw value never reads as a
             // registration and the report's copy was silently unusable.
-            var registration = Regex.Match(
-                rawLine,
-                @"(?i)\breg(?:istration)?\s*(?:no|number)?\s*:\s*(?<value>.*)$",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            var registration = ReportRegistrationColumnRegex().Match(rawLine);
             if (registration.Success)
             {
                 var value = CutAtNextColumnLabel(registration.Groups["value"].Value);
@@ -341,12 +339,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         var lines = SplitLines(fragment.Text);
         // The reader sometimes wraps the prompt across physical lines, so the
         // anchor is the phrase's final word closing the question.
-        var prompt = Array.FindIndex(lines, line =>
-            Regex.IsMatch(
-                line,
-                @"(?i)\bcircumstances\s*\?\s*$",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100)));
+        var prompt = Array.FindIndex(lines, CircumstancesPromptRegex().IsMatch);
         if (prompt < 0)
         {
             return null;
@@ -355,12 +348,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         var paragraph = new List<string>();
         foreach (var line in lines.Skip(prompt + 1))
         {
-            if (line.Length == 0
-                || Regex.IsMatch(
-                    line,
-                    @"(?i)^(?:damage area|pre-existing damage|tp |if you need)",
-                    RegexOptions.CultureInvariant,
-                    TimeSpan.FromMilliseconds(100)))
+            if (line.Length == 0 || CircumstancesStopRegex().IsMatch(line))
             {
                 break;
             }
@@ -417,25 +405,20 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     internal static string[] SubjectFactLines(string subject)
     {
         var lines = new List<string>();
-        var reference = Regex.Match(
-            subject, @"\bOur Ref[:.]?\s+([A-Za-z0-9_/-]+)", RegexOptions.IgnoreCase);
+        var reference = SubjectReferenceRegex().Match(subject);
         if (reference.Success)
         {
             lines.Add($"Our Ref: {reference.Groups[1].Value.TrimEnd(',', ')', '.')}");
         }
 
-        var incident = Regex.Match(
-            subject, @"\bRTA on\s+(\d{1,2})[_/.-](\d{1,2})[_/.-](\d{4})", RegexOptions.IgnoreCase);
+        var incident = SubjectIncidentRegex().Match(subject);
         if (incident.Success)
         {
             lines.Add(
                 $"Date of Accident: {incident.Groups[1].Value}/{incident.Groups[2].Value}/{incident.Groups[3].Value}");
         }
 
-        var client = Regex.Match(
-            subject,
-            @"\b(?:Client[:.]?\s+)?((?:Mr|Mrs|Ms|Miss|Dr|Mx)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})",
-            RegexOptions.None);
+        var client = SubjectClientRegex().Match(subject);
         if (client.Success)
         {
             lines.Add($"Our Client: {client.Groups[1].Value.Trim().TrimEnd(',', ')', '.')}");
@@ -455,11 +438,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         // doubling, on a subject header an approved sender controls. This
         // form is 1.1 ms at the same width. The value is two short bounded
         // runs, and the shape is validated outside the pattern.
-        var subjectRegistration = Regex.Match(
-            subject,
-            @"\bVehicle\s+Registration\b[\s:.-]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b",
-            RegexOptions.IgnoreCase,
-            TimeSpan.FromMilliseconds(100));
+        var subjectRegistration = SubjectRegistrationRegex().Match(subject);
         if (subjectRegistration.Success
             && InstructionFieldEngine.IsUkRegistration(subjectRegistration.Groups["value"].Value))
         {
@@ -469,10 +448,7 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
         // The lookahead keeps this rule off the registration label above.
         // Without it "Vehicle Registration : VO75DFJ" read as the vehicle
         // description "Registration : VO75DFJ".
-        var vehicle = Regex.Match(
-            subject,
-            @"\bVehicle(?!\s+Registration\b)[:.]?\s+([^,()]+)",
-            RegexOptions.IgnoreCase);
+        var vehicle = SubjectVehicleRegex().Match(subject);
         if (vehicle.Success)
         {
             lines.Add($"Our Client's Vehicle: {vehicle.Groups[1].Value.Trim().TrimEnd(',', '.')}");
@@ -593,6 +569,39 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
 
     private const string DamageAreaLabel = "Damage Area: ";
     private const string DamageAreaSourceLabel = "damage area";
+
+    [GeneratedRegex(ReportColumnCutPattern, RegexOptions.CultureInvariant, 100)]
+    private static partial Regex ReportColumnCutRegex();
+
+    [GeneratedRegex(@"(?i)^vehicle\s*:\s*(?<value>.+)$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex VehicleReportRowRegex();
+
+    [GeneratedRegex(@"(?i)\bspeedo(?:meter)?\s*:\s*(?<value>.*)$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex SpeedoColumnRegex();
+
+    [GeneratedRegex(@"(?i)\breg(?:istration)?\s*(?:no|number)?\s*:\s*(?<value>.*)$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex ReportRegistrationColumnRegex();
+
+    [GeneratedRegex(@"(?i)\bcircumstances\s*\?\s*$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex CircumstancesPromptRegex();
+
+    [GeneratedRegex(@"(?i)^(?:damage area|pre-existing damage|tp |if you need)", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex CircumstancesStopRegex();
+
+    [GeneratedRegex(@"\bOur Ref[:.]?\s+([A-Za-z0-9_/-]+)", RegexOptions.IgnoreCase, 100)]
+    private static partial Regex SubjectReferenceRegex();
+
+    [GeneratedRegex(@"\bRTA on\s+(\d{1,2})[_/.-](\d{1,2})[_/.-](\d{4})", RegexOptions.IgnoreCase, 100)]
+    private static partial Regex SubjectIncidentRegex();
+
+    [GeneratedRegex(@"\b(?:Client[:.]?\s+)?((?:Mr|Mrs|Ms|Miss|Dr|Mx)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})", RegexOptions.None, 100)]
+    private static partial Regex SubjectClientRegex();
+
+    [GeneratedRegex(@"\bVehicle\s+Registration\b[\s:.-]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b", RegexOptions.IgnoreCase, 100)]
+    private static partial Regex SubjectRegistrationRegex();
+
+    [GeneratedRegex(@"\bVehicle(?!\s+Registration\b)[:.]?\s+([^,()]+)", RegexOptions.IgnoreCase, 100)]
+    private static partial Regex SubjectVehicleRegex();
 
     [GeneratedRegex(
         @"^\s*damage\s+area\s*[-:]?\s*",

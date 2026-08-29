@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -13,11 +14,14 @@ namespace Pegasus.Web.Pages.Mail;
 /// One retained message.
 /// </summary>
 /// <remarks>
-/// Reads one retained message and exposes only the Core-owned correction command;
-/// Case linking and mailbox mutation remain separate capabilities.
+/// Reads one retained message and invokes the existing Core commands for its
+/// classification, Case association, folder move, and post-report AI job.
 /// </remarks>
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
+    ICreateAiJob createAiJob,
+    IAiJobQueries aiJobQueries,
+    ISendToAiControl sendToAiControl,
     CorrectRetainedMailClassification correctClassification,
     MoveRetainedMailFolder moveRetainedMailFolder,
     IUploadCaseDecision caseDecision,
@@ -115,7 +119,19 @@ public sealed class MessageModel(
     [TempData]
     public string? AssociationNotice { get; set; }
 
+    [TempData]
+    public string? QueryResponseNotice { get; set; }
+
     public RetainedMailDetail Detail { get; private set; } = null!;
+
+    public IReadOnlyList<AiJobRecord> AiJobs { get; private set; } = [];
+
+    public bool IsQueryResponseSource { get; private set; }
+
+    public string? QueryResponseCondition { get; private set; }
+
+    public bool QueryResponseEnabled =>
+        IsQueryResponseSource && QueryResponseCondition is null;
 
     public IntakeReceipt? AssociationReceipt { get; private set; }
 
@@ -205,7 +221,62 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
+        await LoadAiJobContextAsync(cancellationToken);
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostCreateQueryResponseAsync(
+        Guid id,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+            if (detail is null)
+            {
+                return NotFound();
+            }
+            if (!IsPostReportQuery(detail) || detail.Summary.CaseId is not { } caseId)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    OperatorLabels.QueryResponseJobs.InvalidSource);
+                return await ReloadAsync(actor, id, cancellationToken);
+            }
+
+            await createAiJob.ExecuteAsync(
+                new(
+                    AiJobKind.QueryResponse,
+                    caseId,
+                    detail.Summary.CaseReference,
+                    id.ToString("D"),
+                    null,
+                    actor,
+                    operationKey),
+                cancellationToken);
+            QueryResponseNotice = OperatorLabels.QueryResponseJobs.Created;
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
     }
 
     public async Task<IActionResult> OnPostPrepareLinkCaseAsync(
@@ -607,8 +678,48 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
+        await LoadAiJobContextAsync(cancellationToken);
         return Page();
     }
+
+    private async Task LoadAiJobContextAsync(CancellationToken cancellationToken)
+    {
+        IsQueryResponseSource = IsPostReportQuery(Detail);
+        if (IsQueryResponseSource)
+        {
+            if (CurrentCase is null)
+            {
+                QueryResponseCondition = OperatorLabels.QueryResponseJobs.CaseUnavailable;
+            }
+            else if (!AiJobPolicy.IsEligibleQueryResponseCaseState(CurrentCase.Workflow.State))
+            {
+                QueryResponseCondition = OperatorLabels.QueryResponseJobs.AvailableInPostReportWork;
+            }
+            else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
+            {
+                QueryResponseCondition = OperatorLabels.QueryResponseJobs.AutomationStopped;
+            }
+        }
+
+        if (ActiveSection == "case" && CurrentCase is { } currentCase)
+        {
+            AiJobs = await aiJobQueries.ListForSubjectAsync(
+                currentCase.Summary.CaseId,
+                cancellationToken);
+        }
+    }
+
+    private static bool IsPostReportQuery(RetainedMailDetail detail) =>
+        detail.Summary.CaseId is not null
+        && detail.Classification?.Current is
+        {
+            Outcome: MailClassificationOutcome.Classified,
+            Category:
+            {
+                Direction: MailDirection.Received,
+                ReceivedFamily: ReceivedMailFamily.PostReportEmails
+            }
+        };
 
     private async Task LoadAssociationSafelyAsync(
         ActionActor actor,
