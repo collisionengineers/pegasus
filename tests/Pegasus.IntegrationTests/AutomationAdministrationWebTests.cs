@@ -1,10 +1,14 @@
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
@@ -41,6 +45,10 @@ public sealed partial class AutomationAdministrationWebTests
         var html = await GetHtmlAsync(client, AutomationRoute);
 
         Assert.Equal(AutomationMcp.ClientDisplayName, FactValue(html, "Registered clients"));
+        Assert.Equal(ClientId, FactValue(html, "Client identifier"));
+        Assert.Equal(
+            string.Join(", ", AutomationMcp.Scopes.Order(StringComparer.Ordinal)),
+            FactValue(html, "Granted scopes"));
         Assert.Equal("2", FactValue(html, "Active jobs"));
         Assert.Equal("1", FactValue(html, "Failed jobs"));
         Assert.Contains("Stop automation", html, StringComparison.Ordinal);
@@ -91,6 +99,57 @@ public sealed partial class AutomationAdministrationWebTests
         var stoppedHtml = await GetHtmlAsync(client, AutomationRoute);
         Assert.Equal("Stopped", ChipText(stoppedHtml, "automation-panel-title"));
         Assert.Contains("Start automation", stoppedHtml, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("SetEnabled")]
+    [InlineData("ClearChannelToken")]
+    public async Task FailedReasonDialogPostKeepsTheStoredSendToAiState(string handler)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var automationFactory = WithAutomationMcp(baseFactory);
+        using var factory = automationFactory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Features:SendToAi", "true");
+            builder.UseSetting("SendToAi:ChannelBaseUrl", "http://127.0.0.1:8629");
+            builder.UseSetting(
+                "SendToAi:ChannelToken",
+                "auto-006-redisplay-channel-token-0123456789");
+            builder.UseSetting("SendToAi:TimeoutSeconds", "5");
+        });
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IAiChannelConnectorStore>()
+                .RotateTokenAsync(
+                    new(
+                        Administrator,
+                        "Exercise both reason-dialog redisplay paths.",
+                        "auto-006-redisplay-token",
+                        "auto-006-administration-channel-token-0123456789"),
+                    CancellationToken.None);
+        }
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, AutomationRoute);
+
+        using var response = await client.PostAsync(
+            $"{AutomationRoute}?handler={handler}",
+            Form(
+                AntiforgeryValue(html),
+                ("TargetEnabled", "false"),
+                ("OperationKey", InputValue(html, "OperationKey")),
+                ("Reason", " ")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var redisplayedHtml = await response.Content.ReadAsStringAsync();
+        Assert.Equal("Enabled", ChipText(redisplayedHtml, "ai-settings-panel-title"));
+        Assert.True(CheckboxIsChecked(redisplayedHtml, "SendToAiEnabled"));
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        Assert.True(await verificationScope.ServiceProvider
+            .GetRequiredService<ISendToAiControl>()
+            .IsEnabledAsync(CancellationToken.None));
+        Assert.True((await verificationScope.ServiceProvider
+            .GetRequiredService<IAiChannelConnectorStore>()
+            .GetAsync(CancellationToken.None)).TokenHeld);
     }
 
     [Fact]
@@ -152,6 +211,75 @@ public sealed partial class AutomationAdministrationWebTests
         var savedHtml = await GetHtmlAsync(client, AutomationRoute);
         Assert.Equal("Stopped", ChipText(savedHtml, "ai-settings-panel-title"));
         Assert.False(CheckboxIsChecked(savedHtml, "SendToAiEnabled"));
+    }
+
+    [Fact]
+    public async Task ACheckboxOnlySaveWritesNoUnchangedConnectorHistory()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = SendToAiIntegrationTests.WithSendToAi(
+            baseFactory,
+            "http://127.0.0.1:8629");
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, AutomationRoute);
+        var operationKey = InputValue(html, "OperationKey");
+
+        using (var response = await client.PostAsync(
+            $"{AutomationRoute}?handler=SaveAiSettings",
+            Form(
+                AntiforgeryValue(html),
+                ("SendToAiEnabled", "false"),
+                ("OperationKey", operationKey),
+                ("Reason", "Pause hand-offs without changing the connector."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var eventKinds = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.CorrelationId == operationKey)
+            .Select(item => item.EventKind)
+            .ToArrayAsync();
+        Assert.Equal(["send_to_ai_disabled"], eventKinds);
+    }
+
+    [Fact]
+    public async Task ActivityRendersCaseReferencesAndNoFilterNarration()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAutomationMcp(baseFactory);
+        var caseId = await SeedAcceptedCaseAsync(factory);
+        string caseReference;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var details = await scope.ServiceProvider.GetRequiredService<IGetCase>()
+                .ExecuteAsync(new(caseId, Administrator), CancellationToken.None)
+                ?? throw new InvalidOperationException("The seeded case is unavailable.");
+            caseReference = details.Summary.Reference;
+            await scope.ServiceProvider.GetRequiredService<IActionHistoryWriter>()
+                .AppendAsync(
+                    new(
+                        Guid.NewGuid(),
+                        "automation_mcp",
+                        caseId.ToString("D"),
+                        "pegasus_case_get",
+                        AutomationClient,
+                        DateTimeOffset.UtcNow,
+                        "Succeeded",
+                        "auto-006-activity-reference",
+                        null),
+                    CancellationToken.None);
+        }
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"{AutomationRoute}/Activity");
+
+        Assert.Contains(caseReference, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(caseId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("you can filter by", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

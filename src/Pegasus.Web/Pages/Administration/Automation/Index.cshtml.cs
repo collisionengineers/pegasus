@@ -81,9 +81,6 @@ public sealed class IndexModel : AdministrationPageModel
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
         await LoadAsync(actor, cancellationToken);
-        // The checkbox opens on the stored state; a redisplayed form keeps
-        // whatever the operator submitted.
-        SendToAiEnabled = SendToAiEnabledNow;
         return Page();
     }
 
@@ -165,9 +162,17 @@ public sealed class IndexModel : AdministrationPageModel
 
         if (ModelState.IsValid && store is not null)
         {
-            await store.UpdateAsync(
-                new(actor, Reason, OperationKey, channelAddress, ChannelTimeoutSeconds),
-                cancellationToken);
+            var connector = await store.GetAsync(cancellationToken);
+            if (!string.Equals(
+                    connector.ChannelBaseUrl,
+                    channelAddress,
+                    StringComparison.Ordinal)
+                || connector.TimeoutSeconds != ChannelTimeoutSeconds)
+            {
+                await store.UpdateAsync(
+                    new(actor, Reason, OperationKey, channelAddress, ChannelTimeoutSeconds),
+                    cancellationToken);
+            }
             if (newChannelToken is not null)
             {
                 await store.RotateTokenAsync(
@@ -246,6 +251,9 @@ public sealed class IndexModel : AdministrationPageModel
         SendToAiEnabledNow = await HttpContext.RequestServices
             .GetRequiredService<ISendToAiControl>()
             .IsEnabledAsync(cancellationToken);
+        // Reason-dialog forms do not post this checkbox. Seed it from the
+        // stored state; ModelState still wins for a redisplayed AI settings form.
+        SendToAiEnabled = SendToAiEnabledNow;
         ConnectorSettings = ConnectorStore() is { } connectorStore
             ? await connectorStore.GetAsync(cancellationToken)
             : null;
