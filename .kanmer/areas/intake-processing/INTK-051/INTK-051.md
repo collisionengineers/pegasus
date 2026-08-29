@@ -2,10 +2,12 @@
 id: INTK-051
 type: ticket
 title: Activate INT-31 upload links in production under recorded interim limits
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
-profile: feature
+profile: chore
+stageEntered:
+  preparing: '2026-08-29T21:20:01.585Z'
 labels:
   - INT-31
   - requires-live-approval
@@ -14,9 +16,14 @@ groups:
   - EPIC-011
 links:
   - DELIV-037
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/frd/frd-05-documents-extraction-and-custody.md
+prs:
+  - '633'
 archived: false
 created: '2026-08-29T21:15:02.437Z'
-updated: '2026-08-29T21:15:02.437Z'
+updated: '2026-08-29T21:20:01.585Z'
 ---
 
 ## What
