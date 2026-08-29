@@ -281,7 +281,6 @@ public sealed class ProviderSubmissionTests
             Now,
             QueuedIntakeStatusKind.Complete,
             ProcessedReceiptId: null,
-            CaseId: null,
             FailureCode: null);
         var result = new GetProviderSubmissionResult(store, status, status);
 
