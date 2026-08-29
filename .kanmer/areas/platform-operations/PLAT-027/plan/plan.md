@@ -330,3 +330,61 @@ and +349 in `StaffAccountsAndRolesWebTests.cs`.
 TICK-223's Save dirty-state behaviour; the accepted two-query snapshot risk;
 snapshot regeneration and route-removal work, which belong to the orchestrator
 and wave 5 respectively; and the hosted CI run against current `dev`.
+
+## Layout regression from the remediation — 2026-08-29 · FIXED
+
+CI's browser gate caught a regression the remediation introduced:
+
+```
+LayoutIntegrityTests.RouteLaysOutWithoutOverflowClippingOrInlineStyle
+  (route: "/Administration/Accounts", width: 760) [FAIL]
+  /Administration/Accounts at 760px scrolls horizontally.
+```
+
+117 of 118 browser tests passed; this was the only failure, on this lane's own
+page, and it passed before the remediation.
+
+**Cause:** the checkbox `<fieldset>` that replaced the hazardous
+`<select multiple>` (blocker 2) increased the table's intrinsic width. The
+confirm links kept the existing `.btn` geometry and were not implicated.
+
+**Fix — one line, reusing an established pattern:**
+
+```css
+.admin-layout > .stack{min-width:0}
+```
+
+A grid child's default `min-width: auto` refuses to shrink below its content's
+intrinsic width, which is exactly what forces the horizontal scroll. Setting it
+to `0` is the standard remedy and is **already the convention here**: the
+adjacent `.admin-layout` rule uses `grid-template-columns:220px minmax(0,1fr)`
+for the same reason, and `min-width: 0` appears **11 times** elsewhere in
+`site.css`. Nothing new was invented, and the layout test forbids both overflow
+clipping and inline styles, so neither shortcut was available or taken.
+
+**Ownership.** `wwwroot/css/site.css` is PLAT-029's file. Verified against every
+remote `task/*` branch: **this lane is its only claimant**, so this is D19
+case 2 — declared loudly rather than done quietly. The diff is one line; nothing
+else in the file changed.
+
+**Verification** — the remediating agent ran the full category rather than the
+single case:
+
+| Filter | Result |
+| --- | --- |
+| `LayoutIntegrityTests` | **66 / 66 passed** |
+| `Category=Browser` | **118 / 118 passed** |
+| `dotnet build ./Pegasus.slnx --configuration Release` | exit 0, **0 `CS####`** |
+
+The narrowed 760px case failed 1/1 before the fix and passed 1/1 after it, so the
+fix is demonstrated against the defect rather than merely coincident with a green
+suite.
+
+Commit `e6f2624a`.
+
+### Note for the record
+
+The browser gate is what caught this. The remediation's own focused filter
+(`StaffAccountsAndRolesWebTests`) was green throughout — a correct fix to a real
+security defect that quietly broke layout at one viewport. Lane-focused tests
+could not have found it, and neither could a reviewer reading the diff.
