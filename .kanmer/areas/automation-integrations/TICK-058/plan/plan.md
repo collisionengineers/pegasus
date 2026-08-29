@@ -425,3 +425,49 @@ assigned test: 345 passed, 0 failed, 0 skipped, 9m26s test duration. All other
 jobs also succeeded. This closes the major verifier finding without changing a
 timeout, shard allocation, production path or assertion. Independent review is
 still required; this is not a merge, proof, deployment or delivery claim.
+
+## Review findings — dispositions (round 2), 2026-08-29
+
+Orchestrator-level round 2 (this ticket's own internal numbering above calls
+it "round 4" — same verifier pass, same findings, same commit `8ef4775c`).
+Remediation was performed by an external engineer (Codex/gpt-5.6-sol,
+`model_reasoning_effort=xhigh`), driven by a thin Claude wrapper that
+independently re-verified every number below rather than repeating Codex's
+own report.
+
+| Severity | Finding | Disposition |
+| --- | --- | --- |
+| major | Pushed head `79a4aaf9` was not CI-green: `sql-integration (1)` hit the 20-minute job cap, 345/1033 tests never ran (job cancelled). | **Closed.** No timeout, shard allocation, production path or test was changed. A fresh push (`8ef4775c`, test-only + label-consolidation) triggered a new hosted run. Independently re-checked by the wrapper via `gh api`, not by trusting Codex's report: run `33254911537` on exact head `8ef4775c` is `conclusion: success`; every check-run (`sql-integration (1)/(2)/(3)`, `sql-integration-coverage`, `unit`, `browser`, `infrastructure`, `changes`, `documentation`, `local-development-scripts`, `reference-data`) is `success`; job log for `sql-integration (1)` (id `99106933734`) shows `Shard 1 of 3 takes 41 of 124 classes and 345 of 1033 tests.` then `Passed! - Failed: 0, Passed: 345, Skipped: 0, Total: 345, Duration: 9 m 26 s`, wall time 13:25:54–13:38:54 (under the 20-minute cap with room to spare). |
+| minor | The post-implementation report stopped at round 2 and disagreed with the hand-off outcome label. | **Fixed.** Report now carries round 3 and round 4 evidence; status corrected to `PR-open, review-blocked` (was `pr-ready`). |
+| minor | New provider arms sit in existing shared `OperatorLabels.cs` switch expressions rather than solely inside a lane-owned nested class. | **Rejected as unavoidable, risk accepted.** The enum/persisted-code values must be handled by the existing exhaustive `SourceChannel`/`Provenance` callers or they throw/render unknown; a parallel mapper would itself violate one-list-per-concept. Arms are append-only, unreordered — independently confirmed via `git diff 79a4aaf9..8ef4775c` (2 files, +27/-3, no reorder). Residual merge-conflict surface with other EPIC-011 lanes touching this file is accepted, not eliminated. |
+| minor | `"Provider API"` duplicated three times in `OperatorLabels.cs`, against one-list-per-concept. | **Fixed** in `8ef4775c`: one nested `ProviderSubmissionApi` class (`Source`, `ProvenanceIcon` constants) now owns the value; all three switch arms and the new test assertions reference the constants rather than restating the string. |
+| info | Three separate `ActivitySource("Pegasus.Core.Intake")` fields let one test's listener collect another's spans. | **Confirmed, reported only — not this lane's scope, no ticket filed (last-resort rule).** Pre-existing on `dev`; the round-3 trace-scoped test fix already removes the cross-test leak without touching production telemetry. |
+
+### Independent re-verification (wrapper, not Codex's numbers)
+
+- `git status --porcelain=v1` on the worktree: clean. `git diff --stat 79a4aaf9..8ef4775c`
+  touches exactly `src/Pegasus.Web/Presentation/OperatorLabels.cs` and
+  `tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs` — both inside
+  this lane's allowed set, nothing else.
+- `git diff 79a4aaf9..8ef4775c -- tests/`: additions only (+15/-0 in the one
+  test file touched). No assertion removed, weakened, skipped or inverted.
+- `pwsh -NoProfile -Command "dotnet build ./Pegasus.slnx --configuration Release"`
+  re-run by the wrapper: **Build succeeded, 0 Warning(s), 0 Error(s)**, exit 0.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~Pegasus.IntegrationTests.ProviderApiSubmissionTests"`
+  re-run by the wrapper: **Passed! Failed: 0, Passed: 9, Skipped: 0**, exit 0.
+- `gh pr view 594 --json headRefOid,state,mergeStateStatus,reviewDecision`:
+  head `8ef4775c...` matches local and remote HEAD; `state: OPEN`;
+  `mergeStateStatus: CLEAN`; `reviewDecision` empty — independent review still
+  required before merge, nothing merged by this remediation.
+
+### Still open
+
+- Independent human/codex review has not run against `8ef4775c`.
+- TICK-058 remains in `review`; no proof written, ticket not moved.
+- `Features:ProviderApi` remains closed in `docs/operations.md` — no
+  production caller is live; this is not a delivered capability (D21).
+- [[AUTO-012]] and [[AUTO-013]] still carry the previously-deferred residuals
+  (non-atomic accept path; paused-credential check ordering; provider
+  principal absent from case-data snapshot; existing-case-matching
+  escalation).
