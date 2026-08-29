@@ -341,3 +341,166 @@ and this proof is read-only.
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has
 not been promoted; the exact-SHA `dev` → `main` promotion happens at
 wave 5.
+
+---
+
+# HELD — independently re-verified 2026-08-29, closeout board walk
+
+## Verdict: **this ticket does NOT reach Done.** It stays in Verifying.
+
+Re-verified against **merged `dev` at
+`450b9234a6f5626f21adea3c4da244550a3bdace`** (2026-08-29 18:03:20 +0100).
+`b92cb9a7`, the SHA the body above was written at, is an ancestor of it.
+
+This remains **dev-merged evidence, pending the single wave-5 `dev` → `main`
+promotion**. `main` serves release 36; nothing here is deployed.
+
+The finding in the body above was re-derived from scratch by a reviewer who did
+not write it, and then confirmed a second time by an independent audit. **All
+three walks agree: the External work record link is inert, and the defect is
+still live at `450b9234`.**
+
+## The defect, confirmed at the newer SHA
+
+`git show 450b9234:src/Pegasus.Web/Pages/Index.cshtml.cs`, lines 58–64:
+
+```csharp
+public static string RecordPage(NeedsAttentionKind kind) => kind switch
+{
+    NeedsAttentionKind.Case or NeedsAttentionKind.HeldDecision => "/Cases/Details",
+    NeedsAttentionKind.Mail => "/Unidentified/Details",
+    NeedsAttentionKind.Triage => "/Triage/Details",
+    _ => "/Operations"
+};
+```
+
+`"/Operations"` is a Razor **page name**, and no page has it:
+
+```
+git ls-tree -r --name-only 450b9234 -- src/Pegasus.Web/Pages/Operations
+  src/Pegasus.Web/Pages/Operations/Index.cshtml
+  src/Pegasus.Web/Pages/Operations/Index.cshtml.cs
+```
+
+Its page name is `/Operations/Index` — which is the spelling the shell itself
+uses at `src/Pegasus.Web/Pages/Shared/_Layout.cshtml:96`
+`<a class="nav-link" asp-page="/Operations/Index" …>`. (The page's own
+`@page "/Operations"` sets the *URL template*, not the page name; `asp-page`
+resolves page names.)
+
+Two rendered controls bind to it:
+
+```
+src/Pegasus.Web/Pages/Index.cshtml:106
+  <a class="btn btn--small" asp-page="@IndexModel.RecordPage(head.Kind)" …>  ← "Open full record"
+src/Pegasus.Web/Pages/Index.cshtml:148
+  <a class="btn btn--dark" asp-page="@IndexModel.RecordPage(selected.Kind)" …> ← "Next permitted action"
+```
+
+### The empirical confirmation still holds
+
+The same bad spelling occurs once more, at
+`src/Pegasus.Web/Pages/Intake/Details.cshtml:36`
+`<a class="btn" asp-page="/Operations">`, and the committed Test UI corpus
+holds a **real Razor render** of that page:
+
+```
+docs/design/test-ui/pages/received-details--default.html:78
+  <a class="secondary-action" href="">Back to Operations</a>
+```
+
+An empty `href` — the only one in that file. The anchor tag helper generates no
+URL for a page name that matches no endpoint. This is measured output, not
+inference.
+
+## Why that bars Done
+
+`NeedsAttentionKind.ExternalWork` is a genuine production state:
+`src/Pegasus.Core/Operations/OperationsSnapshot.cs:264`–`:283` emits a row
+whenever `GetRequestOperations` yields a retryable external-work item. When the
+Work Centre shows one, both its "Open full record" link and its "Open
+Operations" next-permitted-action button render `href=""` and re-request `/`.
+
+That breaks three separate bindings at once:
+
+- **The ticket's own verification item** — *"Every metric and work-item links
+  to a real route"* — fails for one of the five named kinds.
+- **EPIC-011 `context.md`** — *"Every drawn control maps to a named handler or
+  an approved disabled seam (D7). **Never render an inert control.**"* This is
+  an inert control, and it is not an approved seam.
+- **D21** — *"Control permanently inert (a D7 integration seam) → **No**"*. An
+  unticketed inert control is worse than a seam: D22 requires a seam to be a
+  *named, ticketed* integration rendered as a real `disabled` button with a
+  `data-condition`. This is none of those; it is a broken link.
+
+No test covers it: `git grep -n "RecordPage\|Open Operations\|Open full record"
+450b9234 -- tests/` returns nothing, and no integration test renders `/` with
+an ExternalWork row.
+
+## The ticket that supplies the fix: **UIIMP-008 itself**
+
+`src/Pegasus.Web/Pages/Index.cshtml.cs` is in this ticket's **own Owns list**
+(*"`src/Pegasus.Web/Pages/Index.cshtml(.cs)`, …"*). It is not another lane's
+file and is not deferrable to a neighbour under rule 2. The fix is one word —
+`"/Operations"` → `"/Operations/Index"` at `Index.cshtml.cs:63` — plus a
+regression test that renders `/` with an ExternalWork row, which is the gap
+that let this ship.
+
+**No source change was made during this walk**; the closeout brief for this
+pass is board work only.
+
+### Reported, not fixed — a neighbour's copy of the same defect
+
+`src/Pegasus.Web/Pages/Intake/Details.cshtml:36` carries the identical bad
+spelling and is pre-existing, not this lane's. Per D19 it is reported loudly
+rather than silently fixed: it belongs to the Received/Intake page lane
+(**INTK-046**, Done) and should be swept with the same one-word change.
+
+## Two further findings from this walk (recorded, not blocking)
+
+Both are the same defect class as **PLAT-058** — queried on every Work Centre
+load, read by nothing — and neither is a capability this ticket names, so
+neither adds to the hold:
+
+| Finding | Detail |
+| --- | --- |
+| **PLAT-058 confirmed still live** | `MailActivityCounts.ReceivedToday` (`DashboardCounts.cs:60`) is queried every load at `EfDashboardQueries.cs:123`. `git grep "ReceivedToday" 450b9234` returns five hits: three in `DashboardCounts.cs` (declaration + doc comment) and two in `DashboardCountersWebTests.cs:78,100`. **Zero render sites.** PLAT-058 owns its fate |
+| **Three more unread snapshot members — unticketed** | `OperationsSnapshot.CaseActivity` (composed at `:131` via `GetCaseActivityCountsAsync`, which runs **three** EF queries at `EfDashboardQueries.cs:82,89,97`), `OperationsSnapshot.TriageCount` (`:157`) and `OperationsSnapshot.DueWork` (`:158`) have no reader in `Pegasus.Web`. `IGetOperationsSnapshot` has exactly one consumer (`Index.cshtml.cs:41`) which reads 5 of 8 members. This is PLAT-058's defect roughly 4× wider, and **no ticket owns it** |
+
+## Citation drift in the body above (accuracy note, not a defect)
+
+The body was written at `b92cb9a7`; PLAT-054's `LondonCalendar` extraction has
+since removed ~48 lines from `OperationsSnapshot.cs`. Line numbers that have
+moved, for anyone re-walking it: `DependencyInjection.cs:256` → **:267**;
+`OperationsSnapshot.cs` `:123/:135/:139/:144/:148/:151/:152/:180/:276/:300` →
+**:114/:126/:130/:135/:139/:142/:143/:171/:266/:290**; `site.js:54–60` →
+**:77–84**; `site.js:1385` → **:1408**. The refactor was behaviour-preserving
+and all five needs-attention kinds remain intact. Every `Index.cshtml`,
+`Index.cshtml.cs`, `DashboardCounts.cs`, `OperatorLabels.cs` and test citation
+in the body still lands exactly.
+
+## Commands run, with exit codes
+
+```
+dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false
+  -> Build succeeded. 0 Warning(s), 0 Error(s).   exit 0
+```
+
+No `MSB3027`/`MSB3021` file lock and no `SqlException` occurred; this is a
+clean PASS, not INCONCLUSIVE. **A green build is not evidence against this
+finding** — a page name that matches no endpoint is a runtime link-generation
+failure, not a compile error. That is precisely why it shipped.
+
+## What this evidence does NOT prove
+
+- **Nothing here is deployed.** Tier-2 evidence only.
+- **The other four kinds are unaffected** — `/Cases/Details`,
+  `/Unidentified/Details` and `/Triage/Details` all resolve, and the metric
+  strip, the five queried figures and the D14 Blocked mapping are all proven in
+  the body above and were re-confirmed in this walk.
+- **The 1580/1100/760 layout walk and the Test UI snapshot for `/` remain
+  unproven**, exactly as the body records. **UIIMP-010** owns the walk;
+  **UIIMP-005** owns the snapshot gate. Those are *additional* to the hold, not
+  the reason for it.
+- **No browser was driven.** The inert-link consequence is proven from a
+  committed Razor render plus source reading, not from a live page load.
