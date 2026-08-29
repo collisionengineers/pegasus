@@ -4,10 +4,14 @@ type: ticket
 title: >-
   dev build is broken: ProviderSubmissionTests passes CaseId to
   QueuedIntakeStatus, which INTK-001 removed
-status: implementing
+status: done
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  review: '2026-08-29T17:21:18.441Z'
+  verifying: '2026-08-29T17:21:28.844Z'
+  done: '2026-08-29T17:21:34.792Z'
 labels:
   - ci
   - build-break
@@ -21,7 +25,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T15:20:22.951Z'
-updated: '2026-08-29T15:20:22.951Z'
+updated: '2026-08-29T17:21:34.792Z'
 ---
 
 ## What
