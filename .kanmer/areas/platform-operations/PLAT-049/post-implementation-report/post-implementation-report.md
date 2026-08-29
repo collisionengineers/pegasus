@@ -123,3 +123,77 @@ Recorded with dispositions under a dated heading in the ticket's `plan`.
 Ran over this branch's own diff before the PR; findings and dispositions are
 recorded under "Simplification pass — 2026-08-29" in the `plan` document. Five
 findings, four fixed, one rejected with a reason.
+
+## Adversarial verifier remediation - 2026-08-29
+
+This section corrects and supersedes earlier statements in this report wherever
+they conflict.
+
+### What changed after verification
+
+- An effective `Expired` row from the persisted-open query now remains on the
+  list when `ExpiresAtUtc` is on the current Europe/London office date. The
+  regression fixture was created on the previous office day and expires today,
+  matching the production failure the verifier reproduced.
+- The Operations GET no longer calls the unbounded
+  `IUnidentifiedStore.ListQueueAsync`. The send form accepts one canonical U
+  reference; POST validates it and uses the existing unique-sequence
+  `GetByReferenceAsync` lookup. The global rail filter remains the only queue
+  enumeration on the request.
+- The unbounded `<select>` was removed, so thousands of open items no longer
+  become thousands of DOM options.
+- The positive test fixture is `U412`, the shape Core can produce.
+- `StateToneOverride` contains only Queued, Taken and Draft ready. The shared
+  `_StatusChip` owns Completed, Failed, Cancelled and Expired.
+- The stale baseline comment was corrected, and all AI type references in the
+  shared labels file now stay inside the appended `AiJobs` class.
+
+### Caller correction
+
+The earlier claim that both `ICancelAiJob` and `IConfirmAiJob` had no production
+caller was wrong. `SetCurrentEstimate` already called `IConfirmAiJob`; its own
+`ISetCurrentEstimate` interface was registered but had no Web caller.
+`ICancelAiJob` had no production caller. This PR gives Cancel its first reachable
+caller and gives Confirm a reachable Operations caller. No credit is claimed
+for creating the estimates-path call.
+
+### Assertion disclosure
+
+No assertion was weakened to obtain green. One existing PLAT-049 assertion was
+intentionally inverted because the implementation behaviour changed: the send
+control is now present without enumerating the queue on GET, and the action
+refuses a closed or missing reference through the point lookup. The test was
+renamed and now asserts that new behaviour. The two pre-existing negative
+placeholder assertions remain unchanged and true.
+
+### Finding dispositions
+
+- **High - Expired row absent:** fixed in `ReadAiJobsAsync` and covered by the
+  stale-queued regression row.
+- **Medium - duplicate queue query:** fixed by removing the page query; a test
+  pins one GET-time queue call from the global rail only.
+- **Medium - unbounded options:** fixed by the canonical reference input.
+- **Medium - fabricated positive fixture:** fixed to `U412` and a valid open
+  `UnidentifiedItem`.
+- **Low - duplicated tone mappings:** fixed by deferring known labels to
+  `_StatusChip`.
+- **Low - caller overclaim:** corrected above.
+- **Low - missing EVA handoffs / Service health View:** risk accepted for this
+  lane. They still require Core contracts and an authorised route outside the
+  owned files, so the ticket remains Review and is not reported complete.
+- **Low - plan drift:** corrected in the plan's verifier-remediation section.
+
+### Verification and commits
+
+| Command | Observed result |
+| --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release` | Exit 0; Build succeeded; 0 warnings; 0 errors |
+| `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "FullyQualifiedName~OperationsWebTests"` | Exit 0; 19 passed; 0 failed; 0 skipped |
+
+Remediation commits pushed to the existing PR branch:
+
+- `7df75798` - production remediation
+- `3d5cdbb9` - regression and fixture coverage
+
+The full suite, Browser category, snapshot capture and catalogue scripts were
+not run and are not claimed.

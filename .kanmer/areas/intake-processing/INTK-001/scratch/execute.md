@@ -1,0 +1,1 @@
+Verifier remediation pushed to PR #620 at 6ff999b2 (source ce3c0cfe, tests 6ff999b2). Release build exited 0 with 0 warnings/errors; focused non-Browser filter passed 6/6 and focused Browser filter passed 1/1 after reproducing the old scheduler failure. Ticket remains in Review; no PR or stage mutation performed.

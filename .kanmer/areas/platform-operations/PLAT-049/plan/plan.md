@@ -149,3 +149,91 @@ needs Core work with its own plan rather than a one-line change.
 | 4 | §1.11's **Recipient** column is missing from Active upload links | **Deferred, reported.** Same projection, same reason |
 | 5 | FRD-11's `Open query` should open the message; a `QueryResponse` job's subject is the Case | **Accepted risk, reported.** The link opens the Case the job names — a real record and a real route. Naming the message needs a Core field on the job |
 | 6 | The lane brief says the Send button creates a queue-pass job; FRD-11, the ticket body and D5 say Unidentified resolution | **Fixed to FRD-11.** Reasoning in `research`; called out loudly in the report |
+
+## Adversarial verifier remediation - 2026-08-29
+
+This section is the effective plan for the verifier-remediation commits and
+supersedes the earlier implementation steps and simplification table wherever
+they conflict.
+
+### Code corrections
+
+- AI Job List membership still combines `ListOpenAsync` with the bounded recent
+  tail, but effective `Expired` rows from the persisted-open query now use
+  `ExpiresAtUtc` as their terminal instant. `ClosedAtUtc` remains the instant
+  for explicitly completed, failed and cancelled rows.
+- `Send Unidentified to AI` is now a canonical U-reference input. The GET no
+  longer enumerates the Unidentified queue. POST validates with
+  `UnidentifiedReferenceFormat.TryParse` and resolves the one record through
+  the existing unique-sequence `GetByReferenceAsync` lookup before calling
+  `ICreateAiJob`.
+- The global rail filter still performs its one pre-existing queue query. The
+  Operations page no longer performs the duplicate second query or emits an
+  unbounded `<select>`.
+- `OperatorLabels.AiJobs.StateToneOverride` owns only Queued, Taken and Draft
+  ready. `_StatusChip` remains the single owner for Completed, Failed,
+  Cancelled and Expired.
+- Route and label selection use the one `ReviewAction` tuple helper, not the
+  planned `ReviewPage` / `ReviewLabel` pair.
+- The `Pegasus.Core.AiWork` using was removed from the shared using block. All
+  AI types are fully qualified inside this lane's appended `AiJobs` class.
+
+### Focused test set
+
+The ten branch-added tests are the implemented methods, not the six names in
+the original plan:
+
+1. `AiJobListShowsLiveJobsAndOnlyTodaysTerminalJobs`
+2. `AiJobListNamesTheRecordAndNeverThePersistedQueueToken`
+3. `DraftReadyJobsOfferOnlyTheActionsTheirKindNames`
+4. `ATerminalJobRowOffersNoControlAndRendersTheDash`
+5. `SendUnidentifiedToAiCreatesAnUnidentifiedResolutionJobForTheChosenItem`
+6. `SendUnidentifiedToAiRefusesAReferenceThatIsNotOpen`
+7. `SendUnidentifiedToAiSurfacesTheAdministratorRefusal`
+8. `CompleteAiJobConfirmsThroughTheCanonicalCommand`
+9. `CancelAiJobCarriesTheOperatorReason`
+10. `CancelAiJobWithoutAReasonIsRefusedBeforeCore`
+
+The first test now includes the concrete stale-queued case: created on the
+previous office day, effectively expired today, rendered as `Expired`, with no
+form. The send tests prove one rail queue query on GET and one point lookup on
+POST. The positive fixture is the canonical `U412`.
+
+One pre-existing PLAT-049 assertion was intentionally inverted from absence to
+presence: the send control no longer depends on an unbounded GET-time queue
+enumeration. The renamed test asserts the new correct behaviour and proves a
+closed or missing reference is refused before Core. This is a disclosed
+behaviour change, not an assertion weakened to obtain green.
+
+### Verifier finding dispositions
+
+- **High - effective Expired job vanished:** fixed by using `ExpiresAtUtc` and
+  retaining effective Expired rows from `ListOpenAsync` when expiry is today.
+- **Medium - duplicate queue query:** fixed; Operations no longer calls
+  `ListQueueAsync` on GET. The verifier correctly found an efficiency defect
+  the original simplification pass missed.
+- **Medium - unbounded select:** fixed; one canonical reference input replaces
+  the complete queue projection.
+- **Medium - fabricated U reference:** fixed from `U-000412` to canonical
+  `U412`, with a valid `UnidentifiedItem` returned by the fake point lookup.
+- **Low - duplicate tone map:** fixed; only the three labels unknown to the
+  shared chip have overrides.
+- **Low - `IConfirmAiJob` caller overclaim:** fixed in the report below.
+  `SetCurrentEstimate` already called it, although `ISetCurrentEstimate` had no
+  Web caller; this PR supplies a reachable Operations caller.
+- **Low - EVA handoffs and Service health View absent:** risk accepted for this
+  lane. The required Core read model and authorised route do not exist, those
+  files are outside lane ownership, and PLAT-049 remains in Review rather than
+  being represented as complete.
+- **Low - plan drift:** fixed by this effective-state section and the exact ten
+  implemented test names above.
+
+### Remediation verification
+
+- `dotnet build ./Pegasus.slnx --configuration Release` - exit 0, 0 warnings,
+  0 errors.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~OperationsWebTests"` - exit 0; 19 passed, 0 failed,
+  0 skipped.
+- Full suite, Browser tests, snapshot capture and catalogue scripts were not
+  run, as required by the verifier brief.

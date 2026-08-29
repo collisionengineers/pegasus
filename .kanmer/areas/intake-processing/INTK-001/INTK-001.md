@@ -31,11 +31,13 @@ commits:
   - f4ea838c
   - c617dec2
   - e739bc80
+  - ce3c0cfe
+  - 6ff999b2
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/620'
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-29T10:07:35.049Z'
+updated: '2026-08-29T13:19:50.156Z'
 ---
 
 ## What
