@@ -2,10 +2,12 @@
 id: CASE-027
 type: ticket
 title: 'Port the Case Vehicle, Inspection address, Case Files and Notes views'
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-29T16:42:56.070Z'
 labels:
   - ui
   - wave-2
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-28T08:35:23.925Z'
-updated: '2026-08-29T13:10:35.264Z'
+updated: '2026-08-29T16:42:56.070Z'
 ---
 
 ## What
