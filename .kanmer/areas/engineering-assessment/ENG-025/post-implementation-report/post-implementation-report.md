@@ -128,3 +128,83 @@ catalogue scripts are the orchestrator's gates and were not run.
   `Presentation/OperatorLabels.cs`, a file four wave-2 lanes share. The
   revert removed it here and the salvage branch was stripped of it, so
   neither branch carries it.
+
+## Behavioural deletions (added 2026-08-29 — round-1 report was wrong here)
+
+The round-1 hand-off to the orchestrator said the report-draft change
+(`5d3b658c`) was **"the one behavioural change beyond the split"**. That was
+false, and it was the orchestrator's merge-decision input. The branch also
+removes the following. The plan and checklist recorded them; the hand-off did
+not, so a reader of the hand-off alone would not have learned that the branch
+takes `ISaveAssessment` off every operator surface.
+
+Page handler sets (`grep -oE 'asp-page-handler="[A-Za-z]+"' | sort -u`):
+
+| | Handlers |
+| --- | --- |
+| `origin/dev` | AcceptSpecification, ClaimLease, GenerateReportDraft, ImportEstimate, Reconcile, ReleaseLease, **SaveDamage**, **Send** |
+| this branch | AcceptSpecification, ClaimLease, GenerateReportDraft, ImportEstimate, **PreviewReportDraft**, ReleaseLease, **SendToClaude** |
+
+1. **`OnPostSaveDamageAsync` and the damage grid are gone.** With them, the
+   only operator writer of `ISaveAssessment` — `git grep -n ISaveAssessment`
+   now returns the interface, its implementation, its registration and
+   `src/Pegasus.Web/Mcp/AssessmentMcpTools.cs:154`, and no Razor Page. Impact
+   location, a required report source
+   (`AssessmentReportRendering.cs:232`), is settable only by Claude through
+   the MCP seam until [[ENG-029]] ships. §1.9 draws no damage diagram and
+   §1.14 removes the section it lived in, so it is not restored here; ENG-029
+   owns it and is linked from this ticket. **This is a real, operator-visible
+   deferral, not a no-op** — [[ENG-006]] shipped that grid to production.
+2. **The rest of the old assessment field editor is gone** — twelve further
+   report-required fields. Unlike impact location this is not a capability
+   loss: on `origin/dev` those inputs sat inside no `<form>` and their save
+   controls were `<button type="button">`, i.e. the inert controls this
+   ticket's body orders removed. ENG-029 carries them because the §1 contract
+   gives them no home, not because the branch broke them.
+3. **`OnPostSendAsync` / `OnPostReconcileAsync` and the `ISendCaseToAi`
+   panel-state machinery are gone**, replaced by `OnPostSendToClaudeAsync` on
+   the AUTO-011 job ledger. `IReconcileAiWorkRequest` now has no page caller;
+   `ISendCaseToAi` keeps its composition and is driven directly in the
+   connector-administration test.
+4. **Two tests were dropped with their handlers** —
+   `DamageRegionClickSavesTheImpactLocationThroughTheAssessmentSeam` and
+   `MethodRadioPreselectsTheRecordedInspectionMode`
+   (`AssessmentDamageAndCopyWebTests.cs`, 4 tests → `AssessmentCopyWebTests.cs`,
+   3). The first is ENG-029's to reinstate with the editor.
+
+## Security-relevant assertion restored (2026-08-29)
+
+Commit `065c18ef` had removed the AI hand-off's outbound-payload guard
+(`Assert.DoesNotContain("claimant", request.Body, …)`, plus the
+`schema_version` and `Bearer` assertions) when it retargeted
+`SendToAiIntegrationTests` to the ledger, and nothing in `tests/` replaced it.
+It is restored in `SendToAiConnectorAdministrationTests.cs`, in the one test
+that still drives a real hand-off through `ISendCaseToAi` to the fake channel.
+`ChannelAiHandOffTransport` is still the composed transport
+(`ChannelAiHandOffTransport.cs:201`), so the guard covers live code.
+
+## Cross-lane file share (2026-08-29)
+
+`tests/Pegasus.IntegrationTests/AssessmentWorkspaceTestData.cs` is modified by
+this lane **and** by `origin/task/tick-058-provider-submission-api` (TICK-058,
+wave 3), against waves.md's whole-file ownership rule. Hunks are disjoint
+(TICK-058 at line 27, this lane at line ~100) so git auto-merges; whichever
+merges second should re-run this file's suite. Not edited around, per the
+epic's "report what belongs to another ticket; do not fix it".
+
+## Corrected verification figures (2026-08-29)
+
+```
+dotnet build ./Pegasus.slnx --configuration Release
+  → Build succeeded. 0 Warning(s), 0 Error(s)
+
+dotnet test ./Pegasus.slnx --configuration Release --no-build \
+  --filter "(FullyQualifiedName~Assessment|FullyQualifiedName~SendToAi)&Category!=Browser"
+  → Pegasus.Core.Tests        Failed 0, Passed 88, Total 88
+  → Pegasus.IntegrationTests  Failed 0, Passed 43, Total 43
+```
+
+Round 1's "49/49 Integration" ran the same filter **without** the Browser
+exclusion, so it included the six `AssessmentReadinessSummaryBrowserTests`
+this lane is not permitted to run. 43 is the honest figure for the permitted
+filter; the browser tests remain the orchestrator's gate.

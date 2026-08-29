@@ -21,15 +21,17 @@ groups:
   - EPIC-011
 links:
   - PLAT-048
+  - PLAT-060
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - c2bef9df25acca4c5ec7224ae6bb637e57f089da
+  - 3e16e506
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/611'
 archived: false
 created: '2026-08-28T10:58:44.482Z'
-updated: '2026-08-28T21:28:34.291Z'
+updated: '2026-08-29T08:15:54.459Z'
 ---
 
 ## What
