@@ -4,10 +4,14 @@ type: ticket
 title: >-
   PrincipalCredentialPersistenceTests tamper-mutation is a no-op when the secret
   already ends in "A"
-status: backlog
+status: preparing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-29T14:44:44.197Z'
+branch: task/deliv-034-credential-tamper-flake
+worktree: >-
+  C:/Users/PC/Documents/GitHub/pegasus-worktrees/deliv-034-credential-tamper-flake
 labels:
   - ci
   - flaky
@@ -22,7 +26,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-29T14:27:28.216Z'
-updated: '2026-08-29T14:27:28.216Z'
+updated: '2026-08-29T14:44:44.197Z'
 ---
 
 ## What
