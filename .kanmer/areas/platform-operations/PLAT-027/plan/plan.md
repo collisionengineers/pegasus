@@ -213,3 +213,120 @@ to TICK-058 (`63009b02 fix(provider-api): an Audit must attach exactly one
 original report`, already on `origin/dev`). Outside PLAT-027's scope per
 hard rule "touch only your lane's files" — reporting for TICK-058's owner to
 fix, not fixing here.
+
+## Cross-model review and remediation — 2026-08-29
+
+A `gpt-5.6-sol` reviewer returned `REQUEST_CHANGES` with three blockers and
+several findings; `gpt-5.6-luna` remediated in `561f4169`, `f9dffa48`,
+`fda81e54`. The orchestrator verified the security-relevant blocker and the
+assertion integrity independently rather than accepting the report.
+
+### Blocker 1 — an account could disable and review itself · **FIXED IN CORE**
+
+`docs/frd/frd-04-parties-accounts-and-access.md:66`: *"An account never disables
+or reviews itself."* Neither Web nor Core enforced it — Disable
+(`Index.cshtml.cs:141`) and Review (`:161`) forwarded the submitted `staffId`
+straight through, so an administrator could disable their own account or sign off
+their own access review.
+
+**The rule now lives in `Pegasus.Core`, where business policy belongs** —
+`src/Pegasus.Core/Identity/StaffAccountAdministration.cs:521`:
+
+```csharp
+internal static void RequireDifferentStaffAccount(ActionActor actor, Guid staffId)
+{
+    if (actor.Kind == ActorKind.Staff
+        && Guid.TryParse(actor.SubjectId, out var actorStaffId)
+        && actorStaffId == staffId)
+    {
+        throw new StaffAccountAdministrationException(
+            StaffAccountAdministrationError.SelfAction);
+    }
+}
+```
+
+Called from **both** `DisableStaffAccount` (`:440`) and `ReviewStaffAccess`
+(`:487`), beside the existing `RequireAdministrator` / `RequireStaffId` guards, so
+there is one owner and no second implementation. `SelfAction` is added to
+`StaffAccountAdministrationError`. The page additionally does not render either
+control for the signed-in operator's own row, so no control is offered that would
+be refused.
+
+**Verified by the orchestrator**, `IdentityUseCaseTests.StaffAccountCannotDisableOrReviewItself`:
+it asserts both calls throw `SelfAction` **and** that `store.DisableRequest` and
+`store.ReviewRequest` are still null — proving the refusal happens *before* the
+side effect, which is the rule that actually matters.
+
+**Accepted risk, recorded:** `Guid.TryParse` returning false would skip the guard
+rather than refuse — fail-open on a security check. It is unreachable in practice:
+`IdentityContracts.cs:73` is the only staff-actor construction path and always
+writes `staffId.ToString("D")`, and `CaseQueries.cs:345` uses the identical
+`Kind: ActorKind.Staff && Guid.TryParse(...)` idiom. Matching the existing
+convention was the right call; the alternative would be a new pattern in one
+place. Noted so a future reader does not mistake it for an oversight.
+
+### Blocker 2 — `<select multiple>` silently revoked roles · **FIXED BY REUSE**
+
+A native `<select multiple>` clears every selection when an option is clicked
+without Ctrl, and the handler then persisted the reduced set and revoked
+sessions — an administrator lost roles by one ordinary click. The superseded
+checkbox workflow had no such hazard.
+
+Replaced with the **existing checkbox convention already in
+`Administration/Roles/Index.cshtml`** rather than a new control: a
+`<fieldset class="role-choices">` of `<label class="choice"><input
+type="checkbox" name="selectedRoles" form="…">`. The `form` attribute keeps them
+bound to the row's Save form. The existing convention wins.
+
+### Blocker 3 — Disable and Review did nothing without JavaScript · **FIXED, matching TICK-223**
+
+Both were `type="button"` controls whose only behaviour was `data-dialog-open`,
+against `site.js`'s own rule that every enhancement sits over markup that already
+works. They are now real links to
+`/Administration/Accounts/Confirm/{Disable|Review}/{staffId}`, which serves a
+working POST form targeting the existing Index handlers, and they keep
+`data-dialog-open` for the JavaScript enhancement. This is the same
+static-target-plus-enhancement shape [[TICK-223]] records, so the two do not
+diverge.
+
+### Remaining findings — dispositions
+
+| Finding | Disposition |
+| --- | --- |
+| Rejected role post lost submitted roles | **Fixed** — both roles and reason survive |
+| Rejected Create post lost username and reason | **Fixed** |
+| Rejected Disable/Review lost the dialog reason | **Fixed** (continues the existing `_ReasonDialog.cshtml` branch change) |
+| Disable/Review reason limit inconsistent with Core | **Fixed** — both use Core's 1000-character limit |
+| Account count did not show truncation | **Fixed** — shows `+` when the bounded query has more rows |
+| Password chips lacked explicit tones | **Fixed** |
+| Save dirty-state behaviour | **Deferred to [[TICK-223]]** — it belongs in `site.js`, which this lane must not touch |
+| Two bounded Core query contracts remain separate | **Risk accepted** — unifying the snapshots needs its own Core design ticket; duplicating one here would be worse |
+| No plan section for the `<select multiple>` hazard originally | Superseded by blocker 2's fix |
+
+### Assertion integrity — verified, not taken on report
+
+Across `origin/dev...HEAD`: **1** removed `Assert.` line, **0** new `Skip`/
+`[Ignore]`, **0** deleted test methods. The single removal is a **strengthening**:
+
+```diff
+- Assert.Contains("No staff accounts are available.", …)
++ Assert.Contains("<h2>No staff accounts are available.</h2>", …)
+```
+
+Same sentence, now pinned to its exact heading element. Nothing was weakened.
+
+New coverage: +22 lines in `Pegasus.Core.Tests/Identity/IdentityUseCaseTests.cs`
+and +349 in `StaffAccountsAndRolesWebTests.cs`.
+
+### Verification
+
+- `dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false` — exit
+  0, 0 warnings, 0 errors, **0 `CS####` diagnostics**.
+- `dotnet test … --filter "FullyQualifiedName~StaffAccountsAndRolesWebTests"` —
+  **Failed 0, Passed 4**.
+
+### Still open
+
+TICK-223's Save dirty-state behaviour; the accepted two-query snapshot risk;
+snapshot regeneration and route-removal work, which belong to the orchestrator
+and wave 5 respectively; and the hosted CI run against current `dev`.
