@@ -1,46 +1,44 @@
 @page "/Uploads/{token}"
 @model Pegasus.Web.Pages.Uploads.RequestModel
 @{
-    ViewData["Title"] = "Upload requested documents";
+    ViewData["Title"] = OperatorLabels.Upload.RequestTitle;
 }
 
-@* The heading carries the eyebrow and the title alone. The sentence that was a
-   lede is ordinary body copy: it is an instruction to the person uploading, not
-   a description of the screen. *@
-<div class="form-column form-column--narrow">
-    <header class="page-heading">
-        <div>
-            <p class="eyebrow">Secure document request</p>
-            <h1>Upload requested documents</h1>
+@* The one screen a third party outside Collision Engineers sees. The external
+   layout supplies the card and the company logo; this is its whole content.
+   No request reference, no expiry and no case identity appear here: FRD-02
+   binds the public page to the upload fields and its own success or failure,
+   and RequestUploadPublicView carries nothing else. *@
+<p class="eyebrow">@OperatorLabels.Upload.RequestEyebrow</p>
+<h1>@OperatorLabels.Upload.RequestTitle</h1>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="notice notice--success" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+        <span>@Model.StatusMessage</span>
+    </div>
+}
+
+@if (Model.UploadPolicy is not null)
+{
+    <form method="post" enctype="multipart/form-data" class="section-gap">
+        <input asp-for="Token" type="hidden" />
+        <input asp-for="OperationKey" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
+        <div class="dropzone" data-dropzone>
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <div>
+                <h2><label asp-for="Upload">@OperatorLabels.Upload.RequestDropzone</label></h2>
+                <p>Up to @Model.MaximumFileSize.</p>
+                <button type="button" class="btn btn--primary" hidden data-dropzone-browse>Choose file</button>
+                <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
+            </div>
         </div>
-    </header>
-
-    <p>Documents submitted here go directly to Collision Engineers against the request you received; do not upload unrelated material.</p>
-
-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-    {
-        <div class="status-card" role="status">@Model.StatusMessage</div>
-    }
-
-    @if (Model.UploadPolicy is not null)
-    {
-        <section class="panel section-gap" aria-labelledby="request-upload-title">
-            <h2 id="request-upload-title" class="section-label">Choose a document</h2>
-            <form method="post" enctype="multipart/form-data">
-                <input asp-for="Token" type="hidden" />
-                <input asp-for="OperationKey" type="hidden" />
-                <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-                <div class="dropzone dropzone--compact" data-dropzone>
-                    <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
-                    <label asp-for="Upload">Drag a file here, or choose one</label>
-                    <span class="field-hint">Up to @Model.MaximumFileSize.</span>
-                    <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
-                    <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose file</button>
-                    <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
-                </div>
-                <span asp-validation-for="Upload" class="field-validation"></span>
-                <button type="submit" class="primary-action primary-action--block">Upload document</button>
-            </form>
-        </section>
-    }
-</div>
+        <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
+        <span asp-validation-for="Upload" class="field-error"></span>
+        <div class="button-row section-gap">
+            <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.RequestSubmit</button>
+        </div>
+    </form>
+}
