@@ -312,6 +312,56 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal("Accepted", accepted.Outcome);
     }
 
+    /// <summary>
+    /// What stops two Accepted rows reaching permanent history is the derived
+    /// identity, so it has to be the database refusing the second write rather
+    /// than a time window nobody can hold.
+    /// </summary>
+    [Fact]
+    public async Task ASecondAcceptedRowForOneSubmissionIsRefused()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var created = await SubmitAsync(
+            client,
+            secret,
+            "duplicate-accept-1",
+            [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var principalId = await QdosPrincipalIdAsync(scope.ServiceProvider);
+        // Exactly what accept recovery would append for this submission,
+        // arriving after the request appended its own row.
+        var written = await scope.ServiceProvider.GetRequiredService<IActionHistoryWriter>().TryAppendAsync(
+            new(
+                ProviderSubmissionPolicy.AcceptedHistoryId(submissionId),
+                ProviderSubmissionPolicy.ActionHistoryAggregateType,
+                submissionId.ToString("D"),
+                "Submitted",
+                ActionActor.Provider(principalId),
+                DateTimeOffset.UtcNow,
+                "Accepted",
+                ProviderSubmissionPolicy.OperationKey(submissionId)),
+            CancellationToken.None);
+
+        Assert.False(written);
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var accepted = await context.ActionHistory
+            .AsNoTracking()
+            .SingleAsync(item => item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                && item.AggregateId == submissionId.ToString("D")
+                && item.Outcome == "Accepted");
+        // The row that stands is the request's own, with the request's
+        // correlation id rather than the recovery operation key.
+        Assert.NotEqual(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
+    }
+
     [Fact]
     public async Task PausedCredentialIsRefusedForSubmissionAndStillReadsItsOwnResult()
     {

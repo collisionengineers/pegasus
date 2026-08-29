@@ -380,9 +380,16 @@ public sealed class ProviderSubmissionTests
         Assert.Equal(stagedReceiptId, store.Records[submissionId].StagedReceiptId);
         var accepted = Assert.Single(history.Entries);
         Assert.Equal("Accepted", accepted.Outcome);
+        Assert.Equal(ProviderSubmissionPolicy.AcceptedHistoryId(submissionId), accepted.Id);
         Assert.Equal(ProviderSubmissionPolicy.OperationKey(submissionId), accepted.CorrelationId);
         Assert.Equal(ActorKind.Provider, accepted.Actor.Kind);
         Assert.Equal(PrincipalId.ToString("D"), accepted.Actor.SubjectId);
+        // The accept happened when the submission was received, days before
+        // this sweep, and the row says so rather than stating the sweep's own
+        // clock and a correlation id no request ever used.
+        Assert.Equal(store.Records[submissionId].ReceivedAtUtc, accepted.OccurredAtUtc);
+        Assert.NotEqual(Now, accepted.OccurredAtUtc);
+        Assert.Contains("accept recovery", accepted.Reason);
     }
 
     [Fact]
@@ -422,6 +429,41 @@ public sealed class ProviderSubmissionTests
         Assert.Equal(1, result.Candidates);
         Assert.Equal(1, result.Repaired);
         Assert.Equal(["Replayed", "Accepted"], history.Entries.Select(entry => entry.Outcome));
+        // Permanent history is read in time order: the accept the replay
+        // replayed cannot be stamped after it.
+        var replayed = history.Entries.Single(entry => entry.Outcome == "Replayed");
+        var accepted = history.Entries.Single(entry => entry.Outcome == "Accepted");
+        Assert.True(accepted.OccurredAtUtc < replayed.OccurredAtUtc);
+    }
+
+    /// <summary>
+    /// The sweep's snapshot said the Accepted row was missing; by the time it
+    /// wrote, the request it was recovering for had appended its own. One
+    /// acceptance, recorded once, with the request's own correlation id.
+    /// </summary>
+    [Fact]
+    public async Task AcceptRecoveryLosesTheRaceToTheRequestsOwnAcceptedRow()
+    {
+        var submissionId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var history = new FakeHistory();
+        store.Records[submissionId] = Submission(submissionId, stagedReceiptId: stagedReceiptId);
+        intake.AddStagedReceipt(StagedReceipt(submissionId, stagedReceiptId));
+        var reconcile = Reconcile(store, intake, history);
+        history.AddAfterSnapshot(History(submissionId, "Accepted") with
+        {
+            Id = ProviderSubmissionPolicy.AcceptedHistoryId(submissionId)
+        });
+
+        var result = await reconcile.ExecuteAsync(50);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(0, result.Repaired);
+        Assert.Equal(0, result.Failures);
+        var accepted = Assert.Single(history.Entries);
+        Assert.Equal($"request:{submissionId:N}", accepted.CorrelationId);
     }
 
     [Fact]
@@ -490,6 +532,11 @@ public sealed class ProviderSubmissionTests
         Assert.Equal(0, result.Repaired);
         Assert.Single(history.Entries);
         Assert.Equal("Accepted", history.Entries[0].Outcome);
+        // The identity the sweep would write under, so the two paths collide
+        // instead of both recording the acceptance.
+        Assert.Equal(
+            ProviderSubmissionPolicy.AcceptedHistoryId(receipt.SubmissionId),
+            history.Entries[0].Id);
         Assert.Equal(1, store.RecordStagedReceiptCalls[receipt.SubmissionId]);
     }
 
@@ -670,25 +717,6 @@ public sealed class ProviderSubmissionTests
             return Task.FromResult(candidates);
         }
 
-        public Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
-            Guid submissionId,
-            CancellationToken cancellationToken)
-        {
-            var accepted = AcceptedSubmissionIds();
-            var record = Records.GetValueOrDefault(submissionId);
-            var retained = record is null ? null : Intake?.FindStagedReceiptId(record.Id);
-            return Task.FromResult(
-                record is null || retained is null
-                    ? null
-                    : new ProviderSubmissionAcceptCandidate(
-                        record.Id,
-                        record.PrincipalId,
-                        record.ReceivedAtUtc,
-                        record.StagedReceiptId,
-                        retained.Value,
-                        accepted.Contains(record.Id)));
-        }
-
         private HashSet<Guid> AcceptedSubmissionIds() => HistoryEntries
             .Where(entry =>
                 entry.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
@@ -758,6 +786,10 @@ public sealed class ProviderSubmissionTests
                 : null;
     }
 
+    /// <summary>
+    /// Appends like the real writer, including its one constraint: an entry id
+    /// already in the stream is refused rather than written twice.
+    /// </summary>
     private sealed class FakeHistory : IActionHistoryWriter
     {
         public List<ActionHistoryEntry> Entries { get; } = [];
@@ -769,10 +801,27 @@ public sealed class ProviderSubmissionTests
             Store?.HistoryEntries.Add(entry);
         }
 
+        /// <summary>
+        /// Records a row the sweep's already-taken candidate snapshot does not
+        /// know about — the inline request finishing mid-pass.
+        /// </summary>
+        public void AddAfterSnapshot(ActionHistoryEntry entry) => Entries.Add(entry);
+
         public Task AppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken)
         {
             Add(entry);
             return Task.CompletedTask;
+        }
+
+        public Task<bool> TryAppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken)
+        {
+            if (Entries.Any(existing => existing.Id == entry.Id))
+            {
+                return Task.FromResult(false);
+            }
+
+            Add(entry);
+            return Task.FromResult(true);
         }
     }
 
