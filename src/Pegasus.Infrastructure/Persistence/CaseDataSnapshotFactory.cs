@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
