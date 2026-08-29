@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -33,9 +34,11 @@ public static class ValuationSources
 }
 
 /// <summary>
-/// The operator-entered local date and time are retained separately. When an
-/// instant is needed, <see cref="LondonCalendar"/> remains the single
-/// conversion owner.
+/// One recorded valuation. The operator-entered local date and time are
+/// retained as entered, and are the order the Valuations table is read in.
+/// An <see cref="ValuationSource.EngineersValue"/> row additionally writes
+/// the confirmed <c>assessment.values.engineer</c> field, which stays the one
+/// owner of the Engineer's Value the product consumes.
 /// </summary>
 public sealed record ValuationDetails(
     ValuationSource Source,
@@ -83,14 +86,14 @@ public static class ValuationPolicy
     public static SaveValuationRequest ValidateSave(SaveValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RequireActor(request.Actor, request.Details);
         return request with { Details = ValidateDetails(request.Details) };
     }
 
     public static EditValuationRequest ValidateEdit(EditValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RequireActor(request.Actor, request.Details);
         if (request.ValuationId == Guid.Empty)
         {
             throw new ArgumentException("A valuation identifier is required.", nameof(request));
@@ -113,29 +116,44 @@ public static class ValuationPolicy
         }
         Money(details.RetailValue, "retail value");
         Money(details.TradeValue, "trade value");
+
+        // An Engineer's Value row is the entry surface of
+        // assessment.values.engineer, so a row that cannot be written to that
+        // field is refused here rather than persisted and silently dropped.
+        EngineersValueField(details);
         return details;
     }
 
-    public static DateTimeOffset ValuedAtUtc(ValuationDetails details)
+    /// <summary>
+    /// Recording or correcting a valuation is ordinary casework. An
+    /// Engineer's Value row is not: it carries the confirmed
+    /// <c>assessment.values.engineer</c> professional finding, so it takes
+    /// that field's own authority rule from its single owner.
+    /// </summary>
+    private static void RequireActor(ActionActor actor, ValuationDetails details)
     {
         ArgumentNullException.ThrowIfNull(details);
-        return LondonCalendar.ToUtc(details.Date.ToDateTime(details.Time));
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (details.Source == ValuationSource.EngineersValue)
+        {
+            AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+        }
     }
 
     /// <summary>
-    /// The current Engineer value is the source's latest entered local date
-    /// and time. Audit time and stable identity break exact ties.
+    /// The confirmed <c>assessment.values.engineer</c> value an Engineer's
+    /// Value row carries: its retail figure, which is the pre-accident value
+    /// a settlement is measured from (FRD-11 total-loss report). Null for
+    /// every other source, which writes no assessment field.
     /// </summary>
-    public static CaseValuation? CurrentEngineersValue(
-        IEnumerable<CaseValuation> valuations)
+    public static string? EngineersValueField(ValuationDetails details)
     {
-        ArgumentNullException.ThrowIfNull(valuations);
-        return valuations
-            .Where(item => item.Details.Source == ValuationSource.EngineersValue)
-            .OrderByDescending(item => ValuedAtUtc(item.Details))
-            .ThenByDescending(item => item.LastEditedAtUtc ?? item.RecordedAtUtc)
-            .ThenByDescending(item => item.ValuationId)
-            .FirstOrDefault();
+        ArgumentNullException.ThrowIfNull(details);
+        return details.Source == ValuationSource.EngineersValue
+            ? AssessmentPolicy.NormalizeFieldValue(
+                AssessmentVocabulary.ValueEngineer,
+                details.RetailValue.ToString(CultureInfo.InvariantCulture))
+            : null;
     }
 
     private static void Money(decimal value, string description)
@@ -185,13 +203,6 @@ public interface IListCaseValuations
         CancellationToken cancellationToken);
 }
 
-public interface IGetCurrentEngineersValue
-{
-    Task<CaseValuation?> ExecuteAsync(
-        Guid caseId,
-        CancellationToken cancellationToken);
-}
-
 public sealed class SaveValuation(IValuationStore store) : ISaveValuation
 {
     public Task<CaseValuation> ExecuteAsync(
@@ -214,27 +225,11 @@ public sealed class ListCaseValuations(IValuationStore store) : IListCaseValuati
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        RequireCaseId(caseId);
-        return store.ListForCaseAsync(caseId, cancellationToken);
-    }
-
-    internal static void RequireCaseId(Guid caseId)
-    {
         if (caseId == Guid.Empty)
         {
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
-    }
-}
 
-public sealed class GetCurrentEngineersValue(IValuationStore store) : IGetCurrentEngineersValue
-{
-    public async Task<CaseValuation?> ExecuteAsync(
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        ListCaseValuations.RequireCaseId(caseId);
-        return ValuationPolicy.CurrentEngineersValue(
-            await store.ListForCaseAsync(caseId, cancellationToken));
+        return store.ListForCaseAsync(caseId, cancellationToken);
     }
 }

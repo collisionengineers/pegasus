@@ -66,6 +66,14 @@ public sealed class EfValuationStore(
         };
         context.CaseValuations.Add(entity);
         var result = Map(entity);
+        var engineersValue = await WriteEngineersValueAsync(
+            context,
+            workflow,
+            request.Actor,
+            entity,
+            previousSource: null,
+            now,
+            cancellationToken);
         AddHistory(
             context,
             workflow,
@@ -76,6 +84,7 @@ public sealed class EfValuationStore(
             requestHash,
             result,
             before: null,
+            engineersValue,
             now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -126,6 +135,14 @@ public sealed class EfValuationStore(
         entity.LastEditedBy = request.Actor.SubjectId;
         entity.LastEditedAtUtc = now;
         var result = Map(entity);
+        var engineersValue = await WriteEngineersValueAsync(
+            context,
+            workflow,
+            request.Actor,
+            entity,
+            before.Details.Source,
+            now,
+            cancellationToken);
         AddHistory(
             context,
             workflow,
@@ -136,6 +153,7 @@ public sealed class EfValuationStore(
             requestHash,
             result,
             before,
+            engineersValue,
             now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -155,13 +173,89 @@ public sealed class EfValuationStore(
         var entities = await context.CaseValuations
             .AsNoTracking()
             .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.Date)
-            .ThenByDescending(item => item.Time)
-            .ThenByDescending(item => item.RecordedAtUtc)
-            .ThenByDescending(item => item.Id)
             .ToArrayAsync(cancellationToken);
-        return entities.Select(Map).ToArray();
+        return entities.OrderByDescending(OrderKey).Select(Map).ToArray();
     }
+
+    /// <summary>
+    /// The one order valuations are read in: the entered local date and time,
+    /// newest first, with the audit time and the stable identity breaking
+    /// exact ties. The table's row order and the case's current Engineer's
+    /// Value are the same question, so they are never asked two ways.
+    /// </summary>
+    private static (DateOnly Date, TimeOnly Time, DateTimeOffset RecordedAtUtc, Guid Id) OrderKey(
+        CaseValuationEntity item) => (item.Date, item.Time, item.RecordedAtUtc, item.Id);
+
+    /// <summary>
+    /// <c>assessment.values.engineer</c> is the one owner of the Engineer's
+    /// Value the product consumes: Send to Claude's target percentage, the
+    /// rendered report, and the Assessment screen all read that field.
+    /// Recording or correcting an Engineer's Value row therefore writes it in
+    /// this same transaction, from the case's latest Engineer's Value row, so
+    /// the Valuations table stays the entry surface and never becomes a
+    /// second owner. A row edited away from Engineer's Value re-resolves the
+    /// field from the rows that remain; when none remain the confirmed
+    /// finding is left standing, because nothing here erases one.
+    /// </summary>
+    private static async Task<EngineersValueChange?> WriteEngineersValueAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        CaseValuationEntity saved,
+        ValuationSource? previousSource,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var source = Map(saved).Details.Source;
+        if (source != ValuationSource.EngineersValue
+            && previousSource != ValuationSource.EngineersValue)
+        {
+            return null;
+        }
+
+        AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
+            || !AssessmentPolicy.IsWritableState(state))
+        {
+            throw new InvalidOperationException(
+                "An Engineer's Value can be recorded only while the assessment is open: "
+                + "a Not ready, Review, or Report preparation case.");
+        }
+
+        var engineersValue = ValuationSource.EngineersValue.ToString();
+        var others = await context.CaseValuations
+            .Where(item => item.CaseId == workflow.CaseId
+                && item.Source == engineersValue
+                && item.Id != saved.Id)
+            .ToArrayAsync(cancellationToken);
+        var latest = (source == ValuationSource.EngineersValue ? others.Append(saved) : others)
+            .OrderByDescending(OrderKey)
+            .FirstOrDefault();
+        if (latest is null
+            || ValuationPolicy.EngineersValueField(Map(latest).Details) is not { } value)
+        {
+            return null;
+        }
+
+        var existing = await context.CaseAssessmentFields.SingleOrDefaultAsync(
+            item => item.CaseId == workflow.CaseId
+                && item.FieldPath == AssessmentVocabulary.ValueEngineer,
+            cancellationToken);
+        var before = existing?.Value;
+        var written = AssessmentFieldWriter.Write(
+            context,
+            workflow.Case,
+            workflow.CaseId,
+            existing,
+            AssessmentVocabulary.ValueEngineer,
+            value,
+            actor,
+            confirmedBy: actor.SubjectId,
+            now);
+        return new(before, written.Value);
+    }
+
+    private sealed record EngineersValueChange(string? Before, string After);
 
     private static Task<CaseWorkflowEventEntity?> FindReplayAsync(
         PegasusDbContext context,
@@ -261,6 +355,7 @@ public sealed class EfValuationStore(
         string requestHash,
         CaseValuation result,
         CaseValuation? before,
+        EngineersValueChange? engineersValue,
         DateTimeOffset now)
     {
         var beforeVersion = workflow.Version - 1;
@@ -268,9 +363,14 @@ public sealed class EfValuationStore(
             actor.Roles.OrderBy(role => role),
             SerializerOptions);
         var resultJson = JsonSerializer.Serialize(result, SerializerOptions);
-        var beforeJson = before is null
+        var beforeJson = before is null && engineersValue?.Before is null
             ? null
-            : JsonSerializer.Serialize(before, SerializerOptions);
+            : JsonSerializer.Serialize(
+                new { Valuation = before, EngineersValue = engineersValue?.Before },
+                SerializerOptions);
+        var afterJson = JsonSerializer.Serialize(
+            new { Valuation = result, EngineersValue = engineersValue?.After },
+            SerializerOptions);
         context.CaseWorkflowEvents.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -302,7 +402,7 @@ public sealed class EfValuationStore(
             CorrelationId = operationKey,
             Reason = reason.Trim(),
             BeforeJson = beforeJson,
-            AfterJson = resultJson,
+            AfterJson = afterJson,
             PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
         });
         context.CaseHistory.Add(new()
