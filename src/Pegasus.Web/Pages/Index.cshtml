@@ -1,159 +1,167 @@
 @page
 @model IndexModel
+@using Pegasus.Web.Presentation
 @{
-    ViewData["Title"] = "Dashboard";
+    ViewData["Title"] = "Work Centre";
+
+    // Refreshing reruns the queries and keeps the selected work item, not
+    // the first row of the list.
+    ViewData["RefreshFields"] = new Dictionary<string, string?>
+    {
+        ["selected"] = Model.Selected?.Id.ToString()
+    };
 }
 
-@* No lede. The three sections and their numbers are the explanation; a
-   sentence describing what the page is for is the page narrating itself. *@
-<header class="page-heading">
-    <h1>Dashboard</h1>
-    <partial name="Shared/_FreshnessBanner" model="(DateTimeOffset?)Model.LoadedAtUtc" />
+@* No lede. The metrics and the work list are the page; a sentence describing
+   them would be the page narrating itself. *@
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Office-wide work</p>
+        <h1>Work Centre</h1>
+    </div>
+    <div class="page-actions">
+        <partial name="Shared/_FreshnessBanner" model="(DateTimeOffset?)Model.LoadedAtUtc" />
+        <a class="btn btn--primary" asp-page="/Cases/Create">
+            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+            <span>Create Case</span>
+        </a>
+    </div>
 </header>
 
-<section aria-labelledby="active-cases-title">
-    <h2 id="active-cases-title" class="section-label">Active cases</h2>
-    <div class="metric-strip metric-strip--3">
+<section class="metric-section work-centre-metrics" aria-labelledby="work-metrics-title">
+    <h2 id="work-metrics-title" class="section-label">Work requiring attention</h2>
+    <div class="metric-strip metric-strip--5">
         @* Every metric opens the exact filtered list behind it, and 0 renders
-           as 0. These three were the literal string "Unavailable" until the
-           counts behind them existed. *@
-        <a class="metric" data-state="not-ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                Not ready
-            </span>
-            <strong class="metric__value">@Model.CaseStages.NotReady</strong>
+           as 0. Blocked links to the Unidentified tab, where Blocked intake
+           rows carry their own chip (D14) — the two meanings stay distinct. *@
+        <a class="metric" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Not ready</span></span>
+            <span class="metric-value">@Model.CaseStages.NotReady</span>
         </a>
-        <a class="metric" data-state="review" asp-page="/Cases/Index" asp-route-tab="review">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-info" /></svg>
-                Review
-            </span>
-            <strong class="metric__value">@Model.CaseStages.Review</strong>
+        <a class="metric" data-value="review" asp-page="/Cases/Index" asp-route-tab="review">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Review</span></span>
+            <span class="metric-value">@Model.CaseStages.Review</span>
         </a>
-        <a class="metric" data-state="held" asp-page="/Cases/Index" asp-route-tab="held">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-clock" /></svg>
-                Held
-            </span>
-            <strong class="metric__value">@Model.CaseStages.Held</strong>
+        <a class="metric" data-value="held" asp-page="/Cases/Index" asp-route-tab="held">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg><span>Held</span></span>
+            <span class="metric-value">@Model.CaseStages.Held</span>
+        </a>
+        <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg><span>Unidentified</span></span>
+            <span class="metric-value">@Model.MailActivity.Unidentified</span>
+        </a>
+        <a class="metric" data-value="blocked" asp-page="/Cases/Index" asp-route-tab="unidentified">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>Blocked</span></span>
+            <span class="metric-value">@Model.Counts.BlockedIntake</span>
         </a>
     </div>
 </section>
 
-<section aria-labelledby="email-activity-title">
-    <h2 id="email-activity-title" class="section-label">E-mail activity</h2>
-    <div class="metric-strip metric-strip--3">
-        @* The count is of mail that arrived, so it opens the mail workspace.
-           The other values remain dashboard metrics without a general receipt-ledger destination. *@
-        <a class="metric" asp-page="/Mail/Index">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                Received today
-            </span>
-            <strong class="metric__value">@Model.MailActivity.ReceivedToday</strong>
-        </a>
-        <a class="metric" data-state="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                Unidentified
-            </span>
-            <strong class="metric__value">@Model.MailActivity.Unidentified</strong>
-        </a>
-        <span class="metric" data-state="blocked">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-                Blocked
-            </span>
-            <strong class="metric__value">@Model.Counts.BlockedIntake</strong>
-        </span>
-    </div>
-</section>
-
-<section aria-labelledby="time-title">
-    <h2 id="time-title" class="section-label">Today and this week</h2>
-    <div class="metric-strip metric-strip--secondary">
-        <a class="metric" asp-page="/Search/Index">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                New cases today
-            </span>
-            <strong class="metric__value">@Model.CaseActivity.NewCasesToday</strong>
-        </a>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Sent to Engineer today
-            </span>
-            <strong class="metric__value">@Model.CaseActivity.SentToEngineerToday</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Sent to Engineer this week
-            </span>
-            <strong class="metric__value">@Model.CaseActivity.SentToEngineerThisWeek</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Reports sent today
-            </span>
-            <strong class="metric__value">@Model.CaseActivity.ReportsSentToday</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Reports sent this week
-            </span>
-            <strong class="metric__value">@Model.CaseActivity.ReportsSentThisWeek</strong>
-        </span>
-    </div>
-</section>
-
-
-@* The section stays whether or not there is work in it. Hiding it made an
-   empty day and a broken query look the same; a named empty result says
-   which one this is. *@
-<section id="due-work-list" aria-labelledby="due-work-title" class="section-gap">
-    <h2 id="due-work-title" class="section-label">Case work due</h2>
-    @if (Model.DueWork.Count == 0)
-    {
-        <p class="empty-state">No case work is due.</p>
-    }
-    else
-    {
-        <div class="panel queue-list">
-            @foreach (var item in Model.DueWork)
+<section class="pane-layout integrated-home integrated-home--expanded" aria-label="Integrated work centre">
+    <div class="pane">
+        <div class="pane-head">
+            <div><h2>Needs attention</h2></div>
+        </div>
+        @* Selection is a link to this page with ?selected=, so the detail
+           pane's controls are live server-rendered controls, not clones the
+           shell's script never wired; data-row-list gives the arrow keys. *@
+        <div class="pane-body pane-scroll" data-row-list>
+            @foreach (var item in Model.NeedsAttention)
             {
-                <a asp-page="/Cases/Details" asp-route-id="@item.CaseId">
-                    <span>
-                        <strong>@item.Reference</strong>
-                        <small>@Pegasus.Web.Presentation.OperatorLabels.ChaseReason(item.MissingMaterialReason)</small>
+                <a class="work-item" asp-page="/Index" asp-route-selected="@item.Id"
+                   aria-selected="@(Model.Selected?.Id == item.Id ? "true" : "false")">
+                    <span class="work-item-head">
+                        <span>
+                            <span class="row-meta">@OperatorLabels.NeedsAttentionKind(item.Kind) · @item.Reference</span>
+                            <h3>@IndexModel.TitleLabel(item)</h3>
+                        </span>
+                        @{
+                            ViewData["StatusTone"] = OperatorLabels.NeedsAttentionPriorityTone(item.Priority);
+                        }
+                        <partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(item.Priority)" />
                     </span>
-                    <span>
-                        @* The chase schedule's own state, not the case stage:
-                           a case in Review can still be waiting on a chase. *@
-                        <partial name="Shared/_StatusChip" model="@Pegasus.Web.Presentation.OperatorLabels.ChaseState(item.State)" />
-                        @if (item.NextChaseAtUtc is { } nextChaseAtUtc)
+                    @if (IndexModel.DetailLabel(item) is { } detail)
+                    {
+                        <p>@detail</p>
+                    }
+                    <span class="work-item-foot">
+                        <span>@item.Owner</span>
+                        @if (item.Due is { } due)
                         {
-                            <small>
-                                Next chase
-                                <time datetime="@nextChaseAtUtc.ToString("O")">@nextChaseAtUtc.ToString("d MMM")</time>
-                            </small>
+                            <span><time datetime="@due.ToString("O")">@OperatorLabels.OfficeDate(due)</time></span>
                         }
                     </span>
                 </a>
             }
         </div>
-    }
+    </div>
+    <div class="pane">
+        <div class="pane-head">
+            <div>
+                <h2 class="today-pane-title">Today</h2>
+                <span class="muted">Selected work</span>
+            </div>
+            @if (Model.Selected is { } head)
+            {
+                <a class="btn btn--small" asp-page="@IndexModel.RecordPage(head.Kind)" asp-route-id="@IndexModel.RecordRouteId(head)">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                    <span>Open full record</span>
+                </a>
+            }
+        </div>
+        <div class="detail-canvas">
+            @if (Model.Selected is { } selected)
+            {
+                var tone = OperatorLabels.NeedsAttentionPriorityTone(selected.Priority);
+                <article class="work-detail">
+                    <div class="cluster cluster--between cluster--start">
+                        <div>
+                            <p class="eyebrow">@OperatorLabels.NeedsAttentionKind(selected.Kind) · <span id="selected-reference">@selected.Reference</span></p>
+                            <h2>@IndexModel.TitleLabel(selected)</h2>
+                            @if (IndexModel.DetailLabel(selected) is { } lead)
+                            {
+                                <p class="work-detail-lead">@lead</p>
+                            }
+                        </div>
+                        @{
+                            ViewData["StatusTone"] = tone;
+                        }
+                        <partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(selected.Priority)" />
+                    </div>
+                    <div class="notice section-gap @(tone == "red" ? "notice--danger" : tone == "amber" ? "notice--warning" : null)">
+                        <svg class="icon" aria-hidden="true"><use href="#@(tone == "red" ? "icon-alert-triangle" : "icon-info")" /></svg>
+                        <div>
+                            <strong>Why this needs attention</strong>
+                            <div>@IndexModel.ReasonLabel(selected)</div>
+                        </div>
+                    </div>
+                    <div class="section-gap fact-grid">
+                        <dl class="fact"><dt>Source</dt><dd>@IndexModel.SourceLabel(selected)</dd></dl>
+                        <dl class="fact"><dt>Owner</dt><dd>@selected.Owner</dd></dl>
+                        <dl class="fact"><dt>Last recorded outcome</dt><dd>@selected.LastOutcome</dd></dl>
+                        <dl class="fact"><dt>Due</dt><dd>@(selected.Due is { } factDue ? OperatorLabels.OfficeDate(factDue) : null)</dd></dl>
+                    </div>
+                    <section class="panel section-gap">
+                        <div class="panel-head"><h3>Next permitted action</h3></div>
+                        <div class="panel-body">
+                            <div class="button-row">
+                                <a class="btn btn--dark" asp-page="@IndexModel.RecordPage(selected.Kind)" asp-route-id="@IndexModel.RecordRouteId(selected)">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                    <span>@IndexModel.ActionLabel(selected.Kind)</span>
+                                </a>
+                                @* Hidden until the shell's script confirms a
+                                   clipboard: an inert Copy button is worse
+                                   than none, and the reference stays
+                                   selectable text either way. *@
+                                <button type="button" class="btn" data-copy-target="selected-reference" hidden>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                                    <span>Copy reference</span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </article>
+            }
+        </div>
+    </div>
 </section>
-
-@* The dashboard reports; Operations is where the retryable work and the live
-   upload links are actually handled, so the screen ends by pointing there. *@
-<p class="section-gap">
-    <a asp-page="/Operations/Index">
-        Open Operations
-        <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
-    </a>
-</p>
