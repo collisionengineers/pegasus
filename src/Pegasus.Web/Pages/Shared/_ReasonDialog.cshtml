@@ -18,6 +18,8 @@
     // Supplied only where an action has a consequence from the approved
     // necessary-copy list; absent otherwise (INTK-029).
     var consequence = ViewData["DialogConsequence"] as string;
+    var reasonMaxLength = ViewData["DialogReasonMaxLength"] as int? ?? 500;
+    var reason = ViewData["DialogReason"] as string ?? string.Empty;
 }
 <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-reason-dialog hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title">
@@ -43,10 +45,9 @@
                 }
                 <div class="field">
                     <label class="req" for="@(dialogId)_reason">Reason for action</label>
-                    @* Every reason column in this schema is 500. Without the
-                       bound, a longer reason reaches SaveChanges and the whole
-                       mutation rolls back (DOCS-012). *@
-                    <textarea id="@(dialogId)_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                    @* Schema-backed callers retain the 500-character default;
+                       callers with a distinct Core policy supply its limit. *@
+                    <textarea id="@(dialogId)_reason" name="Reason" rows="3" required maxlength="@reasonMaxLength">@reason</textarea>
                 </div>
             </div>
             <div class="dialog-foot">
