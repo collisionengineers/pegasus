@@ -29,7 +29,7 @@
             <dt>@label</dt>
             <dd class="@(recorded ? null : "quiet")">
                 @(recorded ? value : "Not recorded")
-                <span class="provenance" data-word="@word" tabindex="0" role="img" aria-label="@word">
+                <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
                     <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
                 </span>
             </dd>
@@ -200,7 +200,7 @@ else
                         </div>
                     }
                     <div class="field">
-                        <label asp-for="InspectionAddress">Inspection address</label>
+                        <label class="req" asp-for="InspectionAddress">Inspection address</label>
                         <textarea asp-for="InspectionAddress" maxlength="1000" rows="3" required></textarea>
                         <span asp-validation-for="InspectionAddress" class="field-error"></span>
                     </div>
