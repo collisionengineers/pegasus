@@ -246,3 +246,102 @@ the merged `Mail/Message.cshtml` writes it and the existing convention wins;
 the two-convention split is reported instead. Folding `SendModel`'s
 `CanSubmitToApi` into `DetailsModel.CanSubmitToEva` — both ask the same Core
 policy for their own render, which is composition, not a second rule.
+
+## Review findings — dispositions (round 2, 2026-08-29)
+
+An independent adversarial verifier re-ran the build, the three focused test
+filters, and the branch's diff against PR #615. Verdict: **clean** — no
+blockers, no majors, six minors. Each is disposed below; the fixes are on
+`task/case-012-eva-send-salvage`, rebuilt and re-tested (see Verification).
+
+1. **FIX — provenance glyph lost its tooltip.** `Create.cshtml`'s glyph now
+   carries `class="prov"` again (was `class="provenance"`), which is the
+   class site.css actually renders a hover/focus `::after` tooltip for; the
+   markup and attribute order now match `Shared/_Provenance.cshtml`, the
+   partial `docs/design/README.md`'s shared-partials table lists (alongside
+   `_ErrorSummary`) as "Retained, restyled to the vocabulary". This
+   **supersedes** the round 3 "Considered and rejected" note above: that note
+   kept `.provenance` because the merged `Mail/Message.cshtml` also uses it,
+   reasoning it was "the existing convention" — but neither page's
+   `.provenance` class has ever rendered a tooltip, so that was two pages
+   sharing one defect, not a convention. `.prov` is the class the CSS and the
+   design README's own partial actually work for. `Mail/Message.cshtml`'s
+   copy of the same defect is out of lane (wave-2 B / MAIL-025) and is
+   reported, not fixed, below.
+
+2. **REJECT — `Create.cshtml` as the only `_ErrorSummary` caller.**
+   `docs/design/README.md`'s shared-partials table designates `_ErrorSummary`
+   a retained, restyled component of the vocabulary, the same table entry as
+   `_Provenance` and `_StatusChip` — not a second, ad-hoc convention this
+   lane invented. Round 3's plan already reasoned this exact point ("Reuse
+   the existing `Shared/_ErrorSummary` partial (an orphan until now) instead
+   of the ad-hoc validation summary"). The 19 other pages using the bare
+   `asp-validation-summary` tag helper predate a caller for the documented
+   partial; that is their gap against the design system, not a defect this
+   lane introduced. No change made.
+
+3. **FIX — EVA outcome chip forced amber for every failure.** `Eva/Send.cshtml`
+   now computes tone per outcome (`OutcomeTone`) instead of a hardcoded
+   `"amber"` override: `Rejected` and the unreachable-transport fallback are
+   `red` (refusal/failure, per `_StatusChip`'s "red is blocked/failed/denied"),
+   `Partial` stays `amber` (the case did reach EVA; something it should have
+   returned did not — incomplete, not failed). Accepted risk, not fixed: this
+   branch still has no unit/integration/browser test of its own (none existed
+   before this round either) — building the fakes for
+   `ICaseDataQueries`/`IEvaSubmissionModeStore`/`IEvaSubmissionQueries` that a
+   new Send-page web test would need is a bigger lift than the one-line tone
+   fix it would cover, and the Send page is already named as an unverified-
+   in-lane risk gated on the orchestrator's Browser run (see round 3's
+   Verification note and finding 6 below, unchanged).
+
+4. **FIX — inconsistent required marking.** `InspectionAddress`'s label in the
+   `required`-textarea branch (the "nothing in this file said where the
+   vehicle is" branch) now carries `class="req"`, matching `Reason`. The
+   other `InspectionAddress` occurrence (the "use this address instead"
+   branch) has no `required` attribute on its textarea, so it correctly still
+   carries no `.req`.
+
+5. **FIX — catalogue's `redirect` classification of `Workflow.cshtml` and
+   `Closure.cshtml` was untrue.** Both files have only `OnPost*` handlers and
+   no `OnGet`, so a GET renders no content — it does not redirect anywhere.
+   Reclassified both to `protocol` (an allowed classification already listed
+   in `Test-UiCatalogue.ps1`'s `$allowedClassifications`, previously unused)
+   with a reason stating the actual behaviour. Same defect, not fixed because
+   out of lane (E2/CASE-027 owns the files): `Custody.cshtml`,
+   `Tasks.cshtml`, and `Vehicle.cshtml` are catalogued `redirect` and have the
+   identical no-`OnGet` shape — reported to the orchestrator for CASE-027 or
+   UIIMP-005 to correct. `Account/SignOut.cshtml`, `Triage/Index.cshtml`, and
+   `Unidentified/Index.cshtml` were checked and are genuine redirects (each
+   has an `OnGet` returning `RedirectPermanent`/`RedirectToPage`) — left
+   alone.
+
+6. **NO ACTION — Browser-gate risk, confirmed real by the verifier's own
+   static read.** Unchanged from round 3: `Eva/Send.cshtml` is exercised only
+   by `OperatorJourneyTests` (Browser category), which this lane does not
+   run. Not a new finding; the orchestrator's Browser run remains the gate.
+
+**Reported, not fixed (outside this lane's files):**
+`docs/design/test-ui/catalogue.json` is allocated to PLAT-029 in
+`EPIC-011/waves.md`, but lane E1 (this ticket) needed two of its
+`case-details` branch strings corrected in round 3 and now two more
+(`classification`/`reason`) in round 2 — both edits are inside this lane's
+own entries and (round 3's) byte-identical to the parallel branch, so the
+exposure is a merge-collision risk with UIIMP-005 (#588) over file ownership,
+not wrong content. Handing the ownership question to the orchestrator rather
+than resolving it here.
+
+### Verification (round 2)
+
+- `dotnet build ./Pegasus.slnx --configuration Release` — succeeded, 0
+  warnings, 0 errors.
+- `dotnet test … --filter "FullyQualifiedName~CaseDetailsWebTests"` — 42
+  passed, 0 failed (unchanged from round 3's claim, re-verified).
+- `dotnet test … --filter "FullyQualifiedName~CaseCreateWebTests"` — 17
+  passed, 0 failed (unchanged, re-verified).
+- `dotnet test … --filter` the three pinned theories (`SendToEvaRendersOnlyInReview`,
+  `ReportSentRendersOnlyWithDetectedEvidenceWhileWithEngineer`,
+  `SectionQuerySelectsOneSectionAndUnknownValuesFallBackToOverview`) — 15
+  passed, 0 failed (unchanged, re-verified).
+- `docs/design/test-ui/catalogue.json` parses as valid JSON after the edit
+  (`Test-UiCatalogue.ps1` itself is not run in-lane; the orchestrator's wave
+  loop owns it).
