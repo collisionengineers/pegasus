@@ -34,18 +34,20 @@
                 }
                 window.location.reload();
             };
-            // A tab nobody is looking at is not refreshed at all: it stops
-            // polling until it is looked at again, and reloads then.
-            var track = function () {
+            // A hidden tab does not poll. Returning to it reloads immediately
+            // instead of showing content that can be a full delay out of date.
+            var trackVisibility = function () {
                 if (document.hidden) {
                     window.clearTimeout(timer);
                     timer = 0;
                 } else {
-                    schedule();
+                    reload();
                 }
             };
-            document.addEventListener('visibilitychange', track);
-            track();
+            document.addEventListener('visibilitychange', trackVisibility);
+            if (!document.hidden) {
+                schedule();
+            }
         }
     }
 
