@@ -282,6 +282,18 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.DoesNotContain("you can filter by", html, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ActivityOmitsTheEmptyStatePanel()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"{AutomationRoute}/Activity");
+
+        Assert.DoesNotContain("automation-activity-heading", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No Automation activity is recorded", html, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Writes <paramref name="liveJobs"/> queued jobs and
     /// <paramref name="failedJobs"/> failed ones through the ledger's own
