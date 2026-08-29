@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Make queued upload status honest for retry-scheduled work and auto-associated
   receipts
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T15:19:39.900Z'
+  review: '2026-08-29T10:07:35.049Z'
 labels: []
 groups:
   - EPIC-002
@@ -25,9 +26,16 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
   - 1594ff0e
+  - '4033e881'
+  - 6c648c59
+  - f4ea838c
+  - c617dec2
+  - e739bc80
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/620'
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-29T08:01:23.775Z'
+updated: '2026-08-29T10:07:35.049Z'
 ---
 
 ## What
