@@ -2,8 +2,8 @@
 id: AUTO-013
 type: ticket
 title: >-
-  API-01 residuals: provider principal absent from the case-data snapshot, and
-  paused credentials read the body
+  A case created through the Provider API records no Work Provider, and a paused
+  credential is refused only after the body is read
 status: backlog
 area: automation-integrations
 assignee: ''
@@ -17,7 +17,7 @@ links:
   - AUTO-012
 archived: false
 created: '2026-08-29T08:35:46.076Z'
-updated: '2026-08-29T08:35:46.076Z'
+updated: '2026-08-29T20:09:24.050Z'
 ---
 
 ## What
@@ -26,14 +26,27 @@ Two confirmed-live defects in the API-01 surface that [[TICK-058]] deferred.
 They were recorded as deferrals with no ticket, which rule 22 does not allow;
 this is that ticket.
 
-### 1. A provider-created case records no work provider
+### Terminology, corrected 2026-08-29
+
+This ticket was originally titled "provider principal absent from the
+case-data snapshot". **That is redundant and it obscured the defect.**
+`docs/operator-notes.md:219` is explicit:
+
+> | Work Provider | Also referred to as the principal. |
+
+Principal *is* the work provider. There is no separate "provider principal".
+The defect is that the Work Provider is not recorded at all.
+
+### 1. A case created through the Provider API records no Work Provider
 
 `CaseDataSnapshotFactory.AddProviderFact` returns early unless the receipt
 carries an **accepted `MailRouteDecision` with a work-provider code**. A
 Provider API receipt has no mail route by design — its Principal comes from the
 credential — so `WorkProviderCode` is never written to the case-data snapshot,
-and the EVA export reports Work Provider as unrecorded even though allocation
-established the Principal from the submission binding.
+and the EVA export reports Work Provider as unrecorded **even though allocation
+established the Principal from the submission binding**.
+
+The system knows exactly who the work provider is, and does not write it down.
 
 Fixing it means deciding the snapshot row's source kind, policy key and version
 and source label for a declared instruction (`CaseDataSourceKind.ProviderApi`
@@ -58,16 +71,31 @@ declared instruction is definitive and states its own claim number — but no
 document settles it. Raised as a P1 duplicate-case risk in the PR #594 review
 and deliberately left unchanged.
 
+## Priority raised 2026-08-29 — the API is being enabled
+
+The original ticket said "neither is reachable today: `Features:ProviderApi` is
+closed and no credential has been issued". **The operator has decided the flag
+ships enabled in release 37.**
+
+Defect 1 therefore stops being latent: from the first issued credential, every
+case a provider creates carries no Work Provider, and its EVA export says so.
+That is a data gap on the identity of the party sending the work, on the exact
+route being opened.
+
+Defect 2 stays low — bounded read, no unbounded cost.
+
+**Defect 1 should land before or with the first issued credential**, which is a
+separate operator-approved step (`docs/capabilities.md:227`) and gives a natural
+window between enabling the flag and any provider actually calling.
+
 ## Verification
 
-- [ ] A provider-created case's snapshot carries its work provider, proven by
-      a persistence test, and the EVA export reports it.
+- [ ] A case created through the Provider API carries its Work Provider in the
+      snapshot, proven by a persistence test, and the EVA export reports it.
 - [ ] A paused credential is refused before the request body is read.
 - [ ] The existing-case-matching question has an operator answer recorded in
       FRD-09.
 
 ## Notes
 
-- Neither is reachable today: `Features:ProviderApi` is closed and no
-  credential has been issued.
 - The other API-01 residual, the non-atomic accept path, is [[AUTO-012]].
