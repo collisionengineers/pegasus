@@ -94,3 +94,29 @@ in-flight assertion **gains** a check that each row carries an indeterminate
 
 Run over the branch diff after implementation; findings and dispositions are
 recorded below.
+
+### Findings and dispositions — 2026-08-29
+
+Run over `git diff origin/dev...HEAD` by an independent agent, four lenses.
+All four findings **fixed**; none rejected, deferred or accepted as risk.
+
+| Lens | Finding | Disposition |
+| --- | --- | --- |
+| Reuse | `Uploads/Request.cshtml` still held `Choose file` inline while every other word on that page had moved to `OperatorLabels.Upload` — the page's list was split across two places | **Fixed** — `RequestChoose` |
+| Reuse | Same for the limit line `Up to {size}.` | **Fixed** — `RequestLimit(string)` |
+| Simplification | `UploadGroupStatus.cshtml` wrote the same condition twice as De Morgan duals (`A is not null \|\| B is not null` and `A is null && B is null`), which have to be kept in step by hand | **Fixed** — one `reported` local |
+| Efficiency | `memberState` (`Humanise(status.ToString())` plus a dictionary lookup) was computed for every member but read only on the still-moving branch | **Fixed** — computed inside that branch |
+
+The pass reported no correctness bug and no scope problem.
+
+### Not findings of the pass — declared separately
+
+- `site.js` is edited here and belongs to PLAT-029. Reasoning and the
+  ownership check are in `files.md`; it is not a simplification finding.
+- Four legacy-block CSS rules keep the Upload surfaces as their only callers
+  (`files.md`). Deferred to UIIMP-009, whose file it is and whose token
+  rewrite it needs — disposition 4, with the reason.
+- The public page's own `FormatBytes` is not folded into
+  `OperatorLabels.FileSize`: the per-request limit can be sub-megabyte and
+  `FileSize` is deliberately MB-only ("under 0.1 MB" for a 1 KB limit).
+  **Rejected with reason** — the shared helper is genuinely unfit here.
