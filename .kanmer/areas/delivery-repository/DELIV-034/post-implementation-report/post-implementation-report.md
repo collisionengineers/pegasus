@@ -111,3 +111,63 @@ ticket's file (`Pegasus.Core.Tests`, not `Pegasus.IntegrationTests`) and
 outside its scope (a Core.Tests compile error, not the credential-tamper
 flake) — left untouched per the hard rule to report defects outside the lane
 rather than fix them.
+
+## Correction — 2026-08-29, after the cross-model pre-merge review
+
+### The build claim above is stale; here is the current state
+
+This report said the solution build "breaks on `origin/dev` today". That was
+**true when written and is no longer true.** The break was
+`ProviderSubmissionTests.cs:284` (CS1739, `QueuedIntakeStatus` no longer has
+`CaseId`), inherited from `origin/dev` and never this lane's defect. [[DELIV-035]]
+fixed it in PR #625, merge commit `55e23b02`, and this branch has merged that
+`dev` forward.
+
+Re-run by the orchestrator on the merged branch:
+
+| Command | Result |
+| --- | --- |
+| `dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release -nodeReuse:false` | **Build succeeded** |
+| Reviewer's independent `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | exit 0, 0 warnings, 0 errors |
+
+The historical failure is preserved above deliberately — rule 20 says a later
+pass does not erase a failure — but the current state is a pass.
+
+The PR body carries the same stale "currently fails" wording and should be read
+against this correction.
+
+### The flake rate this ticket exists to fix was itself misstated
+
+The fix is correct; the *explanation* was not. The comment introduced by this
+change said the no-op tamper happened "roughly one run in four", and the
+pre-existing sibling comment in `ProviderApiSubmissionTests.cs` said "one run in
+sixty-four". Both are wrong.
+
+Measured over 200,000 sampled secrets generated the way
+`PrincipalCredentials.cs:293-297` generates them:
+
+```
+distinct final characters: 16   (048AEIMQUYcgkosw)
+P(last == 'A')             6.175 %   ->  1 in 16.19
+secret tail length         43 characters
+```
+
+32 random bytes are 256 bits; base64 carries 6 bits per character, so the 43rd
+and final character encodes only the leftover **4 bits** and has 16 possible
+values, one of which is `'A'`. **The true rate is one run in sixteen.**
+
+Both comments now say so, with the derivation, so this does not have to be
+worked out a third time. The sibling file belongs to the merged TICK-058 lineage
+and no in-flight lane owns it — corrected under D19 case 2, and flagged here
+rather than done silently.
+
+### The "no other instance" claim is now evidenced
+
+The `files` document originally claimed the broader sweep found "only" the
+Provider API match. It missed several. The orchestrator re-ran it across `src/`
+and `tests/` and dispositioned every hit; the full table is in the plan's
+"Pre-merge review dispositions" section. **Conclusion is unchanged — no other
+site carries the defect — but it is now shown rather than asserted.** Two hits
+that look similar are safe for structural reasons: `PrincipalCredentialsTests.cs:32`
+truncates rather than substitutes (so the length always differs), and
+`BoxDocumentContentStoreTests.cs:81,84` hashes two different string literals.
