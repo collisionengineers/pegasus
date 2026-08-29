@@ -325,3 +325,126 @@ already Done that carry an unreachable named capability return to verifying
 and wait for the consumer that wires them") — PLAT-049 is that consumer for
 `ICancelAiJob`, so the block is an accurate record, not an overreach. Left as
 Codex set it.
+
+## CI-red triage after merging `origin/dev` — 2026-08-29 (round 3)
+
+PR #617 was red on two failures. Neither is this lane's defect, and merging
+`origin/dev` (`cba29a4f`) into `task/plat-049-operations-features` was the first
+action. One conflict, in the epic's shared labels file, resolved by hand.
+
+### Merge
+
+- Conflict: `src/Pegasus.Web/Presentation/OperatorLabels.cs` — this lane's
+  `AiJobs` nested class against AUTO-006/TICK-058's `ProviderSubmissionApi`.
+  **Both sides kept**, each closed as its own nested static class, no existing
+  member reordered or edited. Merge commit `aed0aa0a`.
+- `git diff origin/dev HEAD --stat` after the merge: 4 files —
+  `Pages/Operations/Index.cshtml`, `Index.cshtml.cs`,
+  `Presentation/OperatorLabels.cs`, `tests/…/OperationsWebTests.cs`. Lane
+  ownership plus the epic's explicitly shared labels file. Nothing else.
+
+### Failure 1 — `ImmediateIntakeDispatchTests` — **fixed by the merge**
+
+The cross-test `ActivityListener` leak TICK-058 diagnosed and fixed (#594,
+merged at `0d985c9e`). Re-run in this worktree after the merge:
+
+| Command | Observed |
+| --- | --- |
+| `dotnet test ./tests/Pegasus.Core.Tests --configuration Release --filter "FullyQualifiedName~ImmediateIntakeDispatchTests"` | exit 0 — Failed: 0, Passed: 5, Total: 5 |
+| `dotnet test ./tests/Pegasus.Core.Tests --configuration Release --no-build` (whole assembly — the leak only appears in-assembly) | exit 0 — Failed: 0, Passed: 1149, Total: 1149 |
+
+`ImmediatePublicationRecordsTheReceiptIdentifierAndBoundedOutcome` passes in
+both. Disclosed caveat on how that number was obtained: see the build break
+below — `Pegasus.Core.Tests` does not compile on `dev`, so
+`tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs` was **moved
+aside on disk** (its bytes never edited) for the duration of the two runs and
+moved back. `git status --porcelain` is empty afterwards; the count above
+therefore excludes that one file's tests and nothing else. No assertion
+anywhere was weakened, skipped, deleted or inverted.
+
+### Failure 2 — `PrincipalCredentialPersistenceTests` — **still flaky, untouched**
+
+`IssueResetPauseResumeRevokeAreHashOnlyReplaySafeAndFailClosed`, the genuine
+test defect ticketed as [[DELIV-034]]. Five consecutive runs of the class in
+this worktree:
+
+| Run | Result |
+| --- | --- |
+| 1 | Passed: 1, Failed: 0 |
+| 2 | Passed: 1, Failed: 0 |
+| 3 | Passed: 1, Failed: 0 |
+| 4 | Passed: 1, Failed: 0 |
+| 5 | **Failed: 1**, Passed: 0 |
+
+4 pass / 1 fail — the ~1-in-4 flake rate predicted. **Not touched**, per the
+lane brief: it is DELIV-034's to fix.
+
+### This lane's own tests after the merge
+
+`dotnet test ./tests/Pegasus.IntegrationTests --configuration Release
+--no-build --filter "FullyQualifiedName~OperationsWebTests"` — exit 0,
+**Failed: 0, Passed: 19, Skipped: 0, Total: 19**. Unchanged by the merge.
+
+### Verifier low finding — N+1 in `Automation/Activity.cshtml.cs` — **not this lane's file**
+
+Checked ownership before touching it, as instructed. PLAT-049's Owns list is
+`src/Pegasus.Web/Pages/Operations/**` and
+`tests/Pegasus.IntegrationTests/OperationsWebTests.cs`.
+`src/Pegasus.Web/Pages/Administration/Automation/Activity.cshtml.cs` is in
+neither, and its most recent commit on `dev` is
+`5dd27a27 fix(automation): close verifier findings (AUTO-006)`. **It is
+AUTO-006's file. Reported, not fixed.**
+
+The defect is real: `ResolveCaseReferencesAsync` (:90–106) selects every
+Guid-parseable `AggregateId` and issues one `IGetCase.ExecuteAsync` per id with
+no `AggregateType` guard, so a page of N non-case automation records with GUID
+aggregate ids costs N case reads that all return null.
+`AutomationActivityRecord.AggregateType` (`Core/Identity/AutomationActivity.cs:18`)
+is already carried, so the fix is a one-line `AggregateType == "case"` filter in
+AUTO-006's lane.
+
+Grepped this lane's own files for the same shape: `Pages/Operations/**` calls
+no `IGetCase` at all, and every GET-time call in `Index.cshtml.cs` is a single
+bounded query. Nothing to fix in lane.
+
+### Defect on merged `dev` — **`origin/dev` does not compile**
+
+Found while building the merge; reported, not fixed.
+
+```
+tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs(284,13):
+error CS1739: The best overload for 'QueuedIntakeStatus' does not have a
+parameter named 'CaseId'
+```
+
+A semantic conflict between two already-merged lanes, neither of them this one:
+
+- `0d985c9e` merged TICK-058 (#594), whose test passes `CaseId: null` to
+  `QueuedIntakeStatus`.
+- `8e4f9346` merged INTK-001 (#620) **after** it;
+  `6c648c59 fix(intake): narrow queued status to the durable facts a surface
+  needs (INTK-001)` **removed `Guid? CaseId`** from the
+  `QueuedIntakeStatus` record (`Core/Intake/DurableIntake.cs:93`) without
+  updating TICK-058's already-merged caller.
+
+Proof it is not mine: both files are byte-identical to `origin/dev`
+(`git diff origin/dev HEAD` over the pair is empty), and this branch touches no
+file under `src/Pegasus.Core/**` or `tests/Pegasus.Core.Tests/**`. Every other
+project in the solution builds clean; `Pegasus.Core.Tests` is the only failure.
+
+**Consequence for #617: CI cannot go green for any lane until INTK-001 or
+TICK-058 repairs that call site.** PLAT-049's own build and tests are green.
+
+### Round-3 verification summary
+
+| Command | Observed |
+| --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release` | **FAILED — 1 error, 0 warnings**, entirely the pre-existing `dev` break above; `Pegasus.Core`, `Pegasus.Infrastructure`, `Pegasus.Web`, `Pegasus.Worker`, `Pegasus.IntegrationTests`, `Pegasus.ArchitectureTests` all built clean |
+| `dotnet test … --filter "FullyQualifiedName~OperationsWebTests"` | exit 0 — 19 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.Core.Tests --no-build` (with the uncompilable file moved aside) | exit 0 — 1149 passed, 0 failed |
+| `PrincipalCredentialPersistenceTests` ×5 | 4 passed, 1 failed — DELIV-034's flake, untouched |
+
+No code change was made in this round: the merge is the only commit. The two
+CI failures were correctly diagnosed as other lanes' work, and a third,
+larger defect — a `dev` that does not compile — was found and is reported here
+rather than absorbed.

@@ -4,10 +4,12 @@ type: ticket
 title: >-
   PrincipalCredentialPersistenceTests tamper-mutation is a no-op when the secret
   already ends in "A"
-status: preparing
+status: implementing
 area: delivery-repository
 assignee: claude-code
 profile: fix
+stageEntered:
+  implementing: '2026-08-29T14:48:29.658Z'
 taken_at: '2026-08-29T14:44:44.197Z'
 branch: task/deliv-034-credential-tamper-flake
 worktree: >-
@@ -26,7 +28,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-29T14:27:28.216Z'
-updated: '2026-08-29T14:44:44.197Z'
+updated: '2026-08-29T14:48:29.658Z'
 ---
 
 ## What
