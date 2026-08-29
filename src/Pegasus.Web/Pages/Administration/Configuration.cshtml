@@ -1,9 +1,9 @@
 @page
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
-    ViewData["Title"] = OperatorLabels.Admin.Configuration;
-    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["Title"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "configuration";
+    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
 
 <partial name="Shared/_PageHeader" />
