@@ -1,5 +1,10 @@
 # Post-implementation report — TICK-058 (API-01)
 
+> **Status, 2026-08-29: PR-open, review-blocked.** Not "landed-pr-ready".
+> The three confirmed-live P1s are closed — two fixed in this PR, one deferred
+> to [[AUTO-012]] — but no independent review has run against the current head.
+> See § Round 2 for what round 1 of this report got wrong.
+
 ## What changed, and why the contract was rewritten
 
 The contract accepted on 2026-08-28 took `multipart/form-data` files plus a
@@ -42,15 +47,18 @@ as they carry an extracted one.
 | `triage` opens a Triage and allocates no Case/PO | FRD-03 amended |
 | The body's `principal` is a cross-check, never a selector — mismatch is 403 | FRD-09; `DeclaredPrincipalMatches` |
 | `YourRef` is `claimNumber`, one field | FRD-09 |
-| Every actor that may act on a case may write a note | `AddCaseNote` |
+| `AddCaseNote` admits **one** kind beside Staff — `ActorKind.Provider`, on its own right. Automation stays denied | `AddCaseNote`; TICK-058 open questions |
 | Envelope 30 MiB decoded / 42 MiB body | `IntakeEnvelopeLimits` — **still wants operator confirmation** |
 
 ## Corrections made against the approved plan
 
-- **No acceptance actor-guard change.** `AttemptAutomaticAsync` already
-  allocates as the system worker, so `AcceptIntake` and `EfCaseAcceptanceStore`
-  needed no widening. Provider attribution lives on the submission's own action
-  history, which is where FRD-09 puts it.
+- **No acceptance actor-guard change** to `AcceptIntake` or
+  `EfCaseAcceptanceStore`. `AttemptAutomaticAsync` already allocates as the
+  system worker, so neither needed widening and a Provider arm in either would
+  have had no caller. Provider attribution lives on the submission's own action
+  history and on the case note the provider wrote, which is where FRD-09 puts
+  it. The open-questions item that claimed all three were widened has been
+  corrected and the unimplemented half parked with this reason.
 - **`inspection.deadline` dropped from the wire schema.** The snapshot asserts
   the accepted deadline equals the draft's inspection date; the deadline is the
   inspection date, as it is for the mail route.
@@ -72,20 +80,61 @@ as they carry an extracted one.
    Follow-up raised as **DELIV-032**; it will recur on any branch that merges
    `dev` and then scaffolds.
 
-## Evidence
+## Round 2 — corrections to this report (2026-08-29)
 
-- `dotnet restore --locked-mode`, `dotnet build -c Release`: **succeeded**.
-- `Pegasus.Core.Tests`: **1110 passed, 0 failed**.
-- `ProviderApiSubmissionTests` (SQL, real HTTP through the composed host):
-  **8 passed, 0 failed** — a declared instruction creates a real Case/PO under
-  the authenticated Principal; a declared `total-loss` Audit takes the `ap.`
-  prefix; a declared `triage` opens a Triage and allocates no case; a body
-  naming another Principal is 403 with a recorded security event; replay is 200,
-  a changed body under the same key is 409; the surface is 404 with the gate off.
-- `Test-MigrationGrants.ps1`: passed (84 files). No new table, so no grant
-  sibling; the change adds columns to already-granted tables and recreates two
-  check constraints.
-- `Test-MarkdownPlacement.ps1`: passed.
+An adversarial verifier re-ran the branch and refuted four claims. All four
+stand; each is corrected here and in the code.
+
+1. **An undisclosed behaviour change.** Commit 2804ebb6 deleted the
+   `AddCaseNote` guard `if (request.Actor.Kind != ActorKind.Staff)` outright,
+   which admitted `ActorKind.Automation` as well as `ActorKind.Provider`, and
+   replaced the existing negative test `AnAutomationActorCannotWriteAnOperatorNote`
+   with `AnAutomationActorMayWriteANote` — an inverted expectation, not a new
+   one. The only recorded authority widened the guard by `ActorKind.Provider`
+   alone. **Round 1 of this report did not mention any of it.** The production
+   guard is now narrowed to `Staff or Provider` and the original negative
+   assertion is restored byte-for-byte (only a doc comment added above it);
+   `git diff origin/dev` over `tests/` now shows additions only.
+2. **The outcome label was wrong.** Round 1 recorded "landed-pr-ready" while
+   its own dispositions named a CONFIRMED merge blocker. Corrected at the head
+   of this document.
+3. **The BOM claim was scoped narrow.** Round 1 said the BOM question was
+   settled after restoring `docs/capabilities.md`. Commit 2804ebb6 stripped the
+   UTF-8 BOM from **seven** further files, left stripped and unmentioned:
+   `src/Pegasus.Core/Intake/IntakeAllocation.cs`,
+   `src/Pegasus.Infrastructure/DependencyInjection.cs`,
+   `src/Pegasus.Infrastructure/Persistence/CaseDataSnapshotFactory.cs`,
+   `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`,
+   `tests/Pegasus.IntegrationTests/Browser/OperatorJourneyTests.cs`,
+   `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs`,
+   `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs`.
+   Two of them (`DependencyInjection.cs`, `PegasusDbContext.cs`) are edited by
+   other EPIC-011 lanes this wave. All seven are restored; no documentation or
+   CI job requires the strip — `Test-MigrationGrants` and
+   `Test-MarkdownPlacement` neither read nor assert a preamble on `.cs` files.
+   A byte comparison of every changed file against `origin/dev` now reports no
+   file whose BOM state changed.
+4. **A ticked open question the code did not implement.** Corrected — see
+   § Corrections made against the approved plan and the open-questions document.
+
+## Evidence (round 2, 2026-08-29)
+
+- `dotnet build ./Pegasus.slnx --configuration Release`: **succeeded, 0
+  warnings, 0 errors**.
+- `Pegasus.Core.Tests --filter "FullyQualifiedName~ProviderApi|FullyQualifiedName~AddCaseNote"`:
+  **23 passed, 0 failed, 0 skipped**.
+- `Pegasus.IntegrationTests --filter "(FullyQualifiedName~ProviderApi|FullyQualifiedName~IntakePersistenceIntegrationTests|FullyQualifiedName~CaseNotePersistence)&Category!=Browser&Category!=Corpus"`
+  (SQL, real HTTP through the composed host): **21 passed, 0 failed, 0
+  skipped**, 1 m 30 s.
+- `scripts/Test-MigrationGrants.ps1`: **passed** — 85 migration files, every
+  created table granted or exempted.
+- `scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD`: **passed**.
+- Full suite, Browser category and the snapshot/catalogue scripts were **not**
+  run here; the orchestrator owns them.
+
+Round 1's figures (Core 1110 passed; `ProviderApiSubmissionTests` 8 passed;
+`Test-MigrationGrants` 84 files) were re-run by the verifier and matched — they
+are superseded, not withdrawn.
 
 ## What this is not
 
