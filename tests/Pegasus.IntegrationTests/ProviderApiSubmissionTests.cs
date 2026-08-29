@@ -198,8 +198,6 @@ public sealed class ProviderApiSubmissionTests
         using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
-        var retainedBeforePause = await factory.Database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM ProviderSubmissions");
 
         await PauseQdosCredentialAsync(api);
 
@@ -217,9 +215,33 @@ public sealed class ProviderApiSubmissionTests
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'provider_credential_paused' AND Outcome = N'Denied'
             """));
-        Assert.Equal(
-            retainedBeforePause,
-            await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+    }
+
+    [Fact]
+    public async Task PausedCredentialIsRefusedBeforeTheBodyIsParsed()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        await PauseQdosCredentialAsync(api);
+
+        // A plain 403 assertion on a valid body also passes on the unfixed code.
+        // Malformed JSON makes this go 400 if the guard moves below the read and
+        // parse. This pins refusal ahead of parsing; the adjacent read and parse
+        // in SubmitAsync remain proven by inspection.
+        using var request = new HttpRequestMessage(HttpMethod.Post, Submissions)
+        {
+            Content = new StringContent("{", Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+        request.Headers.Add("Idempotency-Key", "paused-malformed-1");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -399,6 +421,12 @@ public sealed class ProviderApiSubmissionTests
             .GetAsync(caseId, CancellationToken.None);
 
         Assert.NotNull(projection);
+        Assert.NotNull(projection.Provider.WorkProviderCode.Current);
+        var workProviderCode = projection.Provider.WorkProviderCode.Current!;
+        Assert.Equal(QdosPrincipal.Code, workProviderCode.Value);
+        Assert.Equal(CaseDataSourceKind.ProviderApi, workProviderCode.Source.Kind);
+        Assert.Equal(ProviderInstructionPolicy.PolicyKey, workProviderCode.Source.PolicyKey);
+        Assert.Equal(ProviderInstructionPolicy.PolicyVersion, workProviderCode.Source.PolicyVersion);
         Assert.Equal(IntakeSourceChannel.ProviderApi, projection.Origin.Channel);
         Assert.Equal(ProviderInstructionPolicy.ReaderKey, projection.Origin.SourceReaderKey);
         Assert.Equal(ProviderInstructionPolicy.ReaderVersion, projection.Origin.SourceReaderVersion);
