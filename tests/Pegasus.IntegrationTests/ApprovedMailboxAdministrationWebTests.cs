@@ -287,10 +287,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         var configured = await GetPageAsync(client);
         Assert.Contains("?handler=ResolveFolders", configured, StringComparison.Ordinal);
-        Assert.Contains("<dt>Instructions</dt>", configured, StringComparison.Ordinal);
-        Assert.Contains("<dd>Configured</dd>", configured, StringComparison.Ordinal);
-        Assert.Contains("<dt>Billing</dt>", configured, StringComparison.Ordinal);
-        Assert.Contains("<dd>Not configured</dd>", configured, StringComparison.Ordinal);
+        AssertFolderBinding(configured, "Instructions", "Configured");
+        AssertFolderBinding(configured, "Billing", "Not configured");
         Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
         var operationKeys = OperationKeyTagRegex().Matches(configured);
         var refreshed = await client.PostAsync(
@@ -308,12 +306,23 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.Found, refreshed.StatusCode);
         var reloaded = await GetPageAsync(client);
-        Assert.Contains("<dt>Instructions</dt>", reloaded, StringComparison.Ordinal);
-        Assert.Contains("<dd>Not configured</dd>", reloaded, StringComparison.Ordinal);
-        Assert.Contains("<dt>Billing</dt>", reloaded, StringComparison.Ordinal);
-        Assert.Contains("<dd>Configured</dd>", reloaded, StringComparison.Ordinal);
+        AssertFolderBinding(reloaded, "Instructions", "Not configured");
+        AssertFolderBinding(reloaded, "Billing", "Configured");
         Assert.DoesNotContain("billing-id", reloaded, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Asserts that one logical folder is paired with one binding state in the
+    /// per-mailbox disclosure. The page renders every folder in
+    /// <c>MailLogicalFolders.All</c> unconditionally, so two independent
+    /// substring checks on a &lt;dt&gt; and a &lt;dd&gt; cannot tell a bound
+    /// folder from an unbound one; only the contiguous pair can.
+    /// </summary>
+    private static void AssertFolderBinding(string html, string folderLabel, string state) =>
+        Assert.Contains(
+            $"<dt>{folderLabel}</dt><dd>{state}</dd>",
+            BetweenTagsWhitespaceRegex().Replace(html, "><"),
+            StringComparison.Ordinal);
 
     private static async Task<string> GetPageAsync(HttpClient client)
     {
@@ -385,4 +394,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex ValueRegex();
+
+    [GeneratedRegex(@">\s+<")]
+    private static partial Regex BetweenTagsWhitespaceRegex();
 }
