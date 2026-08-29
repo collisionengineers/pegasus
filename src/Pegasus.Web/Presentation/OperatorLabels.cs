@@ -984,4 +984,44 @@ public static class OperatorLabels
         var words = slug.Replace('-', ' ').Replace('_', ' ');
         return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
+
+    /// <summary>
+    /// The Automation &amp; AI administration area's words (EPIC-011 §1.12) —
+    /// one list. <see cref="Admin.Automation"/> above is the area's name in the
+    /// rail; these are the two panels inside it.
+    /// </summary>
+    public static class AutomationAdmin
+    {
+        public const string AutomationPanel = "Automation";
+        public const string AiSettingsPanel = "AI settings";
+        public const string Enabled = "Enabled";
+        public const string Stopped = "Stopped";
+        public const string RegisteredClients = "Registered clients";
+        public const string ActiveJobs = "Active jobs";
+        public const string FailedJobs = "Failed jobs";
+        public const string Stop = "Stop automation";
+        public const string Start = "Start automation";
+
+        /// <summary>
+        /// The one consequence sentence on the kill switch, from the design
+        /// authority's necessary-copy allowance for a destructive action.
+        /// </summary>
+        public const string StopConsequence =
+            "In-flight work remains visible and no result is discarded.";
+
+        public const string ChannelToken = "Channel token";
+        public const string ChannelTokenEntered = "Entered from Administration";
+        public const string ChannelTokenStandard = "Standard setting";
+        public const string ChannelTokenChanged = "Changed";
+        public const string ChannelAddress = "Channel address";
+        public const string Timeout = "Timeout in seconds";
+        public const string NewChannelToken = "New channel token";
+        public const string SendToAiEnabled = "Reviewed AI proposals enabled";
+        public const string Save = "Save AI settings";
+        public const string RemoveChannelToken = "Remove the channel token";
+        public const string Reason = "Reason";
+
+        /// <summary>The state word for a switch an administrator holds.</summary>
+        public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;
+    }
 }
