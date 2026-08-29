@@ -197,3 +197,126 @@ Remediation commits pushed to the existing PR branch:
 
 The full suite, Browser category, snapshot capture and catalogue scripts were
 not run and are not claimed.
+
+## Remediation round — 2026-08-29 (cross-model)
+
+An independent `gpt-5.6-terra` reviewer returned `REQUEST_CHANGES` with three
+rule-14 blockers and two findings. The same model then remediated, in commits
+`29d2bb06` and `f2ab0e4a`. The orchestrator re-ran the assertion-integrity
+checks independently rather than accepting the report.
+
+### The numbers this report originally got wrong
+
+`OperatorLabels.cs` was reported as **72 insertions**. The real figure at that
+time was **67 additions, 0 deletions**. Current full PR-range numbers
+(`origin/dev...f2ab0e4a`):
+
+| File | +/− |
+| --- | --- |
+| `Pages/Operations/Index.cshtml` | 152 / 12 |
+| `Pages/Operations/Index.cshtml.cs` | 300 / 1 |
+| `Presentation/OperatorLabels.cs` | 81 / 0 |
+| `tests/…/OperationsWebTests.cs` | 673 / 5 |
+
+### Finding 1 — empty-state panel · FIXED
+
+`Index.cshtml:73` renders the jobs table only when `aiJobs.Count > 0`; the
+`.empty` / "No AI jobs" block is deleted. This follows the sibling Service-health
+panel's own absence-of-empty-body convention rather than inventing a new one.
+Covered by `AiJobListOmitsTheEmptyStateAndTableWhenThereAreNoJobs`.
+
+The design authority's page-economy rule forbids empty-state panels in a
+read-only view; this was a defect, not a style preference.
+
+### Finding 2 — EVA handoffs panel · BUILT
+
+`Index.cshtml.cs:128` reads the already-registered `IEvaSubmissionQueries`
+(`DependencyInjection.cs:166`); `Index.cshtml:190` renders recorded pending work,
+latest activity, failure count and failure times.
+
+It deliberately does **not** invent case labels, routes, engineer attribution,
+actions, probes or a migration — the port's own doc comments say the health
+surface shows only that failures exist and when, and that a person decides what
+to do with each. Covered by `EvaHandoffsShowsOnlyRecordedHealthFacts`, which also
+asserts the failure case id is **not** rendered.
+
+### Finding 3 — Service health "View" · REMOVED, and not delivered
+
+`ServiceHealthRow` carries only `RetryTarget`; there is no View target in the
+Core projection. The entire unbacked action column is deleted
+(`Index.cshtml:163`) rather than left rendering `—` or shipped as a disabled
+control.
+
+**This is the honest outcome under D21.** A column that always renders a dash is
+dead UI, and a permanently inert control is never a delivered capability. This is
+not a D7 integration seam (those are Experian, Glass's, Audatex and Cazana only),
+so the disabled-seam allowance does not apply. **Service health View is not
+delivered**; delivering it needs a routable target on the Core projection first.
+
+Retry stays reachable from Attention required (`Index.cshtml:270`).
+
+### Finding 4 — AI-job actions
+
+- **Complete job** is now guarded at `Index.cshtml.cs:210`: it reads the live job
+  and permits only Draft-ready `QueryResponse` or `UnidentifiedQueuePass` jobs.
+  The estimate bypass is covered by
+  `CompleteAiJobRefusesAJobWhoseDraftNeedsARecordAction`.
+- **Open query** stays a Case route, **rejected with evidence**: `AiJobRecord`
+  carries a single `SubjectId`, and `AiJobPolicy.SubjectKindFor(QueryResponse)`
+  resolves it as `Case`. `/Inbox/{id}` needs a retained-message id, which cannot
+  be constructed from the current contract. Routing to the retained message needs
+  a Core contract change; the Case route is the only valid destination today.
+
+### Finding 5 — report arithmetic · FIXED here
+
+The remediating agent correctly refused to edit `.kanmer/` (the orchestrator
+prohibits it) and reported the correction instead. Applied above.
+
+### Assertion integrity — verified by the orchestrator, not taken on report
+
+Across the whole branch diff `origin/dev...HEAD`:
+
+- removed `Assert.` lines: **0**
+- new `Skip =` / `[Ignore]` attributes: **0**
+- deleted `[Fact]` / `[Theory]` methods: **0**
+
+The agent disclosed that its first focused run was 21 passed / 1 failed because a
+**new** test it had just written expected an unencoded `+` in an HTML datetime
+attribute, and that it corrected that expectation to assert the visible office
+time. Verified: the change is confined to its own new test in `f2ab0e4a`, all
+additions, and no pre-existing assertion was touched. Fixing a wrong expectation
+in a test you just wrote is not weakening an assertion.
+
+### Verification
+
+- `dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false` — exit
+  0, **0 `CS####` diagnostics**.
+- `dotnet test … --filter "FullyQualifiedName~OperationsWebTests"` — **Passed 22,
+  Failed 0, Skipped 0**.
+
+### Rule 14 after remediation
+
+| Capability | Caller |
+| --- | --- |
+| AI Job List | `/Operations` → `Index.cshtml.cs:110` `OnGetAsync` |
+| Send Unidentified to AI | rendered POST form → `OnPostSendUnidentifiedToAiAsync` |
+| Complete job | rendered POST form → guarded `OnPostCompleteAiJobAsync` |
+| Cancel | rendered POST form → `OnPostCancelAiJobAsync` |
+| Retry | Attention-required POST form → `OnPostRetryExternalAsync` |
+| EVA handoffs | `/Operations` GET → the two existing EVA query methods |
+| Open query | the existing Case subject route (rejected with evidence above) |
+| Service health View | **no caller — removed, not delivered** |
+
+Every capability PLAT-049 still names has a production caller. The one that did
+not is gone from the UI rather than disclosed-and-shipped.
+
+### Reused, not rebuilt
+
+`IEvaSubmissionQueries` and its existing DI registration, `ServiceHealthPolicy`'s
+existing EVA window and maximum, `CanCompleteByHand`, and the existing
+Attention-required retry handler.
+
+### Commits
+
+- `29d2bb06` — fix(operations): close PLAT-049 UI findings
+- `f2ab0e4a` — test(operations): cover PLAT-049 remediation
