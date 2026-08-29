@@ -348,6 +348,105 @@ public sealed class UnidentifiedReconciliationTests
     }
 
     [Fact]
+    public async Task ACompletedRecheckStopsHoldingTheHeadOfTheRecheckPage()
+    {
+        // INTK-048, against the real predicate rather than a hand-populated
+        // fake. A recheck that finds the destination unchanged writes no
+        // resolution, so while freshness was judged by comparing the
+        // association's timestamps with ResolvedAtUtc the row qualified on
+        // every pass for ever — and holding the oldest ResolvedAtUtc it sat at
+        // the head of the bounded, oldest-first page, so genuinely stale
+        // resolutions written later were silently never rechecked at all.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseA = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY37 ZZZ", "UNIDENTIFIED-RECHECK-01");
+        var caseB = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY38 ZZZ", "UNIDENTIFIED-RECHECK-02");
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+
+        var registered = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, "registered.png", "image/png", TinyPngBytes,
+            Guid.NewGuid().ToString("N"));
+        var registeredReceiptId = IntakeWebDriver.ReceiptId(registered);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+        var reconciler = services.GetRequiredService<ReconcileUnidentifiedDestinations>();
+
+        // An Image intake destination, which manual case linking never
+        // overrides — so every recheck of it concludes "unchanged".
+        var origin = await services.GetRequiredService<IImageIntakeOriginResolver>()
+            .ResolveOriginAsync(registeredReceiptId, CancellationToken.None);
+        await services.GetRequiredService<IRegisterImageIntake>().ExecuteAsync(
+            new(
+                origin!,
+                "AB12CDE",
+                actor,
+                $"unidentified-recheck-register:{registeredReceiptId:N}",
+                "Staff confirmed the registration from the retained image."),
+            CancellationToken.None);
+        Assert.Equal(
+            new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0),
+            await reconciler.ExecuteAsync(50));
+        var registeredItem = Assert.IsType<UnidentifiedItem>(
+            await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(registeredReceiptId)));
+        Assert.Equal(UnidentifiedResolutionTargetKind.ImageIntake, registeredItem.ResolutionTargetKind);
+
+        var linkedToCase = await services.GetRequiredService<IUploadCaseDecision>().AttachAsync(
+            registeredReceiptId,
+            caseA,
+            null,
+            "Staff filed the registered image against the instructed case.",
+            actor);
+        Assert.True(linkedToCase.Succeeded, linkedToCase.Message);
+
+        // The manual link is a real change, so the recorded destination is
+        // examined once.
+        Assert.Equal(
+            registeredItem.Id,
+            Assert.Single(await store.ListResolutionsToRecheckAsync(50)).Id);
+        Assert.Equal(
+            new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0),
+            await reconciler.ExecuteAsync(50));
+        var unchanged = Assert.IsType<UnidentifiedItem>(
+            await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(registeredReceiptId)));
+        Assert.Equal(UnidentifiedResolutionTargetKind.ImageIntake, unchanged.ResolutionTargetKind);
+
+        // Nothing was written, and yet the pass counts: the row is done.
+        Assert.Empty(await store.ListResolutionsToRecheckAsync(50));
+
+        // A resolution written later, still to be rechecked. It is second in
+        // the oldest-first ordering, so while the row above qualified for ever
+        // a one-row page never reached it.
+        var pending = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, "pending.png", "image/png", TinyPngBytes,
+            Guid.NewGuid().ToString("N"));
+        var pendingReceiptId = IntakeWebDriver.ReceiptId(pending);
+        var attach = await services.GetRequiredService<IUploadCaseDecision>().AttachAsync(
+            pendingReceiptId,
+            caseB,
+            null,
+            "Staff matched the retained material to the instructed case.",
+            actor);
+        Assert.True(attach.Succeeded, attach.Message);
+        var pendingReceipt = Assert.IsType<IntakeReceipt>(
+            await services.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(pendingReceiptId, CancellationToken.None));
+        Assert.True(await reconciler.SynchronizeForReceiptAsync(
+            pendingReceipt, CancellationToken.None));
+
+        var page = await store.ListResolutionsToRecheckAsync(1);
+        var head = Assert.Single(page);
+        Assert.Equal(pendingReceiptId, head.Origin.Id);
+    }
+
+    [Fact]
     public async Task APendingGroupMemberNeverGainsAnUnidentifiedRow()
     {
         using var factory = new IntakeWebApplicationFactory(

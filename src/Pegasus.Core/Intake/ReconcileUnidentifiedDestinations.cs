@@ -96,10 +96,27 @@ public sealed class ReconcileUnidentifiedDestinations(
             try
             {
                 var receipt = await receiptQueries.GetAsync(item.Origin.Id, cancellationToken);
-                if (receipt is not null
-                    && await SynchronizeForReceiptAsync(receipt, cancellationToken))
+                if (receipt is null)
+                {
+                    continue;
+                }
+
+                if (await SynchronizeForReceiptAsync(receipt, cancellationToken))
                 {
                     corrected++;
+                }
+
+                // A recheck that leaves the destination alone writes nothing
+                // else, so recording the association version it was examined
+                // against is what completes it. Without that the row is
+                // re-selected every pass and, being among the oldest, crowds
+                // later stale resolutions out of the bounded page entirely
+                // (INTK-048). The version recorded is the one this pass read,
+                // so a link that lands mid-pass is picked up next time.
+                if (receipt.ManualAssociationVersion is { } associationVersion)
+                {
+                    await unidentifiedStore.MarkResolutionRecheckedAsync(
+                        item.Id, associationVersion, cancellationToken);
                 }
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))

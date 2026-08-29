@@ -499,6 +499,11 @@ public sealed class DashboardBoundaryTests
             int maximum,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task MarkResolutionRecheckedAsync(
+            Guid unidentifiedItemId,
+            long associationVersion,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
             Guid unidentifiedItemId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();

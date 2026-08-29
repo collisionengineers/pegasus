@@ -334,6 +334,10 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), result);
         Assert.Empty(harness.Store.ReopenRequests);
         Assert.Empty(harness.Resolve.Requests);
+        // Writing nothing is the whole hazard: the pass still has to record
+        // the association version it examined, or the row is re-selected for
+        // ever and starves later stale resolutions out of the page.
+        Assert.Equal((item.Id, 1L), Assert.Single(harness.Store.RecheckMarks));
     }
 
     [Fact]
@@ -609,6 +613,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         public List<ReopenUnidentifiedRequest> ReopenRequests { get; } = [];
 
+        public List<(Guid ItemId, long AssociationVersion)> RecheckMarks { get; } = [];
+
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -683,6 +689,15 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             int maximum,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<UnidentifiedItem>>(RecheckItems.Take(maximum).ToArray());
+
+        public Task MarkResolutionRecheckedAsync(
+            Guid unidentifiedItemId,
+            long associationVersion,
+            CancellationToken cancellationToken = default)
+        {
+            RecheckMarks.Add((unidentifiedItemId, associationVersion));
+            return Task.CompletedTask;
+        }
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,

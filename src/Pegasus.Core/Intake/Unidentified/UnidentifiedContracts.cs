@@ -309,14 +309,31 @@ public interface IUnidentifiedStore
 
     /// <summary>
     /// Items this reconciliation itself resolved whose origin receipt's manual
-    /// case association has changed at or after that resolution was recorded:
-    /// the only rows whose recorded destination can have gone stale. This is a
-    /// freshness filter, not a destination decision; <see
-    /// cref="ReconcileUnidentifiedDestinations"/> still owns what the
+    /// case association has moved on from the version the recorded destination
+    /// was last reconciled against: the only rows whose destination can have
+    /// gone stale. This is a freshness filter, not a destination decision;
+    /// <see cref="ReconcileUnidentifiedDestinations"/> still owns what the
     /// effective destination is.
     /// </summary>
     Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
         int maximum,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records that this reconciliation examined the item's recorded
+    /// destination against <paramref name="associationVersion"/>, completing a
+    /// recheck. A recheck that finds the destination unchanged writes nothing
+    /// else, so without this the row satisfies
+    /// <see cref="ListResolutionsToRecheckAsync"/> on every pass; holding the
+    /// head of that bounded, oldest-first page, enough such rows starve every
+    /// later stale resolution of a recheck entirely. The version recorded is
+    /// the one the caller observed, never "now", so an association that moves
+    /// during the pass is picked up next time rather than marked reconciled
+    /// unseen.
+    /// </summary>
+    Task MarkResolutionRecheckedAsync(
+        Guid unidentifiedItemId,
+        long associationVersion,
         CancellationToken cancellationToken = default);
 
     /// <summary>

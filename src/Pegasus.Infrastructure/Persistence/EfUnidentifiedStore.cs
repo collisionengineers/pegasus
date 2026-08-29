@@ -245,6 +245,9 @@ public sealed class EfUnidentifiedStore(
         entity.ResolutionTargetKind = null;
         entity.ResolutionTargetId = null;
         entity.ResolutionTargetReference = null;
+        // The recheck watermark belongs to the resolution being withdrawn, not
+        // to the item: the next resolution is reconciled from scratch.
+        entity.ReconciledAssociationVersion = null;
         entity.Version++;
         var history = new UnidentifiedHistoryEntity
         {
@@ -320,6 +323,16 @@ public sealed class EfUnidentifiedStore(
 
         // As with ListQueueAsync, origin receipt is polymorphic and has no
         // modelled foreign key, so join it directly to its manual association.
+        //
+        // The association's own version, not its timestamps, is what decides
+        // freshness. A recheck that finds the destination unchanged writes no
+        // resolution, so a timestamp comparison against ResolvedAtUtc never
+        // advanced and re-selected the row on every pass for ever — and since
+        // these rows carry the oldest ResolvedAtUtc they held the head of this
+        // bounded, oldest-first page, so fifty of them starved every later
+        // stale resolution of its recheck in silence (INTK-048). The version
+        // is monotonic per receipt and moves on every link, unlink and
+        // relink, so it also needs no clock.
         var rows = await (
             from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
             join association in context.Set<IntakeManualAssociationEntity>().AsNoTracking()
@@ -328,13 +341,33 @@ public sealed class EfUnidentifiedStore(
                 && item.ResolvedByActorKind == automation
                 && item.ResolvedByActorSubjectId == automationSubject
                 && item.OriginKind == receipt
-                && (association.LinkedAtUtc >= item.ResolvedAtUtc
-                    || association.UnlinkedAtUtc >= item.ResolvedAtUtc)
+                && (item.ReconciledAssociationVersion == null
+                    || item.ReconciledAssociationVersion != association.Version)
             orderby item.ResolvedAtUtc, item.Sequence
             select item)
             .Take(maximum)
             .ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
+    }
+
+    public async Task MarkResolutionRecheckedAsync(
+        Guid unidentifiedItemId,
+        long associationVersion,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var resolved = UnidentifiedState.Resolved.ToString();
+        // Scoped to the still-resolved item and written without the
+        // concurrency token: this is freshness bookkeeping about a resolution,
+        // not a transition of the item, so it neither takes a version nor
+        // resurrects a watermark onto a resolution that has since been
+        // reopened.
+        await context.Set<UnidentifiedItemEntity>()
+            .Where(item => item.Id == unidentifiedItemId && item.State == resolved)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    item => item.ReconciledAssociationVersion, associationVersion),
+                cancellationToken);
     }
 
     public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(

@@ -428,6 +428,9 @@ public sealed class AiJobTests
         public Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(int maximum, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task MarkResolutionRecheckedAsync(Guid unidentifiedItemId, long associationVersion, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

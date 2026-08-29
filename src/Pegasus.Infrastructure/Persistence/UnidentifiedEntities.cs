@@ -22,6 +22,14 @@ internal sealed class UnidentifiedItemEntity
     public string? ResolutionTargetKind { get; set; }
     public string? ResolutionTargetId { get; set; }
     public string? ResolutionTargetReference { get; set; }
+    /// <summary>
+    /// The origin receipt's manual-association version this resolution's
+    /// destination has been reconciled against. The freshness watermark for
+    /// <see cref="EfUnidentifiedStore.ListResolutionsToRecheckAsync"/>:
+    /// persistence bookkeeping, not domain state, so it stays out of
+    /// <c>UnidentifiedItem</c>.
+    /// </summary>
+    public long? ReconciledAssociationVersion { get; set; }
     public required string RegistrationOperationKey { get; set; }
     public required string RegistrationFingerprint { get; set; }
     public long Version { get; set; }

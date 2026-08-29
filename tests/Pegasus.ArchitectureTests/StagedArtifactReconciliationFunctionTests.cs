@@ -345,6 +345,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
 
+        public Task MarkResolutionRecheckedAsync(
+            Guid unidentifiedItemId,
+            long associationVersion,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,
             CancellationToken cancellationToken = default) =>
