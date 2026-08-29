@@ -15,6 +15,13 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
     private static readonly DateTimeOffset StartUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// Automatic allocation is the path whose <c>PrincipalCode</c> really is the
+    /// credential binding's — <c>AttemptAutomaticAsync</c> derives it from
+    /// <c>EstablishedPrincipalCode(receipt, binding)</c> and acts as
+    /// <c>ActionActor.SystemWorker</c> (<c>IntakeAllocation.cs:259,283</c>).
+    /// Only that path may claim the "authenticated credential binding" label.
+    /// </summary>
     [Fact]
     public async Task AcceptanceRecordsWorkProviderFromAuthenticatedCredentialBinding()
     {
@@ -24,7 +31,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             new(
                 harness.ReceiptId,
                 0,
-                harness.StaffActor,
+                harness.WorkerActor,
                 "accept-provider-api-1",
                 "Accepted provider API instruction",
                 CaseType.Inspection,
@@ -44,6 +51,39 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
         Assert.Equal("authenticated credential binding", workProvider.Source.Label);
         Assert.Equal(ProviderInstructionPolicy.PolicyKey, workProvider.Source.PolicyKey);
         Assert.Equal(ProviderInstructionPolicy.PolicyVersion, workProvider.Source.PolicyVersion);
+    }
+
+    /// <summary>
+    /// The staff create path takes whatever an operator keyed, and staff may
+    /// key a different principal entirely to correct a provider that posted
+    /// under the wrong account. Labelling that "authenticated credential
+    /// binding" would export a provenance to the EVA archive that no credential
+    /// supplied, so this path records no work provider fact at all — the same
+    /// discipline <c>AddExtractedValue</c> keeps by mapping a person-keyed
+    /// value to <c>StaffCorrection</c>.
+    /// </summary>
+    [Fact]
+    public async Task AStaffCreatedCaseDoesNotClaimTheCredentialBindingAsItsWorkProvider()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var outcome = await harness.AcceptIntake.ExecuteAsync(
+            new(
+                harness.ReceiptId,
+                0,
+                harness.StaffActor,
+                "accept-provider-api-staff-1",
+                "Accepted provider API instruction",
+                CaseType.Inspection,
+                "QDOS",
+                new(true, true, false, false)),
+            CancellationToken.None);
+        var projection = await harness.DataStore.GetAsync(
+            outcome.Identity.CaseId,
+            CancellationToken.None);
+
+        Assert.NotNull(projection);
+        Assert.Null(projection.Provider.WorkProviderCode.Current);
     }
 
     private sealed class Harness : IAsyncDisposable
@@ -66,6 +106,10 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
 
         public Guid ReceiptId { get; }
         public ActionActor StaffActor { get; }
+
+        /// <summary>The actor automatic allocation uses.</summary>
+        public ActionActor WorkerActor { get; } =
+            ActionActor.SystemWorker("intake-processing");
         public AcceptIntake AcceptIntake { get; }
         public EfCaseDataStore DataStore { get; }
 
