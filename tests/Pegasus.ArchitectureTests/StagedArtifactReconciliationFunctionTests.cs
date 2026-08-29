@@ -40,7 +40,6 @@ public sealed class StagedArtifactReconciliationFunctionTests
             VehicleLookupAvailability.Unavailable);
         var providerSubmissionReconciler = new ReconcileProviderSubmissions(
             new EmptyProviderSubmissionStore(),
-            workStore,
             new UnreachableActionHistoryWriter(),
             TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();

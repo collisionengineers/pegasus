@@ -12,12 +12,12 @@ public sealed record ReconcileProviderSubmissionsResult(
 /// The one owner of the Provider API accept-recovery rule: a submission whose
 /// durable intake receipt exists but whose provider row or initial Accepted
 /// history write was interrupted is completed by the existing intake
-/// reconciliation timer. A bare submission reservation is left alone because
-/// a retry still owns its intake attempt.
+/// reconciliation timer. A bare submission reservation is not a candidate at
+/// all — the store excludes it — because a retry still owns its intake
+/// attempt and no sweep can ever complete it.
 /// </summary>
 public sealed class ReconcileProviderSubmissions(
     IProviderSubmissionStore submissionStore,
-    IIntakeWorkStore workStore,
     IActionHistoryWriter actionHistory,
     TimeProvider timeProvider)
 {
@@ -49,24 +49,12 @@ public sealed class ReconcileProviderSubmissions(
 
             try
             {
-                var stagedReceipt = await workStore.FindBySourceIdentityAsync(
-                    new(
-                        IntakeSourceChannel.ProviderApi,
-                        ProviderSubmissionPolicy.SubmissionToken(candidate.SubmissionId)),
-                    cancellationToken);
-                if (stagedReceipt is null)
-                {
-                    // The submission row is only a reservation until intake
-                    // retention succeeds. A caller retry owns this bare row.
-                    continue;
-                }
-
                 var wasRepaired = false;
                 if (candidate.StagedReceiptId is null)
                 {
                     await submissionStore.RecordStagedReceiptAsync(
                         candidate.SubmissionId,
-                        stagedReceipt.Id,
+                        candidate.RetainedStagedReceiptId,
                         cancellationToken);
                     wasRepaired = true;
                 }

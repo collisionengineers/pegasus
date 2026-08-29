@@ -15,6 +15,10 @@ internal sealed class EfProviderSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IProviderSubmissionStore, IProviderSubmissionBindings
 {
+    // The same map that wrote the column, rather than a second copy of it.
+    private static readonly string ProviderApiSourceChannel =
+        EfIntakeWorkStore.ToCode(IntakeSourceChannel.ProviderApi);
+
     public async Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -160,11 +164,32 @@ internal sealed class EfProviderSubmissionStore(
         ProviderInstructionJson.Deserialize(entity.DeclaredInstructionJson),
         entity.StagedReceiptId);
 
+    /// <summary>
+    /// The accept state of a submission, read in one statement: the staged
+    /// receipt its source was retained as, and whether its first
+    /// <c>Accepted</c> history row exists.
+    /// </summary>
+    /// <remarks>
+    /// The staged-receipt join is an inner join on purpose. A submission whose
+    /// retention never happened is a bare reservation: the sweep cannot
+    /// complete it, and nothing deletes it, so admitting it to a bounded
+    /// oldest-first window would let one outage's worth of them occupy that
+    /// window for good. Joining here also answers "which receipt?" in the same
+    /// read, instead of one lookup per candidate.
+    /// </remarks>
     private static IQueryable<ProviderSubmissionAcceptCandidate> AcceptRecoveryStates(
         PegasusDbContext context,
         bool incompleteOnly,
         Guid? submissionId = null) =>
         from submission in context.ProviderSubmissions.AsNoTracking()
+        join staged in context.IntakeStagedReceipts
+                .AsNoTracking()
+                .Where(item => item.SourceChannel == ProviderApiSourceChannel)
+            // The token the accept path writes is the submission id in "N"
+            // form, matched under the database's own collation exactly as the
+            // history join below matches the "D" form.
+            on submission.Id.ToString().Replace("-", string.Empty)
+                equals staged.ExternalReceiptToken
         join acceptedHistory in context.ActionHistory
                 .AsNoTracking()
                 .Where(item =>
@@ -182,5 +207,6 @@ internal sealed class EfProviderSubmissionStore(
             submission.PrincipalId,
             submission.ReceivedAtUtc,
             submission.StagedReceiptId,
+            staged.Id,
             acceptedHistory != null);
 }
