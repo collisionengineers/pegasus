@@ -249,3 +249,13 @@ n/a — this round only adds one data-file entry and one static prototype
 file (both copied from an existing, already-produced source rather than
 authored fresh), and corrects prose in three existing documents. No new
 code, no new abstraction, nothing to simplify.
+
+## Follow-up ticket filed — 2026-08-29
+
+Filed [[PR-070]] (area `pr-review`, group `EPIC-011`) for the
+`vehicle-images-details--default.html` broken-reference defect above — it
+had no current owner among the in-flight tickets, unlike the
+`Cases/Eva/Send.cshtml` gap ([[CASE-012]], PR #615, already open and
+already the file's owner). Not creating a duplicate ticket for the
+`Send.cshtml` gap; flagging it to the orchestrator to confirm CASE-012's
+own PR covers it instead.

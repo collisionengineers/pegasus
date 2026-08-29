@@ -24,6 +24,7 @@ links:
   - TICK-077
   - PLAT-050
   - UIIMP-005
+  - PR-070
 refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 commits:
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/614'
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-29T08:34:25.222Z'
+updated: '2026-08-29T08:35:41.303Z'
 ---
 
 ## What
@@ -67,5 +68,5 @@ merges, for two unrelated pre-existing reasons this ticket does not own:
 `src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml` is uncatalogued ([[CASE-012]],
 PR #615 open) and `docs/design/test-ui/pages/vehicle-images-details--default.html`
 has a stale broken reference to the already-deleted `/VehicleImages` list
-prototype (no clear current owner). Neither is touched by this PR. See
-`plan` for full detail.
+prototype — filed as [[PR-070]] (no current owner among the in-flight
+tickets). Neither is touched by this PR. See `plan` for full detail.
