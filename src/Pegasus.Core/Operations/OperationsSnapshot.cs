@@ -216,7 +216,8 @@ public sealed class GetOperationsSnapshot(
                 Owner: null,
                 due,
                 work.MostRecentOutcome,
-                Source: null));
+                Source: null,
+                Attempts: null));
         }
 
         foreach (var held in heldCases)
@@ -232,7 +233,8 @@ public sealed class GetOperationsSnapshot(
                 OwnerName(held.EngineerId, staffNames),
                 held.NextChaseAtUtc,
                 LastOutcome: null,
-                held.Origin));
+                held.Origin,
+                Attempts: null));
         }
 
         foreach (var row in unidentified)
@@ -248,7 +250,8 @@ public sealed class GetOperationsSnapshot(
                 Owner: null,
                 Due: null,
                 LastOutcome: null,
-                row.MediaKind.ToString()));
+                row.MediaKind.ToString(),
+                Attempts: null));
         }
 
         foreach (var record in triage)
@@ -264,7 +267,8 @@ public sealed class GetOperationsSnapshot(
                 OwnerName(record.AssigneeId, staffNames),
                 Due: null,
                 LastOutcome: null,
-                Source: null));
+                Source: null,
+                Attempts: null));
         }
 
         foreach (var request in requests)
@@ -279,13 +283,14 @@ public sealed class GetOperationsSnapshot(
                 request.CaseId,
                 request.CaseReference,
                 request.ExternalKind ?? request.CaseReference,
-                request.AttemptCount is { } attempts ? $"{attempts} attempts" : null,
+                Detail: null,
                 request.FailureReason ?? request.FailureCode ?? request.State.ToString(),
                 NeedsAttentionPriority.High,
                 Owner: null,
                 Due: null,
                 request.FailureCode,
-                request.PrincipalCode));
+                request.PrincipalCode,
+                request.AttemptCount));
         }
 
         return items

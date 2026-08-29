@@ -80,6 +80,25 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
     };
 
     /// <summary>
+    /// The row's title. External work records its kind as the persisted
+    /// snake_case code, so it is labelled through the same helper the
+    /// Operations table's Work column already uses; every other kind's title
+    /// is a reference or a recorded name that is already operator text.
+    /// </summary>
+    public static string TitleLabel(NeedsAttentionItem item) =>
+        item.Kind == NeedsAttentionKind.ExternalWork
+            ? OperatorLabels.Humanise(item.Title)
+            : item.Title;
+
+    /// <summary>
+    /// The row's second line. External work records a try count rather than a
+    /// name, so the words that read it live here with the rest of the page's
+    /// copy — Core carries the number.
+    /// </summary>
+    public static string? DetailLabel(NeedsAttentionItem item) =>
+        item.Attempts is { } attempts ? $"{attempts} attempts" : item.Detail;
+
+    /// <summary>
     /// The notice's value: the recorded reason, labelled through the one map
     /// that owns each kind's vocabulary.
     /// </summary>
