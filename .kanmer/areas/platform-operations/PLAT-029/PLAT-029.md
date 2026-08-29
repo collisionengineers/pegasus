@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Deliver the Integrated Operations Workspace shell, design system and route
   structure
-status: verifying
+status: done
 area: platform-operations
 assignee: claude-code
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-28T08:12:48.789Z'
   review: '2026-08-28T08:46:30.813Z'
   verifying: '2026-08-28T11:25:21.557Z'
+  done: '2026-08-29T10:11:25.518Z'
 taken_at: '2026-08-28T08:21:17.858Z'
 branch: task/plat-029-workspace-shell
 worktree: ../pegasus-worktrees/plat-029-workspace-shell
@@ -30,7 +31,7 @@ prs:
   - '589'
 archived: false
 created: '2026-08-21T13:19:14.464Z'
-updated: '2026-08-28T11:25:21.557Z'
+updated: '2026-08-29T10:11:25.518Z'
 ---
 
 ## What
