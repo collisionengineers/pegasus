@@ -241,6 +241,22 @@ public sealed class ProviderSubmissionTests
                 CancellationToken.None));
         Assert.Equal("originalReportVerdict", strayVerdict.Field);
 
+        // Two files claiming the role is as unusable as none: both would take
+        // the one fixed label and the downstream single-match lookup would fail
+        // the accepted intake rather than name the field.
+        var twoReports = await Assert.ThrowsAsync<ProviderInstructionValidationException>(
+            () => submit.ExecuteAsync(
+                Request(
+                    Active,
+                    instruction: Instruction(ProviderInstructionKind.Audit, AuditAssessment.Repairable),
+                    files:
+                    [
+                        File(0, role: DocumentSemanticRole.AuditReport),
+                        File(1, value: 7, role: DocumentSemanticRole.AuditReport)
+                    ]),
+                CancellationToken.None));
+        Assert.Equal("files", twoReports.Field);
+
         var accepted = await submit.ExecuteAsync(
             Request(
                 Active,
