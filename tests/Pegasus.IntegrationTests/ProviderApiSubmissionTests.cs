@@ -219,6 +219,26 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
+    public async Task PausedCredentialIsRefusedBeforeRequestBodyIsRead()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+        await PauseQdosCredentialAsync(api);
+        using var request = new HttpRequestMessage(HttpMethod.Post, Submissions)
+        {
+            Content = new StreamContent(new ThrowingStream())
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task EnvelopeOverTheUploadLimitIs413AndAnotherPrincipalNeverSeesTheSubmission()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -529,6 +549,33 @@ public sealed class ProviderApiSubmissionTests
             new(principal.Id, 0, Administrator, "provider-api:issue:other", "provider api test"),
             default);
         return issued.Secret ?? throw new InvalidOperationException("The issued secret was not returned.");
+    }
+
+    private sealed class ThrowingStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("The paused request body was read.");
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The paused request body was read.");
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>
