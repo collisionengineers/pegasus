@@ -239,9 +239,9 @@ disposed below.
    never was [catalogued]" — the entry exists on UIIMP-005's linked,
    unmerged branch; the lane never checked it.**
    **Disposition: fixed.** Retracted explicitly in `files` ("Correction —
-   round 2") and in `post-implementation-report`, not silently edited out
-   — the wrong claim, why it was wrong, and what replaced it are all left
-   in place for the record.
+   round 2") and in `post-implementation-report`, not silently edited
+   out — the wrong claim, why it was wrong, and what replaced it are all
+   left in place for the record.
 
 ## Simplification pass — 2026-08-29 (round 2)
 
@@ -259,3 +259,202 @@ had no current owner among the in-flight tickets, unlike the
 already the file's owner). Not creating a duplicate ticket for the
 `Send.cshtml` gap; flagging it to the orchestrator to confirm CASE-012's
 own PR covers it instead.
+
+## Remediation round 3 — 2026-08-29 (merge `origin/dev`, snapshot regeneration BLOCKED)
+
+Orchestrator instruction for this round: merge `origin/dev` (7 PRs landed
+today: PLAT-053, INTK-046, CASE-026, UIIMP-008, ENG-025, CASE-012,
+DELIV-031), then run the snapshot regeneration this ticket's own gate names
+(`Update-TestUiSnapshots.ps1` → `-Verify -SkipCapture` →
+`Test-UiCatalogue.ps1`), commit only what belongs to this ticket, then
+build/test/push.
+
+### Step 1 — merge `origin/dev`: clean, no manual conflict resolution needed
+
+`git fetch origin -q && git merge origin/dev --no-edit` at merge-base
+`9868cf58` (60 commits behind). Git's own three-way merge (`ort` strategy)
+resolved `docs/design/test-ui/catalogue.json` automatically — no
+`CONFLICT` marker, no manual edit by me. Verified the result is correct
+before trusting it:
+
+- The `EvaSubmission` entry this ticket added is intact and untouched by
+  the merge (single-segment route, `visual` classification).
+- The `Closure.cshtml`/`Workflow.cshtml` entries now read `classification:
+  "protocol"` (not the `"redirect"` value at this branch's merge-base) —
+  confirmed this is CASE-012's own round-2 remediation commit `2dcf69a4`
+  (already on `origin/dev`, correcting an untrue `"redirect"` claim to the
+  accurate `"protocol"` one), not a merge artifact and not something this
+  branch ever asserted differently, so git's move-forward resolution
+  (dev's changed side wins over this branch's untouched side) is correct.
+- `Cases/Eva/Send.cshtml` **remains uncatalogued on `origin/dev` even after
+  CASE-012 (PR #615) merged today** — confirmed by grep after the merge.
+  The plan's round-2 note ("flagging to the orchestrator to confirm
+  CASE-012's own PR covers it") is now answered: **it did not.** Still not
+  this ticket's file to fix (owned by CASE-012/E1 per `waves.md`); flagging
+  again since it's now a *merged-and-still-broken* state, not just an
+  open-PR gap.
+- `vehicle-images-details--default.html`'s broken reference to the deleted
+  `vehicle-images--default.html` also still stands on `origin/dev`,
+  unrelated to any of today's 7 merges — [[PR-070]] (filed round 2) still
+  has no owner and no fix in this round.
+- Build after merge: `dotnet restore --locked-mode` then
+  `dotnet build --configuration Release` — **0 warnings, 0 errors.**
+
+### Step 2 — snapshot regeneration: FAILS before writing anything, for a cause outside this ticket's files
+
+`pwsh -NoProfile -Command "& ./scripts/Update-TestUiSnapshots.ps1"` ran the
+full capture filter (`WebTests|Category=Browser|StaffSignInSecurityTests|
+TestUiFocusedRenderTests|QdosCustodialWebTests|
+AutomationConnectorAuthorizationTests|ImageViewingWebTests`) — **that phase
+passed clean: 355 passed, 0 failed, 11 skipped, 366 total, 19 min** — a
+strong independent signal the merge itself is behaviourally sound. The
+script's second phase (`TestUiSnapshotTests` in `update` mode, which
+regenerates `index.html` and every `pages/*.html` from the capture) then
+**threw and wrote nothing**:
+
+```
+Failed Pegasus.IntegrationTests.TestUiSnapshotTests.CapturedRazorResponsesMatchCommittedTestUiSnapshots [7 s]
+Error Message:
+ No captured Razor response matched:
+- queues--empty (/Cases)
+- inbox--empty (/Inbox)
+- operations--empty (/Operations)
+- cases--empty (/Search)
+- cases--unavailable (/Search)
+```
+
+`TestUiSnapshotTests.Generate()` asserts `missing.Count == 0` *before*
+calling `WriteGenerated` — so this is an all-or-nothing gate: none of the
+56 pages, including this ticket's own `administration-principal-eva-
+submission--default.html`, got regenerated. Confirmed the working tree is
+untouched (`git status --short` empty) — no partial or fabricated output
+was produced or considered for commit.
+
+**Root cause, verified, not guessed:** `TestUiSnapshotTests.cs`'s
+`StateMatches` dictionary picks the "empty"/"unavailable" candidate for
+each route by a hardcoded literal substring in the rendered HTML (e.g.
+`queues--empty` → `"No cases are waiting."`, `inbox`/`operations` `--empty`
+→ class marker `"empty-state"`, `cases--unavailable` → `"<h2>Cases are
+unavailable</h2>"`). Four different pages — `Pages/Cases/Index.cshtml`
+(queues, owned by CASE-025/C1), `Pages/Mail/Index.cshtml` (Inbox, owned by
+MAIL-025/B), `Pages/Operations/Index.cshtml` (owned by PLAT-023/H) and
+`Pages/Search/Index.cshtml` (owned by CASE-026/D) — no longer emit that
+text at all:
+
+- `Pages/Cases/Index.cshtml`'s empty branch is a bare `@foreach` over
+  `Model.Rows` with **no** fallback markup when the collection is empty
+  (confirmed: zero hits for `No `, `empty`, or `waiting` anywhere in the
+  file) — the design system's "no empty-state prose" rule (`context.md`,
+  `docs/design/README.md`) means there is nothing left to render, so the
+  captured HTML for zero rows is byte-identical in structure to a partial
+  page and carries no distinguishing marker at all.
+- `Pages/Search/Index.cshtml` still has an "unavailable" notice but as
+  `<strong>Cases are unavailable</strong>`, not the `<h2>` wrapper the
+  marker requires — a tag-level drift, not a wording drift.
+- Confirmed candidates for all four routes DO exist in the capture
+  directory (23/50/12/18 HTML responses respectively for
+  `/Cases`,`/Inbox`,`/Operations`,`/Search`) — this is a stale-marker
+  problem, not a missing-test-coverage problem.
+
+**Why this is not this ticket's fix.** The one file that would need
+editing to restore matching (`tests/Pegasus.IntegrationTests/
+TestUiSnapshotTests.cs`, the `StateMatches` dictionary) is shared test
+tooling used by every UI lane's snapshot pass — not in this ticket's
+`files` list, not owned by `platform-operations`/PLAT-052, and the correct
+fix requires a design call this ticket has no authority to make for four
+other lanes' pages: what should now visually/textually distinguish an
+"empty" render from a "default" one, now that the explanatory sentence
+those markers depended on has been deliberately removed under the "no
+explanatory copy" rule? That is not a one-line change in an unowned file
+(D19's fix-it-anyway allowance) — it is a design decision spanning four
+different pages across four different lanes (CASE-025, MAIL-025, PLAT-023,
+CASE-026) plus the shared tooling file, several of which (PLAT-023,
+CASE-026) merged their PRs *today*, so "the lane is not currently in
+flight" does not clearly hold either. Per the hard rule ("Touch ONLY your
+lane's files. Report defects outside them.") this is reported, not fixed,
+here.
+
+**Disposition: escalate to the orchestrator (no ticket filed by me — this
+lane's tool set has no `create_item`).** Recommending either (a) the
+orchestrator assigns a fix to whichever ticket/lane owns
+`TestUiSnapshotTests.cs` (UIIMP-005/PLAT-029, per `waves.md`'s tooling
+ownership), choosing new discriminating markers for all five states (or
+retiring the "empty"/"unavailable" catalogue states entirely for pages that
+no longer render distinguishing content, which is itself a call for
+whoever owns the manifest), or (b) explicit authorization for a follow-up
+ticket to do the same. Until resolved, **`Update-TestUiSnapshots.ps1`
+cannot succeed for *any* ticket, not just this one** — this blocks the
+epic's snapshot corpus more broadly, not only PLAT-052's two named stale
+artefacts.
+
+Consequently `-Verify -SkipCapture` was not run (it re-executes the same
+`Generate()` step in verify mode and would fail identically before ever
+reaching the file-comparison stage — confirmed by reading
+`TestUiSnapshotTests.cs`'s `CapturedRazorResponsesMatchCommittedTestUiSnapshots`,
+which calls the same `Generate()` regardless of mode). The retained capture
+directory (`artifacts/test-ui-capture`, gitignored, 1300+ files) is left in
+place in the worktree in case the orchestrator wants a `-SkipCapture` rerun
+once the marker fix lands, saving the ~19-minute capture phase.
+
+### Step 3 — `Test-UiCatalogue.ps1`: baseline unchanged by the merge
+
+Run before attempting regeneration (static analysis, independent of the
+capture/update pipeline): **exit code 1**, single reported error (the
+script stops at the first alphabetically):
+
+```
+Write-Error: Routed Razor source is not classified: src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml
+```
+
+Identical to the pre-merge baseline and to round 2's documented finding —
+the merge introduced **no new** catalogue errors. This is the
+`Cases/Eva/Send.cshtml` pre-existing gap from round 2 (§"Two more
+pre-existing, out-of-scope catalogue defects"), confirmed still open on
+`origin/dev` post-CASE-012-merge (see Step 1 above). Not run again after
+the failed regeneration attempt since nothing changed on disk to alter the
+result.
+
+### Step 4 — build and focused test, real counts
+
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` (post-
+  merge): **0 Warning(s), 0 Error(s)**.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~OrganizationAdministrationWebTests"`: **Passed! —
+  Failed: 0, Passed: 2, Skipped: 0, Total: 2, Duration: 49 s.**
+
+### Step 5 — commit and push
+
+Nothing new to commit: the merge produced no conflicts requiring a manual
+resolution commit beyond git's own merge commit, and the snapshot
+regeneration wrote no files (see Step 2). Pushed the merge commit only:
+`git push origin task/plat-052-eva-submission-route` →
+`0a0d9eee..48df8f58`. No PR merge performed.
+
+### Disposition summary (round 3)
+
+1. **Merge conflict handling** — n/a, resolved automatically by git;
+   verified correct by hand (see Step 1). No disposition needed.
+2. **Stale snapshot artefacts named in this round's brief
+   (`administration-principal-eva-submission--default.html`,
+   `index.html`)** — **blocked, not fixed.** Cannot be regenerated until
+   the unrelated `StateMatches` marker drift (Step 2) is resolved, because
+   the generator is all-or-nothing across all 56 pages. **Disposition:
+   accept risk / escalate** — recorded here, not silently claimed done.
+3. **`StateMatches` marker drift across 4 other lanes' pages +
+   shared tooling file** — **out of lane, reported.** **Disposition: defer
+   to the orchestrator** (no ticket filed — `create_item` not in this
+   lane's tool set). This is the blocking finding for the round.
+4. **`Cases/Eva/Send.cshtml` uncatalogued, confirmed still true after
+   CASE-012's merge** — **out of lane, reported** (already known from round
+   2; now confirmed persisting post-merge). **Disposition: unchanged from
+   round 2** (CASE-012/E1's file; orchestrator should confirm whether a
+   follow-up is needed since PR #615 did not close this gap).
+5. **`vehicle-images-details--default.html` broken reference** — **out of
+   lane, already ticketed.** **Disposition: unchanged from round 2**
+   ([[PR-070]] filed, still unowned, still not this ticket's to fix).
+
+## Simplification pass — 2026-08-29 (round 3)
+
+n/a — this round is a merge plus a blocked regeneration attempt; no new
+application code was written. The merge itself introduced no code changes
+of this ticket's own authorship to simplify.
