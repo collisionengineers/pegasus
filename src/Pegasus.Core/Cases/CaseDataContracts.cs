@@ -18,7 +18,14 @@ public enum CaseDataSourceKind
     CaseAcceptance,
     StaffCorrection,
     VehicleLookup,
-    ProviderSetting
+    ProviderSetting,
+
+    /// <summary>
+    /// Stated by the instructing Principal over the Provider API. FRD-02 already
+    /// names the provider API as a field provenance in its own right, distinct
+    /// from extraction and from staff entry.
+    /// </summary>
+    ProviderApi
 }
 
 public enum CaseInspectionMode
@@ -67,7 +74,17 @@ public sealed record CaseOriginIdentity(
 
 public sealed record CaseProviderData(CaseField<string> WorkProviderCode);
 
-public sealed record CaseClaimantData(CaseField<string> Name);
+/// <summary>
+/// The claimant. <see cref="ContactNumber"/> and <see cref="Address"/> are the
+/// claimant's own — distinct from <see cref="CaseContactData"/>, which is the
+/// file handler Pegasus corresponds with about the case. EVA keeps the same
+/// separation (ClmTelNo against the inspection-location contact), and the
+/// claimant address is what its claimant block needs.
+/// </summary>
+public sealed record CaseClaimantData(
+    CaseField<string> Name,
+    CaseField<string> ContactNumber,
+    CaseField<string> Address);
 
 public sealed record CaseClaimData(CaseField<string> Number);
 
@@ -140,7 +157,12 @@ public sealed record CaseEditableData(
     DateOnly? InspectionDate = null,
     DateOnly? InspectionDeadline = null,
     string? InspectionAddress = null,
-    CaseInspectionMode? InspectionMode = null);
+    CaseInspectionMode? InspectionMode = null,
+    // Appended, never inserted: this record is constructed positionally
+    // (AssessmentMcpTools), so an inserted parameter would silently shift every
+    // value after it.
+    string? ClaimantContactNumber = null,
+    string? ClaimantAddress = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

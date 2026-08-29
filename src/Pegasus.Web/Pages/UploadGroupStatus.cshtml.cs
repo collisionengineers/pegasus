@@ -15,7 +15,8 @@ public sealed class UploadGroupStatusModel(
     IUploadOutcomeQueries outcomeQueries,
     IUploadCaseDecision caseDecision,
     IRegisterImageIntake registerImageIntake,
-    IImageIntakeOriginResolver imageIntakeOriginResolver) : UploadConfirmationPageModel(caseDecision)
+    IImageIntakeOriginResolver imageIntakeOriginResolver,
+    TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private readonly IUploadCaseDecision _caseDecision = caseDecision;
 
@@ -41,11 +42,37 @@ public sealed class UploadGroupStatusModel(
     /// </summary>
     public UploadOutcomeView? GroupRegistrationOutcome { get; private set; }
 
-    public bool RefreshAutomatically =>
-        Statuses.Values.Any(status =>
-            status is null
-                || status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
-        || Outcomes.Values.Any(outcome => outcome?.IsStillWorking == true);
+    public bool RefreshAutomatically => AutomaticRefreshMilliseconds is not null;
+
+    /// <summary>
+    /// How long before this page reloads itself: the shortest wait among the
+    /// members still moving, so one member waiting on a scheduled retry never
+    /// holds the whole submission back and never keeps the page reloading
+    /// every two seconds on its account either. Null once nothing is moving.
+    /// </summary>
+    public int? AutomaticRefreshMilliseconds
+    {
+        get
+        {
+            // A member past the queue but whose group-level outcome is still
+            // resolving could settle at any moment, and carries no due time
+            // to wait on.
+            if (Outcomes.Values.Any(outcome => outcome?.IsStillWorking == true))
+            {
+                return UploadStatusRefresh.MinimumMilliseconds;
+            }
+
+            // A member with no status row yet is still arriving, not finished.
+            var moving = Statuses.Values
+                .Where(status => status is null
+                    or { Status: QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing })
+                .ToArray();
+            return moving.Length == 0
+                ? null
+                : moving.Min(status =>
+                    UploadStatusRefresh.DelayMilliseconds(status, timeProvider.GetUtcNow()));
+        }
+    }
 
     /// <summary>
     /// Set when any member still needs a staff decision: the submission is
