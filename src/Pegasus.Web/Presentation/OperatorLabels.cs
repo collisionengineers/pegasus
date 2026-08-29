@@ -55,30 +55,6 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// The resolve dialog's destination words. The four contract wordings
-    /// (EPIC-011 §1.6) cover the kinds a staff resolution completes directly;
-    /// Triage and Blocked intake remain real Core destinations and keep their
-    /// settled names. The prototype's "Create Case from accepted instruction"
-    /// has no destination kind behind it — creating the case is the origin
-    /// receipt's action — so it is not a select option.
-    /// </summary>
-    public static string UnidentifiedResolutionTarget(
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind kind) => kind switch
-    {
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.InstructionCase =>
-            "Add to existing Case",
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ImageIntake =>
-            "Register Image-initiated Case",
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.Triage =>
-            "Link to Triage",
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.BlockedIntake =>
-            "Blocked intake",
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ExternalReference =>
-            "Close with reason",
-        _ => Humanise(kind.ToString())
-    };
-
-    /// <summary>
     /// What an Unidentified item's retained material is, for the Queues
     /// page's Images/E-mails filter and the row/detail "what is going on"
     /// text. Supersedes the old origin-kind label ("Intake receipt"), which
@@ -904,6 +880,30 @@ public static class OperatorLabels
             ? $"{prefixed} · {HumanizeSlug(subtype)}"
             : prefixed;
     }
+
+    /// <summary>
+    /// The resolve dialog's destination words. The four contract wordings
+    /// (EPIC-011 §1.6) cover the kinds a staff resolution completes directly;
+    /// Triage and Blocked intake remain real Core destinations and keep their
+    /// settled names. The prototype's "Create Case from accepted instruction"
+    /// has no destination kind behind it — creating the case is the origin
+    /// receipt's action — so it is not a select option.
+    /// </summary>
+    public static string UnidentifiedResolutionTarget(
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind kind) => kind switch
+    {
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.InstructionCase =>
+            "Add to existing Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ImageIntake =>
+            "Register Image-initiated Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.Triage =>
+            "Link to Triage",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.BlockedIntake =>
+            "Blocked intake",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ExternalReference =>
+            "Close with reason",
+        _ => Humanise(kind.ToString())
+    };
 
     private static string HumanizeSlug(string slug)
     {
