@@ -332,3 +332,89 @@ deployed environment at this SHA.
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not been
 promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+---
+
+# Independent re-verification — 2026-08-29, closeout board walk
+
+## Scope (decision D15)
+
+Re-verified against **merged `dev` at
+`450b9234a6f5626f21adea3c4da244550a3bdace`** (2026-08-29 18:03:20 +0100).
+`b92cb9a7` is an ancestor of it, so nothing above is invalidated.
+
+This remains **dev-merged evidence, pending the single wave-5 `dev` → `main`
+promotion**. `main` serves release 36; nothing here is deployed.
+
+The merge is `d7f6201c` (PR #606), an ancestor of `450b9234`.
+
+## Strict rule-14 walk (D20) — capability → production caller
+
+Every capability named in this ticket's own **What / Owns / Verification** was
+re-enumerated and traced independently, by a reviewer who did not implement the
+lane.
+
+| # | Capability the ticket names | Production caller | Verdict |
+| --- | --- | --- | --- |
+| 1 | `/Search` route | `Pages/Search/Index.cshtml:1` bare `@page` (folder-routed). Named callers: `Pages/Shared/_Layout.cshtml:90` `<a class="nav-link" asp-page="/Search/Index">` and the utility bar's `_Layout.cshtml:132` `<form … method="get" action="/Search">` | **WIRED** |
+| 2 | Advanced filter grid, 1:1 with UI-07 inputs | All ten inputs render, bind and reach `searchCases.ExecuteAsync` (`Index.cshtml.cs:157`–`:176`): `query`→`:173`, `registration`→`:160`, `claimant`→`:161`, `claimNumber`→`:162`, `principal`→`:163`, `state`→`:164`, `engineerId`→`:165`, `fromDate`→`:169`, `toDate`→`:170`, `origin`→`:171`. Search submits GET to self; Clear is `<a asp-page="/Search/Index">` | **WIRED 10/10** |
+| 3 | Selectable rows: `tr[data-select-href]` + template preview | Rows at `Index.cshtml:193`; consumer `wwwroot/js/site.js:1457` `querySelectorAll('[data-select-href]')`, template read at `:1463`, swapped at `:1471` `target.replaceChildren(…)`; template rendered at `Index.cshtml:215` | **WIRED** (keyboard caveat below) |
+| 4 | Server-rendered "Selected Case" pane for `?selected=` | Bound `Index.cshtml.cs:85` `[BindProperty(SupportsGet = true, Name = "selected")]`, resolved `:179`–`:191`, rendered `Index.cshtml:245` → `_CasePreview`. Facts `_CasePreview.cshtml:23`–`:28`; Outstanding `:31`–`:45`; Open Case `:47` → `/Cases/{id:guid}`, which exists (`Pages/Cases/Details.cshtml:1`) | **WIRED — server-rendered, no JS required** |
+| 5 | "Closed · \<outcome\>" chip (D3) | Map `Presentation/OperatorLabels.cs:141`–`:144`; called `Search/Index.cshtml.cs:318` `OperatorLabels.CaseStage(item.State)`; rendered `Index.cshtml:213` and `_CasePreview.cshtml:18` | **WIRED** |
+| 6 | **The scope-extension risk:** three new `CaseSearchItem` fields | Declared `src/Pegasus.Core/Cases/CaseQueries.cs:73`–`:75`; projected `EfCaseQueryStore.cs:251`–`:253`, mapped `:346`–`:348`; **rendered** — make/model composed `Index.cshtml.cs:319`–`:322` → `Index.cshtml:205`–`:208`, circumstances `_CasePreview.cshtml:4`–`:6`, `:21` | **WIRED — not dead code** |
+| 7 | 301 from old `/Cases?query=` bookmarks | `Pages/Cases/Index.cshtml.cs:286`–`:289` `return RedirectPermanent("/Search" + Request.QueryString.Value);` inside `OnGetAsync` — production, not test-only | **WIRED** |
+
+Item 6 was the sharpest rule-14 risk in this ticket — three optional
+constructor parameters added to a Core projection could easily have been added
+and never rendered. They **are** rendered. No dead code was added.
+
+No rendered control on the page has a missing handler or a dead href. Every
+`<use href="#icon-…">` resolves in `_LucideSprite.cshtml`.
+
+## Findings, with dispositions (AGENTS.md rule 22)
+
+None of these is an unwired capability, so none bars Done under D20. All four
+are recorded rather than silenced.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| F1 | **Keyboard `Space` is not implemented anywhere.** The What says "keyboard Enter/Space". `site.js:1492` handles `Enter` only; the page's inline script (`Index.cshtml:310`) repeats `Enter` only; no `' '`/`Spacebar` case exists in the repository. Rows are `<tr tabindex="0">`, not `role="button"`, so there is no native Space activation either | **Accepted risk, disclosed.** The capability is not unreachable: rows select on **focus** (`site.js:1499` `row.addEventListener('focus', …)`), follow on **Enter**, and move on **Arrow** keys (`site.js:1410`–`:1421`), so the table is fully keyboard-operable. Space is a contract-detail miss, not an unwired capability. `site.js` is **PLAT-029**'s file; the inline script is this lane's. Named for **UIIMP-010**'s accessibility walk to confirm or reopen |
+| F2 | **`ResultRow.SelectHref`'s value has no reachable consumer.** Computed `Index.cshtml.cs:316`, emitted `Index.cshtml:193`. Every consumer uses the attribute as a *selector* only (`site.js:1407`, `:1457`, `site.css:667`). Its one value-read is a dead fallback — `site.js:1473` `row.getAttribute('data-select-id') \|\| row.getAttribute('data-select-href')` — and `data-select-id` is rendered unconditionally, so the right branch is unreachable. The source comments at `_CasePreview.cshtml:9`–`:13` and `Index.cshtml:173`–`:175` claim it "carries its Case's link for the no-script path", which is **incorrect**: the no-script path is the separate `<a class="table-row-link" href="@row.DetailHref">` at `Index.cshtml:197` | **Rejected as a rule-14 failure, accepted as a redundancy.** The attribute itself is load-bearing (it is the selector); only its *value* is redundant, and the control it belongs to works. A behaviour-preserving cleanup for whoever next edits the file — the misleading comments should go with it |
+| F3 | **Three filters are applied but undrawn.** `case` (`Index.cshtml.cs:42`), `receivedDate` (`:63`), `instructionDate` (`:66`) are read, passed to the query (`:158`–`:173`) and re-emitted in `RouteValues`, with no `<input>` for any of them. All three are in `SearchOnlyParameters` (`Cases/Index.cshtml.cs:105`–`:106`), so a redirected bookmark can silently narrow results with nothing on screen saying so. The proving test asserts only 8 of 12 values and its comment says "the **two** parameters the ported grid no longer draws" — it is four (`case`, `receivedDate`, `instructionDate`, `kind`) | **Deferred, owner named.** The ticket's verification bullet "every value rendered back into its field" is an overclaim to that extent, and is corrected here. Behaviourally it is a filter-transparency defect, not an unwired capability. Natural owner: **CASE-034** (the queues/filter lane) or the Search lane's next edit; flagged for the orchestrator to place |
+| F4 | **`kind` / `RecordKindFilter` has no production caller.** Bound `Index.cshtml.cs:81`, and it gates a whole rendered "Vehicle images" section (`Index.cshtml:14`, `:122`–`:149`) plus a `NotFound()` branch (`:134`–`:137`). But `git grep -F "kind=images" -- src/` and `git grep asp-route-kind -- src/` are both **empty**, and `kind` is **not** in `SearchOnlyParameters`, so no redirect supplies it. Reachable only by a hand-typed URL | **Deferred, owner named — and this one is a genuine registered-but-unreachable surface.** It is **not** a capability CASE-026 names (its What/Owns/Verification never mention Vehicle images), so per the D20 scope note it does not bar this ticket; it is inherited code inside an owned file. It is very likely orphaned by **D1**, which deleted the `/VehicleImages` list page that plausibly supplied `kind=images`. Natural owner: **UIIMP-009**, which removes superseded surfaces and dead selectors |
+| F5 | **`?selected=` 404s for a case outside the current page.** `Index.cshtml.cs:179`–`:185` looks the id up in the 25-row page only, then `return NotFound()`. A shared `/Search?…&selected=<guid>` link whose row has moved to page 2 returns 404 rather than falling back | **Accepted risk, disclosed.** Behavioural, not rule 14. Recorded for the orchestrator |
+| F6 | **Test-coverage gap on item 6.** `CasesIndexWebTests.cs:278`–`:280` seeds `VehicleMake="Ford"`, `VehicleModel="Fiesta"`, `AccidentCircumstances=…` but asserts only the circumstances line (`:139`). The Vehicle column could regress silently | **Accepted risk, disclosed.** The render is real production code, so rule 14 is satisfied; only the regression guard is thin |
+
+## Commands run, with exit codes
+
+Run in the main checkout on `dev` at `450b9234`, Windows + PowerShell 7.
+
+```
+dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false
+  -> Build succeeded. 0 Warning(s), 0 Error(s).   exit 0
+```
+
+No `MSB3027`/`MSB3021` file lock and no `SqlException` transport-level error
+occurred, so this is a clean PASS rather than INCONCLUSIVE.
+
+CI on the branch head `d2ce04fe`: the PR merged green; `sql-integration`
+shard evidence for the post-merge window is recorded on **[[DELIV-031]]**.
+
+## What this re-verification does NOT prove
+
+- **Nothing here is deployed.** `main` is at release 36. Tier-2 evidence only.
+- **No browser or layout walk.** The ticket's second verification item — "No
+  clipped text/overflow at 1580/1100/760" — remains **unticked and unproven**,
+  as the ticket itself records: it "needs a browser run; not done in the page
+  lane, left for the orchestrator's walk." **UIIMP-010** owns it. Done is
+  reached here on rule-14 wiring, not on a layout claim.
+- **`Test-UiCatalogue.ps1` and the snapshot corpus were not run.** Snapshot
+  regeneration is once-per-merge on the merging branch; the gate is
+  **UIIMP-005**, unmerged. **[[UIIMP-011]]** still owns the two stale
+  `cases--*` snapshot state constants.
+- **Focused Search tests were not re-run here.** `CasesIndexWebTests` and
+  `AdministrationSearchAccountWebTests` are covered by the merged PR's green
+  CI and by the full-suite gate evidence cited in the body above; this walk
+  re-ran the build, not those classes.
+- **F1's keyboard claim is a source reading, not an observed browser
+  behaviour.** No key was pressed in a real browser during this walk.
