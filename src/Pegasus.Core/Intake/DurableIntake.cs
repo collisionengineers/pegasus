@@ -312,6 +312,7 @@ public sealed class ReceiveIntake(
             IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
             IntakeSourceChannel.Mailbox => IntakeEnvelopeLimits.MaximumMailboxContentLength,
             IntakeSourceChannel.Automation => IntakeEnvelopeLimits.MaximumContentLength,
+            IntakeSourceChannel.ProviderApi => IntakeEnvelopeLimits.MaximumProviderApiRequestLength,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
