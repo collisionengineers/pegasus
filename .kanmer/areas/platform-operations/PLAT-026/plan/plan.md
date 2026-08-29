@@ -325,3 +325,91 @@ Commits added this round: `7dc980bc`, `aebe48ac`, `1f67f027`. Pushed to
   not in this lane's files.
 - The four simplification items skipped above, unchanged from round 1 — their
   reasons still stand and none is a correctness defect.
+
+## Pre-merge review dispositions — 2026-08-29
+
+An independent `gpt-5.6-luna` cross-model reviewer ran the final pre-merge check
+and returned `REQUEST_CHANGES` with two blockers and two findings. Every one is
+disposed below per AGENTS.md rule 22. The orchestrator verified each against the
+repository rather than accepting or dismissing it on assertion.
+
+### Blocker 1 — Test UI catalogue changes are out of scope · **REJECTED, with reason**
+
+The reviewer cited `decisions-2026-08-29.md` ("snapshot regeneration happens
+once per merge, on the merging branch only") and `waves.md:9`, which assigns
+`docs/design/test-ui/catalogue.json` structural edits to PLAT-029.
+
+**This is the letter of the rule, not its intent, and the change is required.**
+Verified:
+
+- The four-file change is **not a snapshot regeneration**. It is an 11-line
+  hand edit to `catalogue.json`, the deletion of one now-dead snapshot page,
+  and a one-line consequential update to each of `index.html` and
+  `administration--default.html`.
+- PLAT-026 converts `/Administration/MailCategories` into a permanent redirect
+  (`MailCategories.cshtml.cs:10-11`, `RedirectToPagePermanent`). A page that no
+  longer renders **cannot** keep a `visual` catalogue entry with a snapshot
+  state.
+- `scripts/Test-UiCatalogue.ps1:20` declares
+  `$allowedClassifications = @('visual', 'redirect', 'download', 'protocol')`,
+  and `:50` fails any `visual` entry with zero states while `:53` requires a
+  `reason` on every non-`visual` entry. Leaving the old entry would **fail the
+  gate**; the lane's edit supplies exactly `classification: "redirect"` plus a
+  `reason`.
+- The convention is already established on `dev` for precisely this situation —
+  `Account/SignOut.cshtml`, `Cases/Custody.cshtml`, `Cases/Tasks.cshtml` and
+  `Cases/Vehicle.cshtml` all carry `"classification": "redirect"` with a reason.
+
+The rule the reviewer invoked guards against **bulk regeneration** causing
+cross-lane conflicts. A minimal, necessary catalogue correction that follows an
+existing convention is not that. Rejected.
+
+### Blocker 2 — required checks not green · **CLOSED**
+
+Correct at the time of review. The cause was the `dev` build break
+(`ProviderSubmissionTests.cs:284`, CS1739), fixed by [[DELIV-035]] (PR #625,
+merge `55e23b02`). `origin/dev` has been merged into this branch and pushed;
+CI is re-running against a green base.
+
+### Finding (medium) — validation copy outside `OperatorLabels.MailSettings` · **REJECTED, with reason**
+
+The reviewer is right that `plan.md:11` promised to "move every literal
+label/copy string into `OperatorLabels.MailSettings`", and that
+`Mailboxes.cshtml.cs:78-84`, `:102-116` and `:501-535` keep validation and
+conflict copy inline. **The plan over-promised; the code is correct.**
+
+Verified against the codebase convention — "the existing convention wins, and a
+new way to do something the codebase already does needs a reason recorded in the
+plan, not a preference":
+
+- Inline `ModelState.AddModelError` copy is the convention in **every** page
+  model that has validation: `Account/PasswordChange` (7), `Account/SignIn` (1),
+  `Administration/Access/Index` (3), `Accounts/Edit` (3), `Accounts/Index` (3),
+  `Automation/Activity` (1), `Automation/Index` (8), `Configuration` (3),
+  `MailCategories` (4), `Organizations/Edit` (4), `Organizations/Index` (4).
+- `OperatorLabels.cs` on `dev` holds **domain vocabulary only** — state names
+  and reason codes such as `UnidentifiedReasonCode.ConflictingIdentification`
+  and `CaseLifecycleState.CreatedInError`. It holds no validation or error copy
+  anywhere.
+- `Accounts/Index.cshtml.cs:52` already carries the byte-identical string
+  `"The form has expired. Retry the operation."`.
+
+Moving this page's error copy into `OperatorLabels` would create a **new**
+pattern used by one page only — the deviation, not the fix. The plan line is
+corrected here rather than the code.
+
+### Finding (low) — `links: []` does not record the follow-up · **FIXED**
+
+`PLAT-029` added to the ticket's links.
+
+### Accepted without dispute
+
+The reviewer's assertion-integrity check and rule-14 caller trace were both
+thorough and are accepted as written: no assertion deleted, weakened or
+inverted; the folder assertions were *strengthened* to contiguous `<dt>`/`<dd>`
+checks; every capability has a named production caller; no callerless
+capability and no disabled or gated control was introduced.
+
+One reviewer claim is recorded as **not independently confirmed**: the lane's
+statement that three catalogue errors pre-existed. It does not affect the
+merge decision.
