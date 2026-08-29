@@ -26,9 +26,14 @@ links:
   - DELIV-035
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - a31daccc216e6a9515456e46ccd1ded8cff6b63d
+  - 7e2bccb0
+prs:
+  - '626'
 archived: false
 created: '2026-08-29T16:03:14.405Z'
-updated: '2026-08-29T16:29:48.131Z'
+updated: '2026-08-29T16:51:13.461Z'
 ---
 
 ## What
