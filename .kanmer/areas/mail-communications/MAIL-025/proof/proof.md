@@ -405,3 +405,53 @@ On the first item, three independent strands:
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| Recommended folder move — the decision card's "Move to X" control and confirm dialog (`src/Pegasus.Web/Pages/Mail/Message.cshtml:282`, `:669-713`). Named by this ticket's Verification section ("Existing handlers (classification correction, folder move, association) keep antiforgery, version and reason behaviour") and claimed as delivered decision-card content by `proof.md:291` | Behind a CLOSED composition gate. `src/Pegasus.Infrastructure/DependencyInjection.cs:83` registers only `UnavailableRetainedMailFolderMover`; `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs:136` — `public bool IsAvailable => false;`. `GraphRetainedMailFolderMover` (`src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs:1077`) is `internal sealed` and registered by NO composition root — not Web, not Worker. `src/Pegasus.Core/Intake/RetainedMail.cs:632` gates `CanMove` on `folderMover?.IsAvailable == true && !isCurrentLocation`, and `:555` derives `SuggestedMove` from `CanMove: true`, so in every production composition the control never renders. `docs/current-architecture.md`: "The provider is unavailable by default and the control is absent in that composition." No activation record in `docs/operations.md`; `docs/capabilities.md:218` (MAIL-07) confirms no Graph permission, deployment, production writer activation or live mutation. D21: "Capability behind a composition/feature gate that is CLOSED in the deployed estate — **No**". | **no ticket cleanly owned this** at the time of the audit — raised as [[MAIL-028]]. [[MAIL-027]] owns the Core mover but keeps the adapter "composed only by explicit configuration with the unavailable implementation by default"; [[TICK-054]] is the live-approval ticket for read state/categories/flags/delete, not MAIL-07's designated-folder move |
+| "Check move status" (`Message.cshtml:267`) — named by the same Verification line and listed as delivered at `proof.md:291` | Same closed composition. It renders only for a prior `Uncertain` `RetainedMailFolderMove`, and no move can be initiated in production because the mover is unavailable, so the branch is unreachable in the deployed estate. | **no ticket cleanly owned this** — raised as [[MAIL-028]] |
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence. `proof.md:323` grades that Verification
+row "Proven (build/test)", which is exactly the evidence-tier confusion D20/D21
+exist to stop: fake-HTTP and local-SQL tests supply the mover, the deployed estate
+does not.
+
+Everything else this ticket names is genuinely delivered and was spot-checked:
+`/Inbox` and `/Inbox/{id}` with the nav link open in production
+(`_Layout.cshtml:8`), the per-scope `IRetainedMailQueries` count addition with a
+real caller (`Index.cshtml.cs:280`), sort, bounded pagination, the `?selected=`
+preview, the four tabs, classification correction, corrections timeline,
+attachments table, and the case link/unlink dialogs.
+
+### Findings that were NOT counted against this ticket
+
+- Record bar and Reply / Forward / Compose / Flag / Delete — explicitly disclaimed
+  by this ticket's own What: "Reply / Forward / Compose / Flag / Delete are NOT
+  rendered in this ticket (wave 4, after the outbound-mail backend)." §1.3 defines
+  the record bar as exactly those five controls; `record-head` IS rendered
+  (`Message.cshtml:45`). Owned by [[MAIL-026]], backend by [[MAIL-027]].
+- Composer dialog (To, Subject, Message, Case, From) and Send → Sent-Items evidence
+  linked to Case — not named here; [[MAIL-026]] owns the dialog, [[MAIL-027]] owns
+  `IComposeOutboundMail`/`ISendOutboundMail` and the Graph `Mail.Send` adapter.
+- Delete → reason dialog → Deleted Items — explicitly excluded. Owned by
+  [[MAIL-027]] with [[MAIL-026]] rendering the control; live activation sits with
+  [[TICK-054]].
+- Attachments-table Preview column/action — this ticket names only "attachments
+  table", which it delivers (File / Type / Size / Search content / Custody at
+  `Message.cshtml:331-335` on a reachable route). Preview is a §1.3 column and the §
+  is not the measure of scope. **No board ticket owns it** — [[MAIL-026]]'s What
+  names record-bar and Case-correspondence actions only; it needs a MAIL-026 scope
+  amendment or its own ticket. Flagged so it is not lost.
+- Stale source comment at `Message.cshtml:11-12` ("The record bar … is drawn but has
+  no handler yet") contradicts the code — no record-bar markup exists in
+  `Pages/Mail` at `b92cb9a7`. Not a rule-14 finding; a correctness defect in a
+  comment that misled the audit. Belongs to [[MAIL-026]] when it lands the bar.

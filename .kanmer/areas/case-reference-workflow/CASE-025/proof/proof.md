@@ -336,3 +336,57 @@ blocking:
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not been
 promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| Image-initiated queue row `files·custody` — named by the What's "per-kind rows" ported to §1.4 (`context.md:44`, "image-initiated: ref·reg, files·custody") | `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs:543-559` renders `Join(ImageIntakeReference, NormalizedVehicleRegistration)` and `"{fileCount} retained image…"` and nothing else; `git grep -i custody` over both owned Cases files exits 1 — zero hits. `src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs:100-109` carries no custody field. Named, never implemented, no caller. | **no ticket supplied this** at the time of the audit — raised as [[CASE-032]] |
+| Triage queue row `ref` and `provider` — named by the same "per-kind rows" clause (`context.md:44`, "triage: ref·reg, provider·assignee") | `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs:560-575` titles the row `item.NormalizedVehicleRegistration` alone (no reference) and its meta is `assignee` alone (no provider). `src/Pegasus.Core/Triage/TriageContracts.cs:271-278` — `TriageSummary` carries neither a Triage reference nor a provider. Two of four named halves have no caller. | **no ticket supplied this** at the time of the audit — raised as [[CASE-032]] |
+| Quick-detail row selection — the What names the "quick-detail pane (compact workflow stepper, outstanding requirements, current work)" | The pane can only ever show `Rows[0]` (`Index.cshtml.cs:331`). `SelectedId` (`Index.cshtml.cs:148-150`) and the `Guid? selected` parameter of `Href(…)` (`:256`, `:278`) have zero production callers: the three `Model.Href(…)` sites at `Index.cshtml:67,150,155` pass only tab/page/keepFilters; rows render `href="@row.DetailHref"` (`Index.cshtml:126`), which navigates away, and the view's own comment at `:118` concedes it — "A row links to its detail and nothing else"; the refresh hidden field (`Index.cshtml:16`) only echoes a value nothing can create; and `site.js:1385-1405` moves roving focus without setting any query value. Registered-but-unreachable code, the exact clause of rule 14. | This ticket itself — the wiring lives in its own owned file, one `asp-route-selected` on the row control, the convention already shipped at `src/Pegasus.Web/Pages/Index.cshtml:71`. No other ticket required. |
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence. The first two gaps were disclosed and
+deferred by this ticket itself — `research.md:122-126` ("Deferred row fields … They
+fall to lane C2 / INTK-046's detail-and-projection work") and `plan.md:126-130` under
+"Out of scope (reported, not done)". D20 forecloses that defence, and the named
+supplier did not supply: [[INTK-046]]'s What/Owns cover only `Pages/Triage/Details`,
+`Pages/Unidentified/Details`, `Pages/Intake/**` and `Pages/ImageIntake/Details`, and
+both Core summaries are unchanged on `dev` at `b92cb9a7`. The third gap contradicts
+`post-implementation-report:44-46` ("selection follows `?selected=`", "every state
+works without script") and `proof.md:314` ("Nothing shipped contradicts what the
+ticket claims").
+
+Not a gate issue — verified, not assumed. `git grep -in "disabled|gated|Features:"`
+over `Pages/Cases/Index.cshtml(.cs)` and `Pages/Unidentified/Index.cshtml(.cs)`
+exits 1. This ticket renders no D7 seam and sits behind no feature gate; the owned
+`/Unidentified` route is a real `RedirectPermanent("/Cases?tab=unidentified")`, and
+the D14 Work Centre entry point is live at `Pages/Index.cshtml:53`.
+
+### Findings that were NOT counted against this ticket
+
+- Principal filter on Triage/Unidentified — not named by this ticket or by §1.4.
+  The What says "Principal and Missing filters"; `context.md:44` says "filters:
+  Principal select, (Not ready only) Missing select … Clear" with no per-queue
+  clause. "Principal (every queue)" is `docs/frd/frd-12-operator-experience.md:149`,
+  a `refs:` document. The named filter IS wired (`Index.cshtml:44-50` in the GET
+  form; `ListsCases` at `:153-154`; predicate applied server-side). No owning ticket
+  exists; the gap needs either a Core principal projection for Triage/Unidentified
+  rows or an FRD-12 correction, on a new ticket. The auditor's proposed inert select
+  is itself barred by D21/D22 and by this ticket's `plan.md:120-124`, which rejected
+  it for that reason.
+- Viewport verification at 1580/1100/760 — the second Verification box is unticked,
+  but that is a verify-gate gap (UIIMP-010's orchestrator browser walk), not a
+  rule-14 wiring failure.
+- `src/Pegasus.Core/Operations/DashboardCounts.cs` edited although `waves.md`
+  allocates it to wave-2 lane A ([[UIIMP-008]]) — already recorded in
+  `.kanmer/groups/EPIC-011/decisions-2026-08-29.md` as the cause of PR #610's
+  conflict. A file-ownership breach, not a rule-14 matter; the D3 groupings it
+  carries ARE reachable (`EfDashboardQueries.GetCaseStageCountsAsync` feeds the
+  rendered counts).
