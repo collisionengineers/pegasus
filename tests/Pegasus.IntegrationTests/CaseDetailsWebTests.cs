@@ -637,6 +637,62 @@ public sealed partial class CaseDetailsWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
+    /// <summary>
+    /// SaveCase writes every one of <c>CaseEditableData</c>'s twenty members, so
+    /// a value the handler does not bind is written as null and clears the
+    /// confirmed field. The claimant's own contact number and address were
+    /// omitted from both the form and the handler, so every Overview save
+    /// silently discarded them (CASE-027).
+    ///
+    /// This asserts the values reach <c>SaveCase</c>, not merely that the inputs
+    /// render: rendering them while the handler ignores them is exactly the
+    /// half-fix this test exists to refuse.
+    /// </summary>
+    [Fact]
+    public async Task ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected the registration"),
+                ("claimantName", "Rebecca Claimant"),
+                ("claimantContactNumber", "07700 900123"),
+                ("claimantAddress", "12 Example Street, Leeds, LS1 1AA")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("07700 900123", saved.Data.ClaimantContactNumber);
+        Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Data.ClaimantAddress);
+
+        // The values the operator did not touch still travel, because SaveCase
+        // nulls anything absent — the same defect one field over.
+        Assert.Equal("Rebecca Claimant", saved.Data.ClaimantName);
+    }
+
     [Fact]
     public async Task ARefusedSaveKeepsTheProposedValuesForComparisonAndOffersNoApplyControl()
     {
