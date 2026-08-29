@@ -20,8 +20,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         // files and reads the row to bind each one to the Principal whose
         // credential submitted it; it never writes one.
         //
-        // A submission is a fact about a moment and is never edited or
-        // removed: neither role is granted UPDATE or DELETE.
+        // The row is created when the submission is received and then
+        // completed in place: the staged receipt id is only known once the
+        // request has been durably retained, and the result lookup reads it
+        // back to answer the provider. Web therefore holds UPDATE as well;
+        // the Worker never writes. A submission is never removed, so no
+        // DELETE is granted to either role.
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -32,7 +36,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             RequireRuntimeRoles(migrationBuilder);
             migrationBuilder.Sql(
-                $"GRANT SELECT, INSERT ON OBJECT::[dbo].[ProviderSubmissions] TO [{WebRole}];");
+                $"GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[ProviderSubmissions] TO [{WebRole}];");
             migrationBuilder.Sql(
                 $"GRANT SELECT ON OBJECT::[dbo].[ProviderSubmissions] TO [{WorkerRole}];");
         }
@@ -48,7 +52,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             }
 
             migrationBuilder.Sql(
-                $"REVOKE SELECT, INSERT ON OBJECT::[dbo].[ProviderSubmissions] FROM [{WebRole}];");
+                $"REVOKE SELECT, INSERT, UPDATE ON OBJECT::[dbo].[ProviderSubmissions] FROM [{WebRole}];");
             migrationBuilder.Sql(
                 $"REVOKE SELECT ON OBJECT::[dbo].[ProviderSubmissions] FROM [{WorkerRole}];");
         }
