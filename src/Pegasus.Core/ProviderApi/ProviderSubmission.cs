@@ -203,6 +203,15 @@ public static class ProviderSubmissionPolicy
         return ActionActor.Provider(credential.PrincipalId);
     }
 
+    public static void RequireMaySubmit(PrincipalCredentialAuthentication credential)
+    {
+        ArgumentNullException.ThrowIfNull(credential);
+        if (!credential.MaySubmit)
+        {
+            throw new ProviderSubmissionException(ProviderSubmissionError.CredentialPaused);
+        }
+    }
+
     public static string NormalizeIdempotencyKey(string? idempotencyKey)
     {
         var normalized = idempotencyKey?.Trim();
@@ -373,10 +382,7 @@ public sealed class SubmitProviderInstruction(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CorrelationId);
         var actor = ProviderSubmissionPolicy.Actor(request.Credential);
         StaffAuthorization.Require(actor, StaffAccessRight.SubmitProviderInstruction);
-        if (!request.Credential.MaySubmit)
-        {
-            throw new ProviderSubmissionException(ProviderSubmissionError.CredentialPaused);
-        }
+        ProviderSubmissionPolicy.RequireMaySubmit(request.Credential);
 
         var idempotencyKey = ProviderSubmissionPolicy.NormalizeIdempotencyKey(request.IdempotencyKey);
         var instruction = ProviderInstructionPolicy.Normalize(request.Instruction);
