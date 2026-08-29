@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
 
@@ -140,6 +141,19 @@ internal static class CaseDataSnapshotFactory
         else if (route is null
             && EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel)
                 == IntakeSourceChannel.ProviderApi
+            // Only automatic allocation's PrincipalCode is the credential
+            // binding's. AttemptAutomaticAsync derives it from
+            // EstablishedPrincipalCode(receipt, binding) and acts as
+            // ActionActor.SystemWorker (IntakeAllocation.cs:259,283); the staff
+            // create path takes whatever an operator keyed, and staff can key a
+            // different principal entirely to correct a provider that posted
+            // under the wrong account. Labelling that "authenticated credential
+            // binding" would export a provenance to the EVA archive that no
+            // credential ever supplied — the same falsehood AddExtractedValue
+            // avoids forty lines below by mapping a person-keyed value to
+            // StaffCorrection. A staff-created case keeps today's behaviour and
+            // records no work provider fact here.
+            && request.Actor.Kind == ActorKind.SystemWorker
             && !string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             // The work provider comes from the authenticated credential binding,
