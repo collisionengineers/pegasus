@@ -698,7 +698,11 @@ public sealed class IndexModel(
                 ? line with
                 {
                     GuideCode = previous.GuideCode,
-                    Unpriced = previous.Unpriced,
+                    // Carried forward only while the line still has no price.
+                    // AssessmentPolicy refuses a line that is both marked To be
+                    // confirmed and priced, so preserving it unconditionally would
+                    // make pricing an imported unpriced line impossible.
+                    Unpriced = previous.Unpriced && line.Price is null,
                     Betterment = previous.Betterment,
                     Status = previous.Status,
                     EvidenceLabel = previous.EvidenceLabel,
