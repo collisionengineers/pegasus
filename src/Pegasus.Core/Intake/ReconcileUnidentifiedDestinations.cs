@@ -150,7 +150,7 @@ public sealed class ReconcileUnidentifiedDestinations(
                 return false;
             }
 
-            await ResolveAsync(existing, receipt, destination, cancellationToken);
+            await ResolveAsync(existing, destination, cancellationToken);
             return true;
         }
 
@@ -178,7 +178,7 @@ public sealed class ReconcileUnidentifiedDestinations(
                 existing.Id,
                 existing.Version,
                 ReconciliationActor,
-                $"intake-unidentified-reopen:{receipt.Id:N}:{receipt.Version}",
+                OperationKey("reopen", existing),
                 reopenReason,
                 timeProvider.GetUtcNow()),
             cancellationToken);
@@ -187,7 +187,7 @@ public sealed class ReconcileUnidentifiedDestinations(
             return true;
         }
 
-        await ResolveAsync(reopened.Item, receipt, revisedDestination, cancellationToken);
+        await ResolveAsync(reopened.Item, revisedDestination, cancellationToken);
         return true;
     }
 
@@ -236,7 +236,6 @@ public sealed class ReconcileUnidentifiedDestinations(
 
     private Task<UnidentifiedResolveResult> ResolveAsync(
         UnidentifiedItem item,
-        IntakeReceipt receipt,
         UnidentifiedDestination destination,
         CancellationToken cancellationToken) =>
         resolveUnidentified.ExecuteAsync(
@@ -244,13 +243,31 @@ public sealed class ReconcileUnidentifiedDestinations(
                 item.Id,
                 item.Version,
                 ReconciliationActor,
-                $"intake-unidentified-reconcile:{receipt.Id:N}:{receipt.Version}",
+                OperationKey("reconcile", item),
                 $"The receipt now has a {destination.Kind} destination; the Unidentified item is superseded.",
                 destination.Kind,
                 destination.Id,
                 destination.Reference,
                 timeProvider.GetUtcNow()),
             cancellationToken);
+
+    /// <summary>
+    /// The key for one transition out of <paramref name="item"/>'s current
+    /// version. It is the item's own version, never the origin receipt's,
+    /// because a destination change need not mutate the receipt: opening a
+    /// Triage for a receipt already linked to a case leaves the receipt
+    /// untouched, so a receipt-keyed re-resolve rebuilt the key its own first
+    /// resolution had taken and was rejected as a conflicting replay, leaving
+    /// the item open beside its live destination (INTK-048).
+    ///
+    /// The item's version is also what makes a genuine retry idempotent: it is
+    /// the expected version the transition is applied at, so a retry of the
+    /// same logical correction rebuilds the same key and replays, while each
+    /// further correction — reopen, then re-resolve — moves to a version of
+    /// its own and cannot collide with the one before it.
+    /// </summary>
+    private static string OperationKey(string transition, UnidentifiedItem item) =>
+        $"intake-unidentified-{transition}:{item.Id:N}:{item.Version}";
 
     private sealed record UnidentifiedDestination(
         UnidentifiedResolutionTargetKind Kind,

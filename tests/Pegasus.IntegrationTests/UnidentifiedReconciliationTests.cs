@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
@@ -5,6 +6,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -235,6 +237,114 @@ public sealed class UnidentifiedReconciliationTests
 
         var final = await reconciler.ExecuteAsync(50);
         Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), final);
+    }
+
+    [Fact]
+    public async Task StaffOpeningTheTriageOfALinkedReceiptRetargetsTheRecordedDestination()
+    {
+        // INTK-048 regression. Correcting a destination does not mutate the
+        // origin receipt, so a reopen/re-resolve pair keyed on the receipt
+        // rebuilt the key the first resolution had already used: the store
+        // rejected it, the advisory catch swallowed the conflict, and the item
+        // was left Open with no destination beside a live Triage — the two
+        // queues INTK-033 closed — with every later sweep failing on the same
+        // taken key forever.
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY36 ZZZ", "UNIDENTIFIED-TRIAGE-LINK-01");
+        var email = IntakeTestEvidence.CreateEmail(
+            "triage-linked-then-opened.eml",
+            "Triage Only Request" + Environment.NewLine + Environment.NewLine
+                + "Please find attached our client's images.");
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, email.FileName, email.MediaType, email.Content);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        long receiptVersionBeforeTriage;
+        await using (var before = factory.Services.CreateAsyncScope())
+        {
+            var services = before.ServiceProvider;
+            var unidentifiedStore = services.GetRequiredService<IUnidentifiedStore>();
+            var open = Assert.IsType<UnidentifiedItem>(
+                await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId)));
+            Assert.Equal(UnidentifiedState.Open, open.State);
+
+            var attach = await services.GetRequiredService<IUploadCaseDecision>().AttachAsync(
+                receiptId,
+                caseId,
+                null,
+                "Staff matched the retained Triage request to the instructed case.",
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]));
+            Assert.True(attach.Succeeded, attach.Message);
+
+            // The sweep records the only destination the receipt has so far.
+            var reconciler = services.GetRequiredService<ReconcileUnidentifiedDestinations>();
+            Assert.Equal(
+                new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0),
+                await reconciler.ExecuteAsync(50));
+            var linked = Assert.IsType<UnidentifiedItem>(
+                await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId)));
+            Assert.Equal(UnidentifiedState.Resolved, linked.State);
+            Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, linked.ResolutionTargetKind);
+            Assert.Equal(caseId.ToString("N"), linked.ResolutionTargetId);
+
+            receiptVersionBeforeTriage = Assert.IsType<IntakeReceipt>(
+                await services.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None)).Version;
+        }
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["vehicleRegistration"] = "vn64 wng",
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+        using var opened = await client.PostAsync($"/Received/{receiptId}?handler=OpenTriage", form);
+        Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+
+        await using var after = factory.Services.CreateAsyncScope();
+        var afterServices = after.ServiceProvider;
+        var triage = Assert.Single(
+            await afterServices.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+
+        // The precondition the defect needed: opening the Triage leaves the
+        // receipt untouched, so nothing about it discriminates the correction
+        // from the resolution that preceded it.
+        var receiptAfterTriage = Assert.IsType<IntakeReceipt>(
+            await afterServices.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(receiptVersionBeforeTriage, receiptAfterTriage.Version);
+
+        var store = afterServices.GetRequiredService<IUnidentifiedStore>();
+        var retargeted = Assert.IsType<UnidentifiedItem>(
+            await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId)));
+        Assert.Equal(UnidentifiedState.Resolved, retargeted.State);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, retargeted.ResolutionTargetKind);
+        Assert.Equal(triage.Id.ToString("N"), retargeted.ResolutionTargetId);
+        Assert.Equal("VN64WNG", retargeted.ResolutionTargetReference);
+
+        // Both destinations are on the record, and the reopen between them.
+        var history = await store.HistoryAsync(retargeted.Id);
+        Assert.Contains(history, entry =>
+            entry.NewState == UnidentifiedState.Resolved
+            && entry.TargetKind == UnidentifiedResolutionTargetKind.InstructionCase);
+        Assert.Contains(history, entry =>
+            entry.PreviousState == UnidentifiedState.Resolved
+            && entry.NewState == UnidentifiedState.Open);
+        Assert.Contains(history, entry =>
+            entry.NewState == UnidentifiedState.Resolved
+            && entry.TargetKind == UnidentifiedResolutionTargetKind.Triage);
+        Assert.Equal(
+            history.Select(entry => entry.OperationKey).Distinct(StringComparer.Ordinal).Count(),
+            history.Count);
+
+        // Nothing is left for the sweep to fail on, pass after pass.
+        var sweep = afterServices.GetRequiredService<ReconcileUnidentifiedDestinations>();
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), await sweep.ExecuteAsync(50));
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), await sweep.ExecuteAsync(50));
     }
 
     [Fact]
