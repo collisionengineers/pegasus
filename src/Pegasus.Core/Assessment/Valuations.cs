@@ -12,25 +12,16 @@ public enum ValuationSource
     EngineersValue,
 }
 
-public sealed record ValuationSourceDefinition(
-    ValuationSource Source,
-    string Name);
-
 /// <summary>
-/// The one valuation-source vocabulary. Persistence stores the enum name;
-/// callers use this list for the operator-facing names.
+/// The one question asked of the valuation-source vocabulary. The enum above
+/// is that vocabulary: persistence stores its member name and generates the
+/// table's check constraint from it, so there is no second list. The
+/// operator-facing name of a source belongs to the presentation layer, beside
+/// every other source label.
 /// </summary>
 public static class ValuationSources
 {
-    public static IReadOnlyList<ValuationSourceDefinition> All { get; } =
-    [
-        new(ValuationSource.Glasses, "Glass's"),
-        new(ValuationSource.Cazana, "Cazana"),
-        new(ValuationSource.EngineersValue, "Engineer's Value"),
-    ];
-
-    public static bool IsSupported(ValuationSource source) =>
-        All.Any(item => item.Source == source);
+    public static bool IsSupported(ValuationSource source) => Enum.IsDefined(source);
 }
 
 /// <summary>

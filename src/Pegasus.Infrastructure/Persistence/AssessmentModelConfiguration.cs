@@ -161,7 +161,7 @@ internal static class AssessmentModelConfiguration
         {
             var sources = string.Join(
                 ", ",
-                ValuationSources.All.Select(item => SqlLiteral(item.Source.ToString())));
+                Enum.GetValues<ValuationSource>().Select(item => SqlLiteral(item.ToString())));
             entity.ToTable("CaseValuations", table =>
             {
                 table.HasCheckConstraint(
