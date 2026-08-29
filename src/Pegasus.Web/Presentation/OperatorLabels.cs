@@ -1052,4 +1052,18 @@ public static class OperatorLabels
         public const string ClientIdentifier = "Client identifier";
         public const string GrantedScopes = "Granted scopes";
     }
+
+    /// <summary>The retained post-report query's AI job words (AUTO-014).</summary>
+    public static class QueryResponseJobs
+    {
+        public const string Source = "Post-report";
+        public const string PanelTitle = "AI jobs";
+        public const string Create = "Draft reply with AI";
+        public const string Created = "AI reply job created.";
+        public const string AutomationStopped = "Automation stopped";
+        public const string AvailableInPostReportWork = "Available in post-report work";
+        public const string CaseUnavailable = "Case unavailable";
+        public const string InvalidSource =
+            "This message is not a linked post-report message.";
+    }
 }
