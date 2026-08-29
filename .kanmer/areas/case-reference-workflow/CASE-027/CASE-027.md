@@ -24,9 +24,17 @@ refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
+commits:
+  - 497d2387
+  - 94563ed4
+  - ac864f35
+  - 700ae9d8
+  - 0ed6faa4
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/631'
 archived: false
 created: '2026-08-28T08:35:23.925Z'
-updated: '2026-08-29T16:45:29.122Z'
+updated: '2026-08-29T17:52:59.503Z'
 ---
 
 ## What
