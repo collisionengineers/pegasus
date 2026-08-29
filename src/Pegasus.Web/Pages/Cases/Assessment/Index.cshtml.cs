@@ -184,6 +184,15 @@ public sealed class IndexModel(
                     ? "A draft estimate is awaiting acceptance"
                     : null;
 
+    /// <summary>
+    /// The single condition the D7 estimating-service seams (Glass's,
+    /// Audatex, EXT-09) state. One list per concept: the record bar draws
+    /// two controls from it, so the sentence is written once here rather
+    /// than typed into the view twice.
+    /// </summary>
+    public string EstimatingServiceCondition =>
+        "Available once the estimating-service link is agreed";
+
     /// <summary>The condition naming why the report-draft controls are not offered, or null.</summary>
     public string? ReportDraftCondition { get; private set; }
 
