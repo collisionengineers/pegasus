@@ -984,6 +984,87 @@ public static class OperatorLabels
         _ => Humanise(kind.ToString())
     };
 
+    /// <summary>
+    /// The AI job ledger's words on the Operations AI Job List (PLAT-049).
+    /// </summary>
+    /// <remarks>
+    /// The kind and state wordings are FRD-11 &#167; AI Job List's own; the Core
+    /// enum names are the writer's spelling of them. This is the only map of
+    /// either in the Web layer &#8212; nothing named these states before.
+    ///
+    /// <c>Shared/_StatusChip</c> already owns tones for Completed, Failed,
+    /// Cancelled and settled terminal labels. <see cref="StateToneOverride"/>
+    /// supplies only the three AI-specific labels that partial does not know.
+    /// </remarks>
+    public static class AiJobs
+    {
+        public const string PanelTitle = "AI Job List";
+        public const string SendUnidentified = "Send Unidentified to AI";
+        public const string CompleteJob = "Complete job";
+        public const string Cancel = "Cancel";
+        public const string ReviewEstimate = "Review estimate";
+        public const string OpenQuery = "Open query";
+        public const string Review = "Review";
+
+        /// <summary>
+        /// A queue pass names no record: its Core subject reference is the
+        /// internal token <c>unidentified-queue</c>, which no operator reads.
+        /// </summary>
+        public const string QueueRecord = "Unidentified queue";
+
+        public static string Kind(Pegasus.Core.AiWork.AiJobKind kind) => kind switch
+        {
+            Pegasus.Core.AiWork.AiJobKind.Estimate => "Estimate",
+            Pegasus.Core.AiWork.AiJobKind.UnidentifiedResolution => "Unidentified resolution",
+            Pegasus.Core.AiWork.AiJobKind.QueryResponse => "Query response",
+            Pegasus.Core.AiWork.AiJobKind.UnidentifiedQueuePass => "Unidentified-queue pass",
+            _ => Humanise(kind.ToString())
+        };
+
+        public static string State(Pegasus.Core.AiWork.AiJobState state) => state switch
+        {
+            Pegasus.Core.AiWork.AiJobState.Queued => "Queued",
+            Pegasus.Core.AiWork.AiJobState.Taken => "Taken",
+            Pegasus.Core.AiWork.AiJobState.DraftReady => "Draft ready",
+            Pegasus.Core.AiWork.AiJobState.Completed => "Completed",
+            Pegasus.Core.AiWork.AiJobState.Failed => "Failed",
+            Pegasus.Core.AiWork.AiJobState.Cancelled => "Cancelled",
+            Pegasus.Core.AiWork.AiJobState.Expired => "Expired",
+            _ => Humanise(state.ToString())
+        };
+
+        /// <summary>
+        /// The explicit chip tone only for AI state labels not owned by
+        /// Shared/_StatusChip. A null lets the shared partial apply its single
+        /// tone vocabulary.
+        /// </summary>
+        public static string? StateToneOverride(Pegasus.Core.AiWork.AiJobState state) => state switch
+        {
+            Pegasus.Core.AiWork.AiJobState.Queued or Pegasus.Core.AiWork.AiJobState.DraftReady => "amber",
+            Pegasus.Core.AiWork.AiJobState.Taken => "navy",
+            _ => null
+        };
+
+        /// <summary>The panel meta.</summary>
+        public static string Count(int jobs) => jobs == 1
+            ? "1 job"
+            : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
+    }
+
+    /// <summary>
+    /// The recorded EVA facts available to the Operations panel (PLAT-049).
+    /// </summary>
+    public static class EvaHandoffs
+    {
+        public const string PanelTitle = "EVA handoffs";
+        public const string PendingWork = "Pending work";
+        public const string LatestActivity = "Latest activity";
+        public const string Failures = "Failures";
+        public const string Failure = "Failure";
+        public const string Submitted = "Submitted";
+        public const string Failed = "Failed";
+    }
+
     /// <summary>The Workflow configuration administration surface — one list.</summary>
     public static class WorkflowConfiguration
     {
