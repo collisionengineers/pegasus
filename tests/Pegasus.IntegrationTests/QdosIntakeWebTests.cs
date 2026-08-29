@@ -1,7 +1,10 @@
 ﻿using System.Net;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Pegasus.IntegrationTests;
 
@@ -55,6 +58,13 @@ public sealed class QdosIntakeWebTests
         Assert.Contains("<h1>Received</h1>", html, StringComparison.Ordinal);
         Assert.Contains("ordinary-correspondence.eml", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
+        // The state is the heading and the values are the panel: nothing
+        // beneath the heading narrates either of them back (PLAT-015).
+        Assert.DoesNotContain("class=\"lede\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "safely received and waiting for background processing",
+            html,
+            StringComparison.Ordinal);
 
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         using var completedStatusPage = await client.GetAsync(upload.Location);
@@ -83,10 +93,12 @@ public sealed class QdosIntakeWebTests
             receiptToken);
         Assert.Equal(stagedReceiptId, IntakeWebDriver.Landing(duplicate).StagedReceiptId);
         using var duplicateStatusPage = await client.GetAsync(duplicate.Location);
+        var duplicateHtml = await duplicateStatusPage.Content.ReadAsStringAsync();
         Assert.Contains(
-            "was already received. No duplicate was created",
-            await duplicateStatusPage.Content.ReadAsStringAsync(),
+            "<dt>Duplicate</dt><dd>Already received</dd>",
+            duplicateHtml,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("No duplicate was created", duplicateHtml, StringComparison.Ordinal);
 
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.IsType<ReceiveIntake>(
@@ -115,6 +127,44 @@ public sealed class QdosIntakeWebTests
         rolelessRequest.Headers.Add("X-Test-Roleless", "1");
         using var roleless = await client.SendAsync(rolelessRequest);
         Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
+
+    [Fact]
+    public async Task FailedUploadStatusShowsReasonWithoutAResolvedStaffActor()
+    {
+        var stagedReceiptId = Guid.NewGuid();
+        var status = new QueuedIntakeStatus(
+            stagedReceiptId,
+            "failed-upload.eml",
+            new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
+            QueuedIntakeStatusKind.Failed,
+            ProcessedReceiptId: null,
+            FailureCode: "unexpected_intake_processing_failure");
+        using var baseFactory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IQueuedIntakeStatusQueries>();
+                services.AddSingleton<IQueuedIntakeStatusQueries>(
+                    new FixedQueuedIntakeStatusQueries(status));
+                services.AddSingleton<IClaimsTransformation,
+                    RemoveNameIdentifierClaimsTransformation>();
+            }));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync($"/Upload/Status/{stagedReceiptId:D}");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains(
+            "<dt>Reason</dt><dd>Processing failed for a technical reason</dd>",
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "unexpected_intake_processing_failure",
+            html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -364,5 +414,31 @@ public sealed class QdosIntakeWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         return Assert.IsType<IntakeReceipt>(await queries.GetAsync(id, CancellationToken.None));
+    }
+
+    private sealed class FixedQueuedIntakeStatusQueries(QueuedIntakeStatus status)
+        : IQueuedIntakeStatusQueries
+    {
+        public Task<QueuedIntakeStatus?> GetAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<QueuedIntakeStatus?>(
+                stagedReceiptId == status.StagedReceiptId ? status : null);
+    }
+
+    private sealed class RemoveNameIdentifierClaimsTransformation : IClaimsTransformation
+    {
+        public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
+        {
+            foreach (var identity in principal.Identities.OfType<ClaimsIdentity>())
+            {
+                foreach (var claim in identity.FindAll(ClaimTypes.NameIdentifier).ToArray())
+                {
+                    identity.RemoveClaim(claim);
+                }
+            }
+
+            return Task.FromResult(principal);
+        }
     }
 }

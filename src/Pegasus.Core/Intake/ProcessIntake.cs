@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.ProviderApi;
 
 namespace Pegasus.Core.Intake;
 
@@ -17,10 +18,10 @@ public sealed class ProcessIntake(
     EvaluateIntakeCaseMatch caseMatchEvaluator,
     TimeProvider timeProvider,
     IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
-    IRegisterUnidentified? registerUnidentified = null)
+    IRegisterUnidentified? registerUnidentified = null,
+    IProviderSubmissionBindings? providerSubmissionBindings = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
-
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default) =>
@@ -183,7 +184,7 @@ public sealed class ProcessIntake(
         var processedAtUtc = timeProvider.GetUtcNow();
         var assessment = await AssessAsync(
             readResult,
-            safeSource.SourceIdentity.Channel,
+            safeSource.SourceIdentity,
             processedAtUtc,
             cancellationToken);
         if (assessment.Decision == IntakeDecision.CaseCreated
@@ -329,12 +330,25 @@ public sealed class ProcessIntake(
             || SubmitMailboxImageIntake.IsCandidate(receipt));
 
     /// <summary>
-    /// Whether the accepted route classified this receipt's message as a
-    /// Triage request. One reading of the recorded decision, so no surface
+    /// Whether this receipt is a Triage request. One reading, so no surface
     /// re-derives it from the taxonomy.
+    ///
+    /// Two routes reach the same answer. A mail instruction has it read by the
+    /// accepted route classification; a Provider API submission has its
+    /// Principal declare it, and carries no classification at all. Both record
+    /// the same <see cref="IntakeEvidenceFinding.AcceptedTriageMatch"/>, which
+    /// is already what Triage creation itself keys off — so reading the
+    /// evidence keeps one answer for both. Without the second clause a declared
+    /// Triage opened its Triage record and an Unidentified item beside it, the
+    /// two-queues defect INTK-033 closed for the mail route.
+    ///
+    /// The classification clause stays: a reply in a Triage thread classifies
+    /// as a Triage request but is deliberately given no accepted-match
+    /// evidence, and must still read as one here.
     /// </summary>
     public static bool IsTriageRequest(IntakeReceipt receipt) =>
-        receipt.MailClassificationDecision is { IsTriageRequest: true };
+        receipt.MailClassificationDecision is { IsTriageRequest: true }
+        || receipt.Evidence.Any(item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
 
     internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
         new(
@@ -371,7 +385,14 @@ public sealed class ProcessIntake(
         MailClassificationResult? classification,
         CancellationToken cancellationToken)
     {
-        if (classification?.StandaloneAuditReport is not { } report)
+        // An e-mailed Audit has its report identified by the route's own
+        // classification; a Provider API Audit has it declared, and the verdict
+        // with it (operator decision, 2026-08-28). Either way exactly one
+        // retained attachment is the original report and one AuditAssessment
+        // derives the a./ap. reference.
+        var report = classification?.StandaloneAuditReport
+            ?? await DeclaredAuditReportAsync(receipt, cancellationToken);
+        if (report is null)
         {
             return;
         }
@@ -394,12 +415,34 @@ public sealed class ProcessIntake(
             cancellationToken);
     }
 
+    /// <summary>
+    /// The original report a Provider API Audit declared, or null when the
+    /// receipt is not one. The verdict is the Principal's own: the operator
+    /// ruled on 2026-08-28 that a declared verdict decides the reference,
+    /// replacing the read of the report's literal outcome for this route.
+    /// </summary>
+    private async Task<StandaloneAuditReportEvaluation?> DeclaredAuditReportAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.ProviderApi)
+        {
+            return null;
+        }
+
+        var binding = await FindProviderBindingAsync(receipt.SourceIdentity, cancellationToken);
+        return binding?.Instruction is { Kind: ProviderInstructionKind.Audit, OriginalReportVerdict: { } verdict }
+            ? new(ProviderInstructionPolicy.OriginalReportSourceLabel, verdict)
+            : null;
+    }
+
     private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
-        IntakeSourceChannel sourceChannel,
+        IntakeSourceIdentity sourceIdentity,
         DateTimeOffset processedAtUtc,
         CancellationToken cancellationToken)
     {
+        var sourceChannel = sourceIdentity.Channel;
         var readerEvidence = readResult.Issues
             .Select(issue => new IntakeEvidence(
                 issue.Source,
@@ -445,6 +488,29 @@ public sealed class ProcessIntake(
                 null);
         }
 
+        if (sourceChannel == IntakeSourceChannel.ProviderApi)
+        {
+            // A provider states its instruction; nothing about it is read out of
+            // the submitted files, and no mail route or extraction policy
+            // applies. A source with no retained submission binding is refused
+            // rather than guessed at.
+            var binding = await FindProviderBindingAsync(sourceIdentity, cancellationToken);
+            return binding is null
+                ? new(
+                    IntakeDecision.NeedsSorting,
+                    "The submission this source belongs to was not found.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+                : DeclaredAssessment(binding, readerEvidence, processedAtUtc);
+        }
+
         var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel);
         if (mailRouteDecision is not null
             && mailRouteDecision.Disposition != MailRouteDisposition.Accepted)
@@ -463,12 +529,14 @@ public sealed class ProcessIntake(
                 mailRouteDecision);
         }
 
-        var mailClassificationDecision = EvaluateMailClassification(readResult, mailRouteDecision);
+        var principalContext = EstablishPrincipalContext(mailRouteDecision);
+        var mailClassificationDecision = EvaluateMailClassification(
+            readResult,
+            principalContext?.PrincipalCode);
         var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
             readResult,
             mailRouteDecision,
             cancellationToken);
-        var principalContext = EstablishPrincipalContext(mailRouteDecision);
         if (principalContext is null)
         {
             if (readResult.RequiresOcr)
@@ -628,12 +696,16 @@ public sealed class ProcessIntake(
             classification.PolicyVersion);
     }
 
+    /// <summary>
+    /// Classification belongs to the established Principal — the accepted
+    /// route's work provider. A Provider API submission never reaches here: its
+    /// Principal declares the instruction's type rather than having it read.
+    /// </summary>
     private MailClassificationResult? EvaluateMailClassification(
         IntakeSourceReadResult readResult,
-        MailRouteEvaluationResult? mailRouteDecision)
+        string? principalCode)
     {
-        if (mailRouteDecision is not
-            { Disposition: MailRouteDisposition.Accepted, SelectedRoute: { } route })
+        if (principalCode is null)
         {
             return null;
         }
@@ -641,7 +713,7 @@ public sealed class ProcessIntake(
         var policy = mailClassificationPolicies.SingleOrDefault(candidate =>
             string.Equals(
                 candidate.WorkProviderCode,
-                route.WorkProviderCode,
+                principalCode,
                 StringComparison.Ordinal));
         if (policy is null)
         {
@@ -651,6 +723,79 @@ public sealed class ProcessIntake(
         var result = policy.Classify(readResult);
         EnsureConsistentClassificationResult(result);
         return result;
+    }
+
+    /// <summary>
+    /// A Provider API source is bound to the Principal whose credential
+    /// submitted it (API-01): the binding is the retained submission record,
+    /// found by the member's source identity, never inferred from the
+    /// content or a sender. A source without a binding fails closed to
+    /// sorting.
+    /// </summary>
+    private Task<ProviderSubmissionBinding?> FindProviderBindingAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken) =>
+        providerSubmissionBindings is null
+            ? Task.FromResult<ProviderSubmissionBinding?>(null)
+            : providerSubmissionBindings.FindAsync(sourceIdentity, cancellationToken);
+
+    /// <summary>
+    /// The assessment for a submission whose Principal declared its instruction
+    /// (API-01). Nothing is extracted: the values are the ones the authenticated
+    /// Principal stated, and they are recorded as review fields carrying
+    /// <see cref="IntakeEvidenceSource.ProviderDeclaration"/> so the case shows
+    /// where each came from.
+    ///
+    /// This is a substitution, not a second pipeline. Everything downstream —
+    /// allocation, Triage creation, custody, action history, the durable Worker
+    /// path — runs exactly as it does for an e-mail instruction.
+    /// </summary>
+    private static IntakeAssessment DeclaredAssessment(
+        ProviderSubmissionBinding binding,
+        IReadOnlyList<IntakeEvidence> readerEvidence,
+        DateTimeOffset processedAtUtc)
+    {
+        var instruction = binding.Instruction;
+        var isTriage = instruction.Kind == ProviderInstructionKind.Triage;
+        var draft = ProviderInstructionPolicy.ToDraft(
+            instruction,
+            binding.PrincipalCode,
+            LondonCalendar.DateAt(processedAtUtc));
+        var fields = ProviderInstructionPolicy.ReviewFields(draft);
+        var missingFields = InstructionDraftCompleteness.MissingFieldNames(draft);
+        IntakeEvidence[] evidence = isTriage
+            ?
+            [
+                .. readerEvidence,
+                ProviderInstructionPolicy.DeclarationEvidence(instruction.Kind),
+                ProviderInstructionPolicy.TriageEvidence()
+            ]
+            : [.. readerEvidence, ProviderInstructionPolicy.DeclarationEvidence(instruction.Kind)];
+
+        // The identity-critical fields are the only ones that may withhold a
+        // reference; ordinary detail missing from a declaration leaves the case
+        // Not ready exactly as it does for an e-mail (FRD-02).
+        var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        var decision = missingIdentity.Count > 0 || isTriage
+            ? IntakeDecision.NeedsSorting
+            : IntakeDecision.CaseCreated;
+        var reason = missingIdentity.Count > 0
+            ? $"The declared instruction does not identify the claim: {string.Join(", ", missingIdentity)}."
+            : isTriage
+                ? "A Triage request is pre-case work; no case is created from it."
+                : "The authenticated Principal declared a definitive instruction.";
+        return new(
+            decision,
+            reason,
+            evidence,
+            fields,
+            draft,
+            missingFields,
+            null,
+            null,
+            ProviderInstructionPolicy.PolicyKey,
+            ProviderInstructionPolicy.PolicyVersion,
+            null);
     }
 
     private static EstablishedPrincipalContext? EstablishPrincipalContext(
@@ -705,6 +850,13 @@ public sealed class ProcessIntake(
         IntakeSourceReadResult readResult,
         IntakeSourceChannel sourceChannel)
     {
+        // A Provider API submission's route identity is its credential, so
+        // the sender of a forwarded message inside it never selects a route.
+        if (sourceChannel == IntakeSourceChannel.ProviderApi)
+        {
+            return null;
+        }
+
         if (sourceChannel != IntakeSourceChannel.Mailbox
             && !readResult.TransportEvidence.Any(item =>
                 item.Source == IntakeEvidenceSource.Sender
@@ -894,6 +1046,7 @@ public sealed class ProcessIntake(
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
+        IntakeSourceChannel.ProviderApi => "provider_api",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
