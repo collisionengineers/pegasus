@@ -2,12 +2,15 @@
 id: INTK-047
 type: ticket
 title: 'Port Upload, upload status pages and the public upload request'
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T16:39:42.128Z'
+taken_at: '2026-08-29T16:41:46.733Z'
+branch: task/intk-047-upload-pages
+worktree: ../pegasus-worktrees/intk-047-upload-pages
 labels:
   - ui
   - wave-2
@@ -20,7 +23,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-28T08:35:23.964Z'
-updated: '2026-08-29T16:39:42.128Z'
+updated: '2026-08-29T16:41:46.733Z'
 ---
 
 ## What
