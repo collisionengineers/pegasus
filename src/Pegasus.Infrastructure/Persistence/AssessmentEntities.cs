@@ -93,6 +93,23 @@ internal sealed class CaseRepairSpecificationEntity
     public List<CaseEstimateLineEntity> Lines { get; set; } = [];
 }
 
+internal sealed class CaseValuationEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public required string Source { get; set; }
+    public DateOnly Date { get; set; }
+    public TimeOnly Time { get; set; }
+    public long Mileage { get; set; }
+    public decimal RetailValue { get; set; }
+    public decimal TradeValue { get; set; }
+    public required string RecordedBy { get; set; }
+    public DateTimeOffset RecordedAtUtc { get; set; }
+    public string? LastEditedBy { get; set; }
+    public DateTimeOffset? LastEditedAtUtc { get; set; }
+}
+
 /// <summary>
 /// The Send to AI work request (AI-09): the Core-owned tracking record for
 /// one pointer hand-off. Idempotent per (case, operation key); state
