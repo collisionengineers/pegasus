@@ -2,10 +2,12 @@
 id: PLAT-026
 type: ticket
 title: Redesign Approved Mailboxes administration
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-29T10:10:09.934Z'
 labels:
   - ui
   - administration
@@ -18,7 +20,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.361Z'
-updated: '2026-08-29T08:01:15.758Z'
+updated: '2026-08-29T10:10:09.934Z'
 ---
 
 ## What
