@@ -23,15 +23,17 @@ groups:
 links:
   - DELIV-025
   - UIIMP-005
+  - DELIV-033
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - cc543922cb45f8ecf743be678751964d2290c4a4
+  - 2d67cefa0a7c15e16f48597c6a2a74a34c5086ed
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/612'
 archived: false
 created: '2026-08-28T11:16:52.307Z'
-updated: '2026-08-28T21:32:25.990Z'
+updated: '2026-08-29T08:42:16.525Z'
 ---
 
 ## What
