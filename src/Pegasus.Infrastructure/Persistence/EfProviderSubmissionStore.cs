@@ -15,9 +15,12 @@ internal sealed class EfProviderSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IProviderSubmissionStore, IProviderSubmissionBindings
 {
-    // The same map that wrote the column, rather than a second copy of it.
-    private static readonly string ProviderApiSourceChannel =
-        EfIntakeWorkStore.ToCode(IntakeSourceChannel.ProviderApi);
+    // The code the durable intake store writes into
+    // IntakeStagedReceipts.SourceChannel for this channel. Its map is private
+    // to that store and the accept path deliberately leaves it untouched, so
+    // the agreement is held by the two SQL-level accept-recovery tests, which
+    // find no candidate at all if these ever disagree.
+    private const string ProviderApiSourceChannel = "provider_api";
 
     public async Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
     {

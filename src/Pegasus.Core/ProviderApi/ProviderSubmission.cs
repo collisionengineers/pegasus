@@ -517,8 +517,9 @@ public sealed class SubmitProviderInstruction(
             // identity, so when the recovery sweep has already recorded this
             // acceptance -- it can, for a submission retried long after its own
             // grace window -- that row stands and this write is refused rather
-            // than a second Accepted landing in permanent history.
-            await actionHistory.TryAppendAsync(
+            // than a second Accepted landing in permanent history. Either way
+            // the acceptance is recorded, which is all the receipt claims.
+            _ = await actionHistory.TryAppendAsync(
                 SubmissionHistory(
                     ProviderSubmissionPolicy.AcceptedHistoryId(existing.Id),
                     actor,

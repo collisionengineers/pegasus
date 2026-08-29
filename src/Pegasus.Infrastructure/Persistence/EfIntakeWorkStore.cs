@@ -748,7 +748,7 @@ public sealed class EfIntakeWorkStore(
         entity.Revision,
         entity.EvaluatedAtUtc);
 
-    internal static string ToCode(IntakeSourceChannel value) => value switch
+    private static string ToCode(IntakeSourceChannel value) => value switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
