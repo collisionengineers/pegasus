@@ -3,6 +3,7 @@ using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ProviderApi;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -151,6 +152,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
+    ReconcileProviderSubmissions reconcileProviderSubmissions,
     ILogger<StagedArtifactReconciliationFunction> logger,
     ReconcileAutomaticEvaSubmissions? reconcileAutomaticEvaSubmissions = null)
 {
@@ -219,6 +221,19 @@ public sealed partial class StagedArtifactReconciliationFunction(
                 cancellationToken);
             LogAutomaticEvaSubmissions(logger, evaSubmissions);
         }
+
+        // AUTO-012: repairs the staged-receipt back-reference and the missing
+        // first Accepted history row after a process loss between the
+        // Provider API's separate writes. Same existing timer trigger
+        // deliberately; this is not a new schedule.
+        var providerSubmissions = await reconcileProviderSubmissions.ExecuteAsync(
+            50,
+            cancellationToken);
+        LogProviderSubmissionReconciliation(
+            logger,
+            providerSubmissions.Candidates,
+            providerSubmissions.Repaired,
+            providerSubmissions.Failures);
     }
 
     [LoggerMessage(
@@ -260,5 +275,14 @@ public sealed partial class StagedArtifactReconciliationFunction(
         ILogger logger,
         int candidates,
         int resolved,
+        int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Reconciled provider submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures.")]
+    private static partial void LogProviderSubmissionReconciliation(
+        ILogger logger,
+        int candidates,
+        int repaired,
         int failures);
 }

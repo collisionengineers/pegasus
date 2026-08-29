@@ -84,6 +84,26 @@ internal sealed class EfProviderSubmissionStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+        int maximumItems,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await AcceptRecoveryStates(context, incompleteOnly: true)
+            .Take(maximumItems)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
+        Guid submissionId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await AcceptRecoveryStates(context, incompleteOnly: false, submissionId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<string?> FindPrincipalCodeAsync(
         Guid principalId,
         CancellationToken cancellationToken)
@@ -139,4 +159,28 @@ internal sealed class EfProviderSubmissionStore(
         entity.ReceivedAtUtc,
         ProviderInstructionJson.Deserialize(entity.DeclaredInstructionJson),
         entity.StagedReceiptId);
+
+    private static IQueryable<ProviderSubmissionAcceptCandidate> AcceptRecoveryStates(
+        PegasusDbContext context,
+        bool incompleteOnly,
+        Guid? submissionId = null) =>
+        from submission in context.ProviderSubmissions.AsNoTracking()
+        join acceptedHistory in context.ActionHistory
+                .AsNoTracking()
+                .Where(item =>
+                    item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                    && item.Outcome == "Accepted")
+            on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
+        from acceptedHistory in acceptedHistories.DefaultIfEmpty()
+        where !incompleteOnly
+            || submission.StagedReceiptId == null
+            || acceptedHistory == null
+        where !submissionId.HasValue || submission.Id == submissionId.Value
+        orderby submission.ReceivedAtUtc, submission.Id
+        select new ProviderSubmissionAcceptCandidate(
+            submission.Id,
+            submission.PrincipalId,
+            submission.ReceivedAtUtc,
+            submission.StagedReceiptId,
+            acceptedHistory != null);
 }

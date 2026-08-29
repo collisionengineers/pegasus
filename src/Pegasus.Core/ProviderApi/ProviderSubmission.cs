@@ -76,6 +76,13 @@ public sealed record ProviderSubmissionRecord(
     ProviderInstruction? Instruction = null,
     Guid? StagedReceiptId = null);
 
+public sealed record ProviderSubmissionAcceptCandidate(
+    Guid SubmissionId,
+    Guid PrincipalId,
+    DateTimeOffset ReceivedAtUtc,
+    Guid? StagedReceiptId,
+    bool HasAcceptedHistory);
+
 /// <summary>
 /// What intake needs to know about the submission a source belongs to: which
 /// Principal it was bound to and what that Principal declared. Both come from
@@ -154,6 +161,14 @@ public interface IProviderSubmissionStore
     Task RecordStagedReceiptAsync(
         Guid submissionId,
         Guid stagedReceiptId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+        int maximumItems,
+        CancellationToken cancellationToken);
+
+    Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
+        Guid submissionId,
         CancellationToken cancellationToken);
 }
 
@@ -353,6 +368,8 @@ public static class ProviderSubmissionPolicy
 
     public static string SubmissionToken(Guid submissionId) => submissionId.ToString("N");
 
+    public static string OperationKey(Guid submissionId) => $"provider-submission:{submissionId:N}";
+
     public static string Sha256(ReadOnlyMemory<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content.Span));
 }
@@ -440,7 +457,7 @@ public sealed class SubmitProviderInstruction(
                     new(
                         IntakeSourceChannel.ProviderApi,
                         ProviderSubmissionPolicy.SubmissionToken(existing.Id))),
-                $"provider-submission:{existing.Id:N}",
+                ProviderSubmissionPolicy.OperationKey(existing.Id),
                 cancellationToken);
         }
         catch (IntakeSourceIdentityConflictException)
