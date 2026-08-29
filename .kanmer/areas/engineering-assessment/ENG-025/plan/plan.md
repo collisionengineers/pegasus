@@ -247,3 +247,173 @@ impact location loses the only UI that could set it.*
 
 The corrected statement is now carried by the post-implementation report and
 by [[ENG-029]], which owns restoring the editor.
+
+## 2026-08-29 — Review findings — dispositions (round 2)
+
+Source: the adversarial verifier's re-run of this lane (verdict `needs-work`).
+Every finding was re-checked with a command before it was disposed.
+
+### [blocker] Deleting `OnPostSaveDamageAsync` orphans `ISaveAssessment`; the
+plan's justification is false; ~13 report-required fields unreachable
+
+**Split: part fixed, part rejected with evidence, part deferred to
+[[ENG-029]].**
+
+1. *"The plan's stated justification is factually false"* — **accepted and
+   fixed.** Corrected under the dated heading above; the report is corrected
+   too. The false clause is struck, not silently edited away.
+2. *"orphans `ISaveAssessment` from every operator surface"* — **accepted, and
+   narrowed.** True of every Razor Page; not true of production. The interface
+   keeps a live caller in `src/Pegasus.Web/Mcp/AssessmentMcpTools.cs:154` —
+   the MCP seam Claude writes the assessment back through, which is the D5 /
+   §1.9 designed writer for these fields. "Orphaned from the operator UI" is
+   the accurate claim.
+3. *"leaving ~13 report-required assessment fields unreachable"* — **rejected
+   for twelve of the thirteen, with evidence.** On `origin/dev` those fields
+   were markup with no writer. Every `<form>` in
+   `origin/dev:…/Assessment/Index.cshtml` sits at lines 96, 107, 124, 221,
+   237, 272, 301, 684, 740 and 1117; the field editor spans lines ~330–680,
+   i.e. **inside no form at all**, and its save controls are
+   `<button type="button" class="primary-action">Save vehicle</button>` and
+   `…>Save incident and impact</button>` — no handler, no submit. Those are
+   exactly the inert controls this ticket's body orders removed ("Remove the
+   seven old section tabs and every inert `type="button"` control") and that
+   EPIC-011 `context.md` forbids ("Never render an inert control"). Deleting
+   them is the brief, not a regression.
+4. *Impact location specifically* — **accepted: a real regression, deferred to
+   [[ENG-029]] (created, wave 4, EPIC-011, linked from this ticket).** It had
+   a genuine caller, the damage grid at
+   `origin/dev:…/Index.cshtml:1117-1131` (`asp-page-handler="SaveDamage"`, one
+   submit per region, `name="impactLocation"`), shipped by [[ENG-006]] and
+   deployed to production. **Not restored here, and the reason is the epic
+   contract, not convenience:** EPIC-011 `context.md` binds "only the
+   effective final render layer is the contract"; §1.9 draws a ribbon, record
+   bar, evidence rail and Estimates pane and **no damage diagram**; §1.14 puts
+   "old Assessment section tabs" — the `report` section the grid lived in —
+   under *Removed*. Putting the grid back would breach the contract this lane
+   exists to apply. It also does not belong to [[ENG-028]]: that ticket's text
+   is "estimate tabs … editor … Import estimate dialog … Send to Claude
+   dialog" and names none of these fields. So the seam is ticketed rather than
+   silent: ENG-029 owns the editor and the contract amendment it needs, and
+   the operator still sees the outstanding fields by name beside the disabled
+   report-draft control (`ReportDraftReasons`).
+5. *"permanently defeats the lane's own 5d3b658c fix / the readiness gate can
+   never be satisfied for a case worked purely through the UI"* — **rejected.**
+   That was already true on `origin/dev`: twelve of the thirteen required
+   fields had no UI writer there either, so a UI-only case could never satisfy
+   readiness before this branch. The designed path is Send to Claude → the AI
+   job → Claude writing the fields through `AssessmentMcpTools`. `5d3b658c`
+   remains a real fix on that path.
+
+### [major] Outbound-payload PII guard deleted from the AI hand-off tests
+
+**Fixed.** Restored into the one test that still drives a real hand-off end to
+end, `SendToAiIntegrationTests.AdministrationConnectorValuesOverrideConfigurationFromTheNextHandOff`
+(`tests/Pegasus.IntegrationTests/SendToAiConnectorAdministrationTests.cs`),
+beside the `Bearer` assertion that survived there:
+
+```csharp
+Assert.Contains("\"schema_version\":1", request.Body, StringComparison.Ordinal);
+Assert.Contains("\"case_reference\":", request.Body, StringComparison.Ordinal);
+Assert.DoesNotContain("claimant", request.Body, StringComparison.OrdinalIgnoreCase);
+```
+
+The guard is not vacuous: `SeedAcceptedCaseAsync` seeds an instruction e-mail
+carrying `Claimant Name: Send Test`, and the passing `case_reference`
+assertion proves the body is populated. Green:
+`Passed Pegasus.IntegrationTests.SendToAiIntegrationTests.AdministrationConnectorValuesOverrideConfigurationFromTheNextHandOff [47 s]`,
+exit 0.
+
+### [major] The hand-off report omits the branch's largest behavioural deletions
+
+**Fixed.** The claim "the report-draft change is *the one* behavioural change
+beyond the split" was wrong. The post-implementation report now carries a
+"Behavioural deletions" section naming `OnPostSaveDamageAsync` +
+the damage grid, `OnPostSendAsync`/`OnPostReconcileAsync` + the panel-state
+machinery, the whole assessment field editor, and the two dropped tests, with
+the handler-set diff. The hand-off to the orchestrator states them too.
+
+### [minor] `AssessmentVehiclePrefillWebTests` lost its editability coverage
+
+**Accepted; risk accepted, tracked by [[ENG-029]].** The old assertions named
+markup that no longer exists (`name="vehicle.odometer_miles"`, the Source
+label) — markup which, per the blocker disposition above, was inside no form.
+The replacement asserts the ribbon renders the prefilled values, which is what
+§1.9 draws. Editability coverage returns with the editor in ENG-029; asserting
+it now would mean asserting a surface the contract does not draw.
+
+### [minor] Two lanes modify `AssessmentWorkspaceTestData.cs`
+
+**Reported, not fixed** — per the epic's "report what belongs to another
+ticket; do not fix it". Re-verified:
+
+```
+for b in $(git branch -r --list 'origin/task/*'); do
+  git diff --quiet origin/dev...$b -- tests/Pegasus.IntegrationTests/AssessmentWorkspaceTestData.cs || echo $b
+done
+  → origin/task/eng-025-assessment-shell
+  → origin/task/tick-058-provider-submission-api
+```
+
+The other lane is **TICK-058** (Provider submission API, wave 3). The hunks
+are disjoint — TICK-058 at line 27 (`CaseClaimantData(emptyString)` → three
+arguments), this lane at line ~100 (`FakeGetAssessmentAccess`:
+`CaseLifecycleState.Review` → `ReportPreparation`, forced by D11) — so git
+auto-merges, but it does breach waves.md's whole-file ownership rule and was
+previously undisclosed. Not edited around; disclosed here, in the report and
+in the PR body so whichever merges second knows to re-run this file's suite.
+
+### [minor] Checklist understates completion (PR item unticked)
+
+**Fixed** — ticked, with the PR state recorded.
+
+### [minor] One data-condition string hardcoded twice inline
+
+**Fixed.** `Index.cshtml` lines 210 and 213 both typed "Available once the
+estimating-service link is agreed". It is now one page-model property,
+`IndexModel.EstimatingServiceCondition`, read by both D7 seams the way the
+other three conditions already are. One list per concept.
+
+### [minor] `Owns` names a site.js block the branch never creates
+
+**Rejected, reason recorded.** Step 0 of this plan pre-decided it: every hook
+the page uses (`data-dialog-open/-close`, `data-rail-toggle`,
+`data-dropzone-browse`, `data-refresh-form`, `data-range-base`) already exists
+in `site.js` from PLAT-029, and the four old inline scripts' surfaces are
+either removed or carried by those modules. Adding a delimited block for
+nothing would be a second way to do what the codebase already does. The
+untouched `site.js` is correct reuse, not unfinished work.
+
+### [scope] Four files edited outside the ticket's stated `Owns`
+
+**Accepted; disclosed rather than reverted.** `AssessmentPersistenceIntegrationTests.cs`
+(previously disclosed), `SendToAiIntegrationTests.cs`,
+`SendToAiConnectorAdministrationTests.cs` and `AssessmentWorkspaceTestData.cs`.
+Each is forced by an in-lane change and none could stay untouched and
+compiling: the D11 access change invalidates the Review-state fixtures, and
+deleting the page's `Send`/`Reconcile` handlers breaks every test that posted
+to them. The `Owns` list named `Assessment*WebTests.cs` and did not anticipate
+the Send-to-AI suite driving the page. All four are named in the report and
+the PR body. The ticket's `files` document is missing on the board
+(`get_ticket_doc(ENG-025,"files")` → `exists:false` while `get_item` reports
+`docs.files:true`) — a board inconsistency reported to the orchestrator, not
+repaired from this lane.
+
+### Verification of this round
+
+Windows, PowerShell 7, in the task worktree.
+
+```
+dotnet build ./Pegasus.slnx --configuration Release
+  → Build succeeded. 0 Warning(s), 0 Error(s)
+
+dotnet test ./Pegasus.slnx --configuration Release --no-build \
+  --filter "(FullyQualifiedName~Assessment|FullyQualifiedName~SendToAi)&Category!=Browser"
+  → Pegasus.Core.Tests        Failed 0, Passed 88, Total 88
+  → Pegasus.IntegrationTests  Failed 0, Passed 43, Total 43
+```
+
+The 43 is the honest number for this filter with the Browser category
+excluded, which this lane is not permitted to run; round 1's 49 included the
+six `AssessmentReadinessSummaryBrowserTests`. Browser, the full suite and the
+snapshot/catalogue scripts stay the orchestrator's gates.
