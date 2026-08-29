@@ -116,9 +116,10 @@
                         && Model.Outcomes.TryGetValue(member.StagedReceiptId, out var outcome)
                         ? outcome
                         : null;
-                    var memberState = Model.Statuses[member.StagedReceiptId]?.Status is { } status
-                        ? OperatorLabels.Humanise(status.ToString())
-                        : "Received";
+                    // The group's own registration settles every member, so a
+                    // member is reported once either it or the group has an
+                    // outcome; until then it is still moving.
+                    var reported = Model.GroupRegistrationOutcome is not null || memberOutcome is not null;
                     <div class="file-row">
                         <span>
                             @if (memberOutcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
@@ -135,7 +136,7 @@
                             }
                         </span>
                         <span>
-                            @if (Model.GroupRegistrationOutcome is not null || memberOutcome is not null)
+                            @if (reported)
                             {
                                 <strong>@member.SourceFileName</strong>
                             }
@@ -149,11 +150,13 @@
                             }
                         </span>
                         <span>
-                            @* A member with no outcome of its own and no
-                               group-wide one is still moving, so the queue
-                               state is the only honest thing to show. *@
-                            @if (Model.GroupRegistrationOutcome is null && memberOutcome is null)
+                            @* Still moving, so the queue state is the only
+                               honest thing to show. *@
+                            @if (!reported)
                             {
+                                var memberState = Model.Statuses[member.StagedReceiptId]?.Status is { } status
+                                    ? OperatorLabels.Humanise(status.ToString())
+                                    : "Received";
                                 <partial name="Shared/_StatusChip" model="@memberState" />
                             }
                         </span>

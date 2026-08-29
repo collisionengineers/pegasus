@@ -1059,7 +1059,12 @@ public static class OperatorLabels
         public const string RequestEyebrow = "Secure file request";
         public const string RequestTitle = "Upload a file";
         public const string RequestDropzone = "Drag a file here or choose one";
+        public const string RequestChoose = "Choose file";
         public const string RequestSubmit = "Submit file";
+
+        /// <summary>The request's own size limit, which is set per request.</summary>
+        public static string RequestLimit(string maximumFileSize) =>
+            string.Create(CultureInfo.InvariantCulture, $"Up to {maximumFileSize}.");
 
         /// <summary>The accepted types and the real envelope limits, as drawn.</summary>
         public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>

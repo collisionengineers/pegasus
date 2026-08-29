@@ -30,8 +30,8 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
             <div>
                 <h2><label asp-for="Upload">@OperatorLabels.Upload.RequestDropzone</label></h2>
-                <p>Up to @Model.MaximumFileSize.</p>
-                <button type="button" class="btn btn--primary" hidden data-dropzone-browse>Choose file</button>
+                <p>@OperatorLabels.Upload.RequestLimit(Model.MaximumFileSize)</p>
+                <button type="button" class="btn btn--primary" hidden data-dropzone-browse>@OperatorLabels.Upload.RequestChoose</button>
                 <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
             </div>
         </div>
