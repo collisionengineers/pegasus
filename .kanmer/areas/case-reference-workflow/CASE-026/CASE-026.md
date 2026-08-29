@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Port the Search page (/Search) with the advanced filter grid and selected-Case
   pane
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: zcode
 profile: feature
 stageEntered:
   implementing: '2026-08-28T18:45:18.734Z'
   review: '2026-08-28T19:04:46.136Z'
+  verifying: '2026-08-29T09:19:43.975Z'
 taken_at: '2026-08-28T18:33:20.835Z'
 branch: task/case-026-search-page
 worktree: ../pegasus-worktrees/case-026-search-page
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/606'
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-08-29T08:16:40.020Z'
+updated: '2026-08-29T09:19:43.975Z'
 ---
 
 ## What

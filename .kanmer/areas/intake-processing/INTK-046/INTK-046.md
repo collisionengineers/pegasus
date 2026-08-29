@@ -2,7 +2,7 @@
 id: INTK-046
 type: ticket
 title: 'Port Triage, Unidentified, Received and the image-record pages'
-status: review
+status: verifying
 area: intake-processing
 assignee: zcode
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-28T18:33:22.013Z'
   implementing: '2026-08-28T18:41:16.131Z'
   review: '2026-08-28T21:35:36.002Z'
+  verifying: '2026-08-29T09:19:38.119Z'
 taken_at: '2026-08-28T18:41:19.404Z'
 branch: task/intk-046-record-pages
 worktree: ../pegasus-worktrees/intk-046-record-pages
@@ -39,7 +40,7 @@ prs:
   - '#605'
 archived: false
 created: '2026-08-28T08:35:23.884Z'
-updated: '2026-08-29T08:38:01.239Z'
+updated: '2026-08-29T09:19:38.119Z'
 ---
 
 ## What

@@ -2,13 +2,14 @@
 id: UIIMP-008
 type: ticket
 title: Port the Work Centre (/) to the Integrated Operations Workspace
-status: review
+status: verifying
 area: ui-improvement
 assignee: zcode
 profile: feature
 stageEntered:
   preparing: '2026-08-28T11:25:45.448Z'
   review: '2026-08-28T21:34:29.969Z'
+  verifying: '2026-08-29T09:19:48.982Z'
 taken_at: '2026-08-28T13:45:34.481Z'
 branch: task/uiimp-008-work-centre
 worktree: ../pegasus-worktrees/uiimp-008-work-centre
@@ -39,7 +40,7 @@ prs:
   - '#610'
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-08-29T08:27:58.466Z'
+updated: '2026-08-29T09:19:48.982Z'
 ---
 
 ## What

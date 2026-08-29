@@ -4,13 +4,14 @@ type: ticket
 title: >-
   External-work state vocabulary has three copies in Infrastructure — one
   internal owner
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-28T21:37:08.893Z'
   review: '2026-08-28T21:38:14.763Z'
+  verifying: '2026-08-29T09:19:31.480Z'
 taken_at: '2026-08-28T21:36:22.183Z'
 branch: task/plat-053-external-work-vocabulary
 worktree: >-
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/613'
 archived: false
 created: '2026-08-28T10:58:39.368Z'
-updated: '2026-08-29T08:21:41.540Z'
+updated: '2026-08-29T09:19:31.480Z'
 ---
 
 ## What
