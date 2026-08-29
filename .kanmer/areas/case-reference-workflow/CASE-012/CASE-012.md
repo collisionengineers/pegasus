@@ -2,7 +2,7 @@
 id: CASE-012
 type: ticket
 title: Redesign the Case page workspace
-status: implementing
+status: verifying
 area: case-reference-workflow
 assignee: claude-code
 profile: feature
@@ -28,7 +28,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/615'
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-28T22:11:43.057Z'
+updated: '2026-08-29T09:20:18.612Z'
 ---
 
 ## What
