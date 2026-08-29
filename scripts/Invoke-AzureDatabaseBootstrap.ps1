@@ -371,6 +371,13 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
+    # 20260829095336_CaseValuations: the Web Case workspace creates and edits
+    # valuation rows, and the Assessment workspace reads the current Engineer
+    # value in the same process. Worker has no caller and no grant. Valuations
+    # remain Case records, so DELETE is deliberately absent.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseValuations")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
