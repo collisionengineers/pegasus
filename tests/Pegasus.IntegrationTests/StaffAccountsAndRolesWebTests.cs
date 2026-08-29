@@ -56,9 +56,21 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.Contains("data-dialog-open=\"disable-", html, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"review-", html, StringComparison.Ordinal);
         Assert.Contains(
+            $"id=\"disable-{DevelopmentOfflineIdentity.AdministratorId:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"id=\"review-{DevelopmentOfflineIdentity.AdministratorId:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
             "Disabling revokes existing browser sessions; the account is retained permanently.",
             html,
             StringComparison.Ordinal);
+
+        var administrator = await FindAccountAsync(factory, DevelopmentOfflineIdentity.UserName);
+        Assert.False(administrator.MustChangePassword);
+        Assert.Contains(">Password change complete</span>", html, StringComparison.Ordinal);
 
         // The superseded pages' explanatory copy did not travel with them.
         Assert.DoesNotContain("At least eight characters", html, StringComparison.Ordinal);
@@ -82,6 +94,27 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.True(created.IsEnabled);
         Assert.Null(created.LastAccessReviewAtUtc);
 
+        // A rejected role post keeps its entered reason on the targeted row,
+        // matching the superseded Roles page's bound-property behaviour.
+        const string rejectedRoleReason = "PLAT-027 rejected role reason";
+        using var rejectedRolesPost = await client.PostAsync(
+            $"{AreaRoute}?handler=Roles",
+            Form(
+                ("__RequestVerificationToken", token),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("staffId", created.Id.ToString("D")),
+                ("reason", rejectedRoleReason)));
+        Assert.Equal(HttpStatusCode.OK, rejectedRolesPost.StatusCode);
+        var rejectedRolesHtml = await rejectedRolesPost.Content.ReadAsStringAsync();
+        var rejectedRoleReasonInput = InputTagRegex().Matches(rejectedRolesHtml)
+            .Cast<Match>()
+            .Single(candidate => candidate.Value.Contains(
+                $"id=\"roles-{created.Id:D}-reason\"",
+                StringComparison.Ordinal));
+        Assert.Equal(
+            rejectedRoleReason,
+            WebUtility.HtmlDecode(rejectedRoleReasonInput.Groups["value"].Value));
+
         // Role assignment — the capability the separate Roles page carried.
         using var rolesPost = await client.PostAsync(
             $"{AreaRoute}?handler=Roles",
@@ -104,7 +137,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
                 ("__RequestVerificationToken", token),
                 ("operationKey", Guid.NewGuid().ToString("N")),
                 ("staffId", created.Id.ToString("D")),
-                ("reason", "PLAT-027 access review proof")));
+                ("reason", new string('R', StaffAccountAdministrationPolicy.MaximumReasonLength))));
         Assert.Equal(HttpStatusCode.Redirect, reviewPost.StatusCode);
 
         var afterReview = await FindAccountAsync(factory, "plat027-web-caller");
