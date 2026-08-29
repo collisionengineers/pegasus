@@ -314,11 +314,15 @@ public static class ProviderSubmissionPolicy
         {
             return;
         }
-        if (!files.Any(file => file.Role == DocumentSemanticRole.AuditReport))
+        // Exactly one, not at least one. Two files claiming the role both take
+        // the fixed `provider-original-report` label, and the single-match
+        // lookup downstream then fails the whole accepted intake instead of
+        // telling the provider which field was wrong.
+        if (files.Count(file => file.Role == DocumentSemanticRole.AuditReport) != 1)
         {
             throw new ProviderInstructionValidationException(
                 "files",
-                "An Audit submission must attach the original report, with its role stated as "
+                "An Audit submission must attach exactly one original report, with its role stated as "
                 + $"'{ProviderFileRoles.OriginalReport}'.");
         }
     }
