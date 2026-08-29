@@ -416,3 +416,12 @@ no assertion was removed, weakened, skipped or inverted.
 - **Altitude:** the diff stays in the one label owner and its existing
   production read-back test; no shared architecture, CI timeout or unrelated
   test is changed (applied).
+
+## Hosted CI closure — round 4
+
+Fresh Actions run `33254911537` completed **success** on exact head
+`8ef4775c`. `sql-integration (1)` enumerated 345 of 1033 tests and ran every
+assigned test: 345 passed, 0 failed, 0 skipped, 9m26s test duration. All other
+jobs also succeeded. This closes the major verifier finding without changing a
+timeout, shard allocation, production path or assertion. Independent review is
+still required; this is not a merge, proof, deployment or delivery claim.

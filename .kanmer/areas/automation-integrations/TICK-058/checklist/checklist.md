@@ -97,3 +97,9 @@ below describe the **declared JSON instruction** that replaced it.
   is 0 warnings/0 errors and the provider integration filter is 9/9. Commit
   `8ef4775c` pushed; Actions run `33254911537` is pending. Independent review
   and the orchestrator wave gate remain unticked.
+
+- 2026-08-29 (round 4, hosted closure): Actions run `33254911537` completed
+  success on exact head `8ef4775c`. `sql-integration (1)` ran its complete
+  345-test assignment: 345 passed, 0 failed, 0 skipped, 9m26s. Every job in the
+  run succeeded. The independent-review and merged-main proof items remain
+  unticked; the ticket stays in `review`.

@@ -142,3 +142,60 @@ are superseded, not withdrawn.
 no credential has been issued, and TICK-058 carries `requires-live-approval`:
 issuing a live credential needs exact-target approval first. The evidence above
 is a green build and an exercised in-process caller — not a deployed feature.
+
+## Round 3 — dev merge and unit-test repair (2026-08-29)
+
+Commit `1688504a` merged `origin/dev`. The only conflict was the deletion of
+`AssessmentDamageAndCopyWebTests.cs`; the deletion was accepted because ENG-025
+deleted it on `dev`, its replacement `AssessmentCopyWebTests.cs` exists on both
+heads, and `AssessmentWorkspaceTestData.cs` carries the widened claimant data.
+
+Commit `79a4aaf9` repaired the latent activity-listener isolation defect in
+`ImmediateIntakeDispatchTests`. `ExecuteCommittedAsync` creates one publication
+span; the second observed span came from a parallel test through another
+`ActivitySource` with the same process-wide name. The test now roots the call in
+its own activity and observes that trace only. `Assert.Single` and both existing
+tag assertions remain; parent, publication-path and status assertions were
+added. The focused class passed 5/5 and the whole Core test project passed
+1152/1152 three consecutive times.
+
+This evidence was recorded in the plan and checklist but was omitted here. The
+round-3 hand-off label `pr-ready` was therefore also wrong. The accurate status
+remained **PR-open, review-blocked**.
+
+## Round 4 — verifier remediation (2026-08-29)
+
+The verifier's CI finding was correct: run `33245767986` on `79a4aaf9` was
+cancelled when `sql-integration (1)` exceeded its 20-minute job cap, leaving its
+345 assigned tests incomplete. The exact shard then passed locally: 345 passed,
+0 failed, 0 skipped, 9m45s test duration and exit 0. No timeout, shard rule,
+production behaviour or test assertion was changed to obtain that result.
+
+Commit `8ef4775c` removes the three-copy `Provider API` literal. The appended
+`OperatorLabels.ProviderSubmissionApi` nested class owns the source label and
+provenance icon, and the three required existing switch arms reference it. The
+provider snapshot integration test now pins the enum, persisted-code and
+provenance production mappings; no assertion was removed, weakened, skipped or
+inverted.
+
+The first two remediation builds failed, both with exit 1, while those new
+assertions were corrected. The final
+`dotnet build ./Pegasus.slnx --configuration Release` succeeded with 0 warnings
+and 0 errors. The focused `ProviderApiSubmissionTests` filter passed 9/9.
+
+Fresh Actions run `33254911537` on exact head `8ef4775c` completed
+**success**. Hosted `sql-integration (1)` ran all 345 assigned tests: 345 passed,
+0 failed, 0 skipped, 9m26s test duration. Every job in that run succeeded.
+This closes the major CI finding without changing a timeout or suppressing a
+test.
+
+The shared-switch finding is rejected with its remaining merge surface
+accepted: the enum, persisted-code and provenance production callers must each
+handle the new source or throw/render unknown, the arms are append-only and
+unreordered, and a parallel wrapper would violate the one-owner rail. The
+pre-existing three `ActivitySource("Pegasus.Core.Intake")` declarations remain
+an out-of-lane informational defect; no new ticket was created.
+
+Status remains **PR-open, review-blocked**. Independent review has not run on
+this head. The ticket has not been merged, proved on `main`, deployed or called
+by a provider; the feature gate remains off.
