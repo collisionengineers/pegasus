@@ -27,7 +27,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/606'
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-08-28T21:53:37.394Z'
+updated: '2026-08-29T08:11:56.181Z'
 ---
 
 ## What
@@ -38,9 +38,16 @@ Wave 2 lane D of [[EPIC-011]]. Port `Pages/Search/Index.cshtml(.cs)` (moved from
 
 `src/Pegasus.Web/Pages/Search/**`, `tests/Pegasus.IntegrationTests/CasesIndexWebTests.cs`, `AdministrationSearchAccountWebTests.cs` (search parts).
 
+Extended 2026-08-29 (round-2 review, scope-breach finding): `src/Pegasus.Core/Cases/CaseQueries.cs` and `src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs`, for the `CaseSearchItem` projection only. §1.7 draws a **Vehicle + make/model** results column and an **Accident circumstances** line in the selected-Case preview; neither fact is on the pre-port projection, so the contracted page cannot be drawn without them. The edit is three trailing optional constructor parameters plus their projection (commit `882f32ae`, disclosed as plan decision P2 — no new query, no migration, no behaviour change for existing callers). `waves.md` assigns those two paths to no other EPIC-011 lane (wave 3's Core lane owns `CaseTimeline.cs`), so there is no collision; the omission was in this Owns list, not in the code.
+
 ## Blocked by
 
 [[PLAT-029]].
+
+## Reported, not fixed (other lanes' files)
+
+- [[PLAT-059]] — `Create Case` resolves to two destinations across four call sites; `Pages/Shared/_ShellDialogs.cshtml:64` and `wwwroot/js/site.js:1364` are [[PLAT-029]]'s.
+- [[UIIMP-011]] — the two `cases--*` constants in `TestUiSnapshotTests.cs:28-29` still match pre-port markup; the file is [[UIIMP-005]]'s.
 
 ## Verification
 
