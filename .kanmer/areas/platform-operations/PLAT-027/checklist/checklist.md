@@ -25,3 +25,12 @@ Deliberately not done, per the lane brief and the 2026-08-29 decisions:
 - [ ] Browser category and snapshot regeneration — run once per merge on the merging branch, not in-lane
 - [ ] Deletion of the superseded `/Administration/{Roles,Access}` and `Accounts/Edit` routes — UIIMP-009, wave 5
 - [ ] `proof` and the move to `done` — written against merged `dev` by the verify step (D15)
+
+## Verifier remediation — 2026-08-29
+
+- [x] Empty accounts markup again carries the existing snapshot state token
+- [x] Disable and Review dialogs accept Core's 1000-character reason maximum
+- [x] A rejected role post preserves the typed reason on its targeted row
+- [x] Completed first-password-change state is rendered again
+- [x] The Infrastructure disposition is recorded in the dated plan section
+- [x] The report states the incomplete checklist and verification tiers honestly

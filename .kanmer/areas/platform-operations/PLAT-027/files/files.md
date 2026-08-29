@@ -32,3 +32,13 @@ their web tests, and one nested static class in `OperatorLabels.cs`.
 - `docs/design/test-ui/catalogue.json` and `docs/design/test-ui/pages/*` — no page is deleted here, and snapshot regeneration happens once per merge on the merging branch.
 - `wwwroot/css/site.css`, `wwwroot/js/site.js`, `Pages/Shared/**`, `Pages/Administration/Shared/**`.
 - `Pages/Administration/{Configuration,Mailboxes,MailCategories,Principals,Organizations,Automation}*` — PLAT-025/026/028 and AUTO-006 are in flight.
+
+## Verifier remediation file-map update — 2026-08-29
+
+This section supersedes the earlier statement that
+`Pages/Shared/_ReasonDialog.cshtml` was read but not modified.
+
+| Path | Change |
+| --- | --- |
+| `src/Pegasus.Web/Pages/Shared/_ReasonDialog.cshtml` | Adds a caller-supplied reason maximum while retaining the 500-character default. No local or remote task branch changed this path when checked, so the small shared-file correction uses disposition 2. |
+| `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs` | Deliberately not changed. `task/plat-052-eva-submission-route` and `task/uiimp-005-test-ui-gate` both change it. The accounts page instead restores the matcher's existing empty-state token as a heading. |

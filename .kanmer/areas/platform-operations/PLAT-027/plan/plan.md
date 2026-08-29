@@ -110,3 +110,38 @@ dispositions are recorded below under "Review findings".
 ## Stop condition
 
 PR open against `dev`, ticket in `review`. No merge, no `proof`, no `done`.
+
+## Adversarial verifier remediation and dispositions — 2026-08-29
+
+1. **High — accounts empty snapshot could not be selected. Fixed.**
+   Restored the existing `StateMatches` token,
+   `No staff accounts are available.`, as the lane-owned page's `h2`.
+   Retargeted the existing exact-markup assertion. The removed application-
+   initialization explanation stays removed.
+2. **Medium — default snapshot selection became ambiguous. Fixed by the same
+   hunk.** The empty matcher now matches only the empty response again, so the
+   matcher's negation excludes it from the default selection.
+3. **Medium — Review reason narrowed from 1000 to 500. Fixed.** The shared
+   reason dialog now accepts `DialogReasonMaxLength`; this page passes
+   `StaffAccountAdministrationPolicy.MaximumReasonLength` to both Disable
+   and Review. No task branch owned the shared partial when checked. A focused
+   integration test submits a 1000-character Review reason.
+4. **Low — rejected role assignment lost its reason. Fixed.** The page model
+   retains the posted staff id and exact reason, and only the targeted row
+   receives that value on the rejected render.
+5. **Low — completed first-password-change state disappeared. Fixed.**
+   `OperatorLabels.StaffAccounts.PasswordChangeComplete` was appended and the
+   false branch now renders it through the existing status-chip partial.
+6. **Low — the Infrastructure correction lacked a plan disposition. Fixed
+   here.** Commit `774ff072` is accepted under disposition 2: the nullable
+   projection is one token, the defect made this lane's access-review readout
+   false, and branch inspection found no other task branch changing
+   `EfStaffAccountQueries.cs`.
+7. **Low — the report overclaimed checklist completion. Fixed.** The checklist
+   remains deliberately incomplete: after this remediation it is 25/28, with
+   Browser/snapshot regeneration, wave-5 route removal, and post-merge proof
+   still unticked.
+
+Honesty correction: CI's Browser job was green on prior head `a03e5e07`.
+This lane did not run Browser locally, and the remediation head is not claimed
+as browser-verified until its own CI completes.

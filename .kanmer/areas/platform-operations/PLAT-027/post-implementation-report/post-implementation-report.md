@@ -166,3 +166,76 @@ run's Browser suite is the next tier.
 ## Stop condition
 
 PR open, not merged. Ticket walked to `review`. No `proof`, no `done`.
+
+## Adversarial verifier remediation — 2026-08-29
+
+This section supersedes the earlier capability account, file map, defect list,
+verification table, checklist description, and Browser statement where they
+conflict with it.
+
+### What changed
+
+- `Accounts/Index.cshtml` restores the existing Test UI empty-state match
+  token as a heading, renders both password-change states, repopulates the
+  targeted row's rejected role reason, and passes Core's reason limit to both
+  staff reason dialogs.
+- `Accounts/Index.cshtml.cs` retains the role post's staff id and exact
+  reason for a rejected render.
+- `OperatorLabels.StaffAccounts` appends
+  `PasswordChangeComplete`; no existing member moved.
+- `_ReasonDialog.cshtml` now accepts a caller-supplied reason maximum while
+  preserving 500 as the schema-backed default. No task branch owned this
+  shared file when checked, so this is the permitted small disposition-2
+  correction.
+- `StaffAccountsAndRolesWebTests.cs` proves the two dialog bounds, the
+  completed password-change readout, rejected-role reason retention, and an
+  accepted 1000-character access-review reason.
+- `TestUiFocusedRenderTests.cs` pins
+  `<h2>No staff accounts are available.</h2>`.
+
+`TestUiSnapshotTests.cs` was not changed because PLAT-052 and UIIMP-005 both
+change it. Its existing matcher now matches the lane-owned empty response
+again, which also excludes that response from the default-state selection.
+The application-initialization explanation remains deleted.
+
+### Corrected capability account
+
+The folded page preserves the 1000-character access-review reason, rejected
+role reasons, and both first-password-change states. The earlier report's
+description of the 500/1000 difference as a harmless external nit was wrong:
+it was a capability narrowing and is fixed here.
+
+The `EfStaffAccountQueries.cs` correction in `774ff072` now also has its
+required dated disposition in the plan. It remains an intentional disposition-
+2 shared-file fix, not an undisclosed lane expansion.
+
+### Verification observed in this remediation
+
+| Command | Exit | Result |
+| --- | --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release` | 0 | Build succeeded; 0 warnings, 0 errors |
+| `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "FullyQualifiedName~StaffAccountsAndRolesWebTests"` | 0 | Failed 0, Passed 4, Skipped 0, Total 4 |
+| `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "FullyQualifiedName~TestUiFocusedRenderTests"` | 0 | Failed 0, Passed 3, Skipped 0, Total 3 |
+
+The first PLAT-027 test run after the code edit failed 1/4 because a new test
+assumed Razor would render adjacent input attributes without whitespace. The
+assertion was corrected to select the targeted input and compare its decoded
+`value`. An immediate `--no-build` rerun repeated the old 1/4 failure
+because that test edit had not been compiled. After rebuilding, the unchanged
+filter passed 4/4. No production assertion was weakened, skipped, deleted, or
+inverted.
+
+The full snapshot generator was not run: it owns a broad Browser/capture loop
+and generated files outside this lane. The exact empty response is covered by
+the 3/3 focused render class, and source inspection confirms its heading equals
+the unchanged snapshot matcher token.
+
+### Honest state
+
+The checklist is **25/28**, not fully ticked. The three unticked items remain
+the orchestrator-owned Browser/snapshot run, UIIMP-009 route deletion, and
+post-merge proof/Done.
+
+CI's Browser job was green on prior head `a03e5e07`; that was an underclaim
+in the earlier report. Browser was not run locally here, and the new
+remediation head is not claimed as browser-verified until its own CI runs.
