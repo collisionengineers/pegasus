@@ -156,6 +156,17 @@ public sealed class ProviderSubmissionTests
     }
 
     [Fact]
+    public void RequireMaySubmitAllowsActiveAndRefusesPaused()
+    {
+        ProviderSubmissionPolicy.RequireMaySubmit(Active);
+
+        var error = Assert.Throws<ProviderSubmissionException>(
+            () => ProviderSubmissionPolicy.RequireMaySubmit(Paused));
+
+        Assert.Equal(ProviderSubmissionError.CredentialPaused, error.Error);
+    }
+
+    [Fact]
     public async Task ABodyNamingAnotherPrincipalIsRefusedRatherThanRedirected()
     {
         var store = new FakeStore();

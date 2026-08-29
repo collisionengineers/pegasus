@@ -119,7 +119,9 @@ HTTP already holds the fields, and states them.
   receipt link and initial `Accepted` history row once intake retention exists.
 - **Provenance.** Every declared value is written to the case as its own
   provenance — provider API, distinct from extraction and from staff entry —
-  and is visible as such on the case.
+  and is visible as such on the case. The Work Provider — the Principal — is
+  recorded on the case from the authenticated submission binding with
+  provider-API provenance.
 - **Receipt.** 201 with `submissionId`, `receivedAtUtc`, `providerReference`,
   `replayed: false` and the accepted files (ordinal, file name, SHA-256,
   duplicate flag) the moment the submission is durably received, before any
@@ -131,9 +133,9 @@ HTTP already holds the fields, and states them.
   vehicle registration — are the only ones that withhold a reference; ordinary
   detail missing from a declaration leaves the case `Not ready`, exactly as it
   does for an e-mail.
-- **Pause.** A paused credential is refused for submission (403, recorded) and
-  still reads its own receipts and results; a revoked one is refused
-  everywhere.
+- **Pause.** A paused credential is refused for submission before Pegasus reads
+  the request body (403, recorded) and still reads its own receipts and results;
+  a revoked one is refused everywhere.
 - **Result.** `GET /api/provider/v1/submissions/{id}` returns the submission's
   `status` (`Received`, `Processing`, `Complete`, `Failed` — the intake work
   vocabulary, not a provider-only one), the intake `decision`,
