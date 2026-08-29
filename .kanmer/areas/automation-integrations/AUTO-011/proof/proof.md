@@ -268,3 +268,59 @@ not claimed as delivered.
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| `ICancelAiJob` — the What names "cancel (staff)" | Census is exactly three lines: `src/Pegasus.Core/AiWork/AiJobs.cs:227` (interface), `AiJobOperations.cs:499` (implementation), `src/Pegasus.Infrastructure/DependencyInjection.cs:340` (`services.AddScoped<ICancelAiJob, CancelAiJob>();`). D21's "Registered in DI with no reachable consumer — No" row. | [[PLAT-049]] — `plan/plan.md:53-58` adds `OnPostCancelAiJobAsync` → `ICancelAiJob`; in review on PR #617, not merged at `b92cb9a7` |
+| `IAiJobQueries.ListForSubjectAsync` — the What names "`IAiJobQueries` (open, by subject, recent, counts)" | Census is `AiJobs.cs:196`, `src/Pegasus.Infrastructure/Persistence/EfAiJobStore.cs:239`, and two test fakes (`ServiceHealthTests.cs:406`, `OperationsWebTests.cs:477`). Test-only code is named explicitly by rule 14. PLAT-049 does not supply it — its `plan/plan.md:39` loads `ListOpenAsync()` unioned with `ListRecentAsync(200)`, so `proof.md:249` assigning it to PLAT-049 is false. | **no ticket supplies this** — raised as [[AUTO-014]] |
+| Staff creation of `AiJobKind.UnidentifiedResolution` — the What names the kind and "create (staff `PerformCasework`)" | Only Core mapping, validation and construction lines exist: `AiJobOperations.cs:33,41,276,370`. No Web caller. | [[PLAT-049]] — `plan/plan.md:53-58` adds `OnPostSendUnidentifiedToAiAsync` → `ICreateAiJob` with `AiJobKind.UnidentifiedResolution` |
+| Staff creation of `AiJobKind.QueryResponse` — same clause of the What | Only `AiJobOperations.cs:32,43,275,326,338` plus an MCP parameter description string. No Web caller. [[TICK-101]] (AI-08) is backlog, plan-and-research only and blocked pending activation; [[MAIL-026]] only prefills the composer from an existing draft. | **no ticket supplies this** — raised as [[AUTO-014]] |
+| `IConfirmAiJob` / `ConfirmAiJobCommand` (staff DraftReady→Completed) — this ticket's own new code under its Owns path `src/Pegasus.Core/AiWork/**`, enumerated in `plan/plan.md:11` | Its sole consumer is `Estimates.cs:439 IConfirmAiJob confirmJob,` inside `SetCurrentEstimate`, and the `ISetCurrentEstimate` census ends at Core, `EfRepairSpecificationStore.cs:334` and `DependencyInjection.cs:324` — no route or tool reaches it, so the consumer is itself unreachable. | [[PLAT-049]] (`OnPostCompleteAiJobAsync` → `IConfirmAiJob`) and [[ENG-028]] (the "Use estimate/Current chip" control that makes `SetCurrentEstimate` reachable) |
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence. This proof already recorded the facts
+honestly at `proof.md:157-158` ("none" against `ICancelAiJob` and
+`ListForSubjectAsync` under a heading claiming real production callers), and
+`plan.md:61` accepted the gap as "not claimed as delivered". Under D20 honest
+disclosure is no longer an exemption.
+
+Checked and cleared, not findings: the Estimate creation path is real and ungated
+(`Pages/Cases/Assessment/Index.cshtml:216-231` renders `Send to Claude`
+conditionally disabled on `Model.SendToClaudeCondition` — D21's legitimate
+"conditionally disabled with a named condition" row — and `Index.cshtml.cs:409
+OnPostSendToClaudeAsync` calls `createAiJob.ExecuteAsync`). All seven
+`pegasus_ai_job_*` tools are composed at `AutomationMcpExtensions.cs:124
+.WithTools<AiJobMcpTools>()` behind `Features:AutomationMcp`, which
+`docs/operations.md:122` and `:134-139` record as enabled in production since
+release 9 (2026-08-18) — an OPEN gate, so those are real callers, and
+`ListRecentAsync`/`GetCountsAsync` are reached the same way through
+`GetServiceHealth` (`AutomationMcpExtensions.cs:34` → `Pages/Operations/Index.cshtml.cs:78`).
+Nothing this ticket names is permanently inert or behind a closed gate.
+
+### Findings that were NOT counted against this ticket
+
+- The absent `/Operations` AI Job List panel, the "Send Unidentified to AI"
+  control and the Review / Complete job / Cancel row actions — owned by
+  [[PLAT-049]] (Owns: `src/Pegasus.Web/Pages/Operations/**`). This ticket's Owns
+  names no file under `Pages/Operations`.
+- The absent "Use estimate" control and Estimate-confirmation UI on the
+  Assessment page — owned by [[ENG-028]] (Owns:
+  `src/Pegasus.Web/Pages/Cases/Assessment/**`).
+- `ISetCurrentEstimate` having no Razor caller —
+  `src/Pegasus.Core/Assessment/Estimates.cs` is [[ENG-026]]'s file in the wave-3
+  split; its caller is [[ENG-028]]'s to supply.
+- Query-response draft consumption in the mail composer — [[MAIL-026]] (backlog).
+- Post-report query origination workflow — [[TICK-055]] / [[TICK-101]] (both
+  backlog, plan-and-research only).
+- The seven `pegasus_ai_job_*` MCP tools and the `/authorize` consent
+  descriptions behind `Features:AutomationMcp` — the gate is OPEN in production
+  per `docs/operations.md:122` and `:134-139`, so these are real callers and not
+  a rule-14 failure. Recorded here so it is not re-litigated.

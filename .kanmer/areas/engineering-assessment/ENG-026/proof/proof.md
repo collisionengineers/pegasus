@@ -368,3 +368,49 @@ and the two report-projection tests quoted above.
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| `IDuplicateEstimate` — named in the What ("Use cases … `IDuplicateEstimate` …") | `git grep -n "IDuplicateEstimate" -- src/` returns exactly three hits: interface `src/Pegasus.Core/Assessment/Estimates.cs:367`, implementation `Estimates.cs:406`, DI `src/Pegasus.Infrastructure/DependencyInjection.cs:322`. No route, handler, MCP tool or reachable consumer. D21's "Registered in DI with no reachable consumer — No" row. | [[ENG-028]] — its What names the editor "Duplicate" action and its Owns claims `src/Pegasus.Web/Pages/Cases/Assessment/**` |
+| `IDiscardEstimate` and state `+Discarded` — both named in the What | Identical three-hit shape: `Estimates.cs:372` / `:418` / `DependencyInjection.cs:323`. `RepairSpecificationState.Discarded` reaches the store (`EfRepairSpecificationStore.cs:322`) and the migration check constraints, but only through `IDiscardEstimate`, so it has no production entry point. | [[ENG-028]] — its What names the editor "Delete" action and the related dialogs |
+| `ISetCurrentEstimate` — named in the What | `Estimates.cs:377` / `:440` / `DependencyInjection.cs:324`. The legacy Accept handler can set an initial `IsCurrent` but supplies no Current-switching capability. | [[ENG-028]] — its What names "Use estimate/Current chip" |
+| JSON estimate parser and source route `+Json` — named in the What ("routes `+Json`", "JSON estimate parser beside the Audatex parser") and in Owns (`src/Pegasus.Infrastructure/Assessment/JsonEstimateParser.cs`) | Registered only as a concrete singleton (`DependencyInjection.cs:320`); `IEstimateDocumentParser` binds solely to `AudatexEstimatePdfParser` (`:317`), which is what the page injects (`Pages/Cases/Assessment/Index.cshtml.cs:44`). The import form accepts PDF only (`Index.cshtml:488`). The DI comment states the intent that never shipped — "the import dialog selects the parser by the chosen source route" — and there is no such dialog. | [[ENG-028]] — its What names the "Import estimate dialog (name, source Audatex PDF / JSON / Other, file)" |
+| Line-operation mapping Replace/Repair/R&I/Paint/Other ↔ `EstimateLineCodes` — named in the What | `EstimateOperations.FromLineType` occurs only at its definition (`Estimates.cs:50`) and in `tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs` — test-only, which rule 14 names explicitly. `ToLineType`/`TryParse` are consumed only by `JsonEstimateParser.cs:134`/`:136`, so their sole consumer is itself unreachable. | [[ENG-028]] — the lines-table operation column in its editor |
+| Report costs rendered from the Current estimate — named in the What ("the Current estimate feeds `ReportRepairCosts`") and in Verification ("report costs come from the Current estimate") | Readiness *is* wired (`Index.cshtml.cs:319` calls `AssessmentReportProjection.Prepare(…, currentEstimate: AcceptedSpecification)` on every load), but the rendered-cost half cannot be exercised. `Prepare` requires `currentEstimate.Details.LabourRate is > 0` (`src/Pegasus.Core/Reports/AssessmentReportProjection.cs:142`); the only reachable writer seeds `LabourRate = predecessor?.LabourRate` (`EfRepairSpecificationStore.cs:96` — null on first import), and the Accept handler's form fields populate the calculation basis, not `Details.LabourRate`. The MCP save tool can write a rate but produces unconfirmed lines (`Estimates.cs:610`), which acceptance rejects (`RepairSpecifications.cs:162`). `proof.md:335` concedes it — "A report draft still cannot be generated through the shipped UI" — against `proof.md:112` "The path is wired end to end on dev". | [[ENG-028]] — the rates editor plus "Use estimate" |
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence. The honest disclosure this proof already
+carries ("registered but unreachable" at `:319`, "No production consumer" at `:262`)
+is precisely what D20 says no longer earns Done: "A registered-but-unreachable port
+does not qualify, however honestly it is disclosed and ticketed."
+
+`disabledOrGated` is empty for this ticket — its failures are unwiring, not gating.
+`Features:AutomationMcp`, the gate over the two MCP tools this ticket names, is OPEN:
+`docs/operations.md:139` records `Features__AutomationMcp=true` in production since
+release 9 (2026-08-18). So `pegasus_estimate_save`/`pegasus_estimate_list`,
+`ISaveEstimate`, `IListCaseEstimates`, `EstimateTotals.Compute`, per-estimate VAT %,
+`PaintWorkUnits`, the `AiDraft` route and the migration columns are genuinely
+delivered.
+
+### Findings that were NOT counted against this ticket
+
+- Permanently inert `Glass's` button,
+  `src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:211` — a D7 seam and a
+  D21 "No" row, but the file belongs to [[ENG-025]] (`waves.md` wave 2 lane F
+  owns `Pages/Cases/Assessment/**`); this ticket's Owns section claims no page
+  file. Its supplier is [[TICK-085]].
+- Permanently inert `Audatex` integration button,
+  `src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:214` — same D7 seam, same
+  owner [[ENG-025]]. Distinct from the active retained-PDF import, which works.
+  Now owned by [[ENG-030]].
+- `Features:AutomationMcp` over `pegasus_estimate_save`/`pegasus_estimate_list` —
+  checked and cleared, not a finding: the gate is OPEN in production per
+  `docs/operations.md:139`, so these callers are real under D21's OPEN-gate row.
