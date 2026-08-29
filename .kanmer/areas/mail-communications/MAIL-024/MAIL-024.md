@@ -4,7 +4,7 @@ type: ticket
 title: >-
   FRD-08 and ADR-0036: outbound mail from an approved mailbox and EVA-sent
   report detection
-status: verifying
+status: done
 area: mail-communications
 assignee: claude-code
 profile: chore
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-28T08:08:21.145Z'
   review: '2026-08-28T08:15:21.870Z'
   verifying: '2026-08-28T08:21:31.930Z'
+  done: '2026-08-29T10:14:29.433Z'
 taken_at: '2026-08-28T08:13:35.265Z'
 branch: task/mail-024-outbound-mail-docs
 worktree: ../pegasus-worktrees/mail-024-outbound-mail-docs
@@ -31,7 +32,7 @@ prs:
   - '584'
 archived: false
 created: '2026-08-28T08:05:30.146Z'
-updated: '2026-08-28T08:21:31.930Z'
+updated: '2026-08-29T10:14:29.433Z'
 ---
 
 ## What

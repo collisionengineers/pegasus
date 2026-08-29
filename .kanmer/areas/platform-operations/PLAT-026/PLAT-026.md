@@ -2,12 +2,15 @@
 id: PLAT-026
 type: ticket
 title: Redesign Approved Mailboxes administration
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T10:10:09.934Z'
+taken_at: '2026-08-29T10:14:01.102Z'
+branch: task/plat-026-mail-settings
+worktree: ../pegasus-worktrees/plat-026-mail-settings
 labels:
   - ui
   - administration
@@ -20,7 +23,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.361Z'
-updated: '2026-08-29T10:10:09.934Z'
+updated: '2026-08-29T10:14:01.102Z'
 ---
 
 ## What
