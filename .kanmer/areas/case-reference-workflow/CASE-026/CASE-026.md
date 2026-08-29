@@ -20,14 +20,24 @@ labels:
   - search
 groups:
   - EPIC-011
-links: []
+links:
+  - PLAT-059
+  - UIIMP-011
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - 882f32ae
+  - 20843a7e
+  - 9d739ab9
+  - 17930a17
+  - 0f80c363
+  - 56ce7898
+  - d2ce04fe
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/606'
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-08-29T08:11:56.181Z'
+updated: '2026-08-29T08:16:40.020Z'
 ---
 
 ## What
