@@ -327,6 +327,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
+        IntakeSourceChannel.ProviderApi => "provider_api",
         _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "Unsupported source channel.")
     };
 
@@ -335,6 +336,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
         "automation" => IntakeSourceChannel.Automation,
+        "provider_api" => IntakeSourceChannel.ProviderApi,
         _ => throw new InvalidDataException($"Unknown intake source channel '{channel}'.")
     };
 }
