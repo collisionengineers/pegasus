@@ -11,7 +11,9 @@
 - P2 The named Core extension: `CaseSearchItem` gains `VehicleMake`,
   `VehicleModel`, `AccidentCircumstances` (trailing optional constructor
   parameters), projected by `EfCaseQueryStore` from the instruction draft
-  the search already joins. No new query, no migration.
+  the search already joins. No new query, no migration. **The ticket's Owns
+  list was extended to name these two files on 2026-08-29** — see the
+  round-2 dispositions.
 - P3 Grid control types follow the ticket's "1:1 to the existing UI-07
   inputs": `query` is the "Case/PO or image reference" field (the only
   parameter that feeds both the Case reference match and the image-intake
@@ -44,7 +46,9 @@
 2. Page model rewrite: keep every existing bind + the ISearchCases call and
    error paths; add `SelectedId`, `ResultRows`, engineer-name resolve,
    `LoadedAtUtc`, `SelectHref`/`PageUrl` helpers, `RefreshFields`.
-3. View rewrite: header (freshness + Create Case → `/Cases/Create`),
+3. View rewrite: header (freshness + Create Case → `/Upload`; `/Cases/Create`
+   is receipt-bound and 404s without one — see the 2026-08-28 P1 disposition
+   and the 2026-08-29 round-2 disposition R2, and [[PLAT-059]]),
    advanced-search-grid GET form, "Vehicle images" section, two panes with
    `data-row-list`/`data-preview-target`, per-row
    `<template>`+`_CasePreview`, pager. Empty/unavailable states render
@@ -113,6 +117,11 @@ Codex review of PR #606, plus the three real test failures on
 sql-integration shard 2. Every finding has a disposition; nothing is
 silenced.
 
+> **Correction (2026-08-29, round 2):** the heading below calls those three
+> "real test failures on sql-integration shard 2" without saying who wrote
+> two of them. Corrected under R4 below — two of the three were this lane's
+> own assertions from its own commit `9d739ab9`.
+
 ### P1 — `Index.cshtml:24` primary CTA returns NotFound
 
 **Fixed.** `CreateModel.OnGetAsync` refuses an empty `receiptId`
@@ -124,7 +133,8 @@ header action now targets `/Upload`; the contracted label stays.
 Reported, not fixed (PLAT-029's files, identical dead link):
 `Pages/Shared/_ShellDialogs.cshtml:64` (the Add dialog's Create Case card)
 and `wwwroot/js/site.js:1364` (Ctrl N). A receipt-less `/Cases/Create`
-entry point would settle all three in one place.
+entry point would settle all three in one place. **Now ticketed as
+[[PLAT-059]] (2026-08-29).**
 
 ### P1 — `Index.cshtml:249` Copy Case/PO copies the previous selection
 
@@ -191,7 +201,8 @@ round-trip count is the shared helper's and belongs to a Core ticket.
   `<h2>Cases are unavailable</h2>`, which is the pre-port `status-card`
   markup. The ported notice renders `<strong>`, so snapshot generation
   reports `cases--unavailable (/Search)` as missing in both update and
-  verify modes. UIIMP-005's file; a one-line constant change.
+  verify modes. UIIMP-005's file; a one-line constant change. **Now
+  ticketed as [[UIIMP-011]] (2026-08-29), together with line 28.**
 - One `dotnet test` run over `Pegasus.slnx` aborted with "Test host
   process crashed" before any test reported; the identical command
   re-run passed 5/5. Not reproduced, recorded rather than ignored.
@@ -213,3 +224,149 @@ efficiency, altitude.
 4. Altitude: the copy/refresh sync sits on the page that owns those two
    controls. The general fix (delegated binding) belongs to the shell and
    is reported above rather than reimplemented here.
+
+## Review findings — dispositions (round 2)
+
+Adversarial verifier re-run of the build, the focused filters and the
+branch diff, 2026-08-29. Every finding has a disposition; nothing is
+silenced. Two tickets were created rather than deferring in prose:
+[[PLAT-059]] and [[UIIMP-011]].
+
+### R1 — [major] Operator copy contorted to satisfy two test constants, shipping a stuttering double sentence — undisclosed
+
+**Fixed, and the attribution corrected.**
+
+*Fix.* `Index.cshtml` now renders one sentence:
+`<p class="empty" aria-live="polite">No cases match these filters.</p>`.
+The wording is the page's own — the image section three blocks above
+already says "No vehicle images match these filters." — so the two empty
+states on one page read as one voice, and the operator gets a label, not
+two sentences of prose (`docs/design/README.md` §No explanatory copy and
+page economy). `CasesIndexWebTests` was then made to assert what the page
+should say (`No cases match these filters.`) and, additionally, that the
+superseded sentence does **not** come back. That is a strengthening, not a
+weakening: the empty state is still required character for character, and
+one more thing is now pinned than before.
+`AdministrationSearchAccountWebTests.cs:132` already asserted the surviving
+sentence and is untouched.
+`TestUiSnapshotTests.cs:28` (`["cases--empty"] = new("No matching cases.")`)
+is UIIMP-005's file and is now [[UIIMP-011]], filed with line 29.
+
+*Correction to the finding.* The verifier attributes the double sentence to
+this lane's port commit `20843a7e` via `git log -L`. That is a false
+attribution — `git log -L` follows the line's current position, not its
+text. The stuttering sentence is on `origin/dev`:
+
+```
+$ git show origin/dev:src/Pegasus.Web/Pages/Search/Index.cshtml | sed -n '127p'
+    <p class="empty-state" aria-live="polite">No matching cases. No cases match these filters.</p>
+```
+
+`git log -S "No matching cases. No cases match these filters." -- src/Pegasus.Web/Pages/`
+returns `865b4c0c` ("feat(ui): workspace shell layouts… (PLAT-029)") and
+`7206773a`, both before this lane existed. The port carried the pre-existing
+line across unchanged, with its pre-existing comment. So the finding's
+substance is right and is fixed here — the file is this lane's now, and the
+lane reproduced the stutter and left it undisclosed — but the lane did not
+author it, and no assertion was ever bent to accommodate it.
+
+### R2 — [minor] The primary "Create Case" CTA sends the operator to `/Upload`
+
+**Fixed in this lane as far as this lane reaches, and the rest ticketed as
+[[PLAT-059]].**
+
+The destination stays `/Upload`, and the reason is a domain fact, not a
+preference: a case is made from received material, so `/Cases/Create` is
+receipt-bound — `Create.cshtml.cs:215-219` returns `NotFound()` for an empty
+`receiptId`, and both call sites that work today reach it *with* a receipt
+(`Pages/Intake/Details.cshtml:451`, `Presentation/UploadOutcome.cs:322`).
+The Search page holds no receipt. Retargeting the header at `/Cases/Create`
+for label symmetry would ship a control that 404s on every click — a new
+broken control on a page that had no CTA at all before the port (checked:
+`git show origin/dev:src/Pegasus.Web/Pages/Search/Index.cshtml` has no
+`Create Case`), which the epic forbids outright. The label is contracted by
+`context.md` §1.7 and §1.2 and cannot change either.
+
+What is genuinely unsettled is the *other* two call sites,
+`Pages/Shared/_ShellDialogs.cshtml:64` and `wwwroot/js/site.js:1364`, which
+are PLAT-029's files and both 404 today. [[PLAT-059]] carries the whole
+mapping — all four call sites, both candidate resolutions (retarget the
+shell pair at `/Upload`, or give `/Cases/Create` a receipt-less entry
+point) — so the label→destination mapping ends up as one list in one place.
+The in-file comment at `Index.cshtml:24` now names PLAT-059.
+
+### R3 — [scope] `CaseQueries.cs` and `EfCaseQueryStore.cs` are outside the Owns list
+
+**Justified, and the record fixed.** The edits stay; the ticket's Owns list
+now names both files with the reason (updated 2026-08-29).
+
+§1.7 draws a **Vehicle** results column carrying make/model and an
+**Accident circumstances** line in the selected-Case preview. Neither fact
+exists on the pre-port `CaseSearchItem`, so the contracted page cannot be
+drawn without extending the projection; the alternative — an `IGetCase`
+read per row — was rejected in the plan (P5) as 1+N reads for facts the
+search already joins. The diff is three trailing optional constructor
+parameters and their projection: additive, source- and binary-compatible
+for every existing caller, no new query, no migration. `waves.md` gives
+those two paths to no other EPIC-011 lane (wave 3's Core lane owns
+`CaseTimeline.cs`), so there was no collision risk — the defect was the
+stale Owns list, and that is what has been corrected.
+
+### R4 — [minor/honesty] The two repaired "failures" were this lane's own red test
+
+**Accepted, and the record corrected.** `git show 9d739ab9 --
+tests/Pegasus.IntegrationTests/CasesIndexWebTests.cs` shows this lane added
+both assertions in its own commit
+`test(search): cover the ported page's selected-row preview and
+closed-outcome chip (CASE-026)`. The port therefore pushed a red test, and
+the review pass repaired its own breakage. Calling them "the three real test
+failures on sql-integration shard 2" without saying so read as though the
+shard had surfaced someone else's problem. A note to that effect is now
+inline above the 2026-08-28 section, and the PR body is corrected. Only the
+third failure (`QdosCustodialWebTests`, the dropped filter-form accessible
+name) was a genuine regression the port inflicted on another lane's test.
+
+### R5 — [minor] The failure notice's sentence was reworded without disclosure
+
+**Accepted the change, disclosed now.** `Index.cshtml:115` reads
+`The search could not be completed; try again.`; the pre-port line read
+`The case query could not be completed; try again.` It is kept: on a page
+titled *Search* the failed read is the search, and "case query" names the
+internal `ISearchCases` object rather than anything the operator did
+(`docs/design/README.md` §Voice). The whole notice was rewritten by the port
+anyway — `status-card`/`<h2>` became `notice notice--danger`/`<strong>` —
+so `docs/design/test-ui/pages/cases--unavailable.html` must be regenerated
+for the markup regardless; the sentence adds no gate break that the markup
+change had not already caused. Both snapshot constants are on [[UIIMP-011]],
+and snapshot regeneration is the orchestrator's step, not a page lane's.
+
+### R6 — [minor] The Steps section still named the superseded CTA target
+
+**Fixed.** Steps item 3 above now reads `/Upload` and points at the two
+dispositions and [[PLAT-059]], so the document no longer contradicts itself.
+
+### Round-2 verification (2026-08-29, real numbers)
+
+- `dotnet build ./Pegasus.slnx --configuration Release` — **Build
+  succeeded. 0 Warning(s), 0 Error(s)** (19.67s).
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+  --configuration Release --no-build --filter
+  'FullyQualifiedName~CasesIndexWebTests'` — **Failed: 0, Passed: 5,
+  Skipped: 0, Total: 5** (1m22s).
+- Same project, `--filter 'FullyQualifiedName~AdministrationSearchAccountWebTests|
+  FullyQualifiedName~ImageIntake|FullyQualifiedName~ShellAndStatusPageWebTests|
+  FullyQualifiedName~QdosCustodialWebTests'` — **Failed: 0, Passed: 30,
+  Skipped: 0, Total: 30** (2m12s). (The 2026-08-28 report quoted 18 for a
+  narrower spelling of the same four names; 30 is what this filter string
+  actually selects.)
+- Not run here, and not this lane's to run: the full solution filter, the
+  Browser category, `scripts/Update-TestUiSnapshots.ps1` and
+  `scripts/Test-UiCatalogue.ps1`. The two `cases--*` snapshot states are
+  known-failing until [[UIIMP-011]] lands.
+
+### Simplification pass (2026-08-29, round-2 diff)
+
+n/a beyond the change itself — the round-2 diff is one operator sentence,
+one comment, and one test assertion pair. Reuse: the surviving sentence is
+the page's existing wording rather than a new string. Simplification: one
+sentence replaced two. Efficiency and altitude: unchanged.

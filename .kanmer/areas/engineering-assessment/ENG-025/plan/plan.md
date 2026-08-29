@@ -215,3 +215,35 @@ diff against `origin/dev` @ `9868cf58`.
 `Pages/Cases/Assessment/Suggestions.cshtml` is unchanged and still carries
 no `@page` directive, so no route activates — the deferred-surface state
 `docs/design/README.md` describes, not an inert control on a live page.
+
+## 2026-08-29 — Correction to step 2 (the SaveDamage justification was false)
+
+Step 2's removal bullet reads:
+
+> Remove: `OnPostSaveDamageAsync` (its only caller, the report-section
+> diagram, is not drawn by §1.9; impact location stays writable through
+> `ISaveAssessment`)
+
+**The first clause is true; the second is false and is struck.** Impact
+location does *not* stay writable through `ISaveAssessment` from any operator
+surface. Verified on this branch:
+
+```
+git grep -n ISaveAssessment -- 'src/**'
+  src/Pegasus.Core/Assessment/AssessmentContracts.cs:296   (interface)
+  src/Pegasus.Core/Assessment/AssessmentOperations.cs:24   (implementation)
+  src/Pegasus.Infrastructure/DependencyInjection.cs:332    (registration)
+  src/Pegasus.Web/Mcp/AssessmentMcpTools.cs:154            (MCP tool)
+
+git grep -n ISaveAssessment origin/dev -- 'src/**'
+  … the same four, plus
+  src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs:51
+```
+
+The Razor Pages caller is gone. The bullet should have read: *`ISaveAssessment`
+keeps one production caller, `AssessmentMcpTools` — the seam Claude writes the
+assessment back through — but no operator surface writes it any more, and
+impact location loses the only UI that could set it.*
+
+The corrected statement is now carried by the post-implementation report and
+by [[ENG-029]], which owns restoring the editor.
