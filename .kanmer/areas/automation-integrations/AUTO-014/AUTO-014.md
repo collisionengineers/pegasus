@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Production callers for the AI job by-subject query and staff QueryResponse
   jobs
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-29T17:20:55.532Z'
 labels:
   - backend
   - ai
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-29T13:04:32.304Z'
-updated: '2026-08-29T13:10:05.626Z'
+updated: '2026-08-29T17:20:55.532Z'
 ---
 
 ## What
