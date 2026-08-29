@@ -11,7 +11,7 @@ and nine PDF link annotations.
 
 | File | Change | Why |
 | --- | --- | --- |
-| `docs/json-extraction-parity/eva-api-docs.pdf` | Added unchanged source PDF | Preserve the authoritative supplied artifact |
+| `docs/json-extraction-parity/eva-api-docs.pdf` | Already on `dev` — **not** in this PR's diff | Reached `dev` independently in `d6b00b2b`; this branch's own `c84c7a05` added the same bytes, so the forward merge left it out of `origin/dev...HEAD` |
 | `docs/json-extraction-parity/eva-api-docs.md` | Added normalized transcription | Make the API reference searchable and diffable without dropping data |
 | `docs/json-extraction-parity/eva-api-docs-assets/*` | Added four extracted images | Preserve cover and impact-diagram information not present in extracted text |
 

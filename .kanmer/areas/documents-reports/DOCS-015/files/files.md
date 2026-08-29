@@ -4,7 +4,7 @@
 
 | Path | Change | Risk |
 | --- | --- | --- |
-| `docs/json-extraction-parity/eva-api-docs.pdf` | Add the operator-supplied source unchanged | Binary source must remain byte-identical |
+| `docs/json-extraction-parity/eva-api-docs.pdf` | Not added by this PR — already on `dev` | Byte-identical bytes reached `dev` via `d6b00b2b` before the forward merge |
 | `docs/json-extraction-parity/eva-api-docs.md` | Add complete normalized transcription | Table reconstruction or glyph normalization could lose data |
 
 ## Context files
