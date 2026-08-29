@@ -347,3 +347,75 @@ green `browser` job above.
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5 and
 needs explicit `MERGE AUTH GRANTED` immediately before the `main` update.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| Glass's direct estimating-service link — named in this ticket's own What ("record bar … Glass's/Audatex disabled seams per D7") in a file this ticket Owns | Rendered permanently inert at `src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:211` — `<button type="button" class="btn" disabled aria-disabled="true">Glass's</button>` — inside `<span class="gated" data-condition="@Model.EstimatingServiceCondition">`, where that property is a hard-coded literal at `Index.cshtml.cs:193-194`: `public string EstimatingServiceCondition => "Available once the estimating-service link is agreed";`. There is no `@if` enabling branch and no runtime input, so no state of the deployed system renders it enabled. D21: "Control permanently inert (a D7 integration seam) — **No**". | [[TICK-085]] — "Complete Glass's repair-estimate import from a representative export"; blocked on obtaining a representative Glass's export |
+| Audatex direct estimating-service link — same clause of this ticket's What, same owned file | Permanently inert at `Index.cshtml:214` behind the same hard-coded condition. Distinct from the live Audatex PDF import (`Index.cshtml:480` → `OnPostImportEstimateAsync`, EXT-12/[[ENG-002]]), which is genuinely delivered and is not the failing capability. | **no ticket supplied this** at the time of the audit — raised as [[ENG-030]] |
+
+The ticket also fails its own acceptance on the literal wording. Its What requires
+"Remove the seven old section tabs and every inert `type="button"` control", and its
+Verification box reads "No inert control remains." This proof marks that item
+"Proven" at `proof/proof.md:273` while its own inventory table at `proof.md:145`
+records "| 211, 214 | Glass's, Audatex | D7 disabled seams (below) |", and
+`proof.md:196-228` argues the exemption. That argument was the earlier instruction
+D21 explicitly corrected — "we aren't meant to be shipping features disabled." D7
+licensed *drawing* them; it never made them delivered. D22 keeps the rendering as a
+real disabled button; it does not make the capability claimable.
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence.
+
+Checked and cleared, not findings: the three controls that pass D21's legitimate
+"conditionally disabled with a named condition" row each have a live enabled branch
+above the disabled one — `Import estimate` (`:196` enabled / `:204` gated),
+`Send to Claude` (`:218` / `:226`) and `Generate report draft` (`:235` / `:251`).
+`SendToClaudeCondition` is computed per render from `sendToAiControl.IsEnabledAsync`
+plus a confirmed Engineer's Value (`Index.cshtml.cs:797-811`) — an Administrator DB
+switch, not the closed `Features:SendToAi` composition gate — so the Send-to-Claude
+path is genuinely delivered (posts to `OnPostSendToClaudeAsync` →
+`createAiJob.ExecuteAsync`, `Index.cshtml.cs:442`).
+
+### Findings that were NOT counted against this ticket
+
+This ticket's What closes the multi-estimate editor out in one sentence — "The
+multi-estimate editor is wave 4." — and its Estimates-pane clause is deliberately
+narrow ("the Estimates pane carrying the current single estimate/import +
+accept-specification handlers"). Its Owns contains exactly one Core file,
+`src/Pegasus.Core/Assessment/AssessmentWorkspace.cs`; it never owns `Estimates.cs`.
+
+- `IDuplicateEstimate` registered with no reachable consumer
+  (`DependencyInjection.cs:323`) — owned and named by [[ENG-026]]
+  (`Core/Assessment/Estimates.cs`, sole commit `bcee2ae2` "ENG-026: named
+  estimates…"); consumer owed by [[ENG-028]].
+- `IDiscardEstimate` registered with no reachable consumer — named in
+  [[ENG-026]]'s What, consumer owed by [[ENG-028]].
+- `ISetCurrentEstimate` registered with no reachable consumer — named in
+  [[ENG-026]]'s What, consumer owed by [[ENG-028]].
+- `JsonEstimateParser` registered with no page caller
+  (`DependencyInjection.cs:320`) — [[ENG-026]]'s What names "JSON estimate parser
+  beside the Audatex parser" and its Owns lists the file; the JSON/Other import
+  source selector is [[ENG-028]]'s "Import estimate dialog".
+- Estimate tabs / tablist / keyboard interaction absent — [[ENG-028]]'s What names
+  it verbatim. This ticket's What names only the removal of "the seven old section
+  tabs".
+- New estimate, Save estimate, staff editor fields/lines/totals absent —
+  [[ENG-028]]'s What.
+- Delete estimate control and confirmation dialog absent — [[ENG-028]]'s What.
+- Duplicate estimate control absent — [[ENG-028]]'s What.
+- Use estimate / set Current control absent — [[ENG-028]]'s What. The Current chip
+  this ticket does draw (`Index.cshtml:359`) is a display of the accepted
+  specification and is rendered.
+- Import estimate name/source selection absent — [[ENG-028]]'s What. This ticket
+  names only "Import estimate = existing handler", wired at `Index.cshtml:480`.
+- 1580/1100/760 three-width visual walk not performed — a Verification-box gap this
+  proof discloses honestly, but a verification-evidence question, not a rule-14
+  caller failure.
