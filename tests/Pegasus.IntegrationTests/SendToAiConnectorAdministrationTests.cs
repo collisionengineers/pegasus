@@ -87,6 +87,14 @@ public sealed partial class SendToAiIntegrationTests
             overrideReceiver.Requests,
             item => item.Path.StartsWith("/send", StringComparison.Ordinal));
         Assert.Equal($"Bearer {RotatedToken}", request.Authorization);
+        // AI-09 outbound guard: the hand-off body is a pointer, never the
+        // case content. The seeded case carries a claimant name, so this
+        // asserts the payload leaves it behind. It moved here with the
+        // hand-off itself when the Assessment page stopped triggering it
+        // (ENG-025); this is now the only end-to-end test of the body.
+        Assert.Contains("\"schema_version\":1", request.Body, StringComparison.Ordinal);
+        Assert.Contains("\"case_reference\":", request.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("claimant", request.Body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
             configuredReceiver.Requests,
             item => item.Path.StartsWith("/send", StringComparison.Ordinal));

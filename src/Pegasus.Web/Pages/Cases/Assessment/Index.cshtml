@@ -207,10 +207,10 @@
                 </button>
             </span>
         }
-        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+        <span class="gated" data-condition="@Model.EstimatingServiceCondition">
             <button type="button" class="btn" disabled aria-disabled="true">Glass's</button>
         </span>
-        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+        <span class="gated" data-condition="@Model.EstimatingServiceCondition">
             <button type="button" class="btn" disabled aria-disabled="true">Audatex</button>
         </span>
         @if (Model.SendToClaudeCondition is null)
