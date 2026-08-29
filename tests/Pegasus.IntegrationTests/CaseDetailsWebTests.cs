@@ -1462,7 +1462,7 @@ public sealed partial class CaseDetailsWebTests
                         ImagesConfirmedByStaff: false),
                     new(false, "case-completeness", 1)),
                 new(Confirmed("QDOS")),
-                new(Confirmed("Case claimant")),
+                new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),
                 new(Confirmed("CLM-42")),
                 new(
                     Confirmed("AB12CDE"),
