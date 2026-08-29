@@ -1007,5 +1007,7 @@ public static class OperatorLabels
         public const string ReviewDue = "Due";
 
         public static string State(bool isEnabled) => isEnabled ? Enabled : Disabled;
+
+        public const string PasswordChangeComplete = "Password change complete";
     }
 }

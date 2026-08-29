@@ -45,6 +45,12 @@ public sealed class IndexModel(
     /// <summary>The operation key the Create staff account form carries.</summary>
     public string CreateOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>The account targeted by the most recent role post.</summary>
+    public Guid RolePostStaffId { get; private set; }
+
+    /// <summary>The role-change reason kept over a rejected post.</summary>
+    public string RoleReason { get; private set; } = string.Empty;
+
     public Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         RunAsync(_ => Task.FromResult<string?>(null), cancellationToken);
 
@@ -80,8 +86,11 @@ public sealed class IndexModel(
         string[]? selectedRoles,
         string? reason,
         string? operationKey,
-        CancellationToken cancellationToken) =>
-        RunAsync(
+        CancellationToken cancellationToken)
+    {
+        RolePostStaffId = staffId;
+        RoleReason = reason ?? string.Empty;
+        return RunAsync(
             async actor =>
             {
                 if (!Validate(operationKey, reason) | !RequireStaffId(staffId))
@@ -114,6 +123,7 @@ public sealed class IndexModel(
                 return "Roles updated. Existing browser sessions were revoked.";
             },
             cancellationToken);
+    }
 
     public Task<IActionResult> OnPostDisableAsync(
         Guid staffId,

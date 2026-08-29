@@ -28,7 +28,7 @@
             @if (Model.Rows.Count == 0)
             {
                 <div class="empty">
-                    <h2>No staff accounts</h2>
+                    <h2>No staff accounts are available.</h2>
                 </div>
             }
             else
@@ -76,6 +76,10 @@
                                     {
                                         <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeRequired" />
                                     }
+                                    else
+                                    {
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeComplete" />
+                                    }
                                 </td>
                                 <td>
                                     @if (account.LastAccessReviewAtUtc is { } reviewedAtUtc)
@@ -96,7 +100,9 @@
                                         <input type="hidden" name="staffId" value="@staffId" />
                                         <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                         <label class="req" for="@roleReason">Reason</label>
-                                        <input id="@roleReason" name="reason" required maxlength="@reasonLimit" />
+                                        <input id="@roleReason" name="reason"
+                                               value="@(Model.RolePostStaffId == account.Id ? Model.RoleReason : string.Empty)"
+                                               required maxlength="@reasonLimit" />
                                         <button type="submit" class="btn">
                                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
                                             <span>Save</span>
@@ -173,6 +179,7 @@
             ["DialogTitle"] = "Disable " + account.UserName,
             ["DialogConsequence"] = "Disabling revokes existing browser sessions; the account is retained permanently.",
             ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Disable"),
+            ["DialogReasonMaxLength"] = reasonLimit,
             ["DialogHiddenFields"] = new Dictionary<string, string?>
             {
                 ["staffId"] = staffId,
@@ -185,6 +192,7 @@
         ["DialogId"] = "review-" + staffId,
         ["DialogTitle"] = "Record access review for " + account.UserName,
         ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Review"),
+        ["DialogReasonMaxLength"] = reasonLimit,
         ["DialogHiddenFields"] = new Dictionary<string, string?>
         {
             ["staffId"] = staffId,
