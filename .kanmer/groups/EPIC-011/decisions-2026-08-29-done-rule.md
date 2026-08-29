@@ -73,6 +73,48 @@ release 9 (2026-08-18), so MCP-tool callers behind that gate are real. It also r
 that no Principal has either EVA toggle enabled, so the EVA automatic-submission path
 is closed and nothing behind it is delivered.
 
+## D22 — The seam still renders as a disabled button
+
+Operator instruction, 2026-08-29: *"render as a button that's disabled."*
+
+D21 and this ruling are not in tension, and a later agent must not read them as
+such:
+
+- **Rendering:** an uncomposed integration seam renders as a real
+  `<button ... disabled>` — not a span, not omitted, not a link. D7 stands and the
+  shipped UI keeps matching the operator-approved prototype.
+- **Accounting:** that disabled button is still not a delivered capability. It
+  cannot satisfy rule 14 and cannot carry a ticket to Done.
+
+The distinction is *draw it* versus *claim it*. Draw it; never claim it.
+
+### Current state — already correct, no change required
+
+Verified on merged `dev` at `b92cb9a7`:
+
+```
+src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:211
+    <button type="button" class="btn" disabled aria-disabled="true">Glass's</button>
+src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml:214
+    <button type="button" class="btn" disabled aria-disabled="true">Audatex</button>
+```
+
+Both sit inside `<span class="gated" data-condition="...">`, so the reason is named
+on the control. These are the only permanently inert controls in the product today.
+
+The Experian seam (§1.8 Vehicle, ENG-001) is not yet rendered — the Vehicle view is
+CASE-027's scope and has not been built. When it lands it takes the same shape.
+
+### Convention for every future seam
+
+- A real `<button type="button" ... disabled aria-disabled="true">`.
+- Wrapped in `<span class="gated" data-condition="...">` naming why it is disabled.
+- The seam must be a **named, ticketed** integration (D7). An unticketed inert
+  control is still a defect.
+- Note `PLAT-061`: `.gated::after` renders `content: attr(data-condition)` with no
+  `[data-condition]` guard, so a `.gated` span with no condition paints an empty
+  pill. Always set `data-condition` when the control is disabled.
+
 ## Scope of rule 14
 
 - It binds **code** tickets. A documentation ticket (an FRD, an ADR, a design
