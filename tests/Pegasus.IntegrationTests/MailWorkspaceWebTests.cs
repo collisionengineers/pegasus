@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -262,6 +263,111 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(3, await context.IntakeMutationHistory.CountAsync(item => item.IntakeReceiptId == receiptId));
         Assert.Null((await context.CaseWorkflows.SingleAsync(item => item.CaseId == firstCaseId)).EditLeaseToken);
         Assert.Null((await context.CaseWorkflows.SingleAsync(item => item.CaseId == replacementCaseId)).EditLeaseToken);
+    }
+
+    [Fact]
+    public async Task LinkedPostReportMessageCreatesAQueryResponseJobAndShowsCaseJobs()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreMailClassificationAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxId + "-0",
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"),
+                [],
+                "The retained message is a post-report query.",
+                "mail-query-response-test",
+                1));
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services,
+            receiptId,
+            "AUTO14001",
+            nameof(CaseLifecycleState.PostReport));
+        using var client = CreateClient(factory);
+
+        var target = await GetHtmlAsync(
+            client,
+            $"/Inbox/{messageId:D}?caseQuery=AUTO14001&targetCaseId={caseId:D}");
+        var linkConfirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
+        var linkSubmission = AssociationSubmission(
+            linkConfirmation,
+            "LinkCase",
+            "The retained post-report query names this Case/PO.");
+        using var link = await client.PostAsync(
+            linkSubmission.Action,
+            new FormUrlEncodedContent(linkSubmission.Fields));
+        Assert.Equal(HttpStatusCode.Redirect, link.StatusCode);
+
+        var linked = await GetHtmlAsync(client, link.Headers.Location!.ToString());
+        Assert.Contains("handler=CreateQueryResponse", linked, StringComparison.Ordinal);
+        Assert.Contains(">Draft reply with AI</span>", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-ai-jobs-title\"", linked, StringComparison.Ordinal);
+        var createForm = AssociationForm(linked, "CreateQueryResponse");
+        using var create = await client.PostAsync(
+            AssociationAction(createForm, "CreateQueryResponse"),
+            new FormUrlEncodedContent(HiddenFields(createForm)));
+        Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var jobs = await scope.ServiceProvider
+                .GetRequiredService<IAiJobQueries>()
+                .ListForSubjectAsync(caseId, CancellationToken.None);
+            var job = Assert.Single(jobs);
+            Assert.Equal(AiJobKind.QueryResponse, job.Kind);
+            Assert.Equal(AiJobSubjectKind.Case, job.SubjectKind);
+            Assert.Equal(caseId, job.SubjectId);
+            Assert.Equal("AUTO14001", job.SubjectReference);
+            Assert.Equal(messageId.ToString("D"), job.Instruction);
+            Assert.Equal(ActorKind.Staff, job.CreatedByKind);
+            Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), job.CreatedBy);
+            Assert.Equal(AiJobState.Queued, job.State);
+        }
+
+        var rendered = await GetHtmlAsync(client, create.Headers.Location!.ToString());
+        Assert.Contains("AI reply job created.", rendered, StringComparison.Ordinal);
+        Assert.Contains("id=\"case-ai-jobs-title\"", rendered, StringComparison.Ordinal);
+        Assert.Contains(">Query response</td>", rendered, StringComparison.Ordinal);
+        Assert.Contains(">Queued</span>", rendered, StringComparison.Ordinal);
+        var jobsPanel = Between(
+            rendered,
+            "<section class=\"panel\" aria-labelledby=\"case-ai-jobs-title\">",
+            "</section>");
+        Assert.DoesNotContain(messageId.ToString("D"), jobsPanel, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task QueryResponsePostRefusesAMessageOutsideTheLinkedPostReportSource()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        using var client = CreateClient(factory);
+        var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+
+        Assert.DoesNotContain("handler=CreateQueryResponse", page, StringComparison.Ordinal);
+        using var response = await client.PostAsync(
+            $"/Inbox/{messageId:D}?handler=CreateQueryResponse",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(page),
+                ["operationKey"] = $"query-response:{Guid.NewGuid():N}"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "This message is not a linked post-report message.",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Empty(await context.AiJobs.ToListAsync());
     }
 
     [Fact]
