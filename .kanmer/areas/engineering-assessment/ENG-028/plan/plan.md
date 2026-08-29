@@ -97,3 +97,99 @@ No unapplied findings.
 
 - `7242dfba` — feat(assessment): wire named estimate editor
 - `e29ee083` — test(assessment): prove named estimate callers
+
+## Cross-model review and remediation — 2026-08-29
+
+A Claude-family reviewer (this lane was Codex-built) returned `REQUEST_CHANGES`
+with one blocker. Its central judgement went **in the lane's favour**: the
+deleted refusal test was justified, with three citations from ENG-026's own
+merged code proving several drafts may coexist, and `IDuplicateEstimate` could
+not exist otherwise. Rule 14 is satisfied at all five caller chains.
+
+The blocker was something nobody had looked at, and it took **three passes** to
+settle. Each intermediate state looked correct.
+
+### Pass 1 — the defect · the editor destroyed imported evidence
+
+`ReadEditorPost` hard-coded `null` for `GuideCode`, `Betterment`, `Status`,
+`EvidenceLabel` and `Justification`, and `false` for `Unpriced`. Verified: the
+page model mentioned **zero** of those five fields.
+`EfRepairSpecificationStore.SaveEstimateAsync` does
+`RemoveRange(entity.Lines); entity.Lines.Clear();` and re-adds from the request.
+
+So the ticket's own primary journey — import an Audatex PDF, adjust one labour
+hour, save — destroyed the guide code, betterment, provisional status, evidence
+label and To-be-confirmed flag on **every line**, while the estimate's provenance
+continued asserting those lines came from that document. Operator-visible: the
+read-only view renders Code and Betterment columns the editor does not have.
+
+### Pass 2 — the fix · carry the fields forward by persisted line id
+
+The editor now posts each line's existing `CaseEstimateLineRecord.Id` and the
+handler carries the unrendered fields forward from the matching line. **Matching
+is by stable persisted id, not position** — so removed and reordered rows are
+safe, a new row has no id and no earlier evidence to preserve, and a foreign id
+matches nothing in the *selected* estimate's dictionary and so cannot borrow
+another line's evidence.
+
+Proven against the pre-fix code: `expected guide code "12 34 567", actual null`.
+
+### Pass 3 — the fix's own defect · `Unpriced` was preserved too well
+
+Caught by the orchestrator reviewing the remediation. `Unpriced` was carried
+forward **unconditionally**, but `AssessmentPolicy.cs:488` refuses a line that is
+both marked To be confirmed and priced:
+
+> "A line marked To be confirmed cannot also carry a price."
+
+`linePartPounds` (`Index.cshtml:506`) is a real editor input, so an operator
+pricing an imported to-be-confirmed line would produce exactly that combination.
+The refusal is reached in production through `EstimatePolicy.ValidateSave`, which
+routes `request.Lines` through
+`AssessmentPolicy.NormalizeRepairSpecificationLines` (`Estimates.cs:187`).
+
+**Before the remediation this worked** (while destroying the flag); after it, the
+save would have been refused. A regression introduced by the fix.
+
+Now `Unpriced = previous.Unpriced && line.Price is null` — carried forward only
+while the line still has no price. The other five fields are unaffected.
+
+New test `PricingAnImportedUnpricedLineClearsItsToBeConfirmedFlag`:
+
+```
+pre-fix:   Assert.False() Failure — Expected: False, Actual: True
+post-fix:  AssessmentEstimateImportWebTests — 11 passed, 0 failed
+```
+
+**Scope of that evidence, stated so it is not read as more than it is:** the
+suite's `RecordingStores` is a fake `ISaveEstimate` and does not run Core policy,
+so the test demonstrates the invalid combination being *constructed* — the
+precondition — not the refusal itself. The refusal is established by the call
+chain above, not by this test.
+
+### Medium — raw internals in operator copy · **FIXED**
+
+All four new handlers now use `MutationRefusalMessage` (`:743`, `:806`, `:851`,
+`:893`), which the file's own doc comment says exists because "version and lease
+conflicts carry internals". The import handler already used it; the four new ones
+did not. Without this an Engineer would see text like *"Case '3f2b8c1a-…' is at
+version 9, not expected version 7."*
+
+### Smaller items
+
+- Qty input `min="0"` → `min="1"`, matching Core's refusal (`Index.cshtml:503`).
+- The duplicated seven-row totals `<dl>` replaced by a shared
+  `RenderEstimateTotals` helper (`:681`), following the file's existing
+  `RenderSpecificationLines` convention.
+- `files/files.md` correction, reported rather than self-edited: the two lines
+  are new switch arms on the shared top-level
+  `OperatorLabels.RepairSpecificationRoute`, **not** "two lines appended inside
+  this lane's own nested class".
+
+### Process note — the worktree moved mid-remediation
+
+The remediating agent reported that `origin/dev` advanced under it during work
+(`1d7d50d1`). That was the orchestrator merging `dev` into the worktree while the
+remediation was running — the same error made on CASE-027's worktree during its
+review. **Do not touch a worktree with a review or remediation in flight.** The
+agent rebuilt and re-ran after the merge, so its numbers stand.
