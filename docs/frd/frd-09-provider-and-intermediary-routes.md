@@ -82,7 +82,10 @@ HTTP already holds the fields, and states them.
   API-04 issued once. Unknown key, wrong secret, revoked credential, or
   inactive Principal is refused as 401 with a recorded security event that
   names the key id when one was well-formed and never the secret. Requests
-  are rate-limited per key id.
+  are rate-limited per calling address: the limiter runs before
+  authentication, so a presented key id is a claim, not an identity, and
+  partitioning on it would let a caller spend another provider's budget or
+  mint itself a fresh one per request.
 - **Submit.** `POST /api/provider/v1/submissions` as `application/json`, with a
   required `Idempotency-Key` header (at most 200 characters, unique per
   Principal). The body declares the instruction and carries its files inline as

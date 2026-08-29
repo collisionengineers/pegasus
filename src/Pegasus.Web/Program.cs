@@ -361,19 +361,21 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
-    // Partitioned by the presented key id so one provider cannot exhaust
-    // another's budget; a request without a well-shaped secret shares the
-    // caller address's partition instead.
+    // The limiter runs before authentication, so a presented key id is a claim
+    // and not an identity, and it cannot be the partition: naming another
+    // provider's key id would spend that provider's budget with forged
+    // secrets, and minting a fresh well-formed key id per request would hand
+    // the caller a fresh budget each time and bound nothing at all. The
+    // partition is the calling address, as it already is for staff sign-in and
+    // the MCP ingress.
     options.AddPolicy(
         ProviderApi.RateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
-            ProviderApi.TryReadKeyId(context.Request.Headers.Authorization.ToString())
-                ?? context.Connection.RemoteIpAddress?.ToString()
-                ?? "unknown",
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = ProviderApi.RequestsPerKeyPerMinute,
+                PermitLimit = ProviderApi.RequestsPerCallerPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
