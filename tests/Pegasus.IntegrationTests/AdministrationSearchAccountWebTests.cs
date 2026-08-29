@@ -24,7 +24,6 @@ public sealed class AdministrationSearchAccountWebTests
                  {
                      "/Administration/Configuration",
                      "/Administration/Mailboxes",
-                     "/Administration/MailCategories",
                      "/Account/PasswordChange"
                  })
         {
@@ -38,7 +37,15 @@ public sealed class AdministrationSearchAccountWebTests
         var administrationHtml = await administration.Content.ReadAsStringAsync();
         Assert.Contains("/Administration/Configuration", administrationHtml, StringComparison.Ordinal);
         Assert.Contains("/Administration/Mailboxes", administrationHtml, StringComparison.Ordinal);
-        Assert.Contains("/Administration/MailCategories", administrationHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Administration/MailCategories", administrationHtml, StringComparison.Ordinal);
+
+        // PLAT-026 consolidated Mail categories into the Mail settings area, so the
+        // old route is a permanent redirect rather than a rendered page.
+        using var retiredCategories = await client.GetAsync("/Administration/MailCategories");
+        Assert.Equal(HttpStatusCode.MovedPermanently, retiredCategories.StatusCode);
+        Assert.Equal(
+            "/Administration/Mailboxes",
+            retiredCategories.Headers.Location?.OriginalString ?? string.Empty);
 
         using var shell = await client.GetAsync("/");
         var shellHtml = await shell.Content.ReadAsStringAsync();
@@ -56,7 +63,6 @@ public sealed class AdministrationSearchAccountWebTests
                  {
                      "/Administration/Configuration",
                      "/Administration/Mailboxes",
-                     "/Administration/MailCategories",
                      "/Account/PasswordChange"
                  })
         {
