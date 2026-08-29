@@ -26,6 +26,8 @@ groups:
 links:
   - TICK-061
   - DELIV-032
+  - AUTO-012
+  - AUTO-013
 blocks:
   - TICK-060
 refs:
@@ -41,11 +43,18 @@ commits:
   - c5011932
   - df978b43
   - afc0dc10
+  - f3446890
+  - 15ff2048
+  - 1159414f
+  - b71cc4b1
+  - 63009b02
+  - 2e7d29dc
+  - e9f5febc
 prs:
   - '594'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-28T21:58:56.442Z'
+updated: '2026-08-29T08:45:56.952Z'
 ---
 
 ## What

@@ -179,3 +179,42 @@ merge) and `afc0dc10` (the BOM restore).
 **Not done, deliberately.** No `proof` document — proof is written on merged
 `main` after review and merge, and this PR has not been reviewed. The ticket was
 not moved toward Done.
+
+## 2026-08-29 — adversarial verification remediation (round 2)
+
+Verifier verdict was `needs-work`. All findings accepted; dispositions in the
+plan under "Review findings — dispositions (round 2)".
+
+Six commits, `afc0dc10..e9f5febc`, pushed to `task/tick-058-provider-submission-api`:
+
+- `f3446890` narrow the case-note guard back to Staff or Provider; restore
+  `AnAutomationActorCannotWriteAnOperatorNote` byte-for-byte.
+- `15ff2048` grant the Web role `UPDATE` on `ProviderSubmissions` (migration +
+  bootstrap census, same diff as the schema).
+- `1159414f` rate-limit by calling address, not by a claimed key id.
+- `b71cc4b1` a declared Triage no longer also opens an Unidentified item.
+- `63009b02` an Audit must attach exactly one original report.
+- `2e7d29dc` `Provider API` provenance and channel labels.
+- `e9f5febc` restore the seven remaining stripped BOMs.
+
+Two tickets created and cited: AUTO-012 (non-atomic accept path), AUTO-013
+(snapshot work provider, paused-credential body read, existing-case matching).
+
+Two defects reproduced before being fixed, so the tests are real:
+`Assert.Throws() Failure: No exception was thrown` (exactly-one report) and
+`Expected: 0, Actual: 1` (Unidentified item beside the declared Triage).
+
+Not done, deliberately: no PR merged, no ticket moved to done, no `proof` doc
+written. The PR is still blocked on the independent review AGENTS.md step 5
+requires — it has never run against the rewritten contract or against this
+round.
+
+One environment note for the orchestrator: a stale MSBuild node-reuse process
+(PID 15444) held this worktree's `Pegasus.Core.dll` and silently failed a
+rebuild while `dotnet test` kept passing against the previous assembly. Killed
+it and re-ran everything on a clean `--no-incremental` build; the numbers
+recorded are from that build.
+
+Correction to the note above: **seven** commits, not six —
+`f3446890`, `15ff2048`, `1159414f`, `b71cc4b1`, `63009b02`, `2e7d29dc`,
+`e9f5febc`. The list itself was right; the count was not.
