@@ -161,3 +161,55 @@ as browser-verified until its own CI completes.
 - **Disposition:** no further behaviour-preserving simplification was found.
   `git diff --check` passed; the remediation is 63 insertions and 10
   deletions across six files.
+
+## Merge repair — 2026-08-29 (post AUTO-006 merge, PR #619 CONFLICTING)
+
+`origin/dev` advanced (PLAT-054, TICK-058, INTK-001, PLAT-052, AUTO-006 merged)
+while this PR was `ready-to-merge`. Ran `git fetch origin && git merge
+origin/dev --no-edit` in the ticket worktree.
+
+- **Conflict:** `src/Pegasus.Web/Presentation/OperatorLabels.cs` — this
+  lane's `StaffAccounts` nested static class collided with AUTO-006's
+  `AutomationAdmin` nested static class, both appended at the same location.
+  Resolved by keeping both classes intact, side by side, each with its own
+  closing brace; reordered nothing; no member renamed or dropped. Diffed
+  both pre-merge versions (`HEAD` and `origin/dev`) against the resolved
+  file to confirm every const/method survived verbatim.
+- **Round-2 shape re-confirmed:** the accounts empty-state token ("No staff
+  accounts are available.") in
+  `src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml` still lives
+  only inside `@if (Model.Rows.Count == 0) { ... }` (lines 28-33) — this file
+  had no merge conflict, untouched by the incoming lanes.
+- **Build:** `dotnet build ./Pegasus.slnx --configuration Release` fails —
+  but on a pre-existing `origin/dev` defect, not on anything this merge
+  touched (see Defects section below). Built
+  `tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj` directly
+  (Release) instead: 0 warnings, 0 errors.
+- **Tests:** `dotnet test
+  tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+  --configuration Release --no-build --filter
+  "FullyQualifiedName~StaffAccountsAndRolesWebTests"` →
+  **Passed! Failed: 0, Passed: 4, Skipped: 0, Total: 4** (55s).
+- Pushed `9b0b2132` (merge commit) to
+  `task/plat-027-staff-accounts-roles`; PR #619 is back to `MERGEABLE`.
+  Did not merge.
+
+### Defect found outside this lane (reported, not fixed)
+
+`dotnet build ./Pegasus.slnx --configuration Release` fails solution-wide:
+
+```
+tests\Pegasus.Core.Tests\ProviderApi\ProviderSubmissionTests.cs(284,13):
+error CS1739: The best overload for 'QueuedIntakeStatus' does not have a
+parameter named 'CaseId'
+```
+
+`QueuedIntakeStatus` (`src/Pegasus.Core/Intake/DurableIntake.cs:93`) has no
+`CaseId` parameter; `ProviderSubmissionTests.cs:284` constructs one with
+`CaseId: null`. Confirmed both files are byte-identical between this
+branch's merge commit and `origin/dev` (`git show HEAD:<path>` vs `git show
+origin/dev:<path>` — no diff) — this lane never touched either file. Traced
+to TICK-058 (`63009b02 fix(provider-api): an Audit must attach exactly one
+original report`, already on `origin/dev`). Outside PLAT-027's scope per
+hard rule "touch only your lane's files" — reporting for TICK-058's owner to
+fix, not fixing here.
