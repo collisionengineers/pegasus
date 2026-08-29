@@ -18,7 +18,8 @@ labels:
   - work-centre
 groups:
   - EPIC-011
-links: []
+links:
+  - PLAT-058
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
@@ -32,11 +33,13 @@ commits:
   - 5a9ff906
   - 11f1f7de
   - b8c0cf77
+  - 8fb3dd4e
+  - 682668dd
 prs:
   - '#610'
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-08-28T21:34:48.800Z'
+updated: '2026-08-29T08:27:58.466Z'
 ---
 
 ## What
