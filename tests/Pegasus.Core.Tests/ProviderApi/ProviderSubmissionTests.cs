@@ -579,6 +579,9 @@ public sealed class ProviderSubmissionTests
         Assert.Equal(2, result.Candidates);
         Assert.Equal(1, result.Repaired);
         Assert.Equal(1, result.Failures);
+        // The count alone cannot tell a missing grant from a dropped
+        // connection, and the sweep swallows both.
+        Assert.Equal("IOException: temporary database failure", result.FirstFailure);
         Assert.Null(store.Records[failedId].StagedReceiptId);
         Assert.NotNull(store.Records[repairedId].StagedReceiptId);
         Assert.Equal(repairedId.ToString("D"), Assert.Single(history.Entries).AggregateId);

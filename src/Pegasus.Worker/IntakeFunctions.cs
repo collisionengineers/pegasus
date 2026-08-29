@@ -233,7 +233,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
             logger,
             providerSubmissions.Candidates,
             providerSubmissions.Repaired,
-            providerSubmissions.Failures);
+            providerSubmissions.Failures,
+            providerSubmissions.FirstFailure);
     }
 
     [LoggerMessage(
@@ -277,12 +278,16 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int resolved,
         int failures);
 
+    // The cause travels with the count: a failure the sweep swallowed is
+    // invisible in every environment that runs with real grants, and a bare
+    // count cannot tell a missing permission from a dropped connection.
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Reconciled provider submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures.")]
+        Message = "Reconciled provider submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures. First failure: {FirstFailure}")]
     private static partial void LogProviderSubmissionReconciliation(
         ILogger logger,
         int candidates,
         int repaired,
-        int failures);
+        int failures,
+        string? firstFailure);
 }
