@@ -49,8 +49,7 @@ public sealed partial class OperationsWebTests
         Assert.Contains("Operations", html, StringComparison.Ordinal);
         Assert.Contains("Attention required", html, StringComparison.Ordinal);
         Assert.Contains("Active upload links", html, StringComparison.Ordinal);
-        // The AI Job List is PLAT-049's to add; until it is composed it is
-        // absent, not announced by a placeholder section.
+        // The composed list has no superseded placeholder heading or copy.
         Assert.DoesNotContain("AI operations", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
         // This host does not compose the service-health snapshot (it rides
@@ -144,13 +143,17 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         Assert.Contains("AI Job List", html, StringComparison.Ordinal);
-        // Three non-terminal jobs and the one that reached a terminal state
-        // today; the job cancelled a week ago is not on the list (FRD-11).
-        Assert.Contains("4 jobs", html, StringComparison.Ordinal);
+        // Three non-terminal jobs, the job explicitly completed today and the
+        // queued job that effectively expired today; the job cancelled a week
+        // ago is not on the list (FRD-11).
+        Assert.Contains("5 jobs", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified resolution", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified-queue pass", html, StringComparison.Ordinal);
         Assert.Contains(RecordingAiWorkStore.UnidentifiedReference, html, StringComparison.Ordinal);
         Assert.Contains(RecordingAiWorkStore.CompletedInstruction, html, StringComparison.Ordinal);
+        var expiredRow = RowContaining(html, RecordingAiWorkStore.ExpiredInstruction);
+        Assert.Contains("Expired", expiredRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("<form", expiredRow, StringComparison.Ordinal);
         Assert.DoesNotContain(RecordingAiWorkStore.LastWeekInstruction, html, StringComparison.Ordinal);
     }
 
@@ -227,13 +230,16 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         Assert.Contains("Send Unidentified to AI", html, StringComparison.Ordinal);
-        Assert.Contains(aiWork.OpenUnidentifiedId.ToString("D"), html, StringComparison.Ordinal);
+        Assert.Contains("name=\"unidentifiedReference\"", html, StringComparison.Ordinal);
+        // The global rail count is the only queue enumeration on GET; this
+        // page resolves one indexed reference only when the action is posted.
+        Assert.Equal(1, aiWork.QueueListCalls);
 
         using var response = await client.PostAsync(
             "/Operations?handler=SendUnidentifiedToAi",
             Form(
                 AntiforgeryValue(html),
-                ("unidentifiedId", aiWork.OpenUnidentifiedId.ToString("D")),
+                ("unidentifiedReference", RecordingAiWorkStore.UnidentifiedReference),
                 ("operationKey", OperationKeyValue(html))));
 
         AssertPrg(response, "/Operations");
@@ -244,10 +250,11 @@ public sealed partial class OperationsWebTests
         Assert.Equal(aiWork.OpenUnidentifiedId, command.SubjectId);
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
         Assert.False(string.IsNullOrWhiteSpace(command.Instruction));
+        Assert.Equal(1, aiWork.ReferenceLookupCalls);
     }
 
     [Fact]
-    public async Task SendUnidentifiedToAiIsNotDrawnWithoutAnOpenItemToName()
+    public async Task SendUnidentifiedToAiRefusesAReferenceThatIsNotOpen()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingOperationsStore();
@@ -258,7 +265,21 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         Assert.Contains("AI Job List", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Send Unidentified to AI", html, StringComparison.Ordinal);
+        // The prior absence contract depended on enumerating the open queue on
+        // GET. The bounded form is always present and refuses a closed or
+        // missing reference through the indexed lookup below.
+        Assert.Contains("Send Unidentified to AI", html, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync(
+            "/Operations?handler=SendUnidentifiedToAi",
+            Form(
+                AntiforgeryValue(html),
+                ("unidentifiedReference", RecordingAiWorkStore.UnidentifiedReference),
+                ("operationKey", OperationKeyValue(html))));
+
+        AssertPrg(response, "/Operations");
+        Assert.Null(aiWork.Created);
+        Assert.Equal(1, aiWork.ReferenceLookupCalls);
     }
 
     [Fact]
@@ -275,7 +296,7 @@ public sealed partial class OperationsWebTests
             "/Operations?handler=SendUnidentifiedToAi",
             Form(
                 AntiforgeryValue(html),
-                ("unidentifiedId", aiWork.OpenUnidentifiedId.ToString("D")),
+                ("unidentifiedReference", RecordingAiWorkStore.UnidentifiedReference),
                 ("operationKey", OperationKeyValue(html))));
 
         AssertPrg(response, "/Operations");
@@ -698,8 +719,9 @@ public sealed partial class OperationsWebTests
         IUnidentifiedStore
     {
         public const string CaseReference = "QD31002";
-        public const string UnidentifiedReference = "U-000412";
+        public const string UnidentifiedReference = "U412";
         public const string CompletedInstruction = "Draft the estimate that was already accepted.";
+        public const string ExpiredInstruction = "A queued job expired without being claimed.";
         public const string LastWeekInstruction = "A job cancelled a week ago.";
         public const long QueuePassVersion = 2;
         public const long QueuedResolutionVersion = 1;
@@ -708,8 +730,11 @@ public sealed partial class OperationsWebTests
         public Guid QueuedResolutionJobId { get; } = Guid.NewGuid();
         public Guid QueuePassDraftJobId { get; } = Guid.NewGuid();
         public Guid CompletedTodayJobId { get; } = Guid.NewGuid();
+        public Guid ExpiredTodayJobId { get; } = Guid.NewGuid();
         public Guid CancelledLastWeekJobId { get; } = Guid.NewGuid();
         public Guid OpenUnidentifiedId { get; } = Guid.NewGuid();
+        public Guid UnidentifiedOriginId { get; } = Guid.NewGuid();
+        public Guid UnidentifiedCreatorId { get; } = Guid.NewGuid();
         public Guid SubjectCaseId { get; } = Guid.NewGuid();
 
         public bool HasOpenUnidentified { get; init; } = true;
@@ -718,6 +743,8 @@ public sealed partial class OperationsWebTests
         public CreateAiJobCommand? Created { get; private set; }
         public ConfirmAiJobCommand? Confirmed { get; private set; }
         public CancelAiJobCommand? Cancelled { get; private set; }
+        public int QueueListCalls { get; private set; }
+        public int ReferenceLookupCalls { get; private set; }
 
         private IReadOnlyList<AiJobRecord> All =>
         [
@@ -765,6 +792,16 @@ public sealed partial class OperationsWebTests
                 version: 6,
                 closedAtUtc: FixedUtcNow.AddMinutes(-30)),
             Job(
+                ExpiredTodayJobId,
+                AiJobKind.UnidentifiedResolution,
+                AiJobSubjectKind.Unidentified,
+                OpenUnidentifiedId,
+                UnidentifiedReference,
+                ExpiredInstruction,
+                AiJobState.Expired,
+                FixedUtcNow.AddHours(-25),
+                version: 1),
+            Job(
                 CancelledLastWeekJobId,
                 AiJobKind.QueryResponse,
                 AiJobSubjectKind.Case,
@@ -779,7 +816,7 @@ public sealed partial class OperationsWebTests
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(
-                All.Where(job => !AiJobStates.IsTerminal(job.State))
+                All.Where(job => job.ClosedAtUtc is null)
                     .OrderBy(job => job.CreatedAtUtc)
                     .ToArray());
 
@@ -831,8 +868,10 @@ public sealed partial class OperationsWebTests
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<UnidentifiedQueueRow>>(HasOpenUnidentified
+            CancellationToken cancellationToken = default)
+        {
+            QueueListCalls++;
+            return Task.FromResult<IReadOnlyList<UnidentifiedQueueRow>>(HasOpenUnidentified
                 ?
                 [
                     new(
@@ -846,10 +885,11 @@ public sealed partial class OperationsWebTests
                         UnidentifiedReasonCode.NoUsableIdentification)
                 ]
                 : []);
+        }
 
-        // The Operations page reads the queue and nothing else. Every other
-        // member of the port throws rather than answering quietly, so a call
-        // this page should never make fails the test that made it.
+        // The rail lists the queue once per request; the Operations action
+        // resolves one canonical reference. Every other port member throws so
+        // an unexpected call fails the test that made it.
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -872,7 +912,30 @@ public sealed partial class OperationsWebTests
 
         public Task<UnidentifiedItem?> GetByReferenceAsync(
             string reference,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            ReferenceLookupCalls++;
+            return Task.FromResult(HasOpenUnidentified
+                && string.Equals(reference, UnidentifiedReference, StringComparison.Ordinal)
+                    ? new UnidentifiedItem(
+                        OpenUnidentifiedId,
+                        412,
+                        UnidentifiedReference,
+                        UnidentifiedOrigin.Receipt(UnidentifiedOriginId),
+                        UnidentifiedReasonCode.NoUsableIdentification,
+                        "The received instruction has no usable Case reference.",
+                        UnidentifiedState.Open,
+                        FixedUtcNow.AddHours(-4),
+                        ResolvedAtUtc: null,
+                        ActionActor.Staff(UnidentifiedCreatorId, [StaffRole.User]),
+                        ResolvedBy: null,
+                        ResolutionReason: null,
+                        ResolutionTargetKind: null,
+                        ResolutionTargetId: null,
+                        ResolutionTargetReference: null,
+                        Version: 1)
+                    : null);
+        }
 
         public Task<UnidentifiedItem?> GetByOriginAsync(
             UnidentifiedOrigin origin,
