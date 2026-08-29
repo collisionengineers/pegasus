@@ -82,9 +82,11 @@ public sealed partial class OperationsWebTests
         // never reads it.
         Assert.DoesNotContain("Intake dispatch", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Automation ingress", html, StringComparison.Ordinal);
-        // The retryable custody failure is one row, and its control is the
-        // same RetryExternal command the Attention required table carries.
+        // Service health has no view target, so it has no action column. The
+        // retryable custody failure is actionable from Attention required.
         Assert.Contains("Vehicle lookup", html, StringComparison.Ordinal);
+        Assert.Contains("Retry this work", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span class=\"sr-only\">Action</span>", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             "/Operations?handler=RetryExternal",
@@ -99,6 +101,31 @@ public sealed partial class OperationsWebTests
         Assert.Equal(store.ExternalWorkId, command.WorkItemId);
         Assert.Equal(store.ExternalAttemptCount, command.ExpectedAttemptCount);
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
+    }
+
+    [Fact]
+    public async Task EvaHandoffsShowsOnlyRecordedHealthFacts()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        var evaSubmissions = new RecordingEvaSubmissions();
+        using var factory = Configure(baseFactory, store, evaSubmissions: evaSubmissions);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Contains("EVA handoffs", html, StringComparison.Ordinal);
+        Assert.Contains("Pending work", html, StringComparison.Ordinal);
+        Assert.Contains("Latest activity", html, StringComparison.Ordinal);
+        Assert.Contains("Failures", html, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.OfficeTime(evaSubmissions.FailureAtUtc),
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(evaSubmissions.FailureCaseId.ToString("D"), html, StringComparison.Ordinal);
+        Assert.DoesNotContain(evaSubmissions.FailureCode, html, StringComparison.Ordinal);
+        Assert.Equal(1, evaSubmissions.ActivityCalls);
+        Assert.Equal(1, evaSubmissions.RecentFailuresCalls);
     }
 
     [Fact]
@@ -155,6 +182,22 @@ public sealed partial class OperationsWebTests
         Assert.Contains("Expired", expiredRow, StringComparison.Ordinal);
         Assert.DoesNotContain("<form", expiredRow, StringComparison.Ordinal);
         Assert.DoesNotContain(RecordingAiWorkStore.LastWeekInstruction, html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AiJobListOmitsTheEmptyStateAndTableWhenThereAreNoJobs()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        var aiWork = new RecordingAiWorkStore { HasJobs = false };
+        using var factory = Configure(baseFactory, store, aiWork: aiWork);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Contains("AI Job List", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No AI jobs", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<caption class=\"sr-only\">AI Job List</caption>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -331,6 +374,28 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
+    public async Task CompleteAiJobRefusesAJobWhoseDraftNeedsARecordAction()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        var aiWork = new RecordingAiWorkStore();
+        using var factory = Configure(baseFactory, store, aiWork: aiWork);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        using var response = await client.PostAsync(
+            "/Operations?handler=CompleteAiJob",
+            Form(
+                AntiforgeryValue(html),
+                ("jobId", aiWork.EstimateDraftJobId.ToString("D")),
+                ("expectedVersion", "3"),
+                ("operationKey", OperationKeyValue(html))));
+
+        AssertPrg(response, "/Operations");
+        Assert.Null(aiWork.Confirmed);
+    }
+
+    [Fact]
     public async Task CancelAiJobCarriesTheOperatorReason()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -421,7 +486,8 @@ public sealed partial class OperationsWebTests
         IntakeWebApplicationFactory baseFactory,
         RecordingOperationsStore store,
         bool withServiceHealth = false,
-        RecordingAiWorkStore? aiWork = null) => baseFactory.WithWebHostBuilder(builder =>
+        RecordingAiWorkStore? aiWork = null,
+        RecordingEvaSubmissions? evaSubmissions = null) => baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 if (aiWork is not null)
@@ -436,6 +502,11 @@ public sealed partial class OperationsWebTests
                     services.AddSingleton<IConfirmAiJob>(aiWork);
                     services.AddSingleton<ICancelAiJob>(aiWork);
                     services.AddSingleton<IUnidentifiedStore>(aiWork);
+                }
+                if (evaSubmissions is not null)
+                {
+                    services.RemoveAll<IEvaSubmissionQueries>();
+                    services.AddSingleton<IEvaSubmissionQueries>(evaSubmissions);
                 }
                 services.RemoveAll<IEmailOperationsProjectionStore>();
                 services.RemoveAll<IRequestOperationsProjectionStore>();
@@ -738,6 +809,8 @@ public sealed partial class OperationsWebTests
         public Guid SubjectCaseId { get; } = Guid.NewGuid();
 
         public bool HasOpenUnidentified { get; init; } = true;
+
+        public bool HasJobs { get; init; } = true;
         public bool RefuseCreate { get; init; }
 
         public CreateAiJobCommand? Created { get; private set; }
@@ -746,8 +819,9 @@ public sealed partial class OperationsWebTests
         public int QueueListCalls { get; private set; }
         public int ReferenceLookupCalls { get; private set; }
 
-        private IReadOnlyList<AiJobRecord> All =>
-        [
+        private IReadOnlyList<AiJobRecord> All => HasJobs
+            ?
+            [
             Job(
                 EstimateDraftJobId,
                 AiJobKind.Estimate,
@@ -812,7 +886,8 @@ public sealed partial class OperationsWebTests
                 FixedUtcNow.AddDays(-7).AddHours(-1),
                 version: 2,
                 closedAtUtc: FixedUtcNow.AddDays(-7))
-        ];
+            ]
+            : [];
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(
@@ -985,6 +1060,39 @@ public sealed partial class OperationsWebTests
                 closedAtUtc,
                 ClosureReason: null,
                 version);
+    }
+
+    private sealed class RecordingEvaSubmissions : IEvaSubmissionQueries
+    {
+        public Guid FailureCaseId { get; } = Guid.Parse("3f6e5d14-fb09-4cda-9c04-b39b6c9d8dca");
+        public string FailureCode { get; } = "eva_rejected";
+        public DateTimeOffset FailureAtUtc { get; } = FixedUtcNow.AddMinutes(-10);
+        public int ActivityCalls { get; private set; }
+        public int RecentFailuresCalls { get; private set; }
+
+        public Task<EvaSubmissionRecord?> GetLatestAsync(
+            Guid caseId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EvaSubmissionRecord?>(null);
+
+        public Task<IReadOnlyList<EvaSubmissionFailure>> GetRecentFailuresAsync(
+            DateTimeOffset sinceUtc,
+            int maximumResults,
+            CancellationToken cancellationToken = default)
+        {
+            RecentFailuresCalls++;
+            return Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>(
+            [
+                new(FailureCaseId, EvaSubmissionOutcome.Rejected, FailureCode, FailureAtUtc)
+            ]);
+        }
+
+        public Task<EvaSubmissionActivity> GetActivityAsync(
+            CancellationToken cancellationToken = default)
+        {
+            ActivityCalls++;
+            return Task.FromResult(new EvaSubmissionActivity(2, FixedUtcNow));
+        }
     }
 
     /// <summary>
