@@ -34,24 +34,23 @@ public sealed class AddCaseNoteTests
                 CancellationToken.None));
 
     /// <summary>
-    /// Operator decision, 2026-08-28: every actor that may act on a case may say
-    /// why on its timeline. The earlier rule admitted Staff only; the Automation
-    /// Actor and the system already write to this timeline, and an instructing
-    /// Principal's note is the instruction's own words. Each event records its
-    /// actor kind and subject, so a reader always sees who wrote which note.
+    /// The rule this asserts is unchanged: the Automation Actor holds casework
+    /// rights and records what it does under its own events, so it may not also
+    /// author an operator note. TICK-058 widened the guard by exactly one kind
+    /// (below) and left this one denied.
     /// </summary>
     [Fact]
-    public async Task AnAutomationActorMayWriteANote()
-    {
-        var store = new RecordingStore();
+    public async Task AnAutomationActorCannotWriteAnOperatorNote() =>
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            Command(new RecordingStore()).ExecuteAsync(
+                new(Guid.NewGuid(), ActionActor.Automation("automation"), "note-4", "A note."),
+                CancellationToken.None));
 
-        await Command(store).ExecuteAsync(
-            new(Guid.NewGuid(), ActionActor.Automation("automation"), "note-4", "A note."),
-            CancellationToken.None);
-
-        Assert.Equal(ActorKind.Automation, store.Last?.Actor.Kind);
-    }
-
+    /// <summary>
+    /// The one kind admitted beside Staff (operator decision, 2026-08-28): the
+    /// instructing Principal's own words about this job, written onto the case
+    /// its instruction created.
+    /// </summary>
     [Fact]
     public async Task AProviderMayWriteTheNoteItSubmittedWithItsInstruction()
     {

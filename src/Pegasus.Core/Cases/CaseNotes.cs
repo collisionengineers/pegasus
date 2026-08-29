@@ -45,19 +45,25 @@ public sealed class AddCaseNote(ICaseNoteStore store, TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Actor);
-        // Every actor that may act on a case may say why on its timeline
-        // (operator decision, 2026-08-28). An earlier rule admitted Staff only,
-        // to keep "machine text where a colleague's words are expected" — but
-        // the Automation Actor and the system already write to this timeline,
-        // and an instructing Principal's own note is neither machine text nor a
-        // colleague's: it is the instruction's own words, and withholding it
-        // loses what the provider actually said. The event records the actor
-        // kind and subject, so a reader always sees who wrote which note.
+        // The operator asked for a note a *user* writes. The Automation Actor
+        // holds casework rights and already records what it does on this same
+        // timeline under its own events; letting it author a note as well would
+        // put machine text where a colleague's words are expected.
+        //
+        // One kind is admitted beside Staff: the instructing Principal
+        // (operator decision, 2026-08-28, TICK-058). A provider's note is not
+        // machine text — it is the instruction's own words about this job, and
+        // withholding it loses what the provider actually said. It is admitted
+        // on its own right, so no other Provider API permission follows from it.
         StaffAuthorization.Require(
             request.Actor,
             request.Actor.Kind == ActorKind.Provider
                 ? StaffAccessRight.SubmitProviderInstruction
                 : StaffAccessRight.PerformCasework);
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Provider))
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+        }
 
         if (request.CaseId == Guid.Empty)
         {
