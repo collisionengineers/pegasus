@@ -11,7 +11,8 @@ namespace Pegasus.Web.Pages;
 public sealed class UploadStatusModel(
     IQueuedIntakeStatusQueries queries,
     IUploadOutcomeQueries outcomeQueries,
-    IUploadCaseDecision caseDecision) : UploadConfirmationPageModel(caseDecision)
+    IUploadCaseDecision caseDecision,
+    TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
     public bool IsDuplicate { get; private set; }
@@ -23,12 +24,14 @@ public sealed class UploadStatusModel(
     /// </summary>
     public UploadOutcomeView? Outcome { get; private set; }
 
-    public bool RefreshAutomatically =>
-        Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing;
-
-    public int? AutomaticRefreshMilliseconds => RefreshAutomatically
-        ? QueuedIntakeRefreshDelay.GetMilliseconds(Status, DateTimeOffset.UtcNow)
-        : null;
+    /// <summary>
+    /// How long before this page reloads itself, or null once the file has
+    /// stopped moving and there is nothing left to wait for.
+    /// </summary>
+    public int? AutomaticRefreshMilliseconds =>
+        Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing
+            ? UploadStatusRefresh.DelayMilliseconds(Status, timeProvider.GetUtcNow())
+            : null;
 
     public string Heading => Status.Status switch
     {
