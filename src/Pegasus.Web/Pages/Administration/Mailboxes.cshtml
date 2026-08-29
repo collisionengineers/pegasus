@@ -16,7 +16,7 @@
     <section class="panel" aria-labelledby="mail-settings-title">
         <div class="panel-head">
             <div>
-                <h2 id="mail-settings-title">@OperatorLabels.MailSettings.Area</h2>
+                <h2 id="mail-settings-title">@OperatorLabels.Admin.Mail</h2>
                 <div class="muted">@OperatorLabels.MailSettings.Description</div>
                 <div class="panel-title-meta">
                     @OperatorLabels.MailSettings.Meta(Model.Mailboxes.Count, Model.Categories.Count)
@@ -66,6 +66,9 @@
                                 var addressId = $"mailbox-address-{mailbox.Id}";
                                 var reasonId = $"mailbox-reason-{mailbox.Id}";
                                 var stateId = $"mailbox-state-{mailbox.Id}";
+                                var reviewFolders = OperatorLabels.MailSettings.ReviewFoldersProgress(
+                                    mailbox.FolderBindings.Count,
+                                    MailLogicalFolders.All.Count);
                                 <tr>
                                     <td>@mailbox.Address</td>
                                     <td>@string.Join(", ", mailbox.RouteScopes.Select(OperatorLabels.RouteScope))</td>
@@ -78,9 +81,7 @@
                                     <td>@Model.SubscriptionStatusFor(mailbox)</td>
                                     <td>
                                         <details>
-                                            <summary class="btn btn--small">
-                                                @OperatorLabels.MailSettings.ReviewFolders
-                                            </summary>
+                                            <summary class="btn btn--small">@reviewFolders</summary>
                                             <div class="stack section-gap">
                                                 <div class="definition-list">
                                                     @foreach (var folder in MailLogicalFolders.All)
