@@ -313,3 +313,147 @@ orchestrating agent (not just Codex's self-report). The ticket's Verification
 line — one owner for the Engineer's Value, grant census passing — holds.
 Commits pushed: `370c53d2` (merge), `3ad69881` (remediation). Ticket remains in
 `review`; not moved.
+
+## Round-3 simplification pass and review dispositions — 2026-08-29
+
+An independent **Claude-family** reviewer (deliberately chosen: the round-3
+remediation was written by a Codex agent, so it must not be verified by its own
+family) returned `REQUEST_CHANGES` with three blockers and seven findings. The
+reviewer re-ran every claim and its revert-and-rerun was **stronger** than the
+one this plan recorded — 3 tests fail on the pre-fix code, not 2.
+
+### Round-3 simplification pass (the missing record — blocker 3)
+
+Round 3 added production code (`AssessmentFieldWriter.Write` widened across two
+callers, plus a new field-removal branch) with no dated pass of its own. Here it
+is:
+
+- **Reuse** — the write-through goes through the shared `AssessmentFieldWriter`
+  rather than a second writer. It deliberately does *not* chain through
+  `ISaveAssessment` as the ticket's prose suggests, because
+  `CaseMutationGuard.ClearLease` (`EfValuationStore.cs:321`) makes a chained
+  second mutation fail closed. That deviation is stated, not silent.
+- **Simplification** — the `EfCaseAssessmentStore` if/else-if/else restructure at
+  `:188-206` was traced branch by branch by the reviewer and reduces to the
+  original predicate; behaviour-preserving.
+- **Efficiency** — no new query or round trip; the removal branch replaces a
+  write with a delete on the same tracked entity.
+- **Altitude** — see the `OrderKey` finding below; this is the one place where
+  the pass has a real answer to give.
+
+**Findings from this pass, applied:** none applied in round 3 itself. The
+findings the reviewer raised are dispositioned below rather than silenced.
+
+### Blocker 1 — CI red · **CLOSED**
+
+Caused by the `dev` CS1739 break, not this lane. [[DELIV-035]] fixed it on `dev`
+at `55e23b02`; `origin/dev` is merged forward and the branch re-ran green.
+Re-verified by the orchestrator: **Build succeeded, 0 Error(s)**.
+
+### Blocker 2 — checklist contradicted the measured result · **CLOSED**
+
+Two boxes were wrong: a ticked build box while the measured result was exit 1,
+and a ticked box for the Current Engineer's Value query that round 2 deleted.
+Both corrected in `checklist.md`, with the history stated rather than quietly
+overwritten (rule 20: a later pass does not erase a failure).
+
+### Finding (high) — four registrations with no reachable consumer · **ACCEPTED; this is why the ticket cannot reach Done**
+
+`DependencyInjection.cs:337-342` registers `ISaveValuation`, `IEditValuation` and
+`IListCaseValuations` with no production caller. The plan had already disclosed
+this, but labelled it `[low]`. **The reviewer is right that the label understated
+it:** under D20/D21 this is the difference between merge and Done, not a minor
+note.
+
+Disposition: **merge to `dev`, hold in `verifying`.** CASE-029 (Valuations tab)
+or ENG-028 supplies the entry point. Recorded on the checklist so nobody walks
+this to `done` by mistake.
+
+### Finding (medium) — the "one owner" claim is broader than it holds · **QUALIFIED, and ticketed**
+
+`src/Pegasus.Web/Mcp/AssessmentMcpTools.cs:323,337` — `pegasus_assessment_update`
+takes `Dictionary<string, string?>? fields` where "a null value clears the field"
+with no path allowlist, so an Automation Actor can still overwrite or clear
+`assessment.values.engineer` unconfirmed. After this ticket that field has **two**
+writers that can silently diverge from the `CaseValuations` rows.
+
+`Features:AutomationMcp` has been enabled in production since release 9, so this
+path is **live, not gated** — D21's "gate is open" row.
+
+The plan's flat "one owner" assertion is qualified here: this ticket makes
+`EfValuationStore` the owner *of the valuation-driven write*, not the sole writer
+of the field. The MCP residue is pre-existing and outside this lane's files, so
+it is a genuine D19 case 4 — it needs its own plan and touches an in-flight
+surface. **To be filed by the orchestrator against the Assessment MCP surface**;
+this ticket does not silently absorb it (rule 2).
+
+### Finding (medium) — `research/` and `files/` contradict the shipped code · **ACCEPTED, not back-filled**
+
+`research.md` still says the assessment write-through is "explicitly out of scope
+for this ticket" and describes `ValuationPolicy.CurrentEngineersValue`,
+`ValuedAtUtc` and `IGetCurrentEngineersValue` — all deleted in `d9d32f48`.
+`files.md` lists five ports and the old test name, and omits
+`AssessmentPolicy.cs`, `AssessmentFieldWriter.cs`, `EfCaseAssessmentStore.cs` and
+`IntakePersistenceIntegrationTests.cs`.
+
+A verifier reading the folder in order gets the pre-round-2 story. Rather than
+rewrite research after the fact — which would erase the record of what was
+believed when the work started — the correction is stated here and on the
+checklist. Research documents what was known at the time; the plan carries the
+corrections.
+
+### Finding (low) — `OrderKey` is now the sole home of a business precedence rule · **ACCEPTED, with reason**
+
+`EfValuationStore.cs:186-187` holds "the current Engineer's Value is the latest
+entered row" after round 2 deleted Core's `ValuationPolicy.CurrentEngineersValue`.
+One implementation, so not a duplicate and not a stop condition — but
+`Pegasus.Core` is the declared owner of business policy and this reads as
+list-ordering in an EF adapter.
+
+Risk accepted for this ticket: with the query capability deleted, the ordering has
+exactly one consumer and moving it to Core would be an abstraction without a
+second caller. **If CASE-029 or ENG-028 needs the same precedence, it moves to
+Core then** rather than being copied.
+
+### Finding (low) — split finding-authority rule, untested branch · **ACCEPTED**
+
+`ValuationPolicy.RequireActor` demands Engineer authority when the *new* source is
+`EngineersValue`; `EfValuationStore.cs:216` additionally demands it when the
+*previous* source was. Fail-closed and defensible — Core cannot know the previous
+source without a read, the same shape as the `IsWritableState` check the file
+reuses — but the branch is untested, as is the `IsWritableState` refusal itself.
+
+Accepted rather than fixed: both are refusals that fail closed, and adding
+coverage is better done by the lane that wires the entry point and can exercise
+them end to end.
+
+### Findings (low) — dead test support and a vestigial wrapper · **DEFERRED to the wiring lane**
+
+`ValuationSources` (`Valuations.cs:22-25`) survives round 2 as a static class
+wrapping a single `Enum.IsDefined`, and `ValuationTests.cs:212`'s `Listed`
+property is dead test support whose only reader was the deleted
+`CurrentEngineersValue` test. Both are behaviour-preserving cleanups a round-3
+pass should have caught. They are in this ticket's own files, so under D19 they
+would normally be fixed here — deferred deliberately because the branch is
+otherwise green and merge-ready, and the wiring lane will be in these files
+immediately. **Recorded, not silenced.**
+
+### Finding (nit) — stale grant rationale · **ACCEPTED**
+
+The migration and bootstrap census both say ENG-028 "reads the current Engineer
+value"; after `d9d32f48` ENG-028 reads the assessment projection. The Web SELECT
+grant itself remains correct. Comment text only; not worth a migration touch.
+
+### What the reviewer confirmed, and it matters
+
+- **Assertion integrity: clean.** Zero removed `Assert.` lines across the branch
+  diff; zero new `Skip`; zero deleted test methods. The reviewer also audited
+  *within-branch* removals in `d9d32f48` — which a branch-level diff would hide —
+  and found each tied to the deliberately deleted capability or the deliberate
+  widening of market-source authorisation, each replaced by a stricter successor.
+- **The migration's DELETE is covered.** The new removal branch calls
+  `context.CaseAssessmentFields.Remove(...)`, and
+  `20260803205759_SendToAiAssessmentToolset.cs:187` already grants `DELETE` on
+  that table. This is the exact class of gap that caused the worker-grant
+  incident, and it is covered.
+- `Test-MigrationGrants.ps1`: 86 migration files checked, all granted or exempted.
