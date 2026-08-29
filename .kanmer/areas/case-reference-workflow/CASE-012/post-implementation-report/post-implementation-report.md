@@ -194,3 +194,42 @@ Tests not run by the implementer (orchestrator wave loop).
 - Report approval has no UI now; if a route other than the report page
   needs it, that is a new control, not this one restored.
 - `EditModeDisplay.HeldBy` names no time, so "until T." is not rendered.
+
+## 3. Round 2 remediation — verifier findings (`task/case-012-eva-send-salvage`, 2026-08-29)
+
+An independent adversarial verifier re-ran round 3's build, tests, and diff.
+Verdict: clean, six minors, all disposed in the ticket plan under "Review
+findings — dispositions (round 2, 2026-08-29)". Two are corrections to what
+round 3 shipped, stated here because §1's "What shipped" table and
+Simplification-pass note above are now out of date on both points:
+
+- **The provenance glyph tooltip.** Round 3's Simplification pass "Considered
+  and rejected" note (above) kept `Create.cshtml`'s glyph on `.provenance`,
+  reasoning that the merged `Mail/Message.cshtml` used the same class and
+  "the existing convention wins". That reasoning was wrong: neither page's
+  `.provenance` class has ever rendered a tooltip — `.prov` is the class
+  site.css and `Shared/_Provenance.cshtml` (design README: "Retained,
+  restyled to the vocabulary") actually style with one. Round 2 reverts
+  `Create.cshtml`'s glyph to `class="prov"`. `Mail/Message.cshtml`'s copy of
+  the same defect is out of lane and reported, not fixed.
+- **The EVA outcome chip's tone.** `Eva/Send.cshtml` forced `StatusTone =
+  "amber"` for every failed submission, including a refusal — against
+  `_StatusChip`'s own documented rule (red is blocked/failed/denied, amber is
+  incomplete/pending). Round 2 computes the tone per `EvaSubmissionOutcome`:
+  `Rejected` and the unreachable-transport fallback are now `red`; `Partial`
+  stays `amber`.
+
+Also corrected in round 2, not a round-3 misstatement: `docs/design/test-ui/
+catalogue.json` classified `Workflow.cshtml` and `Closure.cshtml` `redirect`
+with the reason "Compatibility route redirects to the canonical case detail
+surface" — untrue, since neither file has an `OnGet` handler and a GET renders
+no content. Both are reclassified `protocol` with an accurate reason.
+`Custody.cshtml`, `Tasks.cshtml`, and `Vehicle.cshtml` carry the identical
+false `redirect` reason and are out of lane (CASE-027/E2); reported, not
+fixed. `Create.cshtml`'s required-field marking (`InspectionAddress` label
+now carries `.req` to match `Reason`) was also fixed.
+
+Verification: `dotnet build` 0 warnings/0 errors; the three focused filters
+this ticket has used since round 3 (`CaseDetailsWebTests` 42/42,
+`CaseCreateWebTests` 17/17, the three pinned theories 15/15) all re-passed
+unchanged. PR #615 updated; not merged by this lane.
