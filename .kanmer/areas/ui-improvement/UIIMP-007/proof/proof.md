@@ -207,11 +207,11 @@ ticket's own merge `690ca579` (horizon column, header row excluded):
 — exactly the four figures the ticket claimed, and the summary table at
 `690ca579:docs/capabilities.md:34-37` states the same four.
 
-On current `dev` `b92cb9a7` the same recount gives 233 rows / 234 unique
-IDs including the header, split `142 Now · 27 Next · 35 Later · 29 Not
-planned`, and the summary table at `docs/capabilities.md:34-37` states
-those figures. The shift of two rows from Next to Now is not this ticket's:
-`git log 690ca579..origin/dev -- docs/capabilities.md` names `dfd981a6`…
+On current `dev` `b92cb9a7` the same recount gives 233 capability rows and
+233 unique IDs, split `142 Now · 27 Next · 35 Later · 29 Not planned`,
+and the summary table at `docs/capabilities.md:34-37` states those
+figures. The shift of two rows from Next to Now is not this ticket's:
+`git log 690ca579..origin/dev -- docs/capabilities.md` names
 `dfd981a9 docs(capabilities): bring API-01 and API-04 forward to
 0.1.0-alpha.1 (TICK-061)`. The invariant the item asserts still holds on
 `dev`: per-target counts sum to 204 planned + 29 unallocated = 233, and the

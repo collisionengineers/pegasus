@@ -2,7 +2,7 @@
 id: UIIMP-006
 type: ticket
 title: Rewrite the design authority to the Integrated Operations Workspace
-status: verifying
+status: done
 area: ui-improvement
 assignee: claude-code
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-28T08:08:14.136Z'
   review: '2026-08-28T08:21:12.901Z'
   verifying: '2026-08-28T08:31:39.331Z'
+  done: '2026-08-29T10:08:49.927Z'
 taken_at: '2026-08-28T08:12:15.816Z'
 branch: task/uiimp-006-design-authority
 worktree: ../pegasus-worktrees/uiimp-006-design-authority
@@ -28,11 +29,12 @@ commits:
   - b5cb2edd
   - 932e0e64
   - 9be74a48
+  - 3614d63a
 prs:
   - '587'
 archived: false
 created: '2026-08-28T08:05:30.031Z'
-updated: '2026-08-28T08:31:39.331Z'
+updated: '2026-08-29T10:08:49.927Z'
 ---
 
 ## What

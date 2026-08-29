@@ -51,3 +51,41 @@ session), NOT by codex:
   and independently confirmed codex's search claim.
 
 No changes needed to codex's diff; nothing reverted.
+
+## 2026-08-29 — proof written; HELD in Verifying (not moved to Done)
+
+`proof` is written against merged `dev` at `b92cb9a7` (D15). `get_doc_gates`
+now reports `enter-done` **passable: true** — the gate is satisfied.
+
+**The ticket was deliberately not moved.** The gate checks that a proof
+document exists; it does not check that the proof proved anything. This
+ticket's sole acceptance item — ten consecutive `sql-integration` runs without
+a connection-timeout failure — is unmet at the time of writing:
+
+- 12 completed `sql-integration` shard jobs on commits carrying `2d67cefa`,
+  all green, zero connection-timeout and zero 5061 failures.
+- But only **3 complete workflow runs** (runs 33243741194, 33245424905,
+  33246463997). The ticket body distinguishes runs from shards ("PRs #588
+  shard 3, #589 shard 2 ..."), so the bar is workflow runs: **3 of 10**.
+
+Moving to Done now would be moving on partial evidence. Per AGENTS.md rule 20,
+Done requires PASS; this is INCONCLUSIVE, not PASS.
+
+**How to clear the hold.** Re-count runs whose head has `2d67cefa` as an
+ancestor:
+
+```
+gh run list --workflow=ci.yml --limit 40 \
+  --json databaseId,headSha,conclusion --jq '.[]|[.databaseId,(.headSha[0:8]),.conclusion]|@tsv'
+git merge-base --is-ancestor 2d67cefa <headSha>     # exit 0 = carries the fix
+gh api repos/collisionengineers/pegasus/actions/runs/<id>/jobs?per_page=100 \
+  --jq '.jobs[]|select(.name|startswith("sql-integration ("))|[.name,.conclusion]|@tsv'
+```
+
+When ten such runs are clean, append the tally to `proof`, tick the
+Verification item, move to Done, and close [[DELIV-033]] as not needed. If a
+`Connection Timeout Expired` recurs first, DELIV-033's trigger has fired.
+
+Note: six of the seven PRs merged on 2026-08-29 merged *before* DELIV-031
+(`b92cb9a7` is the newest merge on `dev`), so their CI ran without the fix and
+must not be counted toward the ten.
