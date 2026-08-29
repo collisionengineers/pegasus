@@ -48,6 +48,37 @@ public sealed class WorkCentreLabelTests
         Assert.Equal("QDOS", IndexModel.DetailLabel(item));
     }
 
+    /// <summary>
+    /// UIIMP-008: `asp-page` takes a Razor page name, not a route template.
+    /// `Pages/Operations/Index.cshtml` declares `@page "/Operations"`, which
+    /// sets its route but leaves its page name `/Operations/Index` — the
+    /// spelling `_Layout.cshtml` uses. `RecordPage` returned the route, so the
+    /// tag helper resolved nothing and every external-work row, the pane's
+    /// Open-full-record and the next-action button rendered `href=""`.
+    ///
+    /// A dead link is valid HTML, so no gate caught it. This pins the page name
+    /// itself; <see cref="TheWorkCentreRendersNoEmptyLink"/> catches the class.
+    /// </summary>
+    [Fact]
+    public void ExternalWorkOpensTheOperationsPageByItsPageName()
+    {
+        Assert.Equal("/Operations/Index", IndexModel.RecordPage(NeedsAttentionKind.ExternalWork));
+    }
+
+    /// <summary>
+    /// Every other kind names a real page too, so none of them can regress the
+    /// same way.
+    /// </summary>
+    [Theory]
+    [InlineData(NeedsAttentionKind.Case, "/Cases/Details")]
+    [InlineData(NeedsAttentionKind.HeldDecision, "/Cases/Details")]
+    [InlineData(NeedsAttentionKind.Mail, "/Unidentified/Details")]
+    [InlineData(NeedsAttentionKind.Triage, "/Triage/Details")]
+    public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
+    {
+        Assert.Equal(expected, IndexModel.RecordPage(kind));
+    }
+
     private static NeedsAttentionItem NewItem(
         NeedsAttentionKind kind,
         string title,
