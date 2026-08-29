@@ -237,3 +237,91 @@ behaviour change, not an assertion weakened to obtain green.
   0 skipped.
 - Full suite, Browser tests, snapshot capture and catalogue scripts were not
   run, as required by the verifier brief.
+
+## Review findings — dispositions (round 2, 2026-08-29)
+
+Remediated by Codex (`gpt-5.6-sol`, external engineer) under Claude's supervision
+as a thin wrapper (git hygiene, board, independent re-verification). All work
+below was independently re-run by the supervising Claude session, not just
+accepted from Codex's report.
+
+### High
+
+- **Expired AI job silently vanishes from the ledger** — **fixed.**
+  `ReadAiJobsAsync` (`Index.cshtml.cs:445`) now keeps an effectively-Expired
+  row returned by the persisted-open query when its `ExpiresAtUtc` falls on
+  today's Europe/London date via a new `ReachedTerminalToday` helper, instead
+  of dropping every terminal-mapped row unconditionally. Verified by reading
+  the diff hunk directly (not just the report) and by the new regression test
+  asserting an `Expired` chip with no action form for a job created yesterday
+  that lapses today.
+
+### Medium
+
+- **Duplicate `ListQueueAsync` call** — **fixed.** `OnGetAsync` no longer
+  calls `unidentifiedStore.ListQueueAsync`; the global `RailCountsPageFilter`
+  remains the only queue enumeration per request. Confirmed by reading
+  `Index.cshtml.cs:118` (the call is gone) and by the new
+  `RecordingAiWorkStore.QueueListCalls` counter asserted `== 1`.
+- **Unbounded `<select>` of every open Unidentified item** — **fixed.**
+  Replaced with a single canonical-reference `<input>`; POST resolves it via
+  the existing `IUnidentifiedStore.GetByReferenceAsync` (reused, not a new
+  lookup) after validating the format with the existing Core
+  `UnidentifiedReferenceFormat.TryParse` (already used by
+  `UnidentifiedMcpTools.cs`, so this is reuse, not a new parser).
+- **Fabricated `U-000412` reference in the fixture** — **fixed.** Changed to
+  the canonical `U412`, matching `UnidentifiedReferenceFormat` (`^U[1-9][0-9]*$`).
+- **Duplicated tone map vs `Shared/_StatusChip`** — **fixed.**
+  `StateToneOverride` now returns only Queued/Taken/Draft-ready (the three
+  labels `_StatusChip` does not already know); returning `null` for the rest
+  lets the shared partial's own tone switch apply. Read `_StatusChip.cshtml`
+  directly to confirm a `null` `ViewData["StatusTone"]` correctly falls
+  through to the partial's own `"completed" => "green"` / `"failed" => "red"`
+  / `"cancelled" => "neutral"` cases, so the visible tones are unchanged.
+
+### Low
+
+- **`IConfirmAiJob` caller overclaim** — **fixed in the documents.** The
+  research/report/plan now state correctly that `SetCurrentEstimate` already
+  called `IConfirmAiJob`; this PR's contribution is the first *Web/Operations*
+  caller, not the first caller overall. `ICancelAiJob` genuinely had none
+  before this PR.
+- **EVA handoffs panel / Service health `View`** — **risk accepted, unchanged
+  from round 1.** Both need new `Core/Eva` read-model or routing work outside
+  `Pages/Operations/**`. Ticket stays in Review, not represented as complete.
+- **Plan/code drift (helper names, test count)** — **fixed.** Plan now names
+  the actual `ReviewAction` tuple helper and lists the 10 implemented test
+  names in place of the original 6 planned ones.
+
+### Independent re-verification (this session, not Codex's numbers)
+
+- `git diff origin/dev...HEAD --stat`: 4 files
+  (`Pages/Operations/Index.cshtml`, `Index.cshtml.cs`, `Presentation/OperatorLabels.cs`,
+  `tests/Pegasus.IntegrationTests/OperationsWebTests.cs`) — matches the
+  ticket's declared ownership plus the epic's explicitly shared labels file.
+- `git diff d393ecd5..HEAD -- tests/`: read in full. Zero `Assert` lines
+  removed. Three assertions were replaced, not weakened — each replacement
+  corresponds to a real behaviour change (5 jobs vs 4 after the Expired fix;
+  `unidentifiedReference` input replacing `unidentifiedId` select; a renamed
+  test, `SendUnidentifiedToAiRefusesAReferenceThatIsNotOpen`, that now posts
+  and asserts refusal instead of asserting the control's absence, because the
+  control is no longer conditionally rendered off an unbounded GET query).
+  This is a disclosed behaviour change, not assertion tampering.
+- `pwsh dotnet build ./Pegasus.slnx --configuration Release` (run by Claude,
+  not reused from Codex): **exit 0, 0 Warning(s), 0 Error(s).**
+- `pwsh dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "FullyQualifiedName~OperationsWebTests"`
+  (run by Claude): **Passed: 19, Failed: 0, Skipped: 0, exit 0** — matches
+  Codex's claimed count exactly.
+- `gh pr view 617`: OPEN, base `dev`, `headRefOid` = `3d5cdbb98a11a947bff6eae109353237fd850039`,
+  matching local `HEAD` exactly (no unpushed work), `mergeable: MERGEABLE`.
+
+### Out-of-lane note
+
+Codex additionally recorded `blocks: AUTO-011` on this ticket's board metadata
+(no files touched). Verified as reasonable, not scope creep: `AUTO-011` owns
+`ICancelAiJob`/`IConfirmAiJob`'s registration and was returned to `verifying`
+under decisions-2026-08-29-done-rule.md's D20/D21 consequences ("tickets
+already Done that carry an unreachable named capability return to verifying
+and wait for the consumer that wires them") — PLAT-049 is that consumer for
+`ICancelAiJob`, so the block is an accurate record, not an overreach. Left as
+Codex set it.
