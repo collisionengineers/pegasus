@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Production callers for the AI job by-subject query and staff QueryResponse
   jobs
-status: implementing
+status: review
 area: automation-integrations
 assignee: codex-gpt-5.6-sol
 profile: feature
 stageEntered:
   preparing: '2026-08-29T17:20:55.532Z'
+  review: '2026-08-29T17:41:45.664Z'
 taken_at: '2026-08-29T17:38:49.541Z'
 branch: task/auto-014-ai-job-callers
 worktree: ../pegasus-worktrees/auto-014-ai-job-callers
@@ -34,7 +35,7 @@ prs:
   - '629'
 archived: false
 created: '2026-08-29T13:04:32.304Z'
-updated: '2026-08-29T17:39:29.238Z'
+updated: '2026-08-29T17:41:45.664Z'
 ---
 
 ## What
