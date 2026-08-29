@@ -86,3 +86,14 @@ below describe the **declared JSON instruction** that replaced it.
   `ExecuteCommittedAsync` each fail the repaired test. Build 0 warnings /
   0 errors; `Pegasus.Core.Tests` **1152/1152**, three consecutive runs.
   Commit `79a4aaf9`; PR #594 body updated. Not merged, not reviewed.
+
+- 2026-08-29 (round 4, verifier remediation): confirmed the prior hosted run
+  was cancelled by `sql-integration (1)`. The exact 345-test shard passed
+  locally in 9m45s (exit 0), so no timeout or assertion was changed. Fixed the
+  three-copy `Provider API` label with the lane's nested constant owner and
+  added assertions to the existing provider snapshot test for enum, persisted
+  code and provenance mappings. Two intermediate builds failed (exit 1) on
+  the new assertions and are recorded in the plan; the corrected Release build
+  is 0 warnings/0 errors and the provider integration filter is 9/9. Commit
+  `8ef4775c` pushed; Actions run `33254911537` is pending. Independent review
+  and the orchestrator wave gate remain unticked.

@@ -372,3 +372,47 @@ spans, and it reads against "one list per concept". It is pre-existing on
 `dev`, is not needed to make CI green, and consolidating a telemetry source
 across two files is scope this lane was not given. Reported to the
 orchestrator; no ticket filed.
+
+## Verifier remediation — dispositions (round 4), 2026-08-29
+
+The adversarial verifier returned one major, three minor findings and one
+informational confirmation against `79a4aaf9`. Every finding is dispositioned;
+no assertion was removed, weakened, skipped or inverted.
+
+| Severity | Finding | Disposition |
+| --- | --- | --- |
+| major | The pushed head was not CI-green: `sql-integration (1)` hit the 20-minute job cap and 345 tests did not complete. | **Confirmed and being re-proved, not explained away.** The exact shard command passed locally at the same 345/1033 assignment: 345 passed, 0 failed, 0 skipped, 9m45s test duration (9m57s wall clock). No timeout was raised and no test or CI limit was changed. Commit `8ef4775c` has triggered fresh run `33254911537`; this finding closes only if its hosted shard succeeds. |
+| minor | The post-implementation report stops at round 2 and therefore omits `1688504a` / `79a4aaf9`; its status and the hand-off outcome disagree. | **Accepted.** The report will receive the round-3 evidence plus this round's final hosted result. `PR-open, review-blocked` remains the accurate status; the prior `pr-ready` hand-off label was wrong. |
+| minor | The new provider arms sit in existing shared switch expressions rather than solely inside a lane-owned nested class. | **Rejected as an unavoidable exhaustive-switch edit, with the remaining merge surface accepted.** The enum and persisted-code values must be handled by the existing `SourceChannel` and `Provenance` production callers or they throw/render unknown. The arms are append-only and unreordered. A wrapper or parallel mapping would violate the one-owner and no-speculative-abstraction rails. |
+| minor | `Provider API` is repeated three times in `OperatorLabels.cs`. | **Fixed in `8ef4775c`.** The appended `ProviderSubmissionApi` nested class owns the source label and provenance icon; all three required switch arms reference those constants. The existing provider snapshot test adds assertions for the enum, persisted-code and provenance callers. |
+| info | Three process-wide `ActivitySource` fields share `Pegasus.Core.Intake`. | **Confirmed, reported only.** It predates this branch, is outside the lane, and the round-3 trace-scoped test already removes the cross-test leak without changing production telemetry. No new ticket: the disposition rule makes that the last resort. |
+
+### Verification — round 4
+
+- Exact CI shard before the edit:
+  `./scripts/Invoke-TestShard.ps1 ... -Shard 1 -ShardCount 3` — **345
+  passed, 0 failed, 0 skipped**, 9m45s test duration; exit 0.
+- First remediation build: **failed**, exit 1, five compile errors in the new
+  assertions (nested constant qualification and the wrong provenance shape).
+- Second remediation build: **failed**, exit 1, one compile error because this
+  xUnit version's `Assert.NotNull` overload returns `void`.
+- Corrected `dotnet build ./Pegasus.slnx --configuration Release`:
+  **succeeded, 0 warnings, 0 errors**, exit 0.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~Pegasus.IntegrationTests.ProviderApiSubmissionTests"`:
+  **9 passed, 0 failed, 0 skipped**, exit 0.
+- Full solution, Browser and snapshot/catalogue scripts were not run; the
+  verifier requested focused filters and the orchestrator owns those gates.
+
+### Simplification pass — round 4
+
+- **Reuse:** the new nested class follows `Nav`, `Admin` and `Freshness`, the
+  file's existing one-list convention; no second label service was added
+  (applied).
+- **Simplification:** two compile-time constants serve three callers; no helper
+  method, dictionary or wrapper is needed (applied).
+- **Efficiency:** constants add no runtime lookup and the existing switches
+  remain direct (n/a beyond the simpler shape).
+- **Altitude:** the diff stays in the one label owner and its existing
+  production read-back test; no shared architecture, CI timeout or unrelated
+  test is changed (applied).
