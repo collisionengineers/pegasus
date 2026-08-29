@@ -343,7 +343,7 @@
                 </div>
             </aside>
 
-            <main class="pane assessment-v3-main" aria-label="Estimates">
+            <section class="pane assessment-v3-main">
                 <div class="pane-head"><h2>Estimates</h2></div>
                 <div class="pane-body pane-scroll">
                     <div class="detail-canvas">
@@ -369,6 +369,15 @@
                                            asp-route-estimate="new">New estimate</a>
                                     }
                                 </div>
+                            }
+                            else
+                            {
+                                @* The design authority requires every screen to
+                                   define its empty state in business language.
+                                   One stated value, not a panel with a heading:
+                                   the pane says the fact and draws no inert tab
+                                   strip or editor beneath it. *@
+                                <div class="empty estimate-empty">No estimates recorded</div>
                             }
 
                             @if (Model.SelectedEstimate is not null || Model.EditingNewEstimate)
@@ -539,7 +548,7 @@
                         </div>
                     </div>
                 </div>
-            </main>
+            </section>
         </section>
     </div>
 </article>
