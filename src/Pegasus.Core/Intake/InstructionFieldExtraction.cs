@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
@@ -93,9 +92,6 @@ internal static partial class InstructionFieldEngine
         internal Regex FollowingLabel(FieldDefinition definition, int labelIndex) =>
             patterns[definition].FollowingLabel(labelIndex);
     }
-
-    private static readonly ConcurrentDictionary<string, Regex> ContainsLabelRegexes = new(
-        StringComparer.Ordinal);
 
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
@@ -470,15 +466,6 @@ internal static partial class InstructionFieldEngine
         && UkRegistrationRegex().IsMatch(
             WhitespaceHyphenRegex().Replace(value, string.Empty)
                 .ToUpperInvariant());
-
-    internal static bool ContainsLabel(string text, string label) =>
-        ContainsLabelRegexes.GetOrAdd(
-            label,
-            static label => new(
-                $@"(?i)\b{Regex.Escape(label)}\b",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100)))
-            .IsMatch(text);
 
     internal static string? TypedString(string? value, int maximumLength) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength ? value : null;
