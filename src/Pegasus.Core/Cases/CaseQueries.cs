@@ -48,6 +48,12 @@ public sealed record SearchCasesQuery(
     int PageSize = 25,
     CaseSearchOrder Order = CaseSearchOrder.ReceivedDesc);
 
+/// <summary>
+/// One case as a list row. <see cref="VehicleMake"/>, <see cref="VehicleModel"/>
+/// and <see cref="AccidentCircumstances"/> ride the same projection so the
+/// Search page can draw its vehicle column and selected-case preview from the
+/// search read alone (CASE-026); they are display facts, not filters.
+/// </summary>
 public sealed record CaseSearchItem(
     Guid CaseId,
     string Reference,
@@ -63,7 +69,10 @@ public sealed record CaseSearchItem(
     DateOnly? InstructionDate,
     string Origin,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? NextChaseAtUtc = null)
+    DateTimeOffset? NextChaseAtUtc = null,
+    string? VehicleMake = null,
+    string? VehicleModel = null,
+    string? AccidentCircumstances = null)
 {
     /// <summary>
     /// The case's recorded completeness facts (<see cref="CaseCompleteness"/>),

@@ -99,8 +99,8 @@ public sealed class TriageQueuesWebTests
     /// (<c>EfDashboardQueries.GetCaseStageCountsAsync</c>) only counted
     /// CaseWorkflows rows while the row query also lists awaiting-instruction
     /// Image Intakes. The rail count must equal the number of rows across
-    /// both origins, and the Dashboard's Not-ready tile reads the same count
-    /// so it must agree too.
+    /// both origins, and the Work Centre's Not ready metric reads the same
+    /// count so it must agree too.
     /// </summary>
     [Fact]
     public async Task NotReadyRailCountMatchesRowsAcrossBothOrigins()
@@ -139,15 +139,15 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(2, Regex.Count(notReadyHtml, "class=\"row-button\""));
         Assert.Equal(2, railCount);
 
-        // The Dashboard's Not-ready tile reads the same count query, so it
-        // must report the identical figure — a rail count that disagrees
-        // with its own tile is exactly the defect being fixed here.
+        // The Work Centre's Not ready metric reads the same count query, so
+        // it must report the identical figure — a rail count that disagrees
+        // with its own metric is exactly the defect being fixed here.
         using var dashboard = await client.GetAsync("/");
         var dashboardHtml = await dashboard.Content.ReadAsStringAsync();
         var tileMatch = Regex.Match(
             dashboardHtml,
-            "data-state=\"not-ready\"[\\s\\S]*?metric__value\">(\\d+)</strong>");
-        Assert.True(tileMatch.Success, "Dashboard Not ready tile markup not found.");
+            "data-value=\"not_ready\"[\\s\\S]*?metric-value\">(\\d+)</span>");
+        Assert.True(tileMatch.Success, "Work Centre Not ready metric markup not found.");
         Assert.Equal(railCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 

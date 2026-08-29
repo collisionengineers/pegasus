@@ -96,8 +96,8 @@ public sealed class EfEvaSubmissionQueries(
             .AsNoTracking()
             .CountAsync(
                 item => item.Kind == ExternalWorkKinds.SubmitCaseToEva
-                    && item.State != "completed"
-                    && item.State != "failed",
+                    && item.State != ExternalWorkStatePersistence.Completed
+                    && item.State != ExternalWorkStatePersistence.Failed,
                 cancellationToken);
         var latest = await context.EvaSubmissions
             .AsNoTracking()

@@ -1,19 +1,40 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Search;
 
+/// <summary>
+/// Search (EPIC-011 §1.7): the advanced filter grid over the case query, a
+/// results table whose selectable rows preview the selected Case beside it.
+/// </summary>
+/// <remarks>
+/// The grid's ten fields map 1:1 onto the existing search parameters; the
+/// pre-port parameters this design does not draw (<c>case</c>,
+/// <c>receivedDate</c>, <c>instructionDate</c>, <c>kind</c>) stay bound and
+/// pager-preserved, so the <c>/Cases</c> bookmarks PLAT-029 redirects here
+/// keep working with their values intact. The preview pane is built from
+/// the row projection plus one batched Engineer-name resolve rather than
+/// <c>IGetCase</c>: the wave-1 selection script needs a preview template
+/// per row regardless, and this keeps the page at its two queries.
+/// Terminal outcomes render their D3 "Closed · outcome" chip here — this
+/// is the one work view that lists them.
+/// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class IndexModel(
     ISearchCases searchCases,
     IImageIntakeQueries imageIntakeQueries,
+    IStaffAccountQueries staffAccounts,
+    TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
 {
     private const int ResultsPerPage = 25;
@@ -53,20 +74,54 @@ public sealed partial class IndexModel(
 
     [BindProperty(SupportsGet = true)]
     public string? Origin { get; set; }
+
     [BindProperty(SupportsGet = true)]
     public string? Query { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "kind")]
     public string? RecordKindFilter { get; set; }
 
+    /// <summary>The row the Selected Case pane reads; the first row when unset.</summary>
+    [BindProperty(SupportsGet = true, Name = "selected")]
+    public Guid? SelectedId { get; set; }
 
     public int PageNumber { get; private set; } = 1;
 
     public SearchCasesResult? Results { get; private set; }
 
+    public IReadOnlyList<ResultRow> Rows { get; private set; } = [];
+
+    public ResultRow? Selected { get; private set; }
+
     public IReadOnlyList<ImageIntakeSummary> ImageIntakeResults { get; private set; } = [];
 
     public bool QueryFailed { get; private set; }
+
+    /// <summary>
+    /// When this page's queries last returned. Set only after they succeed,
+    /// so a failed load never claims to be fresh.
+    /// </summary>
+    public DateTimeOffset? LoadedAtUtc { get; private set; }
+
+    /// <summary>
+    /// One results-table row and the same row's preview facts, composed
+    /// here where the search item is in hand: the vehicle column, the
+    /// preview's fact grid and its outstanding requirements all read the
+    /// one search projection, so selecting a row needs no second query.
+    /// </summary>
+    public sealed record ResultRow(
+        CaseSearchItem Item,
+        string DetailHref,
+        string SelectHref,
+        string Heading,
+        string Muted,
+        string Chip,
+        string Vehicle,
+        string ProviderReference,
+        string Engineer,
+        string Due,
+        string NextAction,
+        IReadOnlyList<OperatorLabels.CaseRequirement> Outstanding);
 
     public async Task<IActionResult> OnGetAsync(
         [FromQuery(Name = "page")] int? pageNumber,
@@ -95,6 +150,7 @@ public sealed partial class IndexModel(
 
             if (RecordKindFilter == "images")
             {
+                LoadedAtUtc = timeProvider.GetUtcNow();
                 return Page();
             }
 
@@ -118,6 +174,23 @@ public sealed partial class IndexModel(
                     PageNumber,
                     ResultsPerPage),
                 cancellationToken);
+            Rows = await ComposeRowsAsync(cancellationToken);
+
+            var selectedRow = SelectedId is { } selectedId
+                ? Rows.FirstOrDefault(row => row.Item.CaseId == selectedId)
+                : Rows.Count > 0 ? Rows[0] : null;
+            if (SelectedId is not null && selectedRow is null)
+            {
+                return NotFound();
+            }
+
+            if (selectedRow is not null)
+            {
+                SelectedId = selectedRow.Item.CaseId;
+                Selected = selectedRow;
+            }
+
+            LoadedAtUtc = timeProvider.GetUtcNow();
         }
         catch (ArgumentException exception)
         {
@@ -157,6 +230,11 @@ public sealed partial class IndexModel(
                 cancellationToken);
             if (byReference is not null && seen.Add(byReference.Record.Id))
             {
+                // The lifecycle state travels with the row. Omitting it took
+                // ImageIntakeSummary's AwaitingInstruction default, so an
+                // exact-reference hit on a merged or closed record rendered
+                // the wrong chip while the registration search beside it
+                // rendered the right one.
                 results.Add(new ImageIntakeSummary(
                     byReference.Record.Id,
                     byReference.Record.Origin.ReceiptId,
@@ -164,7 +242,9 @@ public sealed partial class IndexModel(
                     byReference.Record.NormalizedVehicleRegistration,
                     byReference.AssociatedCaseId,
                     byReference.AssociatedCaseReference,
-                    byReference.RegisteredAtUtc));
+                    byReference.RegisteredAtUtc,
+                    byReference.State,
+                    byReference.ClosureReason));
             }
         }
 
@@ -202,14 +282,85 @@ public sealed partial class IndexModel(
         ImageIntakeResults = results;
     }
 
-    public static string ImageIntakeOutcomeLabel(ImageIntakeSummary summary) =>
-        summary.AssociatedCaseId is null ? "Image intake registered" : "Associated with Case";
+    /// <summary>
+    /// The display rows: one batched staff-name resolve covers every
+    /// Engineer on the page, and the outstanding requirements read the
+    /// completeness facts the search already projected (CASE-025's rule:
+    /// only a Not ready case has any).
+    /// </summary>
+    private async Task<IReadOnlyList<ResultRow>> ComposeRowsAsync(CancellationToken cancellationToken)
+    {
+        var items = Results?.Items ?? [];
+        var engineerIds = items
+            .Where(item => item.EngineerId is not null)
+            .Select(item => item.EngineerId!.Value)
+            .Distinct()
+            .ToArray();
+        var engineerNames = engineerIds.Length == 0
+            ? (IReadOnlyDictionary<Guid, string>)new Dictionary<Guid, string>()
+            : await ActorDisplayNames.ResolveStaffNamesAsync(
+                staffAccounts,
+                engineerIds,
+                cancellationToken);
 
-    public Dictionary<string, string?> RouteValues(int pageNumber)
+        return items.Select(item =>
+        {
+            var outstanding =
+                item is { State: CaseLifecycleState.NotReady, InstructionComplete: { } instructions, ImagesComplete: { } images }
+                    ? OperatorLabels.CaseRequirements(!instructions, !images)
+                    : [];
+            return new ResultRow(
+                item,
+                $"/Cases/{item.CaseId:D}",
+                Href(selected: item.CaseId),
+                Join(item.Reference, item.Registration),
+                Join(item.Claimant, item.Principal),
+                OperatorLabels.CaseStage(item.State),
+                string.Join(
+                    " ",
+                    new[] { item.VehicleMake, item.VehicleModel }
+                        .Where(part => !string.IsNullOrWhiteSpace(part))),
+                item.ClaimNumber ?? "Not recorded",
+                item.EngineerId is { } engineerId
+                    ? ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), engineerNames)
+                    : "Unassigned",
+                item.NextChaseAtUtc is { } chase ? OperatorLabels.OfficeDate(chase) : "Not recorded",
+                outstanding.Count > 0 ? outstanding[0].Resolve : "Not recorded",
+                outstanding);
+        }).ToArray();
+    }
+
+    /// <summary>
+    /// This page's address with the given overrides. Every bound filter
+    /// rides along, including the ones the grid does not draw, so paging
+    /// and row selection never drop a filter an old link carried.
+    /// </summary>
+    public string Href(int? page = null, Guid? selected = null)
+    {
+        var values = RouteValues(page ?? PageNumber);
+        values["selected"] = selected?.ToString("D");
+        return QueryHelpers.AddQueryString(
+            "/Search",
+            values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
+    }
+
+    /// <summary>
+    /// The fields a refresh resubmits: the active filters, page and
+    /// selected row, so refreshing reruns the search the operator is
+    /// looking at.
+    /// </summary>
+    public IReadOnlyDictionary<string, string?> RefreshFields()
+    {
+        var values = RouteValues(PageNumber);
+        values["selected"] = SelectedId?.ToString("D");
+        return values;
+    }
+
+    private Dictionary<string, string?> RouteValues(int pageNumber)
     {
         var values = new Dictionary<string, string?>
         {
-            ["page"] = pageNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ["page"] = pageNumber.ToString(CultureInfo.InvariantCulture)
         };
         AddIfPresent(values, "case", CaseReference);
         AddIfPresent(values, "registration", Registration);
@@ -221,27 +372,30 @@ public sealed partial class IndexModel(
         AddIfPresent(
             values,
             "receivedDate",
-            ReceivedDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            ReceivedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddIfPresent(
             values,
             "instructionDate",
-            InstructionDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddIfPresent(
             values,
             "fromDate",
-            FromDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            FromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddIfPresent(
             values,
             "toDate",
-            ToDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            ToDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddIfPresent(values, "origin", Origin);
         AddIfPresent(values, "query", Query);
         AddIfPresent(values, "kind", RecordKindFilter);
         return values;
     }
 
-    public string PageUrl(int pageNumber) =>
-        QueryHelpers.AddQueryString("/Search", RouteValues(pageNumber));
+    /// <summary>"first · second", dropping whichever half is absent.</summary>
+    public static string Join(string? first, string? second) =>
+        string.Join(
+            " · ",
+            new[] { first, second }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
     private static void AddIfPresent(
         Dictionary<string, string?> values,

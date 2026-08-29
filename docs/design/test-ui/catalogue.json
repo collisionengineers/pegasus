@@ -286,8 +286,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Closure.cshtml",
     "route": "/Cases/{id:guid}/Closure",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only closure actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Create.cshtml",
@@ -316,13 +316,13 @@
       {
         "state": "default",
         "file": "pages/case-details--default.html",
-        "branch": "Loaded overview in Review with held edit lease.",
+        "branch": "Case workspace: Case Overview in Review with the edit lease held (header, identity ribbon, action bar, edit bar, section nav, context column).",
         "scenario": "case-details--default"
       },
       {
         "state": "unavailable",
         "file": "pages/case-details--unavailable.html",
-        "branch": "The case workspace cannot load the requested editable data.",
+        "branch": "The case query failed and the workspace renders the unavailable notice.",
         "scenario": "case-details--unavailable"
       },
       {
@@ -379,8 +379,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Workflow.cshtml",
     "route": "/Cases/{id:guid}/Workflow",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only workflow actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Connect/Authorize.cshtml",
