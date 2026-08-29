@@ -8,7 +8,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     /// <inheritdoc />
     public partial class GrantProviderSubmissionAcceptRecovery : Migration
     {
-        private const string WebRole = "pegasus_web_runtime_role";
         private const string WorkerRole = "pegasus_worker_runtime_role";
 
         // AUTO-012: the Provider API accept path writes the submission row in
