@@ -106,6 +106,95 @@ public sealed partial class CaseDetailsWebTests
             workspace.MutationForm("complete-task-2", "Already closed", existingTask));
     }
 
+    /// <summary>
+    /// EPIC-011 §1.8 Inspection address: the recorded value and, in edit
+    /// context, an editor for it. SaveCase writes every editable value, so the
+    /// form posts the typed address followed by the case's current values for
+    /// the rest; the binder reads the first entry for a repeated name, so the
+    /// typed address is the one that is saved and nothing else is cleared.
+    /// </summary>
+    [Fact]
+    public async Task InspectionAddressEditorPostsEveryEditableValueWithTheTypedAddressFirst()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=inspection-address");
+        var visible = html.IndexOf("id=\"inspection-address\"", StringComparison.Ordinal);
+        var hidden = html.IndexOf(
+            "type=\"hidden\" name=\"inspectionAddress\"",
+            StringComparison.Ordinal);
+
+        Assert.Contains("1 Depot Road", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}?handler=Save", html, StringComparison.Ordinal);
+        Assert.True(visible >= 0, "The inspection address input is not rendered.");
+        Assert.True(hidden > visible, "The typed address must be posted before the current one.");
+        foreach (var field in new[]
+        {
+            "claimantName",
+            "claimantContactNumber",
+            "claimantAddress",
+            "claimNumber",
+            "vehicleRegistration",
+            "vehicleMake",
+            "vehicleModel",
+            "vehicleMileage",
+            "vehicleMileageUnit",
+            "accidentCircumstances",
+            "incidentDate",
+            "contactName",
+            "contactEmailAddress",
+            "contactPhoneNumber",
+            "instructionDate",
+            "vatStatus",
+            "inspectionDate",
+            "inspectionDeadline",
+            "inspectionAddress",
+            "inspectionMode"
+        })
+        {
+            Assert.Contains($"name=\"{field}\"", html, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The Overview editor writes the same twenty values, so it must carry the
+    /// claimant's own contact number and address too: SaveCase writes a null for
+    /// anything the form omits, which cleared them on every save (CASE-027).
+    /// </summary>
+    [Fact]
+    public async Task OverviewEditorAlsoPostsTheClaimantContactNumberAndAddress()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Contains("name=\"claimantContactNumber\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"claimantAddress\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// EPIC-011 §1.8 Notes: entries carry the date, the clock time and the
+    /// actor, and both writing actions post the handlers the case already has.
+    /// </summary>
+    [Fact]
+    public async Task NotesSectionOffersAddNoteAndRecordChaseAgainstTheExistingHandlers()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=notes");
+
+        Assert.Contains($"/Cases/{store.CaseId:D}/Tasks?handler=AddNote", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
+            html,
+            StringComparison.Ordinal);
+    }
+
     private sealed partial class RecordingCaseDetailsStore :
         ICreateCaseTask,
         IAssignCaseTask,
