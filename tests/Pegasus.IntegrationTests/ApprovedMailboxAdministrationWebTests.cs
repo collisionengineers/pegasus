@@ -287,6 +287,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         var configured = await GetPageAsync(client);
         Assert.Contains("?handler=ResolveFolders", configured, StringComparison.Ordinal);
+        Assert.Contains(">Review folders (1 of 13)</summary>", configured, StringComparison.Ordinal);
         AssertFolderBinding(configured, "Instructions", "Configured");
         AssertFolderBinding(configured, "Billing", "Not configured");
         Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
