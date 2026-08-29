@@ -156,15 +156,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
     "route": "/Administration/MailCategories",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-mail-categories--default.html",
-        "branch": "No existing categories plus add-category form.",
-        "scenario": "administration-mail-categories--default"
-      }
-    ]
+    "classification": "redirect",
+    "reason": "Superseded Mail categories surface redirects to the consolidated Mail settings area until UIIMP-009 removes it."
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
@@ -174,7 +167,7 @@
       {
         "state": "default",
         "file": "pages/administration-mailboxes--default.html",
-        "branch": "One approved identity-bound mailbox before its first poll.",
+        "branch": "Mail settings with one approved identity-bound mailbox before its first poll and the mail categories table.",
         "scenario": "administration-mailboxes--default"
       }
     ]

@@ -984,4 +984,102 @@ public static class OperatorLabels
         var words = slug.Replace('-', ' ').Replace('_', ' ');
         return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
+
+    /// <summary>The Mail settings area labels and status values — one list.</summary>
+    public static class MailSettings
+    {
+        public const string Area = "Mail settings";
+        public const string Description = "Approved mailboxes and mail categories";
+        public const string ApprovedMailboxes = "Approved mailboxes";
+        public const string MailCategories = "Mail categories";
+        public const string Mailbox = "Mailbox";
+        public const string Scope = "Scope";
+        public const string LastUpdate = "Last update";
+        public const string State = "State";
+        public const string Activated = "Activated";
+        public const string Subscription = "Subscription";
+        public const string ReviewFoldersRefresh = "Review folders / Refresh";
+        public const string Category = "Category";
+        public const string Review = "Review";
+        public const string ReviewFolders = "Review folders";
+        public const string AddMailbox = "Add mailbox";
+        public const string AddCategory = "Add category";
+        public const string SaveMailbox = "Save mailbox";
+        public const string SaveCategory = "Save category";
+        public const string Refresh = "Refresh";
+        public const string ApprovedAddress = "Approved address";
+        public const string RouteScope = "Route scope";
+        public const string DisplayName = "Display name";
+        public const string Reason = "Reason";
+        public const string NoApprovedMailboxes = "No approved mailboxes";
+        public const string NoMailCategories = "No mail categories";
+        public const string NotActivated = "Not activated";
+        public const string NoSubscription = "None.";
+        public const string Configured = "Configured";
+        public const string NotConfigured = "Not configured";
+
+        public static string Meta(int mailboxCount, int categoryCount) =>
+            $"{mailboxCount} approved {(mailboxCount == 1 ? "mailbox" : "mailboxes")} · " +
+            $"{categoryCount} mail {(categoryCount == 1 ? "category" : "categories")}";
+
+        public static string MailboxState(ApprovedMailboxState state) => state switch
+        {
+            ApprovedMailboxState.Approved => "Approved",
+            ApprovedMailboxState.Disabled => "Disabled",
+            _ => Humanise(state.ToString())
+        };
+
+        public static string CategoryState(ApprovedOutlookCategoryState state) => state switch
+        {
+            ApprovedOutlookCategoryState.Active => "Active",
+            ApprovedOutlookCategoryState.Disabled => "Disabled",
+            _ => Humanise(state.ToString())
+        };
+
+        public static string FolderState(bool configured) =>
+            configured ? Configured : NotConfigured;
+
+        public static string PollStatus(
+            ApprovedMailbox mailbox,
+            ApprovedMailboxPollStatus? status)
+        {
+            if (status is null)
+            {
+                return mailbox.State == ApprovedMailboxState.Approved
+                    && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake)
+                        ? "Not yet polled."
+                        : "Not polled.";
+            }
+
+            var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
+                ? $"Last completed {OfficeTime(lastCompletedAtUtc)}."
+                : "No completed poll yet.";
+            var due = $" Next due {OfficeTime(status.DueAtUtc)}.";
+            var failure = status.LastFailureCode switch
+            {
+                null => string.Empty,
+                "mailbox_access_denied" =>
+                    " The tenant has not granted this application access to this mailbox.",
+                "mailbox_not_approved" =>
+                    " The last attempt stopped because this mailbox was no longer approved.",
+                var code => $" Last failure: {Humanise(code)}."
+            };
+            return $"{completed}{due}{failure}";
+        }
+
+        public static string SubscriptionStatus(ApprovedMailboxSubscription? subscription)
+        {
+            if (subscription is null)
+            {
+                return NoSubscription;
+            }
+
+            var state = $"{Humanise(subscription.LifecycleState.ToString())}.";
+            var expires = $" Expires {OfficeTime(subscription.ExpiresAtUtc)}.";
+            var failure = subscription.LastMaintenanceFailureCode is { } code
+                ? $" Last failure: {Humanise(code)}."
+                : string.Empty;
+            return $"{state}{expires}{failure}";
+        }
+    }
 }
