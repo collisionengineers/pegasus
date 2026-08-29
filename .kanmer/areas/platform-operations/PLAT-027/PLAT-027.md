@@ -2,13 +2,14 @@
 id: PLAT-027
 type: ticket
 title: 'Consolidate Staff accounts, roles, and access review administration'
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T09:38:15.059Z'
   review: '2026-08-29T10:05:44.670Z'
+  verifying: '2026-08-29T18:43:46.146Z'
 taken_at: '2026-08-29T09:40:34.690Z'
 branch: task/plat-027-staff-accounts-roles
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-027-staff-accounts-roles'
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/619'
 archived: false
 created: '2026-08-21T13:19:14.382Z'
-updated: '2026-08-29T13:32:43.913Z'
+updated: '2026-08-29T18:43:46.146Z'
 ---
 
 ## What
