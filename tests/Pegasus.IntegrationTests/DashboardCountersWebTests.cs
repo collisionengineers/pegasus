@@ -42,6 +42,31 @@ public sealed class DashboardCountersWebTests
         }
     }
 
+    /// <summary>
+    /// UIIMP-008: a link whose `asp-page` names a page that does not exist
+    /// renders `href=""` — valid HTML, so nothing failed. That shipped three
+    /// dead controls on this page, and the committed snapshot recorded it
+    /// verbatim without any gate objecting.
+    ///
+    /// This is the class guard: whatever the Work Centre draws, no anchor may
+    /// carry an empty href. The leading space matters — it matches a real
+    /// `href` attribute and not `data-workspace-href` or `data-download-href`,
+    /// whose names end in "href" and which are legitimately empty when the page
+    /// is not a record.
+    /// </summary>
+    [Fact]
+    public async Task TheWorkCentreRendersNoEmptyLink()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain(" href=\"\"", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task BlockedMetricCountsBlockedIntakeReceipts()
     {
