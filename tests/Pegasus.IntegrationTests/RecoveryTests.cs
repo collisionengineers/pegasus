@@ -410,6 +410,7 @@ public sealed class RecoveryTests
             true,
             clock,
             artifactStore);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var store = services.GetRequiredService<IIntakeWorkStore>();
@@ -427,7 +428,21 @@ public sealed class RecoveryTests
         var status = Assert.IsType<QueuedIntakeStatus>(
             await services.GetRequiredService<IQueuedIntakeStatusQueries>()
                 .GetAsync(received.StagedReceiptId));
-        Assert.Equal(QueuedIntakeStatusKind.Received, status.Status);
+        Assert.Equal(QueuedIntakeStatusKind.Processing, status.Status);
+        Assert.Equal(work.DueAtUtc, status.RetryDueAtUtc);
+
+        // The work is in hand and its next attempt is thirty seconds away, so
+        // the page says Processing rather than Received, and waits exactly
+        // that long instead of reloading every two seconds for the whole of
+        // it.
+        Assert.Equal(clock.GetUtcNow().AddSeconds(30), work.DueAtUtc);
+        using var statusPage = await client.GetAsync(
+            $"/Upload/Status/{received.StagedReceiptId:D}");
+        statusPage.EnsureSuccessStatusCode();
+        var html = await statusPage.Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Processing</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-auto-refresh=\"30000\"", html, StringComparison.Ordinal);
+
         await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
     }
 

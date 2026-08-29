@@ -880,6 +880,7 @@ public static class OperatorLabels
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
+        IntakeSourceChannel.ProviderApi => ProviderSubmissionApi.Source,
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
@@ -890,6 +891,7 @@ public static class OperatorLabels
         "manual_upload" => "Manual upload",
         "mailbox" => "E-mail",
         "automation" => "Automation",
+        "provider_api" => ProviderSubmissionApi.Source,
         _ => Humanise(code)
     };
 
@@ -909,6 +911,9 @@ public static class OperatorLabels
             CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
             CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
             CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
+            CaseDataSourceKind.ProviderApi => (
+                ProviderSubmissionApi.Source,
+                ProviderSubmissionApi.ProvenanceIcon),
             CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
             _ => ("Unknown", "icon-info")
         };
@@ -979,6 +984,13 @@ public static class OperatorLabels
         _ => Humanise(kind.ToString())
     };
 
+    /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
+    public static class ProviderSubmissionApi
+    {
+        public const string Source = "Provider API";
+        public const string ProvenanceIcon = "icon-link";
+    }
+
     private static string HumanizeSlug(string slug)
     {
         var words = slug.Replace('-', ' ').Replace('_', ' ');
@@ -1009,5 +1021,48 @@ public static class OperatorLabels
         public static string State(bool isEnabled) => isEnabled ? Enabled : Disabled;
 
         public const string PasswordChangeComplete = "Password change complete";
+    }
+
+    /// <summary>
+    /// The Automation &amp; AI administration area's words (EPIC-011 §1.12) —
+    /// one list. <see cref="Admin.Automation"/> above is the area's name in the
+    /// rail; these are the two panels inside it.
+    /// </summary>
+    public static class AutomationAdmin
+    {
+        public const string AutomationPanel = "Automation";
+        public const string AiSettingsPanel = "AI settings";
+        public const string Enabled = "Enabled";
+        public const string Stopped = "Stopped";
+        public const string RegisteredClients = "Registered clients";
+        public const string ActiveJobs = "Active jobs";
+        public const string FailedJobs = "Failed jobs";
+        public const string Stop = "Stop automation";
+        public const string Start = "Start automation";
+
+        /// <summary>
+        /// The one consequence sentence on the kill switch, from the design
+        /// authority's necessary-copy allowance for a destructive action.
+        /// </summary>
+        public const string StopConsequence =
+            "In-flight work remains visible and no result is discarded.";
+
+        public const string ChannelToken = "Channel token";
+        public const string ChannelTokenEntered = "Entered from Administration";
+        public const string ChannelTokenStandard = "Standard setting";
+        public const string ChannelTokenChanged = "Changed";
+        public const string ChannelAddress = "Channel address";
+        public const string Timeout = "Timeout in seconds";
+        public const string NewChannelToken = "New channel token";
+        public const string SendToAiEnabled = "Reviewed AI proposals enabled";
+        public const string Save = "Save AI settings";
+        public const string RemoveChannelToken = "Remove the channel token";
+        public const string Reason = "Reason";
+
+        /// <summary>The state word for a switch an administrator holds.</summary>
+        public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;
+
+        public const string ClientIdentifier = "Client identifier";
+        public const string GrantedScopes = "Granted scopes";
     }
 }
