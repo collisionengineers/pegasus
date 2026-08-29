@@ -49,8 +49,13 @@ public sealed record CaseActivityCounts(
 /// </summary>
 /// <remarks>
 /// <see cref="ReceivedToday"/> counts mailbox-channel intake only (PLAT-012):
-/// it backs the Dashboard's E-mail activity tile, so a manual upload — a
-/// different intake channel entirely — must not move it.
+/// a manual upload is a different intake channel entirely and must not move
+/// it. The Dashboard E-mail activity tile it was written for is gone with the
+/// Work Centre port (UIIMP-008) and nothing renders the value now, but the
+/// query still runs on every load — PLAT-058 decides whether it gets a surface
+/// or is deleted. Until then the rule stays guarded by
+/// DashboardCountersWebTests.ReceivedTodayCountsMailboxChannelOnlyNotManualUploads,
+/// which reads the query rather than the tile that no longer exists.
 /// </remarks>
 public sealed record MailActivityCounts(int ReceivedToday, int NeedsSorting)
 {
@@ -120,6 +125,7 @@ public enum NeedsAttentionPriority
 /// <param name="Id">The record the row opens (Case, Unidentified item, Triage record; the Case for external work).</param>
 /// <param name="Reason">Why it needs attention — a Core enum name or a recorded failure fact: a chase state, a Case state, an Unidentified reason code, a Triage state or an external failure reason.</param>
 /// <param name="Source">Where the work came from — a Case origin, media kind or principal; null when the kind records none.</param>
+/// <param name="Attempts">How many times the work has been tried — external work only; null when the kind records none.</param>
 public sealed record NeedsAttentionItem(
     NeedsAttentionKind Kind,
     Guid Id,
@@ -131,4 +137,5 @@ public sealed record NeedsAttentionItem(
     string? Owner,
     DateTimeOffset? Due,
     string? LastOutcome,
-    string? Source);
+    string? Source,
+    int? Attempts);

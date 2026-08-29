@@ -73,14 +73,14 @@
                     <span class="work-item-head">
                         <span>
                             <span class="row-meta">@OperatorLabels.NeedsAttentionKind(item.Kind) · @item.Reference</span>
-                            <h3>@item.Title</h3>
+                            <h3>@IndexModel.TitleLabel(item)</h3>
                         </span>
                         @{
                             ViewData["StatusTone"] = OperatorLabels.NeedsAttentionPriorityTone(item.Priority);
                         }
                         <partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(item.Priority)" />
                     </span>
-                    @if (item.Detail is { } detail)
+                    @if (IndexModel.DetailLabel(item) is { } detail)
                     {
                         <p>@detail</p>
                     }
@@ -117,8 +117,8 @@
                     <div class="cluster cluster--between cluster--start">
                         <div>
                             <p class="eyebrow">@OperatorLabels.NeedsAttentionKind(selected.Kind) · <span id="selected-reference">@selected.Reference</span></p>
-                            <h2>@selected.Title</h2>
-                            @if (selected.Detail is { } lead)
+                            <h2>@IndexModel.TitleLabel(selected)</h2>
+                            @if (IndexModel.DetailLabel(selected) is { } lead)
                             {
                                 <p class="work-detail-lead">@lead</p>
                             }
