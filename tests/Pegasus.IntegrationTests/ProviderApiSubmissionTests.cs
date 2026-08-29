@@ -62,8 +62,10 @@ public sealed class ProviderApiSubmissionTests
 
         // Change the last character to one it is not. Appending a fixed "A"
         // silently produced the *same* secret whenever the issued one already
-        // ended in "A" — roughly one run in sixty-four, which authenticated and
-        // failed this assertion for no reason a reader could see.
+        // ended in "A" — one run in sixteen, not one in sixty-four: the last
+        // character of the 43-character base64url tail carries only 4 bits, so
+        // it has 16 possible values. That authenticated and failed this
+        // assertion for no reason a reader could see.
         var wrongSecret = secret[..^1] + (secret[^1] == 'A' ? 'B' : 'A');
         using (var wrong = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{Guid.NewGuid():D}", wrongSecret))
         {
