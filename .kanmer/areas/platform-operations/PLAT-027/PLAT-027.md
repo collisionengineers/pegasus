@@ -2,12 +2,15 @@
 id: PLAT-027
 type: ticket
 title: 'Consolidate Staff accounts, roles, and access review administration'
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T09:38:15.059Z'
+taken_at: '2026-08-29T09:40:34.690Z'
+branch: task/plat-027-staff-accounts-roles
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-027-staff-accounts-roles'
 labels:
   - ui
   - administration
@@ -21,7 +24,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.382Z'
-updated: '2026-08-29T09:38:15.059Z'
+updated: '2026-08-29T09:40:34.690Z'
 ---
 
 ## What

@@ -1,0 +1,21 @@
+# Checklist — PLAT-027
+
+- [ ] `origin/dev` merged into `task/plat-027-staff-accounts-roles`
+- [ ] `OperatorLabels.StaffAccounts` appended (own nested class, nothing reordered)
+- [ ] `Accounts/Index.cshtml.cs` reads `IListStaffAccounts` + `IGetAccessReview`
+- [ ] Handlers `Create`, `Roles`, `Disable`, `Review` all call their existing Core use case
+- [ ] `[Authorize(Policy = Administrator)]` preserved on the consolidated page
+- [ ] Accounts table renders Username, Role select, State, Last reviewed, Save, Account
+- [ ] Role select carries every `StaffRole`, pre-selected from the account's set
+- [ ] Access-review readout (last reviewed / outstanding) renders from Core's flag
+- [ ] Disable and Review use `_ReasonDialog`; Disable carries one consequence sentence
+- [ ] Create staff account panel present; the old field-hint sentence deleted
+- [ ] No inert control on the page — every drawn control has a handler
+- [ ] No legacy-block CSS class used
+- [ ] `TestUiFocusedRenderTests` empty-state assertion retargeted at the new markup
+- [ ] `StaffAccountsAndRolesWebTests` added and passing
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release` green
+- [ ] Focused test filter run and the real counts recorded
+- [ ] Simplification pass recorded in the plan under a dated heading
+- [ ] Superseded routes listed for UIIMP-009 in the post-implementation report
+- [ ] Committed in slices, pushed, PR opened against `dev` — not merged
