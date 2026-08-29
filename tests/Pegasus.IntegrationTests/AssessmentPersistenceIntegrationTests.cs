@@ -579,7 +579,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task ValuationsSaveEditListAndResolveTheCurrentEngineersValue()
+    public async Task ValuationsSaveEditListAndOwnTheConfirmedEngineersValueField()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("valuation-accept-case");
@@ -588,11 +588,20 @@ public sealed class AssessmentPersistenceIntegrationTests
         var save = new SaveValuation(harness.Valuations);
         var edit = new EditValuation(harness.Valuations);
         var list = new ListCaseValuations(harness.Valuations);
-        var current = new GetCurrentEngineersValue(harness.Valuations);
         long version = 0;
 
         async Task<CaseEditLease> LeaseAsync(string key) =>
             await harness.AcquireLeaseAsync(caseId, version, engineer, key);
+
+        // The one owner of the Engineer's Value the product consumes.
+        async Task<(string Value, string? ConfirmedBy)> EngineersValueFieldAsync()
+        {
+            await using var read = await harness.Factory.CreateDbContextAsync();
+            var field = await read.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
+                item.CaseId == caseId
+                && item.FieldPath == AssessmentVocabulary.ValueEngineer);
+            return (field.Value, field.ConfirmedBy);
+        }
 
         async Task<CaseValuation> SaveAsync(
             string key,
@@ -626,6 +635,13 @@ public sealed class AssessmentPersistenceIntegrationTests
             42000,
             12100m,
             10100m);
+        await using (var noField = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.False(await noField.CaseAssessmentFields.AnyAsync(item =>
+                item.CaseId == caseId
+                && item.FieldPath == AssessmentVocabulary.ValueEngineer));
+        }
+
         var olderEngineerValue = await SaveAsync(
             "valuation-save-engineer-old",
             ValuationSource.EngineersValue,
@@ -643,9 +659,8 @@ public sealed class AssessmentPersistenceIntegrationTests
             12000m,
             10000m);
 
-        Assert.Equal(
-            newerEngineerValue.ValuationId,
-            (await current.ExecuteAsync(caseId, CancellationToken.None))!.ValuationId);
+        Assert.Equal(("12000.00", engineer.SubjectId), await EngineersValueFieldAsync());
+        Assert.Equal(12000m, newerEngineerValue.Details.RetailValue);
 
         harness.Advance(TimeSpan.FromMinutes(1));
         var editLease = await LeaseAsync("valuation-edit-lease");
@@ -668,19 +683,34 @@ public sealed class AssessmentPersistenceIntegrationTests
         Assert.Equal(edited, await edit.ExecuteAsync(editRequest, CancellationToken.None));
         version++;
 
+        // Correcting the earlier row onto the latest entered date makes it the
+        // current Engineer's Value, so the owned field follows it.
+        Assert.Equal(("12345.67", engineer.SubjectId), await EngineersValueFieldAsync());
+
+        // A later-recorded but earlier-dated row never demotes the field: the
+        // current Engineer's Value is the latest entered one, not the last
+        // one saved.
+        harness.Advance(TimeSpan.FromMinutes(1));
+        await SaveAsync(
+            "valuation-save-engineer-backdated",
+            ValuationSource.EngineersValue,
+            new DateOnly(2031, 5, 6),
+            new TimeOnly(7, 45),
+            41800,
+            9500m,
+            8500m);
+        Assert.Equal(("12345.67", engineer.SubjectId), await EngineersValueFieldAsync());
+
         var valuations = await list.ExecuteAsync(caseId, CancellationToken.None);
-        Assert.Equal(3, valuations.Count);
+        Assert.Equal(4, valuations.Count);
         Assert.Equal(edited.ValuationId, valuations[0].ValuationId);
         Assert.Equal(42125, edited.Details.Mileage);
         Assert.Equal(12345.67m, edited.Details.RetailValue);
         Assert.Equal(engineer.SubjectId, edited.LastEditedBy);
-        Assert.Equal(
-            edited.ValuationId,
-            (await current.ExecuteAsync(caseId, CancellationToken.None))!.ValuationId);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(
-            4,
+            5,
             await context.ActionHistory.CountAsync(item =>
                 item.AggregateType == "case_valuation"));
         Assert.Equal(
@@ -706,8 +736,6 @@ public sealed class AssessmentPersistenceIntegrationTests
             scope.ServiceProvider.GetRequiredService<IEditValuation>());
         Assert.IsType<ListCaseValuations>(
             scope.ServiceProvider.GetRequiredService<IListCaseValuations>());
-        Assert.IsType<GetCurrentEngineersValue>(
-            scope.ServiceProvider.GetRequiredService<IGetCurrentEngineersValue>());
     }
 
     [Fact]
