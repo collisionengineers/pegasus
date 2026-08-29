@@ -40,7 +40,11 @@ public sealed class UploadDropzoneBrowserTests
 
                 const zone = document.querySelector('[data-dropzone]');
                 const input = zone.querySelector('input[type="file"]');
-                const readout = zone.querySelector('[data-dropzone-file]');
+                // site.js looks the readout up in the enclosing form when the zone
+                // does not carry it: EPIC-011 s1.10 draws the file list under the
+                // dashed area, not inside it. Mirror that lookup exactly.
+                const readout = zone.querySelector('[data-dropzone-file]')
+                    || zone.closest('form').querySelector('[data-dropzone-file]');
 
                 function fire(type) {
                     const event = new DragEvent(type, {
@@ -181,7 +185,11 @@ public sealed class UploadDropzoneBrowserTests
                 () => {
                     const zone = document.querySelector('[data-dropzone]');
                     const input = zone.querySelector('input[type="file"]');
-                    const readout = zone.querySelector('[data-dropzone-file]');
+                    // site.js looks the readout up in the enclosing form when
+                    // the zone does not carry it: EPIC-011 s1.10 draws the file
+                    // list under the dashed area, not inside it.
+                    const readout = zone.querySelector('[data-dropzone-file]')
+                        || zone.closest('form').querySelector('[data-dropzone-file]');
                     return {
                         inputFileCount: input.files ? input.files.length : -1,
                         readoutHidden: readout.hidden,
