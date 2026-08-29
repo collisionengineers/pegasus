@@ -170,10 +170,10 @@ public sealed class OperatorJourneyTests
 
         Assert.Equal(200, operationsResponse.Status);
         Assert.Equal(
-            "Dashboard",
+            "Work Centre",
             await support.Page.GetByRole(
                 AriaRole.Heading,
-                new PageGetByRoleOptions { Name = "Dashboard", Exact = true }).InnerTextAsync());
+                new PageGetByRoleOptions { Name = "Work Centre", Exact = true }).InnerTextAsync());
         Assert.Contains(
             "development-offline-administrator",
             await support.Page.Locator("[aria-label='User']").InnerTextAsync(),
@@ -199,11 +199,12 @@ public sealed class OperatorJourneyTests
             "Operations",
             "Administration");
 
-        // The three sections an operator actually opens this screen to read.
-        // Lowercased because the section labels are uppercased by the
-        // stylesheet, so the rendered text is the styling, not the copy.
-        var dashboard = (await support.Page.Locator("main").InnerTextAsync()).ToLowerInvariant();
-        AssertOrdered(dashboard, "active cases", "e-mail activity", "today and this week");
+        // The three reads an operator actually opens this screen for: the
+        // metric strip's label, then the two panes it feeds. Lowercased
+        // because the section label is uppercased by the stylesheet, so the
+        // rendered text is the styling, not the copy.
+        var workCentre = (await support.Page.Locator("main").InnerTextAsync()).ToLowerInvariant();
+        AssertOrdered(workCentre, "work requiring attention", "needs attention", "selected work");
 
         // Every metric opens the exact filtered list behind it. Review is the
         // case stage, and the tile is backed by a count of cases in it — it
@@ -233,7 +234,7 @@ public sealed class OperatorJourneyTests
         // shipped; every tile that is shipped renders a number, and 0 is a
         // number.
         Assert.Equal(0, await support.Page.Locator("[data-queue-state='unavailable']").CountAsync());
-        var metricValues = await support.Page.Locator(".metric .metric__value").AllInnerTextsAsync();
+        var metricValues = await support.Page.Locator(".metric .metric-value").AllInnerTextsAsync();
         Assert.NotEmpty(metricValues);
         Assert.All(metricValues, value => Assert.Matches(@"^\d+$", value.Trim()));
 

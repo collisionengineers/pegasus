@@ -64,21 +64,37 @@ public sealed partial class SendToAiIntegrationTests
         Assert.DoesNotContain(RotatedToken, heldHtml, StringComparison.Ordinal);
 
         // The next hand-off reaches the overridden channel with the rotated
-        // token; the composed channel receives nothing.
-        var assessmentHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        using (var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=Send",
-            Form(
-                AntiforgeryValue(assessmentHtml),
-                ("operationKey", InputValue(assessmentHtml, "operationKey")))))
+        // token; the composed channel receives nothing. The hand-off is
+        // driven through its own seam: the Assessment surface moved to the
+        // AI job ledger (ENG-025), so the page no longer triggers it.
+        await using (var handOffScope = factory.Services.CreateAsyncScope())
         {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            var outcome = await handOffScope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.AiWork.ISendCaseToAi>()
+                .ExecuteAsync(
+                    new(
+                        caseId,
+                        ActionActor.Staff(
+                            DevelopmentOfflineIdentity.AdministratorId,
+                            [StaffRole.Administrator]),
+                        Guid.NewGuid().ToString("N"),
+                        "Connector override probe."),
+                    CancellationToken.None);
+            Assert.Equal(Pegasus.Core.AiWork.SendCaseToAiOutcome.HandedOff, outcome.Outcome);
         }
 
         var request = Assert.Single(
             overrideReceiver.Requests,
             item => item.Path.StartsWith("/send", StringComparison.Ordinal));
         Assert.Equal($"Bearer {RotatedToken}", request.Authorization);
+        // AI-09 outbound guard: the hand-off body is a pointer, never the
+        // case content. The seeded case carries a claimant name, so this
+        // asserts the payload leaves it behind. It moved here with the
+        // hand-off itself when the Assessment page stopped triggering it
+        // (ENG-025); this is now the only end-to-end test of the body.
+        Assert.Contains("\"schema_version\":1", request.Body, StringComparison.Ordinal);
+        Assert.Contains("\"case_reference\":", request.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("claimant", request.Body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
             configuredReceiver.Requests,
             item => item.Path.StartsWith("/send", StringComparison.Ordinal));

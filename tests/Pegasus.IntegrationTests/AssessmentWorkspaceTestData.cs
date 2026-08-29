@@ -100,6 +100,9 @@ internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessm
         GetAssessmentAccessQuery query,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<AssessmentAccessState?>(canOpen
-            ? new(CaseLifecycleState.Review, 0, 0)
+            // D11: the open states are With Engineer onwards — Review no
+            // longer opens the workspace, so the open fake must sit inside
+            // the new state set or the policy itself refuses it.
+            ? new(CaseLifecycleState.ReportPreparation, 0, 0)
             : new(CaseLifecycleState.NotReady, 0, null));
 }

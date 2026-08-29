@@ -248,6 +248,9 @@ public sealed class EfCaseQueryStore(
             Registration = draft == null ? null : draft.VehicleRegistration,
             Claimant = draft == null ? null : draft.ClaimantName,
             ClaimNumber = draft == null ? null : draft.ClaimNumber,
+            VehicleMake = draft == null ? null : draft.VehicleMake,
+            VehicleModel = draft == null ? null : draft.VehicleModel,
+            AccidentCircumstances = draft == null ? null : draft.AccidentCircumstances,
             ReceivedAtUtc = receipt.ReceivedAtUtc,
             InstructionDate = draft == null ? null : draft.InstructionDate,
             Origin = receipt.SourceChannel,
@@ -339,7 +342,10 @@ public sealed class EfCaseQueryStore(
         item.InstructionDate,
         item.Origin,
         item.CreatedAtUtc,
-        item.NextChaseAtUtc)
+        item.NextChaseAtUtc,
+        item.VehicleMake,
+        item.VehicleModel,
+        item.AccidentCircumstances)
     {
         InstructionComplete = item.InstructionComplete,
         ImagesComplete = item.ImagesComplete
@@ -553,6 +559,9 @@ public sealed class EfCaseQueryStore(
         public required string Origin { get; init; }
         public DateTimeOffset CreatedAtUtc { get; init; }
         public DateTimeOffset? NextChaseAtUtc { get; init; }
+        public string? VehicleMake { get; init; }
+        public string? VehicleModel { get; init; }
+        public string? AccidentCircumstances { get; init; }
         public bool InstructionComplete { get; init; }
         public bool ImagesComplete { get; init; }
     }
