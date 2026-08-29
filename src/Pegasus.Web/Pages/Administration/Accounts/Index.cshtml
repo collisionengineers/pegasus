@@ -1,86 +1,194 @@
 @page
+@using Pegasus.Core.Identity
 @model Pegasus.Web.Pages.Administration.Accounts.IndexModel
 @{
-    ViewData["Title"] = "Staff accounts";
-    ViewData["Eyebrow"] = "Administration";
+    ViewData["Title"] = OperatorLabels.Admin.Accounts;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "accounts";
+    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
+    var staffRoles = Enum.GetValues<StaffRole>();
+    var reasonLimit = StaffAccountAdministrationPolicy.MaximumReasonLength;
 }
-
-<a class="back-link" asp-page="/Administration/Index">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Administration
-</a>
 
 <partial name="Shared/_PageHeader" />
 
-@if (TempData["AdministrationStatus"] is string status)
-{
-    <div class="status-card" role="status">@status</div>
-}
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <partial name="Shared/_ErrorSummary" />
 
-<div class="split-main">
-    <section aria-labelledby="current-accounts-heading">
-        <h2 id="current-accounts-heading" class="section-label">Current accounts</h2>
-        @if (Model.Accounts.Count == 0)
-        {
-            <div class="panel empty-state">No staff accounts are available. Application initialization must complete before ordinary administration can begin.</div>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <caption class="vh">Staff accounts and their current access</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Username</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Roles</th>
-                            <th scope="col">First password change</th>
-                            <th scope="col">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var account in Model.Accounts)
-                    {
-                        <tr>
-                            <td>@account.UserName</td>
-                            <td><partial name="Shared/_StatusChip" model="@(account.IsEnabled ? "Enabled" : "Disabled")" /></td>
-                            <td>@string.Join(", ", account.Roles)</td>
-                            <td>@(account.MustChangePassword ? "Required" : "Complete")</td>
-                            <td><a asp-page="Edit" asp-route-id="@account.Id">Manage</a></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
+        @* Accounts, roles and the access review are one table: the role set,
+           the account state and the review verdict are three readings of the
+           same staff account, and every action here acts on that one row. *@
+        <section class="panel" aria-labelledby="staff-accounts-title">
+            <div class="panel-head">
+                <h2 id="staff-accounts-title">Accounts</h2>
+                <span class="muted">@Model.Rows.Count accounts</span>
             </div>
-        }
-    </section>
+            @if (Model.Rows.Count == 0)
+            {
+                <div class="empty">
+                    <h2>No staff accounts</h2>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">Staff accounts with their roles, state and last recorded access review</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Username</th>
+                                <th scope="col">Role</th>
+                                <th scope="col">State</th>
+                                <th scope="col">Last reviewed</th>
+                                <th scope="col">Save</th>
+                                <th scope="col">Account</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            var account = row.Account;
+                            var staffId = account.Id.ToString("D");
+                            var roleForm = "roles-" + staffId;
+                            var roleSelect = roleForm + "-select";
+                            var roleReason = roleForm + "-reason";
+                            <tr>
+                                <td>@account.UserName</td>
+                                <td>
+                                    @* Core assigns a *set* of roles and gates engineer
+                                       eligibility on the Engineer role specifically, so the
+                                       inline select carries the whole set rather than
+                                       collapsing it to one value. It belongs to the row's
+                                       form in the Save cell. *@
+                                    <label class="sr-only" for="@roleSelect">Roles for @account.UserName</label>
+                                    <select id="@roleSelect" name="selectedRoles" form="@roleForm" multiple size="@staffRoles.Length">
+                                        @foreach (var role in staffRoles)
+                                        {
+                                            <option value="@role" selected="@account.Roles.Contains(role)">@OperatorLabels.Humanise(role.ToString())</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td>
+                                    <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.State(account.IsEnabled)" />
+                                    @if (account.MustChangePassword)
+                                    {
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeRequired" />
+                                    }
+                                </td>
+                                <td>
+                                    @if (account.LastAccessReviewAtUtc is { } reviewedAtUtc)
+                                    {
+                                        <time datetime="@reviewedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(reviewedAtUtc)</time>
+                                    }
+                                    else if (row.ReviewIsOutstanding)
+                                    {
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.ReviewDue" />
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    <form id="@roleForm" method="post" asp-page-handler="Roles" class="field">
+                                        <input type="hidden" name="staffId" value="@staffId" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <label class="req" for="@roleReason">Reason</label>
+                                        <input id="@roleReason" name="reason" required maxlength="@reasonLimit" />
+                                        <button type="submit" class="btn">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                            <span>Save</span>
+                                        </button>
+                                    </form>
+                                </td>
+                                <td>
+                                    @if (account.IsEnabled)
+                                    {
+                                        <button type="button" class="btn btn--danger" data-dialog-open="disable-@staffId">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                                            <span>Disable</span>
+                                        </button>
+                                    }
+                                    <button type="button" class="btn" data-dialog-open="review-@staffId">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                                        <span>Review</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
 
-    <section aria-labelledby="create-account-heading">
-        <h2 id="create-account-heading" class="section-label">Create staff account</h2>
-        <div class="panel form-panel form-panel--wide">
-            <form method="post" asp-page-handler="Create">
-                <div asp-validation-summary="ModelOnly"></div>
-                <input asp-for="OperationKey" type="hidden" />
-                <div>
-                    <label asp-for="UserName">Username</label>
-                    <input asp-for="UserName" autocomplete="off" />
-                    <span asp-validation-for="UserName"></span>
-                </div>
-                <div>
-                    <label asp-for="TemporaryPassword">Temporary password</label>
-                    <input asp-for="TemporaryPassword" autocomplete="new-password" />
-                    <span asp-validation-for="TemporaryPassword"></span>
-                    <small class="empty-state">At least eight characters. The staff member must replace it at first sign-in.</small>
-                </div>
-                <div>
-                    <label asp-for="Reason">Reason</label>
-                    <textarea asp-for="Reason" rows="3"></textarea>
-                    <span asp-validation-for="Reason"></span>
-                </div>
-                <div class="button-row">
-                    <button type="submit" class="primary-action">Create account</button>
-                </div>
-            </form>
-        </div>
-    </section>
+        <section class="panel" aria-labelledby="create-account-title">
+            <div class="panel-head">
+                <h2 id="create-account-title">Create staff account</h2>
+            </div>
+            <div class="panel-body">
+                <form method="post" asp-page-handler="Create" class="stack">
+                    <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
+                    <div class="field field--narrow">
+                        <label class="req" for="create-username">Username</label>
+                        <input id="create-username" name="userName" value="@Model.NewUserName" required
+                               maxlength="@StaffAccountAdministrationPolicy.MaximumUserNameLength" autocomplete="off" />
+                    </div>
+                    <div class="field field--narrow">
+                        <label class="req" for="create-password">Temporary password</label>
+                        <input id="create-password" name="temporaryPassword" type="password" required
+                               minlength="@StaffAccountAdministrationPolicy.MinimumPasswordLength"
+                               maxlength="@StaffAccountAdministrationPolicy.MaximumPasswordLength"
+                               autocomplete="new-password" />
+                    </div>
+                    <div class="field field--narrow">
+                        <label class="req" for="create-reason">Reason</label>
+                        <input id="create-reason" name="reason" required maxlength="@reasonLimit" />
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>Create staff account</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
 </div>
+
+@* The row dialogs live outside the scrolling table so the fixed backdrop is
+   never a child of an overflow container. *@
+@foreach (var row in Model.Rows)
+{
+    var account = row.Account;
+    var staffId = account.Id.ToString("D");
+    if (account.IsEnabled)
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "disable-" + staffId,
+            ["DialogTitle"] = "Disable " + account.UserName,
+            ["DialogConsequence"] = "Disabling revokes existing browser sessions; the account is retained permanently.",
+            ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Disable"),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["staffId"] = staffId,
+                ["operationKey"] = IndexModel.NewOperationKey()
+            }
+        })" />
+    }
+    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+    {
+        ["DialogId"] = "review-" + staffId,
+        ["DialogTitle"] = "Record access review for " + account.UserName,
+        ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Review"),
+        ["DialogHiddenFields"] = new Dictionary<string, string?>
+        {
+            ["staffId"] = staffId,
+            ["operationKey"] = IndexModel.NewOperationKey()
+        }
+    })" />
+}
