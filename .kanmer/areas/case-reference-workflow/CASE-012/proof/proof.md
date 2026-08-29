@@ -312,3 +312,68 @@ gaps the implementer reported before merge, each confirmed still open on
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5 and
 needs explicit `MERGE AUTH GRANTED`.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| Named staff selector for the case-task assignee — inherited bullet 1 verbatim: "Replace task assignee and Engineer GUID inputs or displays with named staff selectors and business-readable names, reusing the existing staff-account query and display-name convention." [[PLAT-015]] routes it here by name (`PLAT-015.md:34`, `:49`) | This ticket delivered the Engineer half and **deleted** the task half. At `2204117a^`, `_CaseWorkflow.cshtml:264,268,272,283` carried the `Assignee ID` inputs on AssignTask/CreateTask, the `assignee @(task.AssigneeId…)` GUID render, and the CompleteTask/CancelTask forms. On `b92cb9a7` none of it exists: `grep -rn "CreateTask\|AssignTask\|CompleteTask\|CancelTask" src` returns only the four handler declarations at `src/Pegasus.Web/Pages/Cases/Tasks.cshtml.cs:61,89,117,143` — no `.cshtml`, no `site.js`, and no `Mcp/*.cs` injects `ICreateCaseTask`/`IAssignCaseTask`/`ICompleteCaseTask`/`ICancelCaseTask` (only `Tasks.cshtml.cs:18-21`), so the open `Features:AutomationMcp` gate rescues nothing. Four ports registered at `DependencyInjection.cs:349-352` now have no reachable consumer — D21's last row. The remove-list in this ticket is a closed enumeration ("inactive vehicle/history/query, Audatex/Glass's, estimate-tab, and assessment-form controls") and case tasks are not in it, so deletion was not an authorised disposition; "replace" was the instruction. | [[CASE-027]] (backlog) owns `src/Pegasus.Web/Pages/Cases/Tasks.*`; [[CASE-029]] (backlog) also lists `Tasks.*`. **Warning: neither ticket's What currently names task create/assign/complete/cancel**, so one of them needs a scope amendment or a new ticket — no board record today promises this caller. |
+| Report-approval recording — inherited bullet 2 told this ticket to *replace* "typed SHA inputs" with "the mailbox address, relevant times, and a verified evidence statement" | The evidence-statement half shipped and is wired (`Details.cshtml:739` → `Tasks.cshtml.cs:201`). But the typed-SHA report-approval form was deleted with no operator route left: `RecordReportApproval` matches only `src/Pegasus.Web/Pages/Cases/Closure.cshtml.cs:23`, POSTed solely by `tests/Pegasus.IntegrationTests/CaseReportApprovalWebTests.cs:58,68`, while the Overview panel still renders "Report approved" from a record nothing can now create. `proof/proof.md:286-287` dismisses this as "pre-existing rather than new" — the precise loophole D20 closes, and it was this ticket that removed the caller from a file it owns. | [[CASE-030]] (backlog) owns `src/Pegasus.Web/Pages/Cases/Closure.*`, but its What names only the Report-sent dialog, Return to Engineer and Close Case. **No existing ticket names `RecordReportApproval`**; [[ENG-025]] did not wire it. |
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence. This ticket's own report concedes the
+first item at `report.md:112` ("Task CRUD lost its only UI … no follow-up ticket
+unless the operator asks"), and its Verification claim "does not regress Case
+workflows" cannot stand against four orphaned ports.
+
+The redesign itself is otherwise well wired — the frame, six-section nav, lease
+cluster, hold/close/reopen/return dialogs, upload link, engineer assignment, ZIP
+export, report-sent confirm, notes and chase all trace to live handlers. The
+reversal is narrow: it turns on one half of one inherited bullet, and on a port the
+ticket orphaned.
+
+### Findings that were NOT counted against this ticket
+
+This ticket's own text is thin — What is one sentence, Verification is one sentence,
+and the "Inherited scope from [[PLAT-015]]" block is its Owns section (two "replace"
+bullets and two "remove" bullets). Everything below sits outside those bullets and
+belongs to `waves.md` lanes E1/E2/wave 4.
+
+- Manual EVA API submission behind the closed per-Principal toggle
+  (`docs/operations.md:358-361`, "no Principal has either EVA toggle on") —
+  pre-existing EXT-04 capability, [[TICK-077]] (verifying); the handler
+  `Eva/Send.cshtml.cs` `OnPostSubmitAsync` arrived in `09beefef`, before this
+  ticket, which only redrew a conditional control. Opening it is an operator
+  activation, not a code ticket.
+- "Download EVA package (With Engineer or Complete, exported)" — §1.8 clause only,
+  absent from this ticket's own text; contradicts FRD-07's Review-only export
+  (`CaseNotInReviewException`). No owner ticket; the proof correctly escalates it
+  for an operator ruling.
+- Unsaved-state chip on the edit bar — §1.8 only; needs a dirty-state producer in
+  `site.js`, owned by [[PLAT-029]] / [[UIIMP-009]].
+- Manual vehicle Refresh DVLA / Refresh DVSA-MOT, suggestion accept/correct, Vehicle
+  History — [[CASE-027]] and [[CASE-029]]. This ticket's inherited bullet 3 ordered
+  removal of the inactive vehicle/history/query controls, so their absence is
+  compliance, not failure.
+- Valuations Add/Edit — [[CASE-029]], backed by [[ENG-027]].
+- Inspection-address Edit/Cancel/Save — [[CASE-027]].
+- Case correspondence Compose/Reply/Forward — [[CASE-027]] draws the rows and defers
+  the buttons to wave 4; [[MAIL-026]] supplies them, [[MAIL-027]] the backend.
+- `IRecordEngineerFinding` orphaned (`DependencyInjection.cs:369`; only consumer
+  `Workflow.cshtml.cs:156`, POSTed only by tests) — not named anywhere in this
+  ticket's What/Owns/Verification. A genuine epic-level orphan with no owner;
+  belongs on [[ENG-025]]'s account or a new ticket, not on this one.
+- Permanently inert Glass's / Audatex buttons at
+  `Pages/Cases/Assessment/Index.cshtml:211,214` — [[ENG-025]], whose What names them
+  as D7 seams. D22 ratifies the rendering while D21 denies they are delivered; this
+  ticket's diff touches no Assessment file, so its inherited "Case and Assessment
+  surfaces" verification can neither be discharged nor failed here. Now owned by
+  [[TICK-085]] (Glass's) and [[ENG-030]] (Audatex).
+- Raw `engineerId` GUID input surviving at `Pages/Search/Index.cshtml:77` —
+  [[CASE-026]] owns `Pages/Search/**` (`waves.md` lane D).

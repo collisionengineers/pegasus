@@ -257,3 +257,55 @@ cited separately from CI (below).
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5 and
 needs explicit `MERGE AUTH GRANTED`.
+
+## 2026-08-29 — Reversed out of Done under the strict rule 14 (D20/D21)
+
+The operator settled rule 14 in favour of the strict reading after this proof was
+written, and separately ruled that a disabled control or a closed feature gate is
+never a delivered capability (D21). An independent GPT-5.6 audit, adjudicated
+against this ticket's own What/Owns/Verification scope, found the following named
+capabilities are not delivered on merged `dev` at `b92cb9a7`:
+
+| Capability | Why it does not qualify | Wired by |
+| --- | --- | --- |
+| Workspace tabs in localStorage, max 4 LRU — named verbatim in the What's module enumeration | `git grep WorkspaceRecord -- src/` returns exactly four hits, all consumers: `Pages/Shared/_Layout.cshtml:43` (`ViewData["WorkspaceRecord"] as (string Href, string Label)?`), `:161-163` (the `data-workspace-*` attributes), and `wwwroot/js/site.js:1243` (a comment) and `:1321` (`document.querySelector('main[data-workspace-record]')`). No page or PageModel writes `ViewData["WorkspaceRecord"]`, and Razor omits the null attribute, so `main[data-workspace-record]` never exists, `write(tabs)` at `site.js:1329` is unreachable, and localStorage `pegasus.workspaceTabs` can only ever be empty. Zero references in `tests/` either — not even test-only. | [[CASE-012]] — the Case record page that must set `ViewData["WorkspaceRecord"] = (Href, Label)`; its own `proof/proof.md:278` already records "`ViewData["WorkspaceRecord"]` has no writer", so it needs a corrective follow-up |
+| Sort toggles — named verbatim in the What | `git grep data-sort-toggle -- src/` returns only the binder at `wwwroot/js/site.js:1413`. `Pages/Mail/Index.cshtml:112` renders a real `<a class="btn btn--small sort-toggle" …>` server-side link but carries neither `data-sort-toggle` nor `data-sort-arrow`, so the module this ticket shipped binds to nothing. | [[MAIL-025]] — its What names "messages with sort toggle"; the link ships without the data hooks, so it needs a corrective follow-up |
+| Estimate tabs — named verbatim in the What | `git grep tablist -- src/` returns only `wwwroot/js/site.js:1486`. No `[role="tablist"]` is rendered anywhere in the product. | [[ENG-028]] — its What names "estimate tabs (tablist, keyboard)"; backlog, so this cannot clear until ENG-028 lands |
+| `_MetricCard` shared partial — covered by the What's "rewrite the shared partials" and Owns `Pages/Shared/**` | `src/Pegasus.Web/Pages/Shared/_MetricCard.cshtml` was rewritten by this ticket's own commit `865b4c0c`, but `git grep MetricCard -- src/ tests/` returns no invocation at all. Weakest of the four — it was equally uninvoked at `865b4c0c^`, so this ticket restyled an already-orphaned partial rather than orphaning it; the reversal does not depend on it. | [[UIIMP-008]] — its What names the "five-metric strip"; verifying, rendered inline rather than through `_MetricCard`, so it must either consume the partial or this ticket must drop the superseded partial |
+
+Nothing in the proof above is withdrawn — it remains accurate at the tier it claims.
+What changed is the bar, not the evidence. This proof already concedes the fatal
+point at `proof/proof.md:118` ("Finding — no production producer") and `:231` ("The
+workspace-tab record mechanism has no production caller"), while `:98` claims "Every
+drawn control resolves to a real destination". Under D20 honest disclosure does not
+permit Done.
+
+No gate blocks this ticket, and `disabledOrGated` is empty — the reversal is a pure
+rule-14 unwired finding. Both gates its surfaces sit behind are OPEN in the deployed
+estate: `_Layout.cshtml:8` `Environment.IsProduction()` for the Inbox/Upload/
+Operations rail entries (`docs/operations.md:290-293` records the deployed Razor
+Pages Web on Container Apps in `rg-pegasus-prod`), and `Features:AutomationMcp` for
+`/authorize` and the Automation admin link (`docs/operations.md:122` and `:131-141`,
+enabled in production since release 9, 2026-08-18).
+
+### Findings that were NOT counted against this ticket
+
+- Account dialog "Session started" / `auth_time` value — a §1.1 content detail
+  imported from the design contract; this ticket's own text names only "Account
+  dialogs", and that dialog is wired (`_Layout.cshtml:123` opener,
+  `_ShellDialogs.cshtml:37` sign-out form). It is also a missing rendered value, not
+  unwired code. No owning ticket exists — it needs a new §1.1 shell-completeness
+  ticket, not a reversal of this one.
+- "Create upload request" missing from the Add dialog — same shape: a §1.1 draw
+  detail, not named in this ticket's own text, which names only "Add/Notifications/
+  Account dialogs". The Add dialog is wired with three real destinations
+  (`_ShellDialogs.cshtml:59`, `:64`, `:70`), and the capability itself is already
+  wired elsewhere via `Cases/Details.cshtml:189-190` to
+  `OnPostCreateRequestUploadLinkAsync` at `Cases/Custody.cshtml.cs:119`. A missing
+  menu entry, not unwired code.
+- Permanently inert Glass's and Audatex D7 seams at
+  `Pages/Cases/Assessment/Index.cshtml:211` and `:214` — in
+  `Pages/Cases/Assessment/**`, which this ticket does not own; charged to
+  [[ENG-025]] and supplied by [[TICK-085]] / [[ENG-030]].
+- The closed per-Principal EVA submission path — not touched by this ticket; owned
+  in the EVA/estimates lane.
