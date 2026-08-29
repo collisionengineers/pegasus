@@ -453,7 +453,15 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 DateOfIncident = draft.InstructionDraft.DateOfIncident,
                 InstructionDate = draft.InstructionDraft.InstructionDate,
                 InspectionDate = draft.InstructionDraft.InspectionDate,
-                InspectionAddress = draft.InstructionDraft.InspectionAddress
+                InspectionAddress = draft.InstructionDraft.InspectionAddress,
+                VehicleMileageUnit = draft.InstructionDraft.VehicleMileageUnit,
+                VatStatus = draft.InstructionDraft.VatStatus,
+                ClaimantAddress = draft.InstructionDraft.ClaimantAddress,
+                ClaimantContactNumber = draft.InstructionDraft.ClaimantContactNumber,
+                FileHandlerName = draft.InstructionDraft.FileHandlerName,
+                FileHandlerEmailAddress = draft.InstructionDraft.FileHandlerEmailAddress,
+                FileHandlerPhoneNumber = draft.InstructionDraft.FileHandlerPhoneNumber,
+                Notes = draft.InstructionDraft.Notes
             };
         }
 
@@ -594,7 +602,15 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.DateOfIncident,
         entity.InstructionDate,
         entity.InspectionAddress,
-        entity.InspectionDate);
+        entity.InspectionDate,
+        entity.VehicleMileageUnit,
+        entity.VatStatus,
+        entity.ClaimantAddress,
+        entity.ClaimantContactNumber,
+        entity.FileHandlerName,
+        entity.FileHandlerEmailAddress,
+        entity.FileHandlerPhoneNumber,
+        entity.Notes);
 
     private static IntakeMailRouteDecisionEntity MapMailRouteDecision(
         MailRouteEvaluationResult decision,
@@ -855,6 +871,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.InstructionDate = draft.InstructionDate;
         entity.InspectionAddress = draft.InspectionAddress;
         entity.InspectionDate = draft.InspectionDate;
+        entity.VehicleMileageUnit = draft.VehicleMileageUnit;
+        entity.VatStatus = draft.VatStatus;
+        entity.ClaimantAddress = draft.ClaimantAddress;
+        entity.ClaimantContactNumber = draft.ClaimantContactNumber;
+        entity.FileHandlerName = draft.FileHandlerName;
+        entity.FileHandlerEmailAddress = draft.FileHandlerEmailAddress;
+        entity.FileHandlerPhoneNumber = draft.FileHandlerPhoneNumber;
+        entity.Notes = draft.Notes;
         receipt.InstructionDraft = entity;
     }
 
@@ -1058,7 +1082,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
     internal static string SerializeEvidence(IReadOnlyList<IntakeEvidence> evidence) =>
         SerializeEnvelope<IReadOnlyList<PersistedEvidence>>(evidence.Select(item => new PersistedEvidence(
-            ToCode(item.Source),
+            IntakeEvidenceSourceCodes.ToCode(item.Source),
             ToCode(item.Strength),
             ToCode(item.Finding),
             item.Signal,
@@ -1069,7 +1093,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     internal static IntakeEvidence[] DeserializeEvidence(string json) =>
         (DeserializeEnvelope<IReadOnlyList<PersistedEvidence>>(json) ?? [])
         .Select(item => new IntakeEvidence(
-            ParseEvidenceSource(item.Source),
+            IntakeEvidenceSourceCodes.Parse(item.Source),
             ParseEvidenceStrength(item.Strength),
             ParseEvidenceFinding(item.Finding),
             item.Signal,
@@ -1084,7 +1108,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             field.SuggestedValue,
             field.Candidates.Select(candidate => new PersistedFieldCandidate(
                 candidate.Value,
-                ToCode(candidate.Source),
+                IntakeEvidenceSourceCodes.ToCode(candidate.Source),
                 candidate.SourceLabel)).ToArray(),
             field.IsDefaulted,
             field.HasConflict)).ToArray());
@@ -1096,7 +1120,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             field.SuggestedValue,
             field.Candidates.Select(candidate => new InstructionFieldCandidate(
                 candidate.Value,
-                ParseEvidenceSource(candidate.Source),
+                IntakeEvidenceSourceCodes.Parse(candidate.Source),
                 candidate.SourceLabel)).ToArray(),
             field.IsDefaulted,
             field.HasConflict))
@@ -1260,6 +1284,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
+        IntakeSourceChannel.ProviderApi => "provider_api",
         _ => throw UnknownEnum(value)
     };
 
@@ -1273,39 +1298,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
         "automation" => IntakeSourceChannel.Automation,
+        "provider_api" => IntakeSourceChannel.ProviderApi,
         _ => throw UnknownCode("source channel", value)
-    };
-
-    private static string ToCode(IntakeEvidenceSource value) => value switch
-    {
-        IntakeEvidenceSource.EmailBody => "email_body",
-        IntakeEvidenceSource.PdfContent => "pdf_content",
-        IntakeEvidenceSource.DocumentContent => "document_content",
-        IntakeEvidenceSource.ImageContent => "image_content",
-        IntakeEvidenceSource.Sender => "sender",
-        IntakeEvidenceSource.Subject => "subject",
-        IntakeEvidenceSource.FileName => "file_name",
-        IntakeEvidenceSource.MimeType => "mime_type",
-        // Declared with the rest but never mapped, so any attempt to retain
-        // evidence a person supplied threw on the way to the database.
-        IntakeEvidenceSource.StaffCorrection => "staff_correction",
-        IntakeEvidenceSource.SystemDefault => "system_default",
-        _ => throw UnknownEnum(value)
-    };
-
-    private static IntakeEvidenceSource ParseEvidenceSource(string value) => value switch
-    {
-        "email_body" => IntakeEvidenceSource.EmailBody,
-        "pdf_content" => IntakeEvidenceSource.PdfContent,
-        "document_content" => IntakeEvidenceSource.DocumentContent,
-        "image_content" => IntakeEvidenceSource.ImageContent,
-        "sender" => IntakeEvidenceSource.Sender,
-        "subject" => IntakeEvidenceSource.Subject,
-        "file_name" => IntakeEvidenceSource.FileName,
-        "mime_type" => IntakeEvidenceSource.MimeType,
-        "staff_correction" => IntakeEvidenceSource.StaffCorrection,
-        "system_default" => IntakeEvidenceSource.SystemDefault,
-        _ => throw UnknownCode("evidence source", value)
     };
 
     private static string ToCode(IntakeEvidenceStrength value) => value switch

@@ -29,31 +29,27 @@ public sealed partial class SendToAiIntegrationTests
         var caseId = await SeedAcceptedCaseAsync(factory);
         using var client = CreateClient(factory);
 
-        // Before any administration entry the section states the fallback.
+        // Before any administration entry the token states the fallback and
+        // the address field carries no Administration override.
         var adminHtml = await GetHtmlAsync(client, "/Administration/Automation");
-        Assert.Contains("Send to AI connector", adminHtml, StringComparison.Ordinal);
+        Assert.Contains("AI settings", adminHtml, StringComparison.Ordinal);
         Assert.Contains("Standard setting", adminHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"ChannelAddress\"", adminHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(overrideReceiver.BaseUrl, adminHtml, StringComparison.Ordinal);
 
+        // AUTO-006 gave the AI settings panel the one Save the design
+        // authority specifies, so the address, the timeout and the replacement
+        // token are entered together instead of through three handlers.
         using (var response = await client.PostAsync(
-            "/Administration/Automation?handler=UpdateConnector",
+            "/Administration/Automation?handler=SaveAiSettings",
             Form(
                 AntiforgeryValue(adminHtml),
                 ("ChannelAddress", overrideReceiver.BaseUrl),
                 ("ChannelTimeoutSeconds", "5"),
+                ("NewChannelToken", RotatedToken),
+                ("SendToAiEnabled", "true"),
                 ("Reason", "Point the connector at the replacement channel."),
                 ("OperationKey", InputValue(adminHtml, "OperationKey")))))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        }
-
-        var rotateHtml = await GetHtmlAsync(client, "/Administration/Automation");
-        using (var response = await client.PostAsync(
-            "/Administration/Automation?handler=RotateChannelToken",
-            Form(
-                AntiforgeryValue(rotateHtml),
-                ("NewChannelToken", RotatedToken),
-                ("Reason", "Enter the replacement channel token."),
-                ("OperationKey", InputValue(rotateHtml, "OperationKey")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
@@ -62,6 +58,8 @@ public sealed partial class SendToAiIntegrationTests
         var heldHtml = await GetHtmlAsync(client, "/Administration/Automation");
         Assert.Contains("Entered from Administration", heldHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(RotatedToken, heldHtml, StringComparison.Ordinal);
+        Assert.Equal(overrideReceiver.BaseUrl, InputValue(heldHtml, "ChannelAddress"));
+        Assert.Equal("5", InputValue(heldHtml, "ChannelTimeoutSeconds"));
 
         // The next hand-off reaches the overridden channel with the rotated
         // token; the composed channel receives nothing. The hand-off is

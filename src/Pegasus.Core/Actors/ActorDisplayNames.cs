@@ -15,6 +15,7 @@ public static class ActorDisplayNames
     public const string SystemWorker = "System";
     public const string Automation = "Automation";
     public const string RequestLink = "Request link";
+    public const string Provider = "Provider API";
 
     /// <summary>
     /// Resolves the distinct staff subject ids referenced by a set of actors into
@@ -63,6 +64,7 @@ public static class ActorDisplayNames
             ActorKind.SystemWorker => SystemWorker,
             ActorKind.Automation => Automation,
             ActorKind.RequestLink => RequestLink,
+            ActorKind.Provider => Provider,
             _ => UnknownStaff
         };
     }
