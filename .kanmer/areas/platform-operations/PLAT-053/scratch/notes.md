@@ -21,3 +21,20 @@ both runs exit 0. Widened from the 3 classes cited in round 1 to every
 non-Browser class touching `ExternalWorkItems` or `IEvaSubmissionQueries`.
 
 Ticket left in `review` and `proof` left unwritten, per lane instructions.
+
+## 2026-08-29 — proof written against merged `dev` `b92cb9a7`, moved to Done
+
+Independent verification, no source-tree edits. Merge `940062c2` (PR #613);
+`8a358ad4` and `99483f55` both ancestors of `b92cb9a7`.
+
+Decisive check for behaviour preservation: inlining each
+`ExternalWorkStatePersistence.X` reference back to its declared literal makes
+all three changed files identical to `940062c2^1` (whitespace-normalised) —
+so the persisted strings and the control flow are provably unchanged, rather
+than asserted.
+
+One record correction found: `files`, `plan`, `post-implementation-report`
+and PLAT-056's body all say "ten further Infrastructure classes" but each
+enumerates nine. The enumeration is correct and complete; only the count word
+is wrong. Recorded in the proof's Outstanding section; correcting it belongs
+to PLAT-056, not to this closed ticket.
