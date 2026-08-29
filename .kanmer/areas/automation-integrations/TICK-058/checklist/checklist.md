@@ -68,3 +68,21 @@ below describe the **declared JSON instruction** that replaced it.
   Clean Release rebuild 0/0; Core 1140/1140; Architecture 100/100; the
   ProviderApi/Intake/Triage/Unidentified integration filter 60/60;
   `Test-MigrationGrants` and `Test-MarkdownPlacement` pass. Still unreviewed.
+
+- 2026-08-29 (round 3, CI `unit` failure): merged `origin/dev` (seven PRs;
+  one conflict, `AssessmentDamageAndCopyWebTests.cs`, deleted on `dev` by
+  ENG-025 and superseded by `AssessmentCopyWebTests.cs` — deletion accepted).
+  The failing test was **not** a production defect: `ExecuteCommittedAsync`
+  starts exactly one activity and cannot reach `ProcessIntake`, the only
+  emitter of the second span; both classes share a process-wide
+  `ActivitySource("Pegasus.Core.Intake")` and the test's unfiltered
+  `ActivityListener` was collecting a parallel test class's span. Reproduced
+  as such: focused 5/5 green, whole project 1 failed / 1151 passed. The test
+  now roots the call in its own `Activity` scope and keeps only that trace,
+  then pins the publication span by name, parent, receipt identifier,
+  publication path, bounded outcome and `Ok` status — three assertions more
+  than before, none removed or loosened. Proved by mutation: dropping the
+  receipt tag, dropping the outcome tag, or emitting a second span inside
+  `ExecuteCommittedAsync` each fail the repaired test. Build 0 warnings /
+  0 errors; `Pegasus.Core.Tests` **1152/1152**, three consecutive runs.
+  Commit `79a4aaf9`; PR #594 body updated. Not merged, not reviewed.

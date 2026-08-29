@@ -218,3 +218,20 @@ recorded are from that build.
 Correction to the note above: **seven** commits, not six —
 `f3446890`, `15ff2048`, `1159414f`, `b71cc4b1`, `63009b02`, `2e7d29dc`,
 `e9f5febc`. The list itself was right; the count was not.
+
+## 2026-08-29 — checked, not argued: the trace-root premise
+
+The round-3 fix filters collected spans by `scope.TraceId`, which is only a
+per-test identifier if the scope activity is a trace root — i.e. if the test
+host provides no ambient `Activity.Current`. Rather than assume it, a temporary
+`Assert.Null(scope.Parent)` probe was added and the whole
+`Pegasus.Core.Tests` project run: **1152 passed, 0 failed**. The scope is a
+root, so its W3C trace id is freshly generated and unique to the test. Probe
+removed; the working tree is byte-identical to commit `79a4aaf9` again
+(`git status` clean).
+
+An ancestor-walk filter (tolerating a shared ambient root) was considered and
+rejected: the condition it guards against does not exist, and the failure mode
+if it ever did is already loud — foreign spans would re-enter the collection
+and `Assert.Single` would fail with the same clear message CI reported, not
+pass silently.
