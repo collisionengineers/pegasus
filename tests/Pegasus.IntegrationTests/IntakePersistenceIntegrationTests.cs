@@ -531,13 +531,12 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         var builder = new SqlConnectionStringBuilder
         {
             InitialCatalog = databaseName,
-            // CI measured ~14-second waits behind DDL on shared LocalDB
-            // under shard parallelism. Keep this well below
-            // LifecycleCommandTimeoutSeconds so a genuinely wedged instance
-            // still fails inside the job timeout.
+            // Four parallel collections (xunit.runner.json) drive DDL against
+            // one LocalDB instance, so an ordinary open queues behind it: CI
+            // measured 13999-14014 ms against the previous 15s budget. 60s
+            // clears that and still fails a wedged instance inside the
+            // 20-minute job timeout (DELIV-031).
             ConnectTimeout = 60,
-            ConnectRetryCount = 3,
-            ConnectRetryInterval = 10,
             MultipleActiveResultSets = true
         };
 
@@ -770,6 +769,11 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
             drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
 
+            // CI hit 5061 here -- "a lock could not be placed ... Try again
+            // later" -- with a parallel collection holding the instance.
+            // Retry is the documented remedy; 10s of backoff, then the fifth
+            // attempt rethrows (DELIV-031).
+            const int lockNotPlacedErrorNumber = 5061;
             const int maximumAttempts = 5;
             for (var attempt = 1; ; attempt++)
             {
@@ -779,9 +783,10 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                     break;
                 }
                 catch (SqlException exception)
-                    when (exception.Number == 5061 && attempt < maximumAttempts)
+                    when (exception.Number == lockNotPlacedErrorNumber
+                        && attempt < maximumAttempts)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
+                    await Task.Delay(TimeSpan.FromSeconds(attempt));
                 }
             }
         }
