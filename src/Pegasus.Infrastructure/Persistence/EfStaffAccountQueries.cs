@@ -57,9 +57,14 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
                 AggregateId = group.Key,
                 OccurredAtUtc = group.Max(item => item.OccurredAtUtc)
             })
+            // Nullable on purpose: the lookup below reads a missing account
+            // with GetValueOrDefault, and a non-nullable DateTimeOffset would
+            // hand back 0001-01-01 rather than nothing — which reads as "this
+            // account was reviewed" and makes Core's ReviewIsOutstanding
+            // permanently false (PLAT-027).
             .ToDictionaryAsync(
                 item => item.AggregateId,
-                item => item.OccurredAtUtc,
+                item => (DateTimeOffset?)item.OccurredAtUtc,
                 cancellationToken);
         var rolesByUser = roleRows.ToLookup(
             item => item.UserId,
