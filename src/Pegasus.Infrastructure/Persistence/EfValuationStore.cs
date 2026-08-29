@@ -194,8 +194,8 @@ public sealed class EfValuationStore(
     /// this same transaction, from the case's latest Engineer's Value row, so
     /// the Valuations table stays the entry surface and never becomes a
     /// second owner. A row edited away from Engineer's Value re-resolves the
-    /// field from the rows that remain; when none remain the confirmed
-    /// finding is left standing, because nothing here erases one.
+    /// field from the rows that remain; when none remain the field is removed
+    /// so no stale Engineer's Value survives its last source row.
     /// </summary>
     private static async Task<EngineersValueChange?> WriteEngineersValueAsync(
         PegasusDbContext context,
@@ -231,17 +231,28 @@ public sealed class EfValuationStore(
         var latest = (source == ValuationSource.EngineersValue ? others.Append(saved) : others)
             .OrderByDescending(OrderKey)
             .FirstOrDefault();
-        if (latest is null
-            || ValuationPolicy.EngineersValueField(Map(latest).Details) is not { } value)
-        {
-            return null;
-        }
-
         var existing = await context.CaseAssessmentFields.SingleOrDefaultAsync(
             item => item.CaseId == workflow.CaseId
                 && item.FieldPath == AssessmentVocabulary.ValueEngineer,
             cancellationToken);
         var before = existing?.Value;
+        if (latest is null)
+        {
+            if (existing is null)
+            {
+                return null;
+            }
+
+            context.CaseAssessmentFields.Remove(existing);
+            return new(before, After: null);
+        }
+
+        var selected = Map(latest);
+        var value = ValuationPolicy.EngineersValueField(selected.Details)
+            ?? throw new InvalidDataException(
+                "The selected Engineer's Value row does not carry an Engineer's Value.");
+        var recordedBy = selected.LastEditedBy ?? selected.RecordedBy;
+        var recordedAtUtc = selected.LastEditedAtUtc ?? selected.RecordedAtUtc;
         var written = AssessmentFieldWriter.Write(
             context,
             workflow.Case,
@@ -249,13 +260,14 @@ public sealed class EfValuationStore(
             existing,
             AssessmentVocabulary.ValueEngineer,
             value,
-            actor,
-            confirmedBy: actor.SubjectId,
-            now);
+            ActorKind.Staff,
+            recordedBy,
+            recordedAtUtc,
+            confirmedBy: recordedBy);
         return new(before, written.Value);
     }
 
-    private sealed record EngineersValueChange(string? Before, string After);
+    private sealed record EngineersValueChange(string? Before, string? After);
 
     private static Task<CaseWorkflowEventEntity?> FindReplayAsync(
         PegasusDbContext context,

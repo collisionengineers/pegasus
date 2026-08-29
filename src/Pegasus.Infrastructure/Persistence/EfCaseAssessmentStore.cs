@@ -195,9 +195,10 @@ public sealed class EfCaseAssessmentStore(
                     existing,
                     path,
                     value,
-                    request.Actor,
-                    confirmedBy,
-                    now);
+                    request.Actor.Kind,
+                    request.Actor.SubjectId,
+                    now,
+                    confirmedBy);
                 if (existing is null)
                 {
                     fields.Add(written);
