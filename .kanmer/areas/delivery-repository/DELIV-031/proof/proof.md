@@ -299,3 +299,93 @@ against the shipped bytes:
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not been
 promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+---
+
+# Re-verification and acceptance closure — 2026-08-29, closeout board walk
+
+## Scope (decision D15)
+
+Re-verified against **merged `dev` at
+`450b9234a6f5626f21adea3c4da244550a3bdace`** (2026-08-29 18:03:20 +0100).
+`b92cb9a7`, the SHA the body above was written at, is an ancestor of it
+(`git merge-base --is-ancestor b92cb9a7 450b9234` → exit 0), so nothing above
+is invalidated.
+
+This remains **dev-merged evidence, pending the single wave-5 `dev` → `main`
+promotion**.
+
+## The one Outstanding item is now discharged
+
+The body above held this ticket in Verifying for one reason: its sole
+acceptance item — *"Ten consecutive `sql-integration` runs without a
+connection-timeout failure"* — stood at **3 of 10** complete workflow runs,
+about 50 minutes after the merge. Eight hours later the evidence is in.
+
+Every completed `ci.yml` run whose head commit has `2d67cefa` as an ancestor
+was enumerated with `gh run list --workflow=ci.yml --limit 40` and
+`git merge-base --is-ancestor`, and each run's `sql-integration` shard
+conclusions were read with `gh run view <id> --json jobs`:
+
+**29 completed workflow runs executed the `sql-integration` shards on the
+fixed code. Zero of them failed with a connection-timeout.**
+
+That is 10 consecutive runs met roughly three times over.
+
+### Every shard failure that did occur was a different, named cause
+
+This is the part that matters for honesty — a green *count* is worthless
+without checking what the reds were. Each failing shard's log was fetched with
+`gh run view --log-failed --job <id>`:
+
+| Run / job | Failing test | Actual cause |
+| --- | --- | --- |
+| 33262541659 sh1 · 33248414281 sh2 · 33255824260 sh2 | `AdministrationSearchAccountWebTests.CanonicalAdministrationSearchAndPasswordRoutesRenderRealCallers`, `…AdministrationAndPasswordFormsRenderAntiforgeryTokens` | the `task/plat-026-mail-settings` lane's own in-flight work |
+| 33262541659 sh2 · 33254603119 sh1 · 33246469257 sh1 · 33256486409 sh1 | `PrincipalCredentialPersistenceTests.IssueResetPauseResumeRevokeAreHashOnlyReplaySafeAndFailClosed` — `Assert.Null() Failure: Value is not null` | **[[DELIV-034]]**, the credential tamper no-op flake (~6.25 %) |
+| 33247156620 sh1 | `IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema` | the `task/eng-027-case-valuations` lane's in-flight migration |
+| 33257817356, 33258113418, 33258498388, 33258576839, 33258657075 — **all four shards** | compile failure | **[[DELIV-035]]**, the `CS1739` `QueuedIntakeStatus` arity break (14:31–14:50, fixed at 15:22 by `55e23b02`). These runs never reached the tests, so they are not connection-timeout failures |
+
+Not one `Connection Timeout Expired`, `pre-login handshake`, `post-login
+phase` or `5061` lock-not-placed failure appears anywhere in the post-fix
+window.
+
+## Acceptance table, restated
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Ten consecutive `sql-integration` runs without a connection-timeout failure | **PASS** | 29 completed runs on the fixed code, zero connection-timeout failures; every red attributed by name to DELIV-034, DELIV-035, or an in-flight lane's own tests |
+
+## Commands run, with exit codes
+
+```
+dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false
+  -> Build succeeded. 0 Warning(s), 0 Error(s).   exit 0
+
+gh run list --workflow=ci.yml --limit 40 --json databaseId,headSha,status   -> exit 0
+gh run view <id> --json jobs -q '…sql-integration… .conclusion'            -> exit 0 (×36)
+gh run view --log-failed --job <id>                                         -> exit 0 (×9)
+```
+
+## What this added evidence does NOT prove
+
+- **It does not prove the flake is impossible**, only that it did not recur in
+  29 runs. The pre-fix base rate was roughly one shard in a handful over four
+  runs on 2026-08-28; 29 clean runs is a strong result against that base rate,
+  not a proof of absence.
+- **It is CI evidence, not deployed evidence.** This is a test-harness change
+  that ships in no artifact; there is nothing to deploy and no production
+  behaviour to observe.
+- **The 5061 lock-wait duration is still unmeasured.** The 10 s backoff remains
+  an order-of-magnitude choice. No 5061 recurred in the window, so it was not
+  exercised either.
+- **[[DELIV-033]]** was trigger-gated on this acceptance *failing*. The
+  acceptance passed, so on its own stated trigger DELIV-033 closes as **not
+  needed**. That disposition belongs to DELIV-033's own record; this proof only
+  supplies the trigger evidence, and did not move it.
+- **PR #612 still carries no GitHub review object.** The independent review is
+  recorded in the ticket documents, not on the PR. Unchanged by this
+  re-verification.
+- **Two flakes remain live and are somebody's problem, not this ticket's:**
+  **DELIV-034** (observed 4× in this window — the highest-frequency red in
+  CI today) and **DELIV-036** (the Qdos regex production defect). Both have
+  their own tickets and are in flight.
