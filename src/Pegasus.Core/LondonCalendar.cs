@@ -5,27 +5,28 @@ namespace Pegasus.Core;
 /// times advance to the first valid minute; ambiguous local times select the later instant.
 /// </summary>
 /// <remarks>
-/// If the platform cannot resolve the Europe/London time zone, conversion falls back to UTC so
-/// an unavailable time-zone database does not make office operations unavailable.
+/// <see cref="DayAndWeekBoundariesAt"/> falls back to UTC when the platform cannot resolve the
+/// zone. Other conversions surface that configuration failure to their callers.
 /// </remarks>
 public static class LondonCalendar
 {
     private const string TimeZoneId = "Europe/London";
 
-    private static readonly TimeZoneInfo TimeZone =
-        ResolveTimeZone();
-
     public static DateTimeOffset StartOfDay(DateOnly date) =>
-        ToUtc(date.ToDateTime(TimeOnly.MinValue));
+        StartOfDay(date, GetTimeZone());
 
-    public static DateTimeOffset? StartOfNextDay(DateOnly date) =>
-        date == DateOnly.MaxValue ? null : StartOfDay(date.AddDays(1));
+    public static DateTimeOffset? StartOfNextDay(DateOnly date)
+    {
+        return date == DateOnly.MaxValue
+            ? null
+            : StartOfDay(date.AddDays(1), GetTimeZone());
+    }
 
     public static DateOnly DateAt(DateTimeOffset instant) =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, TimeZone).DateTime);
+        DateAt(instant, GetTimeZone());
 
     /// <summary>
-    /// The start of the office's today and of its week, expressed in UTC.
+    /// The start and end of the office's today and the start of its week, expressed in UTC.
     /// </summary>
     /// <remarks>
     /// The week starts on Monday, which is the week the office works to.
@@ -33,27 +34,46 @@ public static class LondonCalendar
     /// move the boundary by an hour for half the year and silently reassign
     /// work between days.
     /// </remarks>
-    public static (DateTimeOffset DayStartUtc, DateTimeOffset WeekStartUtc)
+    public static (
+        DateTimeOffset DayStartUtc,
+        DateTimeOffset DayEndUtc,
+        DateTimeOffset WeekStartUtc)
         DayAndWeekBoundariesAt(DateTimeOffset instant)
     {
-        var date = DateAt(instant);
+        var timeZone = ResolveTimeZone();
+        var date = DateAt(instant, timeZone);
         var daysSinceMonday = ((int)date.DayOfWeek + 6) % 7;
-        return (StartOfDay(date), StartOfDay(date.AddDays(-daysSinceMonday)));
+        return (
+            StartOfDay(date, timeZone),
+            StartOfDay(date.AddDays(1), timeZone),
+            StartOfDay(date.AddDays(-daysSinceMonday), timeZone));
     }
 
-    public static DateTimeOffset ToUtc(DateTime localTime)
+    public static DateTimeOffset ToUtc(DateTime localTime) =>
+        ToUtc(localTime, GetTimeZone());
+
+    private static DateTimeOffset StartOfDay(DateOnly date, TimeZoneInfo timeZone) =>
+        ToUtc(date.ToDateTime(TimeOnly.MinValue), timeZone);
+
+    private static DateOnly DateAt(DateTimeOffset instant, TimeZoneInfo timeZone) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, timeZone).DateTime);
+
+    private static DateTimeOffset ToUtc(DateTime localTime, TimeZoneInfo timeZone)
     {
         var local = DateTime.SpecifyKind(localTime, DateTimeKind.Unspecified);
-        while (TimeZone.IsInvalidTime(local))
+        while (timeZone.IsInvalidTime(local))
         {
             local = local.AddMinutes(1);
         }
 
-        var offset = TimeZone.IsAmbiguousTime(local)
-            ? TimeZone.GetAmbiguousTimeOffsets(local).Min()
-            : TimeZone.GetUtcOffset(local);
+        var offset = timeZone.IsAmbiguousTime(local)
+            ? timeZone.GetAmbiguousTimeOffsets(local).Min()
+            : timeZone.GetUtcOffset(local);
         return new DateTimeOffset(local, offset).ToUniversalTime();
     }
+
+    private static TimeZoneInfo GetTimeZone() =>
+        TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId);
 
     private static TimeZoneInfo ResolveTimeZone()
     {
