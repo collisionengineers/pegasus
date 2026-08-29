@@ -14,18 +14,20 @@ labels: []
 groups:
   - EPIC-002
   - HZN-003
+  - EPIC-011
 links:
   - SIMPLI-008
   - SIMPLI-009
 blocks:
   - DELIV-021
+  - INTK-047
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
   - 1594ff0e
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-28T14:01:18.098Z'
+updated: '2026-08-29T08:01:23.775Z'
 ---
 
 ## What
