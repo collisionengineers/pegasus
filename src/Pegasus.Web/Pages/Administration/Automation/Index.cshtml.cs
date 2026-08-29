@@ -7,17 +7,43 @@ using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration.Automation;
 
+/// <summary>
+/// The Automation &amp; AI administration area (EPIC-011 §1.12): the
+/// Automation panel — its state, the registered client, the ledger's active
+/// and failed job counts and the kill switch — and the AI settings panel.
+/// </summary>
+/// <remarks>
+/// The Automation client registration is gated composition, so when this
+/// deployment does not carry it the whole panel is absent rather than
+/// explained; the same holds for Send to AI. The AI settings panel has one
+/// Save, as the design authority specifies, and it drives the three Core
+/// operations behind it — connector bounds, channel token, and the outbound
+/// switch — each of which still writes its own attributed history.
+/// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel : AdministrationPageModel
 {
-    public bool IngressComposed { get; private set; }
-
+    /// <summary>
+    /// The one registered Automation client (ADR-0011), and the page's test
+    /// for whether the automation ingress is composed at all: null means the
+    /// registry is absent from this deployment.
+    /// </summary>
     public AutomationClientStatus? Status { get; private set; }
 
-    public bool SendToAiComposed { get; private set; }
+    /// <summary>
+    /// The AI job ledger's live counters (ADR-0035), read only where the
+    /// Automation panel renders.
+    /// </summary>
+    public AiJobCounts JobCounts { get; private set; } = new(0, 0);
 
-    public bool SendToAiEnabled { get; private set; }
+    public bool SendToAiEnabledNow { get; private set; }
 
+    /// <summary>
+    /// The connector's recorded settings, and the page's one test for whether
+    /// Send to AI is composed at all: <c>AddPegasusSendToAi</c> registers this
+    /// store and <see cref="ISendCaseToAi"/> together, so a null here means the
+    /// whole capability is absent from this deployment.
+    /// </summary>
     public AiChannelConnectorSettings? ConnectorSettings { get; private set; }
 
     [BindProperty]
@@ -42,6 +68,10 @@ public sealed class IndexModel : AdministrationPageModel
     [StringLength(200)]
     public string? NewChannelToken { get; set; }
 
+    /// <summary>The AI settings panel's enabled checkbox.</summary>
+    [BindProperty]
+    public bool SendToAiEnabled { get; set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -51,9 +81,13 @@ public sealed class IndexModel : AdministrationPageModel
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
         await LoadAsync(actor, cancellationToken);
+        // The checkbox opens on the stored state; a redisplayed form keeps
+        // whatever the operator submitted.
+        SendToAiEnabled = SendToAiEnabledNow;
         return Page();
     }
 
+    /// <summary>The automation kill switch, reached through the reason dialog.</summary>
     public async Task<IActionResult> OnPostSetEnabledAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -65,9 +99,7 @@ public sealed class IndexModel : AdministrationPageModel
         var registry = Registry();
         if (registry is null)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                "Automation is not available.");
+            ModelState.AddModelError(string.Empty, "Automation is not available.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
@@ -83,8 +115,8 @@ public sealed class IndexModel : AdministrationPageModel
                 OperationKey,
                 cancellationToken);
             TempData["AdministrationStatus"] = status.IsEnabled
-                ? "The Automation client registration is enabled."
-                : "The Automation client registration is disabled; new tokens are refused and in-flight tokens are rejected within seconds.";
+                ? "Automation started."
+                : "Automation stopped.";
             return RedirectToPage();
         }
 
@@ -92,40 +124,13 @@ public sealed class IndexModel : AdministrationPageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSetSendToAiEnabledAsync(
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        if (!IsOperationKeyValid(OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-
-        if (ModelState.IsValid)
-        {
-            var control = HttpContext.RequestServices.GetRequiredService<ISendToAiControl>();
-            var enabled = await control.SetEnabledAsync(
-                TargetEnabled,
-                actor,
-                Reason,
-                OperationKey,
-                cancellationToken);
-            TempData["AdministrationStatus"] = enabled
-                ? "Sending to AI is enabled."
-                : "Sending to AI is disabled; new hand-offs are refused immediately.";
-            return RedirectToPage();
-        }
-
-        await LoadAsync(actor, cancellationToken);
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostUpdateConnectorAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// The AI settings panel's one Save: connector address and timeout, the
+    /// channel token when a replacement was entered, and the outbound switch
+    /// when the checkbox differs from the stored state — so a save that
+    /// changes nothing about the switch writes no switch history.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveAiSettingsAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -150,39 +155,8 @@ public sealed class IndexModel : AdministrationPageModel
                 nameof(ChannelAddress),
                 "Enter the connector address exactly as supplied, without a path or query.");
         }
-
-        if (ModelState.IsValid && store is not null)
-        {
-            await store.UpdateAsync(
-                new(actor, Reason, OperationKey, channelAddress, ChannelTimeoutSeconds),
-                cancellationToken);
-            TempData["AdministrationStatus"] =
-                "The connector settings are saved and apply from the next hand-off.";
-            return RedirectToPage();
-        }
-
-        await LoadAsync(actor, cancellationToken);
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostRotateChannelTokenAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        var store = ConnectorStore();
-        if (store is null)
-        {
-            ModelState.AddModelError(string.Empty, "Sending to AI is not available.");
-        }
-        if (!IsOperationKeyValid(OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-        if (!AiChannelConnectorRules.IsValidToken(NewChannelToken))
+        var newChannelToken = string.IsNullOrWhiteSpace(NewChannelToken) ? null : NewChannelToken;
+        if (newChannelToken is not null && !AiChannelConnectorRules.IsValidToken(newChannelToken))
         {
             ModelState.AddModelError(
                 nameof(NewChannelToken),
@@ -191,11 +165,28 @@ public sealed class IndexModel : AdministrationPageModel
 
         if (ModelState.IsValid && store is not null)
         {
-            await store.RotateTokenAsync(
-                new(actor, Reason, OperationKey, NewChannelToken),
+            await store.UpdateAsync(
+                new(actor, Reason, OperationKey, channelAddress, ChannelTimeoutSeconds),
                 cancellationToken);
-            TempData["AdministrationStatus"] =
-                "The channel token is replaced and applies from the next hand-off; it cannot be viewed again.";
+            if (newChannelToken is not null)
+            {
+                await store.RotateTokenAsync(
+                    new(actor, Reason, OperationKey, newChannelToken),
+                    cancellationToken);
+            }
+
+            var control = HttpContext.RequestServices.GetRequiredService<ISendToAiControl>();
+            if (await control.IsEnabledAsync(cancellationToken) != SendToAiEnabled)
+            {
+                await control.SetEnabledAsync(
+                    SendToAiEnabled,
+                    actor,
+                    Reason,
+                    OperationKey,
+                    cancellationToken);
+            }
+
+            TempData["AdministrationStatus"] = "AI settings saved.";
             return RedirectToPage();
         }
 
@@ -204,6 +195,10 @@ public sealed class IndexModel : AdministrationPageModel
         return Page();
     }
 
+    /// <summary>
+    /// Removes the administration-entered channel token, returning the
+    /// connector to the configured one. Reached through the reason dialog.
+    /// </summary>
     public async Task<IActionResult> OnPostClearChannelTokenAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -227,8 +222,7 @@ public sealed class IndexModel : AdministrationPageModel
             await store.RotateTokenAsync(
                 new(actor, Reason, OperationKey, NewToken: null),
                 cancellationToken);
-            TempData["AdministrationStatus"] =
-                "The administration-entered token is removed; the standard token applies from the next hand-off.";
+            TempData["AdministrationStatus"] = "Channel token removed.";
             return RedirectToPage();
         }
 
@@ -239,12 +233,17 @@ public sealed class IndexModel : AdministrationPageModel
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         var registry = Registry();
-        IngressComposed = registry is not null;
         Status = registry is null
             ? null
             : await registry.GetStatusAsync(actor, cancellationToken);
-        SendToAiComposed = HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
-        SendToAiEnabled = await HttpContext.RequestServices
+        if (registry is not null)
+        {
+            JobCounts = await HttpContext.RequestServices
+                .GetRequiredService<IAiJobQueries>()
+                .GetCountsAsync(cancellationToken);
+        }
+
+        SendToAiEnabledNow = await HttpContext.RequestServices
             .GetRequiredService<ISendToAiControl>()
             .IsEnabledAsync(cancellationToken);
         ConnectorSettings = ConnectorStore() is { } connectorStore
