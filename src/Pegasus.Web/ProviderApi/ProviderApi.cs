@@ -5,7 +5,9 @@ namespace Pegasus.Web.ProviderApi;
 /// <summary>
 /// Fixed names for the composition-gated Provider API (API-01, ADR-0004):
 /// one versioned machine surface, one dedicated bearer scheme that accepts a
-/// Principal credential and nothing else, and a per-key rate-limit policy.
+/// Principal credential and nothing else, and a rate-limit policy partitioned
+/// by calling address — the limiter runs before authentication, so the
+/// presented key id is a claim and cannot be the partition.
 /// </summary>
 public static class ProviderApi
 {
@@ -19,7 +21,7 @@ public static class ProviderApi
     public const string ProviderReferenceField = "providerReference";
     public const string FilesField = "files";
     public const string Realm = "pegasus-provider-api";
-    public const int RequestsPerKeyPerMinute = 60;
+    public const int RequestsPerCallerPerMinute = 60;
 
     public const string PrincipalIdClaim = "pegasus:principal_id";
     public const string KeyIdClaim = "pegasus:key_id";
@@ -28,8 +30,8 @@ public static class ProviderApi
     /// <summary>
     /// The key id embedded in a presented <c>Bearer pgs_&lt;key id&gt;_…</c>
     /// secret, or null when the header does not carry a well-shaped secret.
-    /// Shape only — the one parser shared by the authentication handler and
-    /// the rate limiter, so both partition on the same identity.
+    /// Shape only: it names the credential row to verify against, and is never
+    /// evidence that the caller holds it.
     /// </summary>
     public static string? TryReadKeyId(string? authorizationHeader)
     {
