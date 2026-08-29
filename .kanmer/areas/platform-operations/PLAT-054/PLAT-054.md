@@ -26,12 +26,14 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - c2bef9df25acca4c5ec7224ae6bb637e57f089da
-  - 3e16e506
+  - 3e16e506c753324598ba75de1022fb6ccb3f2817
+  - 44bcb8c0f622e5f169bc0eb43d7271f1632b7d8d
+  - 1e15e8325cc74ccfb5d8f059b1a5a17c20e98aad
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/611'
 archived: false
 created: '2026-08-28T10:58:44.482Z'
-updated: '2026-08-29T08:15:54.459Z'
+updated: '2026-08-29T13:12:40.147Z'
 ---
 
 ## What
