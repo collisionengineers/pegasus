@@ -8,8 +8,8 @@
     var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
 }
 
-@* The record bar (Reply, Forward, Compose, Flag, Delete) is drawn but has no
-   handler yet: it lands with the outbound-mail work, not as dead buttons. *@
+@* Outbound actions remain with MAIL-026. AUTO-014 adds only the
+   retained post-report query action that has a live handler here. *@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Inbox message</p>
@@ -63,6 +63,44 @@
         </span>
     </header>
     <div class="record-accent"></div>
+
+    @if (Model.IsQueryResponseSource)
+    {
+        <div class="record-bar">
+            <span class="eyebrow">@OperatorLabels.QueryResponseJobs.Source</span>
+            <span class="record-bar-end">
+                @if (Model.QueryResponseEnabled)
+                {
+                    <form method="post" asp-page-handler="CreateQueryResponse"
+                          asp-route-id="@summary.Id"
+                          asp-route-mailbox="@Model.MailboxFilter"
+                          asp-route-folder="@Model.FolderRouteValue"
+                          asp-route-pageNumber="@Model.PageRouteValue"
+                          asp-route-search="@Model.SearchTerm"
+                          asp-route-queue="@Model.QueueFilter"
+                          asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                          asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                          asp-route-section="@Model.ActiveSection">
+                        <input type="hidden" name="operationKey"
+                               value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
+                        <button class="btn btn--dark" type="submit">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                            <span>@OperatorLabels.QueryResponseJobs.Create</span>
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <span class="gated" data-condition="@Model.QueryResponseCondition">
+                        <button class="btn btn--dark" type="button" disabled aria-disabled="true">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                            <span>@OperatorLabels.QueryResponseJobs.Create</span>
+                        </button>
+                    </span>
+                }
+            </span>
+        </div>
+    }
 
     <nav class="tabs" aria-label="Sections">
         <a class="tab" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
@@ -127,6 +165,13 @@
             <div class="notice notice--success" role="status">
                 <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
                 <span>@associationNotice</span>
+            </div>
+        }
+        @if (Model.QueryResponseNotice is { } queryResponseNotice)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <span>@queryResponseNotice</span>
             </div>
         }
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
@@ -474,6 +519,41 @@
                             </div>
                         </div>
                     </section>
+
+                    @if (Model.AiJobs.Count > 0)
+                    {
+                        <section class="panel" aria-labelledby="case-ai-jobs-title">
+                            <div class="panel-head">
+                                <h2 id="case-ai-jobs-title">@OperatorLabels.AiJobs.PanelTitle</h2>
+                            </div>
+                            <div class="table-wrap">
+                                <table>
+                                    <caption class="sr-only">@OperatorLabels.AiJobs.PanelTitle</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Job</th>
+                                            <th scope="col">Created</th>
+                                            <th scope="col">State</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    @foreach (var job in Model.AiJobs)
+                                    {
+                                        <tr>
+                                            <td>@OperatorLabels.AiJobs.Kind(job.Kind)</td>
+                                            <td><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
+                                            <td>
+                                                <partial name="Shared/_StatusChip"
+                                                         model="@OperatorLabels.AiJobs.State(job.State)"
+                                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
+                                            </td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    }
                 }
                 else
                 {

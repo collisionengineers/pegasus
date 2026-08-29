@@ -1267,6 +1267,26 @@ public static class OperatorLabels
         public const string GrantedScopes = "Granted scopes";
     }
 
+    /// <summary>The retained post-report query's AI job words (AUTO-014).</summary>
+    public static class QueryResponseJobs
+    {
+        public const string Source = "Post-report";
+        /// <summary>
+        /// Deliberately not "Send query to AI", which would match the shape of
+        /// "Send Unidentified to AI" and "Send to Claude". Those two send a
+        /// record to be worked; this one queues a ledger row for a draft reply
+        /// and sends nothing. The sibling shape would misdescribe the action,
+        /// so the wording differs on purpose rather than by oversight.
+        /// </summary>
+        public const string Create = "Draft reply with AI";
+        public const string Created = "AI reply job created.";
+        public const string AutomationStopped = "Automation stopped";
+        public const string AvailableInPostReportWork = "Available in post-report work";
+        public const string CaseUnavailable = "Case unavailable";
+        public const string InvalidSource =
+            "This message is not a linked post-report message.";
+    }
+
     /// <summary>
     /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
     /// accepted-files line is built from <see cref="IntakeEnvelopeLimits"/>
