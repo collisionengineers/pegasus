@@ -2,6 +2,7 @@
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
+using Pegasus.Core.ProviderApi;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -50,7 +51,7 @@ internal static class CaseDataSnapshotFactory
             AcceptedAtUtc = acceptedAtUtc
         };
 
-        AddProviderFact(snapshot, receipt);
+        AddProviderFact(snapshot, receipt, request);
         AddInstructionSuggestions(snapshot, receipt);
         AddResolvedInspection(
             snapshot,
@@ -114,17 +115,44 @@ internal static class CaseDataSnapshotFactory
 
     private static void AddProviderFact(
         CaseDataSnapshotEntity snapshot,
-        IntakeReceiptEntity receipt)
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request)
     {
         var route = receipt.MailRouteDecision;
-        if (route is null
-            || !string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(route.WorkProviderCode))
+        if (route is not null
+            && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(route.WorkProviderCode))
+        {
+            RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
+            snapshot.Fields.Add(new()
+            {
+                CaseId = snapshot.CaseId,
+                Snapshot = snapshot,
+                FieldName = CaseDataFieldNames.WorkProviderCode,
+                ValueKind = CaseDataCodes.Fact,
+                ValueType = CaseDataCodes.Text,
+                Value = route.WorkProviderCode.Trim(),
+                SourceKind = CaseDataCodes.MailRoute,
+                SourceIdentity = receipt.Id.ToString("D"),
+                SourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
+                    ? "accepted mail route"
+                    : route.RouteOwnerCode,
+                PolicyKey = route.PolicyKey,
+                PolicyVersion = route.PolicyVersion
+            });
+            return;
+        }
+
+        if (route is not null
+            || EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel)
+                != IntakeSourceChannel.ProviderApi
+            || string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             return;
         }
 
-        RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
+        // The work provider comes from the authenticated credential binding,
+        // not from a value declared in the instruction body.
         snapshot.Fields.Add(new()
         {
             CaseId = snapshot.CaseId,
@@ -132,14 +160,12 @@ internal static class CaseDataSnapshotFactory
             FieldName = CaseDataFieldNames.WorkProviderCode,
             ValueKind = CaseDataCodes.Fact,
             ValueType = CaseDataCodes.Text,
-            Value = route.WorkProviderCode.Trim(),
-            SourceKind = CaseDataCodes.MailRoute,
+            Value = request.PrincipalCode.Trim(),
+            SourceKind = CaseDataCodes.ProviderApi,
             SourceIdentity = receipt.Id.ToString("D"),
-            SourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
-                ? "accepted mail route"
-                : route.RouteOwnerCode,
-            PolicyKey = route.PolicyKey,
-            PolicyVersion = route.PolicyVersion
+            SourceLabel = "authenticated credential binding",
+            PolicyKey = ProviderInstructionPolicy.PolicyKey,
+            PolicyVersion = ProviderInstructionPolicy.PolicyVersion
         });
     }
 
