@@ -156,15 +156,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
     "route": "/Administration/MailCategories",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-mail-categories--default.html",
-        "branch": "No existing categories plus add-category form.",
-        "scenario": "administration-mail-categories--default"
-      }
-    ]
+    "classification": "redirect",
+    "reason": "Redirects permanently to the consolidated Mail settings area."
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
