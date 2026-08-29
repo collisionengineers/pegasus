@@ -283,3 +283,118 @@ Tests that exist for this ticket, by name:
 
 Written against merged `dev` at `b92cb9a7` per decision D15. `main` has not
 been promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
+
+---
+
+# HELD — re-verified 2026-08-29, closeout board walk
+
+## Verdict: **this ticket does NOT reach Done.** It stays in Verifying.
+
+Re-verified against **merged `dev` at
+`450b9234a6f5626f21adea3c4da244550a3bdace`** (2026-08-29 18:03:20 +0100).
+`b92cb9a7`, the SHA the body above was written at, is an ancestor of it.
+
+This remains **dev-merged evidence, pending the single wave-5 `dev` → `main`
+promotion**.
+
+## The finding above is confirmed, independently, at the newer SHA
+
+The body already reported that the Engineer activity report has no production
+caller. That was re-run from scratch rather than taken on trust:
+
+```
+git grep -n "GetEngineerActivityReport" 450b9234 -- src/
+  src/Pegasus.Core/Reports/EngineerActivityReport.cs:76   <- its own declaration
+  src/Pegasus.Infrastructure/DependencyInjection.cs:270   <- DI registration
+
+git grep -n "EngineerActivityReportCsv" 450b9234 -- src/
+  src/Pegasus.Core/Reports/EngineerActivityReport.cs:49   <- its own declaration only
+
+git grep -n "IEngineerActivityQueries" 450b9234 -- src/
+  …Reports/EngineerActivityReport.cs:21, :77, :86         <- declaration + ctor
+  …Infrastructure/DependencyInjection.cs:269              <- DI registration
+  …Infrastructure/Persistence/EfEngineerActivityQueries.cs:17  <- the adapter
+
+git grep -n "ViewOperationalReports" 450b9234 -- src/
+  …Identity/StaffAuthorization.cs:19, :54                 <- the right itself
+  …Reports/EngineerActivityReport.cs:99                   <- its own guard
+```
+
+Every hit is a declaration, a DI registration, or the adapter. **There is no
+consumer.** `git ls-tree -r --name-only 450b9234 -- src/Pegasus.Web/Pages/Administration/`
+lists Access, Accounts, Automation, Configuration, Index, MailCategories,
+Mailboxes, Organizations, Principals, Roles and Shared — **no Reports page**.
+
+## Why that bars Done under D20
+
+The ticket's own **What** section names this capability explicitly, as half (H)
+of two:
+
+> (H) `Core/Reports/EngineerActivityReport.cs`
+> `IEngineerActivityQueries.GetAsync(from, to, engineerId?)` → reports sent …
+> and queries received … ; right `ViewOperationalReports`; CSV export shape.
+
+**D20 — strict rule 14:** *"A ticket reaches Done only when **every capability
+it names** has a real production caller — a route, a rendered control posting
+to a handler, or a registration plus a named consumer that is itself
+reachable. A registered-but-unreachable port does not qualify, however honestly
+it is disclosed and ticketed."*
+
+`GetEngineerActivityReport` is registered in DI with **no consumer at all** —
+the "registered in DI with no reachable consumer → **No**" row of the D21
+table. The disclosure in the body above is honest and complete, and under the
+pre-D20 reading ("headline capability reachable, deferred seams disclosed")
+this ticket would have passed. D20 changed that reading deliberately, and the
+decision record names PLAT-048 as the case that motivated it.
+
+## The ticket that supplies the missing caller
+
+**PLAT-051 — "Administration: Action Logs, Reports and Service health areas."**
+Currently `backlog`. When its Reports page ships and calls
+`GetEngineerActivityReport`, this half is wired and PLAT-048 can be re-proved
+and moved to Done.
+
+Nothing else can supply it: no other ticket on the board names the
+Administration Reports page.
+
+## What IS proven, and stays proven
+
+The Service health half is fully wired and is **not** the reason for the hold:
+
+- `GetServiceHealth` consumed at `src/Pegasus.Web/Pages/Operations/Index.cshtml.cs:76`–`:78`,
+  rendered from `Pages/Operations/Index.cshtml:46`, with the Retry control at
+  `:80` posting to `OnPostRetryExternalAsync`.
+- Its composition gate `Features:AutomationMcp` is **open in the deployed
+  estate** — `infra/modules/platform.bicep:467` `Features__AutomationMcp=true`,
+  and `docs/operations.md:131`, `:138` record it enabled in production since
+  release 9. That is the D21 "gate OPEN in the deployed estate → **Yes**" row.
+
+So the hold is narrow and specific: one named half of the ticket, waiting on
+one named ticket.
+
+## Commands run, with exit codes
+
+```
+dotnet build ./Pegasus.slnx --configuration Release -nodeReuse:false
+  -> Build succeeded. 0 Warning(s), 0 Error(s).   exit 0
+
+dotnet test ./Pegasus.slnx --configuration Release --no-build -nodeReuse:false
+  --filter "…FullyQualifiedName~ServiceHealthTests|FullyQualifiedName~EngineerActivityReportTests…"
+  -> Passed!  Failed: 0, Passed: 49, Skipped: 0, Total: 49  (Pegasus.Core.Tests)
+     exit 0
+```
+
+Note what that green result does **not** mean: `EngineerActivityReportTests`
+passing proves the report's logic, and proves nothing about it being reachable.
+Test-only exercise is explicitly what rule 14 excludes.
+
+## What this evidence does NOT prove
+
+- **Nothing here is deployed.** `main` is at release 36; neither half of this
+  ticket is in production.
+- **The Service health section has never rendered in a deployed environment**
+  from this code. The `Features:AutomationMcp` production evidence is release 9,
+  which predates this merge.
+- **No browser or layout walk** — **UIIMP-010** owns it.
+- **This walk did not fix anything.** The closeout brief for this pass is board
+  work only; no source file was changed.

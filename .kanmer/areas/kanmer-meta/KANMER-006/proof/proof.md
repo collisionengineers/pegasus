@@ -182,3 +182,127 @@ promoted; the exact-SHA `dev` → `main` promotion happens at wave 5.
 items fail against live evidence, and one of them (TICK-222's area) is still
 actionable with no code change. What did ship is real and proven clean; the
 ticket's stated objective is not yet met.
+
+---
+
+# HELD — re-verified 2026-08-29, closeout board walk
+
+## Verdict: **this ticket does NOT reach Done.** It stays in Verifying.
+
+Re-verified against **merged `dev` at
+`450b9234a6f5626f21adea3c4da244550a3bdace`** (2026-08-29 18:03:20 +0100).
+`b92cb9a7`, the SHA the body above was written at, is an ancestor of it.
+
+This remains **dev-merged evidence, pending the single wave-5 `dev` → `main`
+promotion**. (For this ticket the code half is `AGENTS.md` and `.grok/skills`,
+which ship in no artifact; the unmet half is live board/tooling state, which no
+promotion changes.)
+
+The body above already concluded "held in Verifying, not moved to Done". Both
+of its Verification items were re-checked from live state rather than taken on
+trust, and **both still fail**.
+
+## Item 1 — `get_status.repo.upToDate` — re-checked live, still FAILS
+
+A fresh `get_status` call at the start of this closeout returned:
+
+```
+repo.upToDate: false
+repo.stale:
+  - artefact: skills          state: behind
+    detail: ".claude/skills: 1 file(s) differ from the bundled skills and
+             0 are missing — affected skills: kanmer-setup."
+    fix:    "run kanmer-setup (it reconciles; FRD-013), or reconnect this
+             project in the Kanmer app"
+  - artefact: skills-stamp    state: unstamped
+    detail: ".claude/skills has no .kanmer-skills-version, so nothing records
+             which Kanmer wrote it or which skills it owns there."
+  - artefact: board-config    state: compensated
+    detail: "board.yml's profiles omit questions-resolved; core injects it at
+             read time … the gate is in force"
+    fix:    "none — informational"
+```
+
+The ticket's acceptance is: *"`get_status.repo.upToDate` is true, **or** every
+remaining entry is explicitly informational/compensated."* Neither branch
+holds. `upToDate` is `false`, and only **one** of three entries
+(`board-config`) is `compensated`. The tool itself defines `behind` as "act on
+it", and `unstamped` as "no evidence either way" — neither is informational.
+
+This is the drift the ticket's own *Why* paragraph was written about. What
+shipped reconciled two **different** artefacts (the `AGENTS.md` managed block
+and `.grok/skills`), both real and both proven clean in the body above, but
+neither is the one the ticket named.
+
+## Item 2 — TICK-222's area — re-checked live, still FAILS
+
+A fresh `get_item TICK-222` returned:
+
+```
+id: TICK-222   status: done   area: ""          <- still unassigned
+updated: 2026-08-26T14:34:46.354Z               <- predates KANMER-006's take
+```
+
+The acceptance is: *"TICK-222 is in `delivery-repository`, has
+`docs_todo: false`, and remains Done with its release evidence unchanged."*
+Two clauses of three hold — it is Done, its commits (`5e8ceff0`, `c56f00f8`,
+`7e9465b0…`) and PR 540 are unchanged, and `docs_todo` is absent. The area
+clause does not: `area` is still the empty string, so the item is still filed
+under `areas/_none/`, and its `updated` timestamp is still earlier than
+KANMER-006's `taken_at` of `2026-08-28T08:11:49.416Z` — no `update_item` from
+this ticket ever landed on it.
+
+**This item was not retried during this walk.** The closeout brief is explicit
+that the board is reconciled through the MCP tools and that no worktree,
+branch or repository state is to be changed; retrying the area assignment is a
+board mutation on a *different* ticket that this pass was not asked to make,
+and the Windows `EPERM` folder-rename lock that blocked it three times may
+still be present. It remains actionable at any time, needs no code and no PR.
+
+## Why this is a hold and not a pass
+
+Rule 20 binds: *"Verify with exit codes … INCONCLUSIVE is not PASS, and a later
+pass does not erase a failure. Done requires PASS."* Both acceptance items
+return a definite **FAIL** against live state, not an inconclusive. There is no
+reading on which this ticket is finished.
+
+Rule 14 is not the barrier here — this is a `chore`-profile board/tooling
+ticket that ships no runtime capability, so D20's strict caller rule has
+nothing to bite on. The barrier is simply that the ticket's own stated
+objective is not met.
+
+## What has to happen for this to reach Done
+
+Two actions, neither requiring code, a PR, or a merge:
+
+1. **Reconcile `.claude/skills`.** `.claude/` is git-ignored
+   (`.gitignore:25 /.claude/`, `git ls-files .claude` → 0 files), so this can
+   never arrive through a PR. It needs either the `kanmer-setup` skill run
+   against live status, or the project reconnected in the Kanmer app — which
+   also writes the missing `.kanmer-skills-version` stamp. **No ticket other
+   than KANMER-006 owns this.**
+2. **Assign TICK-222 to `delivery-repository`** with `update_item` (never a
+   manual folder move), once the Windows process lock is clear.
+
+Then re-run `get_status` and confirm `repo.upToDate` is `true` or every
+remaining entry reads `compensated`.
+
+## Two observations carried forward, unchanged
+
+- `.grok/skills/.kanmer-skills-version` records `0.1.0` while its content is
+  0.3.3. The engine's check is a content hash, so this is not flagged and does
+  not affect `upToDate` — but the stamp no longer describes what it stamps.
+- `AGENTS.md` duplicates the "Operator-facing explanation is a defect" bullet
+  verbatim under Simplicity rails. Confirmed still present at `450b9234`.
+  Correctly out of this ticket's scope; still unticketed.
+
+## What this evidence does NOT prove
+
+- **It does not prove the two shipped artefacts regressed.** They did not: the
+  `AGENTS.md` managed block still byte-matches the 0.3.3 bundle (live
+  `get_status` reports no `agents-block` entry), and `.grok/skills` still
+  passes the engine's content hash (live `get_status` names only
+  `.claude/skills`).
+- **It does not prove `.claude/skills` is broken in use** — only that it
+  differs from the bundle and carries no ownership stamp.
+- **No board mutation was made to TICK-222** during this walk.
