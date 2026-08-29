@@ -157,6 +157,42 @@ internal static class AssessmentModelConfiguration
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<CaseValuationEntity>(entity =>
+        {
+            var sources = string.Join(
+                ", ",
+                ValuationSources.All.Select(item => SqlLiteral(item.Source.ToString())));
+            entity.ToTable("CaseValuations", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_CaseValuations_Source",
+                    $"[Source] IN ({sources})");
+                table.HasCheckConstraint(
+                    "CK_CaseValuations_Mileage",
+                    "[Mileage] >= 0");
+                table.HasCheckConstraint(
+                    "CK_CaseValuations_RetailValue",
+                    "[RetailValue] >= 0");
+                table.HasCheckConstraint(
+                    "CK_CaseValuations_TradeValue",
+                    "[TradeValue] >= 0");
+            });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Source).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Date).HasColumnType("date");
+            entity.Property(item => item.Time).HasColumnType("time");
+            entity.Property(item => item.RetailValue).HasPrecision(18, 2);
+            entity.Property(item => item.TradeValue).HasPrecision(18, 2);
+            entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.LastEditedBy).HasMaxLength(200);
+            entity.HasIndex(item => new { item.CaseId, item.Date, item.Time });
+            entity.HasOne(item => item.Case)
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<AiWorkRequestEntity>(entity =>
         {
             var states = string.Join(

@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -578,6 +579,138 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
+    public async Task ValuationsSaveEditListAndResolveTheCurrentEngineersValue()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("valuation-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveValuation(harness.Valuations);
+        var edit = new EditValuation(harness.Valuations);
+        var list = new ListCaseValuations(harness.Valuations);
+        var current = new GetCurrentEngineersValue(harness.Valuations);
+        long version = 0;
+
+        async Task<CaseEditLease> LeaseAsync(string key) =>
+            await harness.AcquireLeaseAsync(caseId, version, engineer, key);
+
+        async Task<CaseValuation> SaveAsync(
+            string key,
+            ValuationSource source,
+            DateOnly date,
+            TimeOnly time,
+            long mileage,
+            decimal retail,
+            decimal trade)
+        {
+            var lease = await LeaseAsync($"{key}-lease");
+            var request = new SaveValuationRequest(
+                caseId,
+                lease.Version,
+                engineer,
+                key,
+                "Recorded a Case valuation.",
+                lease.Token,
+                new(source, date, time, mileage, retail, trade));
+            var result = await save.ExecuteAsync(request, CancellationToken.None);
+            Assert.Equal(result, await save.ExecuteAsync(request, CancellationToken.None));
+            version++;
+            return result;
+        }
+
+        await SaveAsync(
+            "valuation-save-cazana",
+            ValuationSource.Cazana,
+            new DateOnly(2031, 5, 8),
+            new TimeOnly(9, 0),
+            42000,
+            12100m,
+            10100m);
+        var olderEngineerValue = await SaveAsync(
+            "valuation-save-engineer-old",
+            ValuationSource.EngineersValue,
+            new DateOnly(2031, 5, 7),
+            new TimeOnly(14, 30),
+            41950,
+            11900m,
+            9900m);
+        var newerEngineerValue = await SaveAsync(
+            "valuation-save-engineer-new",
+            ValuationSource.EngineersValue,
+            new DateOnly(2031, 5, 8),
+            new TimeOnly(8, 30),
+            42000,
+            12000m,
+            10000m);
+
+        Assert.Equal(
+            newerEngineerValue.ValuationId,
+            (await current.ExecuteAsync(caseId, CancellationToken.None))!.ValuationId);
+
+        harness.Advance(TimeSpan.FromMinutes(1));
+        var editLease = await LeaseAsync("valuation-edit-lease");
+        var editRequest = new EditValuationRequest(
+            caseId,
+            editLease.Version,
+            engineer,
+            "valuation-edit-engineer",
+            "Corrected the Engineer valuation.",
+            editLease.Token,
+            olderEngineerValue.ValuationId,
+            new(
+                ValuationSource.EngineersValue,
+                new DateOnly(2031, 5, 9),
+                new TimeOnly(10, 15),
+                42125,
+                12345.67m,
+                10345.67m));
+        var edited = await edit.ExecuteAsync(editRequest, CancellationToken.None);
+        Assert.Equal(edited, await edit.ExecuteAsync(editRequest, CancellationToken.None));
+        version++;
+
+        var valuations = await list.ExecuteAsync(caseId, CancellationToken.None);
+        Assert.Equal(3, valuations.Count);
+        Assert.Equal(edited.ValuationId, valuations[0].ValuationId);
+        Assert.Equal(42125, edited.Details.Mileage);
+        Assert.Equal(12345.67m, edited.Details.RetailValue);
+        Assert.Equal(engineer.SubjectId, edited.LastEditedBy);
+        Assert.Equal(
+            edited.ValuationId,
+            (await current.ExecuteAsync(caseId, CancellationToken.None))!.ValuationId);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(
+            4,
+            await context.ActionHistory.CountAsync(item =>
+                item.AggregateType == "case_valuation"));
+        Assert.Equal(
+            version,
+            (await harness.AcquireLeaseAsync(
+                caseId,
+                version,
+                engineer,
+                "valuation-lease-final")).Version);
+    }
+
+    [Fact]
+    public async Task ValuationPortsResolveFromProductionComposition()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+
+        Assert.IsType<EfValuationStore>(
+            scope.ServiceProvider.GetRequiredService<IValuationStore>());
+        Assert.IsType<SaveValuation>(
+            scope.ServiceProvider.GetRequiredService<ISaveValuation>());
+        Assert.IsType<EditValuation>(
+            scope.ServiceProvider.GetRequiredService<IEditValuation>());
+        Assert.IsType<ListCaseValuations>(
+            scope.ServiceProvider.GetRequiredService<IListCaseValuations>());
+        Assert.IsType<GetCurrentEngineersValue>(
+            scope.ServiceProvider.GetRequiredService<IGetCurrentEngineersValue>());
+    }
+
+    [Fact]
     public async Task TheAiWorkRequestLifecyclePersistsWithCorrelatedHistory()
     {
         await using var harness = await Harness.CreateAsync();
@@ -690,6 +823,7 @@ public sealed class AssessmentPersistenceIntegrationTests
             SaveAssessment saveAssessment,
             EfAiWorkRequestStore workRequests,
             EfRepairSpecificationStore repairSpecifications,
+            EfValuationStore valuations,
             CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider)
         {
             this.database = database;
@@ -700,6 +834,7 @@ public sealed class AssessmentPersistenceIntegrationTests
             SaveAssessment = saveAssessment;
             WorkRequests = workRequests;
             RepairSpecifications = repairSpecifications;
+            Valuations = valuations;
             this.timeProvider = timeProvider;
         }
 
@@ -708,6 +843,7 @@ public sealed class AssessmentPersistenceIntegrationTests
         public SaveAssessment SaveAssessment { get; }
         public EfAiWorkRequestStore WorkRequests { get; }
         public EfRepairSpecificationStore RepairSpecifications { get; }
+        public EfValuationStore Valuations { get; }
         public ActionActor AutomationActor { get; } = ActionActor.Automation("pegasus-automation");
         public ActionActor EngineerActor { get; } =
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -732,6 +868,7 @@ public sealed class AssessmentPersistenceIntegrationTests
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider, []);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
                 var repairSpecifications = new EfRepairSpecificationStore(factory, timeProvider);
+                var valuations = new EfValuationStore(factory, timeProvider);
                 return new(
                     database,
                     factory,
@@ -746,6 +883,7 @@ public sealed class AssessmentPersistenceIntegrationTests
                         new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
                     new EfAiWorkRequestStore(factory, timeProvider),
                     repairSpecifications,
+                    valuations,
                     timeProvider);
             }
             catch
