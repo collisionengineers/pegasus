@@ -13,8 +13,9 @@ internal static class AssessmentFieldWriter
 {
     /// <summary>
     /// Adds or restamps one field row. A null <paramref name="confirmedBy"/>
-    /// records unconfirmed working data; the caller decides whether its actor
-    /// confirms, because that is business policy.
+    /// records unconfirmed working data. The caller supplies the provenance
+    /// because it may come from the current request or from a selected source
+    /// row; deciding that source and whether it confirms are business policy.
     /// </summary>
     public static CaseAssessmentFieldEntity Write(
         PegasusDbContext context,
@@ -23,12 +24,12 @@ internal static class AssessmentFieldWriter
         CaseAssessmentFieldEntity? existing,
         string path,
         string value,
-        ActionActor actor,
-        string? confirmedBy,
-        DateTimeOffset nowUtc)
+        ActorKind recordedByKind,
+        string recordedBy,
+        DateTimeOffset recordedAtUtc,
+        string? confirmedBy)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(actor);
         if (existing is null)
         {
             var created = new CaseAssessmentFieldEntity
@@ -37,22 +38,22 @@ internal static class AssessmentFieldWriter
                 Case = owningCase,
                 FieldPath = path,
                 Value = value,
-                RecordedByKind = actor.Kind.ToString(),
-                RecordedBy = actor.SubjectId,
-                RecordedAtUtc = nowUtc,
+                RecordedByKind = recordedByKind.ToString(),
+                RecordedBy = recordedBy,
+                RecordedAtUtc = recordedAtUtc,
                 ConfirmedBy = confirmedBy,
-                ConfirmedAtUtc = confirmedBy is null ? null : nowUtc
+                ConfirmedAtUtc = confirmedBy is null ? null : recordedAtUtc
             };
             context.CaseAssessmentFields.Add(created);
             return created;
         }
 
         existing.Value = value;
-        existing.RecordedByKind = actor.Kind.ToString();
-        existing.RecordedBy = actor.SubjectId;
-        existing.RecordedAtUtc = nowUtc;
+        existing.RecordedByKind = recordedByKind.ToString();
+        existing.RecordedBy = recordedBy;
+        existing.RecordedAtUtc = recordedAtUtc;
         existing.ConfirmedBy = confirmedBy;
-        existing.ConfirmedAtUtc = confirmedBy is null ? null : nowUtc;
+        existing.ConfirmedAtUtc = confirmedBy is null ? null : recordedAtUtc;
         return existing;
     }
 }

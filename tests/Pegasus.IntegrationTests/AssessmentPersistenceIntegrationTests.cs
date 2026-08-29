@@ -593,15 +593,10 @@ public sealed class AssessmentPersistenceIntegrationTests
         async Task<CaseEditLease> LeaseAsync(string key) =>
             await harness.AcquireLeaseAsync(caseId, version, engineer, key);
 
-        // The one owner of the Engineer's Value the product consumes.
-        async Task<(string Value, string? ConfirmedBy)> EngineersValueFieldAsync()
-        {
-            await using var read = await harness.Factory.CreateDbContextAsync();
-            var field = await read.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
-                item.CaseId == caseId
-                && item.FieldPath == AssessmentVocabulary.ValueEngineer);
-            return (field.Value, field.ConfirmedBy);
-        }
+        // The same production assessment read owner ENG-028 consumes.
+        async Task<AssessmentFieldValue> EngineersValueFieldAsync() =>
+            Assert.IsType<AssessmentFieldValue>(
+                await ReadEngineersValueAsync(harness, caseId));
 
         async Task<CaseValuation> SaveAsync(
             string key,
@@ -635,12 +630,7 @@ public sealed class AssessmentPersistenceIntegrationTests
             42000,
             12100m,
             10100m);
-        await using (var noField = await harness.Factory.CreateDbContextAsync())
-        {
-            Assert.False(await noField.CaseAssessmentFields.AnyAsync(item =>
-                item.CaseId == caseId
-                && item.FieldPath == AssessmentVocabulary.ValueEngineer));
-        }
+        Assert.Null(await ReadEngineersValueAsync(harness, caseId));
 
         var olderEngineerValue = await SaveAsync(
             "valuation-save-engineer-old",
@@ -659,7 +649,9 @@ public sealed class AssessmentPersistenceIntegrationTests
             12000m,
             10000m);
 
-        Assert.Equal(("12000.00", engineer.SubjectId), await EngineersValueFieldAsync());
+        var currentField = await EngineersValueFieldAsync();
+        Assert.Equal("12000.00", currentField.Value);
+        Assert.Equal(engineer.SubjectId, currentField.ConfirmedBy);
         Assert.Equal(12000m, newerEngineerValue.Details.RetailValue);
 
         harness.Advance(TimeSpan.FromMinutes(1));
@@ -685,7 +677,9 @@ public sealed class AssessmentPersistenceIntegrationTests
 
         // Correcting the earlier row onto the latest entered date makes it the
         // current Engineer's Value, so the owned field follows it.
-        Assert.Equal(("12345.67", engineer.SubjectId), await EngineersValueFieldAsync());
+        currentField = await EngineersValueFieldAsync();
+        Assert.Equal("12345.67", currentField.Value);
+        Assert.Equal(engineer.SubjectId, currentField.ConfirmedBy);
 
         // A later-recorded but earlier-dated row never demotes the field: the
         // current Engineer's Value is the latest entered one, not the last
@@ -699,7 +693,12 @@ public sealed class AssessmentPersistenceIntegrationTests
             41800,
             9500m,
             8500m);
-        Assert.Equal(("12345.67", engineer.SubjectId), await EngineersValueFieldAsync());
+        currentField = await EngineersValueFieldAsync();
+        Assert.Equal("12345.67", currentField.Value);
+        Assert.Equal(engineer.SubjectId, currentField.ConfirmedBy);
+        Assert.Equal(edited.LastEditedBy, currentField.RecordedBy);
+        Assert.Equal(edited.LastEditedAtUtc!.Value, currentField.RecordedAtUtc);
+        Assert.Equal(edited.LastEditedAtUtc, currentField.ConfirmedAtUtc);
 
         var valuations = await list.ExecuteAsync(caseId, CancellationToken.None);
         Assert.Equal(4, valuations.Count);
@@ -723,6 +722,120 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
+    public async Task BackdatedEngineersValueKeepsTheSelectedRowsProvenance()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("valuation-provenance-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var selectedEngineer = harness.EngineerActor;
+        var backdatingEngineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        long version = 0;
+
+        async Task<CaseValuation> SaveAsync(
+            string key,
+            ActionActor actor,
+            DateOnly date,
+            decimal retail)
+        {
+            var lease = await harness.AcquireLeaseAsync(
+                caseId,
+                version,
+                actor,
+                $"{key}-lease");
+            var result = await harness.Valuations.SaveAsync(
+                new(
+                    caseId,
+                    lease.Version,
+                    actor,
+                    key,
+                    "Recorded an Engineer's Value.",
+                    lease.Token,
+                    new(
+                        ValuationSource.EngineersValue,
+                        date,
+                        new TimeOnly(9, 0),
+                        42000,
+                        retail,
+                        retail - 2000m)),
+                CancellationToken.None);
+            version++;
+            return result;
+        }
+
+        var selected = await SaveAsync(
+            "valuation-provenance-selected",
+            selectedEngineer,
+            new DateOnly(2031, 5, 8),
+            12000m);
+        harness.Advance(TimeSpan.FromMinutes(5));
+        await SaveAsync(
+            "valuation-provenance-backdated",
+            backdatingEngineer,
+            new DateOnly(2031, 5, 7),
+            11000m);
+
+        var field = Assert.IsType<AssessmentFieldValue>(
+            await ReadEngineersValueAsync(harness, caseId));
+        Assert.Equal("12000.00", field.Value);
+        Assert.Equal(ActorKind.Staff, field.RecordedByKind);
+        Assert.Equal(selected.RecordedBy, field.RecordedBy);
+        Assert.Equal(selected.RecordedAtUtc, field.RecordedAtUtc);
+        Assert.Equal(selected.RecordedBy, field.ConfirmedBy);
+        Assert.Equal(selected.RecordedAtUtc, field.ConfirmedAtUtc);
+    }
+
+    [Fact]
+    public async Task EditingTheOnlyEngineersValueToAnotherSourceClearsTheAssessmentOwner()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("valuation-clear-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var saveLease = await harness.AcquireLeaseAsync(
+            caseId,
+            0,
+            engineer,
+            "valuation-clear-save-lease");
+        var saved = await harness.Valuations.SaveAsync(
+            new(
+                caseId,
+                saveLease.Version,
+                engineer,
+                "valuation-clear-save",
+                "Recorded an Engineer's Value.",
+                saveLease.Token,
+                new(
+                    ValuationSource.EngineersValue,
+                    new DateOnly(2031, 5, 8),
+                    new TimeOnly(9, 0),
+                    42000,
+                    12000m,
+                    10000m)),
+            CancellationToken.None);
+        Assert.NotNull(await ReadEngineersValueAsync(harness, caseId));
+
+        harness.Advance(TimeSpan.FromMinutes(5));
+        var editLease = await harness.AcquireLeaseAsync(
+            caseId,
+            1,
+            engineer,
+            "valuation-clear-edit-lease");
+        await harness.Valuations.EditAsync(
+            new(
+                caseId,
+                editLease.Version,
+                engineer,
+                "valuation-clear-edit",
+                "Corrected the valuation source.",
+                editLease.Token,
+                saved.ValuationId,
+                saved.Details with { Source = ValuationSource.Glasses }),
+            CancellationToken.None);
+
+        Assert.Null(await ReadEngineersValueAsync(harness, caseId));
+    }
+
+    [Fact]
     public async Task ValuationPortsResolveFromProductionComposition()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -736,6 +849,20 @@ public sealed class AssessmentPersistenceIntegrationTests
             scope.ServiceProvider.GetRequiredService<IEditValuation>());
         Assert.IsType<ListCaseValuations>(
             scope.ServiceProvider.GetRequiredService<IListCaseValuations>());
+    }
+
+    private static async Task<AssessmentFieldValue?> ReadEngineersValueAsync(
+        Harness harness,
+        Guid caseId)
+    {
+        var assessment = Assert.IsType<CaseAssessmentProjection>(
+            await new GetCaseAssessment(
+                    new EfCaseAssessmentStore(
+                        harness.Factory,
+                        harness.Clock,
+                        harness.RepairSpecifications))
+                .ExecuteAsync(caseId, CancellationToken.None));
+        return assessment.Field(AssessmentVocabulary.ValueEngineer);
     }
 
     [Fact]
