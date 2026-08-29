@@ -174,24 +174,8 @@ public sealed class EfCaseAssessmentStore(
                 continue;
             }
 
-            if (existing is null)
-            {
-                existing = new()
-                {
-                    CaseId = request.CaseId,
-                    Case = workflow.Case,
-                    FieldPath = path,
-                    Value = value,
-                    RecordedByKind = request.Actor.Kind.ToString(),
-                    RecordedBy = request.Actor.SubjectId,
-                    RecordedAtUtc = now,
-                    ConfirmedBy = confirmedBy,
-                    ConfirmedAtUtc = confirmedBy is null ? null : now
-                };
-                context.CaseAssessmentFields.Add(existing);
-                fields.Add(existing);
-            }
-            else if (confirmedBy is null
+            if (existing is not null
+                && confirmedBy is null
                 && string.Equals(existing.Value, value, StringComparison.Ordinal))
             {
                 // An automation resubmission of a value that has not changed
@@ -204,12 +188,21 @@ public sealed class EfCaseAssessmentStore(
             }
             else
             {
-                existing.Value = value;
-                existing.RecordedByKind = request.Actor.Kind.ToString();
-                existing.RecordedBy = request.Actor.SubjectId;
-                existing.RecordedAtUtc = now;
-                existing.ConfirmedBy = confirmedBy;
-                existing.ConfirmedAtUtc = confirmedBy is null ? null : now;
+                var written = AssessmentFieldWriter.Write(
+                    context,
+                    workflow.Case,
+                    request.CaseId,
+                    existing,
+                    path,
+                    value,
+                    request.Actor,
+                    confirmedBy,
+                    now);
+                if (existing is null)
+                {
+                    fields.Add(written);
+                }
+                existing = written;
             }
 
             afterFields[path] = new { existing.Value, existing.ConfirmedBy };
