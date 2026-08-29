@@ -1239,7 +1239,13 @@ public static class OperatorLabels
     public static class QueryResponseJobs
     {
         public const string Source = "Post-report";
-        public const string PanelTitle = "AI jobs";
+        /// <summary>
+        /// Deliberately not "Send query to AI", which would match the shape of
+        /// "Send Unidentified to AI" and "Send to Claude". Those two send a
+        /// record to be worked; this one queues a ledger row for a draft reply
+        /// and sends nothing. The sibling shape would misdescribe the action,
+        /// so the wording differs on purpose rather than by oversight.
+        /// </summary>
         public const string Create = "Draft reply with AI";
         public const string Created = "AI reply job created.";
         public const string AutomationStopped = "Automation stopped";
