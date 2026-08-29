@@ -2,12 +2,13 @@
 id: AUTO-006
 type: ticket
 title: Redesign the Automation & AI administration area
-status: implementing
+status: review
 area: automation-integrations
 assignee: claude-auto-006
 profile: feature
 stageEntered:
   implementing: '2026-08-29T09:31:06.707Z'
+  review: '2026-08-29T09:56:08.347Z'
 taken_at: '2026-08-29T09:28:43.736Z'
 branch: task/auto-006-automation-admin
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/auto-006-automation-admin'
@@ -20,6 +21,8 @@ groups:
   - EPIC-011
 links:
   - AUTO-007
+  - AUTO-010
+  - PLAT-051
 docs_todo: true
 commits:
   - 62c9e2ace7598bf9de2385e7b2e5705cfd4a8288
@@ -30,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/618'
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-08-29T09:55:33.033Z'
+updated: '2026-08-29T09:56:26.798Z'
 ---
 
 ## What
