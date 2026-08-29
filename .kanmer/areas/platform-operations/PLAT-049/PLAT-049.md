@@ -2,13 +2,14 @@
 id: PLAT-049
 type: ticket
 title: 'Operations: AI Job List, Service health and Send Unidentified to AI'
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-plat-049
 profile: feature
 stageEntered:
   implementing: '2026-08-29T09:31:38.080Z'
   review: '2026-08-29T09:51:51.642Z'
+  verifying: '2026-08-29T18:03:26.282Z'
 taken_at: '2026-08-29T09:27:42.833Z'
 branch: task/plat-049-operations-features
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-049-operations-features'
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/617'
 archived: false
 created: '2026-08-28T08:35:24.068Z'
-updated: '2026-08-29T14:48:52.586Z'
+updated: '2026-08-29T18:03:26.282Z'
 ---
 
 ## What
