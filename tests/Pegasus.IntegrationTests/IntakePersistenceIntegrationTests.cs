@@ -112,7 +112,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260828111707_ProviderSubmissions",
                 "20260828111732_GrantProviderSubmissions",
                 "20260828112103_NamedEstimates",
-                "20260828185508_ProviderDeclaredInstruction"
+                "20260828185508_ProviderDeclaredInstruction",
+                "20260829095336_CaseValuations"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
