@@ -23,9 +23,21 @@ public sealed class ReconcileProviderSubmissions(
 {
     /// <summary>
     /// Lets the inline request finish its separate writes before the sweep
-    /// considers the missing history row recoverable.
+    /// touches the same submission. It is not what keeps the acceptance
+    /// single — the derived history identity
+    /// (<see cref="ProviderSubmissionPolicy.AcceptedHistoryId"/>) is, and it
+    /// holds however long a request runs — it just leaves a request that is
+    /// still in flight to record its own correlation id.
     /// </summary>
     public static readonly TimeSpan AcceptHistoryGracePeriod = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Says in permanent history that this row was completed by recovery, and
+    /// why it carries an operation key where an accept written inline carries
+    /// the request's correlation id.
+    /// </summary>
+    private const string RecoveredAcceptReason =
+        "Completed by accept recovery; the originating request's correlation id was not retained.";
 
     public async Task<ReconcileProviderSubmissionsResult> ExecuteAsync(
         int maximumItems,
@@ -61,31 +73,31 @@ public sealed class ReconcileProviderSubmissions(
 
                 if (!candidate.HasAcceptedHistory)
                 {
-                    // The Functions timer is singleton, so sweep-versus-sweep
-                    // concurrency is not the risk here; the inline request is.
-                    // Re-read immediately before appending the missing first
-                    // history row so a request that finished during this pass
-                    // does not receive a second Accepted row.
-                    var current = await submissionStore.GetAcceptRecoveryCandidateAsync(
-                        candidate.SubmissionId,
-                        cancellationToken)
-                        ?? throw new InvalidOperationException(
-                            $"Provider submission '{candidate.SubmissionId:D}' disappeared during accept recovery.");
-                    if (!current.HasAcceptedHistory)
-                    {
-                        await actionHistory.AppendAsync(
-                            new(
-                                Guid.NewGuid(),
-                                ProviderSubmissionPolicy.ActionHistoryAggregateType,
-                                candidate.SubmissionId.ToString("D"),
-                                "Submitted",
-                                ActionActor.Provider(candidate.PrincipalId),
-                                timeProvider.GetUtcNow(),
-                                "Accepted",
-                                ProviderSubmissionPolicy.OperationKey(candidate.SubmissionId)),
-                            cancellationToken);
-                        wasRepaired = true;
-                    }
+                    // Stamped with when the submission was received, not with
+                    // this sweep's clock: the acceptance happened then, and a
+                    // row claiming now would be ordered after the Replayed row
+                    // it precedes. The originating request's correlation id
+                    // went with the process that never wrote this row, so the
+                    // row carries the submission's own operation key and says
+                    // where it came from instead of presenting a substitute as
+                    // a request id.
+                    //
+                    // False means the inline request appended its own row
+                    // between the candidate read and this write: that row is
+                    // the acceptance, this pass repaired nothing, and neither
+                    // fact is hidden.
+                    wasRepaired |= await actionHistory.TryAppendAsync(
+                        new(
+                            ProviderSubmissionPolicy.AcceptedHistoryId(candidate.SubmissionId),
+                            ProviderSubmissionPolicy.ActionHistoryAggregateType,
+                            candidate.SubmissionId.ToString("D"),
+                            "Submitted",
+                            ActionActor.Provider(candidate.PrincipalId),
+                            candidate.ReceivedAtUtc.ToUniversalTime(),
+                            "Accepted",
+                            ProviderSubmissionPolicy.OperationKey(candidate.SubmissionId),
+                            RecoveredAcceptReason),
+                        cancellationToken);
                 }
 
                 if (wasRepaired)

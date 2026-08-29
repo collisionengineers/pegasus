@@ -94,18 +94,9 @@ internal sealed class EfProviderSubmissionStore(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await AcceptRecoveryStates(context, incompleteOnly: true)
+        return await AcceptRecoveryStates(context)
             .Take(maximumItems)
             .ToArrayAsync(cancellationToken);
-    }
-
-    public async Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
-        Guid submissionId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await AcceptRecoveryStates(context, incompleteOnly: false, submissionId)
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<string?> FindPrincipalCodeAsync(
@@ -178,9 +169,7 @@ internal sealed class EfProviderSubmissionStore(
     /// read, instead of one lookup per candidate.
     /// </remarks>
     private static IQueryable<ProviderSubmissionAcceptCandidate> AcceptRecoveryStates(
-        PegasusDbContext context,
-        bool incompleteOnly,
-        Guid? submissionId = null) =>
+        PegasusDbContext context) =>
         from submission in context.ProviderSubmissions.AsNoTracking()
         join staged in context.IntakeStagedReceipts
                 .AsNoTracking()
@@ -197,10 +186,7 @@ internal sealed class EfProviderSubmissionStore(
                     && item.Outcome == "Accepted")
             on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
         from acceptedHistory in acceptedHistories.DefaultIfEmpty()
-        where !incompleteOnly
-            || submission.StagedReceiptId == null
-            || acceptedHistory == null
-        where !submissionId.HasValue || submission.Id == submissionId.Value
+        where submission.StagedReceiptId == null || acceptedHistory == null
         orderby submission.ReceivedAtUtc, submission.Id
         select new ProviderSubmissionAcceptCandidate(
             submission.Id,

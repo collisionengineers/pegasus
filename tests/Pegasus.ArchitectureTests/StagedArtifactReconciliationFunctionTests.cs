@@ -146,11 +146,6 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProviderSubmissionAcceptCandidate>>([]);
 
-        public Task<ProviderSubmissionAcceptCandidate?> GetAcceptRecoveryCandidateAsync(
-            Guid submissionId,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
         private static InvalidOperationException UnexpectedCall() =>
             new("An empty provider-submission reconciliation batch must not reach a write or unrelated read.");
     }
@@ -160,8 +155,15 @@ public sealed class StagedArtifactReconciliationFunctionTests
         public Task AppendAsync(
             ActionHistoryEntry entry,
             CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "An empty provider-submission reconciliation batch must not append history.");
+            throw Unreachable();
+
+        public Task<bool> TryAppendAsync(
+            ActionHistoryEntry entry,
+            CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        private static InvalidOperationException Unreachable() =>
+            new("An empty provider-submission reconciliation batch must not append history.");
     }
 
     private sealed class ReconciliationWorkStore(int recoveredLeases) : IIntakeWorkStore
