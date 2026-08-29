@@ -2,10 +2,13 @@
 id: PLAT-025
 type: ticket
 title: Redesign workflow configurations
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-29T10:06:05.927Z'
+branch: task/plat-025-workflow-configuration
+worktree: ../pegasus-worktrees/plat-025-workflow-configuration
 labels:
   - ui
   - administration
@@ -18,7 +21,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.339Z'
-updated: '2026-08-29T08:01:05.054Z'
+updated: '2026-08-29T10:06:05.927Z'
 ---
 
 ## What
