@@ -988,7 +988,6 @@ public static class OperatorLabels
     /// <summary>The Mail settings area labels and status values — one list.</summary>
     public static class MailSettings
     {
-        public const string Area = "Mail settings";
         public const string Description = "Approved mailboxes and mail categories";
         public const string ApprovedMailboxes = "Approved mailboxes";
         public const string MailCategories = "Mail categories";
@@ -1022,22 +1021,26 @@ public static class OperatorLabels
             $"{mailboxCount} approved {(mailboxCount == 1 ? "mailbox" : "mailboxes")} · " +
             $"{categoryCount} mail {(categoryCount == 1 ? "category" : "categories")}";
 
-        public static string MailboxState(ApprovedMailboxState state) => state switch
-        {
-            ApprovedMailboxState.Approved => "Approved",
-            ApprovedMailboxState.Disabled => "Disabled",
-            _ => Humanise(state.ToString())
-        };
+        /// <summary>
+        /// Both state vocabularies are the enum names themselves, so they
+        /// delegate to <see cref="Humanise"/> rather than restating a second
+        /// copy of the same two words.
+        /// </summary>
+        public static string MailboxState(ApprovedMailboxState state) =>
+            Humanise(state.ToString());
 
-        public static string CategoryState(ApprovedOutlookCategoryState state) => state switch
-        {
-            ApprovedOutlookCategoryState.Active => "Active",
-            ApprovedOutlookCategoryState.Disabled => "Disabled",
-            _ => Humanise(state.ToString())
-        };
+        public static string CategoryState(ApprovedOutlookCategoryState state) =>
+            Humanise(state.ToString());
 
         public static string FolderState(bool configured) =>
             configured ? Configured : NotConfigured;
+
+        /// <summary>
+        /// The folder disclosure's own control label: how many of the logical
+        /// folders this mailbox has bound, without expanding the list.
+        /// </summary>
+        public static string ReviewFoldersProgress(int configured, int total) =>
+            $"{ReviewFolders} ({configured} of {total})";
 
         public static string PollStatus(
             ApprovedMailbox mailbox,
