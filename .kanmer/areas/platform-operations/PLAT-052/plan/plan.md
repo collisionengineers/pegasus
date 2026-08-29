@@ -458,3 +458,168 @@ regeneration wrote no files (see Step 2). Pushed the merge commit only:
 n/a — this round is a merge plus a blocked regeneration attempt; no new
 application code was written. The merge itself introduced no code changes
 of this ticket's own authorship to simplify.
+
+## Review findings — dispositions (round 2), 2026-08-29
+
+(Fourth verifier pass on this ticket by the ticket's own chronology — the
+remediation harness labels every lane's current pass "round 2"; kept as
+instructed, cross-referenced against this ticket's own round 3 above so
+the history stays honest.) Verdict: needs-work. Independently re-ran every
+number below before recording it; none are repeated from the verifier
+without a fresh run.
+
+1. **[major] PR #614's CI is genuinely RED, not "pending".**
+   Independently confirmed: `gh pr view 614 --json statusCheckRollup` shows
+   `sql-integration (1)` = `FAILURE` on run `33246469257` (the merge
+   commit `48df8f58`), every other check `SUCCESS`/`SKIPPED`; the two prior
+   commits' runs (`33243385908`, `33214148886`) were both fully green.
+   PR state is `OPEN`/`MERGEABLE` — not merged, no false "ready" claim
+   reached the board. **Disposition: fixed (documentation) + risk
+   accepted (the failing job itself).** Corrected in
+   `post-implementation-report` below rather than left standing. The
+   failing job is not this ticket's file — see #2.
+
+2. **[major] Root cause of the CI failure is a flaky assertion in
+   `tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs:62`
+   (TICK-061's file), not a PLAT-052 regression.**
+   Independently verified: `git diff 0a0d9eee 48df8f58 --
+   tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs`
+   is empty (the file is untouched by this branch or its merge), and
+   `git log --oneline` for that file shows exactly one commit, `4aec2703`
+   (TICK-061), authored entirely outside this lane. Read the assertion and
+   the generator it exercises
+   (`src/Pegasus.Core/Cases/PrincipalCredentials.cs:296`,
+   `Base64Url`/`SecretBytes = 32`): `firstSecret[..^1] + "A"` is meant to
+   produce a *wrong* secret, but the Base64Url tail's last character
+   encodes only the final bits of the random payload, so roughly 1 run in
+   4 it regenerates the *original* secret and `Assert.Null` legitimately
+   fails. This will re-occur at that rate on `sql-integration (1)` for
+   every lane in the epic until TICK-061 (or its owner) fixes it — not
+   something this ticket can fix without touching another in-flight
+   lane's file. **Disposition: reported, not fixed — out of lane
+   (`task/tick-061-provider-credentials` is in flight; not this ticket's
+   file per the hard rule).** Escalating to the orchestrator explicitly:
+   this red job will keep failing ~25% of runs across the epic until
+   TICK-061 lands a fix (e.g. asserting `Assert.NotEqual` against a
+   guaranteed-different secret, or excluding the one bit pattern that
+   round-trips).
+
+3. **[minor] Overclaim in this plan's own round 3, Step 3: "single
+   reported error" restates `Test-UiCatalogue.ps1`'s baseline without
+   repeating that the real count is 2, contradicting round 2's own
+   finding of two defects (`Send.cshtml` uncatalogued +
+   `vehicle-images-details--default.html` broken reference) in the same
+   plan document.**
+   Re-implemented the script's checks read-only and independently got
+   `TOTAL ERRORS: 2`, matching the verifier exactly. Round 3's "single
+   reported error (the script stops at the first alphabetically)" is
+   mechanically true — but by naming only `Send.cshtml` in that step and
+   not re-stating the second, already-known error, it reads as if the
+   script found one thing when the ticket's own round 2 already
+   established two. **Disposition: fixed (documentation).** Restated
+   accurately here rather than edited in place: `Test-UiCatalogue.ps1`
+   reports exactly one error per run because of its own
+   `$ErrorActionPreference = 'Stop'` fail-fast (script line 4, `Write-Error`
+   at line 156), and the real, standing count on this branch and on `dev`
+   is **two** — `Send.cshtml` (CASE-012's file, PR #615 merged today but
+   did not add the catalogue entry) and the `vehicle-images-details`
+   broken reference (PR-070, unowned). Neither is newly introduced by this
+   PR; neither is touched here.
+
+4. **[minor] `catalogue.json` carries the `EvaSubmission` entry but
+   `index.html` does not list it — a real staleness, independent of the
+   `StateMatches` blocker.**
+   Confirmed: `grep -c "eva-submission" docs/design/test-ui/index.html` →
+   0. Already disclosed in round 2 ("Left `docs/design/test-ui/index.html`
+   untouched... regenerating it requires the barred script") and again in
+   round 3 (blocked behind the unrelated `StateMatches` marker-drift
+   finding, which still stands unresolved). **Disposition: accept risk,
+   unchanged from round 2/3 — no new action.** Nothing about today's fixes
+   (status-token correction, the new `StateMatches` entry) changes this;
+   `index.html` regeneration still needs the barred capture script and
+   still depends on the round-3-escalated marker-drift fix landing first.
+
+5. **[minor] Stale prototype: the committed
+   `administration-principal-eva-submission--default.html` showed
+   `status status--neutral` for "Active"; the live render is
+   `status status--navy`.**
+   Root-caused, not guessed: `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml`
+   — the repo's single source of truth for state-to-tone mapping — maps
+   `"active" => "navy"` (line in the `tone switch`), so the prototype
+   drifted after this branch's `git merge origin/dev` pulled in changes
+   made against `_StatusChip.cshtml` by other lanes since this page was
+   originally captured. **Disposition: fixed.** Changed the one class
+   token in `docs/design/test-ui/pages/administration-principal-eva-submission--default.html`
+   line 170 from `status--neutral` to `status--navy`. This is the only
+   difference between the committed file and the verifier's own live
+   capture (`artifacts/test-ui-capture/0b042ecd.../response.html`), so no
+   other correction is needed.
+
+6. **[minor] Latent hazard this ticket's own test introduced: the denied-
+   route test gives the snapshot generator a second capture candidate
+   (an error page) for this route, and the catalogue entry carries no
+   `StateMatches` key, so today's correct selection is an ordinal-string
+   tie-break, not a guarantee.**
+   Confirmed the mechanism by reading `TestUiSnapshotTests.cs`'s
+   `Generate()`: with no `StateMatches` entry, `stateMatch` is null and
+   `otherMatches` is empty (this route has only one catalogued state), so
+   `otherMatches.All(...)` is vacuously true and *both* candidates —
+   the authorized page and `DirectOrganizationAndPrincipalRoutesDenyNonAdministratorSession`'s
+   error-page capture — pass the filter; `.Order(StringComparer.Ordinal)`
+   then picks whichever normalizes lexicographically first, which today
+   is the real page only because `<title>E...` sorts before `<title>W...`.
+   **Disposition: fixed.** Added
+   `["administration-principal-eva-submission--default"] = new("EVA API
+   submission for WEBP", "We could not complete that request")` to the
+   shared `StateMatches` dictionary in
+   `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs` (appended
+   between the existing `administration-mail-categories--default` and
+   `case-details--unavailable` entries; nothing reordered). The `Required`
+   text is this ticket's own fixture principal code (`WEBP`, seeded by
+   `OrganizationAdministrationWebTests.cs`, this ticket's own file), and
+   the `Excluded` text is `Pages/Error.cshtml`'s literal heading — the
+   same denied-route candidate the hazard was about — so selection is now
+   deterministic regardless of future title changes on either side.
+   `TestUiSnapshotTests.cs` is shared tooling not in this ticket's
+   original `files` list, but `git log --oneline` shows it untouched by
+   any of the last 7 merges to land on `dev` today, and the change is a
+   single, minimal, non-reordering dictionary entry scoped to this
+   ticket's own scenario key and its own fixture data — the same
+   append-only discipline as `OperatorLabels.cs`. Flagging this loudly per
+   the disposition rule's tier 2 ("fix it anyway... say so loudly") since
+   the file is shared, even though the edit itself cannot collide with
+   another lane's own scenario key.
+
+### Verification, re-run for this round
+
+- `pwsh -NoProfile -Command "dotnet build ./Pegasus.slnx --configuration Release"`
+  — **Build succeeded, 0 Warning(s), 0 Error(s)** (includes the two edits
+  above; `TestUiSnapshotTests.cs` compiles with the new dictionary entry).
+- `pwsh -NoProfile -Command "dotnet test ./Pegasus.slnx --configuration Release --no-build --filter 'FullyQualifiedName~OrganizationAdministrationWebTests'"`
+  — **Passed! Failed: 0, Passed: 2, Skipped: 0, Total: 2**, unchanged.
+- `gh pr view 614 --json statusCheckRollup,mergeable,state` and
+  `gh run list --branch task/plat-052-eva-submission-route --limit 10` —
+  both re-run directly, results recorded in finding 1/2 above.
+- The full `Update-TestUiSnapshots.ps1` capture/regenerate pass was **not**
+  re-run: it is the orchestrator-owned gate named in the lane brief, it
+  takes ~19 minutes, and it is still blocked by round 3's escalated,
+  unrelated `StateMatches` marker-drift finding across four other lanes'
+  pages — today's two fixes do not touch or depend on that blocker. Both
+  fixes were verified by direct code-and-evidence tracing (the
+  `_StatusChip.cshtml` source of truth for #5; the `Generate()` selection
+  logic plus the verifier's own captured-response bytes for #6) rather
+  than by running the barred script.
+
+### Commits pushed
+
+- `1ac0fac6` — `fix(admin): correct stale status token and add snapshot
+  discriminator (PLAT-052)`, pushed to
+  `task/plat-052-eva-submission-route` (`48df8f58..1ac0fac6`).
+
+## Simplification pass — 2026-08-29 (round 4)
+
+Two one-line/one-entry changes, both reusing existing patterns exactly
+(`_StatusChip.cshtml`'s own tone vocabulary for #5; the existing
+`StateMatch(Required, Excluded)` record and dictionary shape, already used
+by five other entries, for #6). No new abstraction, no new file, nothing
+to simplify.

@@ -47,3 +47,18 @@ matches the grep but is a message string, not a zone lookup.
   unmodified. Its fixtures are 2026-08-03/04/05, none on a DST transition day,
   so it does **not** cover the behaviour change this ticket makes — the two new
   `LondonCalendarTests` transition-Sunday cases do.
+
+## Round 3 remediation files — 2026-08-29
+
+- `src/Pegasus.Core/LondonCalendar.cs` — complete day/week boundary tuple and
+  method-scoped UTC fallback.
+- `src/Pegasus.Core/Operations/OperationsSnapshot.cs` — consumes the calendar
+  day end and removes the local 24-hour calculation.
+- `tests/Pegasus.Core.Tests/LondonCalendarTests.cs` — additive day-end
+  assertions on all `DayAndWeekBoundariesAt` cases.
+- `tests/Pegasus.Core.Tests/Operations/DashboardBoundaryTests.cs` — now touched
+  by this lane with one additive GMT-transition production-path fact. The
+  earlier statement that this file was left unmodified is superseded.
+
+No other source, test, shared-label, UI, package or repository-document file was
+touched.

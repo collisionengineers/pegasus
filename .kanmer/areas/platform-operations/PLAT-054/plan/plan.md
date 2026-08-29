@@ -136,3 +136,78 @@ operator-facing copy.)
   `ToUtcRange`, +2 transition-Sunday).
 - `Pegasus.Core.Tests` whole project — Failed: 0, Passed: 1126, Skipped: 0.
 - `Pegasus.ArchitectureTests` — Failed: 0, Passed: 100, Skipped: 0.
+
+## Review findings — dispositions (round 3), 2026-08-29
+
+Source: adversarial verifier report on PLAT-054 (verdict `needs-work`). The
+major and both minors were confirmed against the branch and fixed. The two
+informational findings require no code change.
+
+### [major] DST-naive day end remained in `GetOperationsSnapshot` — FIXED
+
+Confirmed. `ComposeNeedsAttentionAsync` derived the end from a UTC instant with
+`dayStartUtc.AddDays(1)`, so the office day ended an hour early on the
+25-hour GMT-transition Sunday and an hour late on the 23-hour BST-transition
+Sunday.
+
+`LondonCalendar.DayAndWeekBoundariesAt` now returns `DayStartUtc`, `DayEndUtc`
+and `WeekStartUtc`, resolving all three through the same selected time zone.
+`GetOperationsSnapshot` passes that `DayEndUtc` into the needs-attention
+projection; the local `AddDays(1)` boundary calculation is deleted. The
+existing transition-Sunday calendar tests now assert the returned day end, and
+`DashboardBoundaryTests.NeedsAttentionIncludesTheLastHourOfTheGmtTransitionSundayInToday`
+pins the real production caller at 23:30Z. No assertion was deleted, skipped,
+weakened or inverted.
+
+### [minor] The UTC fallback was widened to every calendar consumer — FIXED
+
+Confirmed. Plan step 2's earlier phrase "preserve semantics" was inaccurate:
+the fallback was preserved for the dashboard but silently widened for
+`StartOfDay`, `StartOfNextDay`, `DateAt` and `ToUtc` callers.
+
+Those public primitives now call `GetTimeZone`, which directly resolves
+`Europe/London` and surfaces a missing or invalid zone. The named-exception
+fallback remains only inside `ResolveTimeZone`, and only
+`DayAndWeekBoundariesAt` calls it. This preserves the dashboard's supported UTC
+fallback without silently degrading case search or chase scheduling. There is
+no catch-all or suppressed error.
+
+### [minor] Ticket documents and commit traceability were stale — FIXED
+
+Confirmed. This round updates the files, plan, post-implementation report and
+scratch records. The focused filter now records its real result: Failed: 0,
+Passed: 16, Skipped: 0. The ticket's commits now include the previously omitted
+round-3 merge `44bcb8c0f622e5f169bc0eb43d7271f1632b7d8d` and remediation
+`1e15e8325cc74ccfb5d8f059b1a5a17c20e98aad`.
+
+### [info] `DayAndWeekBoundariesAt` has one production caller — ACCEPTED
+
+No change. This method relocates an already-called dashboard rule; it is not a
+new speculative API. [[PLAT-051]] remains the intended second caller and is not
+claimed as delivered by this ticket.
+
+### [info] Remaining rules sweep — NO ACTION
+
+The verifier found no assertion tampering, scope breach, inert UI, operator
+copy, fabricated fixture, duplicate label list, test-only delivered code or
+catch-all suppression. The round-3 diff preserves those results.
+
+## Simplification pass — 2026-08-29
+
+- Reuse: extended `LondonCalendar.DayAndWeekBoundariesAt` and the existing
+  `GetOperationsSnapshot` call rather than adding a calendar type or service.
+- Simplification: one returned tuple carries the complete day/week boundary;
+  the duplicate 24-hour calculation is deleted.
+- Efficiency: the boundary method resolves one zone and reuses it for all three
+  UTC conversions; no cache, dependency or configuration was added.
+- Altitude: Core remains the policy owner and Operations remains only a caller.
+
+No unapplied simplification findings.
+
+## Verification after round 3
+
+- `dotnet build ./Pegasus.slnx --configuration Release` — exit code 0,
+  0 warnings, 0 errors.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~LondonCalendarTests|FullyQualifiedName~DashboardBoundaryTests"`
+  — exit code 0; Failed: 0, Passed: 16, Skipped: 0.

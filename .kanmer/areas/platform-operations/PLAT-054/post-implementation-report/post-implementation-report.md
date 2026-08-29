@@ -173,3 +173,57 @@ Also run this round, both unchanged by this ticket and green:
 
 - `c2bef9df` — `fix(core): centralize London office boundaries (PLAT-054)`.
 - round-2 remediation commit — see the ticket's `commits` field.
+
+## Round 3 verifier remediation — 2026-08-29
+
+### What changed
+
+- `src/Pegasus.Core/LondonCalendar.cs` now returns the office day's start and
+  end plus the Monday week start from one resolved zone. Its UTC fallback is
+  scoped to `DayAndWeekBoundariesAt`; the other public conversion primitives
+  surface missing-zone failures.
+- `src/Pegasus.Core/Operations/OperationsSnapshot.cs` consumes the calendar's
+  `DayEndUtc`; the DST-naive `dayStartUtc.AddDays(1)` calculation is gone.
+- `tests/Pegasus.Core.Tests/LondonCalendarTests.cs` now asserts the returned
+  day end on ordinary, BST-start and GMT-start dates.
+- `tests/Pegasus.Core.Tests/Operations/DashboardBoundaryTests.cs` has one
+  additive production-path fact proving that 23:30Z on the GMT-transition
+  Sunday remains `Today` until London midnight.
+
+### Corrections to earlier reporting
+
+- The earlier fallback claim was too broad. Exact fallback semantics are
+  preserved only for the dashboard boundary operation; case search and chase
+  scheduling continue to fail loudly when `Europe/London` cannot be resolved.
+- The earlier focused count of 10 became stale after the UIIMP-008 merge added
+  five dashboard facts. This repair adds one fact, so the observed total is
+  now 16, not 10 or 15.
+- The ticket commit record now includes merge commit
+  `44bcb8c0f622e5f169bc0eb43d7271f1632b7d8d` and remediation commit
+  `1e15e8325cc74ccfb5d8f059b1a5a17c20e98aad`.
+
+### Build
+
+`dotnet build ./Pegasus.slnx --configuration Release` — exit code 0,
+**0 warnings, 0 errors**.
+
+### Focused tests
+
+`dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+"FullyQualifiedName~LondonCalendarTests|FullyQualifiedName~DashboardBoundaryTests"`
+— exit code 0; **Failed: 0, Passed: 16, Skipped: 0**.
+
+### Risks and boundaries
+
+`DayAndWeekBoundariesAt` still has one production caller. That is accepted
+because it is relocated live dashboard logic, not a speculative API;
+[[PLAT-051]] is not claimed as delivered. The four other direct London-zone
+lookups remain outside this lane and remain tracked by [[PLAT-060]]. No proof
+was written and the ticket remains in Review.
+
+### Commits
+
+- `c2bef9df25acca4c5ec7224ae6bb637e57f089da` — initial implementation.
+- `3e16e506c753324598ba75de1022fb6ccb3f2817` — round-2 remediation.
+- `44bcb8c0f622e5f169bc0eb43d7271f1632b7d8d` — merge of `origin/dev`.
+- `1e15e8325cc74ccfb5d8f059b1a5a17c20e98aad` — round-3 remediation.

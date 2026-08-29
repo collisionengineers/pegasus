@@ -35,3 +35,12 @@ Follow-up filed: **PLAT-060** — the four remaining `Europe/London` lookups
 is in this ticket's `Owns` list.
 
 Ticket left in `review`; no `proof` written (that is post-merge work).
+
+## Round 3 — verifier remediation, 2026-08-29
+
+Confirmed and fixed the DST-naive day end and the widened timezone fallback.
+Build exit 0 (0 warnings, 0 errors); focused solution filter exit 0 (16 passed,
+0 failed, 0 skipped). Pushed
+`1e15e8325cc74ccfb5d8f059b1a5a17c20e98aad`; recorded it and merge
+`44bcb8c0f622e5f169bc0eb43d7271f1632b7d8d`. Ticket stays in Review; no proof
+or stage move.

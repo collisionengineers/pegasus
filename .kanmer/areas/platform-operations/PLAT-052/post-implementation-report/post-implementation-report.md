@@ -118,3 +118,63 @@ ticket's own catalogue contribution passes; the full script does not,
 for the two unrelated reasons above, and the snapshot-verify half of that
 bullet needs the barred capture script the lane cannot run. Recording this
 honestly rather than checking the box.
+
+## Correction — round 4, 2026-08-29 (CI status honesty)
+
+An earlier report characterised PR #614's CI as still running / pending at
+push time. **That status has since resolved to failure and is corrected
+here rather than left standing.** Independently re-checked, not repeated:
+
+- `gh pr view 614 --json statusCheckRollup,mergeable,state` — PR is
+  `OPEN`/`MERGEABLE` (not merged); the merge-commit run `33246469257`
+  shows `sql-integration (1)` = **FAILURE**, every other check
+  SUCCESS/SKIPPED.
+- `gh run list --branch task/plat-052-eva-submission-route` confirms the
+  two earlier commits on this branch (`4b24ca17`, `0a0d9eee`) both ran
+  fully green; only the post-merge commit's run is red.
+- **This is not a PLAT-052 regression.** The failing assertion is
+  `tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs:62`,
+  owned by TICK-061 (`4aec2703`, in flight on its own branch), untouched
+  by this branch (`git diff 0a0d9eee 48df8f58 --
+  .../PrincipalCredentialPersistenceTests.cs` is empty). It is a
+  ~25%-per-run flaky assertion (a wrong-secret probe that has roughly a
+  1-in-4 chance of regenerating the original secret because of how the
+  last Base64Url character is bit-constrained) that will redden
+  `sql-integration (1)` intermittently for every lane in the epic, not
+  only this one, until TICK-061 fixes it. Full reasoning and evidence in
+  `plan` under "Review findings — dispositions (round 2), 2026-08-29",
+  finding 2.
+- The repo's own merge rule ("may merge into `dev` only after that review
+  passes and CI is green") is therefore **not currently met** for PR #614,
+  through no fault of this ticket's own diff. Recording this plainly:
+  this PR should not be merged until either CI goes green on a re-run (the
+  flake resolving) or TICK-061 lands its fix and this branch merges
+  `origin/dev` again.
+
+## Correction — round 4, 2026-08-29 (two small fixes closing minor findings)
+
+- `docs/design/test-ui/pages/administration-principal-eva-submission--default.html`
+  line 170: `status status--neutral` → `status status--navy`, matching
+  `_StatusChip.cshtml`'s `"active" => "navy"` mapping (the drift was
+  introduced by other lanes' merges to `_StatusChip.cshtml` landing after
+  this page's prototype was first captured).
+- `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`: added a
+  `StateMatches` entry for `administration-principal-eva-submission--default`
+  so the snapshot generator no longer relies on an ordinal-string
+  tie-break to pick the real page over the error-page capture that this
+  ticket's own denied-route test added as a second candidate.
+
+Both are commit `1ac0fac6`, pushed. Full reasoning for both in `plan`,
+round 2/4 dispositions 5 and 6.
+
+## Verification, re-run
+
+- `dotnet build ./Pegasus.slnx --configuration Release` — **0 Warning(s),
+  0 Error(s)**.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~OrganizationAdministrationWebTests"` — **Passed: 2,
+  Failed: 0, Skipped: 0, Total: 2**.
+- `tests/` diff against `origin/dev` for this round: none — this round
+  touched no test assertions, only the shared `StateMatches` dictionary
+  (a new entry, nothing weakened, deleted, or reordered) and one static
+  prototype HTML file.
