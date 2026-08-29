@@ -119,40 +119,42 @@ internal static class CaseDataSnapshotFactory
         CaseAcceptanceRequest request)
     {
         var route = receipt.MailRouteDecision;
+        string value;
+        string sourceKind;
+        string sourceLabel;
+        string policyKey;
+        int policyVersion;
         if (route is not null
             && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
             && !string.IsNullOrWhiteSpace(route.WorkProviderCode))
         {
             RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
-            snapshot.Fields.Add(new()
-            {
-                CaseId = snapshot.CaseId,
-                Snapshot = snapshot,
-                FieldName = CaseDataFieldNames.WorkProviderCode,
-                ValueKind = CaseDataCodes.Fact,
-                ValueType = CaseDataCodes.Text,
-                Value = route.WorkProviderCode.Trim(),
-                SourceKind = CaseDataCodes.MailRoute,
-                SourceIdentity = receipt.Id.ToString("D"),
-                SourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
-                    ? "accepted mail route"
-                    : route.RouteOwnerCode,
-                PolicyKey = route.PolicyKey,
-                PolicyVersion = route.PolicyVersion
-            });
-            return;
+            value = route.WorkProviderCode.Trim();
+            sourceKind = CaseDataCodes.MailRoute;
+            sourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
+                ? "accepted mail route"
+                : route.RouteOwnerCode;
+            policyKey = route.PolicyKey!;
+            policyVersion = route.PolicyVersion;
         }
-
-        if (route is not null
-            || EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel)
-                != IntakeSourceChannel.ProviderApi
-            || string.IsNullOrWhiteSpace(request.PrincipalCode))
+        else if (route is null
+            && EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel)
+                == IntakeSourceChannel.ProviderApi
+            && !string.IsNullOrWhiteSpace(request.PrincipalCode))
+        {
+            // The work provider comes from the authenticated credential binding,
+            // not from a value declared in the instruction body.
+            value = request.PrincipalCode.Trim();
+            sourceKind = CaseDataCodes.ProviderApi;
+            sourceLabel = "authenticated credential binding";
+            policyKey = ProviderInstructionPolicy.PolicyKey;
+            policyVersion = ProviderInstructionPolicy.PolicyVersion;
+        }
+        else
         {
             return;
         }
 
-        // The work provider comes from the authenticated credential binding,
-        // not from a value declared in the instruction body.
         snapshot.Fields.Add(new()
         {
             CaseId = snapshot.CaseId,
@@ -160,12 +162,12 @@ internal static class CaseDataSnapshotFactory
             FieldName = CaseDataFieldNames.WorkProviderCode,
             ValueKind = CaseDataCodes.Fact,
             ValueType = CaseDataCodes.Text,
-            Value = request.PrincipalCode.Trim(),
-            SourceKind = CaseDataCodes.ProviderApi,
+            Value = value,
+            SourceKind = sourceKind,
             SourceIdentity = receipt.Id.ToString("D"),
-            SourceLabel = "authenticated credential binding",
-            PolicyKey = ProviderInstructionPolicy.PolicyKey,
-            PolicyVersion = ProviderInstructionPolicy.PolicyVersion
+            SourceLabel = sourceLabel,
+            PolicyKey = policyKey,
+            PolicyVersion = policyVersion
         });
     }
 
