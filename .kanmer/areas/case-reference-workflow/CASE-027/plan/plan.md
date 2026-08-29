@@ -142,3 +142,96 @@ plus the review lenses AGENTS.md rule 22 requires.
 | 11 | `Cases/Custody?handler=RetryCustody` (sole consumer of `IRetryCaseCustody`) and the four `Cases/Tasks` task-CRUD handlers have no UI caller. | **Rejected as this lane's work.** Deleting them removes the only consumer of five Core ports and their DI registrations — a cross-layer removal that belongs to UIIMP-009 (wave 5, removals). Named in the report with `file:line`. |
 | 12 | Two refresh controls posting one handler could read as two capabilities. | **Rejected.** `context.md` §1.8 and the design authority both draw both and state they are the same lookup; `VehicleLookupResult` carries the vehicle record and the MOT observations together. The comment in the partial records why. |
 | 13 | Efficiency: no new query, no new DI registration, no new package, no new CSS, no new script. `VehicleEvidence` was already loaded by `GetCase`. | No action. |
+
+## Cross-model pre-merge review — 2026-08-29
+
+A `gpt-5.6-terra` reviewer returned `REQUEST_CHANGES`. Its central finding is the
+most important thing this lane produced, and it is a correction to this lane's
+own headline claim.
+
+### Blocker 1 — the data-loss fix was incomplete · **FIXED**
+
+This plan claimed the claimant contact-number and address data loss was "Fixed
+in lane". **It was not.** The form was changed to post the two values, but
+`Details.cshtml.cs` `OnPostSaveAsync` bound **eighteen** editable parameters and
+mentioned neither field — verified independently, `grep -c` returned **0**. The
+form posted them; the handler dropped them; `SaveCase` still wrote null and still
+cleared the confirmed values.
+
+**The fix looked complete and was not**, which is strictly worse than an
+untouched bug, because the ticket, the plan and the report all recorded it as
+resolved.
+
+Now bound and forwarded, appended **positionally** as `CaseEditableData`'s own
+comment requires — the record is constructed positionally by
+`AssessmentMcpTools`, so an inserted parameter would silently shift every value
+after it.
+
+### Blocker 2 — the pinning test could not catch the bug · **FIXED**
+
+`CaseTasksWebTests.cs:168` asserted only that the two `name=` attributes render.
+It passed while the defect was fully intact. Replaced by
+`ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand` in
+`CaseDetailsWebTests.cs`, which POSTs the Save handler and asserts the values
+arrive on the recorded `SaveCaseRequest`.
+
+**Proven against the unfixed handler**, not merely written alongside the fix:
+
+```
+pre-fix:   Assert.Equal() Failure: Strings differ
+           Expected: "07700 900123"
+           Actual:   null
+post-fix:  CaseDetailsWebTests — Failed: 0, Passed: 54
+```
+
+### Blocker 3 — the 1580/1100/760 viewport evidence is absent · **OUTSTANDING**
+
+`CASE-027.md:56` requires "No clipped text/overflow at 1580/1100/760" and it is
+unticked. The lane could not run `Category=Browser`. **The orchestrator owns that
+gate** and must run `LayoutIntegrityTests` across the new sections before this
+reaches Done. Not closed here; recorded as owed.
+
+### Finding (medium) — the PLAT-061 premise is disputed · **NOT SETTLED, and deliberately so**
+
+This lane reported that Razor keeps an attribute whose expression is `null`, so
+`data-condition="@(cond ? null : "…")"` paints an empty pill on enabled controls.
+**`_Layout.cshtml:159-160` states the opposite** and the shell relies on it.
+
+The reviewer also narrowed the claimed sites: of the four, the three in
+`Pages/Cases/Assessment/Index.cshtml` are **not** the same idiom — each renders
+only inside a branch where its condition is non-null. `Triage/Details.cshtml:202`
+is the one genuine remaining case.
+
+Additional evidence gathered by the orchestrator: the committed Test UI snapshots
+contain **zero** `data-condition=""` while carrying non-empty ones — suggestive
+that Razor omits nulls, but not decisive, since the snapshot set may not capture
+a gated control in its enabled state.
+
+**Neither claim is asserted here.** The decisive experiment and both sides of the
+evidence are recorded on [[PLAT-061]], whose scope depends on the answer. The
+gate restructuring in this lane is harmless either way.
+
+### Finding (low) — "no other branch touches them" was too strong · **ACCEPTED**
+
+`task/case-012-case-workspace-parallel` is a registered worktree whose diff still
+touches both E1 files. No **open PR** touches them, which is what the ownership
+call actually rested on — but the literal phrasing was wrong. That branch is
+recorded as unsalvageable in CASE-012's `scratch/salvage.md`.
+
+### Accepted as sound
+
+- **Assertion integrity: none removed or weakened.** All four changed test files
+  checked; removed lines are fixture and XML-comment reshaping.
+- The restored production callers of `IRequestVehicleLookup` and
+  `IAcceptVehicleSuggestion`, orphaned since PR #599.
+- The Experian seam at `_CaseVehicle.cshtml:101-105` — real disabled button,
+  non-empty `data-condition`, ENG-001 (D7/D22).
+- The three capabilities named with no caller and deliberately not drawn:
+  Vehicle History, the inspection "Previous values" select, Correspondence rows.
+
+### Process note — the worktree went dirty mid-review
+
+The orchestrator merged `origin/dev` into this worktree **while the review was
+running**, and the reviewer correctly pinned its verdict to head `0ed6faa4`
+rather than the tree it found. That is an orchestration error, not a lane one:
+**do not touch a worktree that has a review in flight.**
