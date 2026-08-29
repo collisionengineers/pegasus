@@ -119,3 +119,139 @@ file-ownership breach are in `post-implementation-report/`.
 
 Finding 5 (`ListQueueAsync` unbounded) is unchanged and still out of
 lane.
+
+## Review findings — dispositions (round 2) — 2026-08-29
+
+Source: the adversarial verifier's re-run of this lane's build, tests and
+diff (verdict `needs-work`). Every finding below was treated as true until
+re-checked with a command. All five stand; none were refuted.
+
+### [major] "PR #610 was already APPROVED at 5a9ff906" — FIXED (record)
+
+**Verified — the verifier is right.**
+
+```
+gh pr view 610 --json reviewDecision,state
+  {"reviewDecision":"","state":"OPEN"}
+gh api repos/collisionengineers/pegasus/pulls/610/reviews \
+  --jq '.[] | "\(.user.login) \(.state)"'
+  chatgpt-codex-connector[bot] COMMENTED   (x3)
+gh pr view 598 --json reviewDecision,state
+  {"reviewDecision":"","state":"CLOSED"}
+gh api repos/collisionengineers/pegasus/pulls/598/reviews  -> three COMMENTED, no APPROVED
+```
+
+No human or agent `APPROVED` review exists on either PR; `reviewDecision`
+is empty on both. `post-implementation-report/` said the port was
+"approved on #598" and the hand-off note said a delta re-review would
+suffice — both were false and would have short-circuited CLAUDE.md
+workflow step 5. The report now states the real review state and asks
+for the full independent review. Nothing in the code changed; this was a
+reporting defect and it is corrected at the source.
+
+### [major] PLAT-012's only regression guard was deleted while its rule stayed live — FIXED, plus [[PLAT-058]]
+
+**Verified — the verifier is right on every part.**
+
+`DashboardCountersWebTests.ReceivedTodayCountsMailboxChannelOnlyNotManualUploads`
+was deleted whole by this lane. The rule it guarded is still executing:
+`EfDashboardQueries.GetMailActivityCountsAsync` still runs
+`CountAsync(item => item.ReceivedAtUtc >= dayStartUtc && item.SourceChannel
+== mailboxChannel, …)` on every Work Centre load. `grep -rn "ReceivedToday"
+src/ --include=*.cs --include=*.cshtml` returns only the Core declaration
+and its own doc comment — the value is queried per load and rendered
+nowhere. The report's "No assertion was weakened, skipped or deleted" was
+inaccurate.
+
+Three separate defects, three fixes:
+
+1. **The guard is restored**, re-pointed from the tile that no longer
+   exists onto the query where the rule now lives: it stores one Mailbox
+   and one ManualUpload receipt and asserts
+   `IDashboardQueries.GetMailActivityCountsAsync(...).ReceivedToday == 1`.
+   Proven to bite, not just to pass — with the channel predicate removed
+   from `EfDashboardQueries` the test fails
+   `Assert.Equal() Failure: Values differ / Expected: 1 / Actual: 2`;
+   the mutation was reverted (`git diff --stat -- src/Pegasus.Infrastructure/`
+   empty) and the guard passes on the real code.
+2. **The false comment is corrected.** `DashboardCounts.cs` said
+   `ReceivedToday` "backs the Dashboard's E-mail activity tile" — a tile
+   this lane removed. It now records that the tile is gone, that nothing
+   renders the value, that the query still runs, and where the rule is
+   guarded meanwhile.
+3. **The orphaned property is a ticket, not a silent leftover.**
+   [[PLAT-058]] (platform-operations, EPIC-011, wave-5) decides whether
+   `ReceivedToday` gets a surface or is deleted with its query. It could
+   not be done here: `EfDashboardQueries.cs` and
+   `IntakePersistenceIntegrationTests.cs` are outside this lane's
+   allocation, and the lane rule is to report, not to fix, another lane's
+   files.
+
+### [major] ExternalWork rendered a raw snake_case code as its title — FIXED
+
+**Verified — the verifier is right.** `OperationsSnapshot.cs:281` set
+`Title = request.ExternalKind ?? request.CaseReference`, and
+`EfOperationsStore` populates `ExternalKind` from the persisted code
+(fixture value `document_custody`); `Index.cshtml` rendered it unlabelled
+in both `<h3>` and `<h2>`. The existing convention for that exact field is
+`Pages/Operations/Index.cshtml:120` — `OperatorLabels.Humanise(item.ExternalKind)`.
+
+`IndexModel.TitleLabel(item)` now routes the ExternalWork title through
+that same helper and leaves every other kind's title alone; both call
+sites use it. No second label map was invented.
+
+The related half of the finding is fixed too: `OperationsSnapshot.cs`
+built the English string `$"{attempts} attempts"` in Core, contradicting
+`NeedsAttentionItem`'s own doc comment ("Every field is a recorded fact
+or a Core enum name; the Web layer labels them"). Core now carries
+`int? Attempts` as the recorded number and `IndexModel.DetailLabel(item)`
+composes the words with the rest of the page's copy.
+
+Guarded by the new `tests/Pegasus.IntegrationTests/WorkCentreLabelTests.cs`
+(3 tests, the plain-label-test convention of
+`MailClassificationLabelTests.cs`): the ExternalWork title humanises, the
+detail reads the recorded count, and every other kind keeps its recorded
+text unchanged.
+
+### [minor] Ownership breach reported one-directionally — FIXED (record)
+
+**Verified — the verifier is right.** This lane edited four files outside
+both `waves.md` lane A and the ticket's own "Owns" list, and the report
+disclosed none of them while loudly reporting CASE-025 for editing one of
+the same files. All four are markup retargets forced by the page this lane
+replaces — none changes another lane's subject — but the silence was the
+defect. Each is now named and justified in the report:
+
+| File | Why the merge requires it |
+| --- | --- |
+| `Browser/AccessibilityTests.cs` | asserted the `Dashboard` heading and accepted both `.metric-value`/`.metric__value` spellings "until the Work Centre port"; this is that port |
+| `Browser/OperatorJourneyTests.cs` | asserted the `Dashboard` heading, the three removed section labels and `.metric__value` |
+| `HealthEndpointTests.cs` | asserted `Active cases` / `E-mail activity`, both removed sections |
+| `TriageQueuesWebTests.cs` | scraped the old `data-state="not-ready"…metric__value` markup off `/` |
+
+Not fixed by deletion or by widening an assertion: `AccessibilityTests`
+was narrowed (one spelling, not two), `HealthEndpointTests` gained two
+route assertions, and `TriageQueuesWebTests` keeps CASE-025's rail
+assertions untouched. The CASE-025 collision itself stands as reported
+(`git show --stat 95f69958` touches `DashboardCounts.cs`) — it is now
+stated as a two-sided overlap rather than one lane's fault.
+
+### [minor] Two empty `ci: retrigger` commits in the branch history — ACCEPTED, disclosed
+
+`812e3516` and `57a51500` are empty (`git show --stat --format="" <sha>`
+yields no file lines) and produced zero CI runs. They stay: AGENTS.md
+rule 17 makes recorded commits reachable on the merge target, and
+removing them means rewriting a pushed branch, which this lane may not
+do. They carry no content, so they change nothing on merge. Recorded here
+so the reviewer is not surprised by them.
+
+### Verification after the round-2 fixes
+
+| Command | Result |
+| --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release` | exit 0 — 0 warnings, 0 errors |
+| `dotnet test … --filter "…DashboardBoundaryTests\|…WorkCentreLabelTests\|…DashboardCountersWebTests\|…TriageQueuesWebTests\|…HealthEndpointTests"` | exit 0 — Core.Tests: Failed 0, Passed 8, Total 8; IntegrationTests: Failed 0, Passed 17, Total 17 |
+| mutation check: channel predicate removed from `EfDashboardQueries` | restored guard **fails** (Expected 1, Actual 2) — reverted, tree clean |
+
+No assertion was weakened, skipped or deleted in this round; one deleted
+assertion from the previous round was restored.
