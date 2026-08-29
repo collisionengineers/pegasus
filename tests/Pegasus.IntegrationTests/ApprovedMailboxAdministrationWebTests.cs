@@ -19,6 +19,58 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     private const string NewAddress = "estate@collisionengineers.co.uk";
 
     [Fact]
+    public async Task NonAdministratorCannotOpenMailSettings()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+
+        using var response = await client.GetAsync("/Administration/Mailboxes");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Update")]
+    [InlineData("ResolveFolders")]
+    [InlineData("SaveCategory")]
+    public async Task NonAdministratorCannotPostMailSettingsHandlers(string handler)
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+
+        using var response = await client.PostAsync(
+            $"/Administration/Mailboxes?handler={handler}",
+            new FormUrlEncodedContent(new Dictionary<string, string>()));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdministratorSeesTheAdminLayoutBothTablesAndEveryHandler()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetPageAsync(client);
+
+        Assert.Contains("class=\"admin-layout\"", page, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"mail-settings-title\">Mail settings</h2>", page, StringComparison.Ordinal);
+        Assert.Contains("aria-current=\"page\"", page, StringComparison.Ordinal);
+        Assert.Contains("<caption class=\"sr-only\">Approved mailboxes</caption>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Mailbox</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Scope</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Last update</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Activated</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Subscription</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Review folders / Refresh</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<caption class=\"sr-only\">Mail categories</caption>", page, StringComparison.Ordinal);
+        Assert.Contains("?handler=Update", page, StringComparison.Ordinal);
+        Assert.Contains("?handler=SaveCategory", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AddingAnAddressResolvesItsIdentityWithoutExposingItOnThePage()
     {
         var resolution = new ApprovedMailboxIdentityResolution(
@@ -34,13 +86,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var page = await GetPageAsync(client);
         var response = await PostAsync(client, new()
         {
-            ["MailboxId"] = NewMailboxId(page),
-            ["ExpectedVersion"] = "0",
-            ["OperationKey"] = OperationKey(page),
-            ["Address"] = NewAddress,
-            ["SelectedRouteScopes"] = "InboundIntake",
-            ["SelectedState"] = "Approved",
-            ["Reason"] = "Add the second approved mailbox",
+            ["MailboxForm.MailboxId"] = NewMailboxId(page),
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
@@ -65,13 +117,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var page = await GetPageAsync(client);
         var response = await PostAsync(client, new()
         {
-            ["MailboxId"] = NewMailboxId(page),
-            ["ExpectedVersion"] = "0",
-            ["OperationKey"] = OperationKey(page),
-            ["Address"] = NewAddress,
-            ["SelectedRouteScopes"] = "InboundIntake",
-            ["SelectedState"] = "Approved",
-            ["Reason"] = "Add an address the tenant does not recognise",
+            ["MailboxForm.MailboxId"] = NewMailboxId(page),
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Add an address the tenant does not recognise",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
@@ -101,13 +153,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var mailboxId = NewMailboxId(page);
         var created = await PostAsync(client, new()
         {
-            ["MailboxId"] = mailboxId,
-            ["ExpectedVersion"] = "0",
-            ["OperationKey"] = OperationKey(page),
-            ["Address"] = NewAddress,
-            ["SelectedRouteScopes"] = "InboundIntake",
-            ["SelectedState"] = "Approved",
-            ["Reason"] = "Add the second approved mailbox",
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
@@ -115,13 +167,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var reloaded = await GetPageAsync(client);
         var response = await PostAsync(client, new()
         {
-            ["MailboxId"] = mailboxId,
-            ["ExpectedVersion"] = "1",
-            ["OperationKey"] = Guid.NewGuid().ToString("N"),
-            ["Address"] = "a-different-address@collisionengineers.co.uk",
-            ["SelectedRouteScopes"] = "InboundIntake",
-            ["SelectedState"] = "Approved",
-            ["Reason"] = "Attempt to point this row at another mailbox",
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "1",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = "a-different-address@collisionengineers.co.uk",
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Attempt to point this row at another mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(reloaded)
         });
 
@@ -222,41 +274,56 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var mailboxId = NewMailboxId(page);
         var created = await PostAsync(client, new()
         {
-            ["MailboxId"] = mailboxId,
-            ["ExpectedVersion"] = "0",
-            ["OperationKey"] = OperationKey(page),
-            ["Address"] = NewAddress,
-            ["SelectedRouteScopes"] = "InboundIntake",
-            ["SelectedState"] = "Approved",
-            ["Reason"] = "Add the second approved mailbox",
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
         var configured = await GetPageAsync(client);
-        Assert.Contains("Instructions — Configured", configured, StringComparison.Ordinal);
-        Assert.Contains("Billing — Not configured", configured, StringComparison.Ordinal);
+        Assert.Contains("?handler=ResolveFolders", configured, StringComparison.Ordinal);
+        Assert.Contains(">Review folders (1 of 13)</summary>", configured, StringComparison.Ordinal);
+        AssertFolderBinding(configured, "Instructions", "Configured");
+        AssertFolderBinding(configured, "Billing", "Not configured");
         Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
         var operationKeys = OperationKeyTagRegex().Matches(configured);
         var refreshed = await client.PostAsync(
             "/Administration/Mailboxes?handler=ResolveFolders",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["MailboxId"] = mailboxId,
-                ["ExpectedVersion"] = "1",
-                ["OperationKey"] = Value(operationKeys[^2].Value),
-                ["Address"] = NewAddress,
-                ["SelectedState"] = "Approved",
-                ["Reason"] = "Refresh approved logical folder bindings",
+                ["MailboxForm.MailboxId"] = mailboxId,
+                ["MailboxForm.ExpectedVersion"] = "1",
+                ["MailboxForm.OperationKey"] = Value(operationKeys[^2].Value),
+                ["MailboxForm.Address"] = NewAddress,
+                ["MailboxForm.SelectedState"] = "Approved",
+                ["MailboxForm.Reason"] = "Refresh approved logical folder bindings",
                 ["__RequestVerificationToken"] = AntiforgeryToken(configured)
             }));
 
         Assert.Equal(HttpStatusCode.Found, refreshed.StatusCode);
         var reloaded = await GetPageAsync(client);
-        Assert.Contains("Instructions — Not configured", reloaded, StringComparison.Ordinal);
-        Assert.Contains("Billing — Configured", reloaded, StringComparison.Ordinal);
+        AssertFolderBinding(reloaded, "Instructions", "Not configured");
+        AssertFolderBinding(reloaded, "Billing", "Configured");
         Assert.DoesNotContain("billing-id", reloaded, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Asserts that one logical folder is paired with one binding state in the
+    /// per-mailbox disclosure. The page renders every folder in
+    /// <c>MailLogicalFolders.All</c> unconditionally, so two independent
+    /// substring checks on a &lt;dt&gt; and a &lt;dd&gt; cannot tell a bound
+    /// folder from an unbound one; only the contiguous pair can.
+    /// </summary>
+    private static void AssertFolderBinding(string html, string folderLabel, string state) =>
+        Assert.Contains(
+            $"<dt>{folderLabel}</dt><dd>{state}</dd>",
+            BetweenTagsWhitespaceRegex().Replace(html, "><"),
+            StringComparison.Ordinal);
 
     private static async Task<string> GetPageAsync(HttpClient client)
     {
@@ -320,12 +387,15 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryTagRegex();
 
-    [GeneratedRegex("<input[^>]*name=\"MailboxId\"[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.MailboxId\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex NewMailboxIdTagRegex();
 
-    [GeneratedRegex("<input[^>]*name=\"OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex OperationKeyTagRegex();
 
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex ValueRegex();
+
+    [GeneratedRegex(@">\s+<")]
+    private static partial Regex BetweenTagsWhitespaceRegex();
 }
