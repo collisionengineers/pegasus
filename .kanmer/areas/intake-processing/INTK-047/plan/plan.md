@@ -120,3 +120,78 @@ The pass reported no correctness bug and no scope problem.
   `OperatorLabels.FileSize`: the per-request limit can be sub-megabyte and
   `FileSize` is deliberately MB-only ("under 0.1 MB" for a 1 KB limit).
   **Rejected with reason** — the shared helper is genuinely unfit here.
+
+## Cross-model pre-merge review dispositions — 2026-08-29
+
+A `gpt-5.6-luna` reviewer returned `REQUEST_CHANGES` with two blockers, one
+medium and one low. It found the concrete consequence of the exact gap this lane
+had disclosed — that it edited two `Category=Browser` test classes it was barred
+from running.
+
+### Blockers 1 and 2 — the dropzone test helpers were broken · **FIXED by the orchestrator**
+
+`Upload.cshtml:38` places `[data-dropzone-file]` **outside** `[data-dropzone]`,
+because §1.10 draws the file list *under* the dashed area rather than inside it.
+Both browser helpers still did `zone.querySelector('[data-dropzone-file]')`,
+which now returns `null`; the next line dereferences `readout.hidden` and throws.
+**All four tests in that class would have failed before reaching an assertion.**
+
+The production code was already correct. `site.js:181-183` handles both
+placements:
+
+```js
+var form = zone.closest('form');
+var readout = zone.querySelector('[data-dropzone-file]')
+    || (form && form.querySelector('[data-dropzone-file]'));
+```
+
+The two helpers (`UploadDropzoneBrowserTests.cs:46` and `:191`) now mirror that
+lookup exactly, with a comment naming §1.10 as the reason. **The assertions
+themselves are unchanged** — only the element lookup that feeds them.
+
+This is precisely the class of defect the lane predicted when it wrote "the two
+edited Browser test classes were not executed… this is the single claim here not
+backed by an observed exit code". Honest disclosure plus cross-model review
+caught it before merge; either alone would not have.
+
+### Finding (medium) — FRD-12 and FRD-02 both require per-file grouped outcomes · **TICKETED as [[INTK-050]]**
+
+The reviewer confirmed the conflict this lane reported and found it is in **two**
+documents, not one: `frd-12-operator-experience.md:358-359` and
+`frd-02-intake-and-source-identity.md:264-267`. Both require grouped members to
+carry per-file outcomes; `UploadGroupStatus.cshtml` has shown a single
+submission-level decision card since INTK-011.
+
+Both reviewers independently judged **the documents stale, not the code**. This
+is a documentation reconciliation and predates this ticket, so it is filed
+rather than absorbed (rule 2). [[INTK-050]] carries the explicit warning not to
+"fix" the page back to per-file outcomes on the strength of the FRD text.
+
+### Finding (low) — `UploadDropzoneBrowserTests` gained no assertions · **ACCEPTED, and the report corrected**
+
+Correct. The added progress assertions are all in
+`UploadRowsBrowserTests.cs:62-64,117-118`; `UploadDropzoneBrowserTests` only
+retargeted selectors. The lane's summary implied both classes gained coverage.
+Stated accurately here.
+
+### Accepted as sound
+
+- **Assertion integrity:** no assertion removed or weakened.
+  `UploadRowsBrowserTests` adds five progress assertions and preserves every
+  existing row, accessibility, upload and navigation assertion.
+- **Rule 14:** every capability traced to a rendered caller — `/Upload`
+  (`Upload.cshtml:1`), the multi-file rows and native `<progress>`
+  (`site.js:224,236`), Upload and Clear (`Upload.cshtml:41,45`), and the outcome
+  renders (`UploadStatus.cshtml:69`, `UploadGroupStatus.cshtml:149`).
+- **The `site.js` exception** is accepted. It is PLAT-029's file with no
+  in-flight claimant, verified against every remote `task/*` branch, and without
+  it the `<progress>` capability the ticket names would have no caller at all.
+  Recorded for [[TICK-223]], which lands in the same file next.
+- **The three prototype divergences** are each justified against an FRD rather
+  than against convenience.
+
+### Verification after the fix
+
+`dotnet build ./Pegasus.slnx --configuration Release` — **Build succeeded**.
+The Browser classes the lane could not run were then run by the orchestrator,
+which owns that gate; the result is recorded in the proof.
