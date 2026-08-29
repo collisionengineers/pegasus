@@ -189,12 +189,16 @@
                                 </button>
                             }
                             @* Complete keeps its place, disabled, with its
-                               condition named on the control. Removing it
-                               would say completion is not possible here,
-                               which is false — this record offers it once a
-                               finding is recorded. The control maps to the
-                               same `complete` handler either way, so it is a
-                               state gate, not an inert seam (D7). *@
+                               condition named on the control: QdosTriage-
+                               IntegrationTests.cs:216-221 pins that shape, and
+                               the merged Cases/Details.cshtml:269 and
+                               Assessment/Index.cshtml:765 gate the same way. It
+                               posts the same `complete` action either way, so
+                               it is not an inert control. D7's stricter clause
+                               (a disabled control is permitted only for a
+                               named, ticketed integration seam) reads against
+                               that merged convention — raised for the epic
+                               owner as UIIMP-012, not settled here. *@
                             <span class="gated" data-condition="@(canComplete ? null : "Available once a finding is recorded")">
                                 <button type="button"
                                         class="btn @(canComplete ? string.Empty : "is-disabled")"
@@ -385,10 +389,13 @@
             </section>
         }
 
-        @* Every entry here is a retained business event, not an operator
-           note — Triage has no note entity. FRD-03 owns the term, so the
-           panel keeps §1.5's entry shape (Date/Time/ID + text) under the
-           name the domain actually gives it. *@
+        @* EPIC-011 §1.5 calls this the "Notes panel". The name shipped on
+           `dev` before this port is "Permanent history" (origin/dev
+           Details.cshtml:348), QdosTriageIntegrationTests.cs:477 pins it, and
+           frd-03-triage.md owns the term — Triage has no note entity; every
+           entry is a retained business event. §1.5's entry shape
+           (Date/Time/ID + text) is kept exactly; only the name diverges, and
+           that divergence is UIIMP-012's to settle. *@
         <section class="panel section-gap" aria-labelledby="triage-history-title">
             <div class="panel-head"><h2 id="triage-history-title">Permanent history</h2></div>
             <div class="panel-body">
