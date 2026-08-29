@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -978,6 +979,77 @@ public static class OperatorLabels
             "Close with reason",
         _ => Humanise(kind.ToString())
     };
+
+    /// <summary>
+    /// The AI job ledger's words on the Operations AI Job List (PLAT-049).
+    /// </summary>
+    /// <remarks>
+    /// The kind and state wordings are FRD-11 &#167; AI Job List's own; the Core
+    /// enum names are the writer's spelling of them. This is the only map of
+    /// either in the Web layer &#8212; nothing named these states before.
+    ///
+    /// <see cref="StateTone"/> exists because <c>Shared/_StatusChip</c> keys its
+    /// tone off label text and knows none of these labels. Rather than adding a
+    /// second state vocabulary to that partial, the page passes the partial's
+    /// own documented <c>ViewData["StatusTone"]</c> override, and the tone list
+    /// lives here beside the labels it belongs to.
+    /// </remarks>
+    public static class AiJobs
+    {
+        public const string PanelTitle = "AI Job List";
+        public const string SendUnidentified = "Send Unidentified to AI";
+        public const string CompleteJob = "Complete job";
+        public const string Cancel = "Cancel";
+        public const string ReviewEstimate = "Review estimate";
+        public const string OpenQuery = "Open query";
+        public const string Review = "Review";
+
+        /// <summary>
+        /// A queue pass names no record: its Core subject reference is the
+        /// internal token <c>unidentified-queue</c>, which no operator reads.
+        /// </summary>
+        public const string QueueRecord = "Unidentified queue";
+
+        public static string Kind(AiJobKind kind) => kind switch
+        {
+            AiJobKind.Estimate => "Estimate",
+            AiJobKind.UnidentifiedResolution => "Unidentified resolution",
+            AiJobKind.QueryResponse => "Query response",
+            AiJobKind.UnidentifiedQueuePass => "Unidentified-queue pass",
+            _ => Humanise(kind.ToString())
+        };
+
+        public static string State(AiJobState state) => state switch
+        {
+            AiJobState.Queued => "Queued",
+            AiJobState.Taken => "Taken",
+            AiJobState.DraftReady => "Draft ready",
+            AiJobState.Completed => "Completed",
+            AiJobState.Failed => "Failed",
+            AiJobState.Cancelled => "Cancelled",
+            AiJobState.Expired => "Expired",
+            _ => Humanise(state.ToString())
+        };
+
+        /// <summary>
+        /// The chip tone for a job state, following docs/design/README.md:
+        /// amber is pending, navy is in flight, red is failed, green is
+        /// confirmed completion, neutral is settled-terminal.
+        /// </summary>
+        public static string StateTone(AiJobState state) => state switch
+        {
+            AiJobState.Queued or AiJobState.DraftReady => "amber",
+            AiJobState.Taken => "navy",
+            AiJobState.Completed => "green",
+            AiJobState.Failed => "red",
+            _ => "neutral"
+        };
+
+        /// <summary>The panel meta.</summary>
+        public static string Count(int jobs) => jobs == 1
+            ? "1 job"
+            : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
+    }
 
     private static string HumanizeSlug(string slug)
     {
