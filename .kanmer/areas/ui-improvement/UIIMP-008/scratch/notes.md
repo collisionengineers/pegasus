@@ -173,3 +173,32 @@ Stop condition observed: not merged, ticket left in `review`, no proof
 written. The independent review required by workflow step 5 is still
 outstanding on the whole branch, and CI has not yet run on
 `8fb3dd4e`/`682668dd`.
+
+## 2026-08-29 — proof written on merged `dev` `b92cb9a7`; HELD in Verifying
+
+`proof/` is written and the `enter-done` gate is satisfied, but the ticket
+was **not** moved to Done. The proof found a shipped defect against the
+ticket's own verification item "every work-item links to a real route":
+
+`IndexModel.RecordPage` (`src/Pegasus.Web/Pages/Index.cshtml.cs:63`)
+returns the Razor page name `"/Operations"` for
+`NeedsAttentionKind.ExternalWork`. No `Pages/Operations.cshtml` exists —
+the page name is `/Operations/Index`, which is what
+`Pages/Shared/_Layout.cshtml` uses. Bound at `Index.cshtml:106` and
+`:148`, so an External work row's "Open full record" and "Open
+Operations" controls render `href=""` and re-request `/`.
+
+Evidence that the spelling renders an empty href: the committed Test UI
+capture `docs/design/test-ui/pages/received-details--default.html:78`
+renders `<a class="secondary-action" href="">Back to Operations</a>` from
+`Pages/Intake/Details.cshtml:35` at commit `35292cff`, which carried
+`asp-page="/Operations"`. It is the only empty-href anchor in four
+snapshots, and the capture rewriter's regexes
+(`TestUiSnapshotTests.cs:332–341`) only match values beginning with `/`,
+so they cannot have produced it.
+
+One-word fix (`"/Operations/Index"`) plus a guard; both files are inside
+this lane's Owns list. Also outstanding: the layout walk at
+1580/1100/760 is unproven on merged `dev` (UIIMP-010 owns it), and
+`docs/design/test-ui/pages/dashboard--default.html` is still the old
+Dashboard render (epic-level snapshot regeneration, gated by UIIMP-005).
