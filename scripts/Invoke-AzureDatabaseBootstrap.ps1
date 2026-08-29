@@ -376,9 +376,12 @@ function Get-MigrationPermissionMatrix {
     # accepted submission and reads rows back for idempotent replay and the
     # provider's own result lookup. The Worker processes the staged files and
     # reads the row to bind each one to the Principal whose credential
-    # submitted it; it never writes one. A submission is a fact about a
-    # moment and is never edited or removed: no UPDATE or DELETE for either.
-    foreach ($permission in @('SELECT', 'INSERT')) {
+    # submitted it; it never writes one. The row is created when the
+    # submission is received and completed in place once the request has been
+    # durably retained — the staged receipt id the result lookup reads back —
+    # so Web also holds UPDATE. A submission is never removed: no DELETE for
+    # either role, and the Worker is granted no write at all.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
     }
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
