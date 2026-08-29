@@ -239,3 +239,10 @@ post-merge proof/Done.
 CI's Browser job was green on prior head `a03e5e07`; that was an underclaim
 in the earlier report. Browser was not run locally here, and the new
 remediation head is not claimed as browser-verified until its own CI runs.
+
+### Remediation commits
+
+| SHA | Slice |
+| --- | --- |
+| `611d8324` | `fix(administration): preserve folded staff workflows (PLAT-027)` |
+| `bb5df64e` | `test(administration): cover verifier regressions (PLAT-027)` |

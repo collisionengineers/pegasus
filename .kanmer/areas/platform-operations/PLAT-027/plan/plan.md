@@ -145,3 +145,19 @@ PR open against `dev`, ticket in `review`. No merge, no `proof`, no `done`.
 Honesty correction: CI's Browser job was green on prior head `a03e5e07`.
 This lane did not run Browser locally, and the remediation head is not claimed
 as browser-verified until its own CI completes.
+
+## Remediation simplification pass — 2026-08-29
+
+- **Reuse:** retained the existing Core reason constant, page model, operator-
+  label list, status chip, reason dialog, and Test UI matcher. No parallel
+  helper or markup copy was introduced.
+- **Simplification:** the shared dialog receives one scalar limit instead of
+  duplicating dialog markup in the accounts page. The two role-post values are
+  the minimum state needed to restore the rejected render.
+- **Efficiency:** no query, mutation, allocation policy, or client script was
+  added. The existing bounded reads and redirect paths are unchanged.
+- **Altitude:** no service, interface, package, route, configuration option, or
+  architectural layer was added.
+- **Disposition:** no further behaviour-preserving simplification was found.
+  `git diff --check` passed; the remediation is 63 insertions and 10
+  deletions across six files.
