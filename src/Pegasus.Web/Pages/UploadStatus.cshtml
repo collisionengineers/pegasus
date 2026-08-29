@@ -20,6 +20,14 @@
     <div class="validation-summary" role="alert">@confirmationError</div>
 }
 
+@* The one thing the page cannot show as a value: this upload resolved to a
+   receipt that already existed. Stated the same way the receipt record states
+   it, as a notice rather than as narration under the heading. *@
+@if (Model.IsDuplicate)
+{
+    <div class="notice mb-2" role="status">@Model.Status.SourceFileName was already received. No duplicate was created.</div>
+}
+
 @* The refresh attribute lives on the panel, not the layout's <main>: the
    external script reads it from wherever it is, and this page must not
    nest a second main landmark inside the shared shell. *@
