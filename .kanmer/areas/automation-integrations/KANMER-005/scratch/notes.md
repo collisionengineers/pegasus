@@ -22,3 +22,40 @@ and the other three keeps. The KEEP disposition here comes from the orchestrator
 adjudication summary, not from a per-ticket ruling document. If a later reader needs
 the file-level census behind this keep, it has not been written down and would need
 re-running.
+
+## Correction to the audit note above (2026-08-29, orchestrator)
+
+The earlier note flagged that KANMER-005's ruling was "absent from the journal (only
+10 of 11 results were emitted)" and that the keep therefore rested on a summary
+rather than a per-ticket census. **That is wrong, and the flag is withdrawn.**
+
+KANMER-005 was excluded from the *adjudication* pass by design, not by omission. The
+adjudication pass existed only to re-scope Codex verdicts of `REVERSE_TO_VERIFYING`
+against each ticket's own What/Owns/Verification. Codex returned `KEEP_DONE` for
+KANMER-005, so there was nothing to adjudicate and no ruling was expected.
+
+The keep rests on a full per-ticket Codex audit, not a summary. That audit is at
+`scratchpad/codex/audit-out-KANMER-005.txt` (11,328 bytes) and traces nine named
+capabilities to real production callers, including:
+
+- Automation-held lease blocks staff claims — `Pages/Cases/Details.cshtml:227` renders
+  the claim form, `Details.cshtml.cs:247 OnPostClaimLeaseAsync` reaches
+  `acquireLease.ExecuteAsync` at `CaseMutationPageModel.cs:204`, and
+  `EfCaseWorkflowStore.cs:165-167` rejects an existing active lease.
+- Staff-held lease blocks Automation claims — `Mcp/CaseMcpTools.cs:249`
+  (`pegasus_case_edit_begin`) calls `acquireLease.ExecuteAsync` at `:274`, with
+  Automation identity from `AutomationActorResolver.cs:70`.
+- Staff-held lease blocks Automation writes — `Mcp/AssessmentMcpTools.cs:322`
+  (`pegasus_assessment_update`) reaches `saveAssessment.ExecuteAsync` at `:360`;
+  `EfCaseAssessmentStore.cs:90` checks the lease before mutating.
+- Only the holder can renew, heartbeat or release; the incumbent can save after a
+  rejected competitor; rejected claims preserve ownership; and the complete
+  `(ActorKind, SubjectId)` identity drives the reachable staff projections
+  (`EfCaseQueryStore.cs:202`, consumed at `Details.cshtml.cs:425`,
+  `Assessment/Index.cshtml.cs:776`, `Triage/Details.cshtml.cs:491`).
+
+No unreachable port, no permanently inert control, no closed gate. The MCP callers
+sit behind `Features:AutomationMcp`, which `docs/operations.md` records as **open** in
+production since release 9 (2026-08-18), so they satisfy D21.
+
+KANMER-005 stays Done on that evidence.
