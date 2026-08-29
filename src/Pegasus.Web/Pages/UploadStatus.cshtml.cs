@@ -42,9 +42,18 @@ public sealed class UploadStatusModel(
         _ => throw new InvalidOperationException("The queued intake status is not recognized.")
     };
 
+    /// <summary>
+    /// The terminal failure value when the authenticated principal has no
+    /// usable staff actor and the richer outcome cannot be built.
+    /// </summary>
+    public string? FailureReason =>
+        Status.Status == QueuedIntakeStatusKind.Failed && Outcome is null
+            ? OperatorLabels.IntakeFailure(Status.FailureCode)
+            : null;
+
     /// <param name="duplicate">
     /// Carried on the URL, as <c>/Received/{id}?duplicate=true</c> already does,
-    /// so the notice survives the page's own refreshes. It only changes wording.
+    /// so the duplicate value survives the page's own refreshes.
     /// </param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
