@@ -92,3 +92,26 @@ No full suite, no Browser category, no snapshot capture.
 ## Simplification pass
 
 Recorded under its own dated heading below once the diff exists.
+
+## Simplification pass — 2026-08-29
+
+Run over this branch's own diff (page, page model, labels, tests) with the four
+lenses. Every finding is behaviour-preserving; nothing was silenced.
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| S1 | Reuse | The page hand-rolled the unchecked-checkbox fallback (`<input type="hidden" name="SendToAiEnabled" value="false">`). ASP.NET's own `asp-for` tag helper emits both the box and the fallback. | **Fixed** — `<input asp-for="SendToAiEnabled" type="checkbox" />`; the hand-rolled hidden input is gone. Using the host's own mechanism rather than a parallel one. |
+| S2 | Simplification | `SendToAiComposed` (`ISendCaseToAi` resolved) and `ConnectorSettings is not null` (`IAiChannelConnectorStore` resolved) are the same fact — `AddPegasusSendToAi` registers both together. Two properties, one concept. | **Fixed** — `SendToAiComposed` deleted; the panel and its dialog gate on `ConnectorSettings`. |
+| S3 | Simplification | `AutomationComposed` and `Status is not null` are likewise one fact: `GetStatusAsync` is called exactly when the registry resolves. | **Fixed** — `AutomationComposed` deleted; the view sets `ViewData["AdminAutomationComposed"] = Model.Status is not null`. |
+| S4 | Altitude | The kill-switch dialog carried the consequence sentence in both directions, so *starting* automation showed a warning notice. The rule allows one consequence sentence on a **destructive** action; starting destroys nothing. The prototype passes it unconditionally — that is a prototype defect, not the contract. | **Fixed** — the consequence is passed only when stopping. |
+| S5 | Simplification | `Pegasus.Core.AiWork.AiChannelConnectorRules` was fully qualified three times in markup. | **Fixed** — one `@using Pegasus.Core.AiWork`. |
+| S6 | Efficiency | `IAiJobQueries.GetCountsAsync` runs on every load. | **Accepted** — it runs only where the Automation panel renders (registry composed), it is the one query the panel's two figures need, and the counters must be live. No caching added. |
+| S7 | Reuse | The new test file repeats the small `Form` / `AntiforgeryValue` / `InputValue` regex helpers that `OperationsWebTests` and `SendToAiIntegrationTests` also carry. | **Accepted** — this is the settled convention across the web-test files (each is self-contained); hoisting them into shared support would touch files four other lanes own while wave 2 is in flight. |
+
+### Defects found outside this lane — reported, not fixed
+
+| Where | Defect | Disposition |
+| --- | --- | --- |
+| `Pages/Administration/Automation/Activity.cshtml:67` | The Target column prints the raw `AggregateId`. Inherited from [[PLAT-015]] through this ticket's body. | **Deferred to [[PLAT-051]]** — §1.14 supersedes the whole page (Automation Activity → Action Logs) and [[UIIMP-009]] deletes it; PLAT-051's table has the Reference column that must carry a business reference. Fixing a file scheduled for deletion is throwaway work. |
+| `Pages/Administration/Automation/Activity.cshtml:18` | "…each carries an activity reference you can filter by" — explanatory copy the design authority bans. | **Deferred to [[PLAT-051]]**, same reason. |
+| `Pages/Administration/Index.cshtml` | Still exists and still links `/Administration/Automation/Index` and `/Administration/Organizations/Index`. `waves.md` wave 1 allocated its deletion to [[PLAT-029]]; it was not deleted. | **Reported** — PLAT-029's file, and [[UIIMP-009]] owns the removals wave. Not touched. |
