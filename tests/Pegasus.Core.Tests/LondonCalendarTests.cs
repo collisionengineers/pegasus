@@ -60,9 +60,10 @@ public sealed class LondonCalendarTests
     {
         var wednesday = new DateTimeOffset(2026, 8, 5, 11, 0, 0, TimeSpan.Zero);
 
-        var (dayStart, weekStart) = LondonCalendar.DayAndWeekBoundariesAt(wednesday);
+        var (dayStart, dayEnd, weekStart) = LondonCalendar.DayAndWeekBoundariesAt(wednesday);
 
         Assert.Equal(new DateTimeOffset(2026, 8, 4, 23, 0, 0, TimeSpan.Zero), dayStart);
+        Assert.Equal(new DateTimeOffset(2026, 8, 5, 23, 0, 0, TimeSpan.Zero), dayEnd);
         Assert.Equal(new DateTimeOffset(2026, 8, 2, 23, 0, 0, TimeSpan.Zero), weekStart);
     }
 
@@ -75,10 +76,11 @@ public sealed class LondonCalendarTests
         // at 23:00Z on the 18th.
         var afterTheTransition = new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero);
 
-        var (dayStart, weekStart) =
+        var (dayStart, dayEnd, weekStart) =
             LondonCalendar.DayAndWeekBoundariesAt(afterTheTransition);
 
         Assert.Equal(new DateTimeOffset(2026, 10, 24, 23, 0, 0, TimeSpan.Zero), dayStart);
+        Assert.Equal(new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero), dayEnd);
         Assert.Equal(new DateTimeOffset(2026, 10, 18, 23, 0, 0, TimeSpan.Zero), weekStart);
     }
 
@@ -90,10 +92,11 @@ public sealed class LondonCalendarTests
         // the day started at 00:00Z, and Monday the 23rd started at 00:00Z.
         var afterTheTransition = new DateTimeOffset(2026, 3, 29, 12, 0, 0, TimeSpan.Zero);
 
-        var (dayStart, weekStart) =
+        var (dayStart, dayEnd, weekStart) =
             LondonCalendar.DayAndWeekBoundariesAt(afterTheTransition);
 
         Assert.Equal(new DateTimeOffset(2026, 3, 29, 0, 0, 0, TimeSpan.Zero), dayStart);
+        Assert.Equal(new DateTimeOffset(2026, 3, 29, 23, 0, 0, TimeSpan.Zero), dayEnd);
         Assert.Equal(new DateTimeOffset(2026, 3, 23, 0, 0, 0, TimeSpan.Zero), weekStart);
     }
 }

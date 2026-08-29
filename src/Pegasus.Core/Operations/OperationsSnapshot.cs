@@ -108,7 +108,7 @@ public sealed class GetOperationsSnapshot(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
         var asOfUtc = timeProvider.GetUtcNow();
-        var (dayStartUtc, weekStartUtc) =
+        var (dayStartUtc, dayEndUtc, weekStartUtc) =
             LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
 
         var intake = await intakeQueries.GetCountsAsync(cancellationToken);
@@ -143,7 +143,7 @@ public sealed class GetOperationsSnapshot(
         var requests = await requestOperations.ExecuteAsync(actor, cancellationToken);
         var needsAttention = await ComposeNeedsAttentionAsync(
             asOfUtc,
-            dayStartUtc,
+            dayEndUtc,
             dueWork,
             held.Items,
             unidentified,
@@ -170,7 +170,7 @@ public sealed class GetOperationsSnapshot(
     /// </summary>
     private async Task<IReadOnlyList<NeedsAttentionItem>> ComposeNeedsAttentionAsync(
         DateTimeOffset asOfUtc,
-        DateTimeOffset dayStartUtc,
+        DateTimeOffset dayEndUtc,
         IReadOnlyList<CaseDueWork> dueWork,
         IReadOnlyList<CaseSearchItem> heldCases,
         IReadOnlyList<UnidentifiedQueueRow> unidentified,
@@ -178,7 +178,6 @@ public sealed class GetOperationsSnapshot(
         IEnumerable<RequestOperationProjection> requests,
         CancellationToken cancellationToken)
     {
-        var dayEndUtc = dayStartUtc.AddDays(1);
         // Both no-finding states arrive pre-filtered from their own queries.
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
