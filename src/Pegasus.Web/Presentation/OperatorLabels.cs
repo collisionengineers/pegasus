@@ -880,7 +880,7 @@ public static class OperatorLabels
         IntakeSourceChannel.ManualUpload => "Manual upload",
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
-        IntakeSourceChannel.ProviderApi => "Provider API",
+        IntakeSourceChannel.ProviderApi => ProviderSubmissionApi.Source,
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
@@ -891,7 +891,7 @@ public static class OperatorLabels
         "manual_upload" => "Manual upload",
         "mailbox" => "E-mail",
         "automation" => "Automation",
-        "provider_api" => "Provider API",
+        "provider_api" => ProviderSubmissionApi.Source,
         _ => Humanise(code)
     };
 
@@ -911,7 +911,9 @@ public static class OperatorLabels
             CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
             CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
             CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
-            CaseDataSourceKind.ProviderApi => ("Provider API", "icon-link"),
+            CaseDataSourceKind.ProviderApi => (
+                ProviderSubmissionApi.Source,
+                ProviderSubmissionApi.ProvenanceIcon),
             CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
             _ => ("Unknown", "icon-info")
         };
@@ -981,6 +983,13 @@ public static class OperatorLabels
             "Close with reason",
         _ => Humanise(kind.ToString())
     };
+
+    /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
+    public static class ProviderSubmissionApi
+    {
+        public const string Source = "Provider API";
+        public const string ProvenanceIcon = "icon-link";
+    }
 
     private static string HumanizeSlug(string slug)
     {

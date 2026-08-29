@@ -11,6 +11,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -395,6 +396,20 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(IntakeSourceChannel.ProviderApi, projection.Origin.Channel);
         Assert.Equal(ProviderInstructionPolicy.ReaderKey, projection.Origin.SourceReaderKey);
         Assert.Equal(ProviderInstructionPolicy.ReaderVersion, projection.Origin.SourceReaderVersion);
+        Assert.Equal(
+            OperatorLabels.ProviderSubmissionApi.Source,
+            OperatorLabels.SourceChannel(projection.Origin.Channel));
+        Assert.Equal(
+            OperatorLabels.ProviderSubmissionApi.Source,
+            OperatorLabels.SourceChannel("provider_api"));
+        Assert.NotNull(projection.Claimant.Name.Current);
+        var claimantName = projection.Claimant.Name.Current!;
+        Assert.Equal(CaseDataSourceKind.ProviderApi, claimantName.Source.Kind);
+        Assert.Equal(
+            (
+                OperatorLabels.ProviderSubmissionApi.Source,
+                OperatorLabels.ProviderSubmissionApi.ProvenanceIcon),
+            OperatorLabels.Provenance(claimantName.Source));
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> api) =>
