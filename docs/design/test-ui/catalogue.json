@@ -305,8 +305,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Custody.cshtml",
     "route": "/Cases/{id:guid}/Custody",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only custody, document and upload-request actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Details.cshtml",
@@ -367,14 +367,14 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Tasks.cshtml",
     "route": "/Cases/{id:guid}/Tasks",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only note, task and report-evidence actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Vehicle.cshtml",
     "route": "/Cases/{id:guid}/Vehicle",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only vehicle lookup and suggestion actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Workflow.cshtml",
