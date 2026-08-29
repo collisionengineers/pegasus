@@ -7,29 +7,41 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
 {
     [Fact]
-    public async Task NonAdministratorCannotOpenCatalogue()
+    public async Task NonAdministratorCannotOpenMailSettings()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
-        using var response = await client.GetAsync("/Administration/MailCategories");
+        using var response = await client.GetAsync("/Administration/Mailboxes");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
-    public async Task NonAdministratorCannotPostCatalogueChange()
+    public async Task NonAdministratorCannotPostCategoryChange()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         using var response = await client.PostAsync(
-            "/Administration/MailCategories?handler=Save",
+            "/Administration/Mailboxes?handler=SaveCategory",
             new FormUrlEncodedContent(new Dictionary<string, string>()));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SupersededCategoryRouteRedirectsToMailSettings()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Administration/MailCategories");
+
+        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.Equal("/Administration/Mailboxes", response.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -40,15 +52,15 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         var page = await GetPageAsync(client);
 
         using var response = await client.PostAsync(
-            "/Administration/MailCategories?handler=Save",
+            "/Administration/Mailboxes?handler=SaveCategory",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["CategoryId"] = Value(CategoryIdRegex().Matches(page)[^1].Value),
-                ["ExpectedVersion"] = "0",
-                ["OperationKey"] = Value(OperationKeyRegex().Matches(page)[^1].Value),
-                ["DisplayName"] = "Awaiting engineer",
-                ["SelectedState"] = "Active",
-                ["Reason"] = "Approve the display name for exact-message actions",
+                ["CategoryForm.CategoryId"] = Value(CategoryIdRegex().Matches(page)[^1].Value),
+                ["CategoryForm.ExpectedVersion"] = "0",
+                ["CategoryForm.OperationKey"] = Value(OperationKeyRegex().Matches(page)[^1].Value),
+                ["CategoryForm.DisplayName"] = "Awaiting engineer",
+                ["CategoryForm.SelectedState"] = "Active",
+                ["CategoryForm.Reason"] = "Approve the display name for exact-message actions",
                 ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
             }));
 
@@ -105,7 +117,7 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         }
 
         var reused = disable.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
-        reused["DisplayName"] = "A different category";
+        reused["CategoryForm.DisplayName"] = "A different category";
         using (var response = await PostAsync(client, reused))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -138,12 +150,12 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Select a supported state.", body, StringComparison.Ordinal);
-        Assert.Contains("No Outlook categories are configured.", body, StringComparison.Ordinal);
+        Assert.Contains("No mail categories", body, StringComparison.Ordinal);
     }
 
     private static async Task<string> GetPageAsync(HttpClient client)
     {
-        using var response = await client.GetAsync("/Administration/MailCategories");
+        using var response = await client.GetAsync("/Administration/Mailboxes");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }
@@ -164,12 +176,12 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         string state,
         string reason) => new()
     {
-        ["CategoryId"] = categoryId,
-        ["ExpectedVersion"] = expectedVersion,
-        ["OperationKey"] = operationKey,
-        ["DisplayName"] = displayName,
-        ["SelectedState"] = state,
-        ["Reason"] = reason,
+        ["CategoryForm.CategoryId"] = categoryId,
+        ["CategoryForm.ExpectedVersion"] = expectedVersion,
+        ["CategoryForm.OperationKey"] = operationKey,
+        ["CategoryForm.DisplayName"] = displayName,
+        ["CategoryForm.SelectedState"] = state,
+        ["CategoryForm.Reason"] = reason,
         ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
     };
 
@@ -177,12 +189,12 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         HttpClient client,
         IReadOnlyDictionary<string, string> form) =>
         client.PostAsync(
-            "/Administration/MailCategories?handler=Save",
+            "/Administration/Mailboxes?handler=SaveCategory",
             new FormUrlEncodedContent(form));
 
-    [GeneratedRegex("<input[^>]*name=\"CategoryId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryIdRegex();
-    [GeneratedRegex("<input[^>]*name=\"OperationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
-    [GeneratedRegex("<input[^>]*name=\"ExpectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
+    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.CategoryId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryIdRegex();
+    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
+    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.ExpectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();
 }

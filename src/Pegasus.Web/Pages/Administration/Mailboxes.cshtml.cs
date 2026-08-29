@@ -1,7 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration;
 
@@ -11,37 +15,34 @@ public sealed class MailboxesModel(
     UpdateApprovedMailbox updateApprovedMailbox,
     IApprovedMailboxPollStatusQueries pollStatusQueries,
     IApprovedMailboxSubscriptionStore subscriptionStore,
-    IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity)
+    IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity,
+    ListApprovedOutlookCategories listCategories,
+    UpdateApprovedOutlookCategory updateCategory)
     : AdministrationPageModel
 {
     public IReadOnlyList<ApprovedMailbox> Mailboxes { get; private set; } = [];
 
+    public IReadOnlyList<ApprovedMailboxPollStatus> PollStatuses { get; private set; } = [];
+
+    public IReadOnlyList<ApprovedMailboxSubscription> Subscriptions { get; private set; } = [];
+
+    public IReadOnlyList<ApprovedOutlookCategory> Categories { get; private set; } = [];
+
+    public bool AutomationComposed { get; private set; }
+
     public Guid NewMailboxId { get; private set; }
 
-    [BindProperty]
-    public Guid MailboxId { get; set; }
+    public string NewMailboxOperationKey { get; private set; } = NewOperationKey();
+
+    public Guid NewCategoryId { get; private set; }
+
+    public string NewCategoryOperationKey { get; private set; } = NewOperationKey();
 
     [BindProperty]
-    [Required, StringLength(320, MinimumLength = 3)]
-    public string Address { get; set; } = string.Empty;
+    public MailboxFormInput? MailboxForm { get; set; }
 
     [BindProperty]
-    public string[] SelectedRouteScopes { get; set; } = [];
-
-    [BindProperty]
-    [Required]
-    public string SelectedState { get; set; } = ApprovedMailboxState.Approved.ToString();
-
-    [BindProperty]
-    [Range(0, int.MaxValue)]
-    public int ExpectedVersion { get; set; }
-
-    [BindProperty]
-    [Required, StringLength(1000, MinimumLength = 1)]
-    public string Reason { get; set; } = string.Empty;
-
-    [BindProperty]
-    public string OperationKey { get; set; } = NewOperationKey();
+    public CategoryFormInput? CategoryForm { get; set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -52,7 +53,7 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
-        NewMailboxId = Guid.NewGuid();
+        PrepareFormState();
         return Page();
     }
 
@@ -64,50 +65,54 @@ public sealed class MailboxesModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        // Loaded once, up front: an existing row's own identities are read from here
-        // (never from the client — the form no longer carries them) so a save that only
-        // changes route scope or state still resends the identity UpdateApprovedMailbox
-        // requires for an Approved row, without the operator ever seeing it.
         await LoadAsync(actor, cancellationToken);
-        var routeScopes = ParseRouteScopes();
+        var input = RequireMailboxForm();
+        ValidateForm(input, nameof(MailboxForm));
+        var routeScopes = ParseRouteScopes(input.SelectedRouteScopes);
         if (!Enum.TryParse<ApprovedMailboxState>(
-                SelectedState,
+                input.SelectedState,
                 ignoreCase: false,
                 out var state)
             || !Enum.IsDefined(state))
         {
-            ModelState.AddModelError(nameof(SelectedState), "Select a supported mailbox state.");
+            ModelState.AddModelError(
+                nameof(MailboxFormInput.SelectedState),
+                "Select a supported mailbox state.");
         }
-        if (MailboxId == Guid.Empty || !IsOperationKeyValid(OperationKey))
+        if (input.MailboxId == Guid.Empty || !IsOperationKeyValid(input.OperationKey))
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         }
 
-        var isNewMailbox = ExpectedVersion == 0;
+        var isNewMailbox = input.ExpectedVersion == 0;
         var existingMailbox = isNewMailbox
             ? null
-            : Mailboxes.SingleOrDefault(mailbox => mailbox.Id == MailboxId);
+            : Mailboxes.SingleOrDefault(mailbox => mailbox.Id == input.MailboxId);
         ApprovedMailboxIdentityResolution? resolution = null;
         if (ModelState.IsValid && isNewMailbox)
         {
             string normalizedAddress;
             try
             {
-                normalizedAddress = ApprovedMailboxAddress.Normalize(Address);
+                normalizedAddress = ApprovedMailboxAddress.Normalize(input.Address);
             }
             catch (ArgumentException)
             {
                 normalizedAddress = string.Empty;
-                ModelState.AddModelError(nameof(Address), "Enter a supported mailbox address and route scope.");
+                ModelState.AddModelError(
+                    nameof(MailboxFormInput.Address),
+                    "Enter a supported mailbox address and route scope.");
             }
 
             if (ModelState.IsValid)
             {
-                resolution = await resolveApprovedMailboxIdentity.ResolveAsync(normalizedAddress, cancellationToken);
+                resolution = await resolveApprovedMailboxIdentity.ResolveAsync(
+                    normalizedAddress,
+                    cancellationToken);
                 if (resolution is null)
                 {
                     ModelState.AddModelError(
-                        nameof(Address),
+                        nameof(MailboxFormInput.Address),
                         "The address could not be found in the mail system.");
                 }
             }
@@ -119,20 +124,21 @@ public sealed class MailboxesModel(
             {
                 var updated = await updateApprovedMailbox.ExecuteAsync(
                     new(
-                        MailboxId,
-                        Address,
+                        input.MailboxId,
+                        input.Address,
                         routeScopes,
                         state,
-                        ExpectedVersion,
+                        input.ExpectedVersion,
                         actor,
-                        Reason,
-                        OperationKey,
+                        input.Reason,
+                        input.OperationKey,
                         resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
                         resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity,
                         resolution?.FolderBindings),
                     cancellationToken);
-                TempData["AdministrationStatus"] = $"The mailbox policy for {updated.Address} was saved.";
+                TempData["AdministrationStatus"] =
+                    $"The mailbox policy for {updated.Address} was saved.";
                 return RedirectToPage();
             }
             catch (ApprovedMailboxUpdateException exception)
@@ -142,26 +148,13 @@ public sealed class MailboxesModel(
             catch (ArgumentException)
             {
                 ModelState.AddModelError(
-                    nameof(Address),
+                    nameof(MailboxFormInput.Address),
                     "Enter a supported mailbox address and route scope.");
             }
         }
 
-        // Reloaded again: the up-front load above may now be stale (this failure can
-        // itself be a version conflict with another save that landed in between).
         await LoadAsync(actor, cancellationToken);
-        if (ExpectedVersion > 0)
-        {
-            var current = Mailboxes.SingleOrDefault(item => item.Id == MailboxId);
-            if (current is not null)
-            {
-                ExpectedVersion = current.Version;
-            }
-        }
-        NewMailboxId = ExpectedVersion == 0 && MailboxId != Guid.Empty
-            ? MailboxId
-            : Guid.NewGuid();
-        OperationKey = NewOperationKey();
+        PrepareFormState();
         return Page();
     }
 
@@ -174,11 +167,13 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
-        var mailbox = Mailboxes.SingleOrDefault(item => item.Id == MailboxId);
+        var input = RequireMailboxForm();
+        ValidateForm(input, nameof(MailboxForm));
+        var mailbox = Mailboxes.SingleOrDefault(item => item.Id == input.MailboxId);
         if (mailbox is null
             || mailbox.MailboxIdentity is null
-            || ExpectedVersion != mailbox.Version
-            || !IsOperationKeyValid(OperationKey))
+            || input.ExpectedVersion != mailbox.Version
+            || !IsOperationKeyValid(input.OperationKey))
         {
             ModelState.AddModelError(
                 string.Empty,
@@ -216,7 +211,7 @@ public sealed class MailboxesModel(
                         mailbox.Version,
                         actor,
                         "Refresh approved logical folder bindings from the mail system.",
-                        OperationKey,
+                        input.OperationKey,
                         mailbox.MailboxIdentity,
                         mailbox.InboxFolderIdentity,
                         mailbox.SentFolderIdentity,
@@ -233,111 +228,225 @@ public sealed class MailboxesModel(
         }
 
         await LoadAsync(actor, cancellationToken);
-        NewMailboxId = Guid.NewGuid();
-        OperationKey = NewOperationKey();
+        PrepareFormState();
         return Page();
     }
 
-    public IReadOnlyList<ApprovedMailboxPollStatus> PollStatuses { get; private set; } = [];
+    public async Task<IActionResult> OnPostSaveCategoryAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
 
-    public IReadOnlyList<ApprovedMailboxSubscription> Subscriptions { get; private set; } = [];
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedOutlookCategories);
+        var input = RequireCategoryForm();
+        ValidateForm(input, nameof(CategoryForm));
+        if (!Enum.TryParse<ApprovedOutlookCategoryState>(
+                input.SelectedState,
+                ignoreCase: false,
+                out var state)
+            || !Enum.IsDefined(state))
+        {
+            ModelState.AddModelError(
+                nameof(CategoryFormInput.SelectedState),
+                "Select a supported state.");
+        }
+        if (input.CategoryId == Guid.Empty || !IsOperationKeyValid(input.OperationKey))
+        {
+            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        }
+
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                var saved = await updateCategory.ExecuteAsync(
+                    new(
+                        input.CategoryId,
+                        input.DisplayName,
+                        state,
+                        input.ExpectedVersion,
+                        actor,
+                        input.Reason,
+                        input.OperationKey),
+                    cancellationToken);
+                TempData["AdministrationStatus"] =
+                    $"The mail category {saved.DisplayName} was saved.";
+                return RedirectToPage();
+            }
+            catch (ApprovedOutlookCategoryUpdateException exception)
+            {
+                ModelState.AddModelError(string.Empty, CategoryErrorMessage(exception));
+            }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(
+                    nameof(CategoryFormInput.DisplayName),
+                    "Enter a supported display name and reason.");
+            }
+        }
+
+        await LoadAsync(actor, cancellationToken);
+        PrepareFormState();
+        return Page();
+    }
 
     public string AddressFor(ApprovedMailbox mailbox) =>
-        mailbox.Id == MailboxId && ExpectedVersion > 0 ? Address : mailbox.Address;
-
-    /// <summary>
-    /// What the last poll of this mailbox actually did. A mailbox with no cursor row has
-    /// never been polled; a mailbox the tenant has not admitted reports that plainly,
-    /// because approving an address in Pegasus grants no Exchange access.
-    /// </summary>
-    public string PollStatusFor(ApprovedMailbox mailbox)
-    {
-        var status = PollStatuses.SingleOrDefault(item =>
-            string.Equals(item.MailboxAddress, mailbox.Address, StringComparison.OrdinalIgnoreCase));
-        if (status is null)
-        {
-            return mailbox.State == ApprovedMailboxState.Approved
-                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake)
-                ? "Not yet polled."
-                : "Not polled.";
-        }
-
-        var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
-            ? $"Last completed {Presentation.OperatorLabels.OfficeTime(lastCompletedAtUtc)}."
-            : "No completed poll yet.";
-        var due = $" Next due {Presentation.OperatorLabels.OfficeTime(status.DueAtUtc)}.";
-        var failure = status.LastFailureCode switch
-        {
-            null => string.Empty,
-            "mailbox_access_denied" =>
-                " The tenant has not granted this application access to this mailbox.",
-            "mailbox_not_approved" =>
-                " The last attempt stopped because this mailbox was no longer approved.",
-            var code => $" Last failure: {Presentation.OperatorLabels.Humanise(code)}."
-        };
-        return $"{completed}{due}{failure}";
-    }
-
-    /// <summary>
-    /// The Graph change-notification subscription behind this mailbox, as maintenance
-    /// last left it. A mailbox with no row has never had one created.
-    /// </summary>
-    public string SubscriptionStatusFor(ApprovedMailbox mailbox)
-    {
-        var subscription = Subscriptions.SingleOrDefault(item => item.ApprovedMailboxId == mailbox.Id);
-        if (subscription is null)
-        {
-            return "None.";
-        }
-
-        var state = $"{Presentation.OperatorLabels.Humanise(subscription.LifecycleState.ToString())}.";
-        var expires = $" Expires {Presentation.OperatorLabels.OfficeTime(subscription.ExpiresAtUtc)}.";
-        var failure = subscription.LastMaintenanceFailureCode is { } code
-            ? $" Last failure: {Presentation.OperatorLabels.Humanise(code)}."
-            : string.Empty;
-        return $"{state}{expires}{failure}";
-    }
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.Address
+            : mailbox.Address;
 
     public string ReasonFor(ApprovedMailbox mailbox) =>
-        mailbox.Id == MailboxId && ExpectedVersion > 0 ? Reason : string.Empty;
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.Reason
+            : string.Empty;
+
+    public string OperationKeyFor(ApprovedMailbox mailbox) =>
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.OperationKey
+            : NewOperationKey();
 
     public bool IsRouteSelected(
         ApprovedMailbox mailbox,
         ApprovedMailboxRouteScope routeScope) =>
-        mailbox.Id == MailboxId && ExpectedVersion > 0
-            ? SelectedRouteScopes.Contains(routeScope.ToString(), StringComparer.Ordinal)
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.SelectedRouteScopes.Contains(routeScope.ToString(), StringComparer.Ordinal)
             : mailbox.RouteScopes.Contains(routeScope);
 
     public bool IsStateSelected(
         ApprovedMailbox mailbox,
         ApprovedMailboxState state) =>
-        mailbox.Id == MailboxId && ExpectedVersion > 0
-            ? SelectedState == state.ToString()
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.SelectedState == state.ToString()
             : mailbox.State == state;
 
-    public string NewAddress => ExpectedVersion == 0 ? Address : string.Empty;
+    public string NewAddress =>
+        MailboxForm is { ExpectedVersion: 0 } input ? input.Address : string.Empty;
 
-    public string NewReason => ExpectedVersion == 0 ? Reason : string.Empty;
+    public string NewReason =>
+        MailboxForm is { ExpectedVersion: 0 } input ? input.Reason : string.Empty;
 
     public bool IsNewRouteSelected(ApprovedMailboxRouteScope routeScope) =>
-        ExpectedVersion == 0
-            && SelectedRouteScopes.Contains(routeScope.ToString(), StringComparer.Ordinal);
+        MailboxForm is { ExpectedVersion: 0 } input
+        && input.SelectedRouteScopes.Contains(routeScope.ToString(), StringComparer.Ordinal);
 
     public bool IsNewStateSelected(ApprovedMailboxState state) =>
-        ExpectedVersion == 0
-            ? SelectedState == state.ToString()
+        MailboxForm is { ExpectedVersion: 0 } input
+            ? input.SelectedState == state.ToString()
             : state == ApprovedMailboxState.Approved;
 
-    private HashSet<ApprovedMailboxRouteScope> ParseRouteScopes()
+    public string PollStatusFor(ApprovedMailbox mailbox)
+    {
+        var status = PollStatuses.SingleOrDefault(item =>
+            string.Equals(
+                item.MailboxAddress,
+                mailbox.Address,
+                StringComparison.OrdinalIgnoreCase));
+        return Presentation.OperatorLabels.MailSettings.PollStatus(mailbox, status);
+    }
+
+    public string SubscriptionStatusFor(ApprovedMailbox mailbox)
+    {
+        var subscription = Subscriptions.SingleOrDefault(item =>
+            item.ApprovedMailboxId == mailbox.Id);
+        return Presentation.OperatorLabels.MailSettings.SubscriptionStatus(subscription);
+    }
+
+    public string CategoryDisplayNameFor(ApprovedOutlookCategory category) =>
+        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
+            ? input.DisplayName
+            : category.DisplayName;
+
+    public string CategoryReasonFor(ApprovedOutlookCategory category) =>
+        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
+            ? input.Reason
+            : string.Empty;
+
+    public string CategoryOperationKeyFor(ApprovedOutlookCategory category) =>
+        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
+            ? input.OperationKey
+            : NewOperationKey();
+
+    public bool IsCategoryStateSelected(
+        ApprovedOutlookCategory category,
+        ApprovedOutlookCategoryState state) =>
+        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
+            ? input.SelectedState == state.ToString()
+            : category.State == state;
+
+    public string NewCategoryDisplayName =>
+        CategoryForm is { ExpectedVersion: 0 } input ? input.DisplayName : string.Empty;
+
+    public string NewCategoryReason =>
+        CategoryForm is { ExpectedVersion: 0 } input ? input.Reason : string.Empty;
+
+    public bool IsNewCategoryStateSelected(ApprovedOutlookCategoryState state) =>
+        CategoryForm is { ExpectedVersion: 0 } input
+            ? input.SelectedState == state.ToString()
+            : state == ApprovedOutlookCategoryState.Active;
+
+    private MailboxFormInput RequireMailboxForm()
+    {
+        if (MailboxForm is not null)
+        {
+            return MailboxForm;
+        }
+
+        ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        return MailboxForm = new();
+    }
+
+    private CategoryFormInput RequireCategoryForm()
+    {
+        if (CategoryForm is not null)
+        {
+            return CategoryForm;
+        }
+
+        ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        return CategoryForm = new();
+    }
+
+    private void ValidateForm<TForm>(TForm form, string prefix)
+        where TForm : class
+    {
+        var validationResults = new List<ValidationResult>();
+        if (Validator.TryValidateObject(
+                form,
+                new ValidationContext(form),
+                validationResults,
+                validateAllProperties: true))
+        {
+            return;
+        }
+
+        foreach (var result in validationResults)
+        {
+            var members = result.MemberNames.DefaultIfEmpty(string.Empty);
+            foreach (var member in members)
+            {
+                var key = string.IsNullOrEmpty(member) ? prefix : $"{prefix}.{member}";
+                ModelState.AddModelError(key, result.ErrorMessage ?? "The value is not valid.");
+            }
+        }
+    }
+
+    private HashSet<ApprovedMailboxRouteScope> ParseRouteScopes(
+        IReadOnlyCollection<string> selectedRouteScopes)
     {
         var routeScopes = new HashSet<ApprovedMailboxRouteScope>();
-        foreach (var value in SelectedRouteScopes)
+        foreach (var value in selectedRouteScopes)
         {
-            if (!Enum.TryParse<ApprovedMailboxRouteScope>(value, ignoreCase: false, out var routeScope)
+            if (!Enum.TryParse<ApprovedMailboxRouteScope>(
+                    value,
+                    ignoreCase: false,
+                    out var routeScope)
                 || !Enum.IsDefined(routeScope))
             {
                 ModelState.AddModelError(
-                    nameof(SelectedRouteScopes),
+                    nameof(MailboxFormInput.SelectedRouteScopes),
                     "Select only supported mailbox route scopes.");
                 continue;
             }
@@ -347,7 +456,7 @@ public sealed class MailboxesModel(
         if (routeScopes.Count == 0)
         {
             ModelState.AddModelError(
-                nameof(SelectedRouteScopes),
+                nameof(MailboxFormInput.SelectedRouteScopes),
                 "Select at least one mailbox route scope.");
         }
 
@@ -356,9 +465,45 @@ public sealed class MailboxesModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
+        AutomationComposed =
+            HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         Mailboxes = await listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
         PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
         Subscriptions = await subscriptionStore.ListAsync(cancellationToken);
+        Categories = await listCategories.ExecuteAsync(actor, cancellationToken);
+    }
+
+    private void PrepareFormState()
+    {
+        if (MailboxForm is { ExpectedVersion: > 0 } mailboxInput)
+        {
+            var current = Mailboxes.SingleOrDefault(item => item.Id == mailboxInput.MailboxId);
+            if (current is not null)
+            {
+                mailboxInput.ExpectedVersion = current.Version;
+            }
+            mailboxInput.OperationKey = NewOperationKey();
+        }
+        if (CategoryForm is { ExpectedVersion: > 0 } categoryInput)
+        {
+            var current = Categories.SingleOrDefault(item => item.Id == categoryInput.CategoryId);
+            if (current is not null)
+            {
+                categoryInput.ExpectedVersion = current.Version;
+            }
+            categoryInput.OperationKey = NewOperationKey();
+        }
+
+        NewMailboxId = MailboxForm is { ExpectedVersion: 0 } newMailbox
+            && newMailbox.MailboxId != Guid.Empty
+            ? newMailbox.MailboxId
+            : Guid.NewGuid();
+        NewMailboxOperationKey = NewOperationKey();
+        NewCategoryId = CategoryForm is { ExpectedVersion: 0 } newCategory
+            && newCategory.CategoryId != Guid.Empty
+            ? newCategory.CategoryId
+            : Guid.NewGuid();
+        NewCategoryOperationKey = NewOperationKey();
     }
 
     private static string MailboxErrorMessage(ApprovedMailboxUpdateException exception) =>
@@ -383,4 +528,61 @@ public sealed class MailboxesModel(
                 "That address already resolves to a mailbox approved under another row.",
             _ => "The approved-mailbox change was not accepted."
         };
+
+    private static string CategoryErrorMessage(
+        ApprovedOutlookCategoryUpdateException exception) => exception.Error switch
+    {
+        ApprovedOutlookCategoryUpdateError.DuplicateDisplayName =>
+            "That display name is already configured.",
+        ApprovedOutlookCategoryUpdateError.VersionConflict =>
+            "The category policy changed. Review it and retry.",
+        ApprovedOutlookCategoryUpdateError.OperationConflict =>
+            "This form was already used for another change. Review and retry.",
+        ApprovedOutlookCategoryUpdateError.NotFound =>
+            "The category policy no longer exists.",
+        _ => "The category policy was not saved."
+    };
+
+    [ValidateNever]
+    public sealed class MailboxFormInput
+    {
+        public Guid MailboxId { get; set; }
+
+        [Required, StringLength(320, MinimumLength = 3)]
+        public string Address { get; set; } = string.Empty;
+
+        public string[] SelectedRouteScopes { get; set; } = [];
+
+        [Required]
+        public string SelectedState { get; set; } = ApprovedMailboxState.Approved.ToString();
+
+        [Range(0, int.MaxValue)]
+        public int ExpectedVersion { get; set; }
+
+        [Required, StringLength(1000, MinimumLength = 1)]
+        public string Reason { get; set; } = string.Empty;
+
+        public string OperationKey { get; set; } = string.Empty;
+    }
+
+    [ValidateNever]
+    public sealed class CategoryFormInput
+    {
+        public Guid CategoryId { get; set; }
+
+        [Required, StringLength(255, MinimumLength = 1)]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [Required]
+        public string SelectedState { get; set; } =
+            ApprovedOutlookCategoryState.Active.ToString();
+
+        [Range(0, int.MaxValue)]
+        public int ExpectedVersion { get; set; }
+
+        [Required, StringLength(1000, MinimumLength = 1)]
+        public string Reason { get; set; } = string.Empty;
+
+        public string OperationKey { get; set; } = string.Empty;
+    }
 }
