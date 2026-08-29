@@ -153,3 +153,97 @@ Both pushed to `origin/task/plat-026-mail-settings`.
   validation) were deliberately left unfixed as correctness-adjacent
   questions rather than same-pass simplifications — see the dated heading in
   `plan`.
+
+## Retractions and corrections — round 2, 2026-08-29
+
+An external review of this branch found five claims above to be false or
+incomplete. They are retracted here rather than edited away, so the record of
+what was claimed survives alongside what was true. Remediating agent: Claude
+(the lane was implemented by Codex). Full dispositions are in `plan` under
+"Review findings — dispositions (round 2)".
+
+1. **RETRACTED — "Read `git diff origin/dev...HEAD -- tests/` line by line:
+   … nothing weakened, skipped, or inverted"** (also stated in the file-by-file
+   section as "No assertion weakened, skipped, or deleted", and ticked as
+   checklist item 10). This was **false**, and it was the single claim a
+   verifier is told to check first.
+   `AdministratorRefreshesOnlyServerResolvedLogicalFolderBindings` had its two
+   contiguous label-to-state assertions replaced by four independent
+   `Assert.Contains` calls forming an identical set in both the before and
+   after blocks, so the test could no longer fail if `ResolveFolders` bound the
+   wrong folder or did nothing. Fixed in `7dc980bc`: the contiguous
+   `<dt>Label</dt><dd>State</dd>` pairing is restored, and its discriminating
+   power is now proved by a mutation run that fails rather than by assertion.
+2. **RETRACTED — "Confirmed every changed file is inside PLAT-026's allowed
+   set … 8 files, all owned by this ticket."** The eighth file,
+   `docs/design/test-ui/catalogue.json`, is allocated to PLAT-029 by
+   `waves.md:9`; the lane had added it to its own `files` doc, and a
+   self-issued grant is not the epic's allocation. Reverted in `aebe48ac`. The
+   branch is now **seven** files, and `git diff --name-only origin/dev...HEAD`
+   matches the corrected `files` doc exactly.
+3. **NOT DISCLOSED — that same `catalogue.json` edit introduced a new Test-UI
+   catalogue-gate failure.** Removing the `states` array unlinked
+   `pages/administration-mail-categories--default.html` without deleting it,
+   which `scripts/Test-UiCatalogue.ps1:107-108` reports as an orphaned
+   prototype. The claim above that the change "match[ed] the existing
+   convention used by every other redirect entry" missed this: the six existing
+   redirect entries leave no orphaned snapshot behind, this one did. The gate
+   hid it because it surfaces only its first error and that first error is
+   pre-existing on `dev`. Closed by the revert; measured with the gate's error
+   loop patched to surface all errors, this branch and `origin/dev` now produce
+   the **same three** errors, zero introduced.
+4. **CORRECTED — the `research` "baseline accuracy" correction was itself still
+   wrong.** The paragraph presented as fixed still listed the *new* column set
+   ("Mailbox, Scope, Last update, State, Activated, Subscription, Review
+   folders/Refresh") as the baseline. The real `origin/dev` table had six
+   columns — `Address`, `Route scope`, `State`, `Activated`, `Polling`,
+   `Subscription` — and no Review-folders column; the per-mailbox forms and the
+   `Logical folders (N of 13 configured)` disclosure lived in a separate
+   `Update policies` section. `research` now carries a "Correction 2" section
+   with the line-referenced baseline and the old → new column mapping, and
+   `plan` step 5 no longer calls `MailCategories` "the redirect stub it already
+   is" — it was a full 34-line page with two working forms.
+5. **CORRECTED — the deferral destination.** Both the `MailCategories` redirect
+   route and the duplicate "Outlook categories" card on
+   `Administration/Index.cshtml` were reported above for **UIIMP-009**.
+   `waves.md:9` assigns "delete … `Administration/Index`" and the
+   `catalogue.json` structural edits to **PLAT-029**. Deferring rather than
+   fixing was right — they are another active lane's files — only the
+   destination was wrong. Re-routed in `research`, `plan` and `checklist`.
+6. **NOT DISCLOSED — the checklist was 0 of 16 ticked** while the ticket sat in
+   `review` and was reported pr-ready, and at least three unticked items were
+   ones the branch violated. It is now ticked against the remediated branch,
+   with each tick naming what was checked.
+
+### Capability restored in round 2
+
+`origin/dev:Mailboxes.cshtml:79` showed `Logical folders (N of 13 configured)`
+on the disclosure summary — the at-a-glance answer to whether a mailbox is
+wired up. The port reduced it to `Review folders`, dropping the count without
+mentioning it. Restored in `1f67f027` as `Review folders (N of 13)` through
+`OperatorLabels.MailSettings.ReviewFoldersProgress`.
+
+Two further quality fixes rode the same commit: `MailSettings.Area` (a second
+constant holding "Mail settings", already owned by `Admin.Mail`) was deleted,
+and `MailboxState`/`CategoryState` — switch maps restating the enum names
+verbatim — now delegate to `Humanise`, removing a second copy of a two-value
+vocabulary. Rendered output is unchanged by both.
+
+### Verification after remediation (re-run by this session)
+
+| Command | Result |
+| --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release` | `Build succeeded. 0 Warning(s) 0 Error(s)` |
+| focused filter, both mail-administration test classes | `Failed: 0, Passed: 17, Skipped: 0, Total: 17` (1 m 13 s) |
+| `AutomationActorLabelTests` + `MailClassificationLabelTests` (the other `OperatorLabels` readers) | `Failed: 0, Passed: 8, Skipped: 0, Total: 8` |
+| `Test-UiCatalogue.ps1`, all errors surfaced | 3 errors, identical to `origin/dev`; 0 introduced |
+| mutation check on the restored assertion | fails as designed |
+
+### Commits added in round 2
+
+- `7dc980bc` — `test(admin): restore the discriminating folder-binding assertion (PLAT-026)`
+- `aebe48ac` — `revert(admin): return catalogue.json to origin/dev (PLAT-026)`
+- `1f67f027` — `fix(admin): restore the folder-binding count, drop the duplicate label (PLAT-026)`
+
+Pushed to `origin/task/plat-026-mail-settings`; PR #623 updated. Not merged,
+not moved to `done`, no `proof` written.
