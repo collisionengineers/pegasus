@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829095336_CaseValuations")]
+    partial class CaseValuations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1214,11 +1217,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_CaseDataFields_Confirmation", "([ValueKind] = 'confirmed' AND [ConfirmedByActor] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL) OR ([ValueKind] <> 'confirmed' AND [ConfirmedByActor] IS NULL AND [ConfirmedAtUtc] IS NULL)");
 
-                            t.HasCheckConstraint("CK_CaseDataFields_FieldName", "[FieldName] IN ('work_provider_code', 'claimant_name', 'claimant_contact_number', 'claimant_address', 'claim_number', 'vehicle_registration', 'vehicle_make', 'vehicle_model', 'vehicle_mileage', 'vehicle_mileage_unit', 'accident_circumstances', 'incident_date', 'contact_name', 'contact_email_address', 'contact_phone_number', 'instruction_date', 'vat_status', 'inspection_date', 'inspection_deadline', 'inspection_address', 'inspection_mode')");
+                            t.HasCheckConstraint("CK_CaseDataFields_FieldName", "[FieldName] IN ('work_provider_code', 'claimant_name', 'claim_number', 'vehicle_registration', 'vehicle_make', 'vehicle_model', 'vehicle_mileage', 'vehicle_mileage_unit', 'accident_circumstances', 'incident_date', 'contact_name', 'contact_email_address', 'contact_phone_number', 'instruction_date', 'vat_status', 'inspection_date', 'inspection_deadline', 'inspection_address', 'inspection_mode')");
 
                             t.HasCheckConstraint("CK_CaseDataFields_PolicyVersion", "[PolicyVersion] > 0");
 
-                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'provider_setting', 'provider_api')");
+                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'provider_setting')");
 
                             t.HasCheckConstraint("CK_CaseDataFields_ValueKind", "[ValueKind] IN ('fact', 'suggestion', 'confirmed')");
 
@@ -3491,32 +3494,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("ClaimantAddress")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("ClaimantContactNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<string>("ClaimantName")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<DateOnly?>("DateOfIncident")
                         .HasColumnType("date");
-
-                    b.Property<string>("FileHandlerEmailAddress")
-                        .HasMaxLength(320)
-                        .HasColumnType("nvarchar(320)");
-
-                    b.Property<string>("FileHandlerName")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("FileHandlerPhoneNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("InspectionAddress")
                         .HasMaxLength(1000)
@@ -3528,17 +3511,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("InstructionDate")
                         .HasColumnType("date");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
                     b.Property<string>("SuggestedPrincipalCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("VatStatus")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("VehicleMake")
                         .HasMaxLength(100)
@@ -3546,10 +3521,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("VehicleMileage")
                         .HasColumnType("bigint");
-
-                    b.Property<string>("VehicleMileageUnit")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("VehicleModel")
                         .HasMaxLength(100)
@@ -4915,47 +4886,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ProviderReferences_SourceRow", "[SourceRow] > 0");
                         });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderSubmissionEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("DeclaredInstructionJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("IdempotencyKey")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("KeyId")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nchar(16)")
-                        .IsFixedLength();
-
-                    b.Property<Guid>("PrincipalId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ProviderReference")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset>("ReceivedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("StagedReceiptId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PrincipalId", "IdempotencyKey")
-                        .IsUnique();
-
-                    b.ToTable("ProviderSubmissions", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", b =>
@@ -7140,17 +7070,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Package");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderSubmissionEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
-                        .WithMany()
-                        .HasForeignKey("PrincipalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Principal");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", b =>
