@@ -2,13 +2,14 @@
 id: INTK-047
 type: ticket
 title: 'Port Upload, upload status pages and the public upload request'
-status: review
+status: verifying
 area: intake-processing
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-29T16:39:42.128Z'
   review: '2026-08-29T17:20:03.797Z'
+  verifying: '2026-08-29T18:16:47.540Z'
 taken_at: '2026-08-29T16:41:46.733Z'
 branch: task/intk-047-upload-pages
 worktree: ../pegasus-worktrees/intk-047-upload-pages
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/627'
 archived: false
 created: '2026-08-28T08:35:23.964Z'
-updated: '2026-08-29T17:20:47.134Z'
+updated: '2026-08-29T18:16:47.540Z'
 ---
 
 ## What
