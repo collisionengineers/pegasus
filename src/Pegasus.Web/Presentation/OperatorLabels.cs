@@ -817,6 +817,7 @@ public static class OperatorLabels
         "manual_upload" => "Manual upload",
         "mailbox" => "E-mail",
         "automation" => "Automation",
+        "provider_api" => "Provider API",
         _ => Humanise(code)
     };
 
@@ -836,6 +837,7 @@ public static class OperatorLabels
             CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
             CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
             CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
+            CaseDataSourceKind.ProviderApi => ("Provider API", "icon-link"),
             CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
             _ => ("Unknown", "icon-info")
         };
