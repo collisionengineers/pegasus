@@ -96,13 +96,6 @@ public sealed class IndexModel(
     /// </summary>
     public IReadOnlyList<AiJobRecord> AiJobs { get; private set; } = [];
 
-    /// <summary>
-    /// The open Unidentified items <see cref="OnPostSendUnidentifiedToAiAsync"/>
-    /// may name. Empty means the send control is not drawn at all, rather than
-    /// drawn over an empty choice.
-    /// </summary>
-    public IReadOnlyList<UnidentifiedQueueRow> OpenUnidentified { get; private set; } = [];
-
     public Guid? PreservedRequestId { get; private set; }
     public string? PreservedReason { get; private set; }
 
@@ -125,13 +118,12 @@ public sealed class IndexModel(
         }
         var nowUtc = timeProvider.GetUtcNow();
         AiJobs = await ReadAiJobsAsync(nowUtc, cancellationToken);
-        OpenUnidentified = await unidentifiedStore.ListQueueAsync(null, cancellationToken);
         LoadedAtUtc = nowUtc;
         return Page();
     }
 
     public async Task<IActionResult> OnPostSendUnidentifiedToAiAsync(
-        Guid unidentifiedId,
+        string unidentifiedReference,
         string operationKey,
         CancellationToken cancellationToken)
     {
@@ -139,9 +131,19 @@ public sealed class IndexModel(
         {
             return Forbid();
         }
-        if (!ModelState.IsValid || unidentifiedId == Guid.Empty)
+        if (!ModelState.IsValid
+            || !UnidentifiedReferenceFormat.TryParse(unidentifiedReference, out _))
         {
             StatusMessage = "The AI job request was invalid. Refresh and try again.";
+            return RedirectToPage();
+        }
+
+        var unidentified = await unidentifiedStore.GetByReferenceAsync(
+            unidentifiedReference.Trim(),
+            cancellationToken);
+        if (unidentified is not { State: UnidentifiedState.Open })
+        {
+            StatusMessage = "The Unidentified item was not found. Refresh and try again.";
             return RedirectToPage();
         }
 
@@ -150,7 +152,7 @@ public sealed class IndexModel(
             await createAiJob.ExecuteAsync(
                 new(
                     AiJobKind.UnidentifiedResolution,
-                    unidentifiedId,
+                    unidentified.Id,
                     SubjectReference: null,
                     UnidentifiedInstruction,
                     TargetPercentOfEngineerValue: null,
@@ -428,12 +430,12 @@ public sealed class IndexModel(
     /// that reached a terminal state today, newest first.
     /// </summary>
     /// <remarks>
-    /// Non-terminal membership comes from the unbounded open query, so no live
-    /// job can fall outside <see cref="RecentJobWindow"/>; the window bounds
-    /// only the terminal tail. Both queries return records whose state the
-    /// store has already resolved through <c>AiJobPolicy.EffectiveState</c>, so
-    /// a lapsed lease reads Queued and a stale queued job reads Expired here
-    /// exactly as it does everywhere else.
+    /// Non-terminal membership comes from the unbounded persisted-open query,
+    /// so no live job can fall outside <see cref="RecentJobWindow"/>; the
+    /// window bounds only the terminal tail. That open query can also return a
+    /// persisted Queued row whose effective state is Expired. Its terminal
+    /// instant is <see cref="AiJobRecord.ExpiresAtUtc"/>, because expiry is
+    /// derived at read time and does not write <see cref="AiJobRecord.ClosedAtUtc"/>.
     /// </remarks>
     private async Task<IReadOnlyList<AiJobRecord>> ReadAiJobsAsync(
         DateTimeOffset nowUtc,
@@ -443,14 +445,26 @@ public sealed class IndexModel(
         var open = await aiJobQueries.ListOpenAsync(cancellationToken);
         var recent = await aiJobQueries.ListRecentAsync(RecentJobWindow, cancellationToken);
         return open
-            .Where(job => !AiJobStates.IsTerminal(job.State))
-            .Concat(recent.Where(job =>
-                AiJobStates.IsTerminal(job.State)
-                && OperatorLabels.OfficeDate(job.ClosedAtUtc ?? job.CreatedAtUtc) == today))
+            .Where(job => !AiJobStates.IsTerminal(job.State) || ReachedTerminalToday(job, today))
+            .Concat(recent.Where(job => ReachedTerminalToday(job, today)))
             .DistinctBy(job => job.JobId)
             .OrderByDescending(job => job.CreatedAtUtc)
             .ThenByDescending(job => job.JobId)
             .ToArray();
+    }
+
+    private static bool ReachedTerminalToday(AiJobRecord job, string today)
+    {
+        if (!AiJobStates.IsTerminal(job.State))
+        {
+            return false;
+        }
+
+        var terminalAtUtc = job.State == AiJobState.Expired
+            ? job.ExpiresAtUtc
+            : job.ClosedAtUtc;
+        return terminalAtUtc is { } terminalAt
+            && OperatorLabels.OfficeDate(terminalAt) == today;
     }
 
     private async Task ReleaseQuietlyAsync(
