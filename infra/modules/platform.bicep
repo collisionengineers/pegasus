@@ -465,6 +465,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
             { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
             { name: 'Features__AutomationMcp', value: 'true' }
+            { name: 'Features__ProviderApi', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
             { name: 'Eva__ClientId', secretRef: 'eva-client-id' }
