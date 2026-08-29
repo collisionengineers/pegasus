@@ -494,6 +494,10 @@ public sealed class UploadOutcomeQueriesTests
             ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<UnidentifiedReopenResult> ReopenAsync(
+            ReopenUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
             ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -515,6 +519,10 @@ public sealed class UploadOutcomeQueriesTests
 
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
             UnidentifiedState? state = UnidentifiedState.Open, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+            int maximum, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(

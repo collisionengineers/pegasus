@@ -202,6 +202,69 @@ public sealed class EfUnidentifiedStore(
         return new(Map(entity), Map(history), false);
     }
 
+    public async Task<UnidentifiedReopenResult> ReopenAsync(
+        ReopenUnidentifiedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        UnidentifiedValidation.ValidateReopen(request);
+        var operationKey = request.OperationKey.Trim();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
+            item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.UnidentifiedItemId != request.UnidentifiedItemId
+                || !string.Equals(replay.Reason, request.Reason.Trim(), StringComparison.Ordinal)
+                || replay.PreviousState != UnidentifiedState.Resolved.ToString()
+                || replay.NewState != UnidentifiedState.Open.ToString())
+            {
+                throw new UnidentifiedOperationConflictException();
+            }
+
+            var replayItem = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
+                .SingleAsync(item => item.Id == request.UnidentifiedItemId, cancellationToken);
+            return new(Map(replayItem), Map(replay), true);
+        }
+
+        var entity = await context.Set<UnidentifiedItemEntity>().SingleOrDefaultAsync(
+            item => item.Id == request.UnidentifiedItemId, cancellationToken)
+            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        if (entity.Version != request.ExpectedVersion || entity.State != UnidentifiedState.Resolved.ToString())
+        {
+            throw new UnidentifiedVersionConflictException();
+        }
+
+        entity.State = UnidentifiedState.Open.ToString();
+        entity.ResolvedAtUtc = null;
+        entity.ResolvedByActorKind = null;
+        entity.ResolvedByActorSubjectId = null;
+        entity.ResolvedByActorRolesJson = null;
+        entity.ResolutionReason = null;
+        entity.ResolutionTargetKind = null;
+        entity.ResolutionTargetId = null;
+        entity.ResolutionTargetReference = null;
+        entity.Version++;
+        var history = new UnidentifiedHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            UnidentifiedItemId = entity.Id,
+            PreviousState = UnidentifiedState.Resolved.ToString(),
+            NewState = UnidentifiedState.Open.ToString(),
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+            OccurredAtUtc = request.ReopenedAtUtc,
+            Reason = request.Reason.Trim(),
+            OperationKey = operationKey
+        };
+        context.Set<UnidentifiedHistoryEntity>().Add(history);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(Map(entity), Map(history), false);
+    }
+
     public async Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -239,6 +302,35 @@ public sealed class EfUnidentifiedStore(
         }
 
         var rows = await query.OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Sequence).ToArrayAsync(cancellationToken);
+        return rows.Select(Map).ToArray();
+    }
+
+    public async Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+        int maximum,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var resolved = UnidentifiedState.Resolved.ToString();
+        var receipt = UnidentifiedOriginKind.Receipt.ToString();
+        var automation = ActorKind.Automation.ToString();
+
+        // As with ListQueueAsync, origin receipt is polymorphic and has no
+        // modelled foreign key, so join it directly to its manual association.
+        var rows = await (
+            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            join association in context.Set<IntakeManualAssociationEntity>().AsNoTracking()
+                on item.OriginId equals association.IntakeReceiptId
+            where item.State == resolved
+                && item.ResolvedByActorKind == automation
+                && item.ResolvedByActorSubjectId == "intake-processing"
+                && item.OriginKind == receipt
+                && (association.LinkedAtUtc >= item.ResolvedAtUtc
+                    || association.UnlinkedAtUtc >= item.ResolvedAtUtc)
+            orderby item.ResolvedAtUtc, item.Sequence
+            select item)
+            .Take(maximum)
+            .ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
     }
 

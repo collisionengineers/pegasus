@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
@@ -88,19 +90,21 @@ public sealed class UnidentifiedReconciliationTests
 
         // Replay-safe: a second sweep finds nothing left to resolve.
         var second = await reconciler.ExecuteAsync(50);
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0), second);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), second);
     }
 
     [Fact]
-    public async Task SweepResolvesAnOpenItemWhoseReceiptWasManuallyLinkedToACase()
+    public async Task SweepFollowsAManuallyLinkedReceiptThroughUnlinkAndRelink()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseA = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "XY34 ZZZ", "UNIDENTIFIED-MANUAL-LINK-01");
+        var caseB = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY35 ZZZ", "UNIDENTIFIED-MANUAL-LINK-02");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,
@@ -122,7 +126,7 @@ public sealed class UnidentifiedReconciliationTests
             [StaffRole.Administrator]);
         var attach = await services.GetRequiredService<IUploadCaseDecision>().AttachAsync(
             receiptId,
-            caseId,
+            caseA,
             null,
             "Staff matched the retained material to the instructed case.",
             actor);
@@ -132,7 +136,7 @@ public sealed class UnidentifiedReconciliationTests
             .GetAsync(receiptId, CancellationToken.None);
         Assert.NotNull(receipt);
         Assert.Equal(IntakeDecision.NeedsSorting, receipt!.Decision);
-        Assert.Equal(caseId, receipt.CurrentCaseId);
+        Assert.Equal(caseA, receipt.CurrentCaseId);
 
         var stillOpen = await unidentifiedStore.GetByOriginAsync(
             UnidentifiedOrigin.Receipt(receiptId));
@@ -140,12 +144,12 @@ public sealed class UnidentifiedReconciliationTests
 
         var reconciler = services.GetRequiredService<ReconcileUnidentifiedDestinations>();
         var result = await reconciler.ExecuteAsync(50);
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), result);
 
         var resolved = await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
         Assert.Equal(UnidentifiedState.Resolved, resolved!.State);
         Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolved.ResolutionTargetKind);
-        Assert.Equal(caseId.ToString("N"), resolved.ResolutionTargetId);
+        Assert.Equal(caseA.ToString("N"), resolved.ResolutionTargetId);
         Assert.Equal(receipt.CurrentCaseReference, resolved.ResolutionTargetReference);
         Assert.Contains(
             await unidentifiedStore.HistoryAsync(resolved.Id),
@@ -159,15 +163,78 @@ public sealed class UnidentifiedReconciliationTests
             var association = await context.IntakeManualAssociations
                 .SingleAsync(item => item.IntakeReceiptId == receiptId);
             Assert.True(association.IsActive);
-            Assert.Equal(caseId, association.CaseId);
+            Assert.Equal(caseA, association.CaseId);
+            var linkedCase = await context.Cases.SingleAsync(item => item.Id == caseA);
+            Assert.NotEqual(receiptId, linkedCase.OriginIntakeReceiptId);
             Assert.True(await context.CaseWorkflowEvents.AnyAsync(
-                item => item.CaseId == caseId
+                item => item.CaseId == caseA
                     && item.EventType == "intake_case_linked"
-                    && item.OperationKey == $"upload-attach:{receiptId:N}:{caseId:N}"));
+                    && item.OperationKey == $"upload-attach:{receiptId:N}:{caseA:N}"));
         }
 
-        var second = await reconciler.ExecuteAsync(50);
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0), second);
+        var caseDetails = await services.GetRequiredService<IGetCase>().ExecuteAsync(
+            new(caseA, actor),
+            CancellationToken.None);
+        var lease = await services.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            new(caseA, caseDetails!.Workflow.Version, actor, "unidentified-manual-unlink-lease"),
+            CancellationToken.None);
+        await services.GetRequiredService<IReverseIntakeLink>().ExecuteAsync(
+            new(
+                receiptId,
+                caseA,
+                receipt.Version,
+                lease.Version,
+                lease.Token,
+                actor,
+                "unidentified-manual-unlink",
+                "The retained material was linked to the wrong instructed case."),
+            CancellationToken.None);
+
+        var unlinkedReceipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(unlinkedReceipt);
+        Assert.Null(unlinkedReceipt!.CurrentCaseId);
+        var reopenedResult = await reconciler.ExecuteAsync(50);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 1, 0), reopenedResult);
+        var reopened = await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
+        Assert.Equal(UnidentifiedState.Open, reopened!.State);
+        Assert.Null(reopened.ResolvedAtUtc);
+        Assert.Null(reopened.ResolvedBy);
+        Assert.Null(reopened.ResolutionReason);
+        Assert.Null(reopened.ResolutionTargetKind);
+        Assert.Null(reopened.ResolutionTargetId);
+        Assert.Null(reopened.ResolutionTargetReference);
+        Assert.Contains(
+            await unidentifiedStore.HistoryAsync(reopened.Id),
+            entry => entry.PreviousState == UnidentifiedState.Resolved
+                && entry.NewState == UnidentifiedState.Open);
+
+        var relink = await services.GetRequiredService<IUploadCaseDecision>().AttachAsync(
+            receiptId,
+            caseB,
+            null,
+            "Staff corrected the retained material's instructed case.",
+            actor);
+        Assert.True(relink.Succeeded, relink.Message);
+        var relinkedReceipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(relinkedReceipt);
+        var retargetedResult = await reconciler.ExecuteAsync(50);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), retargetedResult);
+        var retargeted = await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
+        Assert.Equal(UnidentifiedState.Resolved, retargeted!.State);
+        Assert.Equal(caseB.ToString("N"), retargeted.ResolutionTargetId);
+        Assert.Equal(relinkedReceipt!.CurrentCaseReference, retargeted.ResolutionTargetReference);
+        var history = await unidentifiedStore.HistoryAsync(retargeted.Id);
+        Assert.Contains(history, entry =>
+            entry.NewState == UnidentifiedState.Resolved
+            && entry.TargetId == caseA.ToString("N"));
+        Assert.Contains(history, entry =>
+            entry.NewState == UnidentifiedState.Resolved
+            && entry.TargetId == caseB.ToString("N"));
+
+        var final = await reconciler.ExecuteAsync(50);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), final);
     }
 
     [Fact]

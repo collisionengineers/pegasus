@@ -977,6 +977,10 @@ public sealed partial class OperationsWebTests
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<UnidentifiedReopenResult> ReopenAsync(
+            ReopenUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -1018,6 +1022,10 @@ public sealed partial class OperationsWebTests
 
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
             UnidentifiedState? state = UnidentifiedState.Open,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+            int maximum,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(

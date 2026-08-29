@@ -656,7 +656,7 @@ public sealed partial class DetailsModel(
     {
         try
         {
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {

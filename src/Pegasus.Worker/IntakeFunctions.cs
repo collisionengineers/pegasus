@@ -193,6 +193,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
             logger,
             unidentifiedResult.Candidates,
             unidentifiedResult.Resolved,
+            unidentifiedResult.Corrected,
             unidentifiedResult.Failures);
 
         // CASE-008: any active case whose current registration has never been
@@ -255,10 +256,11 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Failures} failures.")]
+        Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Corrected} corrected, {Failures} failures.")]
     private static partial void LogUnidentifiedDestinationReconciliation(
         ILogger logger,
         int candidates,
         int resolved,
+        int corrected,
         int failures);
 }

@@ -413,6 +413,9 @@ public sealed class AiJobTests
         public Task<UnidentifiedResolveResult> ResolveAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<UnidentifiedReopenResult> ReopenAsync(ReopenUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -420,6 +423,9 @@ public sealed class AiJobTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(UnidentifiedState? state = UnidentifiedState.Open, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(int maximum, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) =>

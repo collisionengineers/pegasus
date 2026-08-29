@@ -253,9 +253,19 @@ public sealed record ResolveUnidentifiedRequest(
     string? TargetReference,
     DateTimeOffset ResolvedAtUtc);
 
+public sealed record ReopenUnidentifiedRequest(
+    Guid UnidentifiedItemId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    DateTimeOffset ReopenedAtUtc);
+
 public sealed record UnidentifiedRegisterResult(UnidentifiedItem Item, bool IsReplay);
 
 public sealed record UnidentifiedResolveResult(UnidentifiedItem Item, UnidentifiedHistoryEntry History, bool IsReplay);
+
+public sealed record UnidentifiedReopenResult(UnidentifiedItem Item, UnidentifiedHistoryEntry History, bool IsReplay);
 
 public interface IUnidentifiedStore
 {
@@ -269,6 +279,10 @@ public interface IUnidentifiedStore
 
     Task<UnidentifiedResolveResult> ResolveAsync(
         ResolveUnidentifiedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<UnidentifiedReopenResult> ReopenAsync(
+        ReopenUnidentifiedRequest request,
         CancellationToken cancellationToken = default);
 
     Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
@@ -291,6 +305,18 @@ public interface IUnidentifiedStore
 
     Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
         UnidentifiedState? state = UnidentifiedState.Open,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Items this reconciliation itself resolved whose origin receipt's manual
+    /// case association has changed at or after that resolution was recorded:
+    /// the only rows whose recorded destination can have gone stale. This is a
+    /// freshness filter, not a destination decision; <see
+    /// cref="ReconcileUnidentifiedDestinations"/> still owns what the
+    /// effective destination is.
+    /// </summary>
+    Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+        int maximum,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -433,6 +459,19 @@ public static class UnidentifiedValidation
             throw new ArgumentOutOfRangeException(nameof(request), "The resolution target is not recognised.");
         }
         RequireUtc(request.ResolvedAtUtc, nameof(request.ResolvedAtUtc));
+    }
+
+    public static void ValidateReopen(ReopenUnidentifiedRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.UnidentifiedItemId == Guid.Empty || request.ExpectedVersion < 0)
+        {
+            throw new ArgumentException("A reopen requires a valid item and expected version.", nameof(request));
+        }
+        RequireStaffOrAutomation(request.Actor);
+        RequireOperation(request.OperationKey);
+        RequireText(request.Reason, MaximumReasonLength, nameof(request.Reason));
+        RequireUtc(request.ReopenedAtUtc, nameof(request.ReopenedAtUtc));
     }
 
     public static void RequireDetail(string value) => RequireText(value, MaximumDetailLength, nameof(value));

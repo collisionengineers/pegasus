@@ -312,6 +312,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
+        public Task<UnidentifiedReopenResult> ReopenAsync(
+            ReopenUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
         public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) =>
@@ -332,6 +337,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
 
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
             UnidentifiedState? state = UnidentifiedState.Open,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
+
+        public Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+            int maximum,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
 
