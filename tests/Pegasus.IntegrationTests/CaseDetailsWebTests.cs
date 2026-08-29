@@ -1397,7 +1397,7 @@ public sealed partial class CaseDetailsWebTests
                 workflow.Identity.PrincipalCode,
                 workflow.State,
                 null,
-                "AB12CDE",
+                OmitVehicleValues ? null : "AB12CDE",
                 "Case claimant",
                 "CLM-42",
                 _now.AddDays(-2),
@@ -1410,14 +1410,15 @@ public sealed partial class CaseDetailsWebTests
                 _leaseHolder is null
                     ? null
                     : new(_leaseHolder, _leaseHolderKind, _now.AddMinutes(5), _leaseOperationKey!),
-                [],
+                CaseDocuments,
                 null,
                 CaseCustodyState.Pending,
-                [],
+                RequestUploadLinks,
                 AvailableReportSentEvidence,
                 HistoryEntries)
             {
                 Data = CreateData(),
+                VehicleEvidence = VehicleLookupEvidence,
                 Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
                     : []
@@ -1464,12 +1465,14 @@ public sealed partial class CaseDetailsWebTests
                 new(Confirmed("QDOS")),
                 new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),
                 new(Confirmed("CLM-42")),
-                new(
-                    Confirmed("AB12CDE"),
-                    Confirmed("Ford"),
-                    Confirmed("Transit"),
-                    Confirmed(42_000L),
-                    Confirmed("miles")),
+                OmitVehicleValues
+                    ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
+                    : new(
+                        Confirmed("AB12CDE"),
+                        Confirmed("Ford"),
+                        Confirmed("Transit"),
+                        Confirmed(42_000L),
+                        Confirmed("miles")),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(Empty<DateOnly>(), Confirmed("Standard")),
