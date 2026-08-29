@@ -59,7 +59,17 @@ public sealed class PrincipalCredentialPersistenceTests
         Assert.NotNull(authenticated);
         Assert.Equal(principal.Id, authenticated.PrincipalId);
         Assert.True(authenticated.MaySubmit);
-        Assert.Null(await authenticate.ExecuteAsync(firstKeyId, firstSecret[..^1] + "A", default));
+        // Flip the last character to one it is not (DELIV-034): appending a
+        // fixed "A" silently reproduced the *same* secret whenever the issued
+        // one already ended in "A", so authentication correctly succeeded and
+        // this assertion failed for no reason a reader could see. The secret's
+        // 32 random bytes base64url-encode to 43 characters whose last one
+        // carries only 4 bits, so it is drawn from 16 values that include 'A'
+        // — one run in sixteen. Assert the tamper actually changed the secret
+        // so a future no-op mutation fails loudly instead of passing.
+        var tamperedSecret = firstSecret[..^1] + (firstSecret[^1] == 'A' ? 'B' : 'A');
+        Assert.NotEqual(firstSecret, tamperedSecret);
+        Assert.Null(await authenticate.ExecuteAsync(firstKeyId, tamperedSecret, default));
 
         // Only the PBKDF2 verifier is stored; the clear secret appears in no
         // column, receipt, or history row.
