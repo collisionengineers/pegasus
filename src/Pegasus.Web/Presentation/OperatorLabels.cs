@@ -1193,6 +1193,38 @@ public static class OperatorLabels
     }
 
     /// <summary>
+    /// The consolidated "Staff accounts &amp; roles" administration area
+    /// (EPIC-011 §1.12) — one list. The area's own name lives in
+    /// <see cref="Admin.Accounts"/>; the three <see cref="StaffRole"/> names
+    /// are already the settled operator words and go through
+    /// <see cref="Humanise(string?)"/> rather than being spelled a second
+    /// time here.
+    /// </summary>
+    public static class StaffAccounts
+    {
+        public const string Enabled = "Enabled";
+        public const string Disabled = "Disabled";
+        public const string PasswordChangeRequired = "Password change required";
+
+        /// <summary>
+        /// The chip shown where Core reports an outstanding access review
+        /// (<c>StaffAccessReviewProjection.ReviewIsOutstanding</c>). "Due"
+        /// is the word <c>_StatusChip</c> already tones amber.
+        /// </summary>
+        public const string ReviewDue = "Due";
+
+        public static string State(bool isEnabled) => isEnabled ? Enabled : Disabled;
+
+        public const string PasswordChangeComplete = "Password change complete";
+        public const string Disable = "Disable";
+        public const string Review = "Review";
+        public const string Reason = "Reason";
+        public const string Confirm = "Confirm";
+        public const string DisableConsequence =
+            "Disabling revokes existing browser sessions; the account is retained permanently.";
+    }
+
+    /// <summary>
     /// The Automation &amp; AI administration area's words (EPIC-011 §1.12) —
     /// one list. <see cref="Admin.Automation"/> above is the area's name in the
     /// rail; these are the two panels inside it.
@@ -1233,6 +1265,26 @@ public static class OperatorLabels
 
         public const string ClientIdentifier = "Client identifier";
         public const string GrantedScopes = "Granted scopes";
+    }
+
+    /// <summary>The retained post-report query's AI job words (AUTO-014).</summary>
+    public static class QueryResponseJobs
+    {
+        public const string Source = "Post-report";
+        /// <summary>
+        /// Deliberately not "Send query to AI", which would match the shape of
+        /// "Send Unidentified to AI" and "Send to Claude". Those two send a
+        /// record to be worked; this one queues a ledger row for a draft reply
+        /// and sends nothing. The sibling shape would misdescribe the action,
+        /// so the wording differs on purpose rather than by oversight.
+        /// </summary>
+        public const string Create = "Draft reply with AI";
+        public const string Created = "AI reply job created.";
+        public const string AutomationStopped = "Automation stopped";
+        public const string AvailableInPostReportWork = "Available in post-report work";
+        public const string CaseUnavailable = "Case unavailable";
+        public const string InvalidSource =
+            "This message is not a linked post-report message.";
     }
 
     /// <summary>
