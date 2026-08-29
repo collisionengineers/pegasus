@@ -40,7 +40,7 @@ public sealed class TestUiFocusedRenderTests
         // empty result and nothing else; the old sentence explained how
         // application initialization works, which is not the operator's
         // business.
-        Assert.Contains("<h2>No staff accounts</h2>", await empty.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("<h2>No staff accounts are available.</h2>", await empty.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
