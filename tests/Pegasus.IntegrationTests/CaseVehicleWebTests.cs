@@ -1,9 +1,14 @@
+using Microsoft.AspNetCore.Mvc.Testing;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Vehicle;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Vehicle page — lookups and suggestion decisions.
+/// The Vehicle page — lookups and suggestion decisions — and the Case
+/// workspace's Vehicle section that calls them (EPIC-011 §1.8).
 ///
 /// ENG-016 removed the EVA half of this file with the act it covered: the
 /// GenerateEvaHandoff handler and the Eva/Download page are gone, and the
@@ -81,12 +86,226 @@ public sealed partial class CaseDetailsWebTests
             workspace.MutationForm("request-lookup-2", "Try again", ("registration", "AB12CDE")));
     }
 
+    /// <summary>
+    /// EPIC-011 §1.8 Vehicle checks: the two refresh controls post the one
+    /// lookup handler the case already has, because a single lookup returns
+    /// both the vehicle record and the MOT observations. The recorded checks
+    /// are the case's own lookup observations.
+    /// </summary>
+    [Fact]
+    public async Task VehicleSectionDrawsBothRefreshControlsAgainstTheOneLookupHandler()
+    {
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Contains(OperatorLabels.CaseWorkspace.RefreshDvla, html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.RefreshDvsaMot, html, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            CountOccurrences(html, $"/Cases/{store.CaseId:D}/Vehicle?handler=RequestVehicleLookup"));
+        Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
+        Assert.Contains("Not found", html, StringComparison.Ordinal);
+        Assert.Contains("Rate limited", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The suggestion decisions are the only surface for
+    /// <see cref="IAcceptVehicleSuggestion"/>, whose forms PR #599 removed. They
+    /// render in edit context only, because Core refuses the command without the
+    /// edit authority, so a read-only visit draws neither them nor the lookup.
+    /// </summary>
+    [Fact]
+    public async Task VehicleSuggestionDecisionsRenderOnlyInEditContext()
+    {
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var readOnly = await GetHtmlAsync(readOnlyClient, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.DoesNotContain("handler=AcceptVehicleSuggestion", readOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RequestVehicleLookup", readOnly, StringComparison.Ordinal);
+
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Equal(
+            2,
+            CountOccurrences(editing, $"/Cases/{store.CaseId:D}/Vehicle?handler=AcceptVehicleSuggestion"));
+        Assert.Contains(
+            "value=\"" + nameof(VehicleSuggestionDecision.Accept) + "\"",
+            editing,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "value=\"" + nameof(VehicleSuggestionDecision.Correct) + "\"",
+            editing,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// EPIC-011 D7/D22 and ENG-001: Experian is not connected, so its control is
+    /// drawn as a real disabled button with the reason named on it and no
+    /// handler behind it. It is drawn, never claimed. PLAT-061: a
+    /// <c>.gated</c> wrapper with no condition paints an empty pill, so no gate
+    /// on this page may carry an empty one.
+    /// </summary>
+    [Fact]
+    public async Task ExperianRendersAsANamedDisabledSeamWithNoHandler()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+        var seam = GatedSpan(html, OperatorLabels.CaseWorkspace.ExperianSeamCondition);
+
+        Assert.Contains("class=\"gated\"", seam, StringComparison.Ordinal);
+        Assert.Contains("type=\"button\"", seam, StringComparison.Ordinal);
+        Assert.Contains("disabled", seam, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"true\"", seam, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.RunExperianCheck, seam, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=", seam, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The lookup needs a registration to search on. Without one the control is
+    /// present and disabled with its condition named — legitimate state, not an
+    /// uncomposed seam.
+    /// </summary>
+    [Fact]
+    public async Task RefreshControlsStateTheirConditionWhenNoRegistrationIsRecorded()
+    {
+        var store = new RecordingCaseDetailsStore { OmitVehicleValues = true };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Contains("data-condition=\"No registration recorded\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PLAT-061: `.gated::after` renders `attr(data-condition)` with no
+    /// `[data-condition]` guard, so a gate whose condition is absent paints an
+    /// empty pill. No state of the workspace may render one — including the
+    /// state where the gated control is enabled and there is no condition left
+    /// to state.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NoWorkspaceGateEverRendersAnEmptyCondition(bool canOpenAssessment)
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetAssessmentAccess>(
+                    services,
+                    (IGetAssessmentAccess)new FakeGetAssessmentAccess(canOpenAssessment));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        foreach (var section in new[] { string.Empty, "?section=vehicle", "?section=case-files", "?section=inspection-address", "?section=notes" })
+        {
+            var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}{section}");
+            Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>The whole <c>.gated</c> element carrying the named condition.</summary>
+    private static string GatedSpan(string html, string condition)
+    {
+        var marker = html.IndexOf(
+            "data-condition=\"" + condition + "\"",
+            StringComparison.Ordinal);
+        Assert.True(marker >= 0, $"No gate states '{condition}'.");
+        var start = html.LastIndexOf('<', marker);
+        var end = html.IndexOf("</span>", marker, StringComparison.Ordinal);
+        Assert.True(end > start, "The gate is not closed.");
+        return html[start..end];
+    }
+
+    private static int CountOccurrences(string html, string value)
+    {
+        var count = 0;
+        var index = html.IndexOf(value, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            count++;
+            index = html.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Two recorded lookups on the documented estate's registration: one that
+    /// answered, and one the provider refused.
+    /// </summary>
+    private static CaseVehicleEvidence LookupEvidence()
+    {
+        var caseId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
+        var recordedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        VehicleLookupObservation answered = new(
+            Guid.NewGuid(),
+            workItemId,
+            caseId,
+            2,
+            VehicleLookupOutcome.Current,
+            "AB12CDE",
+            new("dvla", "1", "response-1", recordedAtUtc, null, null),
+            new("Ford", "Transit", 2018, 1998, "Diesel"),
+            [],
+            new(43_210, VehicleMileageUnit.Miles, new(2031, 2, 1), "latest-mot-observation", 2, 1),
+            null,
+            recordedAtUtc);
+        VehicleLookupObservation refused = new(
+            Guid.NewGuid(),
+            workItemId,
+            caseId,
+            1,
+            VehicleLookupOutcome.NotFound,
+            "AB12CDE",
+            new("dvla", "1", "response-0", recordedAtUtc.AddHours(-1), null, null),
+            null,
+            [],
+            null,
+            new("rate_limited", Retryable: true),
+            recordedAtUtc.AddHours(-1));
+        return new(caseId, null, answered, [answered, refused], []);
+    }
+
     private sealed partial class RecordingCaseDetailsStore :
         IRequestVehicleLookup,
         IAcceptVehicleSuggestion
     {
         public List<RequestVehicleLookupCommand> LookupRequests { get; } = [];
         public List<AcceptVehicleSuggestionCommand> SuggestionDecisions { get; } = [];
+
+        /// <summary>The case's recorded vehicle lookups, when a test supplies them.</summary>
+        public CaseVehicleEvidence? VehicleLookupEvidence { get; init; }
+
+        /// <summary>
+        /// Drops the vehicle values from the projection, so the section renders
+        /// the state a case with no registration is actually in.
+        /// </summary>
+        public bool OmitVehicleValues { get; init; }
 
         Task<RequestedVehicleLookup> IRequestVehicleLookup.ExecuteAsync(
             RequestVehicleLookupCommand command,

@@ -29,6 +29,7 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         var held = CaseLifecycleState.Held.ToString();
         var reportPreparation = CaseLifecycleState.ReportPreparation.ToString();
         var postReport = CaseLifecycleState.PostReport.ToString();
+        var complete = CaseLifecycleState.PostReportComplete.ToString();
 
         var counts = await context.CaseWorkflows
             .AsNoTracking()
@@ -37,7 +38,8 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 || workflow.State == review
                 || workflow.State == held
                 || workflow.State == reportPreparation
-                || workflow.State == postReport)
+                || workflow.State == postReport
+                || workflow.State == complete)
             .GroupBy(workflow => workflow.State)
             .Select(group => new { State = group.Key, Count = group.Count() })
             .ToArrayAsync(cancellationToken);
@@ -66,7 +68,8 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             For(notReady) + imageInitiatedNotReady,
             For(review),
             For(held),
-            For(reportPreparation) + For(postReport));
+            For(reportPreparation) + For(postReport),
+            For(complete));
     }
 
     public async Task<CaseActivityCounts> GetCaseActivityCountsAsync(

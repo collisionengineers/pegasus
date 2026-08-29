@@ -14,17 +14,40 @@
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
+            // Exactly one pending timer at a time: a page can be sent to the
+            // background and brought back any number of times, and every one
+            // of those returns re-arms the same timer rather than adding
+            // another reload to the pile.
+            var timer = 0;
+            var schedule = function () {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(reload, delay);
+            };
             // A page can still be moving while an operator has a form open
             // that a reload would wipe; any element opting in with
             // data-refresh-hold pauses the reload while it is open.
             var reload = function () {
+                timer = 0;
                 if (document.querySelector('[data-refresh-hold][open]')) {
-                    window.setTimeout(reload, delay);
+                    schedule();
                     return;
                 }
                 window.location.reload();
             };
-            window.setTimeout(reload, delay);
+            // A hidden tab does not poll. Returning to it reloads immediately
+            // instead of showing content that can be a full delay out of date.
+            var trackVisibility = function () {
+                if (document.hidden) {
+                    window.clearTimeout(timer);
+                    timer = 0;
+                } else {
+                    reload();
+                }
+            };
+            document.addEventListener('visibilitychange', trackVisibility);
+            if (!document.hidden) {
+                schedule();
+            }
         }
     }
 
@@ -152,7 +175,12 @@
     document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
         var input = zone.querySelector('input[type="file"]');
         var browse = zone.querySelector('[data-dropzone-browse]');
-        var readout = zone.querySelector('[data-dropzone-file]');
+        // §1.10 draws the file list under the dashed area rather than inside
+        // it, so the readout is looked up in the enclosing form when the zone
+        // does not carry it itself.
+        var form = zone.closest('form');
+        var readout = zone.querySelector('[data-dropzone-file]')
+            || (form && form.querySelector('[data-dropzone-file]'));
         if (!input || !browse || !readout) {
             return;
         }
@@ -163,11 +191,24 @@
                 : Math.max(1, Math.round(bytes / 1024)) + ' KB';
         };
 
-        // One row per file — not the crammed single line this replaced. Each
-        // row carries its own state placeholder, populated only once a
-        // submission is under way (see the upload-progress block below);
-        // until then it stays empty, so a page whose form has no progress
-        // enhancement (Uploads/Request) renders identically to before.
+        var glyph = function (iconId) {
+            var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'icon');
+            svg.setAttribute('aria-hidden', 'true');
+            var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttribute('href', iconId);
+            svg.appendChild(use);
+            return svg;
+        };
+
+        // One .file-row per file (§1.10): glyph, name and size, the drawn
+        // progress bar, and the row's own state placeholder. The progress
+        // element is indeterminate on purpose — one POST stores the whole
+        // batch, so there is no per-file fraction to report and inventing one
+        // would be a state this page cannot know. It stays hidden, and the
+        // state placeholder stays empty, until a submission is actually under
+        // way (see the upload-progress block below), so a page whose form has
+        // no progress enhancement (Uploads/Request) renders as it always did.
         var describe = function () {
             var files = input.files ? Array.from(input.files) : [];
             zone.classList.toggle('has-file', files.length > 0);
@@ -179,18 +220,29 @@
             }
 
             var rows = files.map(function (file) {
-                var row = document.createElement('span');
-                row.className = 'dropzone__file-row';
-                var name = document.createElement('span');
-                name.className = 'dropzone__file-row__name';
+                var row = document.createElement('div');
+                row.className = 'file-row';
+
+                var mark = document.createElement('span');
+                mark.append(glyph('#icon-file'));
+
+                var detail = document.createElement('span');
+                var name = document.createElement('strong');
                 name.textContent = file.name;
-                var size = document.createElement('span');
-                size.className = 'dropzone__file-row__size';
+                var size = document.createElement('small');
                 size.textContent = formatSize(file.size);
+                // The adjacent chip already names the state in words, so the
+                // bar is the visual echo and is not announced twice.
+                var progress = document.createElement('progress');
+                progress.className = 'progress';
+                progress.setAttribute('aria-hidden', 'true');
+                progress.hidden = true;
+                detail.append(name, size, progress);
+
                 var status = document.createElement('span');
-                status.className = 'dropzone__file-row__status';
                 status.setAttribute('data-file-row-status', '');
-                row.append(name, size, status);
+
+                row.append(mark, detail, status);
                 return row;
             });
             readout.replaceChildren.apply(readout, rows);
@@ -254,29 +306,48 @@
 
         describe();
 
+        // Clear is a native <button type="reset">: the browser empties the
+        // input on its own, and the rows are re-rendered from the emptied
+        // input once the reset has actually been applied.
+        if (form) {
+            form.addEventListener('reset', function () {
+                window.setTimeout(describe, 0);
+            });
+        }
+
         // Per-file upload progress: opt-in via data-upload-progress on the
         // form, so this only changes behaviour on the one form that owns the
         // contract below (Upload.cshtml) and never touches the document
         // request form, which keeps its plain native submit.
-        var form = zone.closest('form');
         if (form
             && form.hasAttribute('data-upload-progress')
             && typeof fetch === 'function'
             && typeof FormData === 'function') {
             var setRowStatus = function (state, text) {
                 readout.classList.toggle('is-refreshing', state === 'uploading');
-                readout.querySelectorAll('[data-file-row-status]').forEach(function (status) {
-                    var iconId = state === 'stored' ? '#icon-check-circle' : '#icon-refresh-cw';
-                    var glyph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    glyph.setAttribute('class', state === 'uploading' ? 'icon icon--spin' : 'icon');
-                    glyph.setAttribute('aria-hidden', 'true');
-                    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                    use.setAttribute('href', iconId);
-                    glyph.appendChild(use);
-                    var label = document.createElement('span');
-                    label.textContent = text;
+                readout.querySelectorAll('.file-row').forEach(function (row) {
+                    var progress = row.querySelector('progress.progress');
+                    if (progress) {
+                        progress.hidden = state !== 'uploading';
+                    }
+                    var mark = row.querySelector('svg.icon use');
+                    if (mark) {
+                        mark.setAttribute(
+                            'href', state === 'stored' ? '#icon-check-circle' : '#icon-file');
+                    }
+                    var status = row.querySelector('[data-file-row-status]');
+                    if (!status) {
+                        return;
+                    }
+                    // The chip carries its own word and its own dot, so no
+                    // state is conveyed by colour alone.
+                    var chip = document.createElement('span');
+                    chip.className = state === 'stored'
+                        ? 'status status--green'
+                        : 'status status--navy';
+                    chip.textContent = text;
                     status.setAttribute('data-state', state);
-                    status.replaceChildren(glyph, label);
+                    status.replaceChildren(chip);
                 });
             };
 

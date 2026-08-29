@@ -113,6 +113,12 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains("This was added to case", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Add to an existing case", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("automatically associated", afterPage, StringComparison.Ordinal);
+        // The case this upload now belongs to is reached only through the
+        // association the attach recorded, not through an accepted case link
+        // of its own: the status page still opens it.
+        Assert.Contains(">Open case</a>", afterPage, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/Details/{caseId:D}", afterPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open receipt", afterPage, StringComparison.Ordinal);
 
         // The same decision submitted again changes nothing and still reports
         // the same settled destination.

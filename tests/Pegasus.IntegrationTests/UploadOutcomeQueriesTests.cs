@@ -58,7 +58,7 @@ public sealed class UploadOutcomeQueriesTests
     {
         var caseId = Guid.NewGuid();
         var receiptId = Guid.NewGuid();
-        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId, caseId: caseId);
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
         var receipt = MakeReceipt(receiptId, IntakeDecision.CaseCreated, acceptedCaseId: caseId, acceptedCaseReference: "AB12CDE-01");
 
         var result = await BuildAsync(status, receipt);
@@ -276,7 +276,7 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Equal(receiptId, readyToCreate.Attach!.ReceiptId);
 
         var attached = await BuildAsync(
-            StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId, caseId: Guid.NewGuid()),
+            StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId),
             MakeReceipt(receiptId, IntakeDecision.CaseCreated, acceptedCaseId: Guid.NewGuid()));
         Assert.Equal(UploadOutcomeKind.Attached, attached.Kind);
         Assert.Null(attached.Attach);
@@ -341,7 +341,7 @@ public sealed class UploadOutcomeQueriesTests
     {
         var caseId = Guid.NewGuid();
         var receiptId = Guid.NewGuid();
-        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId, caseId: caseId);
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
         var receipt = MakeReceipt(
             receiptId,
             IntakeDecision.CaseCreated,
@@ -361,11 +361,10 @@ public sealed class UploadOutcomeQueriesTests
     private static QueuedIntakeStatus StatusOf(
         QueuedIntakeStatusKind kind,
         Guid? receiptId = null,
-        Guid? caseId = null,
         string? failureCode = null)
     {
         var id = receiptId ?? Guid.NewGuid();
-        return new(id, "example.pdf", DateTimeOffset.UtcNow, kind, id, caseId, failureCode);
+        return new(id, "example.pdf", DateTimeOffset.UtcNow, kind, id, failureCode);
     }
 
     private static IntakeReceipt MakeReceipt(

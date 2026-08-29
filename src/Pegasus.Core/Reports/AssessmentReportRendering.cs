@@ -83,17 +83,26 @@ public sealed record ReportImageEvidence(
     }
 }
 
+/// <summary>
+/// The report's repair-cost block. When the case has a Current estimate the
+/// figures, including <see cref="Vat"/>, come from
+/// <c>Pegasus.Core.Assessment.EstimateTotals</c> through
+/// <see cref="VatOverride"/> (FRD-11 § Estimate VAT on the rendered report);
+/// the built-in repairer-VAT-registered rule below applies only when no
+/// Current estimate exists.
+/// </summary>
 public sealed record ReportRepairCosts(
     decimal LabourHours,
     decimal HourlyRate,
     decimal Parts,
     decimal PaintMaterials,
     decimal SpecialistOther,
-    bool RepairerVatRegistered)
+    bool RepairerVatRegistered,
+    decimal? VatOverride = null)
 {
     public decimal Labour => LabourHours * HourlyRate;
     public decimal Subtotal => Labour + Parts + PaintMaterials + SpecialistOther;
-    public decimal Vat => decimal.Round(
+    public decimal Vat => VatOverride ?? decimal.Round(
         (RepairerVatRegistered ? Subtotal : Parts + PaintMaterials) * 0.20m,
         2,
         MidpointRounding.AwayFromZero);

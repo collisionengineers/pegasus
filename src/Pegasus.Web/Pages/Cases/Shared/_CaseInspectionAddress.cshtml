@@ -1,0 +1,101 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Cases
+@using Pegasus.Web.Presentation
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var data = details.Data;
+    var leaseToken = Model.LeaseToken;
+    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null && data is not null;
+
+    var address = data?.Inspection.Address;
+    var recorded = address?.Current;
+
+    // The Principal's own setting reaches the case as a field value sourced
+    // ProviderSetting (CaseDataSnapshotFactory); it is the default until a
+    // member of staff records something else.
+    var providerDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
+        .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.ProviderSetting);
+    var mode = data?.Inspection.Mode.Current;
+}
+
+<div class="stack">
+    <section class="panel" aria-labelledby="case-inspection-address-title">
+        <div class="panel-head">
+            <h2 id="case-inspection-address-title">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</h2>
+        </div>
+        <div class="panel-body">
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>@OperatorLabels.CaseWorkspace.RecordedInspectionAddress</dt>
+                    <dd>
+                        @(recorded is null ? "Not recorded" : recorded.Value)
+                        @if (recorded is not null)
+                        {
+                            <partial name="Shared/_Provenance" model="recorded.Source" />
+                        }
+                    </dd>
+                </dl>
+                @if (providerDefault is not null)
+                {
+                    <dl class="definition">
+                        <dt>@OperatorLabels.CaseWorkspace.ProviderDefaultInspectionAddress</dt>
+                        <dd>@providerDefault.Value</dd>
+                    </dl>
+                }
+                @if (mode is not null)
+                {
+                    <dl class="definition">
+                        <dt>Inspection</dt>
+                        <dd>
+                            @OperatorLabels.InspectionMode(mode.Value)
+                            <partial name="Shared/_Provenance" model="mode.Source" />
+                        </dd>
+                    </dl>
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (mayEdit)
+    {
+        <section class="panel" aria-labelledby="case-inspection-address-edit-title">
+            <div class="panel-head">
+                <h2 id="case-inspection-address-edit-title">Edit inspection address</h2>
+            </div>
+            <div class="panel-body">
+                @* The save overwrites every editable value, so the address the
+                   operator types is followed by the case's current values for
+                   the rest; the binder reads the first entry for a repeated
+                   name, so the typed address wins. *@
+                @* `case-edit-form` / `data-edit-save` are the ids the sticky edit
+                   bar's Save and site.js's Ctrl+S already bind to. Only one
+                   section renders an edit form at a time, so this is the same
+                   single form under a second section, not a second one. *@
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
+                      asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save class="stack">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <div class="field">
+                        <label for="inspection-address">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</label>
+                        <input id="inspection-address" name="inspectionAddress" maxlength="500" value="@recorded?.Value" />
+                    </div>
+                    <div class="field">
+                        <label class="req" for="inspection-address-reason">Reason for action</label>
+                        <input id="inspection-address-reason" name="reason" required maxlength="500" />
+                    </div>
+                    <partial name="Cases/Shared/_CaseDataHiddenFields" model="Model" />
+                    <div class="button-row">
+                        <button type="submit" form="case-finish-editing-form" class="btn">Cancel</button>
+                        <button type="submit" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    }
+</div>

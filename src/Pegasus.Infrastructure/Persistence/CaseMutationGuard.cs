@@ -58,8 +58,9 @@ internal static class CaseMutationGuard
         CaseEditAuthority.RequireLease(
             workflow.CaseId,
             workflow.Version,
-            actor.SubjectId,
+            actor,
             editLeaseToken,
+            RetainedHolderKind(workflow.EditLeaseHolderKind),
             workflow.EditLeaseHolder,
             !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
             workflow.EditLeaseExpiresAtUtc,
@@ -74,6 +75,7 @@ internal static class CaseMutationGuard
         workflow.EditLeaseTokenHash = null;
         workflow.EditLeaseRequestHash = null;
         workflow.EditLeaseHolder = null;
+        workflow.EditLeaseHolderKind = null;
         workflow.EditLeaseOperationKey = null;
         workflow.EditLeaseExpiresAtUtc = null;
     }
@@ -83,6 +85,24 @@ internal static class CaseMutationGuard
         ArgumentNullException.ThrowIfNull(workflow);
         workflow.Version = checked(workflow.Version + 1);
         ClearLease(workflow);
+    }
+
+    /// <summary>
+    /// The retained holder's kind for Core to match against the caller. Null is a lease retained
+    /// before the kind was recorded, which Core treats as nobody's; a value that is not an
+    /// <see cref="ActorKind"/> is corrupt and surfaces rather than being read as a holder.
+    /// </summary>
+    public static ActorKind? RetainedHolderKind(string? retainedHolderKind)
+    {
+        if (retainedHolderKind is null)
+        {
+            return null;
+        }
+
+        return Enum.TryParse<ActorKind>(retainedHolderKind, ignoreCase: false, out var kind)
+            ? kind
+            : throw new InvalidDataException(
+                $"An unrecognized edit lease holder kind '{retainedHolderKind}' is retained.");
     }
 
     /// <summary>
