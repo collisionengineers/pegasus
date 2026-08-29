@@ -81,6 +81,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
         Assert.Equal(0, providerSubmissionState["Candidates"]);
         Assert.Equal(0, providerSubmissionState["Repaired"]);
         Assert.Equal(0, providerSubmissionState["Failures"]);
+        Assert.Null(providerSubmissionState["FirstFailure"]);
     }
 
     [Fact]

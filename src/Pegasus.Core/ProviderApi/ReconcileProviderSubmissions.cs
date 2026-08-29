@@ -3,10 +3,18 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.ProviderApi;
 
+/// <summary>
+/// <paramref name="FirstFailure"/> is the type and message of the first
+/// swallowed failure of the pass, or null when there was none. A count on its
+/// own cannot tell a missing grant from a dropped connection, and this sweep
+/// runs every ten seconds: without the cause, a deployment that skipped a
+/// migration reads as a steady stream of healthy-looking zeros.
+/// </summary>
 public sealed record ReconcileProviderSubmissionsResult(
     int Candidates,
     int Repaired,
-    int Failures);
+    int Failures,
+    string? FirstFailure);
 
 /// <summary>
 /// The one owner of the Provider API accept-recovery rule: a submission whose
@@ -50,6 +58,7 @@ public sealed class ReconcileProviderSubmissions(
             cancellationToken);
         var repaired = 0;
         var failures = 0;
+        string? firstFailure = null;
         var nowUtc = timeProvider.GetUtcNow();
         foreach (var candidate in candidates)
         {
@@ -108,9 +117,10 @@ public sealed class ReconcileProviderSubmissions(
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
                 failures++;
+                firstFailure ??= $"{exception.GetType().Name}: {exception.Message}";
             }
         }
 
-        return new(candidates.Count, repaired, failures);
+        return new(candidates.Count, repaired, failures, firstFailure);
     }
 }
