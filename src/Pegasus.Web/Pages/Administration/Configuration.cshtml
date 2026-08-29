@@ -1,81 +1,66 @@
 @page
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
-    ViewData["Title"] = "Workflow configuration";
-    ViewData["Eyebrow"] = "Administration";
+    ViewData["Title"] = OperatorLabels.Admin.Configuration;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "configuration";
 }
-
-<a class="back-link" asp-page="/Administration/Index">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Administration
-</a>
 
 <partial name="Shared/_PageHeader" />
 
-@if (TempData["AdministrationStatus"] is string status)
-{
-    <div class="status-card" role="status">@status</div>
-}
-
-@* What relaxing a gate does to work already assigned — the question an
-   administrator has at the moment they reach for the checkbox. *@
-<aside class="notice">
-    <p>Relaxing a gate applies to every case from the next version on; it does not reopen past assignments.</p>
-</aside>
-
-<div class="split-main">
-    <section aria-labelledby="current-workflow-configuration-heading">
-        <h2 id="current-workflow-configuration-heading" class="section-label">Current configuration</h2>
-        <div class="panel">
-            <dl class="detail-list">
-                <div>
-                    <dt>Policy</dt>
-                    <dd>@Model.Configuration.PolicyKey</dd>
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <section class="panel" aria-labelledby="workflow-configuration-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="workflow-configuration-title">@OperatorLabels.Admin.Configuration</h2>
+                <span class="muted">@OperatorLabels.WorkflowConfiguration.Description</span>
+                <div class="panel-title-meta">
+                    @OperatorLabels.WorkflowConfiguration.Meta(Model.Configuration.PolicyVersion)
                 </div>
-                <div>
-                    <dt>Version</dt>
-                    <dd class="tabular">@Model.Configuration.PolicyVersion</dd>
-                </div>
-                <div>
-                    <dt>Staff instruction review before Engineer assignment</dt>
-                    <dd>@(Model.Configuration.RequireStaffInstructionReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-                </div>
-                <div>
-                    <dt>Staff image review before Engineer assignment</dt>
-                    <dd>@(Model.Configuration.RequireStaffImageReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-                </div>
-            </dl>
+            </div>
         </div>
-    </section>
+        <div class="panel-body stack">
+            @if (TempData["AdministrationStatus"] is string status)
+            {
+                <div class="notice notice--success" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>@status</span>
+                </div>
+            }
 
-    <section aria-labelledby="update-workflow-configuration-heading">
-        <h2 id="update-workflow-configuration-heading" class="section-label">Update assignment gates</h2>
-        <div class="panel form-panel form-panel--wide">
-            <form method="post" asp-page="/Administration/Configuration">
-                @* A rejected save is most often a stale version: another administrator
-                   changed the policy since this page loaded. The summary carries that
-                   exact outcome and the recovery is to reload and reapply. *@
-                <div asp-validation-summary="All"></div>
+            <form method="post" asp-page="/Administration/Configuration" class="stack">
+                <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
                 <input asp-for="ExpectedVersion" type="hidden" />
                 <input asp-for="OperationKey" type="hidden" />
-                <fieldset class="role-choices role-choices--stacked">
-                    <legend>Required before Engineer assignment</legend>
-                    <label class="choice">
-                        <input asp-for="RequireStaffInstructionReviewBeforeEngineerAssignment" />
-                        <span>A staff member reviewed the instructions</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="RequireStaffImageReviewBeforeEngineerAssignment" />
-                        <span>A staff member reviewed the images</span>
-                    </label>
-                </fieldset>
-                <div>
-                    <label asp-for="Reason">Reason for this configuration change</label>
-                    <textarea asp-for="Reason" required maxlength="1000" rows="3"></textarea>
-                    <span asp-validation-for="Reason"></span>
+
+                <section class="panel" aria-labelledby="workflow-review-title">
+                    <div class="panel-head">
+                        <h3 id="workflow-review-title">@OperatorLabels.WorkflowConfiguration.Review</h3>
+                    </div>
+                    <div class="panel-body stack" role="group" aria-labelledby="workflow-review-title">
+                        <label class="cluster">
+                            <input asp-for="RequireStaffInstructionReviewBeforeEngineerAssignment" />
+                            <span>@OperatorLabels.WorkflowConfiguration.InstructionReviewRequired</span>
+                        </label>
+                        <label class="cluster">
+                            <input asp-for="RequireStaffImageReviewBeforeEngineerAssignment" />
+                            <span>@OperatorLabels.WorkflowConfiguration.ImageReviewRequired</span>
+                        </label>
+                    </div>
+                </section>
+
+                <div class="field">
+                    <label class="req" asp-for="Reason">@OperatorLabels.WorkflowConfiguration.Reason</label>
+                    <textarea asp-for="Reason" required aria-required="true" maxlength="1000" rows="3"></textarea>
+                    <span asp-validation-for="Reason" class="field-error"></span>
                 </div>
+
                 <div class="button-row">
-                    <button type="submit" class="primary-action">Save workflow configuration</button>
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                        <span>@OperatorLabels.WorkflowConfiguration.Save</span>
+                    </button>
                 </div>
             </form>
         </div>

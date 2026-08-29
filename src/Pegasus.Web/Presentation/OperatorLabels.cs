@@ -979,6 +979,19 @@ public static class OperatorLabels
         _ => Humanise(kind.ToString())
     };
 
+    /// <summary>The Workflow configuration administration surface — one list.</summary>
+    public static class WorkflowConfiguration
+    {
+        public const string Description = "Staff review requirements";
+        public const string Review = "Review";
+        public const string InstructionReviewRequired = "Instruction review required";
+        public const string ImageReviewRequired = "Image review required";
+        public const string Reason = "Reason";
+        public const string Save = "Save configuration";
+
+        public static string Meta(int policyVersion) => $"Version {policyVersion} · 2 settings";
+    }
+
     private static string HumanizeSlug(string slug)
     {
         var words = slug.Replace('-', ' ').Replace('_', ' ');
