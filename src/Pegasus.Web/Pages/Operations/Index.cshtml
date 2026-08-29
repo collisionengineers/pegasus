@@ -49,28 +49,21 @@
                 <h2 id="ai-jobs-title">@OperatorLabels.AiJobs.PanelTitle</h2>
                 <span class="muted">@OperatorLabels.AiJobs.Count(aiJobs.Count)</span>
             </div>
-            @* Drawn only where there is an open item to name, so the control
-               always has a real subject behind it. *@
-            @if (Model.OpenUnidentified.Count > 0)
-            {
-                <details>
-                    <summary class="btn btn--dark">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
-                        <span>@OperatorLabels.AiJobs.SendUnidentified</span>
-                    </summary>
-                    <form method="post" asp-page-handler="SendUnidentifiedToAi" class="row-confirm">
-                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                        <label for="send-unidentified-id">Unidentified item</label>
-                        <select id="send-unidentified-id" name="unidentifiedId" required>
-                            @foreach (var item in Model.OpenUnidentified)
-                            {
-                                <option value="@item.Id">@item.Reference</option>
-                            }
-                        </select>
-                        <button class="btn btn--dark" type="submit">@OperatorLabels.AiJobs.SendUnidentified</button>
-                    </form>
-                </details>
-            }
+            <details>
+                <summary class="btn btn--dark">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <span>@OperatorLabels.AiJobs.SendUnidentified</span>
+                </summary>
+                <form method="post" asp-page-handler="SendUnidentifiedToAi" class="row-confirm">
+                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                    <label for="send-unidentified-reference">Unidentified reference</label>
+                    <input id="send-unidentified-reference"
+                           name="unidentifiedReference"
+                           maxlength="20"
+                           required />
+                    <button class="btn btn--dark" type="submit">@OperatorLabels.AiJobs.SendUnidentified</button>
+                </form>
+            </details>
         </div>
         @if (aiJobs.Count == 0)
         {
@@ -111,7 +104,7 @@
                             <td>
                                 <partial name="Shared/_StatusChip"
                                          model="@OperatorLabels.AiJobs.State(job.State)"
-                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateTone(job.State) }' />
+                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
                             </td>
                             <td>
                                 @if (review is { } action && job.SubjectId is { } reviewSubjectId)
