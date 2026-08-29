@@ -2,10 +2,12 @@
 id: INTK-047
 type: ticket
 title: 'Port Upload, upload status pages and the public upload request'
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-29T16:39:42.128Z'
 labels:
   - ui
   - wave-2
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-28T08:35:23.964Z'
-updated: '2026-08-28T08:35:23.964Z'
+updated: '2026-08-29T16:39:42.128Z'
 ---
 
 ## What
