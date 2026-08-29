@@ -123,8 +123,10 @@ public sealed class EfCaseAssessmentStore(
                 throw new InvalidOperationException(
                     "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
             }
+            var version = await EfRepairSpecificationStore.NextVersionAsync(
+                context, request.CaseId, cancellationToken);
             specification = EfRepairSpecificationStore.NewLegacyDraft(
-                request.CaseId, workflow.Case, request.Actor.SubjectId, request.OperationKey, now);
+                request.CaseId, workflow.Case, version, request.Actor.SubjectId, request.OperationKey, now);
             context.CaseRepairSpecifications.Add(specification);
         }
         var specificationId = specification?.Id;
@@ -172,24 +174,8 @@ public sealed class EfCaseAssessmentStore(
                 continue;
             }
 
-            if (existing is null)
-            {
-                existing = new()
-                {
-                    CaseId = request.CaseId,
-                    Case = workflow.Case,
-                    FieldPath = path,
-                    Value = value,
-                    RecordedByKind = request.Actor.Kind.ToString(),
-                    RecordedBy = request.Actor.SubjectId,
-                    RecordedAtUtc = now,
-                    ConfirmedBy = confirmedBy,
-                    ConfirmedAtUtc = confirmedBy is null ? null : now
-                };
-                context.CaseAssessmentFields.Add(existing);
-                fields.Add(existing);
-            }
-            else if (confirmedBy is null
+            if (existing is not null
+                && confirmedBy is null
                 && string.Equals(existing.Value, value, StringComparison.Ordinal))
             {
                 // An automation resubmission of a value that has not changed
@@ -202,12 +188,22 @@ public sealed class EfCaseAssessmentStore(
             }
             else
             {
-                existing.Value = value;
-                existing.RecordedByKind = request.Actor.Kind.ToString();
-                existing.RecordedBy = request.Actor.SubjectId;
-                existing.RecordedAtUtc = now;
-                existing.ConfirmedBy = confirmedBy;
-                existing.ConfirmedAtUtc = confirmedBy is null ? null : now;
+                var written = AssessmentFieldWriter.Write(
+                    context,
+                    workflow.Case,
+                    request.CaseId,
+                    existing,
+                    path,
+                    value,
+                    request.Actor.Kind,
+                    request.Actor.SubjectId,
+                    now,
+                    confirmedBy);
+                if (existing is null)
+                {
+                    fields.Add(written);
+                }
+                existing = written;
             }
 
             afterFields[path] = new { existing.Value, existing.ConfirmedBy };
@@ -236,6 +232,8 @@ public sealed class EfCaseAssessmentStore(
                     GuideCode = line.GuideCode,
                     Description = line.Description,
                     WorkUnits = line.WorkUnits,
+                    PaintWorkUnits = line.PaintWorkUnits,
+                    Quantity = line.Quantity,
                     Price = line.Price,
                     Unpriced = line.Unpriced,
                     PartNumber = line.PartNumber,
@@ -445,7 +443,9 @@ public sealed class EfCaseAssessmentStore(
                 item.RecordedBy,
                 item.RecordedAtUtc,
                 item.ConfirmedBy,
-                item.ConfirmedAtUtc))
+                item.ConfirmedAtUtc,
+                item.PaintWorkUnits,
+                item.Quantity))
             .ToArray(),
         MapCaseOwned(caseDataFields));
 
@@ -517,6 +517,8 @@ public sealed class EfCaseAssessmentStore(
         line.GuideCode,
         line.Description,
         line.WorkUnits,
+        line.PaintWorkUnits,
+        line.Quantity,
         line.Price,
         line.Unpriced,
         line.PartNumber,

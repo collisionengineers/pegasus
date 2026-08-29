@@ -38,6 +38,20 @@ public static class EditModeDisplay
     }
 
     /// <summary>
+    /// The holder as a value rather than a sentence, for the surfaces that name the edit
+    /// authority beside other facts. The naming rules are the sentence's, stated once.
+    /// </summary>
+    public static string HolderName(CaseEditAuthorityHolder holder)
+    {
+        ArgumentNullException.ThrowIfNull(holder);
+        return holder.IsAutomation
+            ? "AI"
+            : string.IsNullOrWhiteSpace(holder.DisplayName)
+                ? "Another member of staff"
+                : holder.DisplayName!;
+    }
+
+    /// <summary>
     /// The Automation Actor is named as itself rather than as staff, because ADR-0011 requires it to
     /// stay attributable without impersonating a person. A staff account that cannot be resolved is
     /// still described without an identifier.

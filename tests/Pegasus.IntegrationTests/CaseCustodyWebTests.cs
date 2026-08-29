@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -109,6 +112,118 @@ public sealed partial class CaseDetailsWebTests
         // for a person to retain (DOCS-012).
     }
 
+    /// <summary>
+    /// EPIC-011 §1.8 Case Files: each live file is a row carrying its name, its
+    /// type, size and source, its custody state, and the two things an operator
+    /// does with it — Preview, which is the viewer's trigger, and Save as, which
+    /// is the same authorised route asked to save instead of display (DOCS-011).
+    /// </summary>
+    [Fact]
+    public async Task CaseFilesSectionDrawsEachLiveFileWithItsCustodyPreviewAndSaveAs()
+    {
+        var occurrenceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments = [Document(occurrenceId, versionId, "instruction.pdf", "application/pdf")]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=case-files");
+        var download =
+            $"/Cases/{store.CaseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}";
+
+        Assert.Contains("instruction.pdf", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.Preview, html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.SaveAs, html, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{download}\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"{download}&amp;inline=True", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-evidence-item", html, StringComparison.Ordinal);
+        Assert.Contains("data-evidence-set", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed), html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.AddEvidence, html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.OpenOperations, html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// docs/design/README.md "No explanatory copy and page economy": a
+    /// read-only visit renders no empty-state panel and no prose about how the
+    /// page works. Both sentences this section used to carry are gone, and a
+    /// case with no upload request and no images draws neither panel.
+    /// </summary>
+    [Fact]
+    public async Task CaseFilesSectionCarriesNoExplanatoryCopyOrEmptyStatePanels()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=case-files");
+
+        Assert.DoesNotContain("Availability is not assumed", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No vehicle images", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            OperatorLabels.CaseWorkspace.UploadRequestsPanel,
+            html,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>One live case file: a current, unremoved, custody-confirmed version.</summary>
+    private static CaseDocument Document(
+        Guid occurrenceId,
+        Guid versionId,
+        string fileName,
+        string mediaType)
+    {
+        var documentId = Guid.NewGuid();
+        var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
+        return new(
+            documentId,
+            Guid.Empty,
+            [
+                new(
+                    occurrenceId,
+                    Guid.Empty,
+                    documentId,
+                    versionId,
+                    DocumentSemanticRole.Instruction,
+                    DocumentSource.Intake,
+                    "source-1",
+                    recordedAtUtc,
+                    null,
+                    null)
+            ],
+            [
+                new(
+                    versionId,
+                    documentId,
+                    1,
+                    fileName,
+                    mediaType,
+                    24_576,
+                    new string('c', 64),
+                    DocumentCustodyStatus.Confirmed,
+                    recordedAtUtc,
+                    "staff",
+                    IsCurrent: true,
+                    IsLogicallyRemoved: false,
+                    RemovalReason: null)
+            ]);
+    }
+
     private sealed partial class RecordingCaseDetailsStore :
         IRetryCaseCustody,
         IAddCaseDocument,
@@ -117,6 +232,12 @@ public sealed partial class CaseDetailsWebTests
         ICreateRequestUploadLink,
         IRevokeRequestUploadLink
     {
+        /// <summary>The case's documents, when a test supplies them.</summary>
+        public IReadOnlyList<CaseDocument> CaseDocuments { get; init; } = [];
+
+        /// <summary>The case's request-scoped upload links, when a test supplies them.</summary>
+        public IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks { get; init; } = [];
+
         public List<RetryCaseCustodyRequest> CustodyRetries { get; } = [];
         public List<AddCaseDocumentCommand> DocumentUploads { get; } = [];
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];

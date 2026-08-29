@@ -79,7 +79,10 @@ public sealed partial class AssessmentReportDraftWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Not ready", html, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Generate report draft", html, StringComparison.Ordinal);
+        // FRD-11: the control stays, disabled with its condition — no
+        // submittable Generate form and no Preview link are offered.
+        Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=GenerateReportDraft",

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
@@ -7,10 +8,13 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Administration.Automation;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class ActivityModel(IListAutomationActivity listActivity)
+public sealed class ActivityModel(
+    IListAutomationActivity listActivity,
+    IGetCase getCase)
     : AdministrationPageModel
 {
     private const int PageSize = 50;
+    private readonly Dictionary<Guid, string> _caseReferences = [];
 
     [BindProperty(SupportsGet = true, Name = "correlationId")]
     public string? CorrelationId { get; set; }
@@ -49,6 +53,7 @@ public sealed class ActivityModel(IListAutomationActivity listActivity)
                 CurrentPage,
                 PageSize),
             cancellationToken);
+        await ResolveCaseReferencesAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -70,4 +75,34 @@ public sealed class ActivityModel(IListAutomationActivity listActivity)
         OperatorLabels.AutomationActorLabel(
             subjectId,
             HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId);
+
+    /// <summary>
+    /// Resolves a raw activity target only when it is an existing Case/PO;
+    /// every other internal identifier is omitted from the operator view.
+    /// </summary>
+    public string? TargetReference(AutomationActivityRecord record) =>
+        Guid.TryParse(record.AggregateId, out var caseId)
+            && _caseReferences.TryGetValue(caseId, out var reference)
+                ? reference
+                : null;
+
+    private async Task ResolveCaseReferencesAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var candidateIds = Result.Records
+            .Select(record => Guid.TryParse(record.AggregateId, out var id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .Distinct();
+        foreach (var candidateId in candidateIds)
+        {
+            var details = await getCase.ExecuteAsync(
+                new(candidateId, actor),
+                cancellationToken);
+            if (details is not null)
+            {
+                _caseReferences.Add(candidateId, details.Summary.Reference);
+            }
+        }
+    }
 }
