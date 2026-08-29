@@ -28,6 +28,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
         using var landing = await client.GetAsync(AreaRoute);
         var html = await landing.Content.ReadAsStringAsync();
         landing.EnsureSuccessStatusCode();
+        var administrator = await FindAccountAsync(factory, DevelopmentOfflineIdentity.UserName);
 
         // One area, drawn as the design contract draws it.
         Assert.Contains("Staff accounts &amp; roles", html, StringComparison.Ordinal);
@@ -39,36 +40,24 @@ public sealed partial class StaffAccountsAndRolesWebTests
 
         Assert.Contains("Create staff account", html, StringComparison.Ordinal);
 
-        // The role control is one inline select carrying the whole Core role
-        // set: a single-valued select would strip engineer eligibility from a
-        // multi-role account, because CaseEngineerEligibility gates on the
-        // Engineer role specifically.
-        var roleSelect = RoleSelectRegex().Match(html);
-        Assert.True(roleSelect.Success, "The accounts table must render the inline role select.");
-        Assert.Contains("multiple", roleSelect.Value, StringComparison.Ordinal);
+        // The role control reuses Roles/Index's independent checkbox set, so
+        // selecting another role never clears the account's existing roles.
+        var roleCheckboxes = RoleCheckboxRegex().Matches(html);
+        Assert.Equal(Enum.GetValues<StaffRole>().Length, roleCheckboxes.Count);
         foreach (var role in Enum.GetValues<StaffRole>())
         {
             Assert.Contains($"value=\"{role}\"", html, StringComparison.Ordinal);
         }
 
-        // Both folded account actions are drawn, each wired to its own reason
-        // dialog rather than to a page that no longer exists.
-        Assert.Contains("data-dialog-open=\"disable-", html, StringComparison.Ordinal);
-        Assert.Contains("data-dialog-open=\"review-", html, StringComparison.Ordinal);
-        Assert.Contains(
-            $"id=\"disable-{DevelopmentOfflineIdentity.AdministratorId:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
+        // The signed-in administrator has no self-action controls or dialogs.
+        Assert.DoesNotContain(
+            $"data-dialog-open=\"disable-{administrator.Id:D}\"",
             html,
             StringComparison.Ordinal);
-        Assert.Contains(
-            $"id=\"review-{DevelopmentOfflineIdentity.AdministratorId:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
+        Assert.DoesNotContain(
+            $"data-dialog-open=\"review-{administrator.Id:D}\"",
             html,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "Disabling revokes existing browser sessions; the account is retained permanently.",
-            html,
-            StringComparison.Ordinal);
-
-        var administrator = await FindAccountAsync(factory, DevelopmentOfflineIdentity.UserName);
         Assert.False(administrator.MustChangePassword);
         Assert.Contains(">Password change complete</span>", html, StringComparison.Ordinal);
 
@@ -94,8 +83,68 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.True(created.IsEnabled);
         Assert.Null(created.LastAccessReviewAtUtc);
 
-        // A rejected role post keeps its entered reason on the targeted row,
-        // matching the superseded Roles page's bound-property behaviour.
+        using var createdLanding = await client.GetAsync(AreaRoute);
+        var createdHtml = await createdLanding.Content.ReadAsStringAsync();
+        createdLanding.EnsureSuccessStatusCode();
+        Assert.Contains(
+            $"data-dialog-open=\"disable-{created.Id:D}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-dialog-open=\"review-{created.Id:D}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"id=\"disable-{created.Id:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"id=\"review-{created.Id:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Disabling revokes existing browser sessions; the account is retained permanently.",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"/Administration/Accounts/Confirm/Disable/{created.Id:D}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"/Administration/Accounts/Confirm/Review/{created.Id:D}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        using var scriptOffConfirm = await client.GetAsync(
+            $"/Administration/Accounts/Confirm/Review/{created.Id:D}");
+        var scriptOffConfirmHtml = await scriptOffConfirm.Content.ReadAsStringAsync();
+        scriptOffConfirm.EnsureSuccessStatusCode();
+        Assert.Contains("method=\"post\"", scriptOffConfirmHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=Review", scriptOffConfirmHtml, StringComparison.Ordinal);
+
+        // Creation keeps the reason when Core rejects a duplicate username,
+        // while the temporary password remains intentionally unrendered.
+        const string rejectedCreateReason = "PLAT-027 rejected create reason";
+        using var duplicateCreatePost = await client.PostAsync(
+            $"{AreaRoute}?handler=Create",
+            Form(
+                ("__RequestVerificationToken", token),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("userName", "plat027-web-caller"),
+                ("temporaryPassword", "Temporary-Password-2"),
+                ("reason", rejectedCreateReason)));
+        Assert.Equal(HttpStatusCode.OK, duplicateCreatePost.StatusCode);
+        var duplicateCreateHtml = await duplicateCreatePost.Content.ReadAsStringAsync();
+        var createReasonInput = InputTagRegex().Matches(duplicateCreateHtml)
+            .Cast<Match>()
+            .Single(candidate => candidate.Value.Contains(
+                "id=\"create-reason\"",
+                StringComparison.Ordinal));
+        Assert.Equal(
+            rejectedCreateReason,
+            WebUtility.HtmlDecode(createReasonInput.Groups["value"].Value));
+
+        // A rejected role post keeps both its selected roles and reason on the
+        // targeted row, matching the superseded Roles page's behaviour.
         const string rejectedRoleReason = "PLAT-027 rejected role reason";
         using var rejectedRolesPost = await client.PostAsync(
             $"{AreaRoute}?handler=Roles",
@@ -103,6 +152,9 @@ public sealed partial class StaffAccountsAndRolesWebTests
                 ("__RequestVerificationToken", token),
                 ("operationKey", Guid.NewGuid().ToString("N")),
                 ("staffId", created.Id.ToString("D")),
+                ("selectedRoles", nameof(StaffRole.Engineer)),
+                ("selectedRoles", nameof(StaffRole.User)),
+                ("selectedRoles", "UnsupportedRole"),
                 ("reason", rejectedRoleReason)));
         Assert.Equal(HttpStatusCode.OK, rejectedRolesPost.StatusCode);
         var rejectedRolesHtml = await rejectedRolesPost.Content.ReadAsStringAsync();
@@ -114,6 +166,8 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.Equal(
             rejectedRoleReason,
             WebUtility.HtmlDecode(rejectedRoleReasonInput.Groups["value"].Value));
+        Assert.True(CheckboxIsChecked(rejectedRolesHtml, created.Id, StaffRole.Engineer));
+        Assert.True(CheckboxIsChecked(rejectedRolesHtml, created.Id, StaffRole.User));
 
         // Role assignment — the capability the separate Roles page carried.
         using var rolesPost = await client.PostAsync(
@@ -266,15 +320,27 @@ public sealed partial class StaffAccountsAndRolesWebTests
         return WebUtility.HtmlDecode(match!.Groups["value"].Value);
     }
 
+    private static bool CheckboxIsChecked(string html, Guid staffId, StaffRole role)
+    {
+        var id = $"roles-{staffId:D}-select-{role}";
+        var match = RoleCheckboxRegex().Matches(html)
+            .Cast<Match>()
+            .SingleOrDefault(candidate => candidate.Value.Contains(
+                $"id=\"{id}\"",
+                StringComparison.Ordinal));
+        Assert.True(match is not null, $"The role checkbox '{id}' must be rendered.");
+        return match!.Value.Contains("checked", StringComparison.Ordinal);
+    }
+
     [GeneratedRegex(
         "<input\\b(?=[^>]*\\bname=\"(?<name>[^\"]+)\")(?=[^>]*\\bvalue=\"(?<value>[^\"]*)\")[^>]*>",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex InputTagRegex();
 
     [GeneratedRegex(
-        "<select\\b[^>]*\\bname=\"selectedRoles\"[^>]*>",
+        "<input\\b[^>]*\\btype=\"checkbox\"[^>]*\\bname=\"selectedRoles\"[^>]*>",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex RoleSelectRegex();
+    private static partial Regex RoleCheckboxRegex();
 
     [GeneratedRegex(
         "<time\\b[^>]*\\bdatetime=\"(?<value>[^\"]+)\"",
