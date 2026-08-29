@@ -196,9 +196,8 @@ public sealed class UploadOutcomeQueries(
         CancellationToken cancellationToken)
     {
         // The receipt's own CurrentCaseId is Core's reconciliation of the
-        // accepted and staff-linked associations — the same fact the queued
-        // status derives its CaseId from — so it alone decides whether a
-        // case is already settled before any open decision is offered.
+        // accepted and staff-linked associations, so it alone decides whether
+        // a case is already settled before any open decision is offered.
         if (receipt.CurrentCaseId is { } caseId)
         {
             return new(

@@ -14,17 +14,40 @@
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
+            // Exactly one pending timer at a time: a page can be sent to the
+            // background and brought back any number of times, and every one
+            // of those returns re-arms the same timer rather than adding
+            // another reload to the pile.
+            var timer = 0;
+            var schedule = function () {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(reload, delay);
+            };
             // A page can still be moving while an operator has a form open
             // that a reload would wipe; any element opting in with
             // data-refresh-hold pauses the reload while it is open.
             var reload = function () {
+                timer = 0;
                 if (document.querySelector('[data-refresh-hold][open]')) {
-                    window.setTimeout(reload, delay);
+                    schedule();
                     return;
                 }
                 window.location.reload();
             };
-            window.setTimeout(reload, delay);
+            // A hidden tab does not poll. Returning to it reloads immediately
+            // instead of showing content that can be a full delay out of date.
+            var trackVisibility = function () {
+                if (document.hidden) {
+                    window.clearTimeout(timer);
+                    timer = 0;
+                } else {
+                    reload();
+                }
+            };
+            document.addEventListener('visibilitychange', trackVisibility);
+            if (!document.hidden) {
+                schedule();
+            }
         }
     }
 

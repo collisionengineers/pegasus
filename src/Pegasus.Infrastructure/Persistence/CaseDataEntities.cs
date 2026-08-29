@@ -41,6 +41,8 @@ internal static class CaseDataFieldNames
 {
     public const string WorkProviderCode = "work_provider_code";
     public const string ClaimantName = "claimant_name";
+    public const string ClaimantContactNumber = "claimant_contact_number";
+    public const string ClaimantAddress = "claimant_address";
     public const string ClaimNumber = "claim_number";
     public const string VehicleRegistration = "vehicle_registration";
     public const string VehicleMake = "vehicle_make";
@@ -63,6 +65,8 @@ internal static class CaseDataFieldNames
     [
         WorkProviderCode,
         ClaimantName,
+        ClaimantContactNumber,
+        ClaimantAddress,
         ClaimNumber,
         VehicleRegistration,
         VehicleMake,
@@ -100,4 +104,5 @@ internal static class CaseDataCodes
     public const string StaffCorrection = "staff_correction";
     public const string VehicleLookup = "vehicle_lookup";
     public const string ProviderSetting = "provider_setting";
+    public const string ProviderApi = "provider_api";
 }
