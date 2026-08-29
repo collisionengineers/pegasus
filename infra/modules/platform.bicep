@@ -476,6 +476,34 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
             { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
+            // INT-31 upload links. Program.cs:247-250 composes the upload-link
+            // services only when AcceptedLimitsVersion is non-empty, so before
+            // this block production had no /Uploads surface at all. All eight
+            // settings are required together: LimitsVersion must match
+            // AcceptedLimitsVersion byte for byte (Program.cs:258-264) and
+            // RequestUploadLimits' constructor rejects a zero or negative
+            // bound, so a partial set throws at startup and crash-loops the
+            // container rather than degrading. These are the interim limits
+            // accepted 2026-08-29 (INTK-051); INT-31 itself stays open on
+            // one-time-vs-reuse and the revocation/expiry error contract.
+            { name: 'DocumentRequests__LimitsVersion', value: 'int-31-interim-v1' }
+            { name: 'DocumentRequests__AcceptedLimitsVersion', value: 'int-31-interim-v1' }
+            // The recorded interim bound is the existing aggregate 10 MB intake
+            // limit, which is IntakeContracts.MaximumContentLength exactly.
+            { name: 'DocumentRequests__MaximumRequestBytes', value: '10485760' }
+            { name: 'DocumentRequests__MaximumFileBytes', value: '10485760' }
+            { name: 'DocumentRequests__MaximumFileCount', value: '10' }
+            // 7 days, matching the existing chase cadence (CASE-17/18, MAIL-18).
+            { name: 'DocumentRequests__LifetimeHours', value: '168' }
+            { name: 'DocumentRequests__RateLimit', value: '20' }
+            { name: 'DocumentRequests__RateLimitWindowMinutes', value: '10' }
+            // Exactly what the intake reader already handles, so an upload link
+            // admits no file type the estate could not already read.
+            { name: 'DocumentRequests__AllowedMediaTypes__0', value: 'application/pdf' }
+            { name: 'DocumentRequests__AllowedMediaTypes__1', value: 'image/jpeg' }
+            { name: 'DocumentRequests__AllowedMediaTypes__2', value: 'image/png' }
+            { name: 'DocumentRequests__AllowedMediaTypes__3', value: 'text/plain' }
+            { name: 'DocumentRequests__AllowedMediaTypes__4', value: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
           ]
           // ADR-0028: the report renderer runs in process in this container,
           // so headless Chromium shares the app's CPU and memory. Container
