@@ -32,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/614'
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-28T21:48:44.582Z'
+updated: '2026-08-29T08:31:37.542Z'
 ---
 
 ## What
@@ -46,3 +46,25 @@ Introduced by [[TICK-077]] (PR #574). [[PLAT-050]] folds this page into the Prin
 ## Verification
 
 - [ ] One route; `Test-UiCatalogue.ps1` and snapshot verify pass.
+
+## Remediation round 2 note (2026-08-29) — merge-order hazard with UIIMP-005 (PR #609)
+
+`docs/design/test-ui/catalogue.json` now carries this page's corrected
+single-segment route (added in PR #614, reusing content already captured
+on [[UIIMP-005]]'s own unmerged branch). **UIIMP-005 (PR #609) still
+carries the old, doubled-route version of the same entry on its own
+branch.** Recommended order: **merge PLAT-052 (#614) before UIIMP-005
+(#609)**; when UIIMP-005 lands after, resolve the resulting
+`catalogue.json` conflict on the `EvaSubmission` entry by keeping this
+ticket's single-segment `route` (dropping UIIMP-005's doubled one), while
+keeping UIIMP-005's unrelated `Cases/Eva/Send.cshtml` entry and its
+tooling/CI-gate changes intact. Full evidence in the ticket's `plan`
+document under "Remediation round 2."
+
+`Test-UiCatalogue.ps1` will still exit non-zero on `dev` after this PR
+merges, for two unrelated pre-existing reasons this ticket does not own:
+`src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml` is uncatalogued ([[CASE-012]],
+PR #615 open) and `docs/design/test-ui/pages/vehicle-images-details--default.html`
+has a stale broken reference to the already-deleted `/VehicleImages` list
+prototype (no clear current owner). Neither is touched by this PR. See
+`plan` for full detail.

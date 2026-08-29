@@ -84,3 +84,168 @@ Manually reviewed against reuse / simplification / efficiency / altitude:
 no findings. The route fix reuses `Replace.cshtml`'s exact template; the
 test additions reuse the existing test's own form-post and assertion idioms
 verbatim rather than introducing a new helper or pattern.
+
+## Remediation round 2 — 2026-08-29 (adversarial verifier findings)
+
+An independent verifier re-ran the build/tests/diff and found the scope and
+build/test claims true, but raised two majors and one minor on the ticket's
+own catalogue acceptance condition and the pipeline's honesty about it. See
+PR #614 for the verifier's findings; dispositions below.
+
+### Fix: add the catalogue entry (retracts the "no entry exists" premise)
+
+The plan/files/post-implementation-report all previously said no catalogue
+entry existed for this page anywhere. That was false: [[UIIMP-005]]'s own
+unmerged branch (`task/uiimp-005-test-ui-gate`, PR #609, open) already
+carries one — with the *old, doubled* route text, because it catalogued the
+page as shipped before this ticket's fix. I did not check that linked
+branch originally; the verifier did and was right.
+
+Fix applied:
+
+1. Added a `docs/design/test-ui/catalogue.json` entry for
+   `Administration/Principals/EvaSubmission.cshtml`, `classification:
+   "visual"`, with `route` set to the corrected single-segment route this
+   ticket ships (`/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}`)
+   — i.e. UIIMP-005's own entry with only the `route` field corrected.
+2. Added `docs/design/test-ui/pages/administration-principal-eva-submission--default.html`,
+   copied byte-for-byte from UIIMP-005's branch (`git show
+   origin/task/uiimp-005-test-ui-gate:docs/design/test-ui/pages/administration-principal-eva-submission--default.html`).
+   Confirmed the prototype's own markup never embeds the route text (its
+   form `action` and back-link both point at sibling prototype filenames,
+   not the real route), so reusing it verbatim under the corrected route
+   entry is not a mismatch. This is reuse of already-captured, real output
+   — not a fabrication and not a run of the barred
+   `Update-TestUiSnapshots.ps1` capture script.
+3. Left `docs/design/test-ui/index.html` untouched. It is a generated
+   artifact (the whole file is a single minified line, rewritten wholesale
+   by the `TestUiSnapshotTests` class that `Update-TestUiSnapshots.ps1`
+   drives) and `Test-UiCatalogue.ps1` never cross-checks it against
+   `catalogue.json` — only broken-local-reference / missing-`img`-`src`
+   checks within whatever `index.html` already contains. Regenerating it
+   requires the barred script; the next real snapshot-capture pass (the
+   orchestrator's normal wave loop, or UIIMP-005 itself) will pick up this
+   entry automatically. Flagging this so it isn't mistaken for an omission.
+
+Verified narrowly, with a temporary local-only diagnostic (not committed —
+reverted before commit): with a throwaway placeholder entry added for the
+unrelated `Cases/Eva/Send.cshtml` gap (see below) and a scratch copy of the
+validator that reports every error instead of stopping at the first, the
+*only* remaining error was a pre-existing broken reference in
+`vehicle-images-details--default.html` (also below, also unrelated). No
+other error is introduced by this entry. The diagnostic entry and the
+scratch script were both deleted before commit; `git diff --stat` still
+shows exactly the four files listed in `files`.
+
+### Two more pre-existing, out-of-scope catalogue defects found while fixing this one
+
+`Test-UiCatalogue.ps1` uses `Write-Error` under `$ErrorActionPreference =
+'Stop'`, so it halts at the *first* error alphabetically and never lists
+the rest. Both the original implementation and the verifier only ever saw
+"`Administration/Principals/EvaSubmission.cshtml` is not classified"
+because it sorted first. Fixing it exposed two more, both pre-existing,
+both outside this ticket's lane:
+
+1. **`src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml` is not classified.**
+   Introduced by the same commit as this ticket's bug (`09beefef`,
+   TICK-077, PR #574) — confirmed via `git log --oneline -- src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml`.
+   This file belongs to [[CASE-012]]'s Wave-2 "E1" lane per
+   `waves.md` (`Pages/Cases/Details.*, ..., Eva/Send.*`), which has an
+   **open** PR (#615, "complete lane E1 (Eva/Send, Create, Workflow,
+   Closure)"). Not touched — not this ticket's file. Orchestrator: confirm
+   CASE-012 (PR #615) adds its own `catalogue.json` entry before relying on
+   a fully green `Test-UiCatalogue.ps1` run; it won't go green on `dev`
+   until that lands, independent of anything in this PR.
+2. **Broken local reference in `docs/design/test-ui/pages/vehicle-images-details--default.html`:
+   `vehicle-images--default.html`.** That target prototype no longer
+   exists — `src/Pegasus.Web/Pages/VehicleImages/Index.cshtml` (the list
+   page) is already deleted from `src/` (EPIC-011 decision D1: "delete
+   `/VehicleImages` list only; keep the detail page"), but the surviving
+   detail prototype's "All Image-initiated Cases" link was never updated to
+   match. `git log --oneline -- docs/design/test-ui/pages/vehicle-images-details--default.html`
+   shows no recent touch — unrelated to TICK-077/CASE-012 and to this
+   ticket. No obvious current owner; likely Wave 5 territory
+   (`waves.md`: "removals, catalogue, current-state docs, final walk").
+   Not touched — reporting only, per lane rule ("report defects outside
+   your files; never fix them").
+
+Both are real, reproducible, and will keep `Test-UiCatalogue.ps1` red on
+`dev` regardless of anything in this PR. Neither is this ticket's to fix.
+
+### Merge-order hazard with UIIMP-005 (PR #609) — handed over explicitly
+
+[[UIIMP-005]] is one of this ticket's own `links`. Its branch
+(`task/uiimp-005-test-ui-gate`) already contains an `EvaSubmission.cshtml`
+catalogue entry at the *same insertion point* in `catalogue.json` (between
+the `Create` and `Index` entries) with the **old, doubled** route text.
+`git diff origin/dev...origin/task/uiimp-005-test-ui-gate -- docs/design/test-ui/catalogue.json`
+shows that entry as a clean 13-line addition, plus a second, non-overlapping
+13-line addition for `Cases/Eva/Send.cshtml` elsewhere in the file.
+
+**Recommendation to the orchestrator: merge PLAT-052 (PR #614) before
+UIIMP-005 (PR #609).** When UIIMP-005 is later rebased onto `dev` (post-
+PLAT-052 merge) or merged, Git will conflict on the `EvaSubmission` block
+(both sides insert content at the same location) rather than silently
+picking either side — but the person/agent resolving that conflict must be
+told explicitly: **keep this ticket's single-segment `route`** (and this
+ticket's copy of the prototype file, byte-identical to UIIMP-005's own
+anyway) **and drop UIIMP-005's doubled-route version of that one entry**,
+while keeping UIIMP-005's unrelated `Cases/Eva/Send.cshtml` addition and
+its script-hardening/CI-gate work intact. If the order is reversed instead
+(UIIMP-005 merges first), PLAT-052 would need to rebase and change its own
+diff from *adding* a catalogue entry to *updating* the `route` field of the
+one UIIMP-005 landed — which is livable, but leaves this ticket blocked on
+a larger, still-open ticket (UIIMP-005 hardens tooling + adds a CI gate)
+for no benefit, so merging PLAT-052 first is the lower-friction order.
+
+## Review findings — dispositions (round 2), 2026-08-29
+
+Verdict from the adversarial verifier: needs-work. Four findings; all
+disposed below.
+
+1. **[major] Ticket's own verification condition ("Test-UiCatalogue.ps1 ...
+   pass") not met — catalogue gate fails.**
+   **Disposition: fixed, partially.** Added the missing `EvaSubmission`
+   catalogue entry + prototype file (see "Fix" above); confirmed by direct
+   `pwsh -NoProfile -Command "& ./scripts/Test-UiCatalogue.ps1"` re-run that
+   `EvaSubmission.cshtml` is no longer reported. The full repo-wide script
+   still exits 1 on this branch (and will on `dev`) because of two other,
+   pre-existing, out-of-scope defects (`Cases/Eva/Send.cshtml` uncatalogued;
+   the `vehicle-images-details` broken reference) — see above. This
+   ticket's own contribution to the gate is closed; the gate as a whole is
+   not this ticket's to close alone, and I did not touch either unrelated
+   file. **Risk accepted / flagged to orchestrator**, not silently claimed
+   green.
+
+2. **[major] Pipeline documents record a false premise about the
+   catalogue; the resulting merge-order hazard with UIIMP-005 was never
+   handed over.**
+   **Disposition: fixed.** `plan` and `files` corrected in place (see
+   "Correction — round 2" in `files` and the retraction above);
+   `post-implementation-report` corrected below. The merge-order hazard
+   with UIIMP-005/PR #609 is now recorded explicitly, with a stated
+   recommended merge order, above.
+
+3. **[minor] Mitigating detail: the stale `route` text is a docs-
+   correctness defect, not a second gate failure — nothing validates
+   `route` against the page template.**
+   **Disposition: accepted as correct, no code change needed.** Confirmed
+   independently (`grep -n route scripts/Test-UiCatalogue.ps1` — `route`
+   appears only in error-message text). Recorded here so the merge-order
+   handover above is read with the right severity: the hazard is a
+   docs-accuracy regression at merge time, not a second red gate.
+
+4. **[honesty] Overclaim: "no catalogue entry exists ... EvaSubmission
+   never was [catalogued]" — the entry exists on UIIMP-005's linked,
+   unmerged branch; the lane never checked it.**
+   **Disposition: fixed.** Retracted explicitly in `files` ("Correction —
+   round 2") and in `post-implementation-report`, not silently edited out
+   — the wrong claim, why it was wrong, and what replaced it are all left
+   in place for the record.
+
+## Simplification pass — 2026-08-29 (round 2)
+
+n/a — this round only adds one data-file entry and one static prototype
+file (both copied from an existing, already-produced source rather than
+authored fresh), and corrects prose in three existing documents. No new
+code, no new abstraction, nothing to simplify.

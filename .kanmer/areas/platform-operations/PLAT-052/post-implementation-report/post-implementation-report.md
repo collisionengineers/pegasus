@@ -65,3 +65,56 @@ Touched only: `EvaSubmission.cshtml`, `OrganizationAdministrationWebTests.cs`.
 No change to `Index.cshtml`, the Principals folder structure (left for
 PLAT-028/PLAT-050), `AGENTS.md` (no command/convention change), or any
 neighbour-lane file.
+
+## Correction — round 2, 2026-08-29 (adversarial verifier)
+
+The "Deliberately not done" section above claimed no catalogue entry
+existed anywhere for this page and that adding one would require the
+barred snapshot-capture script. **Both claims were wrong and are retracted
+here rather than edited away.** An entry already existed on [[UIIMP-005]]'s
+own unmerged branch (`task/uiimp-005-test-ui-gate`, PR #609) — a branch
+this ticket itself links and names as the one that found the doubled route
+in the first place. I never checked that linked branch; an independent
+verifier did (`git show origin/task/uiimp-005-test-ui-gate:docs/design/test-ui/catalogue.json`)
+and called it out correctly.
+
+**What changed to fix it:**
+
+- Added the `EvaSubmission.cshtml` entry to `docs/design/test-ui/catalogue.json`,
+  reusing UIIMP-005's entry with only the `route` field corrected to this
+  ticket's single-segment route.
+- Added `docs/design/test-ui/pages/administration-principal-eva-submission--default.html`,
+  copied byte-for-byte from UIIMP-005's branch (its markup contains no
+  route text, so the copy needed no edit for the corrected route to be
+  accurate).
+- Did **not** run `scripts/Update-TestUiSnapshots.ps1` (still barred) —
+  reused already-captured, real content instead of fabricating it or
+  capturing fresh.
+- Left `docs/design/test-ui/index.html` unregenerated: it's a generated
+  artifact rewritten wholesale by the barred capture script, and
+  `Test-UiCatalogue.ps1` doesn't cross-check it against `catalogue.json`.
+
+**Verification, re-run:**
+
+- `pwsh -NoProfile -Command "dotnet build ./Pegasus.slnx --configuration Release"`
+  — Build succeeded, 0 warnings, 0 errors (re-run after the catalogue
+  change; unaffected since it's a data file, but re-run for completeness).
+- `pwsh -NoProfile -Command "dotnet test ./Pegasus.slnx --configuration Release --no-build --filter 'FullyQualifiedName~OrganizationAdministrationWebTests'"`
+  — **Passed: 2, Failed: 0, Skipped: 0, Total: 2** (unchanged from round 1).
+- `pwsh -NoProfile -Command "& ./scripts/Test-UiCatalogue.ps1"` — this
+  ticket's own page is no longer reported. The script still exits 1
+  overall, on two pre-existing defects that are **not this ticket's
+  file**: `src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml` is uncatalogued
+  ([[CASE-012]]'s file, its own PR #615 is open) and
+  `docs/design/test-ui/pages/vehicle-images-details--default.html` has a
+  stale broken reference to the already-deleted `/VehicleImages` list
+  prototype (no clear current owner; likely Wave 5). Full reasoning,
+  evidence and the UIIMP-005 (PR #609) merge-order handover are in `plan`
+  under "Remediation round 2."
+
+**Verification bullet in the ticket body** ("One route; `Test-UiCatalogue.ps1`
+and snapshot verify pass") is **not** fully satisfied by this PR alone: this
+ticket's own catalogue contribution passes; the full script does not,
+for the two unrelated reasons above, and the snapshot-verify half of that
+bullet needs the barred capture script the lane cannot run. Recording this
+honestly rather than checking the box.
