@@ -28,11 +28,12 @@ refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 commits:
   - 4b24ca1702848ee7023b120427235ef0ac6a98a1
+  - 0a0d9eee4137139a89b72e79849fa9ff00f3b908
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/614'
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-29T08:31:37.542Z'
+updated: '2026-08-29T08:34:25.222Z'
 ---
 
 ## What
