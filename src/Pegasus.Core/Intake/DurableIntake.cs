@@ -84,22 +84,31 @@ public enum QueuedIntakeStatusKind
     Failed = 3
 }
 
+/// <param name="RetryDueAtUtc">
+/// When a transient failure has already been given its next attempt, the time
+/// that attempt is due. Set only while the work item is retry-scheduled, so a
+/// surface can say how long the work genuinely cannot progress for instead of
+/// polling as if it were about to move.
+/// </param>
 public sealed record QueuedIntakeStatus(
     Guid StagedReceiptId,
     string SourceFileName,
     DateTimeOffset ReceivedAtUtc,
     QueuedIntakeStatusKind Status,
     Guid? ProcessedReceiptId,
-    Guid? CaseId,
     string? FailureCode,
     DateTimeOffset? RetryDueAtUtc = null);
 
 public static class QueuedIntakeStatusKinds
 {
     /// <summary>
-    /// The staff-facing state of a work item. Everything before a lease is
-    /// held reads as Received: staff are told the file is safe and waiting,
-    /// not which internal queue step it is on.
+    /// The staff-facing state of a work item. Everything before the work has
+    /// been picked up reads as Received: staff are told the file is safe and
+    /// waiting, not which internal queue step it is on. Once it has been
+    /// picked up it reads as Processing, and a transient failure that has
+    /// already been given its next attempt stays Processing — the work is in
+    /// hand and still moving, so reporting it as freshly Received would be
+    /// untrue.
     /// </summary>
     public static QueuedIntakeStatusKind FromWorkState(IntakeWorkState state) => state switch
     {
@@ -112,27 +121,6 @@ public static class QueuedIntakeStatusKinds
         IntakeWorkState.Failed => QueuedIntakeStatusKind.Failed,
         _ => throw new InvalidOperationException($"Unknown IntakeWorkState value '{(int)state}'.")
     };
-}
-
-public static class QueuedIntakeRefreshDelay
-{
-    private const int ImmediateMilliseconds = 2_000;
-    private const int MaximumMilliseconds = 60_000;
-
-    public static int GetMilliseconds(QueuedIntakeStatus status, DateTimeOffset nowUtc)
-    {
-        ArgumentNullException.ThrowIfNull(status);
-        if (status.Status is not (QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
-            || status.RetryDueAtUtc is not { } dueAtUtc)
-        {
-            return ImmediateMilliseconds;
-        }
-
-        return Math.Clamp(
-            (int)Math.Ceiling((dueAtUtc - nowUtc).TotalMilliseconds),
-            ImmediateMilliseconds,
-            MaximumMilliseconds);
-    }
 }
 
 public interface IQueuedIntakeStatusQueries
