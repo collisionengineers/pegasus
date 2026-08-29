@@ -273,8 +273,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Closure.cshtml",
     "route": "/Cases/{id:guid}/Closure",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only closure actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Create.cshtml",
@@ -366,8 +366,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Workflow.cshtml",
     "route": "/Cases/{id:guid}/Workflow",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only workflow actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Connect/Authorize.cshtml",

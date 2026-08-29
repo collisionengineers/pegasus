@@ -55,7 +55,7 @@
                     <dt>Outcome</dt>
                     <dd>
                         <partial name="Shared/_StatusChip" model="@OutcomeLabel(attempted.Outcome)"
-                                 view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" }' />
+                                 view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OutcomeTone(attempted.Outcome) }' />
                     </dd>
                 </dl>
             </div>
@@ -93,5 +93,14 @@
         EvaSubmissionOutcome.Rejected => "Refused by EVA",
         EvaSubmissionOutcome.Partial => "Sent, no reference returned",
         _ => "EVA could not be reached"
+    };
+
+    // _StatusChip's rule (docs/design/README.md): red is blocked/failed/denied,
+    // amber is incomplete/pending. A refusal and an unreachable transport are
+    // both failures; only Partial actually reached EVA with something missing.
+    private static string OutcomeTone(EvaSubmissionOutcome outcome) => outcome switch
+    {
+        EvaSubmissionOutcome.Partial => "amber",
+        _ => "red"
     };
 }
