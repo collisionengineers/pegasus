@@ -64,3 +64,46 @@ as evidence, not as mitigation for a live threat.
 - Web carries one `Features__*` setting: `Features__AutomationMcp=true`.
   `Features__ProviderApi` is absent and therefore closed.
 - `azd`, `oras` and PowerShell 7.6.5 are all present on PATH.
+
+## Docs pass — measured staleness, 2026-08-29
+
+The release skill's step 10 says the release "is unfinished until both
+current-state documents match what was actually deployed". Measured against
+`dev` before the deploy, they do not come close. Occurrence counts:
+
+| Term | `current-architecture.md` | `operations.md` |
+| --- | --- | --- |
+| Integrated Operations Workspace | 0 | 0 |
+| `AiJobs` | 0 | 0 |
+| `NamedEstimates` | 0 | 0 |
+| `CaseValuations` | 0 | 0 |
+| `VehicleImages` | 1 (as a list page that no longer exists) | 0 |
+
+So the four subsystems this release ships are documented nowhere in the
+as-built snapshot, and the one stale mention describes a deleted page.
+
+**Release-number prose is wrong in two places, not one.** `operations.md:296`
+reads "the estate currently serves **release 35**" and `:385` says "served
+release 35 unchanged throughout", while the release table at `:314` correctly
+records **36**. Release 36's commit added its table row and missed the prose —
+and release 35's evidently did too. Fix all three, and add release 37's row plus
+its prose entry, rather than repeating the same miss a third time.
+
+Also to correct in the same pass:
+
+- `operations.md:121` — "Not implemented: no endpoint, client, credential, or
+  caller" for the Provider API. Already stale against source; **actively false**
+  once this release deploys the enabled gate. Rewrite it to say the endpoint and
+  gate are live and that no credential has been issued, which is what actually
+  closes the route.
+- `open-decisions.md:57` — "Operations must not imply that `Features:SendToAi`
+  or `Features:AutomationMcp` is production enabled." `Features__AutomationMcp`
+  has been `true` in `infra/modules/platform.bicep` since ADR-0026, so half that
+  sentence is now wrong. `Features:SendToAi` genuinely remains disabled and
+  cannot be enabled (`SendToAi.cs:42` throws outside DevelopmentOffline), so the
+  constraint survives for SendToAi alone. Split it rather than deleting it.
+
+None of this is written before the deploy. Per the skill it is written **after**,
+carrying the observed SHA, manifest hash, image digest, revision and migration
+head, then delivered by reviewed PR to `dev` and put on `main` by a **second,
+freshly authorised promotion-only pass**.
