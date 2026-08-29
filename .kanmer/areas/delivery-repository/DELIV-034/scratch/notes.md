@@ -1,0 +1,1 @@
+PR opened: https://github.com/collisionengineers/pegasus/pull/624 (task/deliv-034-credential-tamper-flake -> dev). Ticket left in Review per lane instructions (never merge, never move to done). Out-of-lane build defect reported (not fixed): CS1739 in tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs:284, pre-existing on origin/dev.

@@ -324,3 +324,119 @@ Not touched, deliberately: `docs/design/test-ui/pages/administration-configurati
 is now further stale. `waves.md` regenerates snapshots "once per merge on the
 merging branch only" and this lane was told not to run the capture script;
 merged sibling PLAT-023 (6bf5f789) set the same precedent.
+
+## Round 3 — Codex remediation of the round-2 Codex verifier refusal, 2026-08-29
+
+Round-2's cross-model verifier passed the rail-parity and single-heading
+must-close items but refused the third: "the technical rationale for
+PLAT-062 is credible, but it establishes why an operator decision is
+necessary; it does not supply that decision or close the must-close
+finding." Per the disposition rule (fixing is the default, deferring is the
+last resort), Codex (gpt-5.6-sol, xhigh) was driven a second time in this
+lane with an explicit instruction: read what the existing Core configuration
+port actually supports, and build the remaining §1.12 control groups unless
+a control group genuinely has no backing Core capability — in which case
+name precisely which port is missing and what its shape would be, rather
+than deferring the whole group again.
+
+### Merge
+
+`origin/dev` had advanced to `cba29a4f` (PLAT-054, TICK-058, INTK-001,
+PLAT-052, AUTO-006 merged since round 2). Merged by the orchestrator
+(Claude), one conflict in `src/Pegasus.Web/Presentation/OperatorLabels.cs`
+between this lane's `WorkflowConfiguration` nested class and TICK-058's new
+`ProviderSubmissionApi` nested class — resolved by keeping both as separate
+nested static classes, nothing reordered. Merge commit `12823c33`, pushed.
+
+**Pre-existing, out-of-lane build break discovered during the merge** (not
+introduced by this merge — independently confirmed present on `origin/dev`
+at `cba29a4f` by itself, before this branch's changes): INTK-001 removed the
+`CaseId` parameter from `QueuedIntakeStatus`
+(`src/Pegasus.Core/Intake/DurableIntake.cs`), but TICK-058's
+`tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs:284` still
+constructs it with `CaseId: null`, so `dotnet build ./Pegasus.slnx
+--configuration Release` fails with CS1739. Neither file belongs to this
+lane; reported, not fixed, per "touch only your lane's files."
+
+### Codex's conclusion — PLAT-062 deferral stands, with the missing shape named precisely
+
+Codex re-verified the round-2 blocker analysis against the current Core
+contract and confirmed both remaining groups genuinely have no backing:
+
+- **Instruction completeness** — its former persisted fields were
+  deliberately removed by
+  `20260825001401_RemoveWorkflowCompletenessWaivers.cs`; `CaseLifecycle.cs:551`
+  unconditionally requires both completeness facts today. Making them
+  administrator-togglable is the fail-closed-invariant change round 2 already
+  identified.
+- **Due work (chase interval)** — `CaseWorkScheduling.cs:74` hardcodes a
+  seven-day London-calendar schedule with no configuration input anywhere in
+  the call chain.
+
+Conclusion: adding Razor-only controls with no backing Core field would be an
+operator-visible setting with no production caller (rule 14 / D20-D22) —
+worse than not shipping it. **No repository code change was made.** Instead
+Codex named the precise minimum extension shape for PLAT-062's own plan to
+implement:
+
+```
+CaseWorkflowConfiguration(
++   bool RequireCompleteInstructionsBeforeEngineerAssignment,
++   bool RequireCompleteImagesBeforeEngineerAssignment,
++   int DueWorkChaseIntervalDays,
+    bool RequireStaffInstructionReviewBeforeEngineerAssignment,
+    bool RequireStaffImageReviewBeforeEngineerAssignment,
+    string PolicyKey,
+    int PolicyVersion)
+```
+
+— flowing through `UpdateWorkflowConfigurationRequest`,
+`WorkflowConfigurationEntity`, the store's history snapshot/replay, and
+production consumers, with PLAT-062 still owning the operator decision on
+interval validation and the effect on already-scheduled chases.
+
+Codex also found and corrected an **honesty defect** in PR #622's own
+description, which still carried round-1's stale numbers (claimed exit 0 /
+3 passed) instead of round 2's real ones (exit 1 on the pre-existing
+unrelated CS1739 / 4 passed). PR #622 body was rewritten with the current,
+accurate evidence and the precise missing-contract-shape section above.
+
+### Disposition
+
+- **[must-close] Scope reduction — two of three §1.12 control groups
+  unbuilt.** **REJECTED as in-lane work a second time, with a sharper
+  disposition than round 2**: not merely "credible rationale", but the exact
+  missing port fields and consumers are now named, so a future PLAT-062
+  implementer does not have to re-derive them. The deferral to [[PLAT-062]]
+  stands. This is disposition 4 (last resort) reaffirmed, not a new
+  deferral — the same two groups round 2 already identified as needing an
+  operator decision this lane cannot supply.
+- **[honesty] Stale build/test evidence in PR #622's description.** FIXED —
+  PR body corrected to the real round-2/round-3 numbers.
+
+### Independent verification (orchestrator, Claude, 2026-08-29)
+
+- `git diff --stat origin/dev...HEAD` — unchanged from round 2: exactly
+  `Configuration.cshtml`, `Configuration.cshtml.cs`, `OperatorLabels.cs`
+  (append-only), `WorkflowConfigurationWebTests.cs` (new). No new commit this
+  round — confirmed `git log` head is still the round-2 merge commit
+  `12823c33`, matching PR #622's `headRefOid`.
+- `git diff origin/dev...HEAD -- tests/` — `211 0`, one new file only; no
+  assertion touched, weakened, or deleted this round.
+- `dotnet build ./Pegasus.slnx --configuration Release` — **exit 1**, 0
+  warnings, 1 error: the pre-existing `CS1739` at
+  `ProviderSubmissionTests.cs:284` above. Confirmed the same error exists on
+  `origin/dev` alone (verified via `git show origin/dev:...`), independent of
+  this branch.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "FullyQualifiedName~WorkflowConfigurationWebTests"` — **exit 0, Passed: 4,
+  Failed: 0, Skipped: 0** (uses the stale-but-still-valid pre-merge
+  Pegasus.Core.Tests binary via `--no-build`; IntegrationTests itself compiles
+  clean).
+- PR #622 body confirmed rewritten with the corrected evidence and the
+  missing-shape section; `headRefOid` matches local `HEAD`.
+- Branch already pushed (the round-2/merge commit was pushed by the
+  orchestrator before dispatching Codex); nothing further to push.
+
+PR #622 remains open against `dev`, unmerged, needing a fresh review pass on
+round 3's PR-description-only change before any merge.
