@@ -77,6 +77,28 @@ public sealed class IdentityUseCaseTests
         Assert.Equal("Quarterly review", store.ReviewRequest?.Reason);
     }
 
+    [Fact]
+    public async Task StaffAccountCannotDisableOrReviewItself()
+    {
+        var staffId = Guid.Parse("b0a0e70a-1b8c-4ee4-bc21-1de58b73cf0c");
+        var actor = ActionActor.Staff(staffId, [StaffRole.Administrator]);
+        var store = new RecordingStaffStore();
+
+        var disable = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            new DisableStaffAccount(store).ExecuteAsync(
+                new(actor, staffId, "Disable self", "disable-self"),
+                default));
+        var review = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            new ReviewStaffAccess(store).ExecuteAsync(
+                new(actor, staffId, "Review self", "review-self"),
+                default));
+
+        Assert.Equal(StaffAccountAdministrationError.SelfAction, disable.Error);
+        Assert.Equal(StaffAccountAdministrationError.SelfAction, review.Error);
+        Assert.Null(store.DisableRequest);
+        Assert.Null(store.ReviewRequest);
+    }
+
     private static StaffAccountSummary Account(Guid id) =>
         new(id, "staff", true, false, [StaffRole.User], null);
 
