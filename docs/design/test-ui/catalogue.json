@@ -219,6 +219,19 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/EvaSubmission.cshtml",
+    "route": "/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principal-eva-submission--default.html",
+        "branch": "Loaded organization and principal with the EVA API submission settings form.",
+        "scenario": "administration-principal-eva-submission--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Principals/Index.cshtml",
     "route": "/Administration/Principals",
     "classification": "visual",
