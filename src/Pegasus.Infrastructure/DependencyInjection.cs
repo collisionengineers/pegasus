@@ -334,6 +334,12 @@ public static class DependencyInjection
         services.AddScoped<IDiscardEstimate, DiscardEstimate>();
         services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
         services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
+        services.AddScoped<EfValuationStore>();
+        services.AddScoped<IValuationStore>(provider =>
+            provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<ISaveValuation, SaveValuation>();
+        services.AddScoped<IEditValuation, EditValuation>();
+        services.AddScoped<IListCaseValuations, ListCaseValuations>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();
