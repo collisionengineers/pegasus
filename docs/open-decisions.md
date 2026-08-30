@@ -54,7 +54,16 @@ The future AI job catalogue and AI Viewer remain unresolved and unimplemented.
 Before allocation, decide the permitted job types and eligibility, request and
 execution lifecycle, transcript/event wire format, retention, redaction, and
 the production transport and activation evidence. Operations must not imply
-that `Features:SendToAi` or `Features:AutomationMcp` is production enabled.
+that `Features:SendToAi` is production enabled — it is not, and it cannot be:
+`src/Pegasus.Web/AiWork/SendToAi.cs:42` throws unless the runtime profile is
+`DevelopmentOffline`, so setting it in production crash-loops the host rather
+than enabling anything.
+
+`Features:AutomationMcp` **is** production enabled, and has been since release 9
+under ADR-0026; the earlier wording here paired the two flags and was wrong
+about that half. `Features:ProviderApi` became production enabled at release 37,
+which admits nobody until a credential is issued
+([operations](operations.md#production-environment)).
 
 ## QDOS alpha activation details (migrated from the retired delivery plan)
 
