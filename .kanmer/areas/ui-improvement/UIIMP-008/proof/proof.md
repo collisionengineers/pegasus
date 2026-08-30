@@ -504,3 +504,110 @@ failure, not a compile error. That is precisely why it shipped.
   the reason for it.
 - **No browser was driven.** The inert-link consequence is proven from a
   committed Razor render plus source reading, not from a live page load.
+
+---
+
+# CLEARED — re-audited 2026-08-30 against deployed `main`
+
+## Verdict: the hold above is **stale**. This ticket reaches Done.
+
+Re-audited against **`origin/main` at `fb3f07acc8cca8d9d8b57db8a431b607772436dc`**,
+which is what release 37 deployed to production on 2026-08-30. The two SHAs the
+sections above were written at (`b92cb9a7`, `450b9234`) are both ancestors of it.
+
+This is no longer dev-merged evidence: the promotion happened, so the code
+audited here is the code production serves.
+
+## The defect the hold was raised on is fixed
+
+The `# HELD` section held this ticket because `RecordPage` returned
+`"/Operations"`, which is not a Razor page name, leaving "Open full record" and
+"Next permitted action" inert. On `main`:
+
+```
+git show origin/main:src/Pegasus.Web/Pages/Index.cshtml.cs
+58:    public static string RecordPage(NeedsAttentionKind kind) => kind switch
+60:        NeedsAttentionKind.Case or NeedsAttentionKind.HeldDecision => "/Cases/Details",
+61:        NeedsAttentionKind.Mail => "/Unidentified/Details",
+62:        NeedsAttentionKind.Triage => "/Triage/Details",
+63:        _ => "/Operations/Index"
+```
+
+Fixed by **PR #628, "fix(shell): name the Operations page so its links
+resolve (UIIMP-008)"** — this ticket's own follow-up lane, merged into the
+release.
+
+Every `asp-page` value the Work Centre emits resolves to a real page file:
+
+| `asp-page` | Backing file on `main` |
+| --- | --- |
+| `/Cases/Details` | `src/Pegasus.Web/Pages/Cases/Details.cshtml` |
+| `/Unidentified/Details` | `src/Pegasus.Web/Pages/Unidentified/Details.cshtml` |
+| `/Triage/Details` | `src/Pegasus.Web/Pages/Triage/Details.cshtml` |
+| `/Operations/Index` | `src/Pegasus.Web/Pages/Operations/Index.cshtml` |
+| `/Cases/Index`, `/Cases/Create`, `/Index` | present |
+
+`Pages/Intake/Details.cshtml:36`, the second bad spelling the hold named, now
+reads `asp-page="/Operations/Index"`.
+
+## The rest of the ticket's named capabilities, censused
+
+Rule 14 asks for every capability the ticket names, not just the one it was
+held on.
+
+| Named capability | Evidence on `main` |
+| --- | --- |
+| Five needs-attention kinds | All five produced in `Pages/Index.cshtml.cs`: `Case` (:60), `HeldDecision` (:60), `Mail` (:61), `Triage` (:62), `ExternalWork` (:71) |
+| Five-metric strip → `/Cases?tab=…` | `asp-route-tab` values rendered: `not_ready`, `review`, `held`, `unidentified` ×2 — the second being Blocked, which routes to `?tab=unidentified` exactly as decision **D14** requires |
+| Selected-work detail: Next permitted action, Copy reference | present in `Pages/Index.cshtml` |
+| No inert "Filter" control | no `Filter` control in the rendered markup — the ticket's explicit prohibition holds |
+| `DashboardCounts` / `IGetOperationsSnapshot` | consumed by `src/Pegasus.Web/Pages/Index.cshtml.cs`, the routed `/` page — a real caller, not a registration |
+
+No capability this ticket names is registered-but-unreachable. The D21 table's
+failing row does not apply.
+
+## A defect found while auditing — NOT this ticket's, and filed separately
+
+The audit swept every `asp-page` in the application for a value with no backing
+page, and found **one survivor of the same defect class**:
+
+```
+src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml:40
+  <a class="btn" asp-page="/Operations">
+```
+
+Reached from `Pages/Cases/Details.cshtml:318` → `_CaseFiles` →
+`_CaseDocuments`, rendered when `Model.Section == "case-files"` — a live
+operator route, deployed. It is **CASE-027's owned file**, not this ticket's
+(`Cases/Shared/_CaseDocuments.cshtml` is named in CASE-027's *Owns*), so under
+rule 2 it is filed as its own ticket rather than absorbed here or used to hold
+this one.
+
+Worth recording why it survived: **no snapshot state captures
+`?section=case-files`** — the corpus holds `case-details--default`,
+`--conflict` and `--unavailable` only — so neither UIIMP-008's fix nor
+UIIMP-005's new CI gate could have caught it.
+
+## What this evidence does NOT prove
+
+- **No browser or layout walk.** Nothing here claims the Work Centre is free of
+  clipped text or overflow at 1580/1100/760 — **UIIMP-010** owns that, and it is
+  still in backlog. The ticket's second verification line remains unproven.
+- **No live click-through.** The links are proven to *resolve to a page* by
+  static census; nobody has clicked them in the deployed estate.
+- **Single-model audit.** Unlike the earlier walks on this ticket, this pass was
+  not independently refuted by a second model family. The evidence is
+  mechanical — file existence and string census — rather than judgement, which
+  is why that was judged acceptable here; it would not be for a behavioural claim.
+- `MailActivityCounts.ReceivedToday` is still queried and rendered nowhere
+  (**PLAT-058**, backlog). It is linked from this ticket and is not part of its
+  named contract.
+
+## Commands run
+
+```
+git show origin/main:src/Pegasus.Web/Pages/Index.cshtml.cs        -> exit 0
+git ls-tree -r --name-only origin/main -- src/Pegasus.Web/Pages   -> exit 0
+git grep -n 'Operations' origin/main -- src/Pegasus.Web           -> exit 0
+per-asp-page existence sweep (git cat-file -e)                    -> 1 miss, named above
+```
