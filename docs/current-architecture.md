@@ -105,7 +105,7 @@ in force here:
 - `GET /Operations` calls the Core Operations projection for retryable external work and active unexpired Pegasus-generated upload links. It has no approval controls, general receipt ledger, manual/email/Automation receipt display, or Box request caller. The separately planned principal-scoped provider API is not inferred from the Automation/MCP ingress. `GET /Received/{id}` calls `GetIntake`, and its retained receipt mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
 - `GET /VehicleImages/{id:guid}` calls Core `IImageIntakeQueries` for the image-intake detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; it is a read-only authenticated staff page. **EPIC-011 removed the standalone `/VehicleImages` list page only** — the detail page remains, and is now reached from `/Cases`, the case Files view, the received-material detail page and Search rather than from a list of its own. The association-filtered list query it served is now part of those surfaces.
-- `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
+- `/Triage/{id:guid}` is the physical detail owner for Core triage queries and commands. **`/Triage` is no longer a list page**: since EPIC-011 it is a `RedirectPermanent` to `/Cases`, carrying its queue through as a tab, and the list itself is served by `/Cases`. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - The Case documents surface links confirmed custody directly to the case's real
   Box folder. The superseded internal Box File Request create/revoke mechanism
@@ -292,10 +292,11 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
 - `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
 
-## Operations workspace surfaces added at release 37
+## Operations workspace subsystems
 
-EPIC-011 replaced the operator surfaces and added four subsystems that earlier
-revisions of this document do not describe. Each is Core-owned with its
+EPIC-011 replaced the operator surfaces and added four subsystems. This section
+describes current state, not a release note; the release that introduced them is
+recorded in [operations](operations.md#production-environment). Each is Core-owned with its
 persistence in `Pegasus.Infrastructure`; none introduces a parallel policy
 engine.
 
