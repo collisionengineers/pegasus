@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-28T18:49:33.063Z'
   verifying: '2026-08-28T19:23:45.754Z'
   done: '2026-08-29T10:26:28.429Z'
-taken_at: '2026-08-28T18:42:18.698Z'
-branch: task/plat-023-operations
-worktree: ../pegasus-worktrees/plat-023-operations
 labels:
   - ui
   - operations
@@ -32,7 +29,7 @@ prs:
   - '602'
 archived: false
 created: '2026-08-21T13:19:14.290Z'
-updated: '2026-08-29T10:26:28.429Z'
+updated: '2026-08-30T20:24:37.473Z'
 ---
 
 ## What

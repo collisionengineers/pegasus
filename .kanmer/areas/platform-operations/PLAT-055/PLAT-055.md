@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-28T14:22:45.644Z'
   verifying: '2026-08-30T20:10:09.261Z'
   done: '2026-08-30T20:22:30.608Z'
-taken_at: '2026-08-28T14:06:40.544Z'
-branch: task/plat-055-restore-eva-secret
-worktree: ../pegasus-worktrees/plat-055-restore-eva-secret
 labels:
   - production
   - eva
@@ -26,7 +23,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-28T14:01:57.910Z'
-updated: '2026-08-30T20:22:30.608Z'
+updated: '2026-08-30T20:25:03.870Z'
 ---
 
 ## What

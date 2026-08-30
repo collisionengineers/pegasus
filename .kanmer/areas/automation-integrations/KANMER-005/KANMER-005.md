@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-28T11:12:40.763Z'
   verifying: '2026-08-28T15:52:01.312Z'
   done: '2026-08-29T10:24:46.383Z'
-taken_at: '2026-08-28T10:57:56.937Z'
-branch: task/kanmer-005-lease-exclusivity
-worktree: ../pegasus-worktrees/kanmer-005-lease-exclusivity
 labels:
   - bug
   - lease
@@ -37,7 +34,7 @@ prs:
   - '593'
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-29T10:24:46.383Z'
+updated: '2026-08-30T20:24:30.884Z'
 ---
 
 ## What

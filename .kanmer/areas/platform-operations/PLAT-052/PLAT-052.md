@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-28T21:48:44.582Z'
   verifying: '2026-08-29T17:19:16.146Z'
   done: '2026-08-29T17:19:28.734Z'
-taken_at: '2026-08-28T21:46:06.049Z'
-branch: task/plat-052-eva-submission-route
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-052-eva-submission-route'
 labels:
   - routes
   - principals
@@ -36,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/614'
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-29T17:19:28.734Z'
+updated: '2026-08-30T20:24:53.952Z'
 ---
 
 ## What

@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-27T16:11:29.517Z'
   verifying: '2026-08-28T02:20:11.959Z'
   done: '2026-08-29T17:22:34.394Z'
-taken_at: '2026-08-27T12:14:41.724Z'
-branch: task/tick-077-eva-api-submission
-worktree: ../pegasus-worktrees/tick-077-eva-api-submission
 labels:
   - capability
   - EXT-04
@@ -31,7 +28,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.045Z'
-updated: '2026-08-29T17:22:34.394Z'
+updated: '2026-08-30T20:25:09.945Z'
 ---
 
 ## What

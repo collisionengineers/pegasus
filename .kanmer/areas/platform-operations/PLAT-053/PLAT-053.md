@@ -13,10 +13,6 @@ stageEntered:
   review: '2026-08-28T21:38:14.763Z'
   verifying: '2026-08-29T09:19:31.480Z'
   done: '2026-08-29T09:59:39.943Z'
-taken_at: '2026-08-28T21:36:22.183Z'
-branch: task/plat-053-external-work-vocabulary
-worktree: >-
-  C:/Users/PC/Documents/GitHub/pegasus-worktrees/plat-053-external-work-vocabulary
 labels:
   - backend
   - simplification
@@ -35,7 +31,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/613'
 archived: false
 created: '2026-08-28T10:58:39.368Z'
-updated: '2026-08-29T09:59:39.943Z'
+updated: '2026-08-30T20:24:57.569Z'
 ---
 
 ## What

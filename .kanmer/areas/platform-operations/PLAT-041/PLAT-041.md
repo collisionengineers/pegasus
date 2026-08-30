@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-24T09:58:00.305Z'
   verifying: '2026-08-24T14:56:59.352Z'
   done: '2026-08-26T14:38:59.774Z'
-taken_at: '2026-08-24T08:42:25.801Z'
-branch: task/plat-041-box-round-trips
-worktree: ../pegasus-worktrees/plat-041
 labels:
   - qdos26014
   - qdos26015
@@ -29,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T15:19:04.949Z'
-updated: '2026-08-26T14:38:59.774Z'
+updated: '2026-08-30T20:24:44.064Z'
 ---
 
 ## What the operator saw

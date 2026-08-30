@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-28T08:21:12.901Z'
   verifying: '2026-08-28T08:31:39.331Z'
   done: '2026-08-29T10:08:49.927Z'
-taken_at: '2026-08-28T08:12:15.816Z'
-branch: task/uiimp-006-design-authority
-worktree: ../pegasus-worktrees/uiimp-006-design-authority
 labels:
   - ui
   - design
@@ -34,7 +31,7 @@ prs:
   - '587'
 archived: false
 created: '2026-08-28T08:05:30.031Z'
-updated: '2026-08-29T10:08:49.927Z'
+updated: '2026-08-30T20:25:13.491Z'
 ---
 
 ## What

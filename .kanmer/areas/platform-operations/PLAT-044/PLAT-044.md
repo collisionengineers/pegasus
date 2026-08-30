@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-25T10:07:34.510Z'
   verifying: '2026-08-25T12:11:01.727Z'
   done: '2026-08-26T14:37:52.826Z'
-taken_at: '2026-08-25T08:52:15.282Z'
-branch: task/plat-044-assessment-open-latency
-worktree: ../pegasus-worktrees/plat-044-assessment-open-latency
 labels:
   - qdos26016
   - performance
@@ -35,7 +32,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T08:46:50.919Z'
-updated: '2026-08-26T14:37:52.826Z'
+updated: '2026-08-30T20:24:47.463Z'
 ---
 
 ## What

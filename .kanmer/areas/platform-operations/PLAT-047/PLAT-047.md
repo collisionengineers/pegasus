@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-28T08:14:35.621Z'
   verifying: '2026-08-28T08:24:21.318Z'
   done: '2026-08-29T10:12:12.302Z'
-taken_at: '2026-08-28T08:13:02.931Z'
-branch: task/plat-047-frd01-frd04
-worktree: ../pegasus-worktrees/plat-047-frd01-frd04
 labels:
   - docs
   - case
@@ -38,7 +35,7 @@ prs:
   - '583'
 archived: false
 created: '2026-08-28T08:05:30.098Z'
-updated: '2026-08-29T10:12:12.302Z'
+updated: '2026-08-30T20:24:50.587Z'
 ---
 
 ## What

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-28T21:35:36.002Z'
   verifying: '2026-08-29T09:19:38.119Z'
   done: '2026-08-29T10:00:51.637Z'
-taken_at: '2026-08-28T18:41:19.404Z'
-branch: task/intk-046-record-pages
-worktree: ../pegasus-worktrees/intk-046-record-pages
 labels:
   - ui
   - wave-2
@@ -41,7 +38,7 @@ prs:
   - '#605'
 archived: false
 created: '2026-08-28T08:35:23.884Z'
-updated: '2026-08-29T10:00:51.637Z'
+updated: '2026-08-30T20:24:27.502Z'
 ---
 
 ## What

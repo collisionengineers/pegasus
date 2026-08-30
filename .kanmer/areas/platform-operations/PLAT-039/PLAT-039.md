@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-23T14:48:33.792Z'
   verifying: '2026-08-23T14:48:38.369Z'
   done: '2026-08-26T14:38:20.544Z'
-taken_at: '2026-08-23T12:11:34.164Z'
-branch: task/qdos26012-regressions
-worktree: ../pegasus-worktrees/qdos26012-regressions
 labels:
   - qdos26012
   - production-defect
@@ -28,7 +25,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T12:09:36.762Z'
-updated: '2026-08-26T14:38:20.544Z'
+updated: '2026-08-30T20:24:40.467Z'
 ---
 
 ## Every Box read from the Web app fails one hour after the container starts
