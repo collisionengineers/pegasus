@@ -1,38 +1,50 @@
 # Files — UIIMP-005
 
-## Owned (modified by this ticket)
+Refreshed 2026-08-30 after the merge with `dev` at `b9dcfec9`. The earlier
+version predated that merge and listed neither the test files it touched nor
+the catalogue entry it had to add.
 
-| File | Change |
+## Tooling and the gate
+
+| Path | Change |
 | --- | --- |
-| `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs` | Normalise N-format GUIDs, the `/Error` support reference and the `OperationId` / `ExternalReceiptToken` / `Token` hidden values; strip live `data-auto-refresh`, `data-mail-preview-url`, `data-case-search-url`; per-receipt evidence-image substitution (no first-image fallback); verify rejects orphaned `pages/*.html` and compares newline-normalised text; `StateMatches` marker for the EvaSubmission page. |
-| `tests/Pegasus.IntegrationTests/TestUiResponseCapture.cs` | Collision-safe capture directory writes (unique staging directory, then move; identical hash already present is a no-op). |
-| `tests/Pegasus.IntegrationTests/TestUiFocusedRenderTests.cs` | Unidentified render driven by the real pipeline on the repository PNG fixture (`MultiFormatFixture.TinyPngBase64` + `FakeVrmRecognitionEngine`) instead of invented `test detail` / `test-worker` data; fetches the receipt image so the snapshot carries its own receipt. |
-| `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs` | `IntakeWebDriver.GetHtmlAsync` fetches the receipt images a captured page references when `PEGASUS_TEST_UI_CAPTURE_DIR` is set; single `ReceiptImageUrlRegex` definition. |
-| `tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs` | Fetches the EvaSubmission page through `GetHtmlAsync` for the existing `WEBP` principal so a capture records it. |
-| `docs/design/test-ui/catalogue.json` | Entry for `Administration/Principals/EvaSubmission.cshtml` (visual, one `default` state, `pages/administration-principal-eva-submission--default.html`). Owned here by orchestrator decision on 2026-08-28, pre-empting PLAT-029's catalogue ownership for this one entry: a gate that fails on `dev` is this ticket's finding. |
-| `scripts/Update-TestUiSnapshots.ps1` | `Category!=Corpus` on the capture filter; `-- xUnit.MaxParallelThreads=2`. |
-| `scripts/Get-CiChangeFlags.ps1` | `docs/design/test-ui/` and the two Test UI scripts join the build pattern. |
-| `scripts/Test-CiChangeFlags.ps1` | Regression cases for the new build paths. |
-| `.github/workflows/ci.yml` | `documentation` runs `Test-UiCatalogue.ps1` on every change set; new `test-ui` job in the build lane runs one capture + verify on Windows with the pinned Playwright Chromium. |
-| `AGENTS.md` | `## Commands`: the regenerate/verify convention. |
+| `.github/workflows/ci.yml` | New `test-ui` job — one capture run then a verify against the committed corpus. `timeout-minutes: 45` |
+| `scripts/Update-TestUiSnapshots.ps1` | Hardened; `-Verify` is what CI runs |
+| `scripts/Get-CiChangeFlags.ps1`, `scripts/Test-CiChangeFlags.ps1` | Change-flag plumbing for the new job |
 
-## Consumed, not modified
+## Determinism — the reason the first regenerated corpus was stale
 
-- `scripts/Test-UiCatalogue.ps1` — already rejects unlinked prototypes; CI now calls it.
-- `docs/design/test-ui/pages/*.html`, `index.html` — not regenerated here (the orchestrator regenerates; `index.html` is rebuilt from the manifest by the generator).
-- `.github/actions/dotnet-build/action.yml`, `tests/Pegasus.IntegrationTests/xunit.runner.json` — reused as-is.
-- `src/Pegasus.Web/wwwroot/js/site.js` — verified that a missing `data-auto-refresh` / `data-mail-preview-url` / `data-case-search-url` attribute is a guarded no-op.
-- `src/Pegasus.Web/Pages/Error.cshtml`, `Upload.cshtml`, `Cases/Create.cshtml`, `Uploads/Request.cshtml`, `UploadGroupStatus.cshtml`, `Administration/Principals/EvaSubmission.cshtml(.cs)` — sources of the values normalised and the branch classified.
-- `docs/design/README.md` §Test UI — already states regenerate then verify; unchanged.
-
-## Belongs to another ticket
-
-- Nothing outstanding. The EvaSubmission classification gap (TICK-077) was absorbed here by orchestrator decision.
-
-## Added on the wave loop (2026-08-28, `a2b13099`)
-
-| File | Change |
+| Path | Change |
 | --- | --- |
-| `tests/Pegasus.IntegrationTests/ImageViewingWebTests.cs` | Private `GetAsync` helper (a copy of `IntakeWebDriver.GetHtmlAsync`) removed; 3 call sites use the shared helper, so `/VehicleImages/{id}` is captured with its receipt images. |
-| `tests/Pegasus.IntegrationTests/ImageIntakeWebTests.cs` | Same: private helper removed, 9 call sites rewired. |
-| `docs/design/test-ui/catalogue.json` (`4a40bcc9`) | EvaSubmission route corrected to the page's effective route `/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}/EvaSubmission`. |
+| `tests/Pegasus.IntegrationTests/TestUiResponseCapture.cs` | `LayoutClockRegex` normalises the layout clock to `{{office-clock}}`, scoped to `<span>Current · HH:MM</span>` so the mail freshness banner (`<time datetime=…>`, a real last-sync value) is untouched |
+| `tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs` | Three wall-clock sources replaced by the host `TimeProvider` — the receipt pair, and one `RegisterUnidentified` occurrence time the first sweep missed |
+
+`_Layout.cshtml` renders both freshness clocks from render time, and one capture
+host (`AutomationConnectorAuthorizationTests`) deliberately uses
+`TimeProvider.System` and cannot be pinned — so every captured page carried the
+minute it ran. Without this the new job is red on every run.
+
+## Catalogue
+
+| Path | Change |
+| --- | --- |
+| `docs/design/test-ui/catalogue.json` | Classified `Administration/Accounts/Confirm.cshtml`, which PLAT-027 added without an entry; kept `dev`'s `EvaSubmission` route over the branch's doubled one |
+| `docs/design/test-ui/pages/**`, `index.html` | Corpus regenerated against `dev` |
+
+## Tests reconciled with `dev`
+
+Ten files, all merged rather than taken. No test method was lost — 260 `.cs`
+files under `tests/` on both sides, zero added or deleted.
+
+| Path | What the merge had to resolve |
+| --- | --- |
+| `CaseDetailsWebTests.cs` | Both sides added a property to `RecordingCaseDetailsStore` at the same spot; **both kept**. 17 branch + 21 dev → 22 merged. `dev`'s test pinning the claimant contact-number/address save fix survives |
+| `OrganizationAdministrationWebTests.cs` | **Auto-merged but broken** — both sides added an EVA submission fetch to the same method, producing a duplicate local and a compile error. Kept `dev`'s full test, routed its GET through the shared driver |
+| `ImageIntakeWebTests.cs`, `ImageViewingWebTests.cs` | Branch's shared `IntakeWebDriver.GetHtmlAsync` on `dev`'s `?section=case-files` URL |
+| `TestUiSnapshotTests.cs` | Took `dev`'s two-part `eva-submission` marker over the branch's single one; five markers repointed at copy EPIC-011 replaced; removed a dead entry for a page `dev` deleted |
+| `TestUiFocusedRenderTests.cs`, `IntakeWebTestSupport.cs`, `StaffAccountsAndRolesWebTests.cs` | Reconciled |
+
+## Notably NOT changed
+
+**Zero `src/` changes.** `git diff --stat origin/dev...HEAD -- src/` is empty —
+this is tooling, snapshots and tests only.
