@@ -187,6 +187,7 @@ public sealed partial class TestUiSnapshotTests
         html = VolatileGuidValueRegex().Replace(html, match =>
             match.Groups[1].Value + "{{" + match.Groups[2].Value.ToLowerInvariant() + "}}" + match.Groups[3].Value);
         html = SupportReferenceRegex().Replace(html, "$1{{request-id}}$2");
+        html = LayoutClockRegex().Replace(html, "$1{{office-clock}}$2");
         html = CacheBusterRegex().Replace(html, "$1{{asset-version}}");
         var guidNumber = 0;
         var guids = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -372,6 +373,13 @@ public sealed partial class TestUiSnapshotTests
 
     [GeneratedRegex("\\s+data-(?:auto-refresh|mail-preview-url|case-search-url)=\"[^\"]*\"", RegexOptions.IgnoreCase)]
     private static partial Regex LiveAttributeRegex();
+
+    // _Layout renders the rail and utility-bar clocks from the render time
+    // itself, so a fresh capture carries the minute it ran. The mail
+    // freshness banner is a different value — the last sync, inside a
+    // <time> element — and is left alone.
+    [GeneratedRegex("(<span>Current · )\\d{1,2}:\\d{2}(</span>)", RegexOptions.IgnoreCase)]
+    private static partial Regex LayoutClockRegex();
 
     [GeneratedRegex("([?&]v=)[A-Za-z0-9_-]+", RegexOptions.IgnoreCase)]
     private static partial Regex CacheBusterRegex();
