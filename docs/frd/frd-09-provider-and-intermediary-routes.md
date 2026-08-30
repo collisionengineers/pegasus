@@ -114,7 +114,13 @@ HTTP already holds the fields, and states them.
   an Audit find its original report among its own evidence. The receipt enters
   the same durable intake path as a staff upload, on the `provider_api` source
   channel, bound to the authenticated Principal, and the submission is the
-  attributable action actor in permanent history.
+  attributable action actor in permanent history. If process loss separates
+  the accept writes, the existing reconciliation timer repairs the staged-
+  receipt link and initial `Accepted` history row once intake retention exists.
+  A submission is accepted once: whichever of the request and the repair
+  records that acceptance first is the one row, and a repaired row states the
+  time the submission was received and says that it was completed by
+  recovery.
 - **Provenance.** Every declared value is written to the case as its own
   provenance — provider API, distinct from extraction and from staff entry —
   and is visible as such on the case. The Work Provider — the Principal — is

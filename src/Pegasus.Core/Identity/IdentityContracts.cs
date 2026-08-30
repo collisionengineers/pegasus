@@ -160,4 +160,13 @@ public interface ISecurityEventWriter
 public interface IActionHistoryWriter
 {
     Task AppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Appends an entry whose <see cref="ActionHistoryEntry.Id"/> is derived
+    /// from the operation it records rather than fresh, and answers whether
+    /// this call is the one that wrote it. False means another writer recorded
+    /// the same operation first and its row stands — an outcome to act on, not
+    /// a fault to hide.
+    /// </summary>
+    Task<bool> TryAppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken);
 }

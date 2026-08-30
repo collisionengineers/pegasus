@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -75,6 +76,21 @@ public sealed record ProviderSubmissionRecord(
     DateTimeOffset ReceivedAtUtc,
     ProviderInstruction? Instruction = null,
     Guid? StagedReceiptId = null);
+
+/// <summary>
+/// A submission whose accept writes stopped part-way and can still be
+/// completed. Its source is durably retained, so
+/// <paramref name="RetainedStagedReceiptId"/> is the receipt the interrupted
+/// accept would have written back; a bare reservation, whose retention never
+/// happened, is not a candidate at all.
+/// </summary>
+public sealed record ProviderSubmissionAcceptCandidate(
+    Guid SubmissionId,
+    Guid PrincipalId,
+    DateTimeOffset ReceivedAtUtc,
+    Guid? StagedReceiptId,
+    Guid RetainedStagedReceiptId,
+    bool HasAcceptedHistory);
 
 /// <summary>
 /// What intake needs to know about the submission a source belongs to: which
@@ -154,6 +170,18 @@ public interface IProviderSubmissionStore
     Task RecordStagedReceiptAsync(
         Guid submissionId,
         Guid stagedReceiptId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The oldest submissions whose accept writes are incomplete and whose
+    /// intake retention already exists, so every row returned can be
+    /// completed. A bare reservation is excluded by the query itself rather
+    /// than skipped by the sweep: nothing ever removes one, so a bounded
+    /// oldest-first window that admitted them would fill with rows it can
+    /// never repair and starve the ones it can.
+    /// </summary>
+    Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+        int maximumItems,
         CancellationToken cancellationToken);
 }
 
@@ -362,6 +390,22 @@ public static class ProviderSubmissionPolicy
 
     public static string SubmissionToken(Guid submissionId) => submissionId.ToString("N");
 
+    public static string OperationKey(Guid submissionId) => $"provider-submission:{submissionId:N}";
+
+    /// <summary>
+    /// The identity of a submission's one <c>Accepted</c> history row, derived
+    /// from its operation key rather than minted per write. The inline request
+    /// and the recovery sweep both record that acceptance under this id, so
+    /// whichever writes second is refused instead of both landing in permanent
+    /// history. Every other history row is its own event and keeps its own id.
+    /// </summary>
+    public static Guid AcceptedHistoryId(Guid submissionId)
+    {
+        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(Encoding.UTF8.GetBytes(OperationKey(submissionId)), hash);
+        return new Guid(hash[..16]);
+    }
+
     public static string Sha256(ReadOnlyMemory<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content.Span));
 }
@@ -446,24 +490,45 @@ public sealed class SubmitProviderInstruction(
                     new(
                         IntakeSourceChannel.ProviderApi,
                         ProviderSubmissionPolicy.SubmissionToken(existing.Id))),
-                $"provider-submission:{existing.Id:N}",
+                ProviderSubmissionPolicy.OperationKey(existing.Id),
                 cancellationToken);
         }
         catch (IntakeSourceIdentityConflictException)
         {
-            await AppendHistoryAsync(actor, existing.Id, "Refused", request.CorrelationId,
-                "The idempotency key was reused with a different submission.", cancellationToken);
+            await actionHistory.AppendAsync(
+                SubmissionHistory(Guid.NewGuid(), actor, existing.Id, "Refused", request.CorrelationId,
+                    "The idempotency key was reused with a different submission."),
+                cancellationToken);
             throw new ProviderSubmissionException(ProviderSubmissionError.IdempotencyKeyConflict);
         }
 
         await store.RecordStagedReceiptAsync(existing.Id, received.StagedReceiptId, cancellationToken);
-        await AppendHistoryAsync(
-            actor,
-            existing.Id,
-            received.IsDuplicate ? "Replayed" : "Accepted",
-            request.CorrelationId,
-            null,
-            cancellationToken);
+        if (received.IsDuplicate)
+        {
+            // Each replay is an event in its own right, so it keeps its own id
+            // and its own request correlation.
+            await actionHistory.AppendAsync(
+                SubmissionHistory(Guid.NewGuid(), actor, existing.Id, "Replayed", request.CorrelationId, null),
+                cancellationToken);
+        }
+        else
+        {
+            // One submission is accepted once. The row carries the derived
+            // identity, so when the recovery sweep has already recorded this
+            // acceptance -- it can, for a submission retried long after its own
+            // grace window -- that row stands and this write is refused rather
+            // than a second Accepted landing in permanent history. Either way
+            // the acceptance is recorded, which is all the receipt claims.
+            _ = await actionHistory.TryAppendAsync(
+                SubmissionHistory(
+                    ProviderSubmissionPolicy.AcceptedHistoryId(existing.Id),
+                    actor,
+                    existing.Id,
+                    "Accepted",
+                    request.CorrelationId,
+                    null),
+                cancellationToken);
+        }
         return new(
             existing.Id,
             existing.ReceivedAtUtc,
@@ -472,25 +537,23 @@ public sealed class SubmitProviderInstruction(
             received.IsDuplicate);
     }
 
-    private Task AppendHistoryAsync(
+    private ActionHistoryEntry SubmissionHistory(
+        Guid id,
         ActionActor actor,
         Guid submissionId,
         string outcome,
         string correlationId,
-        string? reason,
-        CancellationToken cancellationToken) =>
-        actionHistory.AppendAsync(
-            new ActionHistoryEntry(
-                Guid.NewGuid(),
-                ProviderSubmissionPolicy.ActionHistoryAggregateType,
-                submissionId.ToString("D"),
-                "Submitted",
-                actor,
-                timeProvider.GetUtcNow(),
-                outcome,
-                correlationId,
-                reason),
-            cancellationToken);
+        string? reason) =>
+        new(
+            id,
+            ProviderSubmissionPolicy.ActionHistoryAggregateType,
+            submissionId.ToString("D"),
+            "Submitted",
+            actor,
+            timeProvider.GetUtcNow(),
+            outcome,
+            correlationId,
+            reason);
 }
 
 public sealed class GetProviderSubmissionResult(

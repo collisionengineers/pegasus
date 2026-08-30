@@ -113,10 +113,29 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260828111732_GrantProviderSubmissions",
                 "20260828112103_NamedEstimates",
                 "20260828185508_ProviderDeclaredInstruction",
-                "20260829095336_CaseValuations"
+                "20260829095336_CaseValuations",
+                "20260829212237_GrantProviderSubmissionAcceptRecovery"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        // AUTO-012's accept-recovery joins compare SQL Server's uniqueidentifier
+        // conversion, which is UPPERCASE, against tokens .NET wrote lowercase
+        // (Guid.ToString("N") for ExternalReceiptToken, "D" for AggregateId).
+        // They therefore match only under a case-insensitive collation, and
+        // nothing else in the repository pins that: there is no COLLATE in the
+        // context or any migration, and the Bicep declares no database
+        // collation, so production inherits the Azure default.
+        //
+        // If that ever became case-sensitive or binary, accept recovery would
+        // become a permanent silent no-op — invisible even to the FirstFailure
+        // diagnostics, because no exception is raised — and the ActionHistory
+        // join would make every retained submission a permanent candidate,
+        // reintroducing the bounded-window starvation this ticket removed.
+        // Pinned here so the assumption fails loudly instead of silently.
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT CASE WHEN CONVERT(sysname, DATABASEPROPERTYEX(DB_NAME(), 'Collation'))"
+            + " COLLATE Latin1_General_CI_AS LIKE '%[_]CI[_]%' THEN 1 ELSE 0 END"));
+
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedOutlookCategories'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
