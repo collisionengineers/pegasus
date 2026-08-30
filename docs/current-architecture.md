@@ -31,7 +31,7 @@ Pegasus is a four-project modular monolith:
 ```mermaid
 flowchart LR
     Staff[Collision Engineers staff] --> Web[Pegasus.Web]
-    Provider[Provider API\nplanned] -. separate Web boundary .-> Web
+    Provider[Provider API\nlive, no credential issued] -. separate Web boundary .-> Web
     MCP[Automation MCP\nseparately gated] -. separate Web boundary .-> Web
 
     Web --> Core[Pegasus.Core]
@@ -104,8 +104,8 @@ in force here:
 - `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope; it is read-only and the page carries no handler. Its optional search filters retained mail in SQL before paging across the retained body, attachment filenames, and receipt-owned `IntakeSearchDocuments` projected atomically from the canonical intake-reader output. Deleted Items search instead calls Core `SearchDeletedMail`, which caps a request at the 100 newest messages and uses GET-only Graph reads against each exact approved mailbox and its resolved `deleteditems` folder; MIME is parsed once by the same intake reader and is neither retained nor backfilled. The durable queued-intake caller also applies MAIL-09's advisory association after evaluation: it derives candidates from current non-archived Case registration data and exact mailbox/conversation current associations, then delegates a fresh evidence fingerprint to the existing serializable, idempotent association transaction. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, current classification, queue, processing outcome, current manual-or-accepted case association and latest folder-move result. For an unassociated exact receipt it also uses the canonical Case search/detail queries to show a searched business summary; the confirmed link POST re-resolves the message and receipt, verifies reviewed versions, acquires the existing Case edit lease and delegates to `ILinkIntake`. The confirmed unlink POST applies the same server-bound checks to the exact current Case and delegates to `IReverseIntakeLink`; replacement is a later independent search and link, not an active-to-active swap. That read also derives zero or one concrete suggested Move from the current folder recommendation and move eligibility; the advice is not stored and the page delegates its control to the existing confirmed move handler. `OnPostCorrectClassificationAsync` corrects classification. `OnPostMoveToRecommendedFolderAsync` accepts only the internal message id, current classification/recommendation/mailbox versions, operation key and required reason; Core revalidates the exact approved binding and Infrastructure reserves one `RetainedMailFolderMoves` record before the narrow provider port. A successful record overlays current location so the immutable arrival row remains unchanged and Inbox queries exclude the moved message. The provider is unavailable by default and the control is absent in that composition; fake-HTTP/local-SQL tests supply it, while no production writer, Graph permission, deployment or live mailbox mutation is active. The Web runtime role holds `SELECT` alone on the retained-mail and receipt search-projection tables and `SELECT, INSERT, UPDATE` on the move-operation table; the Worker projection writer holds `SELECT, INSERT, DELETE` on `IntakeSearchDocuments` because replacement removes and recreates rows rather than updating them. Web also holds `SELECT, UPDATE` on `IntakeMailClassificationDecisions` and `SELECT, INSERT` on `IntakeMailClassificationHistory` (`UPDATE, DELETE` denied there).
 - `GET /Operations` calls the Core Operations projection for retryable external work and active unexpired Pegasus-generated upload links. It has no approval controls, general receipt ledger, manual/email/Automation receipt display, or Box request caller. The separately planned principal-scoped provider API is not inferred from the Automation/MCP ingress. `GET /Received/{id}` calls `GetIntake`, and its retained receipt mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
-- `GET /VehicleImages` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /VehicleImages/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
-- `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
+- `GET /VehicleImages/{id:guid}` calls Core `IImageIntakeQueries` for the image-intake detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; it is a read-only authenticated staff page. **EPIC-011 removed the standalone `/VehicleImages` list page only** — the detail page remains, and is now reached from `/Cases`, the case Files view, the received-material detail page and Search rather than from a list of its own. The association-filtered list query it served is now part of those surfaces.
+- `/Triage/{id:guid}` is the physical detail owner for Core triage queries and commands. **`/Triage` is no longer a list page**: since EPIC-011 it is a `RedirectPermanent` to `/Cases`, carrying its queue through as a tab, and the list itself is served by `/Cases`. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - The Case documents surface links confirmed custody directly to the case's real
   Box folder. The superseded internal Box File Request create/revoke mechanism
@@ -291,6 +291,44 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
 - `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
+
+## Operations workspace subsystems
+
+EPIC-011 replaced the operator surfaces and added four subsystems. This section
+describes current state, not a release note; the release that introduced them is
+recorded in [operations](operations.md#production-environment). Each is Core-owned with its
+persistence in `Pegasus.Infrastructure`; none introduces a parallel policy
+engine.
+
+- **Integrated Operations Workspace.** The operator surfaces are one workspace
+  rather than separate pages: the Work Centre at `/`, `/Cases` with its tabbed
+  queues, `/Operations`, and the case workspace at `/Cases/{id:guid}` with its
+  `?section=` views. The list surfaces they replaced — `/Triage` and
+  `/Administration/MailCategories` — are **not** removed: each survives as a
+  `RedirectPermanent` shim carrying its tab through, so bookmarks and existing
+  links land on the same work. Only the `/VehicleImages` list page was deleted
+  outright.
+- **`AiJobs`** — the pull-based AI job ledger (AUTO-011). One durable row per
+  requested job with its state and attribution. **Web is the only runtime that
+  touches it**: staff create, cancel and confirm from the application, and
+  external AI clients work it through the `/mcp` ingress Web hosts. The Worker
+  runs no AI timer (ADR-0035) and is granted nothing on the table. The
+  Automation Actor's writes return through the MCP ingress; the ledger never
+  writes case data itself.
+- **`NamedEstimates`** — a reshape of `CaseRepairSpecifications` rather than a
+  new table, giving an estimate a name and a current-version flag so a case can
+  carry several and one is current.
+- **`CaseValuations`** — Engineer-entered valuations on a case (ENG-027), read
+  by the Assessment workspace in the same process. Worker has no caller and no
+  grant; valuations are Case records, so `DELETE` is deliberately absent.
+
+Two surfaces became reachable in production for the first time at this release:
+the Provider API (`Features:ProviderApi`, no credential issued) and document
+upload links (`DocumentRequests:AcceptedLimitsVersion`, INT-31 interim limits).
+The upload-link surface was built earlier and composed out. The Provider API
+was **not**: it did not exist at release 36 at all, and its routes, scheme,
+flag and two of the eleven migrations were introduced inside the release-37
+range. See [operations](operations.md#production-environment).
 
 ## Business-rule ownership
 
@@ -514,7 +552,7 @@ A first Document Intelligence caller may submit only persisted scan-like PDF pag
 
 ### Provider API and Automation MCP
 
-Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's exact client, actor, authentication, and activation evidence remain separately gated. The provider accept path's staged-receipt back-reference and `Accepted` history row are repaired by that same existing Worker reconciliation timer after an interrupted accept.
+Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's composition gate was opened at release 37 (`Features:ProviderApi=true`); an unauthenticated request answers 401, so the route admits nobody until a credential is issued, which is a separately approved step. Its exact client and real caller evidence therefore remain outstanding. The provider accept path's staged-receipt back-reference and `Accepted` history row are repaired by that same existing Worker reconciliation timer after an interrupted accept.
 
 The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0031, and ADR-0026: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict registration authenticates the single vendor-neutral Automation client by client credentials or, for external connectors with administrator-configured redirect URIs, by authorization code with PKCE after Administrator consent (ADR-0027), and a streamable-HTTP MCP endpoint at `/mcp` exposes 33 typed tools wrapping existing Core case, intake, Unidentified, Triage, document, assessment, and mail use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`, `automation.mail`). Unidentified receipt/group detail and exact-member source download use the retained intake owners; Triage reads, source retrieval, lifecycle, evidence, and Case association use the same queries, commands, integrity checks, versions, replay rules, and Case leases as staff. Explicit named-Engineer assignment remains separately tracked by INTK-019 and no actor-relative assignment shortcut is exposed. Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, they renew that lease through the same Core renew use case the staff no-script renew control uses rather than re-claiming (the browser heartbeat is not exposed as a tool, so the tool census is unchanged), their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, EVA-export, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it with valid Automation MCP settings (ADR-0026); the deployed state of that gate and its dated activation evidence are owned by [operations](operations.md#production-environment), and source inventory must not be mistaken for deployed inventory.
 
