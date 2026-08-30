@@ -480,7 +480,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             // services only when AcceptedLimitsVersion is non-empty, so before
             // this block production had no /Uploads surface at all.
             //
-            // All THIRTEEN entries are required together, the five media-type
+            // All FIFTEEN entries are required together, the seven media-type
             // entries no less than the eight scalars: Program.cs:266-268 throws
             // when the array binds to null. Note the failure is NOT a startup
             // crash-loop -- RequestUploadLimits is a lazily resolved factory
