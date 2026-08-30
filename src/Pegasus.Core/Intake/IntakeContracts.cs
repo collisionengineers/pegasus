@@ -42,6 +42,25 @@ public static class IntakeEnvelopeLimits
     public const int MaximumBatchFileCount = 20;
 
     /// <summary>
+    /// One Provider API submission, decoded: every attached file together.
+    ///
+    /// It is not the mailbox bound, because the whole envelope arrives inline
+    /// as base64 in one request body and is held in memory to be decoded — and
+    /// the Web container runs in 2 GiB shared with the report renderer. It is
+    /// not the single-file bound either, because a real instruction carries the
+    /// documents and photographs of a job: the mailbox note above records a
+    /// genuine 16.69 MB QDOS instruction, so this is set comfortably above that
+    /// and well inside the container's headroom.
+    /// </summary>
+    public const int MaximumProviderApiEnvelopeLength = 30 * 1024 * 1024;
+
+    /// <summary>
+    /// The request body that carries it. Base64 costs a third again, plus the
+    /// declared fields and JSON structure around them.
+    /// </summary>
+    public const int MaximumProviderApiRequestLength = 42 * 1024 * 1024;
+
+    /// <summary>
     /// The multipart request body budget for one Upload submission: every
     /// file in the batch at its individual cap, plus the same fixed
     /// boundary/field overhead the single-file form always allowed.
@@ -96,7 +115,14 @@ public enum IntakeEvidenceSource
     FileName,
     MimeType,
     StaffCorrection,
-    SystemDefault
+    SystemDefault,
+
+    /// <summary>
+    /// A value the authenticated Principal stated over the Provider API
+    /// (API-01). It is neither something a document said nor something a person
+    /// here keyed, and the case record must not report it as either.
+    /// </summary>
+    ProviderDeclaration
 }
 
 public enum IntakeEvidenceStrength
@@ -127,7 +153,8 @@ public enum IntakeSourceChannel
 {
     ManualUpload,
     Mailbox,
-    Automation
+    Automation,
+    ProviderApi
 }
 
 public enum InstructionPolicyApplicability
@@ -361,7 +388,19 @@ public sealed record InstructionDraft(
     DateOnly? DateOfIncident,
     DateOnly? InstructionDate,
     string? InspectionAddress,
-    DateOnly? InspectionDate = null);
+    DateOnly? InspectionDate = null,
+    // Below here: fields no extraction policy reads today. A provider that
+    // declares its instruction over the API (API-01) states them directly, and
+    // the draft is the one carrier every downstream owner already reads, so
+    // they belong here rather than in a second pre-case record.
+    string? VehicleMileageUnit = null,
+    string? VatStatus = null,
+    string? ClaimantAddress = null,
+    string? ClaimantContactNumber = null,
+    string? FileHandlerName = null,
+    string? FileHandlerEmailAddress = null,
+    string? FileHandlerPhoneNumber = null,
+    string? Notes = null);
 
 public sealed record IntakeReceipt(
     Guid Id,

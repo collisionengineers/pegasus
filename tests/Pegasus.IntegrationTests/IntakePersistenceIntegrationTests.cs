@@ -107,10 +107,35 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260828084601_AiJobs",
                 "20260828084644_GrantAiJobs",
                 "20260828104130_PrincipalApiCredentials",
-                "20260828104139_GrantPrincipalApiCredentials"
+                "20260828104139_GrantPrincipalApiCredentials",
+                "20260828110108_CaseEditLeaseHolderKind",
+                "20260828111707_ProviderSubmissions",
+                "20260828111732_GrantProviderSubmissions",
+                "20260828112103_NamedEstimates",
+                "20260828185508_ProviderDeclaredInstruction",
+                "20260829095336_CaseValuations",
+                "20260829212237_GrantProviderSubmissionAcceptRecovery"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        // AUTO-012's accept-recovery joins compare SQL Server's uniqueidentifier
+        // conversion, which is UPPERCASE, against tokens .NET wrote lowercase
+        // (Guid.ToString("N") for ExternalReceiptToken, "D" for AggregateId).
+        // They therefore match only under a case-insensitive collation, and
+        // nothing else in the repository pins that: there is no COLLATE in the
+        // context or any migration, and the Bicep declares no database
+        // collation, so production inherits the Azure default.
+        //
+        // If that ever became case-sensitive or binary, accept recovery would
+        // become a permanent silent no-op — invisible even to the FirstFailure
+        // diagnostics, because no exception is raised — and the ActionHistory
+        // join would make every retained submission a permanent candidate,
+        // reintroducing the bounded-window starvation this ticket removed.
+        // Pinned here so the assumption fails loudly instead of silently.
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT CASE WHEN CONVERT(sysname, DATABASEPROPERTYEX(DB_NAME(), 'Collation'))"
+            + " COLLATE Latin1_General_CI_AS LIKE '%[_]CI[_]%' THEN 1 ELSE 0 END"));
+
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedOutlookCategories'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -529,7 +554,12 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         var builder = new SqlConnectionStringBuilder
         {
             InitialCatalog = databaseName,
-            ConnectTimeout = 15,
+            // Four parallel collections (xunit.runner.json) drive DDL against
+            // one LocalDB instance, so an ordinary open queues behind it: CI
+            // measured 13999-14014 ms against the previous 15s budget. 60s
+            // clears that and still fails a wedged instance inside the
+            // 20-minute job timeout (DELIV-031).
+            ConnectTimeout = 60,
             MultipleActiveResultSets = true
         };
 
@@ -761,7 +791,27 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 $"DROP DATABASE [{DatabaseName}]; END";
             drop.Parameters.AddWithValue("@databaseName", DatabaseName);
             drop.CommandTimeout = LifecycleCommandTimeoutSeconds;
-            await drop.ExecuteNonQueryAsync();
+
+            // CI hit 5061 here -- "a lock could not be placed ... Try again
+            // later" -- with a parallel collection holding the instance.
+            // Retry is the documented remedy; 10s of backoff, then the fifth
+            // attempt rethrows (DELIV-031).
+            const int lockNotPlacedErrorNumber = 5061;
+            const int maximumAttempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await drop.ExecuteNonQueryAsync();
+                    break;
+                }
+                catch (SqlException exception)
+                    when (exception.Number == lockNotPlacedErrorNumber
+                        && attempt < maximumAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(attempt));
+                }
+            }
         }
 
         await using var verify = connection.CreateCommand();

@@ -232,6 +232,7 @@ public sealed class SubmitGroupedIntake(
     {
         IntakeSourceChannel.ManualUpload => "manual-upload",
         IntakeSourceChannel.Mailbox => "mailbox-image",
+        IntakeSourceChannel.ProviderApi => "provider-api",
         _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "Unsupported source channel.")
     };
 }

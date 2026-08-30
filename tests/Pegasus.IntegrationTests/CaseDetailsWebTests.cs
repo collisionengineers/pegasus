@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -46,10 +46,137 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var actionBar = RecordBar(html);
 
-        Assert.Contains("Open assessment", actionBar, StringComparison.Ordinal);
+        Assert.Contains("Open Assessment", actionBar, StringComparison.Ordinal);
         Assert.Equal(expectsLink, actionBar.Contains(
             $"/Cases/{store.CaseId:D}/Assessment",
             StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is a Review act. Outside
+    /// Review the workspace offers no EVA control and draws no handoff, rather
+    /// than drawing a disabled one.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false)]
+    [InlineData(CaseLifecycleState.Review, true)]
+    public async Task SendToEvaRendersOnlyInReview(CaseLifecycleState state, bool offersHandoff)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { State = state };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Equal(offersHandoff, RecordBar(html).Contains("Send to EVA", StringComparison.Ordinal));
+        Assert.Equal(
+            offersHandoff,
+            html.Contains("data-dialog=\"eva-handoff-dialog\"", StringComparison.Ordinal));
+        // The handoff's own routes come with it: the export posts from the
+        // dialog, so the route is present exactly when the control is.
+        Assert.Equal(
+            offersHandoff,
+            html.Contains(
+                $"/Cases/{store.CaseId:D}/Documents/Export",
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// D10: "report sent" is confirmed from detected Sent evidence and is never
+    /// asserted by hand, so the action renders only while the case is With
+    /// Engineer, this browser holds the edit authority, and retained evidence
+    /// exists. The evidence is named by mailbox and time; the transport handles
+    /// and hashes it also carries stay internal.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false, false)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    public async Task ReportSentRendersOnlyWithDetectedEvidenceWhileWithEngineer(
+        CaseLifecycleState state,
+        bool hasEvidence,
+        bool offersConfirmation)
+    {
+        var evidence = new RetainedApprovedMailboxReportSentEvidence(
+            Guid.NewGuid(),
+            "reports@collisionengineers.example",
+            "sent-folder-handle",
+            "immutable-item-handle",
+            "internet-message-handle",
+            "conversation-handle",
+            "reply-chain-handle",
+            "source-occurrence-handle",
+            new string('b', 64),
+            new string('c', 64),
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2031, 5, 6, 9, 5, 0, TimeSpan.Zero),
+            ActionActor.SystemWorker("sent-mail-worker"));
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            AvailableReportSentEvidence = hasEvidence ? [evidence] : []
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(
+            offersConfirmation,
+            RecordBar(html).Contains("Mark report sent", StringComparison.Ordinal));
+        Assert.Equal(
+            offersConfirmation,
+            html.Contains("handler=LinkReportEvidence", StringComparison.Ordinal));
+        if (offersConfirmation)
+        {
+            var visible = VisibleText(html);
+            Assert.Contains("reports@collisionengineers.example", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("immutable-item-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("internet-message-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('b', 64), visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('c', 64), visible, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The workspace's six sections are alternatives addressed by
+    /// <c>?section=</c>, and exactly one is current. A value the workspace does
+    /// not own — including the pre-redesign <c>?tab=</c>, which no link in the
+    /// product still writes — selects Case Overview rather than nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("", "Case Overview")]
+    [InlineData("?section=overview", "Case Overview")]
+    [InlineData("?section=vehicle", "Vehicle")]
+    [InlineData("?section=valuations", "Valuations")]
+    [InlineData("?section=inspection-address", "Inspection address")]
+    [InlineData("?section=case-files", "Case Files")]
+    [InlineData("?section=notes", "Notes")]
+    [InlineData("?section=evidence", "Case Overview")]
+    [InlineData("?tab=case-files", "Case Overview")]
+    public async Task SectionQuerySelectsOneSectionAndUnknownValuesFallBackToOverview(
+        string query,
+        string currentSection)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}{query}");
+
+        Assert.Equal(currentSection, CurrentSectionLabel(html));
     }
 
     /// <summary>
@@ -99,7 +226,7 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?tab=history");
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
 
         Assert.Contains("alex", html, StringComparison.Ordinal);
         Assert.Contains("Automation", html, StringComparison.Ordinal);
@@ -111,7 +238,13 @@ public sealed partial class CaseDetailsWebTests
     public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { ExposeCustody = true };
+        // The EVA control is a Review act (FRD-07): the workspace offers the
+        // handoff only in Review, so the store stands there.
+        var store = new RecordingCaseDetailsStore
+        {
+            ExposeCustody = true,
+            State = CaseLifecycleState.Review
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -136,7 +269,6 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claim, store.CaseId);
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=RetryCustody", html, StringComparison.Ordinal);
         Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
@@ -147,12 +279,9 @@ public sealed partial class CaseDetailsWebTests
         // First sent to Engineer proxy and a prefetched or refreshed GET must
         // not be able to fire it.
         //
-        // EXT-04 moved the control: the action bar now carries one Send to EVA
-        // link to the page where the operator chooses between the API
-        // submission and the export, and the export's form lives there. So the
-        // rule is pinned on the route rather than on the bar - the export is
-        // reachable by no link at all, and answers a GET with a redirect
-        // rather than a package (asserted below).
+        // EXT-04 moved the control: the handoff dialog carries the export as a
+        // posted form and no link to it exists anywhere, and the export route
+        // answers a GET with a redirect rather than a package (asserted below).
         Assert.Contains("Send to EVA", VisibleText(html), StringComparison.Ordinal);
         Assert.DoesNotContain(
             $"href=\"/Cases/{store.CaseId:D}/Documents/Export",
@@ -285,13 +414,15 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(2, store.Claims.Count);
         Assert.Equal(store.Claims[0].OperationKey, store.Claims[1].OperationKey);
 
-        var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var refreshedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
+        var refreshedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
         Assert.Equal(
             InputValue(leasedHtml, "editLeaseToken"),
             InputValue(refreshedHtml, "editLeaseToken"));
         leasedHtml = refreshedHtml;
-        Assert.Contains("Record manual chase", leasedHtml, StringComparison.Ordinal);
+        // The Record chase control lives on the Notes section and renders in
+        // edit context while a chase is scheduled.
+        Assert.Contains("Record chase", leasedHtml, StringComparison.Ordinal);
         var operationKey = "manual-chase-replay";
         var attemptedAtUtc = InputValue(leasedHtml, "attemptedAtUtc");
         using var firstResponse = await client.PostAsync(
@@ -300,9 +431,7 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(firstResponse, store.CaseId);
 
         var currentHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Telephone", currentHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
-        Assert.Contains("Awaiting requested photographs", currentHtml, StringComparison.Ordinal);
         using var replayResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey, attemptedAtUtc));
@@ -367,9 +496,11 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claimResponse, store.CaseId);
 
         var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Hold case", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Release hold", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Transition to report preparation", leasedHtml, StringComparison.Ordinal);
+        // The hold control is state-gated on the bar and its reason dialog
+        // carries the lease envelope; the posts below exercise every route.
+        Assert.Contains("Place on Hold", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"case-hold-dialog\"", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"reason\"", leasedHtml, StringComparison.Ordinal);
         var antiforgeryToken = AntiforgeryValue(leasedHtml);
         using var holdResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Workflow?handler=Hold",
@@ -537,6 +668,62 @@ public sealed partial class CaseDetailsWebTests
         var value = ValueRegex().Match(tag.Value);
         Assert.True(value.Success, "The case antiforgery token must have a value.");
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    /// <summary>
+    /// SaveCase writes every one of <c>CaseEditableData</c>'s twenty members, so
+    /// a value the handler does not bind is written as null and clears the
+    /// confirmed field. The claimant's own contact number and address were
+    /// omitted from both the form and the handler, so every Overview save
+    /// silently discarded them (CASE-027).
+    ///
+    /// This asserts the values reach <c>SaveCase</c>, not merely that the inputs
+    /// render: rendering them while the handler ignores them is exactly the
+    /// half-fix this test exists to refuse.
+    /// </summary>
+    [Fact]
+    public async Task ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCase>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCase>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected the registration"),
+                ("claimantName", "Rebecca Claimant"),
+                ("claimantContactNumber", "07700 900123"),
+                ("claimantAddress", "12 Example Street, Leeds, LS1 1AA")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("07700 900123", saved.Data.ClaimantContactNumber);
+        Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Data.ClaimantAddress);
+
+        // The values the operator did not touch still travel, because SaveCase
+        // nulls anything absent — the same defect one field over.
+        Assert.Equal("Rebecca Claimant", saved.Data.ClaimantName);
     }
 
     [Fact]
@@ -938,7 +1125,11 @@ public sealed partial class CaseDetailsWebTests
     public async Task AnAutomationHolderIsNamedAsAiAndNeverAsAMemberOfStaff()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { LeaseHolder = "pegasus-automation" };
+        var store = new RecordingCaseDetailsStore
+        {
+            LeaseHolder = "pegasus-automation",
+            LeaseHolderKind = ActorKind.Automation
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -1064,12 +1255,35 @@ public sealed partial class CaseDetailsWebTests
 
     private static string RecordBar(string html)
     {
-        var start = html.IndexOf("class=\"record__bar\"", StringComparison.Ordinal);
+        var start = html.IndexOf("class=\"record-bar\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The record bar is not rendered.");
-        var end = html.IndexOf("<nav", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The record bar is not closed before the tabs.");
+        // CASE-012 round 2: the workspace side nav is no longer a <nav>, so
+        // the record's own closing tag bounds the bar and everything under
+        // it (edit bar, workspace, context column).
+        var end = html.IndexOf("</article>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The record bar is not closed before the record ends.");
         return html[start..end];
     }
+
+    /// <summary>
+    /// The label of the workspace section marked current. Scoped to the section
+    /// nav so the shell rail's own current link cannot answer for it.
+    /// </summary>
+    private static string CurrentSectionLabel(string html)
+    {
+        var start = html.IndexOf("class=\"case-section-nav\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The workspace section nav is not rendered.");
+        var end = html.IndexOf("</div>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The section nav is not closed.");
+        var current = CurrentSectionRegex().Match(html[start..end]);
+        Assert.True(current.Success, "No section is marked current.");
+        return current.Groups[1].Value;
+    }
+
+    [GeneratedRegex(
+        "aria-current=\"page\"[^>]*>.*?<span>([^<]*)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex CurrentSectionRegex();
 
     private static string EditAuthorityNote(string html)
     {
@@ -1106,10 +1320,67 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", RegexOptions.CultureInvariant)]
     private static partial Regex GuidRegex();
 
+    /// <summary>
+    /// KANMER-005: while the Automation Actor holds the lease, the workspace is read-only to
+    /// staff — the holder is disclosed from its retained kind through the real descriptor, no
+    /// claim control is rendered, and a claim posted anyway is refused without the page
+    /// pretending edit mode was entered. The refusal is the shared owner's own conflict.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHeldCaseIsReadOnlyToStaffAndAPostedClaimIsRefused()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            LeaseHolder = "pegasus-automation",
+            LeaseHolderKind = ActorKind.Automation
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("Case locked - AI is editing", EditAuthorityNote(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Edit case<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
+
+        store.NextFailure = new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion);
+        using var claimResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(html),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", Guid.NewGuid().ToString("N"))));
+        AssertPrg(claimResponse, store.CaseId);
+
+        Assert.Empty(store.Claims);
+        Assert.Equal("pegasus-automation", store.LeaseHolder);
+        Assert.Equal(ActorKind.Automation, store.LeaseHolderKind);
+        var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("Edit mode could not be entered", afterRefusal, StringComparison.Ordinal);
+        Assert.Contains("Case locked - AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
+    }
+
     private sealed class StubEditAuthorityHolders(string? displayName, bool isAutomation = false)
         : IDescribeCaseEditAuthorityHolder
     {
         public Task<CaseEditAuthorityHolder> ExecuteAsync(
+            ActorKind? holderKind,
             string holderSubjectId,
             ActionActor actor,
             CancellationToken cancellationToken)
@@ -1190,6 +1461,7 @@ public sealed partial class CaseDetailsWebTests
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private CaseDueWork _dueWork;
         private string? _leaseHolder;
+        private ActorKind? _leaseHolderKind = ActorKind.Staff;
         private string? _leaseOperationKey;
 
         public RecordingCaseDetailsStore()
@@ -1213,6 +1485,9 @@ public sealed partial class CaseDetailsWebTests
 
         public long CaseVersion { get; } = 7;
 
+        /// <summary>The workflow state the projection reports; Not ready unless a test says otherwise.</summary>
+        public CaseLifecycleState State { get; set; } = CaseLifecycleState.NotReady;
+
         public bool ExposeCustody { get; init; }
 
         /// <summary>
@@ -1221,6 +1496,13 @@ public sealed partial class CaseDetailsWebTests
         /// state sets the state it needs.
         /// </summary>
         public CaseLifecycleState CaseState { get; init; } = CaseLifecycleState.NotReady;
+
+        /// <summary>The detected Sent evidence the projection offers for confirmation (D10).</summary>
+        public IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence
+        {
+            get;
+            init;
+        } = [];
 
         public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
 
@@ -1231,6 +1513,12 @@ public sealed partial class CaseDetailsWebTests
         {
             get => _leaseHolder;
             set => _leaseHolder = value;
+        }
+
+        public ActorKind? LeaseHolderKind
+        {
+            get => _leaseHolderKind;
+            set => _leaseHolderKind = value;
         }
 
         public List<SaveCaseRequest> Saves { get; } = [];
@@ -1251,7 +1539,7 @@ public sealed partial class CaseDetailsWebTests
                 workflow.Identity.PrincipalCode,
                 workflow.State,
                 null,
-                "AB12CDE",
+                OmitVehicleValues ? null : "AB12CDE",
                 "Case claimant",
                 "CLM-42",
                 _now.AddDays(-2),
@@ -1261,15 +1549,18 @@ public sealed partial class CaseDetailsWebTests
             CaseDetails details = new(
                 summary,
                 workflow,
-                _leaseHolder is null ? null : new(_leaseHolder, _now.AddMinutes(5), _leaseOperationKey!),
-                [],
+                _leaseHolder is null
+                    ? null
+                    : new(_leaseHolder, _leaseHolderKind, _now.AddMinutes(5), _leaseOperationKey!),
+                CaseDocuments,
                 null,
                 CaseCustodyState.Pending,
-                [],
-                [],
+                RequestUploadLinks,
+                AvailableReportSentEvidence,
                 HistoryEntries)
             {
                 Data = CreateData(),
+                VehicleEvidence = VehicleLookupEvidence,
                 Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
                     : []
@@ -1321,14 +1612,16 @@ public sealed partial class CaseDetailsWebTests
                         ImagesConfirmedByStaff: false),
                     new(false, "case-completeness", 1)),
                 new(Confirmed("QDOS")),
-                new(Confirmed("Case claimant")),
+                new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),
                 new(Confirmed("CLM-42")),
-                new(
-                    Confirmed("AB12CDE"),
-                    Confirmed("Ford"),
-                    Confirmed("Transit"),
-                    Confirmed(42_000L),
-                    Confirmed("miles")),
+                OmitVehicleValues
+                    ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
+                    : new(
+                        Confirmed("AB12CDE"),
+                        Confirmed("Ford"),
+                        Confirmed("Transit"),
+                        Confirmed(42_000L),
+                        Confirmed("miles")),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(Empty<DateOnly>(), Confirmed("Standard")),
@@ -1356,7 +1649,9 @@ public sealed partial class CaseDetailsWebTests
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {
+            ThrowNextFailure();
             _leaseHolder = request.Actor.SubjectId;
+            _leaseHolderKind = request.Actor.Kind;
             _leaseOperationKey = request.OperationKey;
             Claims.Add(request);
             return Task.FromResult(
@@ -1416,7 +1711,7 @@ public sealed partial class CaseDetailsWebTests
             new(
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
-                CaseLifecycleState.NotReady,
+                State,
                 null,
                 null,
                 null,

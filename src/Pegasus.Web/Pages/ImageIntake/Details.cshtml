@@ -2,138 +2,221 @@
 @page "/VehicleImages/{id:guid}"
 @model Pegasus.Web.Pages.ImageIntake.DetailsModel
 @using Pegasus.Core.ImageIntake
+@using Pegasus.Web.Presentation
 @{
     ViewData["Title"] = $"Image-initiated Case {Model.Detail.Record.ImageIntakeReference}";
 }
 
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Image-initiated Case</p>
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
-        <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)" />
     </div>
-    <a class="secondary-action" asp-page="/Cases/Index" asp-route-tab="not_ready">Cases</a>
+    <div class="page-actions">
+        <a class="btn" asp-page="/Cases/Index" asp-route-tab="not_ready">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Cases</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
 </header>
 
-<div class="review-grid">
-    <section class="panel" aria-labelledby="image-intake-record-title">
-        <h2 id="image-intake-record-title" class="section-label">Record</h2>
-        <dl class="detail-list">
-            <div><dt>Image-initiated reference</dt><dd>@Model.Detail.Record.ImageIntakeReference</dd></div>
-            <div><dt>Vehicle registration</dt><dd>@Model.Detail.Record.NormalizedVehicleRegistration</dd></div>
-            <div><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</dd></div>
-            <div><dt>Lifecycle state</dt><dd>@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</dd></div>
-            <div>
-                <dt>Case association</dt>
-                <dd>
-                    @if (Model.Detail.AssociatedCaseId is { } caseId)
-                    {
-                        <a asp-page="/Cases/Details" asp-route-id="@caseId">@(Model.Detail.AssociatedCaseReference ?? caseId.ToString())</a>
-                    }
-                    else
-                    {
-                        <text>None — @OperatorLabels.ImageIntakeLifecycleStateContinuation(Model.Detail.State)</text>
-                    }
-                </dd>
-            </div>
-            @if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
-            {
-                <div><dt>Closure reason</dt><dd>@Model.Detail.ClosureReason</dd></div>
-            }
-        </dl>
-    </section>
+<div asp-validation-summary="All" class="validation-summary" role="alert"></div>
 
-    <section class="panel" aria-labelledby="image-intake-origin-title">
-        <h2 id="image-intake-origin-title" class="section-label">Preserved origin</h2>
-        @* The receipt identifier, source-receipt token, source hash and
-           evaluation revision are internal handles, not operator identity —
-           design README :168. The link below is the operator's route to the
-           origin receipt; nothing here needs to show its raw identifiers. *@
-        <dl class="detail-list">
-            <div><dt>Source channel</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.SourceChannelLabel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
-        </dl>
-        <p>Association, reversal and re-linking are reasoned actions on the origin receipt; the reference above is permanent either way.</p>
-        <a class="secondary-action" asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">Open the origin receipt to link or unlink</a>
-    </section>
-</div>
+<article class="record">
+    <header class="record-head">
+        <strong>@Model.Detail.Record.ImageIntakeReference</strong>
+        <span class="record-identity">
+            <span>@Model.Detail.Record.NormalizedVehicleRegistration</span>
+            <span>Registered @OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</span>
+            <span>@Model.Images.Count image@(Model.Images.Count == 1 ? string.Empty : "s")</span>
+        </span>
+        <span class="record-head-end">
+            <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)" />
+        </span>
+    </header>
+    <div class="record-accent"></div>
 
-@if (Model.Images.Count > 0)
-{
-    <section class="panel section-gap" aria-labelledby="image-initiated-images-title">
-        <h2 id="image-initiated-images-title" class="section-label">Images</h2>
-        @{
-            // The retained-image route already serves inline, so preview and
-            // download are the same URL; the anchor's download attribute saves.
-            var gallery = Model.Images
-                .Select(item =>
-                {
-                    var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                    return new Pegasus.Web.Presentation.GalleryImage(
-                        href,
-                        href,
-                        item.FileName,
-                        item.MediaType);
-                })
-                .ToArray();
+    @* Association, reversal and re-linking are reasoned actions on the origin
+       receipt; the reference above is permanent either way. Staff closure is
+       this record's own reasoned action and stays here. *@
+    <div class="record-bar">
+        <a class="btn" asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">
+            <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+            <span>Open the origin receipt</span>
+        </a>
+        @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
+        {
+            <span class="record-bar-end">
+                <button type="button" class="btn btn--danger" data-dialog-open="image-intake-close-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                    <span>Close with reason</span>
+                </button>
+            </span>
         }
-        <partial name="Shared/_ImageGallery" model="gallery" />
-    </section>
-    <partial name="Shared/_EvidenceViewer" />
-}
+    </div>
+
+    <div class="record-body">
+        <div class="grid grid-2">
+            <section class="panel" aria-labelledby="image-intake-record-title">
+                <div class="panel-head"><h2 id="image-intake-record-title">Record</h2></div>
+                <div class="panel-body">
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Image-initiated reference</dt>
+                            <dd>@Model.Detail.Record.ImageIntakeReference</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Vehicle registration</dt>
+                            <dd>@Model.Detail.Record.NormalizedVehicleRegistration</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Registered</dt>
+                            <dd>@OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Lifecycle state</dt>
+                            <dd>@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Case association</dt>
+                            <dd>
+                                @if (Model.Detail.AssociatedCaseId is { } caseId)
+                                {
+                                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@(Model.Detail.AssociatedCaseReference ?? caseId.ToString())</a>
+                                }
+                                else
+                                {
+                                    <text>None — @OperatorLabels.ImageIntakeLifecycleStateContinuation(Model.Detail.State)</text>
+                                }
+                            </dd>
+                        </dl>
+                        @if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
+                        {
+                            <dl class="definition">
+                                <dt>Closure reason</dt>
+                                <dd>@Model.Detail.ClosureReason</dd>
+                            </dl>
+                        }
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="image-intake-origin-title">
+                <div class="panel-head"><h2 id="image-intake-origin-title">Preserved origin</h2></div>
+                <div class="panel-body">
+                    @* The receipt identifier, source-receipt token, source hash
+                       and evaluation revision are internal handles, not operator
+                       identity — design README :168. The link in the bar is the
+                       operator's route to the origin receipt; nothing here needs
+                       to show its raw identifiers. *@
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Source channel</dt>
+                            <dd>@Pegasus.Web.Pages.Intake.DetailsModel.SourceChannelLabel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        @if (Model.Images.Count > 0)
+        {
+            <section class="section-gap" aria-labelledby="image-initiated-images-title">
+                <div class="blockhead"><h2 id="image-initiated-images-title">Images</h2></div>
+                @{
+                    // The retained-image route already serves inline, so preview and
+                    // download are the same URL; the anchor's download attribute saves.
+                    var gallery = Model.Images
+                        .Select(item =>
+                        {
+                            var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                            return new GalleryImage(
+                                href,
+                                href,
+                                item.FileName,
+                                item.MediaType);
+                        })
+                        .ToArray();
+                }
+                <partial name="Shared/_ImageGallery" model="gallery" />
+            </section>
+        }
+
+        @if (Model.History.Count > 0)
+        {
+            <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
+                <div class="panel-head"><h2 id="image-initiated-history-title">History</h2></div>
+                <div class="panel-body">
+                    <div class="timeline">
+                        @foreach (var entry in Model.History.OrderByDescending(history => history.OccurredAtUtc))
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-title">@OperatorLabels.HistoryEvent(entry.EventType)</div>
+                                <div class="timeline-meta">@OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+        }
+
+        @if (Model.AssociationCandidates.Count > 0)
+        {
+            <section class="panel section-gap" aria-labelledby="image-intake-candidates-title">
+                <div class="panel-head"><h2 id="image-intake-candidates-title">Eligible case candidates</h2></div>
+                <div class="panel-body">
+                    <ul class="blocker-list">
+                        @foreach (var candidate in Model.AssociationCandidates)
+                        {
+                            <li class="blocker">
+                                <strong><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a></strong>
+                                <small>Case version @candidate.CaseVersion</small>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </section>
+        }
+
+        @if (Model.Suggestions.Count > 0)
+        {
+            <section class="panel section-gap" aria-labelledby="image-intake-suggestions-title">
+                <div class="panel-head"><h2 id="image-intake-suggestions-title">Registration reading results</h2></div>
+                <div class="panel-body">
+                    <div class="timeline">
+                        @foreach (var suggestion in Model.Suggestions)
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-title">@Pegasus.Web.Pages.Intake.DetailsModel.SuggestionOutcomeLabel(suggestion)</div>
+                                <div class="timeline-meta">@suggestion.EngineKey v@(suggestion.EngineVersion) · @OperatorLabels.OfficeTime(suggestion.OccurredAtUtc) · @suggestion.Disposition.ToString().ToLowerInvariant()</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+        }
+    </div>
+</article>
 
 @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
 {
-    <section class="panel section-gap" aria-labelledby="image-initiated-close-title">
-        <h2 id="image-initiated-close-title" class="section-label">Close Image-initiated Case</h2>
-        <p>Use only when formal instructions will not arrive; a reason is required and the record becomes read-only.</p>
-        <form method="post" asp-page-handler="Close" asp-route-id="@Model.Detail.Record.Id">
-            <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
-            <label for="image-initiated-close-reason">Reason</label>
-            <textarea id="image-initiated-close-reason" name="reason" maxlength="500" required></textarea>
-            <button type="submit" class="secondary-action">Record staff closure</button>
-        </form>
-    </section>
+    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+    {
+        ["DialogId"] = "image-intake-close-dialog",
+        ["DialogTitle"] = "Close Image-initiated Case",
+        ["DialogConsequence"] = "Use only when formal instructions will not arrive; the record becomes read-only.",
+        ["DialogActionUrl"] = Url.Page("/ImageIntake/Details", "Close", new { id = Model.Detail.Record.Id }),
+        ["DialogHiddenFields"] = new Dictionary<string, string?>
+        {
+            ["expectedVersion"] = Model.Detail.LifecycleVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        }
+    })" />
 }
 
-@if (Model.History.Count > 0)
-{
-    <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
-        <h2 id="image-initiated-history-title" class="section-label">Image-initiated Case history</h2>
-        <ol class="plain-list">
-            @foreach (var entry in Model.History)
-            {
-                <li><strong>@OperatorLabels.HistoryEvent(entry.EventType)</strong> · @OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</li>
-            }
-        </ol>
-    </section>
-}
-
-@if (Model.AssociationCandidates.Count > 0)
-{
-    <section class="panel section-gap" aria-labelledby="image-intake-candidates-title">
-        <h2 id="image-intake-candidates-title" class="section-label">Eligible case candidates</h2>
-        <p>Pre-report instructed cases whose confirmed registration matches this Image-initiated Case; linking is a reasoned staff action.</p>
-        <ul class="plain-list">
-            @foreach (var candidate in Model.AssociationCandidates)
-            {
-                <li><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a> · version @candidate.CaseVersion</li>
-            }
-        </ul>
-    </section>
-}
-
-@if (Model.Suggestions.Count > 0)
-{
-    <section class="panel section-gap" aria-labelledby="image-intake-suggestions-title">
-        <h2 id="image-intake-suggestions-title" class="section-label">Registration reading results</h2>
-        <ul class="evidence-list">
-            @foreach (var suggestion in Model.Suggestions)
-            {
-                <li>
-                    <strong>@Pegasus.Web.Pages.Intake.DetailsModel.SuggestionOutcomeLabel(suggestion)</strong>
-                    <span>@suggestion.EngineKey v@(suggestion.EngineVersion) · @OperatorLabels.OfficeTime(suggestion.OccurredAtUtc) · @suggestion.Disposition.ToString().ToLowerInvariant()</span>
-                </li>
-            }
-        </ul>
-    </section>
-}
+<partial name="Shared/_EvidenceViewer" />

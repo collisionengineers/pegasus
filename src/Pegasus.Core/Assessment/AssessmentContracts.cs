@@ -172,7 +172,9 @@ public sealed record EstimateLineInput(
     string? Betterment,
     string? Status,
     string? EvidenceLabel,
-    string? Justification);
+    string? Justification,
+    decimal? PaintWorkUnits = null,
+    int? Quantity = null);
 
 public sealed record CaseEstimateLineRecord(
     Guid Id,
@@ -192,7 +194,9 @@ public sealed record CaseEstimateLineRecord(
     string RecordedBy,
     DateTimeOffset RecordedAtUtc,
     string? ConfirmedBy,
-    DateTimeOffset? ConfirmedAtUtc)
+    DateTimeOffset? ConfirmedAtUtc,
+    decimal? PaintWorkUnits = null,
+    int? Quantity = null)
 {
     public bool IsConfirmed => ConfirmedBy is not null;
 }

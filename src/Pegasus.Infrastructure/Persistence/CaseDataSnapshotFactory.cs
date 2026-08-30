@@ -1,7 +1,9 @@
 ﻿using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.ProviderApi;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -50,7 +52,7 @@ internal static class CaseDataSnapshotFactory
             AcceptedAtUtc = acceptedAtUtc
         };
 
-        AddProviderFact(snapshot, receipt);
+        AddProviderFact(snapshot, receipt, request);
         AddInstructionSuggestions(snapshot, receipt);
         AddResolvedInspection(
             snapshot,
@@ -114,17 +116,59 @@ internal static class CaseDataSnapshotFactory
 
     private static void AddProviderFact(
         CaseDataSnapshotEntity snapshot,
-        IntakeReceiptEntity receipt)
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request)
     {
         var route = receipt.MailRouteDecision;
-        if (route is null
-            || !string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(route.WorkProviderCode))
+        string value;
+        string sourceKind;
+        string sourceLabel;
+        string policyKey;
+        int policyVersion;
+        if (route is not null
+            && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(route.WorkProviderCode))
+        {
+            RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
+            value = route.WorkProviderCode.Trim();
+            sourceKind = CaseDataCodes.MailRoute;
+            sourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
+                ? "accepted mail route"
+                : route.RouteOwnerCode;
+            policyKey = route.PolicyKey!;
+            policyVersion = route.PolicyVersion;
+        }
+        else if (route is null
+            && EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel)
+                == IntakeSourceChannel.ProviderApi
+            // Only automatic allocation's PrincipalCode is the credential
+            // binding's. AttemptAutomaticAsync derives it from
+            // EstablishedPrincipalCode(receipt, binding) and acts as
+            // ActionActor.SystemWorker (IntakeAllocation.cs:259,283); the staff
+            // create path takes whatever an operator keyed, and staff can key a
+            // different principal entirely to correct a provider that posted
+            // under the wrong account. Labelling that "authenticated credential
+            // binding" would export a provenance to the EVA archive that no
+            // credential ever supplied — the same falsehood AddExtractedValue
+            // avoids forty lines below by mapping a person-keyed value to
+            // StaffCorrection. A staff-created case keeps today's behaviour and
+            // records no work provider fact here.
+            && request.Actor.Kind == ActorKind.SystemWorker
+            && !string.IsNullOrWhiteSpace(request.PrincipalCode))
+        {
+            // The work provider comes from the authenticated credential binding,
+            // not from a value declared in the instruction body.
+            value = request.PrincipalCode.Trim();
+            sourceKind = CaseDataCodes.ProviderApi;
+            sourceLabel = "authenticated credential binding";
+            policyKey = ProviderInstructionPolicy.PolicyKey;
+            policyVersion = ProviderInstructionPolicy.PolicyVersion;
+        }
+        else
         {
             return;
         }
 
-        RequirePolicy(route.PolicyKey, route.PolicyVersion, "mail-route");
         snapshot.Fields.Add(new()
         {
             CaseId = snapshot.CaseId,
@@ -132,14 +176,12 @@ internal static class CaseDataSnapshotFactory
             FieldName = CaseDataFieldNames.WorkProviderCode,
             ValueKind = CaseDataCodes.Fact,
             ValueType = CaseDataCodes.Text,
-            Value = route.WorkProviderCode.Trim(),
-            SourceKind = CaseDataCodes.MailRoute,
+            Value = value,
+            SourceKind = sourceKind,
             SourceIdentity = receipt.Id.ToString("D"),
-            SourceLabel = string.IsNullOrWhiteSpace(route.RouteOwnerCode)
-                ? "accepted mail route"
-                : route.RouteOwnerCode,
-            PolicyKey = route.PolicyKey,
-            PolicyVersion = route.PolicyVersion
+            SourceLabel = sourceLabel,
+            PolicyKey = policyKey,
+            PolicyVersion = policyVersion
         });
     }
 
@@ -192,6 +234,13 @@ internal static class CaseDataSnapshotFactory
             "Inspection date",
             CaseDataCodes.Date,
             Date(draft.InspectionDate));
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantContactNumber, "Claimant contact number", CaseDataCodes.Text, draft.ClaimantContactNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantAddress, "Claimant address", CaseDataCodes.Text, draft.ClaimantAddress);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactName, "Contact name", CaseDataCodes.Text, draft.FileHandlerName);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactEmailAddress, "Contact email", CaseDataCodes.Text, draft.FileHandlerEmailAddress);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactPhoneNumber, "Contact phone", CaseDataCodes.Text, draft.FileHandlerPhoneNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VatStatus, "VAT status", CaseDataCodes.Text, draft.VatStatus);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMileageUnit, "Vehicle mileage unit", CaseDataCodes.Text, draft.VehicleMileageUnit);
         var suggestedInspectionAddress = fields.SingleOrDefault(
                 field => string.Equals(
                     field.Name,
@@ -227,7 +276,8 @@ internal static class CaseDataSnapshotFactory
 
         var mileageField = fields.SingleOrDefault(
             field => string.Equals(field.Name, "Vehicle mileage", StringComparison.Ordinal));
-        if (mileageField?.SuggestedValue is { } suggestedMileage
+        if (draft.VehicleMileageUnit is null
+            && mileageField?.SuggestedValue is { } suggestedMileage
             && HasExplicitMilesUnit(suggestedMileage))
         {
             AddExtractedValue(
@@ -382,9 +432,15 @@ internal static class CaseDataSnapshotFactory
             // on the field. Recording it as evidence would have the case claim
             // the document said something it never said, and the confirmed row
             // inherits this kind, so the mislabelling would carry through.
-            SourceKind = candidate.Source == IntakeEvidenceSource.StaffCorrection
-                ? CaseDataCodes.StaffCorrection
-                : CaseDataCodes.IntakeEvidence,
+            SourceKind = candidate.Source switch
+            {
+                IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
+                // FRD-02 names the provider API as a provenance in its own
+                // right. A value the instructing Principal stated is neither
+                // something a document said nor something a person here keyed.
+                IntakeEvidenceSource.ProviderDeclaration => CaseDataCodes.ProviderApi,
+                _ => CaseDataCodes.IntakeEvidence
+            },
             SourceIdentity = receipt.Id.ToString("D"),
             SourceLabel = $"{candidate.Source}:{candidate.SourceLabel}",
             PolicyKey = receipt.ExtractionPolicyKey!,
