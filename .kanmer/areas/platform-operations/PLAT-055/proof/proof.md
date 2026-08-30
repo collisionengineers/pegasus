@@ -85,3 +85,35 @@ The one unverified link is whether release 37's `azd provision` preserved the
 secret version pin. That is a read-only check
 (`az containerapp show` → the `eva-client-secret` reference) and it belongs to
 whoever next touches the EVA path, not to a new ticket on its own.
+
+---
+
+## Addendum, 2026-08-30 — the one open question above is now closed
+
+The section above listed as unproven whether release 37's `azd provision`
+preserved the secret version pin. That is a read-only check and it was run
+rather than left dangling. **The pin survived the release**, on both runtimes:
+
+```
+az containerapp show -g rg-pegasus-prod -n pegasus-prod-web-252ow37gij \
+  --query "properties.configuration.secrets[?name=='eva-client-secret'].keyVaultUrl" -o tsv
+-> https://pegasusprodkv252ow37g.vault.azure.net/secrets/eva-client-secret/2341bad53baa4b3ca33b0809d7d4a735
+
+az functionapp config appsettings list -g rg-pegasus-prod -n pegasus-prod-worker-252ow37gij \
+  --query "[?name=='Eva__ClientSecret'].value" -o tsv
+-> @Microsoft.KeyVault(SecretUri=https://pegasusprodkv252ow37g.vault.azure.net/secrets/eva-client-secret/2341bad53baa4b3ca33b0809d7d4a735)
+```
+
+Both name version `2341bad53baa4b3ca33b0809d7d4a735` — the version this ticket
+created — read from the estate **after** release 37 provisioned the Web app.
+The active revision at the time of this read was
+`pegasus-prod-web-252ow37gij--0b3ec847aae4`, Healthy, created
+2026-08-30T15:21:37Z, which is release 37's revision and not the one the
+original remediation ran against.
+
+So the azd environment update did its job: a full provision did not revert the
+pin. That is the durable half of this ticket, and it is now evidenced rather
+than assumed.
+
+Still not proven, and unchanged by this addendum: that EVA accepts a real
+instruction, and anything about a live (non-test) key.
