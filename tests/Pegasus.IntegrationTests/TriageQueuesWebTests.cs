@@ -238,7 +238,7 @@ public sealed class TriageQueuesWebTests
                 "The document could not be read.",
                 ActionActor.SystemWorker("test-worker"),
                 $"unidentified-web-test:{Guid.NewGuid():N}",
-                DateTimeOffset.UtcNow),
+                receivedAt),
             CancellationToken.None);
 
         using var response = await client.GetAsync("/Cases?tab=unidentified");

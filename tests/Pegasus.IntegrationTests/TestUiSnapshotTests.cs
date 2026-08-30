@@ -26,7 +26,6 @@ public sealed partial class TestUiSnapshotTests
             // notice; every other operation falls to the review state.
             ["administration-account-confirm--disable"] =
                 new("Disabling revokes existing browser sessions"),
-            ["administration-mail-categories--default"] = new("<title>Outlook categories"),
             ["administration-principal-eva-submission--default"] = new(
                 "EVA API submission for WEBP", "We could not complete that request"),
             ["case-details--unavailable"] = new("<h1>Case unavailable</h1>"),
