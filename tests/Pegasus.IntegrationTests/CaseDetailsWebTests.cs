@@ -354,9 +354,15 @@ public sealed partial class CaseDetailsWebTests
         // capture-aware fetch so a Test UI capture records it.
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
 
-        Assert.Contains("Send QDOS3100042 to EVA", html, StringComparison.Ordinal);
-        Assert.Contains("Submit to EVA API", html, StringComparison.Ordinal);
-        Assert.Contains("Download export", html, StringComparison.Ordinal);
+        // The page's own copy, as EPIC-011 restyled it: the handoff heading,
+        // the case it is for, and both routes out.
+        Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<h2 id=\"eva-handoff-title\">QDOS3100042</h2>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("<span>Send via API</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Download export</span>", html, StringComparison.Ordinal);
     }
 
     [Fact]
