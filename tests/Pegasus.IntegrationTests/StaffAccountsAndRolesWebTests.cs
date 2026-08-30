@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -120,6 +121,18 @@ public sealed partial class StaffAccountsAndRolesWebTests
         scriptOffConfirm.EnsureSuccessStatusCode();
         Assert.Contains("method=\"post\"", scriptOffConfirmHtml, StringComparison.Ordinal);
         Assert.Contains("handler=Review", scriptOffConfirmHtml, StringComparison.Ordinal);
+
+        // The Disable branch of the same page, which is the one that carries
+        // the consequence notice; both branches are Test UI catalogue states.
+        using var scriptOffDisable = await client.GetAsync(
+            $"/Administration/Accounts/Confirm/Disable/{created.Id:D}");
+        var scriptOffDisableHtml = await scriptOffDisable.Content.ReadAsStringAsync();
+        scriptOffDisable.EnsureSuccessStatusCode();
+        Assert.Contains("handler=Disable", scriptOffDisableHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            OperatorLabels.StaffAccounts.DisableConsequence,
+            scriptOffDisableHtml,
+            StringComparison.Ordinal);
 
         // Creation keeps the reason when Core rejects a duplicate username,
         // while the temporary password remains intentionally unrendered.

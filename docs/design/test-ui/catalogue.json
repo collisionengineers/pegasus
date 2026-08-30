@@ -70,6 +70,25 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Confirm.cshtml",
+    "route": "/Administration/Accounts/Confirm/{operation}/{staffId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "disable",
+        "file": "pages/administration-account-confirm--disable.html",
+        "branch": "Disable operation: the consequence notice above the reason form.",
+        "scenario": "administration-account-confirm--disable"
+      },
+      {
+        "state": "review",
+        "file": "pages/administration-account-confirm--review.html",
+        "branch": "Any other operation: the reason form without the disable notice.",
+        "scenario": "administration-account-confirm--review"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Accounts/Edit.cshtml",
     "route": "/Administration/Accounts/Edit/{id:guid}",
     "classification": "visual",
