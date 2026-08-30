@@ -306,3 +306,144 @@ remaining entry reads `compensated`.
 - **It does not prove `.claude/skills` is broken in use** — only that it
   differs from the bundle and carries no ownership stamp.
 - **No board mutation was made to TICK-222** during this walk.
+
+---
+
+# Re-checked 2026-08-30, after the Kanmer GUI was closed
+
+## Item 2 — TICK-222's area — now **PASSES**
+
+The blocker was environmental, not a decision. Three attempts on 2026-08-28 and
+two more on 2026-08-30 failed with Windows `EPERM` renaming
+`.kanmer/areas/_none/TICK-222`, because the Kanmer GUI (four processes) held
+directory watch handles on every existing ticket folder. Proved it was the lock
+and not a permission fault: a **freshly created** directory under `areas/`
+renamed fine in the same moment that both ticket folders refused.
+
+With the GUI closed, `update_item` succeeded immediately and **no folder was
+moved by hand**, as this ticket's own body instructs:
+
+```
+TICK-222 -> areas/delivery-repository/TICK-222   (TICK-222.md, plan, proof, scratch all carried)
+  status: done      docs_todo: absent (false)
+  commits: 5e8ceff0, c56f00f8, 7e9465b0…   prs: 540   deployment: n/a   <- release evidence unchanged
+```
+
+`TICK-223` was moved to `ui-improvement` in the same pass, and **no ticket on the
+board now lacks an area** (direct count: 0). `areas/_none/` is empty.
+
+## Item 1 — `get_status.repo.upToDate` — still **FAILS**, and is worse than recorded
+
+Closing the GUI did not fix this. It made it **visible**: the stale list went
+from **three entries to six**.
+
+| Artefact | 2026-08-29 and earlier today (GUI running) | Now (GUI closed) |
+| --- | --- | --- |
+| `agents-block` | *not reported* | **behind** |
+| `.claude/skills` | behind | behind |
+| `skills-stamp` | unstamped | unstamped |
+| `.agents/skills` | *not reported* | **behind — 15 differ, 10 missing** |
+| `.grok/skills` | *not reported* | **behind — 15 differ** |
+| `board-config` | compensated | compensated |
+
+**This matters beyond this ticket.** Every previous evaluation of this
+acceptance line — including the `# HELD` section above, written 2026-08-29 —
+was made against an under-reporting checker. The conclusion (`FAILS`) was right,
+but the scope was understated by half.
+
+**Inference, flagged as such:** the most likely cause is that the checker could
+not enumerate those directories while the GUI held handles on them and skipped
+them silently rather than reporting them as unknown. I did not instrument the
+checker to prove that, so it stays an inference.
+
+**It is not a regression from today's work.** `git status` over `AGENTS.md`,
+`.claude/skills`, `.agents/skills` and `.grok/skills` is clean — no tracked file
+was modified in this session, and this board-groom pass touched none of them.
+
+### A concrete cause for `agents-block`, worth having before the fix runs
+
+`AGENTS.md`'s managed block is **lines 1–22**. The block Kanmer 0.3.3 ships (the
+same one rendered into `CLAUDE.md`) is several times that length — it carries the
+stages, the gate rules, the doc-folder guidance and the skill order. So
+`AGENTS.md` is not subtly out of sync; it carries a **materially older and
+shorter** version of the instructions.
+
+Line 1 also begins with a **UTF-8 BOM** before the start marker, which is worth
+checking against the reconciler's expectations before assuming a plain rewrite
+will settle it.
+
+Note the interaction with [[UIIMP-005]]: `04e580c5` edited `AGENTS.md` to record
+the Test UI regenerate/verify convention. If that content sits **inside** the
+managed block, `kanmer-setup` will overwrite it — the marker says so in terms.
+Check that before reconciling, or the fix silently deletes a convention this
+repo depends on.
+
+`.grok/skills` was last written by **this ticket's own commit `0248da08`**
+("refresh .grok/skills from the bundled 0.3.3 skills") and is reported behind
+again, which is the strongest signal that the earlier reconciliation was measured
+against the same incomplete picture.
+
+## Verdict: **still HELD.** It stays in Verifying.
+
+One of two acceptance items now passes. The other fails wider than recorded.
+
+## What was deliberately NOT done
+
+`kanmer-setup` was **not run**. It is this ticket's remediation, it rewrites
+`AGENTS.md` and two tracked skill trees, and under the repository workflow that
+belongs on this ticket's own branch with a reviewed PR — not inside a
+board-grooming pass. Running it here would also have risked the UIIMP-005
+interaction above, unexamined.
+
+### Correction to the UIIMP-005 caution above — checked, and it is safe
+
+The section above warned that `kanmer-setup` might overwrite UIIMP-005's Test UI
+convention if that content sits inside the managed block. **It does not.**
+
+```
+managed block:            lines 1–22
+Test UI convention:       lines 109–112  ("After changing a routed Razor page…")
+04e580c5 added 7 lines, all outside the block
+```
+
+So reconciling `AGENTS.md` will not delete the regenerate/verify convention. The
+caution was worth raising and is now closed; do not carry it forward as a
+blocker on the fix.
+
+The other two points stand unchanged: the block is materially shorter than the
+one Kanmer 0.3.3 ships, and line 1 carries a UTF-8 BOM ahead of the start marker.
+
+---
+
+# PASS — 2026-08-30, on merged `dev`
+
+PR #638 squash-merged to `dev` at `a426ba57`; primary checkout updated to it;
+worktree and branch removed.
+
+## Both acceptance items now met
+
+**Item 1 — `get_status.repo.upToDate`.** Live call after the merge:
+
+```
+repo.upToDate: true
+repo.stale:
+  - skills-stamp   unstamped     (GUI action: "reconnect in the Kanmer app")
+  - board-config   compensated   ("none — informational")
+```
+
+Six entries down to two, and the acceptance reads "`upToDate` is true, **or**
+every remaining entry is explicitly informational/compensated". `upToDate` is
+now literally true, so the first branch holds outright.
+
+**Item 2 — TICK-222.** In `delivery-repository`, `docs_todo` absent, still Done,
+commits `5e8ceff0`/`c56f00f8`/`7e9465b0` and PR 540 unchanged. Moved by tool, no
+folder touched by hand.
+
+## What is NOT proved
+
+- `skills-stamp` is still unstamped. It is not fixable from here — writing
+  `.kanmer-skills-version` is a GUI action. It is disclosed, not resolved.
+- `.claude/skills` is gitignored, so its reconciliation is local to this
+  workstation and rides in no artifact.
+- Nothing here is deployed; this ticket ships in no runtime artifact
+  (`deployment: n/a`).

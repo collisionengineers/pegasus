@@ -2,7 +2,7 @@
 id: KANMER-006
 type: ticket
 title: Reconcile the current Kanmer setup drift
-status: verifying
+status: done
 area: kanmer-meta
 assignee: claude-code
 profile: chore
@@ -10,6 +10,8 @@ stageEntered:
   preparing: '2026-08-28T08:08:09.750Z'
   review: '2026-08-28T08:13:41.548Z'
   verifying: '2026-08-28T08:19:26.546Z'
+  implementing: '2026-08-30T20:59:06.772Z'
+  done: '2026-08-30T21:34:49.829Z'
 taken_at: '2026-08-28T08:11:49.416Z'
 branch: task/kanmer-006-setup-drift
 worktree: ../pegasus-worktrees/kanmer-006-setup-drift
@@ -25,12 +27,15 @@ links:
 commits:
   - cc8863d3
   - 0248da08
+  - 052f7082
+  - 9b741fe4
 prs:
   - '#582'
+  - '638'
 deployment: n/a
 archived: false
 created: '2026-08-25T06:35:41.710Z'
-updated: '2026-08-30T20:14:45.222Z'
+updated: '2026-08-30T21:34:49.829Z'
 ---
 
 ## What

@@ -5,7 +5,7 @@ title: >-
   Dialog triggers must keep a static link target (script-off EVA Send
   unreachable from Case page)
 status: backlog
-area: ''
+area: ui-improvement
 assignee: ''
 profile: fix
 labels:
@@ -20,7 +20,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-08-28T15:36:16.887Z'
-updated: '2026-08-28T15:36:16.887Z'
+updated: '2026-08-30T20:41:00.363Z'
 ---
 
 ## What

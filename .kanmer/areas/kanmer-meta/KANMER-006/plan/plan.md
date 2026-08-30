@@ -38,3 +38,64 @@ files, no scripts added.
 ## Simplification pass
 
 n/a — docs-only.
+
+---
+
+## Authorised scope extension — 2026-08-30
+
+The ticket's Approach says "reconcile **only** the reported behind/unstamped
+artefacts". This pass exceeds that by one line, with operator authority recorded
+here so the change is not an agent's unilateral widening.
+
+### Why the stated scope could not be met as written
+
+Refreshing `.grok/skills` from the bundled Kanmer skills reintroduces a link to
+`docs/manual/greenfield.md` — a file in **Kanmer's own product repo**, not this
+one — and `scripts/Test-DocumentationLinks.ps1` fails on it:
+
+```
+BROKEN .grok/skills/kanmer-setup/SKILL.md: ../../../../docs/manual/greenfield.md
+1 broken relative Markdown link(s).      exit 1
+```
+
+That link had been removed once before, by `81fd677f` "fix(docs): remove broken
+Kanmer greenfield link".
+
+`Test-DocumentationLinks.ps1:14` excludes `.claude`, `.agents`, `.codex` and
+`.kanmer` — every other vendored agent-skill tree — but **not `.grok`**. So
+`.grok/skills` cannot be byte-identical to the bundled skills *and* pass CI.
+
+**This makes acceptance item 1 unsatisfiable by construction.** Repeating the
+`81fd677f` hand-deletion permanently diverges the tree from what Kanmer ships, so
+`get_status` reports it behind forever and `repo.upToDate` can never be true —
+with the same manual deletion owed after every future Kanmer update.
+
+### The decision
+
+Put to the operator on 2026-08-30 with three options: add `.grok` to the
+exclusion list; strip the four lines again following precedent; or strip now and
+file the conflict separately.
+
+**Operator chose: add `.grok` to the exclusion list.** One character of a regex
+in `scripts/Test-DocumentationLinks.ps1`.
+
+### Why the gate is not weakened
+
+`.grok/skills` is vendored third-party content this repo does not author, whose
+links point into their own repository — the same property that already justifies
+excluding `.claude`, `.agents` and `.codex`. Its absence from that list was an
+oversight, not a decision.
+
+**Proven, not asserted** (rule 21 — a gate that gates nothing is a defect):
+
+```
+./scripts/Test-DocumentationLinks.ps1                    -> exit 0, 87 files
+plant a broken link in docs/index.md, re-run             -> exit 1, names it
+restore docs/index.md, re-run                            -> exit 0
+```
+
+### Consequence for this ticket's acceptance
+
+With `.grok` excluded, both trees stay byte-identical to bundled, so acceptance
+item 1 becomes reachable once the primary checkout carries the merged change.
+Without it, item 1 was impossible.
