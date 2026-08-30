@@ -157,25 +157,54 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Upload received</h1>
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Upload status</p>
+        <h1>Upload received</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn--primary" href="upload--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>Upload another file</span>
+        </a>
+    </div>
 </header>
 
 
-<div class="form-column">
+<div class="stack">
     <section class="panel"
              aria-labelledby="group-status-title">
-        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
-        <ol class="upload-outcome-list">
-                <li>
-                        <a href="upload-status--default.html">one.pdf</a>
-                        <span class="field-hint">Received</span>
-                </li>
-                <li>
-                        <a href="upload-status--default.html">two.jpg</a>
-                        <span class="field-hint">Received</span>
-                </li>
-        </ol>
+        <div class="panel-head">
+            <h2 id="group-status-title">Files in this submission</h2>
+        </div>
+        <div class="panel-body">
+            <div class="file-list section-gap">
+                    <div class="file-row">
+                        <span>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                        </span>
+                        <span>
+                                <strong><a href="upload-status--default.html">one.pdf</a></strong>
+                        </span>
+                        <span>
+                                <span class="status status--neutral">Received</span>
+
+                        </span>
+                    </div>
+                    <div class="file-row">
+                        <span>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                        </span>
+                        <span>
+                                <strong><a href="upload-status--default.html">two.jpg</a></strong>
+                        </span>
+                        <span>
+                                <span class="status status--neutral">Received</span>
+
+                        </span>
+                    </div>
+            </div>
+        </div>
     </section>
 </div>
 

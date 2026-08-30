@@ -157,59 +157,76 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="inbox--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Inbox
-</a>
-
-
-<article class="record" data-state="not-ready">
-    <header class="record__head">
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Inbox message</p>
         <h1 class="wrap">Browser preview message</h1>
-        <span class="record__head-end">
-                <span class="status-chip status-chip--amber">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                    Not yet processed
-                </span>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="inbox--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Inbox</span>
+        </a>
+    </div>
+</header>
+
+
+<article class="record">
+    <header class="record-head">
+        <h2 class="wrap">Browser preview message</h2>
+        <span class="record-identity">
+            <span>Browser Sender</span>
+            <span>browser-mail@collisionengineers.co.uk</span>
+            <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></span>
+        </span>
+        <span class="record-head-end">
+                <span class="status status--amber">Not yet processed</span>
+
         </span>
     </header>
-    <div class="record__accent"></div>
+    <div class="record-accent"></div>
+
 
     <nav class="tabs" aria-label="Sections">
-        <a aria-current="page" href="inbox-message--default.html">Message</a>
-        <a href="inbox-message--default.html">
+        <a class="tab" aria-current="page" href="inbox-message--default.html">Message</a>
+        <a class="tab" href="inbox-message--default.html">
             Attachments
-                <span class="count">1</span>
+                <span class="tab-count">1</span>
         </a>
-        <a href="inbox-message--default.html">Thread</a>
+        <a class="tab" href="inbox-message--default.html">Thread</a>
     </nav>
 
-    <div class="record__body">
+    <div class="record-body">
 
 
-            <div class="split-main">
+            <div class="split">
                 <div>
-                    <div class="mail-from">sender@example.invalid</div>
-                        <div class="mail-route">To browser-mail@collisionengineers.co.uk</div>
+                    <div class="mail-header">
+                        <div class="mail-subject">Browser preview message</div>
+                            <div class="mail-route">To browser-mail@collisionengineers.co.uk</div>
+                    </div>
 
                         <div class="mail-body">
                                 <p>The browser preview preserves this retained excerpt.</p>
                         </div>
                 </div>
 
-                <aside>
-                    <div class="decision">
-                        <div class="facts">
-                            <h2>Decision</h2>
-                            <dl>
-                                <div><dt>Classification</dt><dd>Not yet processed</dd></div>
-                                <div>
-                                    <dt>Filed to</dt>
-                                        <dd class="quiet">No case</dd>
+                <aside class="stack">
+                    <section class="decision-card">
+                        <h2 class="decision-head">Decision</h2>
+                        <div class="decision-body">
+                            <div class="decision-facts">
+                                <div class="decision-row">
+                                    <span>Classification</span>
+                                    <strong>Not yet processed</strong>
                                 </div>
-                            </dl>
+                                <div class="decision-row">
+                                    <span>Filed to</span>
+                                        <strong class="quiet">No case</strong>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </section>
 
                 </aside>
             </div>

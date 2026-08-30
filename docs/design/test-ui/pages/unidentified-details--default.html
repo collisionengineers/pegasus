@@ -157,58 +157,198 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>U1</h1>
-    <span class="status status--amber">Unidentified</span>
-
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Unidentified</p>
+        <h1>U1</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="queues--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Cases</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
 </header>
 
 <div class="validation-summary validation-summary-valid" role="alert" data-valmsg-summary="true"><ul><li style="display:none"></li>
 </ul></div>
 
-<section class="panel" aria-labelledby="unidentified-detail-title">
-    <h2 id="unidentified-detail-title" class="section-label">What is going on</h2>
-    <dl class="detail-list">
-        <dt>Kind</dt><dd>Image</dd>
-        <dt>Received</dt><dd><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></dd>
-        <dt>Reason</dt><dd>No usable identification</dd>
-        <dt>Concerns</dt><dd>vehicle.png</dd>
-    </dl>
-            <a class="upload-thumb" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" target="_blank">
-                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" loading="lazy" alt="vehicle.png" />
-            </a>
-        <a href="received-details--default.html">Open the received file</a>
-</section>
+<article class="record">
+    <header class="record-head">
+        <strong>U1</strong>
+        <span class="record-identity">
+            <span>Image</span>
+            <span>Received 06 May 2031 11:30</span>
+            <span>vehicle.png</span>
+        </span>
+        <span class="record-head-end">
+            <span class="status status--amber">Unidentified</span>
 
-<section class="panel" aria-labelledby="unidentified-history-title">
-    <h2 id="unidentified-history-title" class="section-label">History</h2>
-    <ol class="history-list">
-            <li><strong>Unidentified</strong> — No accepted intake route established the principal for automatic case creation. <small><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></small></li>
-    </ol>
-</section>
+        </span>
+    </header>
+    <div class="record-accent"></div>
 
-    <section class="panel form-panel" aria-labelledby="unidentified-resolve-title">
-        <h2 id="unidentified-resolve-title" class="section-label">Resolve</h2>
-        <form method="post" action="unidentified-details--default.html">
-            <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
-            <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-            <label for="ResolutionReason">Reason</label>
-            <textarea maxlength="500" required data-val="true" data-val-required="The ResolutionReason field is required." id="ResolutionReason" name="ResolutionReason">
+    <div class="record-body">
+        <div class="notice notice--warning" role="status">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+            <span>No usable identification</span>
+        </div>
+
+        <section class="panel section-gap" aria-labelledby="unidentified-source-title">
+            <div class="panel-head"><h2 id="unidentified-source-title">Retained source</h2></div>
+            <div class="panel-body stack">
+                <div class="definition-list">
+                    <dl class="definition"><dt>Permanent reference</dt><dd>U1</dd></dl>
+                    <dl class="definition"><dt>Kind</dt><dd>Image</dd></dl>
+                    <dl class="definition"><dt>Operator handle</dt><dd>vehicle.png</dd></dl>
+                    <dl class="definition"><dt>Received</dt><dd>06 May 2031 11:30</dd></dl>
+                    <dl class="definition">
+                        <dt>Source</dt>
+                        <dd>Manual upload</dd>
+                    </dl>
+                    <dl class="definition"><dt>Canonical reason</dt><dd>No usable identification</dd></dl>
+                </div>
+                        <ul class="gallery" data-evidence-set>
+            <li>
+                <a href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                   class="gallery-item"
+                   data-evidence-item
+                   data-download-href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                   data-media-type="image/png"
+                   data-file-name="vehicle.png">
+                    <span class="gallery-image"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="vehicle.png" loading="lazy" /></span>
+                    <span class="gallery-caption"><strong>vehicle.png</strong></span>
+                </a>
+            </li>
+    </ul>
+
+                <div class="button-row">
+                        <a class="btn" href="received-details--default.html">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                            <span>View retained source</span>
+                        </a>
+                        <button type="button" class="btn btn--dark" data-dialog-open="unidentified-resolve-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                            <span>Resolve destination</span>
+                        </button>
+                </div>
+            </div>
+        </section>
+
+            <section class="panel section-gap" aria-labelledby="unidentified-history-title">
+                <div class="panel-head"><h2 id="unidentified-history-title">History</h2></div>
+                <div class="panel-body">
+                    <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-title">
+                                    Unidentified
+                                </div>
+                                <div class="timeline-meta">
+                                    06 May 2031 11:30 · No accepted intake route established the principal for automatic case creation.
+                                </div>
+                            </div>
+                    </div>
+                </div>
+            </section>
+    </div>
+</article>
+
+    <div class="dialog-backdrop" data-dialog="unidentified-resolve-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-resolve-dialog-title">
+            <div class="dialog-head">
+                <h2 id="unidentified-resolve-dialog-title" tabindex="-1">Resolve U1</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" action="unidentified-details--default.html">
+                <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
+                <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
+                <div class="dialog-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>The U-reference and original source remain after resolution.</span>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="unidentified-target-kind">Destination</label>
+                        <select id="unidentified-target-kind" required data-dialog-initial-focus data-val="true" data-val-required="The TargetKind field is required." name="TargetKind">
+                                <option value="InstructionCase" selected="selected">Add to existing Case</option>
+                                <option value="ImageIntake">Register Image-initiated Case</option>
+                                <option value="Triage">Link to Triage</option>
+                                <option value="BlockedIntake">Blocked intake</option>
+                                <option value="ExternalReference">Close with reason</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="unidentified-target-id">Destination identifier</label>
+                        <input id="unidentified-target-id" maxlength="200" required autocomplete="off" type="text" data-val="true" data-val-required="The TargetId field is required." name="TargetId" value="" />
+                    </div>
+                    <div class="field">
+                        <label for="unidentified-target-reference">Destination reference</label>
+                        <input id="unidentified-target-reference" maxlength="200" autocomplete="off" type="text" name="TargetReference" value="" />
+                    </div>
+                    <div class="field">
+                        <label class="req" for="unidentified-resolution-reason">Reason</label>
+                        <textarea id="unidentified-resolution-reason" maxlength="500" rows="3" required data-val="true" data-val-required="The ResolutionReason field is required." name="ResolutionReason">
 </textarea>
-            <label for="TargetKind">Destination</label>
-            <select data-val="true" data-val-required="The TargetKind field is required." id="TargetKind" name="TargetKind"><option selected="selected" value="0">InstructionCase</option>
-<option value="1">ImageIntake</option>
-<option value="2">Triage</option>
-<option value="3">BlockedIntake</option>
-<option value="4">ExternalReference</option>
-</select>
-            <label for="TargetId">Destination identifier</label>
-            <input maxlength="200" required type="text" data-val="true" data-val-required="The TargetId field is required." id="TargetId" name="TargetId" value="" />
-            <label for="TargetReference">Destination reference (optional)</label>
-            <input maxlength="200" type="text" id="TargetReference" name="TargetReference" value="" />
-            <button type="submit" class="primary-action">Resolve</button>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <span>Record resolution</span>
+                    </button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </section>
+    </div>
+
+<div id="evidence-viewer"
+     class="dialog-backdrop evidence-viewer"
+     data-evidence-viewer
+     hidden>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
+        <div class="dialog-head">
+            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
+            <span class="muted tabular" data-evidence-position></span>
+            <a class="btn btn--small" data-evidence-download download>
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Save as</span>
+            </a>
+            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
+                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+            </button>
+            <button type="button" class="dialog-close" data-evidence-close>
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span class="sr-only">Close</span>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="viewer-stage" data-evidence-stage data-rotate-target>
+                <img data-evidence-image alt="" hidden />
+                <iframe data-evidence-document title="" hidden></iframe>
+            </div>
+        </div>
+        <div class="dialog-foot cluster--between">
+            <button type="button" class="btn" data-evidence-previous>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>Previous</span>
+            </button>
+            <button type="button" class="btn" data-evidence-next>
+                <span>Next</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+            </button>
+        </div>
     </section>
+</div>
+
 
                 </div>
             </main>

@@ -157,25 +157,61 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Search</h1>
+<header class="page-header">
+    <div class="page-title">
+        <h1>Search</h1>
+    </div>
+    <div class="page-actions">
+        <div class="freshness" data-refresh-region role="status" aria-live="polite">
+    <span class="health-dot"></span>
+        <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
+    <form method="get" data-refresh-form>
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="query" value="AB12CDE-01" />
+        <button type="submit" class="btn btn--small" title="Refresh">
+            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span data-refresh-label>Refresh</span>
+        </button>
+    </form>
+</div>
+
+        <a class="btn btn--primary" href="upload--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+            <span>Create Case</span>
+        </a>
+    </div>
 </header>
 
-<section class="panel filterbar" aria-labelledby="case-filters-title">
-    <h2 id="case-filters-title" class="vh">Filter cases</h2>
-    <form method="get">
+<form method="get" class="panel section-gap" aria-label="Filter cases">
 
-        <div class="filterbar__line">
-            <label for="case-query" class="vh">Case/PO or keyword</label>
-            <input id="case-query" name="query" value="needle" maxlength="300"
-                   placeholder="Case/PO, registration, claimant or claim number" />
-
-            <label for="case-state" class="vh">Case stage</label>
-            <select id="case-state" name="state">
-                <option value="">Any stage</option>
+    <div class="panel-body advanced-search-grid">
+        <div class="field">
+            <label for="search-query">Case/PO or image reference</label>
+            <input id="search-query" name="query" value="AB12CDE-01" maxlength="300" />
+        </div>
+        <div class="field">
+            <label for="search-registration">Registration</label>
+            <input id="search-registration" name="registration" maxlength="20" />
+        </div>
+        <div class="field">
+            <label for="search-claimant">Claimant</label>
+            <input id="search-claimant" name="claimant" maxlength="300" />
+        </div>
+        <div class="field">
+            <label for="search-claim-number">Claim/provider reference</label>
+            <input id="search-claim-number" name="claimNumber" maxlength="100" />
+        </div>
+        <div class="field">
+            <label for="search-principal">Principal</label>
+            <input id="search-principal" name="principal" maxlength="20" />
+        </div>
+        <div class="field">
+            <label for="search-state">State</label>
+            <select id="search-state" name="state">
+                <option value="">All states</option>
                     <option value="NotReady">Not ready</option>
                     <option value="Held">Held</option>
-                    <option value="Review" selected="selected">Review</option>
+                    <option value="Review">Review</option>
                     <option value="ReportPreparation">With Engineer</option>
                     <option value="PostReport">With Engineer</option>
                     <option value="PostReportComplete">Complete</option>
@@ -184,119 +220,80 @@
                     <option value="CreatedInError">Closed &#xB7; Created in error</option>
                     <option value="SourceEmailUnlinked">Closed &#xB7; E-mail unlinked</option>
             </select>
-
-            <label for="case-principal" class="vh">Principal</label>
-            <input id="case-principal" name="principal" value="QDOS" maxlength="20" placeholder="Principal" />
-
+        </div>
+        <div class="field">
+            <label for="search-engineer">Engineer</label>
+            <input id="search-engineer" name="engineerId" />
+            <span class="field-validation-error field-validation-valid" data-valmsg-for="EngineerId" data-valmsg-replace="true"></span>
+        </div>
+        <div class="field">
+            <label for="search-from-date">Received from</label>
+            <input id="search-from-date" name="fromDate" type="date" />
+            <span class="field-validation-error field-validation-valid" data-valmsg-for="FromDate" data-valmsg-replace="true"></span>
+        </div>
+        <div class="field">
+            <label for="search-to-date">Received to</label>
+            <input id="search-to-date" name="toDate" type="date" />
+            <span class="field-validation-error field-validation-valid" data-valmsg-for="ToDate" data-valmsg-replace="true"></span>
+        </div>
+        <div class="field">
+            <label for="search-origin">Origin</label>
+            <input id="search-origin" name="origin" maxlength="100" />
+        </div>
+        <div class="button-row">
             <button type="submit" class="btn btn--dark">
                 <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                Search
+                <span>Search</span>
             </button>
-            <a class="btn" href="cases--default.html">Clear</a>
+            <a class="btn" href="cases--default.html">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span>Clear</span>
+            </a>
         </div>
+    </div>
+</form>
 
-        <details class="filterbar__more" open="open">
-            <summary>More filters</summary>
-            <div class="form-grid">
+    <h2 class="section-label section-gap">Vehicle images</h2>
+    <div class="panel" data-row-list>
+            <a class="row-button" href="vehicle-images-details--default.html">
+                <span class="row-top">
+                    <span class="row-title">AB12CDE-01 &#xB7; AB12CDE</span>
+                    <span class="status status--neutral">Merged into Instruction-initiated Case</span>
+
+                </span>
+                <span class="row-top">
+                    <span class="row-meta">Registered 01 May 2031 11:00</span>
+                </span>
+            </a>
+    </div>
+
+    <section class="pane-layout pane-layout--2 case-search-layout section-gap">
+        <div class="pane">
+            <div class="pane-head">
                 <div>
-                    <label for="CaseReference">Case/PO</label>
-                    <input id="case-reference" name="case" value="QDOS3100042" maxlength="100" />
-                </div>
-                <div>
-                    <label for="Registration">Registration</label>
-                    <input maxlength="20" type="text" id="Registration" name="Registration" value="AB12CDE" />
-                </div>
-                <div>
-                    <label for="Claimant">Claimant</label>
-                    <input maxlength="300" type="text" id="Claimant" name="Claimant" value="Claimant" />
-                </div>
-                <div>
-                    <label for="ClaimNumber">Claim number</label>
-                    <input maxlength="100" type="text" id="ClaimNumber" name="ClaimNumber" value="CLM42" />
-                </div>
-                <div>
-                    <label for="EngineerId">Engineer</label>
-                    <input type="text" id="EngineerId" name="EngineerId" value="test-ui-guid-1" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="EngineerId" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="ReceivedDate">Received on</label>
-                    <input type="date" id="ReceivedDate" name="ReceivedDate" value="2031-05-01" /><input name="__Invariant" type="hidden" value="ReceivedDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="ReceivedDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="InstructionDate">Instructed on</label>
-                    <input type="date" id="InstructionDate" name="InstructionDate" value="2031-05-02" /><input name="__Invariant" type="hidden" value="InstructionDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="InstructionDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="FromDate">Received from</label>
-                    <input type="date" id="FromDate" name="FromDate" value="2031-04-01" /><input name="__Invariant" type="hidden" value="FromDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="FromDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="ToDate">Received to</label>
-                    <input type="date" id="ToDate" name="ToDate" value="2031-05-31" /><input name="__Invariant" type="hidden" value="ToDate" />
-                    <span class="field-validation-error field-validation-valid" data-valmsg-for="ToDate" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="Origin">Origin</label>
-                    <input maxlength="100" type="text" id="Origin" name="Origin" value="Email" />
-                </div>
-                <div>
-                    <label for="record-kind">Record type</label>
-                    <select id="record-kind" name="kind">
-                        <option value="" selected="selected">All</option>
-                        <option value="instructions">Cases</option>
-                        <option value="images">Vehicle images</option>
-                    </select>
+                    <h2>Case results</h2>
+                    <span class="muted">0 results</span>
                 </div>
             </div>
-        </details>
-    </form>
-</section>
+            <div class="pane-body pane-scroll" data-row-list>
+            </div>
+                <nav class="pagination" aria-label="Case result pages">
+                        <a class="btn btn--small" href="cases--default.html">Previous</a>
+                    <span>Page 1</span>
+                        <a class="btn btn--small" href="cases--default.html">Next</a>
+                </nav>
+        </div>
+        <div class="pane">
+            <div class="pane-head">
+                <h2>Selected Case</h2>
+            </div>
+            <div class="pane-body pane-scroll">
+                <div data-preview-target>
+                </div>
+            </div>
+        </div>
+    </section>
 
-
-    <h2 class="section-label section-gap">Results</h2>
-    <div class="table-wrap">
-        <table>
-            <caption class="vh">Case search results</caption>
-            <thead>
-                <tr>
-                    <th scope="col">Case/PO</th>
-                    <th scope="col">Registration</th>
-                    <th scope="col">Claimant</th>
-                    <th scope="col">Claim number</th>
-                    <th scope="col">Principal</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Engineer</th>
-                    <th scope="col">Received</th>
-                    <th scope="col">Instruction</th>
-                    <th scope="col">Origin</th>
-                </tr>
-            </thead>
-            <tbody>
-                    <tr>
-                        <td><a href="case-details--default.html">QDOS3100042</a></td>
-                        <td>AB12CDE</td>
-                        <td>Claimant</td>
-                        <td>CLM42</td>
-                        <td>QDOS</td>
-                        <td><span class="status status--navy">Review</span>
-</td>
-                        <td>Assigned</td>
-                        <td><time datetime="2031-05-01T10:00:00.0000000&#x2B;00:00">01 May 2031 11:00</time></td>
-                        <td>02 May 2031</td>
-                        <td>Email</td>
-                    </tr>
-            </tbody>
-        </table>
-    </div>
-    <nav class="pager" aria-label="Case result pages">
-            <a href="cases--default.html">Previous</a>
-        <span class="pager__context">Page 2 · showing 1</span>
-            <a href="cases--default.html">Next</a>
-    </nav>
 
                 </div>
             </main>
@@ -434,6 +431,52 @@
     <div class="toast-region" aria-live="polite" data-toast-region></div>
 
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
+
+    <script>
+        // The shell's row-selection module swaps the preview target and
+        // rewrites the address; two controls this page owns live outside that
+        // region because they cannot survive being replaced — the Copy
+        // Case/PO source (the shell's clipboard binding resolves it once, at
+        // load) and the refresh form's hidden `selected` field. Without this
+        // they keep the row the server selected: Copy pasted the previous
+        // Case/PO and Refresh reopened the previous row. The clipboard and
+        // the selection stay the shell's; this only keeps the two values on
+        // the row the operator is reading.
+        (function () {
+            'use strict';
+            var reference = document.getElementById('search-copy-reference');
+            var refreshField = document.querySelector('[data-refresh-form] input[name="selected"]');
+            if (!reference && !refreshField) {
+                return;
+            }
+
+            document.querySelectorAll('tr[data-copy-reference][data-select-id]').forEach(function (row) {
+                function follow() {
+                    if (reference) {
+                        reference.textContent = row.getAttribute('data-copy-reference');
+                    }
+                    if (refreshField) {
+                        refreshField.value = row.getAttribute('data-select-id');
+                    }
+                }
+
+                // The same three openings the shell selects on, with the same
+                // guard: a click on the row's own link or button is that
+                // control's, not a selection.
+                row.addEventListener('click', function (event) {
+                    if (!event.target.closest('a, button')) {
+                        follow();
+                    }
+                });
+                row.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter' && !event.target.closest('a, button')) {
+                        follow();
+                    }
+                });
+                row.addEventListener('focus', follow);
+            });
+        })();
+    </script>
 
 </body>
 </html>

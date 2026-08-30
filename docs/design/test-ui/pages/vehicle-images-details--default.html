@@ -157,46 +157,98 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Image-initiated Case</p>
         <h1>AB12CDE-01</h1>
-        <span class="status status--neutral">Merged into Instruction-initiated Case</span>
-
     </div>
-    <a class="secondary-action" href="queues--default.html">Cases</a>
+    <div class="page-actions">
+        <a class="btn" href="queues--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Cases</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
 </header>
 
-<div class="review-grid">
-    <section class="panel" aria-labelledby="image-intake-record-title">
-        <h2 id="image-intake-record-title" class="section-label">Record</h2>
-        <dl class="detail-list">
-            <div><dt>Image-initiated reference</dt><dd>AB12CDE-01</dd></div>
-            <div><dt>Vehicle registration</dt><dd>AB12CDE</dd></div>
-            <div><dt>Registered</dt><dd>06 May 2031 11:30</dd></div>
-            <div><dt>Lifecycle state</dt><dd>Merged into Instruction-initiated Case</dd></div>
-            <div>
-                <dt>Case association</dt>
-                <dd>
-                        <a href="case-details--default.html">QDOS31001</a>
-                </dd>
-            </div>
-        </dl>
-    </section>
+<div class="validation-summary validation-summary-valid" role="alert" data-valmsg-summary="true"><ul><li style="display:none"></li>
+</ul></div>
 
-    <section class="panel" aria-labelledby="image-intake-origin-title">
-        <h2 id="image-intake-origin-title" class="section-label">Preserved origin</h2>
-        <dl class="detail-list">
-            <div><dt>Source channel</dt><dd>Manual upload</dd></div>
-        </dl>
-        <p>Association, reversal and re-linking are reasoned actions on the origin receipt; the reference above is permanent either way.</p>
-        <a class="secondary-action" href="received-details--default.html">Open the origin receipt to link or unlink</a>
-    </section>
-</div>
+<article class="record">
+    <header class="record-head">
+        <strong>AB12CDE-01</strong>
+        <span class="record-identity">
+            <span>AB12CDE</span>
+            <span>Registered 06 May 2031 11:30</span>
+            <span>1 image</span>
+        </span>
+        <span class="record-head-end">
+            <span class="status status--neutral">Merged into Instruction-initiated Case</span>
 
-    <section class="panel section-gap" aria-labelledby="image-initiated-images-title">
-        <h2 id="image-initiated-images-title" class="section-label">Images</h2>
-            <ul class="gallery" data-evidence-set>
+        </span>
+    </header>
+    <div class="record-accent"></div>
+
+    <div class="record-bar">
+        <a class="btn" href="received-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+            <span>Open the origin receipt</span>
+        </a>
+    </div>
+
+    <div class="record-body">
+        <div class="grid grid-2">
+            <section class="panel" aria-labelledby="image-intake-record-title">
+                <div class="panel-head"><h2 id="image-intake-record-title">Record</h2></div>
+                <div class="panel-body">
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Image-initiated reference</dt>
+                            <dd>AB12CDE-01</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Vehicle registration</dt>
+                            <dd>AB12CDE</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Registered</dt>
+                            <dd>06 May 2031 11:30</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Lifecycle state</dt>
+                            <dd>Merged into Instruction-initiated Case</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Case association</dt>
+                            <dd>
+                                    <a href="case-details--default.html">QDOS31001</a>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="image-intake-origin-title">
+                <div class="panel-head"><h2 id="image-intake-origin-title">Preserved origin</h2></div>
+                <div class="panel-body">
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Source channel</dt>
+                            <dd>Manual upload</dd>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+            <section class="section-gap" aria-labelledby="image-initiated-images-title">
+                <div class="blockhead"><h2 id="image-initiated-images-title">Images</h2></div>
+                    <ul class="gallery" data-evidence-set>
             <li>
                 <a href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
                    class="gallery-item"
@@ -210,8 +262,37 @@
             </li>
     </ul>
 
-    </section>
-    <div id="evidence-viewer"
+            </section>
+
+            <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
+                <div class="panel-head"><h2 id="image-initiated-history-title">History</h2></div>
+                <div class="panel-body">
+                    <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-title">Merged into Instruction-initiated Case</div>
+                                <div class="timeline-meta">06 May 2031 11:30 · The Image-initiated case AB12CDE-01 was merged into the linked formal Case.</div>
+                            </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <section class="panel section-gap" aria-labelledby="image-intake-suggestions-title">
+                <div class="panel-head"><h2 id="image-intake-suggestions-title">Registration reading results</h2></div>
+                <div class="panel-body">
+                    <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-title">Suggested AB12CDE (95% confidence)</div>
+                                <div class="timeline-meta">fake-engine v1 · 06 May 2031 11:30 · confirmed</div>
+                            </div>
+                    </div>
+                </div>
+            </section>
+    </div>
+</article>
+
+
+<div id="evidence-viewer"
      class="dialog-backdrop evidence-viewer"
      data-evidence-viewer
      hidden>
@@ -250,25 +331,6 @@
     </section>
 </div>
 
-
-
-    <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
-        <h2 id="image-initiated-history-title" class="section-label">Image-initiated Case history</h2>
-        <ol class="plain-list">
-                <li><strong>Merged into Instruction-initiated Case</strong> · 06 May 2031 11:30 · The Image-initiated case AB12CDE-01 was merged into the linked formal Case.</li>
-        </ol>
-    </section>
-
-
-    <section class="panel section-gap" aria-labelledby="image-intake-suggestions-title">
-        <h2 id="image-intake-suggestions-title" class="section-label">Registration reading results</h2>
-        <ul class="evidence-list">
-                <li>
-                    <strong>Suggested AB12CDE (95% confidence)</strong>
-                    <span>fake-engine v1 · 06 May 2031 11:30 · confirmed</span>
-                </li>
-        </ul>
-    </section>
 
                 </div>
             </main>

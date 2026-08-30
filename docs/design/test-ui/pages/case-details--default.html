@@ -159,238 +159,238 @@
 
 
 
-<nav class="crumb" aria-label="Breadcrumb">
-    <a href="queues--default.html">Cases</a> / NOTACTIVE31001
-</nav>
-
-<article class="record" data-state="not-ready">
-    <header class="record__head">
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Case workspace · AB12CDE</p>
         <h1>NOTACTIVE31001</h1>
-        <span class="record__identity">
-            <span><b>NOTACTIVE</b></span>
-            <span>AB12CDE</span>
-            <span>No claimant recorded</span>
-            <span>Inspection</span>
-        </span>
-        <span class="record__head-end">
-            <span class="status status--amber">Not ready</span>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="queues--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Cases</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <input type="hidden" name="section" value="overview" />
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
+</header>
 
-        </span>
-    </header>
-    <div class="record__accent"></div>
 
-    <div class="record__bar">
-                <form method="post" class="record__bar-form" action="case-details--default.html">
-                    <input type="hidden" name="id" value="test-ui-guid-1" />
-                    <input type="hidden" name="expectedVersion" value="0" />
-                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                    <button type="submit" class="btn">Edit case</button>
-                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        <span class="gated" data-condition="Available in Review">
-            <a class="btn is-disabled" aria-disabled="true" href="case-details--default.html">
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Send to EVA
-            </a>
-        </span>
-        <span class="record__bar-end">
-            <span class="record__bar-rule" aria-hidden="true"></span>
-            <span class="gated" data-condition="Available after the current Review export">
-                <a class="btn btn--dark is-disabled" aria-disabled="true" href="">Open assessment</a>
-            </span>
+<article class="record">
+    <div class="record-ribbon" aria-label="Case identity">
+        <div class="ribbon-item ribbon-ref">
+            <div class="ribbon-label">Case/PO</div>
+            <div class="ribbon-value">NOTACTIVE31001</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Registration</div>
+            <div class="ribbon-value">AB12CDE</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Claimant</div>
+            <div class="ribbon-value">Not recorded</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Principal</div>
+            <div class="ribbon-value">NOTACTIVE</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">State</div>
+            <div class="ribbon-value"><span class="status status--amber">Not ready</span>
+</div>
+        </div>
+    </div>
+
+    <div class="record-bar">
+            <form method="post" action="case-details--default.html">
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="0" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <button type="submit" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                    <span>Edit Case</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        <span class="record-bar-end">
+                <span class="gated" data-condition="Available after the current Review export">
+                    <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
+                </span>
         </span>
     </div>
 
-    <nav class="tabs" aria-label="Case sections">
-        <a aria-current="page" href="case-details--default.html">Overview</a>
-        <a href="case-details--default.html">
-            Evidence <span class="count">0</span>
+
+    <div class="record-body">
+        <div class="case-workspace">
+            <div class="case-section-nav">
+        <a aria-current="page" href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+            <span>Case Overview</span>
         </a>
         <a href="case-details--default.html">
-            Notes <span class="count">0</span>
+            <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
+            <span>Vehicle</span>
         </a>
-    </nav>
-
-    <div class="record__body">
-
-
-
-<div class="block-grid">
-    <section class="block" aria-labelledby="block-identity">
-        <header><h2 id="block-identity">Case identity</h2></header>
-        <div>
-        <div class="datarow">
-            <span class="datarow__field">Case/PO</span>
-            <span class="datarow__value">NOTACTIVE31001</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Audit identity</span>
-            <span class="datarow__value">Not allocated</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Case type</span>
-            <span class="datarow__value">Inspection</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Principal</span>
-            <span class="datarow__value">NOTACTIVE</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Claimant</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Claim number</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">VAT status</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Engineer</span>
-            <span class="datarow__value">Unassigned</span>
-        </div>
-        </div>
-    </section>
-
-    <section class="block" aria-labelledby="block-vehicle">
-        <header>
-            <h2 id="block-vehicle">Vehicle</h2>
-            <button type="button" class="btn" disabled>
-                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                Look up vehicle
-            </button>
-        </header>
-        <div>
-        <div class="datarow">
-            <span class="datarow__field">Registration</span>
-                <span class="datarow__value">AB12CDE</span>
-                <span class="datarow__end">
-                    <span class="prov" tabindex="0" role="img" aria-label="AI" data-word="AI">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-filter" /></svg>
-                    </span>
-                </span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Make</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Model</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Mileage</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-            <div class="history-check">
-                <button type="button" class="btn" disabled>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                    Check vehicle history
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <section class="block" aria-labelledby="block-dates">
-        <header><h2 id="block-dates">Dates and origin</h2></header>
-        <div>
-        <div class="datarow">
-            <span class="datarow__field">Incident date</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Instruction date</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Received</span>
-            <span class="datarow__value">11 Aug 2031 10:15</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Origin</span>
-            <span class="datarow__value">E-mail</span>
-        </div>
-        </div>
-    </section>
-
-    <section class="block" aria-labelledby="block-inspection">
-        <header><h2 id="block-inspection">Inspection</h2></header>
-        <div>
-        <div class="datarow">
-            <span class="datarow__field">Inspection date</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Deadline</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Address</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Mode</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        </div>
-    </section>
-
-    <section class="block" aria-labelledby="block-contact">
-        <header><h2 id="block-contact">Contact</h2></header>
-        <div>
-        <div class="datarow">
-            <span class="datarow__field">Name</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">E-mail</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        <div class="datarow">
-            <span class="datarow__field">Phone</span>
-                <span class="datarow__value quiet">Not recorded</span>
-        </div>
-        </div>
-    </section>
+        <a href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+            <span>Valuations</span>
+        </a>
+        <a href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
+            <span>Inspection address</span>
+        </a>
+        <a href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+            <span>Case Files</span>
+        </a>
+        <a href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+            <span>Notes</span>
+        </a>
 </div>
 
-    <section class="panel section-gap" aria-labelledby="case-due-work-title">
-        <h2 id="case-due-work-title" class="section-label">Chase history</h2>
-        <dl class="detail-list">
-            <div><dt>Reason</dt><dd>Details are incomplete</dd></div>
-            <div><dt>State</dt><dd>Scheduled</dd></div>
-            <div><dt>Due by</dt><dd>Not recorded</dd></div>
-            <div><dt>Next chase</dt><dd>13 May 2031 11:30</dd></div>
-            <div><dt>Most recent channel</dt><dd>No chase recorded</dd></div>
-            <div><dt>Most recent outcome</dt><dd>No chase recorded</dd></div>
-            <div><dt>Most recent note</dt><dd>None</dd></div>
-        </dl>
-        <p>Recording a chase is an attributable manual assertion; it does not send correspondence or prove delivery.</p>
-    </section>
+            <section class="case-main">
 
+<div class="stack">
 
-
-            <div id="case-actions"></div>
-
-
-
-
-
-
-
-
-
-<section class="panel form-panel" aria-labelledby="case-custody-title">
-    <h2 id="case-custody-title" class="section-label">Case custody</h2>
-        <ul class="action-list">
-            <li>
-                <strong>Case evidence</strong>
-                — Pending
+    <ol class="workflow-stepper" aria-label="Case workflow">
+            <li class="workflow-step is-current">
+                <span class="workflow-step-icon">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                </span>
+                <span>Not ready</span>
             </li>
-        </ul>
+            <li class="workflow-step">
+                <span class="workflow-step-icon">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                </span>
+                <span>Review</span>
+            </li>
+            <li class="workflow-step">
+                <span class="workflow-step-icon">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+                <span>With Engineer</span>
+            </li>
+            <li class="workflow-step">
+                <span class="workflow-step-icon">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                </span>
+                <span>Complete</span>
+            </li>
+    </ol>
+
+        <section class="panel" aria-labelledby="case-requirements-title">
+            <div class="panel-head">
+                <h2 id="case-requirements-title">Outstanding requirements</h2>
+                <span class="status status--amber">3 outstanding</span>
+
+            </div>
+            <div class="panel-body">
+                <ul class="blocker-list">
+                        <li class="blocker">
+                            <strong>Images incomplete</strong>
+                            <small>
+                                <b>Source:</b> Instruction completeness
+                                    <br /><b>Why:</b> Details are incomplete                                <br /><b>Resolve:</b> Confirm completeness
+                            </small>
+                        </li>
+                        <li class="blocker">
+                            <strong>Instructions not staff-reviewed</strong>
+                            <small>
+                                <b>Source:</b> Instruction completeness
+                                    <br /><b>Why:</b> Details are incomplete                                <br /><b>Resolve:</b> Confirm completeness
+                            </small>
+                        </li>
+                        <li class="blocker">
+                            <strong>Images not staff-reviewed</strong>
+                            <small>
+                                <b>Source:</b> Instruction completeness
+                                    <br /><b>Why:</b> Details are incomplete                                <br /><b>Resolve:</b> Confirm completeness
+                            </small>
+                        </li>
+                </ul>
+            </div>
+        </section>
+
+</div>
+
+
+
+<section class="panel case-overview-panel" aria-labelledby="case-overview-title">
+    <div class="panel-head"><h2 id="case-overview-title">Case overview</h2></div>
+    <div class="panel-body">
+        <div class="case-overview-grid">
+            <section aria-labelledby="case-overview-work">
+                <h3 id="case-overview-work">Work</h3>
+                <div class="overview-facts">
+                    <dl><dt>Case type</dt><dd>Inspection</dd></dl>
+                    <dl><dt>Provider reference</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Inspection</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Engineer</dt><dd>Unassigned</dd></dl>
+                    <dl><dt>Received</dt><dd>11 Aug 2031 10:15</dd></dl>
+                    <dl><dt>Due</dt><dd>Not recorded</dd></dl>
+                </div>
+            </section>
+            <section aria-labelledby="case-overview-parties">
+                <h3 id="case-overview-parties">Parties</h3>
+                <div class="overview-facts">
+                    <dl><dt>Principal</dt><dd>NOTACTIVE</dd></dl>
+                    <dl><dt>Claimant</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Repairer / holder</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Intermediary</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Origin</dt><dd>E-mail</dd></dl>
+                </div>
+            </section>
+        </div>
+        <section class="accident-card" aria-labelledby="case-accident-title">
+            <div class="accident-card-title">
+                <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                <h3 id="case-accident-title">Accident circumstances</h3>
+            </div>
+            <p>Not recorded</p>
+            <div class="accident-meta">
+                <span><b>Incident detail</b>Not recorded</span>
+                <span><b>Vehicle</b>AB12CDE</span>
+            </div>
+        </section>
+    </div>
 </section>
 
+            </section>
+
+            <aside class="case-context stack" aria-label="Case context">
+                <section class="context-card">
+                    <div class="panel-head"><h2>Current position</h2></div>
+                    <div class="panel-body">
+                        <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
+</strong></div>
+                        <div class="decision-row"><span>Version</span><strong>0</strong></div>
+                        <div class="decision-row"><span>Due</span><strong>Not recorded</strong></div>
+                        <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
+                        <div class="decision-row">
+                            <span>Edit authority</span>
+                            <strong>
+                                    Available
+                            </strong>
+                        </div>
+                    </div>
+                </section>
+                    <section class="context-card">
+                        <div class="panel-head"><h2>Next action</h2></div>
+                        <div class="panel-body stack">
+                            <div class="notice notice--warning">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                <span>Images incomplete</span>
+                            </div>
+                            <a class="btn btn--dark" href="case-details--default.html">Open Notes</a>
+                        </div>
+                    </section>
+            </aside>
+        </div>
     </div>
 </article>
 
@@ -433,7 +433,6 @@
     </section>
 </div>
 
-
 <div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
     <div class="reason-dialog">
         <h2 id="edit-finish-title">Save your changes before finishing?</h2>
@@ -445,6 +444,11 @@
         </div>
     </div>
 </div>
+
+
+
+
+
 
 
                 </div>

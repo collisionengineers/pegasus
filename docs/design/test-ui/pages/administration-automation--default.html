@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Automation · Pegasus</title>
+    <title>Automation &amp; AI · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -157,42 +157,204 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="administration--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Administration
-</a>
-
 <header class="page-header">
     <div class="page-title">
             <p class="eyebrow">Administration</p>
-        <h1>Automation</h1>
+        <h1>Automation &amp; AI</h1>
     </div>
 </header>
 
 
-<aside class="notice">
-    <p>The Automation actor is not a staff account, holds no administration rights, and every action it takes is permanently recorded; client secrets are never shown here.</p>
-</aside>
-
-<div class="validation-summary validation-summary-valid" data-valmsg-summary="true"><ul><li style="display:none"></li>
-</ul></div>
-
-<section class="panel" aria-labelledby="automation-registration-heading">
-    <h2 id="automation-registration-heading" class="section-label">Client registration</h2>
-        <p>Automation is not part of this deployment: the configuration gate is off, no endpoint or token route exists, and no automation action is possible.</p>
-</section>
-
-<section class="panel section-gap" aria-labelledby="send-to-ai-heading">
-    <h2 id="send-to-ai-heading" class="section-label">Send to AI</h2>
-        <p>The Send to AI hand-off is not part of this deployment: the configuration gate is off and no outbound transport exists.</p>
-</section>
 
 
-<section class="panel section-gap" aria-labelledby="automation-activity-link-heading">
-    <h2 id="automation-activity-link-heading" class="section-label">Activity</h2>
-    <p>Every Automation action and every denied automation request is recorded in permanent history.</p>
-    <p><a href="administration-automation-activity--default.html">Review Automation activity</a></p>
-</section>
+
+<div class="admin-layout">
+    <nav class="admin-nav panel" aria-label="Administration areas">
+    <a href="administration-accounts--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+    </a>
+    <a href="administration-principals--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Principals</span>
+    </a>
+    <a href="administration-configuration--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+    </a>
+    <a href="administration-mailboxes--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+    </a>
+        <a aria-current="page" href="administration-automation--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+            <span>Automation &amp; AI</span>
+        </a>
+</nav>
+
+    <div class="stack">
+            <section class="panel" aria-labelledby="automation-panel-title">
+                <div class="panel-head">
+                    <h2 id="automation-panel-title">Automation</h2>
+                    <span class="status status--navy">Enabled</span>
+
+                </div>
+                <div class="panel-body">
+                    <div class="fact-grid">
+                        <dl class="fact">
+                            <dt>Registered clients</dt>
+                            <dd>Pegasus Automation Actor</dd>
+                        </dl>
+                        <dl class="fact">
+                            <dt>Client identifier</dt>
+                            <dd>pegasus-automation</dd>
+                        </dl>
+                        <dl class="fact">
+                            <dt>Granted scopes</dt>
+                            <dd>automation.assessment, automation.cases, automation.documents, automation.intake, automation.jobs, automation.mail</dd>
+                        </dl>
+                        <dl class="fact">
+                            <dt>Active jobs</dt>
+                            <dd class="tabular">0</dd>
+                        </dl>
+                        <dl class="fact">
+                            <dt>Failed jobs</dt>
+                            <dd class="tabular">0</dd>
+                        </dl>
+                    </div>
+                    <div class="button-row section-gap">
+                        <button type="button" class="btn btn--danger" data-dialog-open="automation-kill-switch-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                            <span>Stop automation</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="ai-settings-panel-title">
+                <div class="panel-head">
+                    <h2 id="ai-settings-panel-title">AI settings</h2>
+                    <span class="status status--navy">Enabled</span>
+
+                </div>
+                <div class="panel-body">
+                    <dl class="definition-list">
+                        <div class="definition">
+                            <dt>Channel token</dt>
+                            <dd>Entered from Administration</dd>
+                        </div>
+                        <div class="definition">
+                            <dt>Changed</dt>
+                            <dd>
+                                    <time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031</time>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <form method="post" class="section-gap stack" autocomplete="off" action="administration-automation--default.html">
+                        <input type="hidden" name="OperationKey" value="{{operationkey}}" />
+                        <div class="grid grid-2">
+                            <div class="field">
+                                <label for="ai-channel-address">Channel address</label>
+                                <input id="ai-channel-address" name="ChannelAddress" maxlength="200" />
+                                <span class="field-validation-error field-validation-valid" data-valmsg-for="ChannelAddress" data-valmsg-replace="true"></span>
+                            </div>
+                            <div class="field">
+                                <label for="ai-timeout">Timeout in seconds</label>
+                                <input id="ai-timeout" name="ChannelTimeoutSeconds" type="number"
+                                       min="1"
+                                       max="60"
+                                       step="1" />
+                                <span class="field-validation-error field-validation-valid" data-valmsg-for="ChannelTimeoutSeconds" data-valmsg-replace="true"></span>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="ai-channel-token">New channel token</label>
+                            <input id="ai-channel-token" name="NewChannelToken" type="password"
+                                   minlength="32"
+                                   maxlength="200" autocomplete="new-password" />
+                            <span class="field-validation-error field-validation-valid" data-valmsg-for="NewChannelToken" data-valmsg-replace="true"></span>
+                        </div>
+                        <label class="cluster">
+                            <input type="checkbox" checked="checked" data-val="true" data-val-required="The SendToAiEnabled field is required." id="SendToAiEnabled" name="SendToAiEnabled" value="true" />
+                            <span>Reviewed AI proposals enabled</span>
+                        </label>
+                        <div class="field">
+                            <label class="req" for="ai-settings-reason">Reason</label>
+                            <input id="ai-settings-reason" name="Reason" required maxlength="1000" />
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                <span>Save AI settings</span>
+                            </button>
+                                <button type="button" class="btn btn--danger" data-dialog-open="ai-remove-token-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                                    <span>Remove the channel token</span>
+                                </button>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="SendToAiEnabled" type="hidden" value="false" /></form>
+                </div>
+            </section>
+    </div>
+</div>
+
+    <div id="automation-kill-switch-dialog" class="dialog-backdrop" data-dialog="automation-kill-switch-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="automation-kill-switch-dialog_title">
+        <div class="dialog-head">
+            <h2 id="automation-kill-switch-dialog_title" tabindex="-1">Stop automation</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="administration-automation--default.html">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="TargetEnabled" value="False" />
+                <input type="hidden" name="OperationKey" value="{{operationkey}}" />
+            <div class="dialog-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>In-flight work remains visible and no result is discarded.</span>
+                    </div>
+                <div class="field">
+                    <label class="req" for="automation-kill-switch-dialog_reason">Reason for action</label>
+                    <textarea id="automation-kill-switch-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+
+    <div id="ai-remove-token-dialog" class="dialog-backdrop" data-dialog="ai-remove-token-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="ai-remove-token-dialog_title">
+        <div class="dialog-head">
+            <h2 id="ai-remove-token-dialog_title" tabindex="-1">Remove the channel token</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="administration-automation--default.html">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="OperationKey" value="{{operationkey}}" />
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="ai-remove-token-dialog_reason">Reason for action</label>
+                    <textarea id="ai-remove-token-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
+
 
                 </div>
             </main>

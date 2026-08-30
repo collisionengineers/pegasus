@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Send QDOS3100042 to EVA · Pegasus</title>
+    <title>EVA handoff · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -157,32 +157,43 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="case-details--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to QDOS3100042
-</a>
-
 <header class="page-header">
     <div class="page-title">
-            <p class="eyebrow">Case</p>
-        <h1>Send QDOS3100042 to EVA</h1>
+        <p class="eyebrow">Case workspace · QDOS3100042</p>
+        <h1>EVA handoff</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to QDOS3100042</span>
+        </a>
     </div>
 </header>
 
-
-
-<div class="panel">
-    <div class="button-row">
-            <form method="post" action="case-eva-send--default.html">
-                <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                <button type="submit" class="btn btn--dark">Submit to EVA API</button>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        <form method="post" action="#">
-            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-            <button type="submit" class="btn">Download export</button>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+<section class="panel" aria-labelledby="eva-handoff-title">
+    <div class="panel-head">
+        <h2 id="eva-handoff-title">QDOS3100042</h2>
     </div>
-</div>
+    <div class="panel-body stack">
+
+        <div class="cluster">
+                <form method="post" action="case-eva-send--default.html">
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <button type="submit" class="btn btn--dark">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>Send via API</span>
+                    </button>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <form method="post" action="#">
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <button type="submit" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <span>Download export</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
+    </div>
+</section>
 
 
                 </div>

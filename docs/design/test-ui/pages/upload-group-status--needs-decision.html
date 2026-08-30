@@ -157,27 +157,50 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Upload received</h1>
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Upload status</p>
+        <h1>Upload received</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn--primary" href="upload--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>Upload another file</span>
+        </a>
+    </div>
 </header>
 
 
-<div class="form-column">
+<div class="stack">
     <section class="panel"
              aria-labelledby="group-status-title">
-        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
-        <ol class="upload-outcome-list">
-                <li>
-                        <p class="upload-outcome__file">overview.png</p>
-                        <div class="upload-outcome">
+        <div class="panel-head">
+            <h2 id="group-status-title">Files in this submission</h2>
+        </div>
+        <div class="panel-body">
+            <div class="file-list section-gap">
+                    <div class="file-row">
+                        <span>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                        </span>
+                        <span>
+                                <strong>overview.png</strong>
+                                <div class="upload-outcome">
         <span class="muted">Processing</span>
     <p>The submission is being processed.</p>
 </div>
 
-                </li>
-                <li>
-                        <p class="upload-outcome__file">close-up.png</p>
-                        <div class="upload-outcome">
+                        </span>
+                        <span>
+                        </span>
+                    </div>
+                    <div class="file-row">
+                        <span>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                        </span>
+                        <span>
+                                <strong>close-up.png</strong>
+                                <div class="upload-outcome">
         <span class="status status--amber">Unidentified</span>
 
     <p>This needs a staff decision.</p>
@@ -187,7 +210,7 @@
         </div>
         <details class="upload-attach" data-refresh-hold>
             <summary class="btn btn--small">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form stack" data-case-search action="upload-group-status--default.html">
+            <form method="post" class="upload-attach__form" data-case-search action="upload-group-status--default.html">
                 <input type="hidden" name="receiptId" value="test-ui-guid-3" />
                 <input type="hidden" name="caseId" value="" data-case-search-value />
                 <div class="field">
@@ -213,8 +236,12 @@
         </details>
 </div>
 
-                </li>
-        </ol>
+                        </span>
+                        <span>
+                        </span>
+                    </div>
+            </div>
+        </div>
     </section>
 </div>
 

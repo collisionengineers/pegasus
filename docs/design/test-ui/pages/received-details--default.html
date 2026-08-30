@@ -157,206 +157,314 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Received review</p>
             <h1>Case not created</h1>
     </div>
-    <a class="secondary-action" href="">Back to Operations</a>
+    <div class="page-actions">
+        <a class="btn" href="operations--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Operations</span>
+        </a>
+    </div>
 </header>
 
-    <div class="status-card status-card--attention" role="status">No case reference was allocated; ask an Administrator to check that its Principal exists and is active.</div>
+    <div class="notice notice--warning mb-2" role="status">No case reference was allocated; ask an Administrator to check that its Principal exists and is active.</div>
 
 
-    <section class="panel form-panel section-gap" aria-labelledby="allocation-failure-title">
-        <h2 id="allocation-failure-title" class="section-label">Case not created</h2>
-        <p class="failure-detail">The accepted case type is unavailable. Review this item before creating a case.</p>
-        <dl class="detail-list">
-            <div><dt>Attempted case type</dt><dd>Not available</dd></div>
-            <div><dt>Recorded</dt><dd>06 May 2031 11:30</dd></div>
-        </dl>
+    <section class="panel section-gap" aria-labelledby="allocation-failure-title">
+        <div class="panel-head"><h2 id="allocation-failure-title">Case not created</h2></div>
+        <div class="panel-body stack">
+            <div class="notice notice--danger" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>The accepted case type is unavailable. Review this item before creating a case.</span>
+            </div>
+            <div class="definition-list">
+                <dl class="definition"><dt>Attempted case type</dt><dd>Not available</dd></dl>
+                <dl class="definition"><dt>Recorded</dt><dd>06 May 2031 11:30</dd></dl>
+            </div>
+        </div>
     </section>
 
-
-<div class="review-grid">
+<div class="grid grid-2 section-gap">
     <section class="panel" aria-labelledby="result-title">
-        <h2 id="result-title" class="section-label">Result</h2>
-        <dl class="detail-list">
-            <div><dt>Decision</dt><dd>Ready for case allocation</dd></div>
-            <div><dt>Source</dt><dd>controlled-invalid-values.eml</dd></div>
-            <div><dt>Channel</dt><dd>Manual upload</dd></div>
-            <div><dt>Received</dt><dd>06 May 2031 11:30</dd></div>
-        </dl>
+        <div class="panel-head"><h2 id="result-title">Result</h2></div>
+        <div class="panel-body stack">
+            <div class="definition-list">
+                <dl class="definition"><dt>Decision</dt><dd>Ready for case allocation</dd></dl>
+                <dl class="definition"><dt>Source</dt><dd>controlled-invalid-values.eml</dd></dl>
+                <dl class="definition"><dt>Channel</dt><dd>Manual upload</dd></dl>
+                <dl class="definition"><dt>Received</dt><dd>06 May 2031 11:30</dd></dl>
+            </div>
+        </div>
     </section>
 
-    <section class="panel" aria-labelledby="missing-title">
-        <h2 id="missing-title" class="section-label">Missing fields</h2>
-            <ul class="plain-list">
-                    <li>Claimant name</li>
-                    <li>Vehicle make</li>
-                    <li>Vehicle model</li>
-                    <li>Accident circumstances</li>
-                    <li>Inspection address</li>
-                    <li>Inspection date</li>
-                    <li>Vehicle description</li>
-            </ul>
-    </section>
+        <section class="panel" aria-labelledby="missing-title">
+            <div class="panel-head"><h2 id="missing-title">Missing fields</h2></div>
+            <div class="panel-body">
+                <ul class="stack">
+                        <li>Claimant name</li>
+                        <li>Vehicle make</li>
+                        <li>Vehicle model</li>
+                        <li>Accident circumstances</li>
+                        <li>Inspection address</li>
+                        <li>Inspection date</li>
+                        <li>Vehicle description</li>
+                </ul>
+            </div>
+        </section>
 </div>
 
 
 
 
 
-    <section class="panel form-panel section-gap" aria-labelledby="intake-resolution-title">
-        <h2 id="intake-resolution-title" class="section-label">Resolution</h2>
-        <p>Every correction, block and re-evaluation is versioned and retained in permanent history.</p>
 
+    <section class="panel section-gap" aria-labelledby="intake-resolution-title">
+        <div class="panel-head"><h2 id="intake-resolution-title">Resolution</h2></div>
+        <div class="panel-body stack">
 
-        <form method="post" action="received-details--default.html">
-            <input type="hidden" name="expectedVersion" value="0" />
-            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-            <label for="reevaluation-reason">Reason for policy re-evaluation</label>
-            <textarea id="reevaluation-reason" name="reason" maxlength="500" rows="2" required></textarea>
-            <button type="submit" class="secondary-action">Re-evaluate with current policy</button>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <form method="post" class="stack" action="received-details--default.html">
+                <input type="hidden" name="expectedVersion" value="0" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <div class="field">
+                    <label class="req" for="reevaluation-reason">Reason for policy re-evaluation</label>
+                    <textarea id="reevaluation-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn">Re-evaluate with current policy</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
 
-        <form method="post" action="received-details--default.html">
-            <input type="hidden" name="expectedVersion" value="0" />
-            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-            <label for="block-reason">Reason for blocking</label>
-            <textarea id="block-reason" name="reason" maxlength="500" rows="2" required></textarea>
-            <button type="submit" class="secondary-action">Block</button>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <form method="post" class="stack" action="received-details--default.html">
+                <input type="hidden" name="expectedVersion" value="0" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <div class="field">
+                    <label class="req" for="block-reason">Reason for blocking</label>
+                    <textarea id="block-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--danger">Block</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
     </section>
 
-<section class="panel form-panel section-gap" aria-labelledby="case-association-title">
-    <h2 id="case-association-title" class="section-label">Current case association</h2>
-        <p>This received item is not currently linked to a case.</p>
+<section class="panel section-gap" aria-labelledby="case-association-title">
+    <div class="panel-head"><h2 id="case-association-title">Current case association</h2></div>
+    <div class="panel-body stack">
+        <div class="definition-list">
+            <dl class="definition">
+                <dt>Case/PO</dt>
+                <dd>
+                        None
+                </dd>
+            </dl>
+        </div>
 
 
-        <form method="post" action="received-details--default.html">
-                <label for="association-case-id">Case identifier</label>
-                <input id="association-case-id" name="caseId" type="text" required />
-            <label for="association-case-version">Expected case version</label>
-            <input id="association-case-version" name="expectedCaseVersion" type="number" min="0" required />
-            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-            <button type="submit" class="secondary-action">Enter case edit mode</button>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <form method="post" class="stack" action="received-details--default.html">
+                    <div class="field">
+                        <label class="req" for="association-case-id">Case identifier</label>
+                        <input id="association-case-id" name="caseId" required autocomplete="off" />
+                    </div>
+                <div class="field">
+                    <label class="req" for="association-case-version">Expected case version</label>
+                    <input id="association-case-version" name="expectedCaseVersion" type="number" min="0" required />
+                </div>
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <div class="button-row">
+                    <button type="submit" class="btn">Enter case edit mode</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
 </section>
 
     <section class="panel section-gap" aria-labelledby="typed-draft-title">
-        <h2 id="typed-draft-title" class="section-label">Typed review draft</h2>
-        <dl class="detail-list">
-            <div><dt>Suggested principal</dt><dd>QDOS</dd></div>
-            <div><dt>Claimant name</dt><dd>Not resolved</dd></div>
-            <div><dt>Claim number</dt><dd>PROTOCOL-INVALID</dd></div>
-            <div><dt>Vehicle registration</dt><dd>AB12CDE</dd></div>
-            <div><dt>Vehicle make</dt><dd>Not resolved</dd></div>
-            <div><dt>Vehicle model</dt><dd>Not resolved</dd></div>
-            <div><dt>Vehicle mileage</dt><dd>Not resolved</dd></div>
-            <div><dt>Accident circumstances</dt><dd>Not resolved</dd></div>
-            <div><dt>Date of incident</dt><dd>Not resolved</dd></div>
-            <div><dt>Instruction date</dt><dd>06 May 2031</dd></div>
-            <div><dt>Inspection address</dt><dd>Not resolved</dd></div>
-        </dl>
+        <div class="panel-head"><h2 id="typed-draft-title">Typed review draft</h2></div>
+        <div class="panel-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Suggested principal</dt><dd>QDOS</dd></dl>
+                <dl class="definition"><dt>Claimant name</dt><dd>Not resolved</dd></dl>
+                <dl class="definition"><dt>Claim number</dt><dd>PROTOCOL-INVALID</dd></dl>
+                <dl class="definition"><dt>Vehicle registration</dt><dd>AB12CDE</dd></dl>
+                <dl class="definition"><dt>Vehicle make</dt><dd>Not resolved</dd></dl>
+                <dl class="definition"><dt>Vehicle model</dt><dd>Not resolved</dd></dl>
+                <dl class="definition"><dt>Vehicle mileage</dt><dd>Not resolved</dd></dl>
+                <dl class="definition"><dt>Accident circumstances</dt><dd>Not resolved</dd></dl>
+                <dl class="definition"><dt>Date of incident</dt><dd>Not resolved</dd></dl>
+                <dl class="definition"><dt>Instruction date</dt><dd>06 May 2031</dd></dl>
+                <dl class="definition"><dt>Inspection address</dt><dd>Not resolved</dd></dl>
+            </div>
+        </div>
     </section>
-<section class="panel form-panel section-gap" aria-labelledby="inspection-address-title">
-    <h2 id="inspection-address-title" class="section-label">Inspection-address confirmation</h2>
-        <p>The inspection address is recorded as &ldquo;Image Based Assessment&rdquo; automatically, even if the instruction mentions a physical location; a physical address can still be added afterwards with a reason.</p>
+
+<section class="panel section-gap" aria-labelledby="inspection-address-title">
+    <div class="panel-head"><h2 id="inspection-address-title">Inspection-address confirmation</h2></div>
+    <div class="panel-body stack">
+            <div class="definition-list">
+                <dl class="definition"><dt>Inspection address</dt><dd>Image Based Assessment</dd></dl>
+            </div>
+    </div>
 </section>
 
 
-
     <section class="panel section-gap" aria-labelledby="assets-title">
-        <h2 id="assets-title" class="section-label">Source and extracted assets</h2>
-        <p>Each attachment, inline image and discrete embedded image remains a separate review occurrence; matching hashes are grouped, not removed.</p>
-        <div class="field-grid">
-                <article class="field-card">
-                    <h3>controlled-invalid-values.eml</h3>
-                        <a href="#">Download retained source</a>
-                    <small>uploaded source · Source · message/rfc822</small>
-                </article>
+        <div class="panel-head"><h2 id="assets-title">Source and extracted assets</h2></div>
+        <div class="panel-body">
+            <ul class="blocker-list">
+                    <li class="blocker">
+                            <strong><a href="#">controlled-invalid-values.eml</a></strong>
+                        <small>uploaded source · Source · message/rfc822</small>
+                    </li>
+            </ul>
         </div>
     </section>
 
 
     <section class="panel section-gap" aria-labelledby="fields-title">
-        <h2 id="fields-title" class="section-label">Suggested fields</h2>
-        <div class="field-grid">
-                <article class="field-card ">
-                    <h3>Claimant name</h3>
-                    <strong>Not found</strong>
-                </article>
-                <article class="field-card ">
-                    <h3>Claim number</h3>
-                    <strong>PROTOCOL-INVALID</strong>
-                        <small>uploaded controlled-invalid-values.eml, email body: PROTOCOL-INVALID</small>
-                </article>
-                <article class="field-card ">
-                    <h3>Vehicle registration</h3>
-                    <strong>AB12 CDE</strong>
-                        <small>uploaded controlled-invalid-values.eml, email body: AB12 CDE</small>
-                </article>
-                <article class="field-card ">
-                    <h3>Vehicle make</h3>
-                    <strong>Not found</strong>
-                </article>
-                <article class="field-card ">
-                    <h3>Vehicle model</h3>
-                    <strong>Not found</strong>
-                </article>
-                <article class="field-card ">
-                    <h3>Vehicle mileage</h3>
-                    <strong>awaiting confirmation</strong>
-                        <small>uploaded controlled-invalid-values.eml, email body: awaiting confirmation</small>
-                </article>
-                <article class="field-card ">
-                    <h3>Accident circumstances</h3>
-                    <strong>Not found</strong>
-                </article>
-                <article class="field-card field-card--conflict">
-                    <h3>Date of incident</h3>
-                    <strong>Conflicting suggestions</strong>
-                        <small>uploaded controlled-invalid-values.eml, email body: 04/03/2031</small>
-                        <small>uploaded controlled-invalid-values.eml, email body: 05/03/2031</small>
-                </article>
-                <article class="field-card ">
-                    <h3>Instruction date</h3>
-                    <strong>2031-05-06</strong>
-                        <small>Defaulted from processing date</small>
-                        <small>Receipt date: 2031-05-06</small>
-                </article>
-                <article class="field-card ">
-                    <h3>Inspection address</h3>
-                    <strong>Not found</strong>
-                </article>
-                <article class="field-card ">
-                    <h3>Inspection date</h3>
-                    <strong>Not found</strong>
-                </article>
-                <article class="field-card ">
-                    <h3>Vehicle description</h3>
-                    <strong>Not found</strong>
-                </article>
+        <div class="panel-head"><h2 id="fields-title">Suggested fields</h2></div>
+        <div class="panel-body">
+            <ul class="blocker-list">
+                    <li class="blocker">
+                        <strong>Claimant name: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Claim number: PROTOCOL-INVALID</strong>
+                            <small>uploaded controlled-invalid-values.eml, email body: PROTOCOL-INVALID</small>
+                    </li>
+                    <li class="blocker">
+                        <strong>Vehicle registration: AB12 CDE</strong>
+                            <small>uploaded controlled-invalid-values.eml, email body: AB12 CDE</small>
+                    </li>
+                    <li class="blocker">
+                        <strong>Vehicle make: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Vehicle model: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Vehicle mileage: awaiting confirmation</strong>
+                            <small>uploaded controlled-invalid-values.eml, email body: awaiting confirmation</small>
+                    </li>
+                    <li class="blocker">
+                        <strong>Accident circumstances: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Date of incident: Conflicting suggestions</strong>
+                            <small>uploaded controlled-invalid-values.eml, email body: 04/03/2031</small>
+                            <small>uploaded controlled-invalid-values.eml, email body: 05/03/2031</small>
+                    </li>
+                    <li class="blocker">
+                        <strong>Instruction date: 2031-05-06</strong>
+                            <small>Defaulted from processing date</small>
+                            <small>Receipt date: 2031-05-06</small>
+                    </li>
+                    <li class="blocker">
+                        <strong>Inspection address: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Inspection date: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Vehicle description: Not found</strong>
+                    </li>
+            </ul>
         </div>
     </section>
 
-<section class="panel section-gap" aria-labelledby="evidence-title">
-    <h2 id="evidence-title" class="section-label">Decision evidence</h2>
-    <ul class="evidence-list">
-            <li><strong>Sender</strong><span>Principal QDOS was established by qdos_mail_route v4.</span></li>
-            <li><strong>SystemDefault</strong><span>No claimant name suggestion was found.</span></li>
-            <li><strong>EmailBody</strong><span>Claim number was suggested from uploaded controlled-invalid-values.eml, email body.</span></li>
-            <li><strong>EmailBody</strong><span>Vehicle registration was suggested from uploaded controlled-invalid-values.eml, email body.</span></li>
-            <li><strong>SystemDefault</strong><span>No vehicle make suggestion was found.</span></li>
-            <li><strong>SystemDefault</strong><span>No vehicle model suggestion was found.</span></li>
-            <li><strong>EmailBody</strong><span>Vehicle mileage was suggested from uploaded controlled-invalid-values.eml, email body.</span></li>
-            <li><strong>SystemDefault</strong><span>No accident circumstances suggestion was found.</span></li>
-            <li><strong>EmailBody</strong><span>Conflicting date of incident candidates require operator review.</span></li>
-            <li><strong>SystemDefault</strong><span>Instruction date was absent and was defaulted from the injected clock.</span></li>
-            <li><strong>SystemDefault</strong><span>No inspection address suggestion was found.</span></li>
-    </ul>
-</section>
+    <section class="panel section-gap" aria-labelledby="evidence-title">
+        <div class="panel-head"><h2 id="evidence-title">Decision evidence</h2></div>
+        <div class="panel-body">
+            <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-title">Sender</div>
+                        <div class="timeline-text">Principal QDOS was established by qdos_mail_route v4.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">SystemDefault</div>
+                        <div class="timeline-text">No claimant name suggestion was found.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">EmailBody</div>
+                        <div class="timeline-text">Claim number was suggested from uploaded controlled-invalid-values.eml, email body.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">EmailBody</div>
+                        <div class="timeline-text">Vehicle registration was suggested from uploaded controlled-invalid-values.eml, email body.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">SystemDefault</div>
+                        <div class="timeline-text">No vehicle make suggestion was found.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">SystemDefault</div>
+                        <div class="timeline-text">No vehicle model suggestion was found.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">EmailBody</div>
+                        <div class="timeline-text">Vehicle mileage was suggested from uploaded controlled-invalid-values.eml, email body.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">SystemDefault</div>
+                        <div class="timeline-text">No accident circumstances suggestion was found.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">EmailBody</div>
+                        <div class="timeline-text">Conflicting date of incident candidates require operator review.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">SystemDefault</div>
+                        <div class="timeline-text">Instruction date was absent and was defaulted from the injected clock.</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-title">SystemDefault</div>
+                        <div class="timeline-text">No inspection address suggestion was found.</div>
+                    </div>
+            </div>
+        </div>
+    </section>
+
+<div id="evidence-viewer"
+     class="dialog-backdrop evidence-viewer"
+     data-evidence-viewer
+     hidden>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
+        <div class="dialog-head">
+            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
+            <span class="muted tabular" data-evidence-position></span>
+            <a class="btn btn--small" data-evidence-download download>
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Save as</span>
+            </a>
+            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
+                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+            </button>
+            <button type="button" class="dialog-close" data-evidence-close>
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span class="sr-only">Close</span>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="viewer-stage" data-evidence-stage data-rotate-target>
+                <img data-evidence-image alt="" hidden />
+                <iframe data-evidence-document title="" hidden></iframe>
+            </div>
+        </div>
+        <div class="dialog-foot cluster--between">
+            <button type="button" class="btn" data-evidence-previous>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>Previous</span>
+            </button>
+            <button type="button" class="btn" data-evidence-next>
+                <span>Next</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+            </button>
+        </div>
+    </section>
+</div>
+
 
                 </div>
             </main>

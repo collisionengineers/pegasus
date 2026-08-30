@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Staff accounts · Pegasus</title>
+    <title>Staff accounts &amp; roles · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -157,56 +157,82 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="administration--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Administration
-</a>
-
 <header class="page-header">
     <div class="page-title">
             <p class="eyebrow">Administration</p>
-        <h1>Staff accounts</h1>
+        <h1>Staff accounts &amp; roles</h1>
     </div>
 </header>
 
 
+<div class="admin-layout">
+    <nav class="admin-nav panel" aria-label="Administration areas">
+    <a aria-current="page" href="administration-accounts--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+    </a>
+    <a href="administration-principals--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Principals</span>
+    </a>
+    <a href="administration-configuration--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+    </a>
+    <a href="administration-mailboxes--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+    </a>
+</nav>
 
-<div class="split-main">
-    <section aria-labelledby="current-accounts-heading">
-        <h2 id="current-accounts-heading" class="section-label">Current accounts</h2>
-            <div class="panel empty-state">No staff accounts are available. Application initialization must complete before ordinary administration can begin.</div>
-    </section>
+    <div class="stack">
 
-    <section aria-labelledby="create-account-heading">
-        <h2 id="create-account-heading" class="section-label">Create staff account</h2>
-        <div class="panel form-panel form-panel--wide">
-            <form method="post" action="administration-accounts--default.html">
 
-                <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-                <div>
-                    <label for="UserName">Username</label>
-                    <input autocomplete="off" type="text" data-val="true" data-val-length="The field UserName must be a string with a maximum length of 256." data-val-length-max="256" data-val-required="The UserName field is required." id="UserName" maxlength="256" name="UserName" value="" />
-                    <span class="field-validation-valid" data-valmsg-for="UserName" data-valmsg-replace="true"></span>
+        <section class="panel" aria-labelledby="staff-accounts-title">
+            <div class="panel-head">
+                <h2 id="staff-accounts-title">Accounts</h2>
+                <span class="muted">0 accounts</span>
+            </div>
+                <div class="empty">
+                    <h2>No staff accounts are available.</h2>
                 </div>
-                <div>
-                    <label for="TemporaryPassword">Temporary password</label>
-                    <input autocomplete="new-password" type="password" data-val="true" data-val-length="The field TemporaryPassword must be a string with a maximum length of 256." data-val-length-max="256" data-val-minlength="The field TemporaryPassword must be a string or array type with a minimum length of &#x27;8&#x27;." data-val-minlength-min="8" data-val-required="The TemporaryPassword field is required." id="TemporaryPassword" maxlength="256" name="TemporaryPassword" />
-                    <span class="field-validation-valid" data-valmsg-for="TemporaryPassword" data-valmsg-replace="true"></span>
-                    <small class="empty-state">At least eight characters. The staff member must replace it at first sign-in.</small>
-                </div>
-                <div>
-                    <label for="Reason">Reason</label>
-                    <textarea rows="3" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 1000." data-val-length-max="1000" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" maxlength="1000" name="Reason">
-</textarea>
-                    <span class="field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
-                </div>
-                <div class="button-row">
-                    <button type="submit" class="primary-action">Create account</button>
-                </div>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        </div>
-    </section>
+        </section>
+
+        <section class="panel" aria-labelledby="create-account-title">
+            <div class="panel-head">
+                <h2 id="create-account-title">Create staff account</h2>
+            </div>
+            <div class="panel-body">
+                <form method="post" class="stack" action="administration-accounts--default.html">
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <div class="field field--narrow">
+                        <label class="req" for="create-username">Username</label>
+                        <input id="create-username" name="userName" value="" required
+                               maxlength="256" autocomplete="off" />
+                    </div>
+                    <div class="field field--narrow">
+                        <label class="req" for="create-password">Temporary password</label>
+                        <input id="create-password" name="temporaryPassword" type="password" required
+                               minlength="8"
+                               maxlength="256"
+                               autocomplete="new-password" />
+                    </div>
+                    <div class="field field--narrow">
+                        <label class="req" for="create-reason">Reason</label>
+                        <input id="create-reason" name="reason" value="" required maxlength="1000" />
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>Create staff account</span>
+                        </button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </section>
+    </div>
 </div>
+
 
                 </div>
             </main>
