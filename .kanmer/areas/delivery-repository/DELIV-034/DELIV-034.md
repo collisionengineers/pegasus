@@ -28,9 +28,10 @@ links:
   - PLAT-052
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
+deployment: n/a
 archived: false
 created: '2026-08-29T14:27:28.216Z'
-updated: '2026-08-29T17:32:36.403Z'
+updated: '2026-08-30T20:12:49.521Z'
 ---
 
 ## What
