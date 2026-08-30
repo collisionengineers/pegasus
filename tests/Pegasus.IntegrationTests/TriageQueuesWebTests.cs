@@ -203,6 +203,10 @@ public sealed class TriageQueuesWebTests
         var services = scope.ServiceProvider;
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
         var register = services.GetRequiredService<IRegisterUnidentified>();
+        // The host clock, not the wall clock: these rows are captured into
+        // the Test UI corpus, and DateTimeOffset.UtcNow made their snapshots
+        // drift on every fresh capture.
+        var receivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow();
 
         var receipt = await receiptStore.StoreAsync(
             new IntakeReceiptDraft(
@@ -211,8 +215,8 @@ public sealed class TriageQueuesWebTests
                 2048,
                 Guid.NewGuid().ToString("N"),
                 new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
+                receivedAt,
+                receivedAt,
                 "test-actor",
                 IntakeDecision.NeedsSorting,
                 "test decision reason",
@@ -234,7 +238,7 @@ public sealed class TriageQueuesWebTests
                 "The document could not be read.",
                 ActionActor.SystemWorker("test-worker"),
                 $"unidentified-web-test:{Guid.NewGuid():N}",
-                DateTimeOffset.UtcNow),
+                receivedAt),
             CancellationToken.None);
 
         using var response = await client.GetAsync("/Cases?tab=unidentified");
@@ -273,6 +277,10 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
+        // The host clock, not the wall clock: this row is captured into the
+        // Test UI corpus, and DateTimeOffset.UtcNow made its snapshot drift on
+        // every fresh capture.
+        var receivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow();
 
         var blocked = await receiptStore.StoreAsync(
             new IntakeReceiptDraft(
@@ -281,8 +289,8 @@ public sealed class TriageQueuesWebTests
                 2048,
                 Guid.NewGuid().ToString("N"),
                 new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
+                receivedAt,
+                receivedAt,
                 "test-actor",
                 IntakeDecision.BlockedIntake,
                 "blocked for the test",

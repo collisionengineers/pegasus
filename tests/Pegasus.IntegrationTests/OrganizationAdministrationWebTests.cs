@@ -103,9 +103,8 @@ public sealed partial class OrganizationAdministrationWebTests
 
         var evaSubmissionPath =
             $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}";
-        using var evaSubmissionGet = await client.GetAsync(evaSubmissionPath);
-        var evaSubmissionHtml = await evaSubmissionGet.Content.ReadAsStringAsync();
-        evaSubmissionGet.EnsureSuccessStatusCode();
+        // GetHtmlAsync so a Test UI capture records this page (it asserts 200).
+        var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
         Assert.Contains("EVA API submission for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {

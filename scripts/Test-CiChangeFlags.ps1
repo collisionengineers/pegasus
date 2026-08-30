@@ -28,6 +28,10 @@ Assert-Flags -Case 'shard assignment tests' -ChangedPath 'scripts/Test-TestShard
 Assert-Flags -Case 'workflow definition' -ChangedPath '.github/workflows/ci.yml' -Build $true -Infrastructure $true
 Assert-Flags -Case 'UI-only source' -ChangedPath 'src/Pegasus.Web/Pages/Index.cshtml' -Build $true -Infrastructure $false
 Assert-Flags -Case 'documentation only' -ChangedPath 'docs/index.md' -Build $false -Infrastructure $false
+Assert-Flags -Case 'Test UI snapshot' -ChangedPath 'docs/design/test-ui/pages/inbox--default.html' -Build $true -Infrastructure $false
+Assert-Flags -Case 'Test UI snapshot script' -ChangedPath 'scripts/Update-TestUiSnapshots.ps1' -Build $true -Infrastructure $false
+Assert-Flags -Case 'Test UI catalogue script' -ChangedPath 'scripts/Test-UiCatalogue.ps1' -Build $true -Infrastructure $false
+Assert-Flags -Case 'design authority only' -ChangedPath 'docs/design/README.md' -Build $false -Infrastructure $false
 
 $forced = & $classifier -ChangedPath 'docs/index.md' -ForceAll
 if (-not $forced.Build -or -not $forced.Infrastructure) {

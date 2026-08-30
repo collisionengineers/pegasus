@@ -85,6 +85,9 @@ jobs:
       - name: Documentation links
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
+      - name: Test UI catalogue
+        shell: pwsh
+        run: ./scripts/Test-UiCatalogue.ps1
 
   local-development-scripts:
     # This parser contract is Windows-specific and must be called independently
@@ -232,3 +235,35 @@ jobs:
           dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
           --configuration Release --no-build --filter "Category=Browser&Category!=Corpus"
           -- xUnit.MaxParallelThreads=2
+
+  test-ui:
+    # The committed Test UI snapshots are regenerated from the Razor pages, so
+    # a page change without a regenerated snapshot, or a hand-edited snapshot,
+    # is a stale catalogue. One capture run (the same suite
+    # Update-TestUiSnapshots.ps1 captures locally), then a verify against the
+    # committed files and an offline Chromium render of every page.
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-latest
+    # Observed on GitHub's windows runners: the 414-test capture alone
+    # took 40m23s (run 33310451221), against 18m52s for the same suite
+    # locally -- the capture runs at processor-count parallelism and the
+    # hosted runner has fewer cores. Verify then runs a second pass on top.
+    # 30 killed it mid-capture and 45 killed it 11 seconds into verify, both
+    # reported as a stale corpus rather than as a timeout. This is the real
+    # cost of the job as designed; making it cheaper is UIIMP-013.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Cache the pinned Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('tests/Pegasus.IntegrationTests/packages.lock.json') }}
+      - name: Install pinned Playwright Chromium
+        shell: pwsh
+        run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
+      - name: Capture and verify the Test UI snapshots
+        shell: pwsh
+        run: ./scripts/Update-TestUiSnapshots.ps1 -Verify

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Case QDOS3100042 · Pegasus</title>
+    <title>Review account · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -91,7 +91,7 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                         <span>Upload</span>
                     </a>
-                <a class="nav-link" aria-current="page" href="queues--default.html">
+                <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
                         <span class="nav-count" aria-label="0 outstanding">0</span>
@@ -105,7 +105,7 @@
                         <span>Operations</span>
                     </a>
                     <div class="nav-label">Manage</div>
-                    <a class="nav-link" href="administration--default.html">
+                    <a class="nav-link" aria-current="page" href="administration--default.html">
                         <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
                         <span>Administration</span>
                     </a>
@@ -157,290 +157,36 @@
                   data-workspace-label="">
                 <div class="content">
 
-
-
 <header class="page-header">
     <div class="page-title">
-        <p class="eyebrow">Case workspace · AB12CDE</p>
-        <h1>QDOS3100042</h1>
-    </div>
-    <div class="page-actions">
-        <a class="btn" href="queues--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-            <span>Back to Cases</span>
-        </a>
-        <form method="get" data-refresh-form>
-            <input type="hidden" name="section" value="overview" />
-            <button type="submit" class="btn btn--small" title="Refresh">
-                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
+            <p class="eyebrow">Administration</p>
+        <h1>Review account</h1>
     </div>
 </header>
 
-    <div class="notice notice--danger mb-2" role="alert">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span>Edit mode could not be entered because the case changed or is being edited by another member of staff.</span>
+
+<section class="panel" aria-labelledby="account-action-title">
+    <div class="panel-head">
+        <h2 id="account-action-title">Review account</h2>
     </div>
-
-<article class="record">
-    <div class="record-ribbon" aria-label="Case identity">
-        <div class="ribbon-item ribbon-ref">
-            <div class="ribbon-label">Case/PO</div>
-            <div class="ribbon-value">QDOS3100042</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Registration</div>
-            <div class="ribbon-value">AB12CDE</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Claimant</div>
-            <div class="ribbon-value">Case claimant</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Principal</div>
-            <div class="ribbon-value">QDOS</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">State</div>
-            <div class="ribbon-value"><span class="status status--amber">Not ready</span>
-</div>
-        </div>
-    </div>
-
-        <div class="presence-strip" role="status">
-            <span class="presence-dot" aria-hidden="true"></span>
-            <span data-edit-authority>Case locked - AI is editing. Editing cannot be taken over.</span>
-        </div>
-    <div class="record-bar">
-        <span class="record-bar-end">
-                <span class="gated" data-condition="Available after the current Review export">
-                    <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
-                </span>
-        </span>
-    </div>
-
-
-    <div class="record-body">
-        <div class="case-workspace">
-            <div class="case-section-nav">
-        <a aria-current="page" href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-            <span>Case Overview</span>
-        </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
-            <span>Vehicle</span>
-        </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-            <span>Valuations</span>
-        </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
-            <span>Inspection address</span>
-        </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-            <span>Case Files</span>
-        </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-            <span>Notes</span>
-        </a>
-</div>
-
-            <section class="case-main">
-
-<div class="stack">
-
-    <ol class="workflow-stepper" aria-label="Case workflow">
-            <li class="workflow-step is-current">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-                </span>
-                <span>Not ready</span>
-            </li>
-            <li class="workflow-step">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                </span>
-                <span>Review</span>
-            </li>
-            <li class="workflow-step">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                </span>
-                <span>With Engineer</span>
-            </li>
-            <li class="workflow-step">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                </span>
-                <span>Complete</span>
-            </li>
-    </ol>
-
-        <section class="panel" aria-labelledby="case-requirements-title">
-            <div class="panel-head">
-                <h2 id="case-requirements-title">Outstanding requirements</h2>
-                <span class="status status--amber">2 outstanding</span>
-
-            </div>
-            <div class="panel-body">
-                <ul class="blocker-list">
-                        <li class="blocker">
-                            <strong>Instructions not staff-reviewed</strong>
-                            <small>
-                                <b>Source:</b> Instruction completeness
-                                    <br /><b>Why:</b> Vehicle images                                <br /><b>Resolve:</b> Confirm completeness
-                            </small>
-                        </li>
-                        <li class="blocker">
-                            <strong>Images not staff-reviewed</strong>
-                            <small>
-                                <b>Source:</b> Instruction completeness
-                                    <br /><b>Why:</b> Vehicle images                                <br /><b>Resolve:</b> Confirm completeness
-                            </small>
-                        </li>
-                </ul>
-            </div>
-        </section>
-
-</div>
-
-
-
-<section class="panel case-overview-panel" aria-labelledby="case-overview-title">
-    <div class="panel-head"><h2 id="case-overview-title">Case overview</h2></div>
     <div class="panel-body">
-        <div class="case-overview-grid">
-            <section aria-labelledby="case-overview-work">
-                <h3 id="case-overview-work">Work</h3>
-                <div class="overview-facts">
-                    <dl><dt>Case type</dt><dd>Inspection</dd></dl>
-                    <dl><dt>Provider reference</dt><dd>CLM-42</dd></dl>
-                    <dl><dt>Inspection</dt><dd>1 Depot Road</dd></dl>
-                    <dl><dt>Engineer</dt><dd>Unassigned</dd></dl>
-                    <dl><dt>Received</dt><dd>04 May 2031 11:30</dd></dl>
-                    <dl><dt>Due</dt><dd>10 May 2031</dd></dl>
-                </div>
-            </section>
-            <section aria-labelledby="case-overview-parties">
-                <h3 id="case-overview-parties">Parties</h3>
-                <div class="overview-facts">
-                    <dl><dt>Principal</dt><dd>QDOS</dd></dl>
-                    <dl><dt>Claimant</dt><dd>Case claimant</dd></dl>
-                    <dl><dt>Repairer / holder</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Intermediary</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Origin</dt><dd>Email</dd></dl>
-                </div>
-            </section>
-        </div>
-        <section class="accident-card" aria-labelledby="case-accident-title">
-            <div class="accident-card-title">
-                <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                <h3 id="case-accident-title">Accident circumstances</h3>
+        <form method="post" class="stack" action="administration-accounts--default.html">
+            <input type="hidden" name="staffId" value="test-ui-guid-1" />
+            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+            <div class="field field--narrow">
+                <label class="req" for="confirm-reason">Reason</label>
+                <textarea id="confirm-reason" name="reason" rows="3" required
+                          maxlength="1000"></textarea>
             </div>
-            <p>Rear impact</p>
-            <div class="accident-meta">
-                <span><b>Incident detail</b>Not recorded</span>
-                <span><b>Vehicle</b>AB12CDE &#xB7; Ford Transit</span>
+            <div>
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Confirm</span>
+                </button>
             </div>
-        </section>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
     </div>
 </section>
-
-            </section>
-
-            <aside class="case-context stack" aria-label="Case context">
-                <section class="context-card">
-                    <div class="panel-head"><h2>Current position</h2></div>
-                    <div class="panel-body">
-                        <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
-</strong></div>
-                        <div class="decision-row"><span>Version</span><strong>7</strong></div>
-                        <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
-                        <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
-                        <div class="decision-row">
-                            <span>Edit authority</span>
-                            <strong>
-AI                            </strong>
-                        </div>
-                    </div>
-                </section>
-                    <section class="context-card">
-                        <div class="panel-head"><h2>Next action</h2></div>
-                        <div class="panel-body stack">
-                            <div class="notice notice--warning">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                <span>Instructions not staff-reviewed</span>
-                            </div>
-                            <a class="btn btn--dark" href="case-details--default.html">Open Notes</a>
-                        </div>
-                    </section>
-            </aside>
-        </div>
-    </div>
-</article>
-
-<div id="evidence-viewer"
-     class="dialog-backdrop evidence-viewer"
-     data-evidence-viewer
-     hidden>
-    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
-        <div class="dialog-head">
-            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
-            <span class="muted tabular" data-evidence-position></span>
-            <a class="btn btn--small" data-evidence-download download>
-                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                <span>Save as</span>
-            </a>
-            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
-                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
-            </button>
-            <button type="button" class="dialog-close" data-evidence-close>
-                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                <span class="sr-only">Close</span>
-            </button>
-        </div>
-        <div class="dialog-body">
-            <div class="viewer-stage" data-evidence-stage data-rotate-target>
-                <img data-evidence-image alt="" hidden />
-                <iframe data-evidence-document title="" hidden></iframe>
-            </div>
-        </div>
-        <div class="dialog-foot cluster--between">
-            <button type="button" class="btn" data-evidence-previous>
-                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
-                <span>Previous</span>
-            </button>
-            <button type="button" class="btn" data-evidence-next>
-                <span>Next</span>
-                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
-            </button>
-        </div>
-    </section>
-</div>
-
-<div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
-    <div class="reason-dialog">
-        <h2 id="edit-finish-title">Save your changes before finishing?</h2>
-        <p>Values not saved are not kept.</p>
-        <div class="button-row">
-            <button type="button" class="secondary-action" data-edit-finish-keep>Keep editing</button>
-            <button type="button" class="secondary-action" data-edit-finish-discard>Discard</button>
-            <button type="button" class="primary-action" data-edit-finish-save>Save changes</button>
-        </div>
-    </div>
-</div>
-
-
-
-
-
-
 
                 </div>
             </main>
