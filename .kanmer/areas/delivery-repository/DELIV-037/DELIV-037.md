@@ -23,9 +23,10 @@ links:
   - TICK-058
   - AUTO-012
   - AUTO-013
+deployment: production
 archived: false
 created: '2026-08-29T20:40:03.988Z'
-updated: '2026-08-30T17:21:58.344Z'
+updated: '2026-08-30T20:11:39.795Z'
 ---
 
 ## What
