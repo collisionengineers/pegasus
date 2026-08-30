@@ -278,9 +278,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int resolved,
         int failures);
 
-    // The cause travels with the count: a failure the sweep swallowed is
-    // invisible in every environment that runs with real grants, and a bare
-    // count cannot tell a missing permission from a dropped connection.
+    // The cause travels with the count. The sweep swallows every recoverable
+    // failure, and a count alone cannot tell a denied permission from a
+    // dropped connection -- a distinction no local run can make for us,
+    // because tests run full-privilege and the deployed roles do not.
     [LoggerMessage(
         Level = LogLevel.Information,
         Message = "Reconciled provider submission accepts: {Candidates} candidates, {Repaired} repaired, {Failures} failures. First failure: {FirstFailure}")]
