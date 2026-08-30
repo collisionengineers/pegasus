@@ -357,8 +357,9 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     manifest SHA-256
     `5DC59E80A5A5CE324D391CF8BBDCBC7C4E33DAEDEB0BD5A2C592961A6CD1E7A7`)
     carried the EPIC-011 operations workspace and opened two surfaces that had
-    never been reachable in production. It is the largest release so far: 48
-    merged PRs, 379 commits, 371 files, +125,843/−13,302.
+    never been reachable in production. Measured from release 36's source
+    (`84132d01`) to this one: **49 merged PRs, 405 commits, 434 files changed,
+    +142,535/−17,804**.
 
     It applied **eleven** migrations, advancing the head from
     `20260827143200_GrantEvaSubmissions` to
@@ -379,8 +380,12 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     and expected.
 
     **`Features__ProviderApi` is `true` in production for the first time.** The
-    surface was built at release 36 but composed out; the gate was closed by
-    omission rather than by any ADR. Verified after deployment: an
+    surface did not exist at release 36: `git grep ProviderApi -- src/` at
+    `84132d01` returns nothing. Its routes, bearer scheme, flag and two of the
+    eleven migrations (`ProviderSubmissions`, `PrincipalApiCredentials`) were
+    all introduced inside this release's own range, and the gate was then opened
+    in the same range — closed by omission rather than by any ADR restricting
+    it. Verified after deployment: an
     unauthenticated `POST /api/provider/v1/submissions` answers **401, not
     404** — the route exists and admits nobody, because **no credential has been
     issued**. Issuing the first one is a separate exact-target approval.
@@ -397,13 +402,29 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     The sole Web revision `pegasus-prod-web-252ow37gij--0b3ec847aae4` is ready
     with **zero restarts**, 100% traffic in Single mode, and its digest matches
     the manifest. That restart count is the load-bearing evidence for the
-    configuration: `RequestUploadLimits` resolves lazily and `ValidateOnBuild`
-    follows `IsDevelopment()`, so a wrong `DocumentRequests` key or a missing
-    `Eva:*` value surfaces as a crash-loop rather than a startup error. The
+    configuration: `RequestUploadLimits` is registered as a factory
+    (`Program.cs:242`) and resolved lazily, and nothing in `src/` calls
+    `UseDefaultServiceProvider`, so container validation follows the ASP.NET
+    Core host default of validating on build only under `IsDevelopment()` —
+    false here. A wrong `DocumentRequests` key or a missing `Eva:*` value
+    therefore surfaces as a crash-loop or a 500 on first use rather than a
+    startup error. The
     Worker `config-zip` deployment succeeded and read back exactly seven
     functions, all `Disabled=false`. Production smoke passed twice, fifteen
     minutes apart, with the inbox poll advancing 15:25:02Z → 15:30:03Z against a
-    Graph subscription expiring 2026-09-02 10:25:00Z.
+    Graph subscription expiring 2026-09-02 10:25:00Z — the expiry is
+    independently checkable in `ApprovedMailboxSubscriptions`, but **the two
+    poll timestamps are an uncorroborated operator self-report**: no smoke
+    artifact was retained, `LastCompletedAtUtc` advances every five minutes, and
+    this is the release for which telemetry cannot back them up.
+
+    Artifacts are retained at
+    `artifacts/releases/release-37-0b3ec847` in the primary checkout — the
+    manifest, `worker.zip` and `efbundle.exe`. The 1.4 GB `web-image.tar.gz` is
+    not retained: the image itself is in the ACR under tag
+    `0b3ec847aae42ee1c1bee4fb99459f9192534dca`, which is what a rollback pulls.
+    The retained manifest hashes to the SHA-256 recorded above, so that figure
+    is checkable rather than resting on the deploying operator's word.
 
     **Telemetry does not cover this release.** Application Insights ingestion
     stopped at 12:41Z when the workspace hit its 0.5 GB daily cap
