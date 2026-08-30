@@ -4,10 +4,16 @@ type: ticket
 title: >-
   Release 37 — EPIC-011 operations workspace, Provider API activation, and the
   API-01 residuals
-status: backlog
+status: done
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-30T17:21:26.961Z'
+  implementing: '2026-08-30T17:21:38.165Z'
+  review: '2026-08-30T17:21:45.574Z'
+  verifying: '2026-08-30T17:21:52.875Z'
+  done: '2026-08-30T17:21:58.344Z'
 labels:
   - release
   - requires-live-approval
@@ -19,7 +25,7 @@ links:
   - AUTO-013
 archived: false
 created: '2026-08-29T20:40:03.988Z'
-updated: '2026-08-29T20:40:03.988Z'
+updated: '2026-08-30T17:21:58.344Z'
 ---
 
 ## What
