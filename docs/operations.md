@@ -418,6 +418,33 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     artifact was retained, `LastCompletedAtUtc` advances every five minutes, and
     this is the release for which telemetry cannot back them up.
 
+    **Row-count baseline at deploy.** All four new tables read zero rows
+    (`AiJobs`, `PrincipalApiCredentials`, `ProviderSubmissions`,
+    `CaseValuations`) against seven `Cases`. That is the evidence the new
+    subsystems carry no production usage yet, and the number a later reader
+    compares against to detect first use.
+
+    **Where the levers are.** Both opened gates are container-app environment
+    variables set from `infra/modules/platform.bicep` — `Features__ProviderApi`
+    and the fifteen `DocumentRequests__*` keys — so they change by editing that
+    file and re-provisioning, not by a portal edit or an azd input. Closing
+    either in a hurry means setting the value and running `azd provision`;
+    removing `DocumentRequests__AcceptedLimitsVersion` alone is enough to
+    decompose the upload-link surface, and it is the one that admits anonymous
+    internet callers.
+
+    **Rollback position.** The previous good state is release 36: revision
+    `pegasus-prod-web-252ow37gij--84132d01ccb0`, image
+    `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032`,
+    still present in the ACR, whose retention policy is disabled so nothing
+    auto-purges it. **The eleven migrations are not assumed down-reversible
+    against live data** — `NamedEstimates` performs a data `UPDATE` and
+    `CaseEditLeaseHolderKind` alters a lease column — so a rollback is a Web
+    revision rollback, not a schema rollback, and the schema stays forward. The
+    release-36 `worker.zip` is **not** retained on this workstation (releases
+    33-36 ran from a different machine), so a Worker rollback would have to be
+    rebuilt from source at `84132d01ccb0`.
+
     Artifacts are retained at
     `artifacts/releases/release-37-0b3ec847` in the primary checkout — the
     manifest, `worker.zip` and `efbundle.exe`. The 1.4 GB `web-image.tar.gz` is
