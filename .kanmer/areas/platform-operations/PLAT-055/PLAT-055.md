@@ -2,13 +2,14 @@
 id: PLAT-055
 type: ticket
 title: Restore the EVA client secret from Infisical after duplicated Key Vault value
-status: review
+status: verifying
 area: platform-operations
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-28T14:03:00.859Z'
   review: '2026-08-28T14:22:45.644Z'
+  verifying: '2026-08-30T20:10:09.261Z'
 taken_at: '2026-08-28T14:06:40.544Z'
 branch: task/plat-055-restore-eva-secret
 worktree: ../pegasus-worktrees/plat-055-restore-eva-secret
@@ -24,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-28T14:01:57.910Z'
-updated: '2026-08-28T14:22:45.644Z'
+updated: '2026-08-30T20:10:09.261Z'
 ---
 
 ## What
