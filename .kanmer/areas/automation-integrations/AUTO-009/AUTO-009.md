@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-28T08:15:18.708Z'
   verifying: '2026-08-28T08:19:28.265Z'
   done: '2026-08-29T10:14:01.579Z'
-taken_at: '2026-08-28T08:13:06.610Z'
-branch: task/auto-009-ai-job-docs
-worktree: ../pegasus-worktrees/auto-009-ai-job-docs
 labels:
   - docs
   - ai
@@ -35,7 +32,7 @@ prs:
   - '585'
 archived: false
 created: '2026-08-28T08:05:30.128Z'
-updated: '2026-08-29T10:14:01.579Z'
+updated: '2026-08-30T20:23:46.312Z'
 ---
 
 ## What

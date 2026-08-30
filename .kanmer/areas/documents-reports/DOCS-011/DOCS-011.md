@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-24T11:43:48.351Z'
   verifying: '2026-08-24T14:57:27.374Z'
   done: '2026-08-26T14:35:59.799Z'
-taken_at: '2026-08-24T11:16:17.083Z'
-branch: task/docs-011-evidence-preview
-worktree: ../pegasus-worktrees/docs-011-evidence-preview
 labels:
   - found-during-qa
   - ui
@@ -32,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T15:19:21.004Z'
-updated: '2026-08-26T14:35:59.799Z'
+updated: '2026-08-30T20:24:14.381Z'
 ---
 
 ## What the operator asked for

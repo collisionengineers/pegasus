@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-28T21:32:25.990Z'
   verifying: '2026-08-29T09:20:04.573Z'
   done: '2026-08-29T17:23:10.762Z'
-taken_at: '2026-08-28T21:30:36.955Z'
-branch: task/deliv-031-sql-connect-timeout
-worktree: ../pegasus-worktrees/deliv-031-sql-connect-timeout
 labels:
   - ci
   - flaky
@@ -35,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/612'
 archived: false
 created: '2026-08-28T11:16:52.307Z'
-updated: '2026-08-29T17:23:10.762Z'
+updated: '2026-08-30T20:24:10.083Z'
 ---
 
 ## What

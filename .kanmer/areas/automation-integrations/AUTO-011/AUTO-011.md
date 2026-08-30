@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-28T08:55:41.485Z'
   verifying: '2026-08-28T10:30:08.698Z'
   done: '2026-08-29T10:19:31.157Z'
-taken_at: '2026-08-28T08:40:07.967Z'
-branch: task/auto-011-ai-job-ledger
-worktree: ../pegasus-worktrees/auto-011-ai-job-ledger
 labels:
   - backend
   - wave-3
@@ -33,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:47.092Z'
-updated: '2026-08-30T20:21:02.941Z'
+updated: '2026-08-30T20:23:56.372Z'
 ---
 
 ## What

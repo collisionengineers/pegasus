@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-24T11:10:25.512Z'
   verifying: '2026-08-24T14:57:04.495Z'
   done: '2026-08-26T14:37:28.882Z'
-taken_at: '2026-08-24T08:53:04.274Z'
-branch: task/case-021-observed-images
-worktree: ../pegasus-worktrees/case-021-observed-images
 labels:
   - qdos26013
   - production-defect
@@ -29,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T15:18:20.008Z'
-updated: '2026-08-26T14:37:28.882Z'
+updated: '2026-08-30T20:23:59.696Z'
 ---
 
 ## What the operator saw

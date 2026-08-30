@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-29T09:56:08.347Z'
   verifying: '2026-08-29T17:19:13.635Z'
   done: '2026-08-29T17:19:25.745Z'
-taken_at: '2026-08-29T09:28:43.736Z'
-branch: task/auto-006-automation-admin
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/auto-006-automation-admin'
 labels:
   - ui
   - automation
@@ -37,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/618'
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-08-29T17:19:25.745Z'
+updated: '2026-08-30T20:23:40.461Z'
 ---
 
 ## What
