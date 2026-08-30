@@ -465,6 +465,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
             { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
             { name: 'Features__AutomationMcp', value: 'true' }
+            { name: 'Features__ProviderApi', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
             { name: 'Eva__ClientId', secretRef: 'eva-client-id' }
@@ -475,6 +476,54 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
             { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
+            // INT-31 upload links. Program.cs:247-250 composes the upload-link
+            // services only when AcceptedLimitsVersion is non-empty, so before
+            // this block production had no /Uploads surface at all.
+            //
+            // All FIFTEEN entries are required together, the seven media-type
+            // entries no less than the eight scalars: Program.cs:266-268 throws
+            // when the array binds to null. Note the failure is NOT a startup
+            // crash-loop -- RequestUploadLimits is a lazily resolved factory
+            // singleton (DependencyInjection.cs:475) and ValidateOnBuild follows
+            // IsDevelopment(), false here -- so a missing or misspelled key
+            // surfaces as a 500 on the first request that touches /Uploads, a
+            // case's documents, or the Operations page. There is no fail-fast
+            // net behind this block; the values were verified by binding them
+            // directly (INTK-051 scratch).
+            //
+            // These are the interim limits accepted 2026-08-29 (INTK-051);
+            // INT-31 itself stays open on one-time-vs-reuse and the
+            // revocation/expiry error contract.
+            { name: 'DocumentRequests__LimitsVersion', value: 'int-31-interim-v1' }
+            { name: 'DocumentRequests__AcceptedLimitsVersion', value: 'int-31-interim-v1' }
+            // The recorded interim bound is the existing aggregate 10 MB intake
+            // limit, which is IntakeEnvelopeLimits.MaximumContentLength exactly
+            // (IntakeContracts.cs:13). DurableIntake bounds the ManualUpload
+            // channel by that same constant, so raising these two alone would
+            // accept a larger file and then lose it downstream -- see INTK-052.
+            { name: 'DocumentRequests__MaximumRequestBytes', value: '10485760' }
+            { name: 'DocumentRequests__MaximumFileBytes', value: '10485760' }
+            { name: 'DocumentRequests__MaximumFileCount', value: '10' }
+            // 7 days, matching the existing chase cadence (CASE-17/18, MAIL-18).
+            { name: 'DocumentRequests__LifetimeHours', value: '168' }
+            // Bounds a caller who HOLDS a token. A caller who holds none is
+            // bounded by PublicUploadLink's per-address policy instead, because
+            // RequestUploadAttemptLimiter partitions on the token digest and is
+            // never reached for an unknown token.
+            { name: 'DocumentRequests__RateLimit', value: '20' }
+            { name: 'DocumentRequests__RateLimitWindowMinutes', value: '10' }
+            // Exactly the seven media types MimeKitPdfPigOpenXmlIntakeSourceReader
+            // resolves to a SourceFormat (DetectFormat, :971-1014), so an upload link
+            // admits nothing the estate cannot read and refuses nothing it can.
+            // text/plain is deliberately absent: the reader has no handler for it
+            // and would classify it Unsupported.
+            { name: 'DocumentRequests__AllowedMediaTypes__0', value: 'application/pdf' }
+            { name: 'DocumentRequests__AllowedMediaTypes__1', value: 'image/jpeg' }
+            { name: 'DocumentRequests__AllowedMediaTypes__2', value: 'image/png' }
+            { name: 'DocumentRequests__AllowedMediaTypes__3', value: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+            { name: 'DocumentRequests__AllowedMediaTypes__4', value: 'application/msword' }
+            { name: 'DocumentRequests__AllowedMediaTypes__5', value: 'message/rfc822' }
+            { name: 'DocumentRequests__AllowedMediaTypes__6', value: 'application/vnd.ms-outlook' }
           ]
           // ADR-0028: the report renderer runs in process in this container,
           // so headless Chromium shares the app's CPU and memory. Container

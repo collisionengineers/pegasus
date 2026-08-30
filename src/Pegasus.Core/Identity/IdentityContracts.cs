@@ -24,7 +24,8 @@ public enum ActorKind
     Staff,
     SystemWorker,
     RequestLink,
-    Automation
+    Automation,
+    Provider
 }
 
 public sealed class ActionActor
@@ -77,6 +78,21 @@ public sealed class ActionActor
 
     public static ActionActor Automation(string actorId) =>
         CreateNonStaff(ActorKind.Automation, actorId, nameof(actorId));
+
+    /// <summary>
+    /// A Provider API caller (API-01): the authenticated Principal is the
+    /// subject, so every submission is attributable to that Principal and
+    /// never to a credential, an e-mail domain or a tenant (FRD-09).
+    /// </summary>
+    public static ActionActor Provider(Guid principalId)
+    {
+        if (principalId == Guid.Empty)
+        {
+            throw new ArgumentException("A provider actor requires a non-empty principal identifier.", nameof(principalId));
+        }
+
+        return new ActionActor(ActorKind.Provider, principalId.ToString("D"), NoRoles);
+    }
 
     public static ActionActor RequestLink(Guid requestId)
     {
@@ -144,4 +160,13 @@ public interface ISecurityEventWriter
 public interface IActionHistoryWriter
 {
     Task AppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Appends an entry whose <see cref="ActionHistoryEntry.Id"/> is derived
+    /// from the operation it records rather than fresh, and answers whether
+    /// this call is the one that wrote it. False means another writer recorded
+    /// the same operation first and its row stands — an outcome to act on, not
+    /// a fault to hide.
+    /// </summary>
+    Task<bool> TryAppendAsync(ActionHistoryEntry entry, CancellationToken cancellationToken);
 }

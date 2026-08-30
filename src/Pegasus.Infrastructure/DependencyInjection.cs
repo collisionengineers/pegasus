@@ -18,6 +18,7 @@ using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Operations;
+using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
@@ -202,6 +203,16 @@ public static class DependencyInjection
         services.AddScoped<IRevokePrincipalCredential, RevokePrincipalCredential>();
         services.AddScoped<IGetPrincipalCredential, GetPrincipalCredential>();
         services.AddScoped<IAuthenticatePrincipalCredential, AuthenticatePrincipalCredential>();
+        // API-01: the submission row is both the idempotency record and the
+        // Principal binding processing reads, so the Worker composes the
+        // bindings port too.
+        services.AddScoped<EfProviderSubmissionStore>();
+        services.AddScoped<IProviderSubmissionStore>(
+            provider => provider.GetRequiredService<EfProviderSubmissionStore>());
+        services.AddScoped<IProviderSubmissionBindings>(
+            provider => provider.GetRequiredService<EfProviderSubmissionStore>());
+        services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
+        services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
         services.AddScoped<ICreateOrganization, CreateOrganization>();
         services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
@@ -236,6 +247,7 @@ public static class DependencyInjection
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<IAutomaticEvaSubmissionStore, EfAutomaticEvaSubmissionStore>();
         services.AddScoped<ReconcileAutomaticEvaSubmissions>();
+        services.AddScoped<ReconcileProviderSubmissions>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
@@ -315,6 +327,20 @@ public static class DependencyInjection
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
+        // the import dialog selects the parser by the chosen source route.
+        services.AddSingleton<JsonEstimateParser>();
+        services.AddScoped<ISaveEstimate, SaveEstimate>();
+        services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
+        services.AddScoped<IDiscardEstimate, DiscardEstimate>();
+        services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
+        services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
+        services.AddScoped<EfValuationStore>();
+        services.AddScoped<IValuationStore>(provider =>
+            provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<ISaveValuation, SaveValuation>();
+        services.AddScoped<IEditValuation, EditValuation>();
+        services.AddScoped<IListCaseValuations, ListCaseValuations>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();
@@ -415,7 +441,12 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
-            services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            // The Provider API reader decorates the ordinary one: it answers for
+            // its own channel and defers for every other (API-01).
+            services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
+            services.AddScoped<IIntakeSourceReader>(provider =>
+                new ProviderApiIntakeSourceReader(
+                    provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
 
             // Shared by both EVA routes so the archive and the API submission

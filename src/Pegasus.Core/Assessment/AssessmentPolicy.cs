@@ -72,19 +72,52 @@ public static class AssessmentPolicy
             normalizedFields[path] = NormalizeValue(definition, rawValue);
         }
 
-        if (touchesFinding
-            && request.Actor.Kind == ActorKind.Staff
-            && !request.Actor.IsInRole(StaffRole.Engineer))
+        if (touchesFinding && request.Actor.Kind == ActorKind.Staff)
         {
-            throw new InvalidOperationException(
-                "A professional finding can be recorded by staff only when the staff member "
-                + "is an authenticated Engineer.");
+            RequireFindingConfirmationAuthority(request.Actor);
         }
 
         var normalizedLines = request.EstimateLines is null
             ? null
             : NormalizeLines(request.EstimateLines);
         return request with { Fields = normalizedFields, EstimateLines = normalizedLines };
+    }
+
+    /// <summary>
+    /// The one owner of who may confirm a professional finding: a staff
+    /// member only when that member is an authenticated Engineer. The
+    /// assessment save applies it to its staff branch (the Automation actor
+    /// records unconfirmed working data instead); a caller that writes a
+    /// finding field as a confirmed value outside that save - the Engineer's
+    /// Value valuation - applies it on its own.
+    /// </summary>
+    public static void RequireFindingConfirmationAuthority(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
+        {
+            throw new InvalidOperationException(
+                "A professional finding can be recorded by staff only when the staff member "
+                + "is an authenticated Engineer.");
+        }
+    }
+
+    /// <summary>
+    /// Canonicalizes one value against its own vocabulary definition. The
+    /// assessment save normalizes through the same rules; a caller that
+    /// writes a single field outside that save canonicalizes it here rather
+    /// than keeping a second copy of the format.
+    /// </summary>
+    public static string? NormalizeFieldValue(string path, string? rawValue)
+    {
+        if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition))
+        {
+            throw new ArgumentException(
+                $"The field path '{path}' is not part of the assessment vocabulary.",
+                nameof(path));
+        }
+
+        return NormalizeValue(definition, rawValue);
     }
 
     /// <summary>
@@ -431,6 +464,19 @@ public static class AssessmentPolicy
             {
                 throw new ArgumentException(
                     "Estimate work units must be non-negative in steps of 0.1.",
+                    nameof(lines));
+            }
+            if (line.PaintWorkUnits is { } paintWorkUnits
+                && (paintWorkUnits < 0 || decimal.Round(paintWorkUnits, 1) != paintWorkUnits))
+            {
+                throw new ArgumentException(
+                    "Estimate paint work units must be non-negative in steps of 0.1.",
+                    nameof(lines));
+            }
+            if (line.Quantity is { } quantity && quantity < 1)
+            {
+                throw new ArgumentException(
+                    "An estimate line quantity must be at least one.",
                     nameof(lines));
             }
             if (line.Price is { } price && (price < 0 || decimal.Round(price, 2) != price))

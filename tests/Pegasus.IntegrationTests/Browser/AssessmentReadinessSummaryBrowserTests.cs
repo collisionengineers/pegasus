@@ -1,9 +1,6 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -14,20 +11,19 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests.Browser;
 
 /// <summary>
-/// ENG-003: proves the assessment page's two duplicate warning surfaces
-/// (the readiness aside and the "Report draft &#8594; Not ready" card, both
-/// rendering <see cref="AssessmentPolicy.EvaluateReadiness"/> output as a
-/// per-issue list) collapsed into one combined indicator with the itemised
-/// list reached through a single accessible disclosure. The fixture mirrors
-/// QDOS26002 from prod-diagnostics.md &#167;4: a near-empty assessment, so
-/// most of the readiness rail fires.
+/// ENG-025: the ported Assessment workspace (context.md §1.9). The
+/// readiness list the old page disclosed is no longer drawn; the readiness
+/// verdict now conditions the record bar's report-draft controls, which
+/// name their outstanding count (design README §Absent versus disabled).
+/// The fixture mirrors QDOS26002 from prod-diagnostics.md §4: a near-empty
+/// assessment, so most readiness checks fire.
 /// </summary>
 [Trait("Category", "SqlServer")]
 [Trait("Category", "Browser")]
 public sealed class AssessmentReadinessSummaryBrowserTests
 {
     [Fact]
-    public async Task ReadinessSummaryOwnsTheOneItemisedListRevealedByHoverAndFocus()
+    public async Task NotReadyReportDraftControlsStateTheConditionAndTheShellRenders()
     {
         var caseId = Guid.NewGuid();
         await using var support = await BrowserTestSupport.StartAsync(
@@ -52,45 +48,36 @@ public sealed class AssessmentReadinessSummaryBrowserTests
         var response = await support.GoToAsync($"/Cases/{caseId:D}/Assessment");
         Assert.Equal(200, response.Status);
 
-        // Exactly one itemised list on the whole page: the readiness panel's
-        // disclosure owns it, the report-draft card only references the count.
-        var itemisedLists = support.Page.Locator(".blocker-list");
-        Assert.Equal(1, await itemisedLists.CountAsync());
-        var items = itemisedLists.Locator(".blocker");
-        var itemCount = await items.CountAsync();
-        Assert.True(itemCount > 1, "The near-empty fixture should fail most readiness checks.");
+        // The §1.9 shell: one header, the seven-item ribbon, the evidence
+        // rail and the Estimates pane of the assessment-v3 grid.
+        var heading = support.Page.Locator("h1");
+        Assert.Equal("Assessment", (await heading.First.InnerTextAsync()).Trim());
+        Assert.Equal(7, await support.Page.Locator(".record-ribbon .ribbon-item").CountAsync());
+        Assert.Equal("Estimates", (await support.Page.Locator(".assessment-v3-main .pane-head h2").InnerTextAsync()).Trim());
+        Assert.Equal("Evidence", (await support.Page.Locator(".assessment-v3-evidence .pane-head h2").InnerTextAsync()).Trim());
 
-        // The combined chip names the same count as the disclosed list.
-        var chipText = await support.Page.Locator(".readiness-summary summary .status-chip").InnerTextAsync();
-        var chipCount = int.Parse(Regex.Match(chipText, @"\d+").Value, CultureInfo.InvariantCulture);
-        Assert.Equal(itemCount, chipCount);
-        Assert.Matches(@"^\d+ issues detected$", chipText.Trim());
+        // The readiness verdict the old disclosure itemised now leaves the
+        // report-draft controls disabled with their condition stated, and
+        // the reasons are named once, beside the bar (FRD-11 fail-closed).
+        var generate = support.Page.Locator(".record-bar-end .gated");
+        var condition = await generate.GetAttributeAsync("data-condition");
+        Assert.Equal("Not ready", condition?.Trim());
+        Assert.True(await generate.Locator("button[disabled][aria-disabled=\"true\"]").CountAsync() == 1);
+        Assert.Equal(0, await support.Page.Locator(".record-bar-end a:has-text(\"Preview report draft\")").CountAsync());
+        var warning = support.Page.Locator(".notice--warning");
+        var warningText = (await warning.First.InnerTextAsync()).Trim();
+        Assert.StartsWith("Report draft not ready:", warningText, StringComparison.Ordinal);
+        Assert.Contains(
+            AssessmentReportProjection.RepairCostRequirement,
+            warningText,
+            StringComparison.Ordinal);
+        Assert.Equal(0, await support.Page.Locator(".readiness-summary").CountAsync());
 
-        // The report-draft "Not ready" card names the same count and points
-        // back to the readiness panel instead of repeating the list.
-        var notReadyText = await support.Page.Locator(".status-card--attention", new()
-        {
-            HasText = "Not ready"
-        }).InnerTextAsync();
-        Assert.Contains($"{chipCount} issues detected", notReadyText, StringComparison.Ordinal);
-        Assert.Contains("see Readiness above", notReadyText, StringComparison.Ordinal);
-
-        // Collapsed by default: the disclosure content is not visible.
-        Assert.False(await items.First.IsVisibleAsync());
-
-        // Hover reveals it.
-        await support.Page.HoverAsync(".readiness-summary summary");
-        Assert.True(await items.First.IsVisibleAsync());
-        var revealedText = await items.First.InnerTextAsync();
-        Assert.NotEmpty(revealedText);
-
-        // Moving away closes it again.
-        await support.Page.Locator("h1").First.HoverAsync();
-        Assert.False(await items.First.IsVisibleAsync());
-
-        // Keyboard focus alone (no activation) also reveals it.
-        await support.Page.Locator(".readiness-summary summary").FocusAsync();
-        Assert.True(await items.First.IsVisibleAsync());
+        // No estimate surfaces are drawn for a case with no specification:
+        // the pane states the empty fact, and no inert tab strip renders.
+        Assert.Equal("No estimates recorded",
+            (await support.Page.Locator(".estimate-empty").InnerTextAsync()).Trim());
+        Assert.Equal(0, await support.Page.Locator(".estimate-tabs").CountAsync());
 
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
     }

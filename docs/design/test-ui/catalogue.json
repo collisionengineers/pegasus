@@ -156,15 +156,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
     "route": "/Administration/MailCategories",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-mail-categories--default.html",
-        "branch": "No existing categories plus add-category form.",
-        "scenario": "administration-mail-categories--default"
-      }
-    ]
+    "classification": "redirect",
+    "reason": "Redirects permanently to the consolidated Mail settings area."
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
@@ -220,7 +213,7 @@
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Principals/EvaSubmission.cshtml",
-    "route": "/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}/EvaSubmission",
+    "route": "/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}",
     "classification": "visual",
     "states": [
       {
@@ -286,8 +279,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Closure.cshtml",
     "route": "/Cases/{id:guid}/Closure",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only closure actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Create.cshtml",
@@ -305,8 +298,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Custody.cshtml",
     "route": "/Cases/{id:guid}/Custody",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only custody, document and upload-request actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Details.cshtml",
@@ -316,13 +309,13 @@
       {
         "state": "default",
         "file": "pages/case-details--default.html",
-        "branch": "Loaded overview in Review with held edit lease.",
+        "branch": "Case workspace: Case Overview in Review with the edit lease held (header, identity ribbon, action bar, edit bar, section nav, context column).",
         "scenario": "case-details--default"
       },
       {
         "state": "unavailable",
         "file": "pages/case-details--unavailable.html",
-        "branch": "The case workspace cannot load the requested editable data.",
+        "branch": "The case query failed and the workspace renders the unavailable notice.",
         "scenario": "case-details--unavailable"
       },
       {
@@ -380,20 +373,20 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Tasks.cshtml",
     "route": "/Cases/{id:guid}/Tasks",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only note, task and report-evidence actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Vehicle.cshtml",
     "route": "/Cases/{id:guid}/Vehicle",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only vehicle lookup and suggestion actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Workflow.cshtml",
     "route": "/Cases/{id:guid}/Workflow",
-    "classification": "redirect",
-    "reason": "Compatibility route redirects to the canonical case detail surface."
+    "classification": "protocol",
+    "reason": "POST-only workflow actions; GET has no handler and renders no content."
   },
   {
     "source": "src/Pegasus.Web/Pages/Connect/Authorize.cshtml",

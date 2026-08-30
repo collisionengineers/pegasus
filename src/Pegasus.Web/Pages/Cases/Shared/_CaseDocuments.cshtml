@@ -1,6 +1,7 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Documents
 @using Pegasus.Core.Cases
+@using Pegasus.Web.Presentation
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
@@ -12,62 +13,113 @@
         && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
         && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
             || version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase));
+    var custodyConfirmed = details.CustodyState == CaseCustodyState.Confirmed
+        && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId);
 }
 
-<section class="panel form-panel" aria-labelledby="case-documents-title">
-    <h2 id="case-documents-title" class="section-label">Files</h2>
-    <p>
-        @if (details.CustodyState == CaseCustodyState.Confirmed
-             && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId))
-        {
-            <a class="btn btn--dark" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"/></svg>
-                <span>Open Box case folder</span>
+<section class="panel" aria-labelledby="case-documents-title">
+    <div class="panel-head">
+        <h2 id="case-documents-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
+        <span class="cluster">
+            <a class="btn" asp-page="/Upload">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
             </a>
-        }
-        else
-        {
-            @OperatorLabels.CustodyFolderState(details.CustodyState)
-        }
-    </p>
+            @if (custodyConfirmed)
+            {
+                <a class="btn btn--dark" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <span>Open Box case folder</span>
+                </a>
+            }
+            else
+            {
+                @* The folder's own state as a value, not an explanation. *@
+                <partial name="Shared/_StatusChip" model="@OperatorLabels.CustodyFolderState(details.CustodyState)" />
+            }
+            <a class="btn" asp-page="/Operations">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>@OperatorLabels.CaseWorkspace.OpenOperations</span>
+            </a>
+        </span>
+    </div>
     @if (files.Count > 0)
     {
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>File</th><th>Type</th><th>From</th><th>Size</th><th>Added</th>@if (mayEdit){<th>Action</th>}</tr></thead>
-                <tbody data-evidence-set>
+        <div class="panel-body">
+            <div class="document-list" data-evidence-set>
                 @foreach (var entry in files)
                 {
                     var occurrence = entry.Occurrence;
                     var version = entry.Version;
-                    <tr>
-                        <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id" asp-route-inline="true" data-evidence-item data-download-href="@Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id })" data-media-type="@version.MediaType" data-file-name="@version.FileName">@version.FileName</a></td>
-                        <td>
-                            @OperatorLabels.DocumentRole(occurrence.SemanticRole)
+                    var previewHref = Url.Page(
+                        "/Cases/Documents/Download",
+                        new
+                        {
+                            caseId = workflow.CaseId,
+                            occurrenceId = occurrence.Id,
+                            versionId = version.Id,
+                            inline = true
+                        })!;
+                    var downloadHref = Url.Page(
+                        "/Cases/Documents/Download",
+                        new
+                        {
+                            caseId = workflow.CaseId,
+                            occurrenceId = occurrence.Id,
+                            versionId = version.Id
+                        })!;
+                    <div class="document-row">
+                        <span class="document-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                        </span>
+                        <div>
+                            <strong>@version.FileName</strong>
+                            <small>
+                                @OperatorLabels.DocumentRole(occurrence.SemanticRole)
+                                · @OperatorLabels.FileSize(version.ContentLength)
+                                · @OperatorLabels.DocumentOrigin(occurrence.Source)
+                                · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc)
+                            </small>
+                        </div>
+                        <span class="cluster">
+                            <partial name="Shared/_StatusChip" model="@OperatorLabels.CustodyState(version.CustodyStatus)" />
                             @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
                             {
-                                <span class="status-chip status-chip--amber">Third-party vehicle</span>
+                                <partial name="Shared/_StatusChip" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" }' model="@OperatorLabels.CaseWorkspace.ThirdPartyVehicle" />
                             }
-                        </td>
-                        <td>@OperatorLabels.DocumentOrigin(occurrence.Source)</td>
-                        <td>@OperatorLabels.FileSize(version.ContentLength)</td>
-                        <td>@OperatorLabels.OfficeTime(occurrence.RecordedAtUtc)</td>
-                        @if (mayEdit)
-                        {
-                            <td>
-                                <button type="button" class="btn btn--icon" data-dialog-open="remove-doc-@occurrence.Id" aria-label="Remove @version.FileName">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2"/></svg>
-                                </button>
+                        </span>
+                        <span class="cluster">
+                            @* DOCS-011: the same authorised route displays or
+                               saves depending on the flag, so preview and save
+                               are two URLs, not two capabilities. The preview
+                               link is the viewer's trigger. *@
+                            <a class="btn btn--small"
+                               href="@previewHref"
+                               data-evidence-item
+                               data-download-href="@downloadHref"
+                               data-media-type="@version.MediaType"
+                               data-file-name="@version.FileName">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                                <span>@OperatorLabels.CaseWorkspace.Preview</span>
+                            </a>
+                            <a class="btn btn--small" href="@downloadHref" download>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                                <span>@OperatorLabels.CaseWorkspace.SaveAs</span>
+                            </a>
+                            @if (mayEdit)
+                            {
                                 @if (MayConfirmThirdParty(occurrence, version))
                                 {
-                                    <button type="button" class="secondary-action" data-dialog-open="third-party-@occurrence.Id">Third-party vehicle</button>
+                                    <button type="button" class="btn btn--small" data-dialog-open="third-party-@occurrence.Id">@OperatorLabels.CaseWorkspace.ThirdPartyVehicle</button>
                                 }
-                            </td>
-                        }
-                    </tr>
+                                <button type="button" class="btn btn--small btn--danger" data-dialog-open="remove-doc-@occurrence.Id" aria-label="Remove @version.FileName">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                                </button>
+                            }
+                        </span>
+                    </div>
                 }
-                </tbody>
-            </table>
+            </div>
         </div>
 
         @if (mayEdit)
@@ -86,7 +138,7 @@
                         ["id"] = workflow.CaseId.ToString(),
                         ["occurrenceId"] = occurrence.Id.ToString(),
                         ["expectedVersion"] = workflow.Version.ToString(),
-                        ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                        ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
                         ["editLeaseToken"] = leaseToken
                     }
                 })" />
@@ -95,14 +147,14 @@
                     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
                     {
                         ["DialogId"] = $"third-party-{occurrence.Id}",
-                        ["DialogTitle"] = "Third-party vehicle",
+                        ["DialogTitle"] = OperatorLabels.CaseWorkspace.ThirdPartyVehicle,
                         ["DialogActionUrl"] = Url.Page("/Cases/Custody", "ConfirmThirdPartyVehicleEvidence", new { id = workflow.CaseId }),
                         ["DialogHiddenFields"] = new Dictionary<string, string?>
                         {
                             ["id"] = workflow.CaseId.ToString(),
                             ["occurrenceId"] = occurrence.Id.ToString(),
                             ["expectedVersion"] = workflow.Version.ToString(),
-                            ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                            ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
                             ["editLeaseToken"] = leaseToken
                         }
                     })" />
@@ -112,35 +164,75 @@
     }
 </section>
 
-<section class="panel form-panel" aria-labelledby="case-upload-requests-title">
-    <h2 id="case-upload-requests-title" class="section-label">Public upload requests</h2>
-    @if (details.RequestUploadLinks.Count == 0)
-    {
-        <p class="empty-state">No public upload request is recorded. Availability is not assumed.</p>
-    }
-    else
-    {
-        <ul>
-        @foreach (var request in details.RequestUploadLinks)
+@if (details.RequestUploadLinks.Count > 0 || mayEdit)
+{
+    <section class="panel" aria-labelledby="case-upload-requests-title">
+        <div class="panel-head">
+            <h2 id="case-upload-requests-title">@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h2>
+            @if (mayEdit)
+            {
+                <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                        <span>Create upload request</span>
+                    </button>
+                </form>
+            }
+        </div>
+        @if (details.RequestUploadLinks.Count > 0)
         {
-            <li>
-                <strong>@OperatorLabels.UploadRequestState(request.Status)</strong> — created @OperatorLabels.OfficeTime(request.CreatedAtUtc) — @request.AcceptedFileCount @(request.AcceptedFileCount == 1 ? "file" : "files") accepted, @OperatorLabels.FileSize(request.AcceptedByteCount)
-                @if (mayEdit && request.RevokedAtUtc is null)
+            <div class="panel-body">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th>Action</th>}</tr></thead>
+                        <tbody>
+                            @foreach (var request in details.RequestUploadLinks)
+                            {
+                                <tr>
+                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.UploadRequestState(request.Status)" /></td>
+                                    <td>@OperatorLabels.OfficeTime(request.CreatedAtUtc)</td>
+                                    <td>@OperatorLabels.OfficeTime(request.ExpiresAtUtc)</td>
+                                    <td>@request.AcceptedFileCount · @OperatorLabels.FileSize(request.AcceptedByteCount)</td>
+                                    @if (mayEdit)
+                                    {
+                                        <td>
+                                            @if (request.RevokedAtUtc is null)
+                                            {
+                                                <button type="button" class="btn btn--small btn--danger" data-dialog-open="revoke-upload-@request.Id">Withdraw link</button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @if (mayEdit)
+            {
+                @foreach (var request in details.RequestUploadLinks.Where(link => link.RevokedAtUtc is null))
                 {
-                    <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="RevokeRequestUploadLink">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="requestId" value="@request.Id" /><input type="hidden" name="expectedRequestVersion" value="@request.Version" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Revoke upload request</button>
-                    </form>
+                    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+                    {
+                        ["DialogId"] = $"revoke-upload-{request.Id}",
+                        ["DialogTitle"] = "Withdraw link",
+                        ["DialogActionUrl"] = Url.Page("/Cases/Custody", "RevokeRequestUploadLink", new { id = workflow.CaseId }),
+                        ["DialogHiddenFields"] = new Dictionary<string, string?>
+                        {
+                            ["id"] = workflow.CaseId.ToString(),
+                            ["requestId"] = request.Id.ToString(),
+                            ["expectedRequestVersion"] = request.Version.ToString(),
+                            ["expectedVersion"] = workflow.Version.ToString(),
+                            ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
+                            ["editLeaseToken"] = leaseToken
+                        }
+                    })" />
                 }
-            </li>
+            }
         }
-        </ul>
-    }
-    @if (mayEdit)
-    {
-        <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <button type="submit" class="primary-action">Create public upload request</button>
-        </form>
-    }
-</section>
+    </section>
+}

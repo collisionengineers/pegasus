@@ -29,6 +29,8 @@ internal sealed class CaseEstimateLineEntity
     public string? GuideCode { get; set; }
     public string? Description { get; set; }
     public decimal? WorkUnits { get; set; }
+    public decimal? PaintWorkUnits { get; set; }
+    public int? Quantity { get; set; }
     public decimal? Price { get; set; }
     public bool Unpriced { get; set; }
     public string? PartNumber { get; set; }
@@ -71,7 +73,41 @@ internal sealed class CaseRepairSpecificationEntity
     public DateTimeOffset? AcceptedAtUtc { get; set; }
     public Guid? SupersedesSpecificationId { get; set; }
     public string? SupersessionReason { get; set; }
+
+    // Named estimate header (ENG-026). Exactly one row per case carries
+    // IsCurrent; the Current estimate is the one the report costs from.
+    public required string Name { get; set; }
+    public int? RepairDays { get; set; }
+    public decimal? LabourRate { get; set; }
+    public decimal? PaintLabourRate { get; set; }
+    public decimal? PaintMaterials { get; set; }
+    public decimal? OtherCosts { get; set; }
+    public decimal VatPercent { get; set; }
+    public string? Notes { get; set; }
+    public bool IsCurrent { get; set; }
+    public Guid? AiJobId { get; set; }
+    public string? DiscardedBy { get; set; }
+    public DateTimeOffset? DiscardedAtUtc { get; set; }
+    public string? DiscardReason { get; set; }
+    public string? LastOperationKey { get; set; }
     public List<CaseEstimateLineEntity> Lines { get; set; } = [];
+}
+
+internal sealed class CaseValuationEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public required string Source { get; set; }
+    public DateOnly Date { get; set; }
+    public TimeOnly Time { get; set; }
+    public long Mileage { get; set; }
+    public decimal RetailValue { get; set; }
+    public decimal TradeValue { get; set; }
+    public required string RecordedBy { get; set; }
+    public DateTimeOffset RecordedAtUtc { get; set; }
+    public string? LastEditedBy { get; set; }
+    public DateTimeOffset? LastEditedAtUtc { get; set; }
 }
 
 /// <summary>
