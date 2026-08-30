@@ -56,9 +56,10 @@ commits:
   - 8ef4775c
 prs:
   - '594'
+deployment: production
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-29T20:56:01.802Z'
+updated: '2026-08-30T20:13:45.381Z'
 ---
 
 ## What

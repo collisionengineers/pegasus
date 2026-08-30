@@ -23,6 +23,8 @@ groups:
 links:
   - PLAT-053
   - PLAT-054
+blocks:
+  - PLAT-051
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
@@ -33,9 +35,10 @@ commits:
   - 11ad83b2
 prs:
   - '591'
+deployment: production
 archived: false
 created: '2026-08-28T08:35:24.047Z'
-updated: '2026-08-28T12:42:03.989Z'
+updated: '2026-08-30T20:14:17.295Z'
 ---
 
 ## What

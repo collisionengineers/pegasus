@@ -29,9 +29,10 @@ docs_todo: true
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/599'
   - 'https://github.com/collisionengineers/pegasus/pull/615'
+deployment: production
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-29T13:10:19.329Z'
+updated: '2026-08-30T20:14:00.205Z'
 ---
 
 ## What

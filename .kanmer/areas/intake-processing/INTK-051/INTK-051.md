@@ -24,9 +24,10 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 prs:
   - '633'
+deployment: production
 archived: false
 created: '2026-08-29T21:15:02.437Z'
-updated: '2026-08-30T00:06:28.861Z'
+updated: '2026-08-30T20:13:26.817Z'
 ---
 
 ## What

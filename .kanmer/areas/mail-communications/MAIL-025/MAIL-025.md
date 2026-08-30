@@ -27,9 +27,10 @@ blocks:
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+deployment: production
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-29T13:10:22.861Z'
+updated: '2026-08-30T20:14:09.686Z'
 ---
 
 ## What
