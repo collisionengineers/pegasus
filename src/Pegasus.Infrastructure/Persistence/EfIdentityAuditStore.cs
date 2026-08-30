@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 
@@ -43,6 +44,33 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
         ActionHistoryEntry entry,
         CancellationToken cancellationToken)
     {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.ActionHistory.Add(ToEntity(entry));
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> TryAppendAsync(
+        ActionHistoryEntry entry,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.ActionHistory.Add(ToEntity(entry));
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException exception)
+            when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
+        {
+            // The derived identity is already in permanent history: another
+            // writer recorded this same operation first, and its row stands.
+            return false;
+        }
+    }
+
+    private static ActionHistoryEntity ToEntity(ActionHistoryEntry entry)
+    {
         ArgumentNullException.ThrowIfNull(entry);
         ValidateId(entry.Id, nameof(entry));
         ValidateRequired(entry.AggregateType, 100, nameof(entry.AggregateType));
@@ -61,8 +89,7 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
             .Select(role => role.ToString())
             .ToArray();
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        context.ActionHistory.Add(new ActionHistoryEntity
+        return new ActionHistoryEntity
         {
             Id = entry.Id,
             AggregateType = entry.AggregateType,
@@ -78,8 +105,7 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
             BeforeJson = entry.BeforeJson,
             AfterJson = entry.AfterJson,
             PolicyVersion = entry.PolicyVersion
-        });
-        await context.SaveChangesAsync(cancellationToken);
+        };
     }
 
     private static void ValidateId(Guid id, string parameterName)

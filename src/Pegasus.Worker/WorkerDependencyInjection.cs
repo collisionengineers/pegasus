@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
@@ -63,6 +64,9 @@ public static class WorkerDependencyInjection
                     // the whole worker process whenever the platform handed over an
                     // unresolved Key Vault reference (PLAT-013).
                     _ => CreateBoxCustodyOptions(configuration)));
+        services.AddScoped<EfIdentityAuditStore>();
+        services.AddScoped<IActionHistoryWriter>(serviceProvider =>
+            serviceProvider.GetRequiredService<EfIdentityAuditStore>());
         azureClientRegistration.AddTo(services);
 
         if (developmentOffline)

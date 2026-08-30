@@ -247,6 +247,7 @@ public static class DependencyInjection
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<IAutomaticEvaSubmissionStore, EfAutomaticEvaSubmissionStore>();
         services.AddScoped<ReconcileAutomaticEvaSubmissions>();
+        services.AddScoped<ReconcileProviderSubmissions>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();

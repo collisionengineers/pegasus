@@ -15,6 +15,13 @@ internal sealed class EfProviderSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IProviderSubmissionStore, IProviderSubmissionBindings
 {
+    // The code the durable intake store writes into
+    // IntakeStagedReceipts.SourceChannel for this channel. Its map is private
+    // to that store and the accept path deliberately leaves it untouched, so
+    // the agreement is held by the two SQL-level accept-recovery tests, which
+    // find no candidate at all if these ever disagree.
+    private const string ProviderApiSourceChannel = "provider_api";
+
     public async Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
@@ -84,6 +91,17 @@ internal sealed class EfProviderSubmissionStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ProviderSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
+        int maximumItems,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await AcceptRecoveryStates(context)
+            .Take(maximumItems)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<string?> FindPrincipalCodeAsync(
         Guid principalId,
         CancellationToken cancellationToken)
@@ -139,4 +157,45 @@ internal sealed class EfProviderSubmissionStore(
         entity.ReceivedAtUtc,
         ProviderInstructionJson.Deserialize(entity.DeclaredInstructionJson),
         entity.StagedReceiptId);
+
+    /// <summary>
+    /// The accept state of a submission, read in one statement: the staged
+    /// receipt its source was retained as, and whether its first
+    /// <c>Accepted</c> history row exists.
+    /// </summary>
+    /// <remarks>
+    /// The staged-receipt join is an inner join on purpose. A submission whose
+    /// retention never happened is a bare reservation: the sweep cannot
+    /// complete it, and nothing deletes it, so admitting it to a bounded
+    /// oldest-first window would let one outage's worth of them occupy that
+    /// window for good. Joining here also answers "which receipt?" in the same
+    /// read, instead of one lookup per candidate.
+    /// </remarks>
+    private static IQueryable<ProviderSubmissionAcceptCandidate> AcceptRecoveryStates(
+        PegasusDbContext context) =>
+        from submission in context.ProviderSubmissions.AsNoTracking()
+        join staged in context.IntakeStagedReceipts
+                .AsNoTracking()
+                .Where(item => item.SourceChannel == ProviderApiSourceChannel)
+            // The token the accept path writes is the submission id in "N"
+            // form, matched under the database's own collation exactly as the
+            // history join below matches the "D" form.
+            on submission.Id.ToString().Replace("-", string.Empty)
+                equals staged.ExternalReceiptToken
+        join acceptedHistory in context.ActionHistory
+                .AsNoTracking()
+                .Where(item =>
+                    item.AggregateType == ProviderSubmissionPolicy.ActionHistoryAggregateType
+                    && item.Outcome == "Accepted")
+            on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
+        from acceptedHistory in acceptedHistories.DefaultIfEmpty()
+        where submission.StagedReceiptId == null || acceptedHistory == null
+        orderby submission.ReceivedAtUtc, submission.Id
+        select new ProviderSubmissionAcceptCandidate(
+            submission.Id,
+            submission.PrincipalId,
+            submission.ReceivedAtUtc,
+            submission.StagedReceiptId,
+            staged.Id,
+            acceptedHistory != null);
 }
