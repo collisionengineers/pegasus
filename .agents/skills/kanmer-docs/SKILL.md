@@ -33,16 +33,14 @@ in bulk from setup. It never moves a ticket.
 | **FRD** | what ONE feature does | one crisp acceptance list, one "done" |
 | **ADR** | why it is built this way | one decision; superseded, never edited |
 
-**The granularity test:** one crisp acceptance list and one "done" — if a
-document needs two, split it.
+**The granularity test:** one crisp acceptance list and one "done" — if a document needs two,
+split it. (This test exists because it caught the FRD authoring in this very project; see
+FRD-014 R2 and the R8b correction in the shaping record.)
 
-That test is not imported from anywhere: it was written after it caught the FRD
-authoring in Kanmer's own repo. Apply it to the document in front of you before
-deciding it is fine.
-
-FRDs are **durable end-state specs**, absorbing shipped behaviour — not change
-requests. A cross-cutting rule that spans every feature is a requirement
-*inside* the FRDs it affects, not an FRD of its own.
+FRDs are **durable end-state specs of the whole product**, absorbing shipped behaviour — not
+change requests. Cross-cutting rules that span every feature (living documents, the
+read-everything duty) are requirements *inside* FRDs plus the AGENTS-block layer, never FRDs of
+their own.
 
 (In a repo that has `docs/README.md`, that file is the canonical copy of this
 table and this skill's copy must match it. The duplication is deliberate — the
@@ -89,6 +87,18 @@ user authorization, how it *modifies* one, or why a *new* ADR is created for a
 design decision. `kanmer-plan` writes that "Governing docs" section; `kanmer-review`
 checks it holds. Gates only check a doc's existence; this content rule is human-
 and skill-enforced.
+
+## Project guide outside the managed block
+
+For a repository's user-owned `AGENTS.md` content, start from
+`assets/agents-template.md` **only when the file is absent**. Its five sections
+(Commands, Architecture map, Conventions, Gotchas, Verification) are a
+deliberately incomplete skeleton: replace the TODOs with repository facts.
+
+When `AGENTS.md` already exists, preserve its human-authored prose. Assess and
+report any missing required sections instead of rewriting the guide. The
+marker-delimited Kanmer operating block belongs to `kanmer-setup` and its
+writer; this asset must never copy, replace, or redefine that managed block.
 
 ## Bulk (greenfield)
 `kanmer-setup` calls this skill to split a product brief into PRDs → FRDs → ADRs
