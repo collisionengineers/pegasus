@@ -301,7 +301,15 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
 // no Filters collection of its own, so the global filter is added through
 // the underlying MvcOptions instead.
 builder.Services.AddRazorPages()
-    .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>());
+    .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>())
+    // The anonymous upload link is the only Razor page reachable without a
+    // session, so it is the only one that carries a transport-level bound.
+    // Applying it here rather than on MapRazorPages() keeps every
+    // authenticated page off the limiter.
+    .AddRazorPagesOptions(options => options.Conventions.AddPageApplicationModelConvention(
+        "/Uploads/Request",
+        model => model.EndpointMetadata.Add(
+            new EnableRateLimitingAttribute(PublicUploadLink.RateLimitPolicy))));
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {
@@ -333,7 +341,9 @@ builder.Services.AddRateLimiter(options =>
                 ? "automation_rate_limited"
                 : rejectedPath.StartsWithSegments(ProviderApi.BasePath)
                     ? "provider_api_rate_limited"
-                    : "authentication_rate_limited";
+                    : rejectedPath.StartsWithSegments("/Uploads")
+                        ? "upload_link_rate_limited"
+                        : "authentication_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -368,6 +378,21 @@ builder.Services.AddRateLimiter(options =>
     // the caller a fresh budget each time and bound nothing at all. The
     // partition is the calling address, as it already is for staff sign-in and
     // the MCP ingress.
+    // The anonymous upload link holds no credential and presents no identity,
+    // and its per-token limiter cannot bound a caller who has no token, so the
+    // partition is the calling address as it is for every other pre-auth
+    // surface here.
+    options.AddPolicy(
+        PublicUploadLink.RateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = PublicUploadLink.RequestsPerClientPerMinute,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
     options.AddPolicy(
         ProviderApi.RateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
