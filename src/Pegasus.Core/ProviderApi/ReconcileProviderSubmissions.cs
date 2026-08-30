@@ -45,7 +45,7 @@ public sealed class ReconcileProviderSubmissions(
     /// the request's correlation id.
     /// </summary>
     private const string RecoveredAcceptReason =
-        "Completed by accept recovery; the originating request's correlation id was not retained.";
+        "Completed by accept recovery; this row carries the submission's own operation key rather than a request correlation id.";
 
     public async Task<ReconcileProviderSubmissionsResult> ExecuteAsync(
         int maximumItems,
