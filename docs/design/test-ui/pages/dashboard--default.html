@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard · Pegasus</title>
+    <title>Work Centre · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -157,9 +157,13 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Dashboard</h1>
-    <div class="freshness" data-refresh-region role="status" aria-live="polite">
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Office-wide work</p>
+        <h1>Work Centre</h1>
+    </div>
+    <div class="page-actions">
+        <div class="freshness" data-refresh-region role="status" aria-live="polite">
     <span class="health-dot"></span>
         <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
     <form method="get" data-refresh-form>
@@ -170,115 +174,58 @@
     </form>
 </div>
 
+        <a class="btn btn--primary" href="case-create--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+            <span>Create Case</span>
+        </a>
+    </div>
 </header>
 
-<section aria-labelledby="active-cases-title">
-    <h2 id="active-cases-title" class="section-label">Active cases</h2>
-    <div class="metric-strip metric-strip--3">
-        <a class="metric" data-state="not-ready" href="queues--default.html">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                Not ready
-            </span>
-            <strong class="metric__value">0</strong>
+<section class="metric-section work-centre-metrics" aria-labelledby="work-metrics-title">
+    <h2 id="work-metrics-title" class="section-label">Work requiring attention</h2>
+    <div class="metric-strip metric-strip--5">
+        <a class="metric" data-value="not_ready" href="queues--default.html">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Not ready</span></span>
+            <span class="metric-value">0</span>
         </a>
-        <a class="metric" data-state="review" href="queues--default.html">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-info" /></svg>
-                Review
-            </span>
-            <strong class="metric__value">0</strong>
+        <a class="metric" data-value="review" href="queues--default.html">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Review</span></span>
+            <span class="metric-value">0</span>
         </a>
-        <a class="metric" data-state="held" href="queues--default.html">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-clock" /></svg>
-                Held
-            </span>
-            <strong class="metric__value">0</strong>
+        <a class="metric" data-value="held" href="queues--default.html">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg><span>Held</span></span>
+            <span class="metric-value">0</span>
+        </a>
+        <a class="metric" data-value="unidentified" href="queues--default.html">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg><span>Unidentified</span></span>
+            <span class="metric-value">0</span>
+        </a>
+        <a class="metric" data-value="blocked" href="queues--default.html">
+            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>Blocked</span></span>
+            <span class="metric-value">0</span>
         </a>
     </div>
 </section>
 
-<section aria-labelledby="email-activity-title">
-    <h2 id="email-activity-title" class="section-label">E-mail activity</h2>
-    <div class="metric-strip metric-strip--3">
-        <a class="metric" href="inbox--default.html">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                Received today
-            </span>
-            <strong class="metric__value">0</strong>
-        </a>
-        <a class="metric" data-state="unidentified" href="queues--default.html">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                Unidentified
-            </span>
-            <strong class="metric__value">0</strong>
-        </a>
-        <span class="metric" data-state="blocked">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-                Blocked
-            </span>
-            <strong class="metric__value">0</strong>
-        </span>
+<section class="pane-layout integrated-home integrated-home--expanded" aria-label="Integrated work centre">
+    <div class="pane">
+        <div class="pane-head">
+            <div><h2>Needs attention</h2></div>
+        </div>
+        <div class="pane-body pane-scroll" data-row-list>
+        </div>
+    </div>
+    <div class="pane">
+        <div class="pane-head">
+            <div>
+                <h2 class="today-pane-title">Today</h2>
+                <span class="muted">Selected work</span>
+            </div>
+        </div>
+        <div class="detail-canvas">
+        </div>
     </div>
 </section>
-
-<section aria-labelledby="time-title">
-    <h2 id="time-title" class="section-label">Today and this week</h2>
-    <div class="metric-strip metric-strip--secondary">
-        <a class="metric" href="cases--default.html">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                New cases today
-            </span>
-            <strong class="metric__value">0</strong>
-        </a>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Sent to Engineer today
-            </span>
-            <strong class="metric__value">0</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Sent to Engineer this week
-            </span>
-            <strong class="metric__value">0</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Reports sent today
-            </span>
-            <strong class="metric__value">0</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">
-                <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Reports sent this week
-            </span>
-            <strong class="metric__value">0</strong>
-        </span>
-    </div>
-</section>
-
-
-<section id="due-work-list" aria-labelledby="due-work-title" class="section-gap">
-    <h2 id="due-work-title" class="section-label">Case work due</h2>
-        <p class="empty-state">No case work is due.</p>
-</section>
-
-<p class="section-gap">
-    <a href="operations--default.html">
-        Open Operations
-        <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
-    </a>
-</p>
 
                 </div>
             </main>

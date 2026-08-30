@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Upload requested documents · Collision Engineers</title>
+    <title>Upload a file · Collision Engineers</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -77,36 +77,29 @@
                     <img src="../../../../src/Pegasus.Web/wwwroot/images/logo_no_margin.png" alt="Collision Engineers" />
                 </div>
 
-<div class="form-column form-column--narrow">
-    <header class="page-heading">
-        <div>
-            <p class="eyebrow">Secure document request</p>
-            <h1>Upload requested documents</h1>
+<p class="eyebrow">Secure file request</p>
+<h1>Upload a file</h1>
+
+
+    <form method="post" enctype="multipart/form-data" class="section-gap">
+        <input type="hidden" data-val="true" data-val-required="The Token field is required." id="Token" name="Token" value="{{token}}" />
+        <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
+
+        <div class="dropzone" data-dropzone>
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <div>
+                <h2><label for="Upload">Drag a file here or choose one</label></h2>
+                <p>Up to 1 KB.</p>
+                <button type="button" class="btn btn--primary" hidden data-dropzone-browse>Choose file</button>
+                <input type="file" accept="text/plain" class="input-validation-error" id="Upload" name="Upload" />
+            </div>
         </div>
-    </header>
-
-    <p>Documents submitted here go directly to Collision Engineers against the request you received; do not upload unrelated material.</p>
-
-
-        <section class="panel section-gap" aria-labelledby="request-upload-title">
-            <h2 id="request-upload-title" class="section-label">Choose a document</h2>
-            <form method="post" enctype="multipart/form-data">
-                <input type="hidden" data-val="true" data-val-required="The Token field is required." id="Token" name="Token" value="{{token}}" />
-                <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-
-                <div class="dropzone dropzone--compact" data-dropzone>
-                    <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
-                    <label for="Upload">Drag a file here, or choose one</label>
-                    <span class="field-hint">Up to 1 KB.</span>
-                    <input type="file" accept="text/plain" class="input-validation-error" id="Upload" name="Upload" />
-                    <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose file</button>
-                    <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
-                </div>
-                <span class="field-validation field-validation-error" data-valmsg-for="Upload" data-valmsg-replace="true">Choose a document to upload.</span>
-                <button type="submit" class="primary-action primary-action--block">Upload document</button>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        </section>
-</div>
+        <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
+        <span class="field-error field-validation-error" data-valmsg-for="Upload" data-valmsg-replace="true">Choose a document to upload.</span>
+        <div class="button-row section-gap">
+            <button type="submit" class="btn btn--primary">Submit file</button>
+        </div>
+    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
 
             </section>
         </main>

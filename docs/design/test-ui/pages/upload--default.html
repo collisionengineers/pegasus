@@ -157,43 +157,35 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Upload</h1>
+<header class="page-header">
+    <div class="page-title">
+        <h1>Upload</h1>
+    </div>
 </header>
 
-<div class="upload-layout">
-    <section class="panel" aria-labelledby="upload-title">
-        <h2 id="upload-title" class="section-label">Upload documents or images</h2>
+<section class="panel">
+    <div class="panel-body">
         <form method="post" enctype="multipart/form-data" data-upload-progress>
             <input type="hidden" data-val="true" data-val-required="The ExternalReceiptToken field is required." id="ExternalReceiptToken" name="ExternalReceiptToken" value="{{externalreceipttoken}}" />
 
             <div class="dropzone" data-dropzone>
-                <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
-                <label for="Upload">Drag files here, or choose them</label>
-                <span class="field-hint">E-mail, Word document, PDF or image — up to 10.0 MB.</span>
-                <input type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" data-val="true" data-val-required="The Upload field is required." id="Upload" name="Upload" />
-                <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose files</button>
-                <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <div>
+                    <h2><label for="Upload">Drag files here or choose files</label></h2>
+                    <p>EML, MSG, PDF, DOC, DOCX, JPG or PNG &#xB7; up to 10.0 MB each &#xB7; 20 files</p>
+                    <button type="button" class="btn btn--dark" hidden data-dropzone-browse>Choose files</button>
+                    <input type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" data-val="true" data-val-required="The Upload field is required." id="Upload" name="Upload" />
+                </div>
             </div>
-            <span class="field-validation-error field-validation-valid" data-valmsg-for="Upload" data-valmsg-replace="true"></span>
-            <button type="submit" class="primary-action primary-action--block">Upload</button>
+            <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
+            <span class="field-error field-validation-valid" data-valmsg-for="Upload" data-valmsg-replace="true"></span>
+            <div class="button-row section-gap">
+                <button type="submit" class="btn btn--primary">Upload</button>
+                <button type="reset" class="btn">Clear</button>
+            </div>
         <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-    </section>
-
-    <section class="panel" aria-labelledby="upload-next-title">
-        <h2 id="upload-next-title" class="section-label">What happens next</h2>
-        <ol class="upload-steps">
-            <li><b>Each file is safely stored.</b><span>Its row ticks the moment it is stored; a failed file states why.</span></li>
-            <li><b>It is processed in the background.</b><span>The status page refreshes itself until processing is complete.</span></li>
-            <li><b>Decide where it goes.</b><span>You'll see a case it was matched to, or be offered to create one; a failure is stated clearly.</span></li>
-        </ol>
-        <h2 class="section-label section-gap">Accepted files</h2>
-        <ul class="accepted-list" aria-label="Accepted file types">
-            <li>.eml</li><li>.msg</li><li>.pdf</li><li>.doc</li><li>.docx</li><li>.jpg</li><li>.png</li>
-        </ul>
-        <p class="field-hint">Up to 10.0 MB each, and up to 20 files per submission.</p>
-    </section>
-</div>
+    </div>
+</section>
 
                 </div>
             </main>

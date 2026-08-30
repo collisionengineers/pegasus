@@ -157,9 +157,12 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Operations</h1>
-    <div class="freshness" data-refresh-region role="status" aria-live="polite">
+<header class="page-header">
+    <div class="page-title">
+        <h1>Operations</h1>
+    </div>
+    <div class="page-actions">
+        <div class="freshness" data-refresh-region role="status" aria-live="polite">
     <span class="health-dot"></span>
         <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
     <form method="get" data-refresh-form>
@@ -170,109 +173,151 @@
     </form>
 </div>
 
+    </div>
 </header>
 
 
-<section aria-labelledby="attention-title">
-    <h2 id="attention-title" class="section-label">Attention required</h2>
-        <div class="table-wrap">
-            <table>
-                <caption class="sr-only">Retryable external work</caption>
-                <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
-                <tbody>
-                    <tr>
-                        <td><a href="case-details--default.html">QD31001</a></td>
-                        <td>Vehicle lookup</td>
-                        <td class="tabular">5</td>
-                        <td>The retry policy was exhausted.</td>
-                        <td>
-                            <form method="post" action="operations--default.html">
-                                <input type="hidden" name="workItemId" value="test-ui-guid-2" />
-                                <input type="hidden" name="expectedAttemptCount" value="5" />
-                                <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                                <button class="btn btn--dark" type="submit">Retry this work</button>
-                            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+
+<div class="stack section-gap">
+    <section class="panel" aria-labelledby="ai-jobs-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="ai-jobs-title">AI Job List</h2>
+                <span class="muted">0 jobs</span>
+            </div>
+            <details>
+                <summary class="btn btn--dark">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <span>Send Unidentified to AI</span>
+                </summary>
+                <form method="post" class="row-confirm" action="operations--default.html">
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <label for="send-unidentified-reference">Unidentified reference</label>
+                    <input id="send-unidentified-reference"
+                           name="unidentifiedReference"
+                           maxlength="20"
+                           required />
+                    <button class="btn btn--dark" type="submit">Send Unidentified to AI</button>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </details>
         </div>
-</section>
+    </section>
 
-<section class="section-gap" aria-labelledby="upload-links-title">
-    <h2 id="upload-links-title" class="section-label">Active upload links</h2>
-        <div class="table-wrap">
-            <table>
-                <caption class="sr-only">Active Pegasus upload links</caption>
-                <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">Action</th></tr></thead>
-                <tbody>
-                    <tr>
-                        <td><a href="case-details--default.html">QD31001</a></td>
-                        <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
-                        <td>
-                                <span>under 0.1 MB of 50.0 MB</span>
-                                <span> · 1 of 10 files</span>
-                        </td>
-                        <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
-                        <td>
-                                <details>
-                                    <summary class="btn">Withdraw link</summary>
-                                    <form method="post" class="row-confirm" action="operations--default.html">
-                                        <input type="hidden" name="requestId" value="{{requestid}}" />
-                                        <input type="hidden" name="caseId" value="test-ui-guid-1" />
-                                        <input type="hidden" name="expectedVersion" value="4" />
-                                        <input type="hidden" name="expectedCaseVersion" value="10" />
-                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                                        <label for="withdraw-reason-test-ui-guid-3">Reason</label>
-                                        <input id="withdraw-reason-test-ui-guid-3" name="reason" maxlength="500" required />
-                                        <button class="btn btn--dark" type="submit">Withdraw link</button>
-                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                                </details>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><a href="case-details--default.html">QD31001</a></td>
-                        <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
-                        <td>
-                                <span>under 0.1 MB of 50.0 MB</span>
-                                <span> · 1 of 10 files</span>
-                        </td>
-                        <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
-                        <td>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><a href="case-details--default.html">QD31001</a></td>
-                        <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
-                        <td>
-                                <span>under 0.1 MB of 50.0 MB</span>
-                                <span> · 1 of 10 files</span>
-                        </td>
-                        <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
-                        <td>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><a href="case-details--default.html">QD31001</a></td>
-                        <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
-                        <td>
-                                <span>under 0.1 MB of 50.0 MB</span>
-                                <span> · 1 of 10 files</span>
-                        </td>
-                        <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
-                        <td>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+
+
+    <section class="panel" aria-labelledby="attention-title">
+        <div class="panel-head">
+            <h2 id="attention-title">Attention required</h2>
         </div>
-</section>
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">Retryable external work</caption>
+                    <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td>Vehicle lookup</td>
+                            <td class="tabular">5</td>
+                            <td>The retry policy was exhausted.</td>
+                            <td>
+                                <form method="post" action="operations--default.html">
+                                    <input type="hidden" name="workItemId" value="test-ui-guid-2" />
+                                    <input type="hidden" name="expectedAttemptCount" value="5" />
+                                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                    <button class="btn btn--dark" type="submit">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                        <span>Retry this work</span>
+                                    </button>
+                                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+    </section>
 
-<section class="section-gap" aria-labelledby="ai-title">
-    <h2 id="ai-title" class="section-label">AI operations</h2>
-    <p>Requesting an AI job and viewing live AI work are planned and unavailable here.</p>
-</section>
-
+    <section class="panel" aria-labelledby="upload-links-title">
+        <div class="panel-head">
+            <h2 id="upload-links-title">Active upload links</h2>
+        </div>
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">Active Pegasus upload links</caption>
+                    <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
+                            <td>
+                                    <span>under 0.1 MB of 50.0 MB</span>
+                                    <span> · 1 of 10 files</span>
+                            </td>
+                            <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
+                            <td><span class="status status--navy">Active</span>
+</td>
+                            <td>
+                                    <details>
+                                        <summary class="btn btn--danger">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                            <span>Withdraw link</span>
+                                        </summary>
+                                        <form method="post" class="row-confirm" action="operations--default.html">
+                                            <input type="hidden" name="requestId" value="{{requestid}}" />
+                                            <input type="hidden" name="caseId" value="test-ui-guid-1" />
+                                            <input type="hidden" name="expectedVersion" value="4" />
+                                            <input type="hidden" name="expectedCaseVersion" value="10" />
+                                            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                            <label for="withdraw-reason-test-ui-guid-3">Reason</label>
+                                            <input id="withdraw-reason-test-ui-guid-3" name="reason" maxlength="500" required />
+                                            <button class="btn btn--dark" type="submit">Withdraw link</button>
+                                        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                    </details>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
+                            <td>
+                                    <span>under 0.1 MB of 50.0 MB</span>
+                                    <span> · 1 of 10 files</span>
+                            </td>
+                            <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
+                            <td><span class="status status--neutral">Expired</span>
+</td>
+                            <td>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
+                            <td>
+                                    <span>under 0.1 MB of 50.0 MB</span>
+                                    <span> · 1 of 10 files</span>
+                            </td>
+                            <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
+                            <td><span class="status status--neutral">Exhausted</span>
+</td>
+                            <td>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
+                            <td>
+                                    <span>under 0.1 MB of 50.0 MB</span>
+                                    <span> · 1 of 10 files</span>
+                            </td>
+                            <td> <time datetime="2031-05-07T10:30:00.0000000&#x2B;00:00">07 May 2031 11:30</time> </td>
+                            <td><span class="status status--neutral">Revoked</span>
+</td>
+                            <td>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+    </section>
+</div>
 
                 </div>
             </main>

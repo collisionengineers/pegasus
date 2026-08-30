@@ -157,202 +157,223 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="case-details--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    <span>Back to the case</span>
-</a>
 
-<article class="record" data-state="review">
-    <header class="record__head">
-        <h1>CE-100</h1>
-        <span class="record__identity">
-            <span><b>Approved Principal</b></span>
-            <span>PK12TMZ</span>
-            <span>Inspection</span>
+
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">CE-100 &#xB7; PK12TMZ</p>
+        <h1>Assessment</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="case-details--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Case</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
+</header>
+
+    <div class="notice notice--danger mb-2" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>The report draft is not ready. Current estimate required: No estimate is marked Current on the case (EXT-09).</span>
+    </div>
+    <div class="notice notice--warning mb-2" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>
+            Report draft not ready: Current estimate required.
         </span>
-        <span class="record__head-end">
-            <span class="status status--navy">Review</span>
+    </div>
 
-        </span>
-    </header>
-    <div class="record__accent"></div>
+<article class="record">
+    <div class="record-ribbon assessment-identity-ribbon" aria-label="Case identity">
+        <div class="ribbon-item ribbon-ref">
+            <div class="ribbon-label">Case/PO</div>
+            <div class="ribbon-value">CE-100</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Registration</div>
+            <div class="ribbon-value">PK12TMZ</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Claimant</div>
+            <div class="ribbon-value">Alex Example</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Principal</div>
+            <div class="ribbon-value">Approved Principal</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">State</div>
+            <div class="ribbon-value"><span class="status status--navy">Review</span>
+</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Mileage</div>
+            <div class="ribbon-value">Not recorded</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Vehicle</div>
+            <div class="ribbon-value">Not recorded</div>
+        </div>
+    </div>
 
-    <div class="record__bar">
-                <form method="post" class="record__bar-form" action="case-assessment--default.html">
+    <div class="record-bar">
+                <form method="post" action="case-assessment--default.html">
                     <input type="hidden" name="id" value="test-ui-guid-1" />
                     <input type="hidden" name="expectedVersion" value="0" />
                     <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                    <input type="hidden" name="section" value="vehicle" />
-                    <button type="submit" class="btn">Edit assessment</button>
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                        <span>Edit assessment</span>
+                    </button>
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <span class="gated" data-condition="Only an Engineer can import an estimate">
+                <button type="button" class="btn" disabled aria-disabled="true">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span>Import estimate</span>
+                </button>
+            </span>
         <span class="gated" data-condition="Available once the estimating-service link is agreed">
-            <a class="btn is-disabled" aria-disabled="true">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Open in Glass's
-            </a>
+            <button type="button" class="btn" disabled aria-disabled="true">Glass's</button>
         </span>
         <span class="gated" data-condition="Available once the estimating-service link is agreed">
-            <a class="btn is-disabled" aria-disabled="true">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                Open in Audatex
-            </a>
+            <button type="button" class="btn" disabled aria-disabled="true">Audatex</button>
         </span>
-        <a class="btn" href="case-assessment--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-            Import estimate
-        </a>
-        <span class="record__bar-end">
-            <span class="record__bar-rule" aria-hidden="true"></span>
-            <a class="btn btn--dark" href="case-details--default.html">Back to the case</a>
+            <a class="btn btn--primary" data-dialog-open="send-to-claude-dialog" href="case-assessment--default.html">
+                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                <span>Send to Claude</span>
+            </a>
+        <span class="record-bar-end">
+                <span class="gated" data-condition="Not ready">
+                    <button type="button" class="btn" disabled aria-disabled="true">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>Generate report draft</span>
+                    </button>
+                </span>
         </span>
     </div>
 
-    <nav class="section-tabs" aria-label="Assessment sections">
-            <a href="case-assessment--default.html"
-               aria-current="page">Vehicle</a>
-            <a href="case-assessment--default.html">Incident and impact</a>
-            <a href="case-assessment--default.html">Inspection</a>
-            <a href="case-assessment--default.html">Valuation</a>
-            <a href="case-assessment--default.html">Estimate</a>
-            <a href="case-assessment--default.html">Findings</a>
-            <a href="case-assessment--default.html">Report content</a>
-    </nav>
-
-    <div class="record__body">
-
-
-<div class="workbench-grid">
-    <aside aria-label="Assessment readiness">
-        <section class="panel" aria-labelledby="readiness-title">
-            <h2 id="readiness-title" class="section-label">Readiness</h2>
-                <details class="readiness-summary" data-hover-disclosure>
-                    <summary>
-                        <span class="status-chip status-chip--amber">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>1 issue detected</span>
-                        </span>
-                    </summary>
-                    <ul class="blocker-list">
-                            <li class="blocker" data-state="not-ready">
-                                <strong>Repair cost figures</strong>
-                                <small>Estimate lines and rate card. No accepted formula exists yet to convert recorded estimate lines and the chosen rate card into a labour rate and repair cost (EXT-09, open decision D2). This becomes available once EXT-09&#x27;s estimate-derivation formula is accepted.</small>
-                            </li>
-                    </ul>
-                </details>
-        </section>
-
-        <section class="panel" aria-labelledby="report-draft-title">
-            <h2 id="report-draft-title" class="section-label">Report draft</h2>
-            <p>Nothing is saved or sent.</p>
-
-                <div class="status-card status-card--attention">
-                    <h3>Not ready</h3>
-                    <p>1 issue detected — see Readiness above for the list.</p>
-                </div>
-        </section>
-    </aside>
-
-    <div>
-            <section class="panel" aria-labelledby="vehicle-title">
-                <h2 id="vehicle-title">Vehicle</h2>
-                <div class="form-grid section-gap">
-                    <div>
-                        <label class="req" for="vehicle-registration">Registration</label>
-                        <input type="text" aria-required="true" id="vehicle-registration" name="vehicle.registration" />
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-type">Vehicle type</label>
-                        <select aria-required="true" id="vehicle-type" name="vehicle.vehicle_type">
-                            <option value=""></option>
-                            <option value="car">Car</option>
-                            <option value="van">Van</option>
-                            <option value="motorcycle">Motorcycle</option>
-                            <option value="scooter">Scooter</option>
-                            <option value="bicycle">Bicycle</option>
-                            <option value="trailer">Trailer</option>
-                            <option value="caravan">Caravan</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-make">Make</label>
-                        <input type="text" aria-required="true" id="vehicle-make" name="vehicle.make" />
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-model">Model</label>
-                        <input type="text" aria-required="true" id="vehicle-model" name="vehicle.model" />
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-year">Year</label>
-                        <input type="text" aria-required="true" id="vehicle-year" name="vehicle.year" class="tabular" value='2012' />
-                    </div>
-                    <div>
-                        <label for="vehicle-vin">VIN</label>
-                        <input type="text" id="vehicle-vin" name="vehicle.vin" />
-                    </div>
-                    <div>
-                        <label for="vehicle-engine">Engine size</label>
-                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" />
-                    </div>
-                    <div>
-                        <label for="vehicle-fuel">Fuel</label>
-                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" />
-                    </div>
-                    <div>
-                        <label for="vehicle-odometer">Mileage</label>
-                        <input type="number" id="vehicle-odometer" name="vehicle.odometer_miles" min="0" step="1" class="tabular" />
-                    </div>
-                    <div>
-                        <label for="vehicle-mileage-source">Source</label>
-                        <select id="vehicle-mileage-source" name="vehicle.mileage_source">
-                            <option value=""></option>
-                            <option value="online_data">Online data</option>
-                            <option value="owner">Owner</option>
-                            <option value="repairer">Repairer</option>
-                            <option value="principal">Principal</option>
-                            <option value="average">Average</option>
-                            <option value="tbc">To be confirmed</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="req" for="vehicle-condition">Pre-incident condition</label>
-                        <select aria-required="true" id="vehicle-condition" name="vehicle.condition">
-                            <option value=""></option>
-                            <option value="poor">Poor</option>
-                            <option value="below_average">Below average</option>
-                            <option value="average">Average</option>
-                            <option value="good">Good</option>
-                            <option value="excellent">Excellent</option>
-                        </select>
-                    </div>
-                </div>
-                <h3 class="section-label section-gap">Vehicle history</h3>
-                <div class="history-check">
-                    <button type="button" class="btn" disabled>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                        Check vehicle history
+    <div class="record-body">
+        <section class="assessment-v3" aria-label="Assessment workspace">
+            <aside class="pane assessment-v3-evidence" aria-label="Evidence">
+                <div class="pane-head">
+                    <h2>Evidence</h2>
+                    <button type="button" class="assessment-rail-toggle" data-rail-toggle
+                            aria-expanded="true" aria-label="Collapse Evidence rail">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
                     </button>
-                    <p class="empty-state">No history check has been run for this vehicle.</p>
                 </div>
+                <div class="pane-body pane-scroll">
+                    <div class="assessment-evidence-list" data-evidence-set>
+                    </div>
+                </div>
+            </aside>
 
-                <div class="button-row section-gap">
-                    <button type="button" class="primary-action">Save vehicle</button>
+            <section class="pane assessment-v3-main">
+                <div class="pane-head"><h2>Estimates</h2></div>
+                <div class="pane-body pane-scroll">
+                    <div class="detail-canvas">
+                        <div class="assessment-estimates">
+                                <div class="empty estimate-empty">No estimates recorded</div>
+
+                        </div>
+                    </div>
                 </div>
             </section>
-
-
-
-
-
-
-    </div>
-</div>
-
+        </section>
     </div>
 </article>
 
 
 
+    <div class="dialog-backdrop" data-dialog="send-to-claude-dialog"
+         hidden="hidden">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-claude-dialog-title">
+            <div class="dialog-head">
+                <h2 id="send-to-claude-dialog-title" tabindex="-1">Send to Claude</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" action="case-assessment--default.html">
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <div class="dialog-body stack">
+                    <div>
+                        <label for="claude-direction">Direction</label>
+                        <textarea id="claude-direction" name="direction" rows="4" maxlength="1000"
+                                  data-dialog-initial-focus></textarea>
+                    </div>
+                    <div>
+                        <label for="claude-target">
+                            Target Estimate <output id="claude-target-value">75%</output>
+                        </label>
+                        <input type="range" id="claude-target" name="targetPercent" min="1" max="100" step="1" value="75"
+                               data-range-output="claude-target-value"
+                               data-range-base="5000"
+                               data-range-amount-output="claude-target-amount" />
+                    </div>
+                    <dl class="definition-list">
+                        <div class="definition">
+                            <dt>Case Valuation</dt>
+                            <dd>&#163;5,000</dd>
+                        </div>
+                        <div class="definition">
+                            <dt>Target amount</dt>
+                            <dd id="claude-target-amount">&#8212;</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--primary">Send to Claude</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </section>
+    </div>
+
+<div id="evidence-viewer"
+     class="dialog-backdrop evidence-viewer"
+     data-evidence-viewer
+     hidden>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
+        <div class="dialog-head">
+            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
+            <span class="muted tabular" data-evidence-position></span>
+            <a class="btn btn--small" data-evidence-download download>
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Save as</span>
+            </a>
+            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
+                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+            </button>
+            <button type="button" class="dialog-close" data-evidence-close>
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span class="sr-only">Close</span>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="viewer-stage" data-evidence-stage data-rotate-target>
+                <img data-evidence-image alt="" hidden />
+                <iframe data-evidence-document title="" hidden></iframe>
+            </div>
+        </div>
+        <div class="dialog-foot cluster--between">
+            <button type="button" class="btn" data-evidence-previous>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>Previous</span>
+            </button>
+            <button type="button" class="btn" data-evidence-next>
+                <span>Next</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+            </button>
+        </div>
+    </section>
+</div>
 
 <div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
     <div class="reason-dialog">
@@ -365,6 +386,7 @@
         </div>
     </div>
 </div>
+
 
 
                 </div>
@@ -503,241 +525,6 @@
     <div class="toast-region" aria-live="polite" data-toast-region></div>
 
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
-
-    <script>
-        // ENG-003: the readiness summary is a native <details> disclosure,
-        // so click and Enter/Space already open it and a screen reader
-        // already announces it correctly with no script at all. This only
-        // adds mouse hover and bare keyboard focus as two more ways in,
-        // without touching the native toggle — an operator with JavaScript
-        // disabled still reaches every item.
-        (function () {
-            document.querySelectorAll('[data-hover-disclosure]').forEach(function (details) {
-                var summary = details.querySelector('summary');
-                if (!summary) { return; }
-
-                function openNow() { details.open = true; }
-                function closeIfIdle() {
-                    if (!details.matches(':hover') && !details.matches(':focus-within')) {
-                        details.open = false;
-                    }
-                }
-
-                details.addEventListener('mouseenter', openNow);
-                details.addEventListener('mouseleave', closeIfIdle);
-                summary.addEventListener('focus', openNow);
-                summary.addEventListener('blur', closeIfIdle);
-            });
-        }());
-    </script>
-    <script>
-        // PAV sensitivity slider: a review aid that writes nothing. It keeps
-        // the range and numeric inputs in step and recomputes the indicative
-        // settlement as text. No animation, no colour signalling, no network.
-        (function () {
-            var host = document.querySelector('[data-pav-slider]');
-            if (!host) { return; }
-
-            var range = host.querySelector('#pav-range');
-            var exact = host.querySelector('#pav-value');
-            var settlement = host.querySelector('[data-pav-settlement]');
-            var salvage = parseFloat(host.getAttribute('data-pav-salvage'));
-            var isTotalLoss = host.getAttribute('data-pav-total-loss') === 'true';
-            if (!range || !exact) { return; }
-
-            function formatPounds(value) {
-                return '£' + value.toLocaleString('en-GB', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2
-                });
-            }
-
-            function update(value) {
-                var figure = parseFloat(value);
-                if (!isFinite(figure)) { return; }
-                range.value = String(figure);
-                exact.value = String(figure);
-                if (settlement && isTotalLoss && isFinite(salvage)) {
-                    settlement.textContent = formatPounds(figure - salvage)
-                        + ' at a PAV of ' + formatPounds(figure);
-                }
-            }
-
-            range.addEventListener('input', function () { update(range.value); });
-            exact.addEventListener('input', function () { update(exact.value); });
-            update(range.value);
-        }());
-    </script>
-    <script>
-        // Ember field behind the Send to Claude glyph. Decoration only: it draws
-        // to a canvas layered under the label and reads nothing from the page.
-        //
-        // The particle placement comes from a seeded generator rather than
-        // Math.random, so every load of a given button produces the same drift
-        // instead of fresh noise each time.
-        //
-        // It does not start at all under reduced motion, and it stops itself
-        // when the button leaves the document, so a hidden panel does not keep
-        // an animation frame alive.
-        (function () {
-            var motionIsWelcome = !window.matchMedia
-                || !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            if (!motionIsWelcome) { return; }
-
-            var palette = ['#ffd9c2', '#a9c7e8', '#c3d1ad'];
-
-            function seededRandom(seed) {
-                return function () {
-                    seed |= 0;
-                    seed = seed + 0x6D2B79F5 | 0;
-                    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-                    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-                };
-            }
-
-            function attachEmbers(button, seed) {
-                var canvas = document.createElement('canvas');
-                canvas.setAttribute('aria-hidden', 'true');
-                button.prepend(canvas);
-
-                var context = canvas.getContext('2d');
-                if (!context) { return; }
-
-                var random = seededRandom(seed);
-                var particles = [];
-                for (var i = 0; i < 10; i++) {
-                    particles.push({
-                        baseX: random(),
-                        baseY: random(),
-                        radius: 1.1 + random() * 1.6,
-                        speed: 0.4 + random() * 0.5,
-                        phase: random() * Math.PI * 2,
-                        colour: palette[i % palette.length]
-                    });
-                }
-
-                function resize() {
-                    var box = button.getBoundingClientRect();
-                    canvas.width = box.width;
-                    canvas.height = box.height;
-                }
-
-                resize();
-                window.addEventListener('resize', resize);
-
-                var time = 0;
-                var hovered = false;
-                button.addEventListener('mouseenter', function () { hovered = true; });
-                button.addEventListener('mouseleave', function () { hovered = false; });
-
-                function draw() {
-                    if (!button.isConnected) { return; }
-
-                    time += hovered ? 0.028 : 0.012;
-                    context.clearRect(0, 0, canvas.width, canvas.height);
-
-                    particles.forEach(function (particle) {
-                        var x = (particle.baseX * canvas.width)
-                            + Math.sin(time * particle.speed + particle.phase) * (canvas.width * 0.06);
-                        var y = (particle.baseY * canvas.height)
-                            + Math.cos(time * particle.speed * 1.3 + particle.phase) * (canvas.height * 0.22);
-
-                        context.beginPath();
-                        context.fillStyle = particle.colour;
-                        context.globalAlpha = Math.max(0, 0.35 + 0.25 * Math.sin(time * 2 + particle.phase));
-                        context.shadowBlur = 6;
-                        context.shadowColor = particle.colour;
-                        context.arc(x, y, particle.radius, 0, Math.PI * 2);
-                        context.fill();
-                    });
-
-                    context.globalAlpha = 1;
-                    window.requestAnimationFrame(draw);
-                }
-
-                window.requestAnimationFrame(draw);
-            }
-
-            document.querySelectorAll('.send-action').forEach(function (button, index) {
-                attachEmbers(button, 90210 + index);
-            });
-        }());
-    </script>
-    <script>
-        // Presentation only: opens the confirm dialog, keeps focus inside it,
-        // returns focus to the invoking control, and reveals the in-flight
-        // state so each state in this panel can be seen. No case data moves.
-        (function () {
-            var dialog = document.getElementById('send-confirm');
-            if (!dialog) { return; }
-
-            var opener = document.querySelector('[data-send-open]');
-            var available = document.querySelector('[data-send-available]');
-            var inFlight = document.querySelector('[data-send-state="in-flight"]');
-            var invoker = null;
-
-            function focusable() {
-                return Array.prototype.filter.call(
-                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                    function (element) { return !element.disabled && !element.hidden; });
-            }
-
-            function close() {
-                dialog.hidden = true;
-                document.removeEventListener('keydown', onKeydown, true);
-                if (invoker) { invoker.focus(); }
-            }
-
-            function onKeydown(event) {
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    close();
-                    return;
-                }
-                if (event.key !== 'Tab') { return; }
-                var items = focusable();
-                if (items.length === 0) { return; }
-                var first = items[0];
-                var last = items[items.length - 1];
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            }
-
-            if (opener) {
-                opener.addEventListener('click', function () {
-                    invoker = opener;
-                    dialog.hidden = false;
-                    document.addEventListener('keydown', onKeydown, true);
-                    var items = focusable();
-                    if (items.length > 0) { items[0].focus(); }
-                });
-            }
-
-            dialog.addEventListener('click', function (event) {
-                if (event.target === dialog) { close(); }
-            });
-
-            var cancel = dialog.querySelector('[data-send-cancel]');
-            if (cancel) { cancel.addEventListener('click', close); }
-
-            var confirmButton = dialog.querySelector('[data-send-confirm]');
-            if (confirmButton) {
-                confirmButton.addEventListener('click', function () {
-                    close();
-                    if (available) { available.hidden = true; }
-                    if (inFlight) { inFlight.hidden = false; }
-                    var form = document.getElementById('send-to-claude-form');
-                    if (form) { form.submit(); }
-                });
-            }
-        }());
-    </script>
 
 </body>
 </html>

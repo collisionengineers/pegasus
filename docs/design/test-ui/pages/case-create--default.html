@@ -158,196 +158,209 @@
                 <div class="content">
 
 
-<div class="form-column form-column--wide">
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">New case</p>
         <h1>From hand-keyed-instruction.pdf</h1>
     </div>
-    <div class="page-heading-actions">
-        <a class="secondary-action" href="upload--default.html">Upload another</a>
+    <div class="page-actions">
+        <a class="btn" href="upload--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>Upload another</span>
+        </a>
     </div>
 </header>
 
-    <p class="status-card status-card--done" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
-        <span>File read — confirm the extracted values below.</span>
-    </p>
-    <form method="post" action="case-create--default.html">
+    <form method="post" class="stack" action="case-create--default.html">
         <input type="hidden" data-val="true" data-val-required="The ReceiptId field is required." id="ReceiptId" name="ReceiptId" value="test-ui-guid-1" />
         <input type="hidden" id="OperationId" name="OperationId" value="{{operationid}}" />
         <input type="hidden" data-val="true" data-val-required="The ExpectedReceiptVersion field is required." id="ExpectedReceiptVersion" name="ExpectedReceiptVersion" value="0" />
         <input type="hidden" id="AddressSuggestionFingerprint" name="AddressSuggestionFingerprint" value="" />
-        <div class="validation-summary validation-summary-errors" data-valmsg-summary="true"><ul><li>Audits are created automatically from the retained Audit instruction and original report.</li>
-</ul></div>
 
-        <section class="panel section-gap" aria-labelledby="details-title">
-            <h2 id="details-title" class="section-label">Details</h2>
-            <div>
-                <div class="datarow">
-                    <span class="datarow__field">Claimant</span>
-                        <span class="datarow__value">Hand Keyed Claimant</span>
-                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-        </span>
-</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Claim number</span>
-                        <span class="datarow__value">HK-2031-001</span>
-                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-        </span>
-</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Registration</span>
-                        <span class="datarow__value">AB12CDE</span>
-                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-        </span>
-</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Vehicle</span>
-                        <span class="datarow__value">Example Make Example Model</span>
-                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-        </span>
-</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Incident date</span>
-                        <span class="datarow__value">4 Mar 2031</span>
-                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-        </span>
-</span>
-                </div>
-                <div class="datarow">
-                    <span class="datarow__field">Instruction date</span>
-                        <span class="datarow__value">5 Mar 2031</span>
-                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-        </span>
-</span>
-                </div>
+
+        <section class="panel" aria-labelledby="details-title">
+            <div class="panel-head">
+                <h2 id="details-title">Details</h2>
             </div>
-            <details class="draft-edit">
-                <summary class="btn">Change a value</summary>
-                <p>Every value is retained with who put it there.</p>
+            <div class="panel-body stack">
+                <div class="definition-list">
+        <dl class="definition">
+            <dt>Claimant</dt>
+            <dd class="quiet">
+                Not recorded
+                <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+            </dd>
+        </dl>
+        <dl class="definition">
+            <dt>Claim number</dt>
+            <dd class="quiet">
+                Not recorded
+                <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+            </dd>
+        </dl>
+        <dl class="definition">
+            <dt>Registration</dt>
+            <dd class="quiet">
+                Not recorded
+                <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+            </dd>
+        </dl>
+        <dl class="definition">
+            <dt>Vehicle</dt>
+            <dd class="quiet">
+                Not recorded
+                <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+            </dd>
+        </dl>
+        <dl class="definition">
+            <dt>Incident date</dt>
+            <dd class="quiet">
+                Not recorded
+                <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+            </dd>
+        </dl>
+        <dl class="definition">
+            <dt>Instruction date</dt>
+            <dd class="quiet">
+                Not recorded
+                <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                </span>
+            </dd>
+        </dl>
+                </div>
+                <details>
+                    <summary class="btn">Change a value</summary>
 
 
 <label for="draft-claimant-name">Claimant name</label>
-<input id="draft-claimant-name" name="ClaimantName" value="Hand Keyed Claimant" maxlength="200" autocomplete="off" />
+<input id="draft-claimant-name" name="ClaimantName" maxlength="200" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-claim-number">Claim number</label>
-<input id="draft-claim-number" name="ClaimNumber" value="HK-2031-001" maxlength="100" autocomplete="off" />
+<input id="draft-claim-number" name="ClaimNumber" maxlength="100" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-registration">Vehicle registration</label>
-<input id="draft-vehicle-registration" name="VehicleRegistration" value="AB12CDE" maxlength="20" autocomplete="off" />
+<input id="draft-vehicle-registration" name="VehicleRegistration" maxlength="20" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-make">Vehicle make</label>
-<input id="draft-vehicle-make" name="VehicleMake" value="Example Make" maxlength="100" autocomplete="off" />
+<input id="draft-vehicle-make" name="VehicleMake" maxlength="100" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-model">Vehicle model</label>
-<input id="draft-vehicle-model" name="VehicleModel" value="Example Model" maxlength="100" autocomplete="off" />
+<input id="draft-vehicle-model" name="VehicleModel" maxlength="100" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-mileage">Vehicle mileage</label>
-<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" value="12345" />
+<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" />
 <small>Staff</small>
 
 <label for="draft-accident-circumstances">Accident circumstances</label>
-<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3">Keyed circumstances from the retained document.</textarea>
+<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3"></textarea>
 <small>Staff</small>
 
 <label for="draft-date-of-incident">Date of incident</label>
-<input id="draft-date-of-incident" name="DateOfIncident" type="date" value="2031-03-04" />
+<input id="draft-date-of-incident" name="DateOfIncident" type="date" />
 <small>Staff</small>
 
 <label for="draft-instruction-date">Instruction date</label>
-<input id="draft-instruction-date" name="InstructionDate" type="date" value="2031-03-05" />
+<input id="draft-instruction-date" name="InstructionDate" type="date" />
 <small>Staff</small>
 
 
 <label for="draft-inspection-date">Inspection date</label>
-<input id="draft-inspection-date" name="InspectionDate" type="date" value="2031-03-20" />
+<input id="draft-inspection-date" name="InspectionDate" type="date" />
 <small>Staff</small>
 
-            </details>
-        </section>
-
-        <section class="panel section-gap" aria-labelledby="address-title">
-            <h2 id="address-title" class="section-label">Inspection address</h2>
-                <p>Nothing in this file said where the vehicle is, so enter the location yourself; it is retained as yours.</p>
-                <label for="InspectionAddress">Inspection address</label>
-                <textarea maxlength="1000" rows="3" required id="InspectionAddress" name="InspectionAddress">
-1 Example Street, Exampleton EX1 1EX</textarea>
-                <span class="field-validation field-validation-valid" data-valmsg-for="InspectionAddress" data-valmsg-replace="true"></span>
-        </section>
-
-        <section class="panel section-gap" aria-labelledby="case-title">
-            <h2 id="case-title" class="section-label">Case</h2>
-            <div class="form-grid">
-                <div>
-                    <label for="PrincipalCode">Confirmed principal code</label>
-                    <input maxlength="20" autocomplete="off" aria-describedby="principal-code-hint" type="text" id="PrincipalCode" name="PrincipalCode" value="HANDKEY" />
-                    <small id="principal-code-hint" class="field-hint">The organisation this instruction is for.</small>
-                    <span class="field-validation field-validation-valid" data-valmsg-for="PrincipalCode" data-valmsg-replace="true"></span>
-                </div>
-                <div>
-                    <label for="CaseType">Case type</label>
-                    <select data-case-type-selector data-val="true" data-val-required="The CaseType field is required." id="CaseType" name="CaseType">
-                        <option value="Inspection">Inspection</option>
-                        <option value="InspectionAndAudit">Inspection and Audit</option>
-                    </select>
-                    <span class="field-validation field-validation-valid" data-valmsg-for="CaseType" data-valmsg-replace="true"></span>
-                </div>
+                </details>
             </div>
-
-            <fieldset class="role-choices role-choices--stacked section-gap">
-                <legend>Evidence completeness</legend>
-                <label class="choice">
-                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The InstructionComplete field is required." id="InstructionComplete" name="InstructionComplete" value="true" />
-                    <span>Instruction evidence is complete</span>
-                </label>
-                <label class="choice">
-                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The InstructionConfirmedByStaff field is required." id="InstructionConfirmedByStaff" name="InstructionConfirmedByStaff" value="true" />
-                    <span>I have confirmed the instruction evidence</span>
-                </label>
-                <label class="choice">
-                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The ImagesComplete field is required." id="ImagesComplete" name="ImagesComplete" value="true" />
-                    <span>Image evidence is complete</span>
-                </label>
-                <label class="choice">
-                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The ImagesConfirmedByStaff field is required." id="ImagesConfirmedByStaff" name="ImagesConfirmedByStaff" value="true" />
-                    <span>I have confirmed the image evidence</span>
-                </label>
-            </fieldset>
         </section>
 
-        <section class="panel section-gap" aria-labelledby="reason-title">
-            <h2 id="reason-title" class="section-label">Reason</h2>
-            <div class="form-grid">
-                <div class="field-wide">
-                    <label for="Reason">Why this case is being created</label>
+        <section class="panel" aria-labelledby="address-title">
+            <div class="panel-head">
+                <h2 id="address-title">Inspection address</h2>
+            </div>
+            <div class="panel-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Nothing in this file said where the vehicle is.</span>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="InspectionAddress">Inspection address</label>
+                        <textarea maxlength="1000" rows="3" required id="InspectionAddress" name="InspectionAddress">
+</textarea>
+                        <span class="field-error field-validation-valid" data-valmsg-for="InspectionAddress" data-valmsg-replace="true"></span>
+                    </div>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="case-title">
+            <div class="panel-head">
+                <h2 id="case-title">Case</h2>
+            </div>
+            <div class="panel-body stack">
+                <div class="grid grid-2">
+                    <div class="field">
+                        <label for="PrincipalCode">Confirmed principal code</label>
+                        <input maxlength="20" autocomplete="off" type="text" id="PrincipalCode" name="PrincipalCode" value="" />
+                        <span class="field-error field-validation-valid" data-valmsg-for="PrincipalCode" data-valmsg-replace="true"></span>
+                    </div>
+                    <div class="field">
+                        <label for="CaseType">Case type</label>
+                        <select data-case-type-selector data-val="true" data-val-required="The CaseType field is required." id="CaseType" name="CaseType">
+                            <option value="Inspection" selected="selected">Inspection</option>
+                            <option value="InspectionAndAudit">Inspection and Audit</option>
+                        </select>
+                        <span class="field-error field-validation-valid" data-valmsg-for="CaseType" data-valmsg-replace="true"></span>
+                    </div>
+                </div>
+
+                <fieldset class="field">
+                    <legend>Evidence completeness</legend>
+                    <label class="choice">
+                        <input type="checkbox" data-val="true" data-val-required="The InstructionComplete field is required." id="InstructionComplete" name="InstructionComplete" value="true" />
+                        <span>Instruction evidence is complete</span>
+                    </label>
+                    <label class="choice">
+                        <input type="checkbox" data-val="true" data-val-required="The InstructionConfirmedByStaff field is required." id="InstructionConfirmedByStaff" name="InstructionConfirmedByStaff" value="true" />
+                        <span>I have confirmed the instruction evidence</span>
+                    </label>
+                    <label class="choice">
+                        <input type="checkbox" data-val="true" data-val-required="The ImagesComplete field is required." id="ImagesComplete" name="ImagesComplete" value="true" />
+                        <span>Image evidence is complete</span>
+                    </label>
+                    <label class="choice">
+                        <input type="checkbox" data-val="true" data-val-required="The ImagesConfirmedByStaff field is required." id="ImagesConfirmedByStaff" name="ImagesConfirmedByStaff" value="true" />
+                        <span>I have confirmed the image evidence</span>
+                    </label>
+                </fieldset>
+
+                <div class="field">
+                    <label class="req" for="Reason">Why this case is being created</label>
                     <textarea maxlength="500" rows="3" required id="Reason" name="Reason">
-Keyed the instruction detail from the retained document.</textarea>
-                    <span class="field-validation field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
+</textarea>
+                    <span class="field-error field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
                 </div>
-            </div>
-            <div class="button-row section-gap">
-                <button type="submit" class="primary-action">Create case</button>
-                <a class="secondary-action" href="upload--default.html">Cancel</a>
+
+                <div class="cluster">
+                    <button type="submit" class="btn btn--primary">Create case</button>
+                    <a class="btn" href="upload--default.html">Cancel</a>
+                </div>
             </div>
         </section>
     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="InstructionComplete" type="hidden" value="false" /><input name="InstructionConfirmedByStaff" type="hidden" value="false" /><input name="ImagesComplete" type="hidden" value="false" /><input name="ImagesConfirmedByStaff" type="hidden" value="false" /></form>
-</div>
 
                 </div>
             </main>

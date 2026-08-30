@@ -157,23 +157,35 @@
                   data-workspace-label="">
                 <div class="content">
 
-<div class="form-column form-column--wide">
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Upload status</p>
         <h1>Complete</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="upload-status--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span>Refresh</span>
+        </a>
+        <a class="btn btn--primary" href="upload--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>Upload another file</span>
+        </a>
     </div>
 </header>
 
     <div class="validation-summary" role="alert">No single case matched that reference. Search and choose a case from the suggestions.</div>
 <section class="panel"
          aria-labelledby="upload-file-heading">
-    <h2 id="upload-file-heading" class="section-label">unmatched-failclosed.eml</h2>
-    <dl class="detail-list">
-        <div><dt>Received</dt><dd>06 May 2031 11:30</dd></div>
-    </dl>
+    <div class="panel-head">
+        <h2 id="upload-file-heading">unmatched-failclosed.eml</h2>
+    </div>
+    <div class="panel-body">
+        <dl class="definition-list">
+            <div class="definition"><dt>Received</dt><dd>06 May 2031 11:30</dd></div>
+        </dl>
 
-        <div class="upload-outcome">
+            <div class="upload-outcome">
         <span class="status status--amber">Pending</span>
 
     <p>No existing case matched this. Create one from what was uploaded.</p>
@@ -183,8 +195,8 @@
         </div>
         <details class="upload-attach" data-refresh-hold>
             <summary class="btn btn--small">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form stack" data-case-search action="upload-status--default.html">
-                <input type="hidden" name="receiptId" value="test-ui-guid-1" />
+            <form method="post" class="upload-attach__form" data-case-search action="upload-status--default.html">
+                <input type="hidden" name="receiptId" value="test-ui-guid-2" />
                 <input type="hidden" name="caseId" value="" data-case-search-value />
                 <div class="field">
                     <label for="case-attach-test-ui-guid-3-input">Case</label>
@@ -209,13 +221,8 @@
         </details>
 </div>
 
-
-    <div class="button-row">
-        <a class="secondary-action" href="upload-status--default.html">Refresh</a>
-        <a class="secondary-action" href="upload--default.html">Upload another file</a>
     </div>
 </section>
-</div>
 
                 </div>
             </main>

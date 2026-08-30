@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Search · Pegasus</title>
+    <title>Disable account · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -96,7 +96,7 @@
                     <span>Cases</span>
                         <span class="nav-count" aria-label="0 outstanding">0</span>
                 </a>
-                <a class="nav-link" aria-current="page" href="cases--default.html">
+                <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
                     <span>Search</span>
                 </a>
@@ -105,7 +105,7 @@
                         <span>Operations</span>
                     </a>
                     <div class="nav-label">Manage</div>
-                    <a class="nav-link" href="administration--default.html">
+                    <a class="nav-link" aria-current="page" href="administration--default.html">
                         <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
                         <span>Administration</span>
                     </a>
@@ -159,129 +159,38 @@
 
 <header class="page-header">
     <div class="page-title">
-        <h1>Search</h1>
-    </div>
-    <div class="page-actions">
-        <div class="freshness" data-refresh-region role="status" aria-live="polite">
-    <span class="health-dot"></span>
-        <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
-    <form method="get" data-refresh-form>
-                <input type="hidden" name="page" value="1" />
-                <input type="hidden" name="principal" value="QDOS" />
-        <button type="submit" class="btn btn--small" title="Refresh">
-            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-            <span data-refresh-label>Refresh</span>
-        </button>
-    </form>
-</div>
-
-        <a class="btn btn--primary" href="upload--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-            <span>Create Case</span>
-        </a>
+            <p class="eyebrow">Administration</p>
+        <h1>Disable account</h1>
     </div>
 </header>
 
-<form method="get" class="panel section-gap" aria-label="Filter cases">
 
-    <div class="panel-body advanced-search-grid">
-        <div class="field">
-            <label for="search-query">Case/PO or image reference</label>
-            <input id="search-query" name="query" maxlength="300" />
-        </div>
-        <div class="field">
-            <label for="search-registration">Registration</label>
-            <input id="search-registration" name="registration" maxlength="20" />
-        </div>
-        <div class="field">
-            <label for="search-claimant">Claimant</label>
-            <input id="search-claimant" name="claimant" maxlength="300" />
-        </div>
-        <div class="field">
-            <label for="search-claim-number">Claim/provider reference</label>
-            <input id="search-claim-number" name="claimNumber" maxlength="100" />
-        </div>
-        <div class="field">
-            <label for="search-principal">Principal</label>
-            <input id="search-principal" name="principal" value="QDOS" maxlength="20" />
-        </div>
-        <div class="field">
-            <label for="search-state">State</label>
-            <select id="search-state" name="state">
-                <option value="">All states</option>
-                    <option value="NotReady">Not ready</option>
-                    <option value="Held">Held</option>
-                    <option value="Review">Review</option>
-                    <option value="ReportPreparation">With Engineer</option>
-                    <option value="PostReport">With Engineer</option>
-                    <option value="PostReportComplete">Complete</option>
-                    <option value="ProviderCancelled">Closed &#xB7; Provider cancelled</option>
-                    <option value="CollisionEngineersRejected">Closed &#xB7; Collision Engineers rejected</option>
-                    <option value="CreatedInError">Closed &#xB7; Created in error</option>
-                    <option value="SourceEmailUnlinked">Closed &#xB7; E-mail unlinked</option>
-            </select>
-        </div>
-        <div class="field">
-            <label for="search-engineer">Engineer</label>
-            <input id="search-engineer" name="engineerId" />
-            <span class="field-validation-error field-validation-valid" data-valmsg-for="EngineerId" data-valmsg-replace="true"></span>
-        </div>
-        <div class="field">
-            <label for="search-from-date">Received from</label>
-            <input id="search-from-date" name="fromDate" type="date" />
-            <span class="field-validation-error field-validation-valid" data-valmsg-for="FromDate" data-valmsg-replace="true"></span>
-        </div>
-        <div class="field">
-            <label for="search-to-date">Received to</label>
-            <input id="search-to-date" name="toDate" type="date" />
-            <span class="field-validation-error field-validation-valid" data-valmsg-for="ToDate" data-valmsg-replace="true"></span>
-        </div>
-        <div class="field">
-            <label for="search-origin">Origin</label>
-            <input id="search-origin" name="origin" maxlength="100" />
-        </div>
-        <div class="button-row">
-            <button type="submit" class="btn btn--dark">
-                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-                <span>Search</span>
-            </button>
-            <a class="btn" href="cases--default.html">
-                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                <span>Clear</span>
-            </a>
-        </div>
+<section class="panel" aria-labelledby="account-action-title">
+    <div class="panel-head">
+        <h2 id="account-action-title">Disable account</h2>
     </div>
-</form>
-
-
-    <section class="pane-layout pane-layout--2 case-search-layout section-gap">
-        <div class="pane">
-            <div class="pane-head">
-                <div>
-                    <h2>Case results</h2>
-                    <span class="muted">0 results</span>
-                </div>
+    <div class="panel-body">
+            <div class="notice notice--warning">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>Disabling revokes existing browser sessions; the account is retained permanently.</span>
             </div>
-            <div class="pane-body pane-scroll" data-row-list>
-                    <p class="empty" aria-live="polite">No cases match these filters.</p>
+        <form method="post" class="stack" action="administration-accounts--default.html">
+            <input type="hidden" name="staffId" value="test-ui-guid-1" />
+            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+            <div class="field field--narrow">
+                <label class="req" for="confirm-reason">Reason</label>
+                <textarea id="confirm-reason" name="reason" rows="3" required
+                          maxlength="1000"></textarea>
             </div>
-                <nav class="pagination" aria-label="Case result pages">
-                        <a class="btn btn--small" href="cases--default.html">Previous</a>
-                    <span>Page 1</span>
-                        <a class="btn btn--small" href="cases--default.html">Next</a>
-                </nav>
-        </div>
-        <div class="pane">
-            <div class="pane-head">
-                <h2>Selected Case</h2>
+            <div>
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Confirm</span>
+                </button>
             </div>
-            <div class="pane-body pane-scroll">
-                <div data-preview-target>
-                </div>
-            </div>
-        </div>
-    </section>
-
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
+</section>
 
                 </div>
             </main>
@@ -419,52 +328,6 @@
     <div class="toast-region" aria-live="polite" data-toast-region></div>
 
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
-
-    <script>
-        // The shell's row-selection module swaps the preview target and
-        // rewrites the address; two controls this page owns live outside that
-        // region because they cannot survive being replaced — the Copy
-        // Case/PO source (the shell's clipboard binding resolves it once, at
-        // load) and the refresh form's hidden `selected` field. Without this
-        // they keep the row the server selected: Copy pasted the previous
-        // Case/PO and Refresh reopened the previous row. The clipboard and
-        // the selection stay the shell's; this only keeps the two values on
-        // the row the operator is reading.
-        (function () {
-            'use strict';
-            var reference = document.getElementById('search-copy-reference');
-            var refreshField = document.querySelector('[data-refresh-form] input[name="selected"]');
-            if (!reference && !refreshField) {
-                return;
-            }
-
-            document.querySelectorAll('tr[data-copy-reference][data-select-id]').forEach(function (row) {
-                function follow() {
-                    if (reference) {
-                        reference.textContent = row.getAttribute('data-copy-reference');
-                    }
-                    if (refreshField) {
-                        refreshField.value = row.getAttribute('data-select-id');
-                    }
-                }
-
-                // The same three openings the shell selects on, with the same
-                // guard: a click on the row's own link or button is that
-                // control's, not a selection.
-                row.addEventListener('click', function (event) {
-                    if (!event.target.closest('a, button')) {
-                        follow();
-                    }
-                });
-                row.addEventListener('keydown', function (event) {
-                    if (event.key === 'Enter' && !event.target.closest('a, button')) {
-                        follow();
-                    }
-                });
-                row.addEventListener('focus', follow);
-            });
-        })();
-    </script>
 
 </body>
 </html>

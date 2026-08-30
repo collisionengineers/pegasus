@@ -157,9 +157,13 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Inbox</h1>
-    <div class="freshness" data-refresh-region role="status" aria-live="polite">
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Retained mail</p>
+        <h1>Inbox</h1>
+    </div>
+    <div class="page-actions">
+        <div class="freshness" data-refresh-region role="status" aria-live="polite">
     <span class="health-dot failed"></span>
         <span>Never updated</span>
         <span class="status status--red">Unavailable</span>
@@ -171,70 +175,166 @@
     </form>
 </div>
 
+    </div>
 </header>
 
-
-<nav class="subtabs section-gap" aria-label="Folder">
-        <a aria-current="page" href="inbox--default.html">Inbox</a>
-        <a href="inbox--default.html">Sent</a>
-        <a href="inbox--default.html">Deleted items</a>
-</nav>
-
-    <form method="get" class="panel filterbar section-gap" aria-label="Mail view">
-        <div class="filterbar__line">
-            <label for="mail-view">Queue or detailed classification</label>
-            <select id="mail-view" name="queue">
-                <option value="" selected="selected">All retained mail</option>
-                <optgroup label="Operational queues">
-                        <option value="receiving-work">Receiving work</option>
-                        <option value="queries">Queries</option>
-                        <option value="other">Other</option>
-                        <option value="unidentified">Unidentified</option>
-                        <option value="triage">Triage</option>
-                </optgroup>
-                <optgroup label="Detailed classifications">
-                        <option value="classification:received:General:autoreply">General &#xB7; Autoreply</option>
-                        <option value="classification:received:General:undeliverable">General &#xB7; Undeliverable</option>
-                        <option value="classification:received:General:acknowledgement">General &#xB7; Acknowledgement</option>
-                        <option value="classification:received:General:general-chase">General &#xB7; General chase</option>
-                        <option value="classification:received:General:case-summary">General &#xB7; Case summary</option>
-                        <option value="classification:received:Billing:payment-notification">Billing &#xB7; Payment notification</option>
-                        <option value="classification:received:Billing:remittance">Billing &#xB7; Remittance</option>
-                        <option value="classification:received:Billing:invoice-request">Billing &#xB7; Invoice request</option>
-                        <option value="classification:received:Billing:general-billing">Billing &#xB7; General billing</option>
-                        <option value="classification:received:NonClientRelated">Not client related</option>
-                        <option value="classification:received:InProgressCases:cancellation">In-progress case &#xB7; Cancellation</option>
-                        <option value="classification:received:InProgressCases:case-update">In-progress case &#xB7; Case update</option>
-                        <option value="classification:received:InProgressCases:client-chasing-for-update">In-progress case &#xB7; Client chasing for update</option>
-                        <option value="classification:received:InProgressCases:provider-chasing-for-update">In-progress case &#xB7; Provider chasing for update</option>
-                        <option value="classification:received:InProgressCases:ongoing-correspondence">In-progress case &#xB7; Ongoing correspondence</option>
-                        <option value="classification:received:PreInstructionEmails:pre-formal-instruction-request">Pre-instruction &#xB7; Pre formal instruction request</option>
-                        <option value="classification:received:PreInstructionEmails:images-received">Pre-instruction &#xB7; Images received</option>
-                        <option value="classification:received:InternalCc">Internal CC</option>
-                        <option value="classification:sent:ReportSent">Sent &#xB7; Report sent</option>
-                        <option value="classification:sent:CaseRejected">Sent &#xB7; Case rejected</option>
-                        <option value="classification:sent:QuerySent">Sent &#xB7; Query sent</option>
-                        <option value="classification:sent:AdditionalImageRequest">Sent &#xB7; Additional image request</option>
-                </optgroup>
-            </select>
-            <button class="btn btn--dark" type="submit">Show view</button>
-        </div>
-    </form>
-
-<form method="get" class="panel filterbar section-gap" role="search">
-    <div class="filterbar__line">
-        <label for="mail-search" class="vh">Search retained mail in current folders</label>
-        <input id="mail-search" name="search" maxlength="200"
-               placeholder="Message body or attachment" />
-        <button class="btn btn--dark" type="submit">Search</button>
+<form method="get" class="filter-bar" data-auto-submit aria-label="Mail view">
+    <div class="field">
+        <label for="mailbox-filter">Mailbox</label>
+        <select id="mailbox-filter" name="mailbox">
+            <option value="" selected="selected">All approved mailboxes</option>
+        </select>
     </div>
+    <div class="field">
+        <label for="folder-filter">Folder</label>
+        <select id="folder-filter" name="folder">
+            <option value="" selected="selected">Inbox</option>
+            <option value="sent">Sent Items</option>
+            <option value="deleted">Deleted Items</option>
+        </select>
+    </div>
+    <div class="field">
+        <label for="queue-filter">Queue</label>
+        <select id="queue-filter" name="queue">
+            <option value="" selected="selected">All retained mail</option>
+            <optgroup label="Operational queues">
+                    <option value="receiving-work">Receiving work</option>
+                    <option value="queries">Queries</option>
+                    <option value="other">Other</option>
+                    <option value="unidentified">Unidentified</option>
+                    <option value="triage">Triage</option>
+            </optgroup>
+            <optgroup label="Detailed classifications">
+                    <option value="classification:received:General:autoreply">General &#xB7; Autoreply</option>
+                    <option value="classification:received:General:undeliverable">General &#xB7; Undeliverable</option>
+                    <option value="classification:received:General:acknowledgement">General &#xB7; Acknowledgement</option>
+                    <option value="classification:received:General:general-chase">General &#xB7; General chase</option>
+                    <option value="classification:received:General:case-summary">General &#xB7; Case summary</option>
+                    <option value="classification:received:Billing:payment-notification">Billing &#xB7; Payment notification</option>
+                    <option value="classification:received:Billing:remittance">Billing &#xB7; Remittance</option>
+                    <option value="classification:received:Billing:invoice-request">Billing &#xB7; Invoice request</option>
+                    <option value="classification:received:Billing:general-billing">Billing &#xB7; General billing</option>
+                    <option value="classification:received:NonClientRelated">Not client related</option>
+                    <option value="classification:received:InProgressCases:cancellation">In-progress case &#xB7; Cancellation</option>
+                    <option value="classification:received:InProgressCases:case-update">In-progress case &#xB7; Case update</option>
+                    <option value="classification:received:InProgressCases:client-chasing-for-update">In-progress case &#xB7; Client chasing for update</option>
+                    <option value="classification:received:InProgressCases:provider-chasing-for-update">In-progress case &#xB7; Provider chasing for update</option>
+                    <option value="classification:received:InProgressCases:ongoing-correspondence">In-progress case &#xB7; Ongoing correspondence</option>
+                    <option value="classification:received:PreInstructionEmails:pre-formal-instruction-request">Pre-instruction &#xB7; Pre formal instruction request</option>
+                    <option value="classification:received:PreInstructionEmails:images-received">Pre-instruction &#xB7; Images received</option>
+                    <option value="classification:received:InternalCc">Internal CC</option>
+                    <option value="classification:sent:ReportSent">Sent &#xB7; Report sent</option>
+                    <option value="classification:sent:CaseRejected">Sent &#xB7; Case rejected</option>
+                    <option value="classification:sent:QuerySent">Sent &#xB7; Query sent</option>
+                    <option value="classification:sent:AdditionalImageRequest">Sent &#xB7; Additional image request</option>
+            </optgroup>
+        </select>
+    </div>
+    <div class="searchbox">
+        <label class="sr-only" for="mail-search">Search retained mail</label>
+        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+        <input id="mail-search" type="search" name="search" maxlength="200" />
+    </div>
+    <button class="btn btn--dark" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+        <span>Search</span>
+    </button>
 </form>
 
-    <div class="mark-empty">
-    <img class="mark mark--md" src="../../../../src/Pegasus.Web/wwwroot/images/marks/mailboxes.png" alt="" aria-hidden="true" />
-        <p class="empty-state">No mail has been received.</p>
+<section class="pane-layout pane-layout--2"
+         data-mail-preview-workspace aria-label="Retained mail">
+    <aside class="pane">
+        <div class="pane-head"><h2>Scope</h2></div>
+        <div class="pane-body pane-scroll">
+            <div class="scope-list">
+                    <form method="get">
+                        <button type="submit" class="scope-button" aria-pressed="true">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                            </span>
+                            <span>All incoming</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+                    <form method="get">
+                            <input type="hidden" name="unread" value="true" />
+                        <button type="submit" class="scope-button" aria-pressed="false">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                            </span>
+                            <span>Unread</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+                    <form method="get">
+                            <input type="hidden" name="queue" value="receiving-work" />
+                        <button type="submit" class="scope-button" aria-pressed="false">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            </span>
+                            <span>Receiving work</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+                    <form method="get">
+                            <input type="hidden" name="queue" value="queries" />
+                        <button type="submit" class="scope-button" aria-pressed="false">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                            </span>
+                            <span>Case updates</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+                    <form method="get">
+                            <input type="hidden" name="queue" value="triage" />
+                        <button type="submit" class="scope-button" aria-pressed="false">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+                            </span>
+                            <span>Pre-instructions</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+                    <form method="get">
+                            <input type="hidden" name="queue" value="unidentified" />
+                        <button type="submit" class="scope-button" aria-pressed="false">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                            </span>
+                            <span>Unidentified</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+                    <form method="get">
+                            <input type="hidden" name="folder" value="sent" />
+                        <button type="submit" class="scope-button" aria-pressed="false">
+                            <span class="scope-visual-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            </span>
+                            <span>Sent Items</span>
+                            <span class="tabular">0</span>
+                        </button>
+                    </form>
+            </div>
+        </div>
+    </aside>
+
+    <div class="pane">
+        <div class="pane-head inbox-messages-head">
+            <div class="inbox-message-title"><h2>Messages</h2></div>
+                <a class="btn btn--small sort-toggle" aria-label="Received order: newest first; activate for oldest first" href="inbox--default.html">
+                    Received &#x2193;
+                </a>
+        </div>
+        <div class="pane-body pane-scroll">
+                <div class="empty">
+                        <p>No mail has been received.</p>
+                </div>
+        </div>
     </div>
 
+</section>
 
                 </div>
             </main>

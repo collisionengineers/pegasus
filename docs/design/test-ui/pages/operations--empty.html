@@ -157,9 +157,12 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Operations</h1>
-    <div class="freshness" data-refresh-region role="status" aria-live="polite">
+<header class="page-header">
+    <div class="page-title">
+        <h1>Operations</h1>
+    </div>
+    <div class="page-actions">
+        <div class="freshness" data-refresh-region role="status" aria-live="polite">
     <span class="health-dot"></span>
         <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
     <form method="get" data-refresh-form>
@@ -170,24 +173,56 @@
     </form>
 </div>
 
+    </div>
 </header>
 
 
-<section aria-labelledby="attention-title">
-    <h2 id="attention-title" class="section-label">Attention required</h2>
-        <p class="empty-state">No retryable external work is waiting for attention.</p>
-</section>
 
-<section class="section-gap" aria-labelledby="upload-links-title">
-    <h2 id="upload-links-title" class="section-label">Active upload links</h2>
-        <p class="empty-state">No active upload links are currently available.</p>
-</section>
+<div class="stack section-gap">
+    <section class="panel" aria-labelledby="ai-jobs-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="ai-jobs-title">AI Job List</h2>
+                <span class="muted">0 jobs</span>
+            </div>
+            <details>
+                <summary class="btn btn--dark">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <span>Send Unidentified to AI</span>
+                </summary>
+                <form method="post" class="row-confirm" action="operations--default.html">
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <label for="send-unidentified-reference">Unidentified reference</label>
+                    <input id="send-unidentified-reference"
+                           name="unidentifiedReference"
+                           maxlength="20"
+                           required />
+                    <button class="btn btn--dark" type="submit">Send Unidentified to AI</button>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </details>
+        </div>
+    </section>
 
-<section class="section-gap" aria-labelledby="ai-title">
-    <h2 id="ai-title" class="section-label">AI operations</h2>
-    <p>Requesting an AI job and viewing live AI work are planned and unavailable here.</p>
-</section>
 
+
+    <section class="panel" aria-labelledby="attention-title">
+        <div class="panel-head">
+            <h2 id="attention-title">Attention required</h2>
+        </div>
+            <div class="empty">
+                <h2>No retryable external work</h2>
+            </div>
+    </section>
+
+    <section class="panel" aria-labelledby="upload-links-title">
+        <div class="panel-head">
+            <h2 id="upload-links-title">Active upload links</h2>
+        </div>
+            <div class="empty">
+                <h2>No active upload links</h2>
+            </div>
+    </section>
+</div>
 
                 </div>
             </main>

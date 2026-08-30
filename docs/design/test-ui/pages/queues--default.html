@@ -157,13 +157,17 @@
                   data-workspace-label="">
                 <div class="content">
 
-<header class="page-heading">
-    <h1>Cases</h1>
-    <div class="freshness" data-refresh-region role="status" aria-live="polite">
+<header class="page-header">
+    <div class="page-title">
+        <h1>Cases</h1>
+    </div>
+    <div class="page-actions">
+        <div class="freshness" data-refresh-region role="status" aria-live="polite">
     <span class="health-dot"></span>
         <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
     <form method="get" data-refresh-form>
-                <input type="hidden" name="tab" value="review" />
+                <input type="hidden" name="tab" value="unidentified" />
+                <input type="hidden" name="selected" value="test-ui-guid-1" />
         <button type="submit" class="btn btn--small" title="Refresh">
             <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
             <span data-refresh-label>Refresh</span>
@@ -171,33 +175,140 @@
     </form>
 </div>
 
+    </div>
 </header>
 
-<nav class="tabs" aria-label="Case workflow">
-    <a href="queues--default.html">
-        Not ready <span class="count">0</span>
-    </a>
-    <a aria-current="page" href="queues--default.html">
-        Review <span class="count">0</span>
-    </a>
-    <a href="queues--default.html">
-        Held <span class="count">0</span>
-    </a>
-    <a href="queues--default.html">
-        Triage <span class="count">0</span>
-    </a>
-    <a href="queues--default.html">
-        Unidentified <span class="count">0</span>
-    </a>
-</nav>
 
-            <div class="mark-empty">
-                <img class="mark mark--md" src="../../../../src/Pegasus.Web/wwwroot/images/marks/checkmark.png" alt="" aria-hidden="true" />
-                <p class="empty-state">
-                    No cases are ready to confirm.
-                </p>
+<section class="pane-layout pane-layout--3 queue-layout">
+    <aside class="pane">
+        <div class="pane-head">
+            <h2>Case workflow</h2>
+        </div>
+        <form method="get" action="queues--default.html" class="scope-list" data-row-list>
+                <div class="queue-group-label">Workflow</div>
+                    <button type="submit" name="tab" value="not_ready"
+                            class="scope-button"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+                        </span>
+                        <span>Not ready</span>
+                        <span>0</span>
+                    </button>
+                    <button type="submit" name="tab" value="review"
+                            class="scope-button"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                        </span>
+                        <span>Review</span>
+                        <span>0</span>
+                    </button>
+                    <button type="submit" name="tab" value="with_engineer"
+                            class="scope-button"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                        </span>
+                        <span>With Engineer</span>
+                        <span>0</span>
+                    </button>
+                    <button type="submit" name="tab" value="complete"
+                            class="scope-button"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        </span>
+                        <span>Complete</span>
+                        <span>0</span>
+                    </button>
+                    <div class="queue-group-divider"></div>
+                <div class="queue-group-label">Pre-Case work</div>
+                    <button type="submit" name="tab" value="triage"
+                            class="scope-button"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                        </span>
+                        <span>Triage</span>
+                        <span>0</span>
+                    </button>
+                    <div class="queue-group-divider"></div>
+                <div class="queue-group-label">Exceptions</div>
+                    <button type="submit" name="tab" value="held"
+                            class="scope-button queue-exception"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                        </span>
+                        <span>Held</span>
+                        <span>0</span>
+                    </button>
+                    <button type="submit" name="tab" value="unidentified"
+                            class="scope-button queue-exception"
+                            aria-pressed="true">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        </span>
+                        <span>Unidentified</span>
+                        <span>0</span>
+                    </button>
+        </form>
+    </aside>
+
+    <div class="pane">
+        <div class="pane-head">
+            <div>
+                <h2>Unidentified</h2>
+                <span class="muted">1 item</span>
             </div>
+        </div>
+        <div class="pane-body pane-scroll" data-row-list>
+                <a class="row-button" href="received-details--default.html" aria-current="true">
+                    <span class="row-top">
+                        <span class="row-title">blocked-file.msg</span>
+                        <span class="status status--red">Blocked intake</span>
 
+                    </span>
+                    <span class="row-top">
+                        <span class="row-meta">30 Aug 2026 09:54 &#xB7; Unsupported for the test</span>
+                    </span>
+                </a>
+        </div>
+    </div>
+
+    <div class="pane">
+        <div class="pane-head">
+            <h2>Quick detail</h2>
+        </div>
+        <div class="pane-body pane-scroll">
+                <div class="detail-canvas">
+                    <p class="eyebrow">Blocked intake</p>
+                    <h2>blocked-file.msg</h2>
+                        <div class="definition-list section-gap">
+                                <dl class="definition">
+                                    <dt>File</dt>
+                                    <dd>blocked-file.msg</dd>
+                                </dl>
+                                <dl class="definition">
+                                    <dt>Received</dt>
+                                    <dd>30 Aug 2026 09:54</dd>
+                                </dl>
+                                <dl class="definition">
+                                    <dt>Reason</dt>
+                                    <dd>Unsupported for the test</dd>
+                                </dl>
+                        </div>
+                        <div class="button-row section-gap">
+                            <a class="btn btn--dark" href="received-details--default.html">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                <span>Open received item</span>
+                            </a>
+                        </div>
+                </div>
+        </div>
+    </div>
+</section>
 
                 </div>
             </main>

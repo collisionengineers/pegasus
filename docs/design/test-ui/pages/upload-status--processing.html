@@ -157,29 +157,35 @@
                   data-workspace-label="">
                 <div class="content">
 
-<div class="form-column form-column--wide">
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Upload status</p>
         <h1>Received</h1>
-            <p class="lede" aria-live="polite">The file is safely received and waiting for background processing.</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn" href="upload-status--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span>Refresh</span>
+        </a>
+        <a class="btn btn--primary" href="upload--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <span>Upload another file</span>
+        </a>
     </div>
 </header>
 
 <section class="panel"
          aria-labelledby="upload-file-heading">
-    <h2 id="upload-file-heading" class="section-label">ordinary-correspondence.eml</h2>
-    <dl class="detail-list">
-        <div><dt>Received</dt><dd>06 May 2031 11:30</dd></div>
-    </dl>
+    <div class="panel-head">
+        <h2 id="upload-file-heading">ordinary-correspondence.eml</h2>
+    </div>
+    <div class="panel-body">
+        <dl class="definition-list">
+            <div class="definition"><dt>Received</dt><dd>06 May 2031 11:30</dd></div>
+        </dl>
 
-
-    <div class="button-row">
-        <a class="secondary-action" href="upload-status--default.html">Refresh</a>
-        <a class="secondary-action" href="upload--default.html">Upload another file</a>
     </div>
 </section>
-</div>
 
                 </div>
             </main>
