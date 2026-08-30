@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 
@@ -70,25 +69,39 @@ public sealed class TestUiFocusedRenderTests
     [Fact]
     public async Task OpenUnidentifiedDetailRendersThroughRazor()
     {
-        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        Guid id;
+        // The repository PNG fixture with no readable registration is how an
+        // image reaches Unidentified: automation abstains and the queued
+        // processor registers the receipt itself, so the item carries a
+        // retained source receipt and no test-authored domain text.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        UnidentifiedItem? item;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
-            var result = await register.ExecuteAsync(new(
-                UnidentifiedOrigin.SubmissionGroup(Guid.NewGuid()),
-                UnidentifiedReasonCode.NoUsableIdentification,
-                "test detail",
-                ActionActor.SystemWorker("test-worker"),
-                $"unidentified-test:{Guid.NewGuid():N}",
-                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)));
-            id = result.Item.Id;
+            item = await scope.ServiceProvider
+                .GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
         }
+        Assert.NotNull(item);
 
-        using var client = IntakeWebDriver.CreateClient(factory);
-        using var response = await client.GetAsync($"/Unidentified/{id:D}");
+        using var response = await client.GetAsync($"/Unidentified/{item.Id:D}");
         response.EnsureSuccessStatusCode();
         Assert.Contains("Unidentified", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        // The offline snapshot shows this receipt's own image.
+        using var image = await client.GetAsync($"/Received/{receiptId:D}/Image");
+        image.EnsureSuccessStatusCode();
     }
 
     private sealed class ThrowingGetCase : IGetCase

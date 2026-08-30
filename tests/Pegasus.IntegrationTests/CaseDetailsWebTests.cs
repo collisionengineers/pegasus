@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -9,6 +9,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -324,6 +325,44 @@ public sealed partial class CaseDetailsWebTests
         Assert.NotEqual(
             "application/zip",
             prefetched.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task SendPageRendersItsChoiceForAReviewCase()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { CaseState = CaseLifecycleState.Review };
+        var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true, Automatic: false));
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<ICaseDataQueries>(services, store);
+                Substitute<IEvaSubmissionQueries>(services, evaStores);
+                Substitute<IEvaSubmissionModeStore>(services, evaStores);
+                // The page treats an uncomposed transport as "no API route":
+                // a non-null submitter is what makes the manual toggle apply.
+                Substitute<ISubmitCaseToEva>(services, new StubSubmitCaseToEva());
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // EXT-04: the send page for a case still in Review — the one place the
+        // operator chooses between the API submission and the export. The
+        // capture-aware fetch so a Test UI capture records it.
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
+
+        // The page's own copy, as EPIC-011 restyled it: the handoff heading,
+        // the case it is for, and both routes out.
+        Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<h2 id=\"eva-handoff-title\">QDOS3100042</h2>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("<span>Send via API</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Download export</span>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1357,6 +1396,51 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
+    /// <summary>
+    /// The EVA stores the send page reads: the case has never been sent, and its
+    /// principal carries the modes the test states.
+    /// </summary>
+    private sealed class StubEvaSubmissionStores(EvaSubmissionModes modes) :
+        IEvaSubmissionQueries,
+        IEvaSubmissionModeStore
+    {
+        Task<EvaSubmissionRecord?> IEvaSubmissionQueries.GetLatestAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) => Task.FromResult<EvaSubmissionRecord?>(null);
+
+        Task<IReadOnlyList<EvaSubmissionFailure>> IEvaSubmissionQueries.GetRecentFailuresAsync(
+            DateTimeOffset sinceUtc,
+            int maximumResults,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
+
+        Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
+            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(0, null));
+
+        Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
+            string principalCode,
+            CancellationToken cancellationToken) => Task.FromResult(modes);
+    }
+
+    /// <summary>
+    /// In-memory stand-in so the page sees a composed transport and applies
+    /// the principal's manual toggle. No request is ever sent anywhere: the
+    /// send-page test is a GET, and a POST would only record here and read
+    /// back as "nothing was submitted".
+    /// </summary>
+    private sealed class StubSubmitCaseToEva : ISubmitCaseToEva
+    {
+        public List<SubmitCaseToEvaRequest> Requests { get; } = [];
+
+        public Task<SubmitCaseToEvaResult?> ExecuteAsync(
+            SubmitCaseToEvaRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult<SubmitCaseToEvaResult?>(null);
+        }
+    }
+
     private static void AssertPrg(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -1371,6 +1455,7 @@ public sealed partial class CaseDetailsWebTests
 
     private sealed partial class RecordingCaseDetailsStore :
         IGetCase,
+        ICaseDataQueries,
         IAcquireCaseEditLease,
         IRecordManualCaseChase,
         IHoldCase,
@@ -1410,6 +1495,13 @@ public sealed partial class CaseDetailsWebTests
         public CaseLifecycleState State { get; set; } = CaseLifecycleState.NotReady;
 
         public bool ExposeCustody { get; init; }
+
+        /// <summary>
+        /// The lifecycle state the store's case data reports. The default keeps the
+        /// workflow surface's NotReady answer; a page that acts on a particular
+        /// state sets the state it needs.
+        /// </summary>
+        public CaseLifecycleState CaseState { get; init; } = CaseLifecycleState.NotReady;
 
         /// <summary>The detected Sent evidence the projection offers for confirmation (D10).</summary>
         public IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence
@@ -1482,6 +1574,13 @@ public sealed partial class CaseDetailsWebTests
             return Task.FromResult<CaseDetails?>(details);
         }
 
+        /// <summary>
+        /// The same case the details surface serves, through the port the data-reading
+        /// case pages (the EVA send page) use.
+        /// </summary>
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseDataProjection?>(caseId == CaseId ? CreateData() : null);
+
         Task<CaseDataProjection> IConfirmCompleteness.ExecuteAsync(
             ConfirmCompletenessRequest request,
             CancellationToken cancellationToken)
@@ -1510,7 +1609,7 @@ public sealed partial class CaseDetailsWebTests
                     null),
                 _now.AddDays(-2),
                 CaseVersion,
-                CaseLifecycleState.NotReady,
+                CaseState,
                 new(
                     new(
                         InstructionComplete: true,

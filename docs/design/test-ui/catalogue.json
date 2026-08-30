@@ -70,6 +70,25 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Confirm.cshtml",
+    "route": "/Administration/Accounts/Confirm/{operation}/{staffId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "disable",
+        "file": "pages/administration-account-confirm--disable.html",
+        "branch": "Disable operation: the consequence notice above the reason form.",
+        "scenario": "administration-account-confirm--disable"
+      },
+      {
+        "state": "review",
+        "file": "pages/administration-account-confirm--review.html",
+        "branch": "Any other operation: the reason form without the disable notice.",
+        "scenario": "administration-account-confirm--review"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Accounts/Edit.cshtml",
     "route": "/Administration/Accounts/Edit/{id:guid}",
     "classification": "visual",
@@ -337,6 +356,19 @@
     "route": "/Cases/{caseId:guid}/Documents/Export",
     "classification": "download",
     "reason": "GET redirects to case details; POST returns a ZIP archive."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml",
+    "route": "/Cases/{caseId:guid}/Eva/Send",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-eva-send--default.html",
+        "branch": "A Review case with manual submission enabled, choosing between the API submission and the export.",
+        "scenario": "case-eva-send--default"
+      }
+    ]
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Index.cshtml",
