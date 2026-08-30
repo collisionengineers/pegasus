@@ -2,10 +2,15 @@
 id: AUTO-012
 type: ticket
 title: API-01 provider submission accept path is not atomic across its four writes
-status: backlog
+status: verifying
 area: automation-integrations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-30T08:04:20.502Z'
+  implementing: '2026-08-30T08:04:25.947Z'
+  review: '2026-08-30T08:04:58.335Z'
+  verifying: '2026-08-30T08:05:04.654Z'
 labels:
   - API-01
   - requires-live-approval
@@ -16,7 +21,7 @@ links:
   - TICK-060
 archived: false
 created: '2026-08-29T08:17:39.146Z'
-updated: '2026-08-29T08:17:39.146Z'
+updated: '2026-08-30T08:05:04.654Z'
 ---
 
 ## What
