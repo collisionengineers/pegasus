@@ -1,119 +1,208 @@
 ---
 name: kanmer-execute
-description: Implement a Kanmer ticket — take it in its own git worktree and branch, work through its checklist with live progress notes, write the post-implementation report, and open the PR. Use when the user says "work on", "implement", "take" or "build" a ticket, or when a planned ticket is ready for implementation. DO NOT USE FOR planning (kanmer-plan — required first), reviewing the result (kanmer-review), or post-merge cleanup (kanmer-closeout).
+description: Implement one Kanmer ticket from its read-only execution packet — take its recorded worktree and branch, work only the bounded checklist, write the post-implementation report, and open the PR. Use when the user says "work on", "implement", "take" or "build" a ticket, or when a planned ticket is ready for implementation. DO NOT USE FOR planning (kanmer-plan — required first), reviewing the result (kanmer-review), or post-merge cleanup (kanmer-closeout).
 ---
 
 # Executing a Kanmer ticket
 
-Execution happens in isolation: every ticket gets its own branch and its own
-git worktree, so the main checkout stays clean and parallel work never
-collides. `take_ticket` records both on the ticket — the human's board shows
-the ⛏ badge with the branch, which is how they know the work is live.
+Execution is a bounded hand-off. The ticket's `get_execution_packet` response,
+not an agent's memory or a separately reconstructed folder, is the input to
+this skill. It supplies the project identity, ticket and group context,
+profile-resolved gates, versioned plan/checklist/files documents, extra paths,
+commands, and one explicit stop condition. Keep those values for the whole
+run and stop when the packet says to stop.
 
 ## Workflow
 
-1. **Check the preconditions** — the plan and checklist exist, and nobody else
-   holds the ticket.
-2. **Create the worktree and branch**, then `take_ticket` with exactly what you
-   created. That moves the ticket into **implementing**.
-3. **Work the checklist**, ticking boxes and appending progress notes as you go.
-4. **Write the post-implementation report** — the reviewer's brief.
-5. **Record traceability**, push, and open the PR.
-6. **Move the ticket to review.**
+1. Orient with `get_status`; inspect the project fingerprint and the server's
+   `compat.expectedProject` capability.
+2. Make `get_execution_packet <id>` the **first ticket-specific data call**.
+   A refusal is a normal result, not an invitation to reconstruct the packet.
+3. If `ready: false`, return its exact `code`, `reason`, and `missing` values
+   in the external hand-off and stop without mutating the ticket, except for the deliberately resumable occupancy case:
+   when the refusal names an existing branch and worktree, retry this one call
+   with those exact values in `resume`. If that retry refuses, stop. Do not
+   call `get_item`, take the ticket, run Git, or write a document after any
+   other refusal.
+4. Retain the ready packet. If it reports `ticket.taken`, it is a resumed
+   ticket: validate and reuse that exact recorded worktree and branch; do not
+   create another worktree or call `take_ticket`. Otherwise create and validate
+   a fresh worktree and take the ticket. Send `expected_project` only when the
+   preceding status call advertised `compat.expectedProject: "optional"`.
+5. Work only the packet's files and checklist, and record progress with
+   version-aware MCP writes.
+6. Write the post-implementation report, record traceability, push the branch,
+   and open a PR whose body contains `Kanmer: <ID>`.
+7. Re-read `get_doc_gates`, then move only `implementing` → `review` when its
+   requirements pass. Stop for an independent reviewer.
 
-The ticket stays taken through review, verify and closeout — this skill takes
-it, and `kanmer-closeout` is what releases it.
+The ticket stays taken through review, verify, and closeout. This skill never
+merges its own PR and never starts another ticket.
 
-## Preconditions
+## Packet first and refusal
 
-`get_ticket_doc` for `plan` and `checklist`. If either is missing, the
-ticket isn't ready — do the `kanmer-plan` skill's job first. If the ticket
-is already taken (`get_item` shows `taken`), coordinate with whoever holds
-it rather than passing `force`.
+`get_status` is orientation, not ticket data. After it, call:
 
-## Start: worktree, branch, take
+```
+get_execution_packet id: <ID>
+```
 
-Conventions: branch `<ticket-id-lowercase>-<short-slug>` (e.g.
-`api-003-retry-upload`), worktree `.worktrees/<ticket-id-lowercase>` at the
-repo root. The ticket id in both makes board ↔ git greppable in either
-direction.
+The packet is read-only and does not take, move, write, dispatch, or create a
+worktree. It is ordered to refuse unsafe execution: a non-ticket/legacy item,
+spike, unmet `leave-preparing` gate, unresolved questions, an incomplete or
+unsafe taken location, or an occupied ticket. On any `{ready: false,
+code: "GATE_BLOCKED", ...}` response, return the
+exact refusal in the external hand-off and stop before every ticket, Git, or
+document action. The sole retry is an occupancy refusal that includes its
+recorded branch and worktree: submit those two literal values as
+`resume: { branch, worktree }` to the same call. That is a deliberate resume
+confirmation, not a force flag; a changed or incomplete value is refused.
+Do not turn `missing` into a guessed plan, run `kanmer-plan` inside execute,
+or retry by passing `force`; hand every other refusal back to the named
+preparation phase or operator.
+
+A ready packet contains the full ticket body, ordered group contexts, resolved
+gates, and the versioned `plan`, `checklist`, and `files` index documents. It
+also lists every extra Markdown path, an ATX `stopCondition`, a command hint,
+and non-blocking warnings about other tickets' stale locations. Treat those
+versions as optimistic concurrency tokens: read every listed path and pass its
+version to a replacement. Then discover and read every human-supplied file in
+the ticket's `reference/` directory before editing — including non-Markdown
+inputs deliberately omitted from `extraDocs`. Do not silently overwrite a
+human edit; re-read the packet and re-plan if a version conflict occurs. A
+warning never authorizes a repair outside this ticket; retain it for the
+external hand-off.
+
+`ticket.taken` selects the execution lane. A missing value means fresh work;
+create the recorded worktree and then take the ticket. A present value means
+resume the exact already-recorded branch and worktree. It is not permission to
+create another worktree, retake the ticket, clear its ownership, or replace its
+uncommitted work.
+
+## Project capability and worktree
+
+Before the first mutating call, retain `project.fingerprint` from
+`get_status`. If and only if the response advertises
+`compat.expectedProject: "optional"`, pass that value as the top-level
+`expected_project` on writes. Older servers do not accept the field, so omit it
+when the capability is absent. It is never nested in ticket fields or packet
+documents.
+
+### Resumed packet
+
+When `packet.ticket.taken` is present, use its `branch` and `worktree` values
+literally. They must be the same pair supplied to `resume` when the prior
+occupancy refusal needed that retry. From the repository root, validate the
+existing worktree without modifying it:
+
+```sh
+git -C <recorded-worktree> rev-parse --show-toplevel
+git -C <recorded-worktree> rev-parse --git-common-dir
+git -C <source-repository-root> rev-parse --git-common-dir
+git -C <recorded-worktree> branch --show-current
+```
+
+The first command must resolve to the recorded worktree root; the two
+common-directory values must name the same source repository; and the final
+command must exactly equal the recorded branch. Before editing, call
+`list_items` and compare the candidate against every other active ticket's
+recorded worktree. It must not be `.worktrees/kanmer`, the board root, the
+shared source checkout, or another ticket's worktree. A missing path, detached
+or different branch, duplicate location, or unexpected repository is a stop:
+return the observed condition in the external hand-off without a ticket write.
+The server issues resumed packets only while the ticket remains in
+`implementing`; a ticket in Review or Verifying stays taken for traceability,
+not for further implementation. Do not repair it by
+`git worktree add`, checkout, reset, or `take_ticket`. Existing uncommitted
+changes belong to the resumed ticket and are not a reason to clean or recreate
+it.
+
+### Fresh packet
+
+Only when `packet.ticket.taken` is absent, create the worktree from the
+repository root after the packet is ready:
 
 ```sh
 git fetch origin
-git worktree add .worktrees/<id> -b <id>-<slug> origin/main
-cd .worktrees/<id>
+git worktree add .worktrees/<id-lowercase> -b <id>-<slug> origin/main
 ```
 
-**One directory in there is not yours.** In a repo set up through the GUI the
-board lives in `.worktrees/kanmer`, on the board branch, with MCP rooted in it —
-never create, switch, push or remove that one. Yours is `.worktrees/<id>`, and
-`take_ticket` records it on the ticket so board and git agree on which is which.
-
-(If the default branch isn't `main`, `git symbolic-ref --short
-refs/remotes/origin/HEAD` names it.) Make sure `.worktrees/` is listed in
-`.gitignore` — add the line if it isn't, once, committed.
-
-Then take the ticket with **exactly what you just created**, not intentions:
+Validate that the target is exactly `.worktrees/<id-lowercase>`, is not the
+board worktree `.worktrees/kanmer`, and is not another ticket's worktree. Do
+not create, switch, push, or remove the board branch/worktree. Confirm that
+`.worktrees/` is ignored by the repository before creating it; if that setup
+condition is absent, report the deviation rather than hiding it in an
+unrelated change. Take only after the path and branch exist, with exactly what
+was created:
 
 ```
-take_ticket id: <ID>, branch: "<id>-<slug>", worktree: ".worktrees/<id>"
+take_ticket id: <ID>, branch: "<id>-<slug>", worktree: ".worktrees/<id-lowercase>"
 ```
 
-`take_ticket` moves the ticket to the working stage (default
-`implementing`).
+The ticket comes before the branch in the board record; never invent a branch
+for an unrecorded ticket and never `force` a taken ticket. A resumed ticket is
+already taken, so it deliberately skips this fresh-ticket creation and take
+sequence.
 
-## Work the checklist
+## Work only the packet
 
-- Tick boxes in checklist.md with `set_ticket_doc` as you complete them —
-  the GUI renders them as live checkboxes, so this is your progress bar.
-- Add discoveries, gotchas and course-corrections as progress notes with
-  `set_ticket_doc(doc: "checklist", append: true)` — never resend a whole
-  document just to add a line.
-- Commit as you go on the ticket's branch; small commits with real messages.
-- If the plan turns out wrong, stop and fix plan.md (and the checklist)
-  before coding around it — the documents are the shared truth, not your
-  memory.
+- Work only the packet's `files` scope. Do not absorb another ticket, repair
+  unrelated failures, or redesign the workflow.
+- Tick checklist boxes with `set_ticket_doc` using the version returned by the
+  packet/read. Use `append_scratch` for running notes only; preserve failed
+  attempts and exact exits.
+- If the plan, files map, or stop condition is contradicted, pause, record the
+  deviation, and re-read or revise the governing packet documents before
+  coding around them. A useful discovery is not authorization for a new file.
+- Run the packet's named commands in the recorded worktree. A command that
+  cannot run is `INCONCLUSIVE`, not a fabricated pass. Keep the first failure
+  when a later retry succeeds.
+- Preserve the applicable production-caller, runtime-artifact,
+  schema/grant, and test-proof rules from the packet's templates and governing
+  docs; a registered-but-unreachable or test-only implementation is not done.
+- Stop at the packet's stop condition, even when a follow-up looks convenient.
 
-## Finish: report, PR, review stage
+## Finish: report, PR, Review
 
-1. **Write `post-implementation-report.md`** from
-   `assets/post-implementation-report-template.md`: every file change + its
-   rationale, how the work meets each linked governing doc (`refs`), risks and
-   follow-ups, and what `kanmer-verify` should run on merged `main`. This is the
-   reviewers' brief and the board's **Implementing → Review** gate — call
-   `get_doc_gates` to confirm. (`proof.md` comes later, from `kanmer-verify`, on
-   merged main — not here.)
-2. **Record traceability:** `update_item <id> commits: [...] prs: [...]`, and
-   `link_doc` any governing doc, so the ticket ties back to the code.
-3. **Push and open the PR** from `assets/pr-template.md` (the PR *description*,
-   distinct from `kanmer-review`'s 4 review docs) — What/Why from the ticket
-   body, the ticked checklist as the change list, and `Kanmer: <ID>` in the
-   footer so the PR maps back to the ticket:
+1. Write `post-implementation-report.md` as a whole document. List every file
+   changed and why, map the result to the plan's governing docs, name risks and
+   follow-ups, and tell `kanmer-verify` which checks belong on the merged
+   result. `proof.md` is not an execution document and is written only after a
+   review merge.
+2. Record the reachable implementation commit(s) and PR with `update_item`.
+   Link governing docs only when the packet authorizes the link; do not invent
+   refs. Keep all writes project-bound when the capability was advertised.
+3. Push the ticket branch and open the PR with the ticket title and
+   `Kanmer: <ID>` footer:
 
    ```sh
    git push -u origin <id>-<slug>
-   gh pr create --title "<ticket title> (<ID>)" --body-file <assembled>
+   gh pr create --title "<ticket title> (<ID>)" --body-file <assembled-body>
    ```
 
-4. **Move the ticket to the review stage** (`move_item`, resolve the id against
-   `list_board`) — the post-implementation-report gate must pass first. One
-   stage: a move crosses at most one gated boundary, so aiming past review is
-   refused even when every document exists. Record
-   the PR URL with `append_scratch <id> execute "opened PR <url>"`. The ticket
-   stays taken until the PR is merged, verified (`kanmer-verify`), and closed
-   out (`kanmer-closeout`).
+4. Read `get_doc_gates <id>` immediately before `move_item`. Move one gated
+   boundary only, from `implementing` to `review`, and record the PR URL in
+   an ordinary execute scratch note. If the gate or move refuses, preserve the
+   exact error and remain in the current stage.
 
-## Pausing instead of finishing
+The hand-off is the open PR plus the ticket in Review. The author does not
+write the review attestation, review the PR, merge it, move it to Verifying, or
+clean up the implementation worktree, or start another ticket.
 
-If you stop before the PR merges and someone else may pick the ticket up:
-first append the resume point to the progress notes ("paused; resume in
-`.worktrees/api-003` on `api-003-retry-upload`") — release erases the
-`branch`/`worktree` fields — then `take_ticket action: "release"`. Keep the
-worktree and branch; they are the resume point. A ticket left taken looks
-in-progress to everyone.
+## Pausing
+
+If work must pause before review, leave the ticket taken and append the exact
+resume point — branch, worktree, packet version, and last command/result — to
+execute scratch. A later worker uses the occupied-ticket `resume` confirmation
+and reuses that same recorded location. Do not release a paused ticket that
+retains a worktree or branch: release clears the metadata that makes a resume
+safe. Release is closeout cleanup only after the recorded location is no longer
+an execution target. A refusal, missing dependency, or user-only decision is a
+stop, not a reason to guess.
 
 ---
 
 **Hand off to `kanmer-review`** once the PR is open and the ticket is in Review.
-Do not merge your own work on the way past: review owns the merge point, and
-this skill's last act is opening the PR, not landing it.
+The author does not merge: review owns the independent attestation and merge
+point, never starts another ticket, and this skill's last act is the Review
+hand-off.
