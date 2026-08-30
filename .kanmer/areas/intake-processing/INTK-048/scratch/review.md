@@ -128,3 +128,72 @@ the sole automatic derivation of a receipt's Unidentified destination. The
 PR-069 fix must not change that — teaching `ReverseLinkAsync` or a Razor handler
 to decide Unidentified state as well would be a stop condition, and the
 verification lane is instructed to treat it as a blocker.
+
+## 2026-08-30 — DEFERRED out of release 37 by operator decision. PR #601 closed
+
+The branch `task/intk-048-unidentified-manual-link` is **preserved**, not
+deleted. This ticket and [[PR-069]] stay on the board for their own release.
+
+### Three rounds, three real defects
+
+1. Independent review found [[PR-069]] — a data-loss path this diff *introduces*.
+2. The PR-069 fix was refuted against real SQL: the reopen/re-resolve pair
+   collided on its own operation key, leaving items permanently `Open` with no
+   destination while the handler returned 302. **The contrast run decided it** —
+   with only the reopen branch disabled the item was wrongly-targeted but
+   stable, so the fix was worse than the bug.
+3. Codex verification confirmed both earlier defects genuinely fixed by surgical
+   revert, then returned STILL_DEFECTIVE with 7 findings, 3 HIGH — including a
+   **new** concurrency defect the fix introduced (`ReopenAsync`'s replay branch
+   returns the item's current state rather than the state the replayed reopen
+   produced, letting a stale caller consume a newer version's resolve key) and a
+   **rule-19 weakening**: `PromotedImageReceiptResolvesItsOpenItemToTheImageIntake`
+   had its expected key edited from an interpolated `{receipt.Version}` to a
+   hard-coded literal `0`, so it could no longer detect production building
+   every key at version 0.
+
+CI was red on `changes`: "Database bootstrap must account for grant-carrying
+migration `20260829222702_UnidentifiedResolutionRecheckWatermark`". The
+migration issues no grant — it *asserts* one exists — and the gate's
+`\bGRANT\s` filter cannot tell the difference. Naming the migration id anywhere
+in `Invoke-AzureDatabaseBootstrap.ps1` satisfies it, which is the honest fix.
+
+### The fact that decided the deferral
+
+**Before this diff the data-loss path was unreachable.** The unconditional
+`IsUnidentifiedEligible` guard blocked every NeedsSorting / Unsupported /
+OcrRequired / TechnicalFailure receipt, so an eligible manually linked receipt
+could never be auto-resolved and unlink-after-resolve could not happen.
+
+Not merging therefore leaves production **exactly as it is today** — no defect,
+no regression. Merging would put a thrice-remediated change to the shared
+Unidentified reconciliation sweep, which every intake lane depends on, into a
+promotion to `main`. This is a behavioural improvement, not a fix for a live
+production defect, so the trade was not worth taking on the eve of a release.
+
+### What is worth keeping when this resumes
+
+The round-3 design is genuinely good and should be the starting point:
+
+- **Key on the item's own version, not the receipt's.** That gives both required
+  properties at once — a retry rebuilds the same key (replay-stable), while
+  reopen-at-V and re-resolve-at-V+1 can never collide with the resolve at V−1.
+- **Freshness by the manual association's `Version`, not a timestamp.** The
+  reason matters beyond elegance: the integration harness runs on a **frozen
+  `TimeProvider`**, so a timestamp watermark would never have advanced there
+  either — the test would have looked green while the predicate was broken.
+- **A migration that asserts its grant rather than assuming it** — a guarded
+  `sys.database_permissions` check that `THROW`s on drift to a column-scoped
+  grant. Aimed squarely at the "local runs are full-privilege and never notice"
+  trap behind the 2026-08-14 incident.
+- The reproduction was written **first**, against the unfixed branch, confirmed
+  failing exactly as described, and kept as the regression guard.
+
+### Round 4 must close
+
+- The red `changes` gate (name the migration in the bootstrap script).
+- The weakened assertion — restore the interpolated `{item.Version}`.
+- `ReopenAsync`'s replay branch returning current state.
+- The four remaining MEDIUMs, or explicit dispositions for them. Two of them —
+  the swallowed conflicts with no logged cause — are already filed as
+  [[INTK-053]].
