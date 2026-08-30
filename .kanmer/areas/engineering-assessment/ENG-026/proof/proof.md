@@ -414,3 +414,106 @@ delivered.
 - `Features:AutomationMcp` over `pegasus_estimate_save`/`pegasus_estimate_list` —
   checked and cleared, not a finding: the gate is OPEN in production per
   `docs/operations.md:139`, so these callers are real under D21's OPEN-gate row.
+
+---
+
+# Re-audited 2026-08-30 against deployed `main` — the rule-14 gap is closed
+
+Re-audited against **`origin/main` at `fb3f07acc8cca8d9d8b57db8a431b607772436dc`**,
+deployed to production as release 37 on 2026-08-30. Deployed evidence, not
+dev-merged evidence.
+
+## What this ticket was reversed out of Done for
+
+Under D20's strict rule 14, ENG-026's five use cases were Core code with no
+operator surface: the multi-estimate editor that consumes them was [[ENG-028]],
+which was then unbuilt. ENG-028 merged as PR #630 and shipped in release 37.
+
+## Every named use case now has a routed caller
+
+```
+git grep -l <symbol> origin/main -- src/Pegasus.Web
+```
+
+| Use case | Production caller |
+| --- | --- |
+| `ISaveEstimate` | `Pages/Cases/Assessment/Index.cshtml.cs`, `Mcp/AssessmentMcpTools.cs` |
+| `IDuplicateEstimate` | `Pages/Cases/Assessment/Index.cshtml.cs` |
+| `IDiscardEstimate` | `Pages/Cases/Assessment/Index.cshtml.cs` |
+| `ISetCurrentEstimate` | `Pages/Cases/Assessment/Index.cshtml.cs` |
+| `IListCaseEstimates` | `Pages/Cases/Assessment/Index.cshtml.cs`, `Mcp/AssessmentMcpTools.cs` |
+
+That page is routed — `@page "/Cases/{id:guid}/Assessment"` — so the callers are
+reachable, not merely registered.
+
+**The controls are rendered and bound**, which is the part a DI census cannot
+show. Every handler the ticket needs has a form posting to it:
+
+```
+Pages/Cases/Assessment/Index.cshtml   asp-page-handler="SaveEstimate"
+                                      asp-page-handler="DuplicateEstimate"
+                                      asp-page-handler="DiscardEstimate"
+                                      asp-page-handler="SetCurrentEstimate"
+                                      asp-page-handler="ImportEstimate"
+Index.cshtml.cs                       OnPostSaveEstimateAsync, OnPostDuplicateEstimateAsync,
+                                      OnPostDiscardEstimateAsync, OnPostSetCurrentEstimateAsync,
+                                      OnPostImportEstimateAsync
+```
+
+`asp-page-handler="PreviewReportDraft"` resolves to `OnGetPreviewReportDraftAsync`
+(`Index.cshtml.cs:579`) — a GET handler, correctly, since it is a preview link
+rather than a form post. Checked because a rendered handler with no matching
+method is the exact defect class this programme has been catching.
+
+## "Totals have one owner" — the ticket's own first verification line
+
+```
+git grep -n 'EstimateTotals.Compute' origin/main -- src/Pegasus.Core/Assessment
+  src/Pegasus.Core/Assessment/Estimates.cs:92    <- the single definition
+  src/Pegasus.Core/Assessment/Estimates.cs:269   <- its only in-Core use
+```
+
+One definition, no second implementation. The repository's "one Core owner" rule
+holds for estimate money.
+
+## "Report costs come from the Current estimate" — the second verification line
+
+Confirmed, and the production source supplies it rather than defaulting to null:
+
+```
+src/Pegasus.Infrastructure/Persistence/EfAssessmentReportProjectionSource.cs:111
+    CurrentEstimate: workspace.AcceptedSpecification);
+```
+
+`AssessmentReportProjection.CostsOf` (`:87`) derives the report's cost block
+through `EstimateTotals.Compute` — the same one owner — and the projection fails
+closed naming `RepairCostRequirement = "Current estimate required"` when there is
+none. The `Costs` field survives only for a caller that has figures without an
+estimate, which the file documents explicitly.
+
+## Verdict
+
+Both of the ticket's stated verification lines are met, and every use case it
+names has a rendered, routed caller. **The reversal reason no longer holds.**
+
+## What this evidence does NOT prove
+
+- **No estimate has been saved through the deployed editor.** The path is
+  reachable and the controls are bound; nobody has exercised it in production.
+- **No browser or layout walk** of the Assessment estimate editor — **UIIMP-010**
+  owns that and is still in backlog.
+- **The JSON estimate parser and the two MCP tools are covered by census only**,
+  not by a live parse or a live tool call.
+- **Single-model audit.** Not independently refuted by a second model family;
+  the evidence is symbol census plus a read of the projection source.
+
+## Commands run
+
+```
+git grep -l ISaveEstimate|IDuplicateEstimate|IDiscardEstimate|ISetCurrentEstimate|IListCaseEstimates
+    origin/main -- src/Pegasus.Web                                    -> exit 0
+git show origin/main:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml    -> exit 0
+git show origin/main:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs -> exit 0
+git grep -n EstimateTotals.Compute origin/main -- src/Pegasus.Core/Assessment -> exit 0
+git grep -n CurrentEstimate origin/main -- src/Pegasus.Web src/Pegasus.Infrastructure -> exit 0
+```

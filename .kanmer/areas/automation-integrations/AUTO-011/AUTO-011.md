@@ -2,7 +2,7 @@
 id: AUTO-011
 type: ticket
 title: AI job ledger and automation.jobs connector tools
-status: verifying
+status: done
 area: automation-integrations
 assignee: claude-code
 profile: feature
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:47.092Z'
-updated: '2026-08-30T20:13:53.503Z'
+updated: '2026-08-30T20:21:02.941Z'
 ---
 
 ## What

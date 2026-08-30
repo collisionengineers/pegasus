@@ -324,3 +324,111 @@ Nothing this ticket names is permanently inert or behind a closed gate.
   descriptions behind `Features:AutomationMcp` — the gate is OPEN in production
   per `docs/operations.md:122` and `:134-139`, so these are real callers and not
   a rule-14 failure. Recorded here so it is not re-litigated.
+
+---
+
+# Re-audited 2026-08-30 against deployed `main` — the rule-14 gap is closed
+
+Re-audited against **`origin/main` at `fb3f07acc8cca8d9d8b57db8a431b607772436dc`**,
+deployed to production as release 37 on 2026-08-30. This is deployed evidence,
+not dev-merged evidence.
+
+## What this ticket was reversed out of Done for
+
+The D20 strict re-reading of rule 14 found two capabilities this ticket's own
+*What* section names that had **no production caller** — only declarations, DI
+registrations and test fakes:
+
+1. `IAiJobQueries.ListForSubjectAsync` — the by-subject AI job list.
+2. `AiJobKind.QueryResponse` — staff creation of a query-response job.
+
+[[AUTO-014]] was filed to supply exactly those two. It merged as PR #629 and
+shipped in release 37.
+
+## Both are now wired, verified by census rather than by trusting AUTO-014
+
+### 1. `ListForSubjectAsync` has a routed consumer
+
+```
+git grep -n ListForSubjectAsync origin/main -- src/
+  src/Pegasus.Core/AiWork/AiJobs.cs:196                      <- declaration
+  src/Pegasus.Infrastructure/Persistence/EfAiJobStore.cs:239 <- adapter
+  src/Pegasus.Web/Pages/Mail/Message.cshtml.cs:706           <- CONSUMER
+```
+
+`Pages/Mail/Message.cshtml.cs:706` is a routed Razor page's model, not a fake.
+The previous audit's census of this same symbol returned only the first two
+lines plus two test fakes; the third line is new and is the caller that was
+missing.
+
+### 2. `AiJobKind.QueryResponse` has a staff caller, and it is not an inert control
+
+The chain is complete — a rendered form, a named handler, and the job creation:
+
+```
+Pages/Mail/Message.cshtml:74       <form method="post" asp-page-handler="CreateQueryResponse"
+Pages/Mail/Message.cshtml.cs:228   OnPostCreateQueryResponseAsync(...)
+Pages/Mail/Message.cshtml.cs:259       AiJobKind.QueryResponse,
+```
+
+The control is **conditionally** disabled (`Message.cshtml:94`, a `.gated` span)
+when the case is unavailable, is not in post-report work, or automation is
+stopped — each naming its reason via `OperatorLabels.QueryResponseJobs`. That is
+a state-dependent affordance with a real enabled path at `:74`, not the
+permanently inert control D21 forbids.
+
+### 3. The MCP surface and its scope
+
+`src/Pegasus.Web/Mcp/AiJobMcpTools.cs` carries 14 references to the seven
+`pegasus_ai_job_*` tools, and `Mcp/AutomationMcp.cs:34` defines
+`JobsScope = "automation.jobs"`.
+
+**Its composition gate is open in the deployed estate**, which is what D21
+requires — not merely registered:
+
+```
+infra/modules/platform.bicep:467   { name: 'Features__AutomationMcp', value: 'true' }
+```
+
+confirmed live on the running Web app during the release-37 deployment
+([[DELIV-037]] proof).
+
+### 4. The table and its grant shipped
+
+```
+scripts/Invoke-AzureDatabaseBootstrap.ps1:353
+  # 20260828084644_GrantAiJobs: AUTO-011 added the pull-based AI job ledger
+:361  $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
+```
+
+That migration is in release 37's applied set (head advanced 76 → 87 rows), and
+the bootstrap census passed 544/377 with no missing grant.
+
+## Verdict
+
+Every capability AUTO-011 names now has a production caller that is itself
+reachable in the deployed estate. **The reversal reason no longer holds.**
+
+## What this evidence does NOT prove
+
+- **No AI job has been created in production by a real operator.** The path is
+  reachable; nobody has walked it. This is the same distinction release 37 drew
+  for the Provider API.
+- **The MCP tools are not exercised here.** Their ingress test covers them; this
+  audit checked registration, scope and gate state, not a live tool call.
+- **Single-model audit.** This pass was not independently refuted by a second
+  model family. The evidence is a symbol census and a configuration read rather
+  than a behavioural judgement.
+- **`ListForSubjectAsync` is consumed on the Mail message page only.** Whether
+  that is the right surface for it is AUTO-014's question, answered in that
+  ticket, not re-opened here.
+
+## Commands run
+
+```
+git grep -n ListForSubjectAsync origin/main -- src/            -> exit 0, 3 hits
+git grep -n QueryResponse origin/main -- src/Pegasus.Web       -> exit 0
+git grep -n 'automation.jobs' origin/main -- src/Pegasus.Web   -> exit 0
+git grep -n Features__AutomationMcp origin/main -- infra/      -> exit 0
+git grep -n AiJobs origin/main -- scripts/Invoke-AzureDatabaseBootstrap.ps1 -> exit 0
+```
