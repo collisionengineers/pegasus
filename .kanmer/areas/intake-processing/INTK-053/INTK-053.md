@@ -9,6 +9,8 @@ profile: fix
 labels:
   - diagnostics
   - unidentified
+groups:
+  - EPIC-011
 links:
   - PR-069
   - INTK-048
@@ -16,7 +18,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-30T00:10:57.940Z'
-updated: '2026-08-30T00:10:57.940Z'
+updated: '2026-08-30T20:15:15.442Z'
 ---
 
 ## What

@@ -8,6 +8,8 @@ assignee: ''
 profile: chore
 labels:
   - documentation
+groups:
+  - EPIC-011
 links:
   - DELIV-037
 refs:
@@ -15,7 +17,7 @@ refs:
   - docs/open-decisions.md
 archived: false
 created: '2026-08-30T17:03:24.178Z'
-updated: '2026-08-30T17:03:24.178Z'
+updated: '2026-08-30T20:15:08.247Z'
 ---
 
 ## What

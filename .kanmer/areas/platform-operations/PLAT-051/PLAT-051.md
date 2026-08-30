@@ -13,13 +13,15 @@ labels:
 groups:
   - EPIC-011
 links: []
+blocks:
+  - PLAT-048
 refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-28T08:35:24.123Z'
-updated: '2026-08-28T08:35:24.123Z'
+updated: '2026-08-30T20:14:27.507Z'
 ---
 
 ## What

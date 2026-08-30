@@ -12,13 +12,15 @@ labels:
   - INT-31
   - uploads
   - capacity
+groups:
+  - EPIC-011
 links:
   - INTK-051
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T21:29:16.028Z'
-updated: '2026-08-29T21:29:16.028Z'
+updated: '2026-08-30T20:15:11.785Z'
 ---
 
 ## What
