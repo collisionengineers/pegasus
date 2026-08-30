@@ -2,7 +2,7 @@
 id: INTK-051
 type: ticket
 title: Activate INT-31 upload links in production under recorded interim limits
-status: review
+status: verifying
 area: intake-processing
 assignee: ''
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-29T21:20:01.585Z'
   implementing: '2026-08-29T21:21:53.273Z'
   review: '2026-08-29T21:30:55.140Z'
+  verifying: '2026-08-30T00:05:51.669Z'
 labels:
   - INT-31
   - requires-live-approval
@@ -25,7 +26,7 @@ prs:
   - '633'
 archived: false
 created: '2026-08-29T21:15:02.437Z'
-updated: '2026-08-29T21:30:55.140Z'
+updated: '2026-08-30T00:05:51.669Z'
 ---
 
 ## What
