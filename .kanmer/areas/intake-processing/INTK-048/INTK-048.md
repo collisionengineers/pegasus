@@ -2,13 +2,14 @@
 id: INTK-048
 type: ticket
 title: Resolve manually linked Unidentified receipts to their Case destination
-status: review
+status: implementing
 area: intake-processing
 assignee: codex
 profile: fix
 stageEntered:
   preparing: '2026-08-28T14:00:00.743Z'
   review: '2026-08-28T15:57:23.265Z'
+  implementing: '2026-08-30T20:10:31.210Z'
 taken_at: '2026-08-28T14:01:40.583Z'
 branch: task/intk-048-unidentified-manual-link
 worktree: ../pegasus-worktrees/intk-048-unidentified-manual-link
@@ -29,7 +30,7 @@ prs:
   - '#601'
 archived: false
 created: '2026-08-28T13:59:07.307Z'
-updated: '2026-08-28T15:57:23.265Z'
+updated: '2026-08-30T20:10:31.210Z'
 ---
 
 ## What
