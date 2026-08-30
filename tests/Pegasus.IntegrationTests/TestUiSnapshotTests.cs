@@ -31,14 +31,17 @@ public sealed partial class TestUiSnapshotTests
                 "EVA API submission for WEBP", "We could not complete that request"),
             ["case-details--unavailable"] = new("<h1>Case unavailable</h1>"),
             ["case-details--conflict"] = new("case changed", "Case unavailable"),
-            ["cases--empty"] = new("No matching cases."),
-            ["cases--unavailable"] = new("<h2>Cases are unavailable</h2>"),
+            ["cases--empty"] = new("No cases match these filters."),
+            ["cases--unavailable"] = new("<strong>Cases are unavailable</strong>"),
             ["vehicle-images--empty"] = new("No Image-initiated Cases match this view."),
-            ["inbox--empty"] = new("empty-state"),
+            // Empty with a healthy freshness chip, so this state and
+            // inbox--unavailable are not the same rendered page.
+            ["inbox--empty"] = new(
+                "<p>No mail has been received.</p>", "status--red\">Unavailable<"),
             ["inbox--unavailable"] = new(">Unavailable<"),
             ["inbox--default"] = new("<h1>Inbox</h1>"),
-            ["operations--empty"] = new("empty-state"),
-            ["queues--empty"] = new("No cases are waiting."),
+            ["operations--empty"] = new(">No retryable external work<"),
+            ["queues--empty"] = new("class=\"muted\">0 items</span>"),
             ["upload--validation"] = new("validation-summary-errors"),
             ["upload-group-status--processing"] = new("data-auto-refresh=\"2000\""),
             ["upload-group-status--needs-decision"] = new("needs a staff decision"),
