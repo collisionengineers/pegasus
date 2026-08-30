@@ -104,7 +104,7 @@ in force here:
 - `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope; it is read-only and the page carries no handler. Its optional search filters retained mail in SQL before paging across the retained body, attachment filenames, and receipt-owned `IntakeSearchDocuments` projected atomically from the canonical intake-reader output. Deleted Items search instead calls Core `SearchDeletedMail`, which caps a request at the 100 newest messages and uses GET-only Graph reads against each exact approved mailbox and its resolved `deleteditems` folder; MIME is parsed once by the same intake reader and is neither retained nor backfilled. The durable queued-intake caller also applies MAIL-09's advisory association after evaluation: it derives candidates from current non-archived Case registration data and exact mailbox/conversation current associations, then delegates a fresh evidence fingerprint to the existing serializable, idempotent association transaction. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, current classification, queue, processing outcome, current manual-or-accepted case association and latest folder-move result. For an unassociated exact receipt it also uses the canonical Case search/detail queries to show a searched business summary; the confirmed link POST re-resolves the message and receipt, verifies reviewed versions, acquires the existing Case edit lease and delegates to `ILinkIntake`. The confirmed unlink POST applies the same server-bound checks to the exact current Case and delegates to `IReverseIntakeLink`; replacement is a later independent search and link, not an active-to-active swap. That read also derives zero or one concrete suggested Move from the current folder recommendation and move eligibility; the advice is not stored and the page delegates its control to the existing confirmed move handler. `OnPostCorrectClassificationAsync` corrects classification. `OnPostMoveToRecommendedFolderAsync` accepts only the internal message id, current classification/recommendation/mailbox versions, operation key and required reason; Core revalidates the exact approved binding and Infrastructure reserves one `RetainedMailFolderMoves` record before the narrow provider port. A successful record overlays current location so the immutable arrival row remains unchanged and Inbox queries exclude the moved message. The provider is unavailable by default and the control is absent in that composition; fake-HTTP/local-SQL tests supply it, while no production writer, Graph permission, deployment or live mailbox mutation is active. The Web runtime role holds `SELECT` alone on the retained-mail and receipt search-projection tables and `SELECT, INSERT, UPDATE` on the move-operation table; the Worker projection writer holds `SELECT, INSERT, DELETE` on `IntakeSearchDocuments` because replacement removes and recreates rows rather than updating them. Web also holds `SELECT, UPDATE` on `IntakeMailClassificationDecisions` and `SELECT, INSERT` on `IntakeMailClassificationHistory` (`UPDATE, DELETE` denied there).
 - `GET /Operations` calls the Core Operations projection for retryable external work and active unexpired Pegasus-generated upload links. It has no approval controls, general receipt ledger, manual/email/Automation receipt display, or Box request caller. The separately planned principal-scoped provider API is not inferred from the Automation/MCP ingress. `GET /Received/{id}` calls `GetIntake`, and its retained receipt mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
-- `IImageIntakeQueries` serves the association-filtered image-intake receipt list, the exact Image Intake Reference lookup, the receipt's VRM suggestions and — while a record holds no case association — the registration-matched eligible-case candidates. **The standalone `/VehicleImages` list and detail pages were removed by EPIC-011**; those reads are now reached from `/Cases`, `/Cases/{id:guid}`, the received-material detail page and Search, all read-only authenticated staff surfaces.
+- `GET /VehicleImages/{id:guid}` calls Core `IImageIntakeQueries` for the image-intake detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; it is a read-only authenticated staff page. **EPIC-011 removed the standalone `/VehicleImages` list page only** — the detail page remains, and is now reached from `/Cases`, the case Files view, the received-material detail page and Search rather than from a list of its own. The association-filtered list query it served is now part of those surfaces.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
 - The Case documents surface links confirmed custody directly to the case's real
@@ -302,12 +302,18 @@ engine.
 - **Integrated Operations Workspace.** The operator surfaces are one workspace
   rather than separate pages: the Work Centre at `/`, `/Cases` with its tabbed
   queues, `/Operations`, and the case workspace at `/Cases/{id:guid}` with its
-  `?section=` views. The standalone image-intake, triage-list and
-  mail-categories pages they replaced were removed, not left alongside.
+  `?section=` views. The list surfaces they replaced — `/Triage` and
+  `/Administration/MailCategories` — are **not** removed: each survives as a
+  `RedirectPermanent` shim carrying its tab through, so bookmarks and existing
+  links land on the same work. Only the `/VehicleImages` list page was deleted
+  outright.
 - **`AiJobs`** — the pull-based AI job ledger (AUTO-011). One durable row per
-  requested job with its state and attribution; the Worker reads it and the
-  Automation Actor's writes return through the MCP ingress, never by the ledger
-  writing case data itself.
+  requested job with its state and attribution. **Web is the only runtime that
+  touches it**: staff create, cancel and confirm from the application, and
+  external AI clients work it through the `/mcp` ingress Web hosts. The Worker
+  runs no AI timer (ADR-0035) and is granted nothing on the table. The
+  Automation Actor's writes return through the MCP ingress; the ledger never
+  writes case data itself.
 - **`NamedEstimates`** — a reshape of `CaseRepairSpecifications` rather than a
   new table, giving an estimate a name and a current-version flag so a case can
   carry several and one is current.
@@ -318,8 +324,10 @@ engine.
 Two surfaces became reachable in production for the first time at this release:
 the Provider API (`Features:ProviderApi`, no credential issued) and document
 upload links (`DocumentRequests:AcceptedLimitsVersion`, INT-31 interim limits).
-Neither is a new boundary — both were built earlier and composed out. See
-[operations](operations.md#production-environment).
+The upload-link surface was built earlier and composed out. The Provider API
+was **not**: it did not exist at release 36 at all, and its routes, scheme,
+flag and two of the eleven migrations were introduced inside the release-37
+range. See [operations](operations.md#production-environment).
 
 ## Business-rule ownership
 
