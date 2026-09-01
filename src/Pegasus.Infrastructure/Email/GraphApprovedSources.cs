@@ -561,7 +561,8 @@ internal sealed class GraphMailClient(
             OptionalString(value, "conversationId"),
             OptionalString(value, "internetMessageId"),
             OptionalBoolean(value, "isRead"),
-            removed);
+            removed,
+            value.TryGetProperty("receivedDateTime", out _));
     }
 
     private static bool OptionalBoolean(JsonElement value, string property) =>
@@ -629,11 +630,22 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         foreach (var item in available)
         {
             processed++;
-            // Graph guarantees only "at least the updated properties" on a sparse delta
-            // entry, so an already-known item can recur here (e.g. a read/flag change)
-            // without receivedDateTime even though it was selected on the initial call.
-            if (item.Removed || item.ReceivedAtUtc is null)
+            if (item.Removed)
             {
+                continue;
+            }
+            if (item.ReceivedAtUtc is null)
+            {
+                // Graph guarantees only "at least the updated properties" on a sparse
+                // delta entry, so an already-known item can recur here (e.g. a read/flag
+                // change) genuinely without receivedDateTime even though it was selected
+                // on the initial call. A present-but-unparseable value is a different,
+                // reportable fault and must not be silently treated the same way.
+                if (item.ReceivedDateTimePresent)
+                {
+                    throw new InvalidDataException(
+                        "Microsoft Graph returned an unparseable receivedDateTime.");
+                }
                 continue;
             }
             var mime = await client.ReadMimeAsync(mailboxId, item.Id, cancellationToken);
@@ -1096,7 +1108,8 @@ internal sealed record GraphDeltaItem(
     string? ConversationId,
     string? InternetMessageId,
     bool IsRead,
-    bool Removed);
+    bool Removed,
+    bool ReceivedDateTimePresent);
 
 internal sealed record GraphCursor(int Version, Uri PageUri, int SkipCount)
 {

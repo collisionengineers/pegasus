@@ -433,6 +433,26 @@ public sealed class ProductionGraphSourceTests
             cursor.PageUri.GetComponents(UriComponents.Path, UriFormat.Unescaped));
     }
 
+    /// <summary>
+    /// A present-but-unparseable receivedDateTime is a different, reportable fault from
+    /// Graph genuinely omitting it, and must still surface rather than being silently
+    /// treated as a benign sparse update (review finding on MAIL-029).
+    /// </summary>
+    [Fact]
+    public async Task InboxThrowsOnAPresentButUnparseableReceivedDateTimeRatherThanSkipping()
+    {
+        var handler = new DelegateHandler(_ => Response(HttpStatusCode.OK,
+            """{"value":[{"id":"corrupt-1","parentFolderId":"inbox-folder","receivedDateTime":"not-a-date"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}"""));
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => source.ReadAsync(
+            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            10,
+            CancellationToken.None));
+    }
+
     [Fact]
     public async Task InboxAcceptsTheGraphCanonicalODataCursorForTheExactFolder()
     {
