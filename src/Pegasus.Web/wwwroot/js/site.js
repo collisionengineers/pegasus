@@ -703,38 +703,42 @@
         var request = null;
         var cache = new Map();
 
-        // The server renders the URL-selected message into the pane and marks
-        // its trigger aria-current. Start from that state: the pane already
-        // shows the message, so only the row bookkeeping is needed.
+        // The pane renders only beside a list that has a server-selected row
+        // (the page model resolves one whenever it renders the pane at all),
+        // and that row's trigger is the pane's fallback wherever intent goes.
         var selectedRow = rows.filter(function (row) {
             var trigger = row.querySelector('[data-mail-preview-trigger]');
             return trigger && trigger.getAttribute('aria-current') === 'true';
         })[0] || null;
-        if (selectedRow) {
-            selectedRow.classList.add('is-preview-selected');
-            activeRow = selectedRow;
+        if (!selectedRow) {
+            return;
         }
+        var actions = facts.querySelector('[data-mail-preview-actions]');
+        activeRow = selectedRow;
 
         var field = function (name) {
             return facts.querySelector('[data-mail-preview-' + name + ']');
         };
 
-        var resetSelection = function () {
-            if (request) {
-                request.abort();
-                request = null;
-            }
-            rows.forEach(function (row) {
-                row.classList.remove('is-preview-selected');
-                var trigger = row.querySelector('[data-mail-preview-trigger]');
-                if (trigger) {
-                    trigger.setAttribute('aria-expanded', 'false');
-                }
+        // The pane already shows the selected message; seeding the cache from
+        // its rendered fields means restoring that message never waits on the
+        // network and never leaves its actions hidden behind a failed fetch.
+        cache.set(
+            selectedRow
+                .querySelector('[data-mail-preview-trigger]')
+                .getAttribute('data-mail-preview-url'),
+            {
+                sender: field('sender').textContent,
+                subject: field('subject').textContent,
+                received: field('received').textContent,
+                receivedAtUtc: field('received').getAttribute('datetime'),
+                excerpt: field('excerpt').textContent,
+                classification: field('classification').textContent,
+                association: field('association').textContent,
+                attachments: Array.prototype.map.call(
+                    field('attachments').querySelectorAll('li'),
+                    function (item) { return item.textContent; })
             });
-            activeRow = null;
-            panel.hidden = true;
-            panel.removeAttribute('aria-busy');
-        };
 
         var render = function (data) {
             field('sender').textContent = data.sender;
@@ -770,7 +774,6 @@
                 request.abort();
             }
             rows.forEach(function (candidate) {
-                candidate.classList.toggle('is-preview-selected', candidate === row);
                 var candidateTrigger = candidate.querySelector('[data-mail-preview-trigger]');
                 if (candidateTrigger) {
                     candidateTrigger.setAttribute(
@@ -779,6 +782,11 @@
                 }
             });
             activeRow = row;
+            if (actions) {
+                // The pane's actions belong to the selected message; while a
+                // transient preview shows a different row, they are not its.
+                actions.hidden = row !== selectedRow;
+            }
             panel.hidden = false;
             status.hidden = false;
             status.textContent = 'Loading quick preview…';
@@ -820,23 +828,26 @@
             });
         };
 
-        // Leaving a row ends the transient preview, not the pane: it falls
-        // back to the server-selected message, whose links must stay
+        // Leaving the rows ends the transient preview, not the pane: it falls
+        // back to the server-selected message, whose actions must stay
         // reachable. select() no-ops when that row is already active, so
         // leaving the selected row itself leaves the pane untouched.
         var restoreSelection = function () {
-            if (selectedRow) {
-                select(selectedRow);
-                return;
-            }
-            resetSelection();
+            select(selectedRow);
         };
 
         rows.forEach(function (row) {
             var trigger = row.querySelector('[data-mail-preview-trigger]');
             row.addEventListener('pointerenter', function () { select(row); });
-            row.addEventListener('pointerleave', function () {
-                if (activeRow === row && !row.contains(document.activeElement)) {
+            row.addEventListener('pointerleave', function (event) {
+                if (activeRow !== row || row.contains(document.activeElement)) {
+                    return;
+                }
+                // Moving between rows is not leaving them: the next row's
+                // pointerenter supersedes this event, and restoring between
+                // every pair of rows would repaint the pane down the list.
+                var entered = event.relatedTarget;
+                if (!entered || !entered.closest('[data-mail-preview-row]')) {
                     restoreSelection();
                 }
             });
