@@ -629,7 +629,10 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         foreach (var item in available)
         {
             processed++;
-            if (item.Removed)
+            // Graph guarantees only "at least the updated properties" on a sparse delta
+            // entry, so an already-known item can recur here (e.g. a read/flag change)
+            // without receivedDateTime even though it was selected on the initial call.
+            if (item.Removed || item.ReceivedAtUtc is null)
             {
                 continue;
             }
@@ -641,7 +644,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
                 item.Id,
                 $"{SanitizeFileName(item.Id)}.eml",
                 mime,
-                item.ReceivedAtUtc ?? throw new InvalidDataException("Graph Inbox message omitted receivedDateTime."),
+                item.ReceivedAtUtc.Value,
                 next)
             {
                 RetainedMetadata = await ReadRetainedMetadataAsync(
