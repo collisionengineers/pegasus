@@ -687,6 +687,8 @@
 // UI-10: evidence-only mail preview. A subject remains an ordinary full-detail
 // link; this enhancement selects its row on pointer/keyboard intent and reads
 // the same authorized exact-message projection without moving focus or state.
+// When that intent moves on, the pane restores the server-selected message
+// instead of hiding: the pane is a fixture of the page, not a tooltip.
 (function () {
     document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
         var panel = workspace.querySelector('[data-mail-preview]');
@@ -700,6 +702,18 @@
         var activeRow = null;
         var request = null;
         var cache = new Map();
+
+        // The server renders the URL-selected message into the pane and marks
+        // its trigger aria-current. Start from that state: the pane already
+        // shows the message, so only the row bookkeeping is needed.
+        var selectedRow = rows.filter(function (row) {
+            var trigger = row.querySelector('[data-mail-preview-trigger]');
+            return trigger && trigger.getAttribute('aria-current') === 'true';
+        })[0] || null;
+        if (selectedRow) {
+            selectedRow.classList.add('is-preview-selected');
+            activeRow = selectedRow;
+        }
 
         var field = function (name) {
             return facts.querySelector('[data-mail-preview-' + name + ']');
@@ -806,12 +820,24 @@
             });
         };
 
+        // Leaving a row ends the transient preview, not the pane: it falls
+        // back to the server-selected message, whose links must stay
+        // reachable. select() no-ops when that row is already active, so
+        // leaving the selected row itself leaves the pane untouched.
+        var restoreSelection = function () {
+            if (selectedRow) {
+                select(selectedRow);
+                return;
+            }
+            resetSelection();
+        };
+
         rows.forEach(function (row) {
             var trigger = row.querySelector('[data-mail-preview-trigger]');
             row.addEventListener('pointerenter', function () { select(row); });
             row.addEventListener('pointerleave', function () {
                 if (activeRow === row && !row.contains(document.activeElement)) {
-                    resetSelection();
+                    restoreSelection();
                 }
             });
             if (!trigger) {
@@ -821,7 +847,7 @@
             trigger.addEventListener('blur', function () {
                 setTimeout(function () {
                     if (activeRow === row && !row.contains(document.activeElement)) {
-                        resetSelection();
+                        restoreSelection();
                     }
                 }, 0);
             });
