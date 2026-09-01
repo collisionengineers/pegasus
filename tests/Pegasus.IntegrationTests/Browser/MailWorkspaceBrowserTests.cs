@@ -33,8 +33,9 @@ public sealed class MailWorkspaceBrowserTests
 
         Assert.True(await preview.IsVisibleAsync());
         Assert.Equal("true", await trigger.GetAttributeAsync("aria-expanded"));
-        Assert.True((await row.GetAttributeAsync("class") ?? string.Empty)
-            .Contains("is-preview-selected", StringComparison.Ordinal));
+        // The selected row's affordance is aria-current — the attribute the
+        // row-button styles key on — not a JS-only class.
+        Assert.Equal("true", await trigger.GetAttributeAsync("aria-current"));
         Assert.Equal(
             "Browser preview message",
             await preview.Locator("[data-mail-preview-subject]").TextContentAsync());
@@ -68,13 +69,21 @@ public sealed class MailWorkspaceBrowserTests
             await preview.Locator("[data-mail-preview-subject]").TextContentAsync());
         Assert.Equal("true", await trigger.GetAttributeAsync("aria-expanded"));
 
-        await row.HoverAsync();
-        await preview.Locator("[data-mail-preview-subject]").WaitForAsync();
+        // Hovering a row other than the selected one is the one pointer path
+        // that exercises the JSON preview handler end to end.
+        await support.Page.Locator("[data-mail-preview-row]").Nth(1).HoverAsync();
+        await WaitForPreviewSubjectAsync(support.Page, "Older browser message");
         Assert.True(await preview.IsVisibleAsync());
 
         await support.Page.SetViewportSizeAsync(640, 800);
         await trigger.FocusAsync();
         await preview.Locator("[data-mail-preview-subject]").WaitForAsync();
+        // The pointer still rests on a row, and the resize re-fires
+        // pointerenter under it, so the pane can be mid-transient here.
+        // Parking the pointer on the pane itself settles the preview back on
+        // the selected message before the constrained-width checks.
+        await preview.HoverAsync();
+        await WaitForPreviewSubjectAsync(support.Page, "Browser preview message");
         Assert.False(await HasHorizontalDocumentOverflowAsync(support.Page));
         Assert.True(await support.Page.EvaluateAsync<bool>(
             "(() => {" +
@@ -133,15 +142,19 @@ public sealed class MailWorkspaceBrowserTests
         var olderTrigger = olderRow.Locator("[data-mail-preview-trigger]");
         var preview = support.Page.Locator("[data-mail-preview]");
 
-        // Hovering the older row previews it transiently.
+        // Hovering the older row previews it transiently; the pane's actions
+        // belong to the selected message, so they step aside meanwhile.
         await olderRow.HoverAsync();
         await WaitForPreviewSubjectAsync(support.Page, "Older browser message");
+        Assert.True(await preview.Locator("[data-mail-preview-actions]").IsHiddenAsync());
 
         // Moving the pointer off the list — here, toward the pane's actions —
-        // restores the selected message instead of hiding the pane.
+        // restores the selected message instead of hiding the pane, and the
+        // actions return with it.
         await preview.HoverAsync();
         await WaitForPreviewSubjectAsync(support.Page, "Browser preview message");
         Assert.True(await preview.IsVisibleAsync());
+        Assert.True(await preview.Locator("[data-mail-preview-actions]").IsVisibleAsync());
         Assert.Equal("true", await newestTrigger.GetAttributeAsync("aria-expanded"));
         Assert.Equal("false", await olderTrigger.GetAttributeAsync("aria-expanded"));
 
