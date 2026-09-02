@@ -16,7 +16,7 @@ their permanence.
 
 ## Starting state
 
-- `origin/dev` @ `9b8f78a36151313bc6d48625edee7f13a2173127`.
+- Baseline: the `dev` branch at commit `9b8f78a36151313bc6d48625edee7f13a2173127`.
 - `src/Pegasus.Web/Pages/Triage/Details.cshtml:400` renders
   `<div class="panel-head"><h2 id="triage-history-title">Permanent history</h2></div>`
   inside `<section class="panel section-gap" aria-labelledby="triage-history-title">`
@@ -32,9 +32,9 @@ their permanence.
 - EPIC-011 `context.md` D7 already carries "**Narrowed 2026-09-01 (UIIMP-012)**"; §1.5
   already names the panel Notes. `docs/design/README.md` §Absent versus disabled already
   draws the same distinction and is being rewritten by DELIV-040's open PR #643.
-- Evidence: this ticket's `files` document (`files`, written this session, same run);
-  EPIC-011 `context.md` as read on 2026-09-02; PR #643 head
-  `task/deliv-040-governing-docs` as fetched on 2026-09-02.
+- Evidence: `files/files.md`@`00c4de3afe35fa94`. Also read at that baseline: EPIC-011
+  `context.md` (2026-09-02) and the DELIV-040 branch `task/deliv-040-governing-docs`
+  behind PR #643 (fetched 2026-09-02).
 - Workspace: worktree `C:\Users\PGUSER\Documents\github\pegasus-worktrees\uiimp-012-notes-panel`
   on `task/uiimp-012-notes-panel`, cut from `origin/dev`.
 
@@ -81,9 +81,9 @@ their permanence.
    produces is committed with the page change, because CI's Test UI lane runs the same
    verify. The expected outcome is *no change* to any artifact.
 
-There is nothing to investigate, decide or choose: the name, the file that owns it, and
-the ownership of the docs half are all settled above. Trivial defaults taken without
-asking, recorded here: keep `id="triage-history-title"` (a DOM id is not operator-visible
+No planner work remains: the name, the file that owns it, and the ownership of the docs
+half are each settled above with their evidence. Trivial defaults taken without asking,
+recorded here: keep `id="triage-history-title"` (a DOM id is not operator-visible
 and INTK-054 owns the panel's structure); keep the `notes-list` / `note-entry` classes;
 do not harmonise the sibling `History` headings on other pages.
 
