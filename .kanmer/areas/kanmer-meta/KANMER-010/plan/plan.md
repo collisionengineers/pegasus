@@ -399,13 +399,32 @@ every role on this ticket. Tests: controller wave loop.
 
 ## Simplification pass — 2026-09-02
 
-n/a — configuration and skill-tree refresh; no product code. The diff is vendored content
-copied byte-for-byte from the Kanmer 0.4.0 plugin bundle plus two generated stamp files;
-there is no authored logic to simplify, no duplication to fold, and any edit to the copied
-text would break the byte-parity this ticket exists to establish. Recorded here to satisfy
-`AGENTS.md` *Repository task workflow* step 4, which allows the `n/a` disposition for a
-docs-only task. The implementer confirms this line still holds — or replaces it with real
-findings — before opening the PR.
+**Disposition: n/a — configuration and skill-tree refresh; no product code.** Confirmed by
+the implementer against the actual diff (36 paths, +3,429 / −384) before opening the pull
+request, with the four lenses applied one at a time:
+
+- **Reuse.** Every changed byte of the twelve skill folders comes from
+  `C:/Users/PGUSER/.claude/plugins/cache/kanmer/kanmer/0.4.0/skills` by byte copy, and both
+  `.kanmer-skills-version` stamps were copied from the output the sanctioned 0.4.0 setup run
+  had already written in the primary checkout rather than retyped from the plan's name list —
+  so the generator, not this ticket, remains the author of the stamp format. The `AGENTS.md`
+  block was left to `agents-block.mjs`, its only sanctioned writer. Nothing was reimplemented.
+- **Simplification.** There is no authored logic to simplify. Any edit to the copied text
+  would destroy the byte-parity this ticket exists to establish, so the correct disposition is
+  to change nothing.
+- **Efficiency.** Not applicable: no code path, query, allocation or loop changes. The 26
+  files that differed only by line endings were deliberately left to normalise on staging
+  instead of being rewritten, which keeps them out of both commits and off the reviewer's
+  plate.
+- **Altitude.** Both destinations are refreshed from one source in the same change, so
+  `.agents/skills` and `.grok/skills` converge instead of drifting apart as separately
+  maintained copies. Scope was held at reconciliation: `.zcode/skills` (no Kanmer skills
+  installed), the repository-owned `pegasus-release` and `razor-pages-ui-*` skills, and the
+  machine-specific MCP registrations were all left alone, the last of these reported rather
+  than committed.
+
+Recorded to satisfy `AGENTS.md` *Repository task workflow* step 4, which allows the `n/a`
+disposition for a docs-only task.
 
 ## Stop condition
 
