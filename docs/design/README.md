@@ -21,9 +21,9 @@ below governs every such claim.
 
 ## Evidence discipline
 
-The canonical visual execution source is the work-pack
-`Pegasus_UI_Frontend_Design_Premium_Full_End_State.html` (D15, 2026-09-01). A
-visual conflict between it and a delivered surface pauses only the affected
+Repository FRDs and this design guide own UI requirements. The adjacent
+work-pack is supporting comparison evidence, not a canonical execution source
+(D15, amended 2026-09-02). A visual conflict with a delivered surface pauses only the affected
 lane and its dependants; it never pauses the programme.
 
 Intended, planned, implemented, caller-proved, deployed and accepted are distinct:
@@ -611,7 +611,7 @@ never copied.
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
-| Supplied engineer signatures | Retained and governed but inactive: a report renders the issuing Engineer's typed identity only (D18); never embedded by Infrastructure and never Web decorative imagery |
+| Supplied engineer signatures | Andy Patterson's approved exact tuple is embedded by Infrastructure; other supplied assets remain governed but inactive; never Web decorative imagery. Future policy is deferred to `DOCS-017`. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
 The imported renderer can exercise its own assets without proving the planned
@@ -1010,7 +1010,7 @@ costs are explicit amounts (D17). VAT % is free per estimate, applies to the
 whole subtotal, and the Current estimate's VAT % overrides the report's
 built-in rule (D9). No comparison or savings figure appears in the totals or
 on the report (D17). Dialogs: Send to Claude (direction textarea, Target
-Estimate % slider of Engineer's Value — optional, 0–100 %, no default, and the
+Estimate % slider of Engineer's Value — optional, 0–80 %, no default, and the
 derived Target amount shown beside it as proposal guidance only (D24) — Case
 Valuation, Target amount; disabled without an Engineer's Value); Delete estimate; Report draft preview;
 image viewer.
@@ -1018,15 +1018,14 @@ image viewer.
 ### Upload `/Upload`, public `/Uploads/{token}`
 
 Upload: header only; dropzone ("Drag files here or choose files" · "EML, MSG,
-PDF, DOC, DOCX, JPG or PNG · up to 100 MB each" · Choose files dark) — the
-request bound is approximately 200 MB per multipart submission (D20); file rows
+PDF, DOC, DOCX, JPG or PNG · up to 10 MiB each" · Choose files dark); file rows
 (status chip, progress, per-file outcome with Open X / Add to existing Case /
 Create Case / Cancel) beneath one submission decision (D20); Upload (primary)
 and Clear. Public: external shell, company logo, "Secure file request",
 heading "Upload files for REF", request reference and expiry, dropzone, Submit
-files; one successful submission per link, an identical retry reconciles, and a
-later submission, revoked or expired link is refused without naming the Case
-(D20).
+files; the first successful file starts a fixed non-sliding 15-minute session
+for additions or replacements, closed by explicit finalisation or expiry
+without naming the Case (D20).
 
 ### Operations `/Operations`
 
@@ -1059,8 +1058,8 @@ Reports** | content panel (heading, area label, meta).
   needs no setting) — Pegasus API key (masked, Show / Hide), Generate new
   key (danger → reason), Save.
 - **Workflow configuration:** Instruction completeness and Image completeness
-  (versioned required / not-required item rules with exact blockers, never a
-  percentage — D23), Review (two checkboxes), Due work (Chase interval: whole
+  (required / not-required item rules with exact blockers, never a percentage
+  — D23), Review (two checkboxes), Due work (Chase interval: whole
   calendar days, 1–365, default 7, Europe/London — D23), Labour-rate cards
   (Name, Non-paint hourly rate, State; Create card, Disable card — D17); Save
   configuration.
@@ -1475,8 +1474,10 @@ These are the rules every operator surface is held to.
    raw browser 404.
 6. **Absent versus disabled.** A capability that is not composed in this
    deployment is absent. A capability whose record does not yet satisfy a
-   condition is present, disabled, and states the condition. The only
-   disabled uncomposed capability is a named, ticketed integration seam
+   condition is present, disabled, and states the condition. A named, ticketed
+   frontend preview may be visible disabled and inert before its backend exists;
+   it makes no delivery claim and has no production handler. Implemented
+   behaviour behind a closed composition gate is not delivered
    ([Absent versus disabled](#absent-versus-disabled), D7).
 7. **Counts and times cannot be proved locally.** A count query against an
    empty database returns the same zero as a correct one, and a rendered time

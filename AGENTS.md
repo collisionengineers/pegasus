@@ -220,6 +220,9 @@ in the build lane and the catalogue check on every change set.
 - A closed composition or feature gate is a disabled flag, not a partially
   shipped feature — never claim or document it as delivered before it has a
   real caller and activation evidence.
+- That rule applies to implemented backend behaviour shipped dark. A named,
+  ticketed frontend preview may appear disabled and inert before its backend
+  exists; it has no production handler and makes no delivery claim.
 - Never delete a case; wrong-principal work closes as `Created in error` with
   a linked replacement instead, and neither reference is reused.
 - `docs/operator-notes.md` is protected — stop for user resolution before

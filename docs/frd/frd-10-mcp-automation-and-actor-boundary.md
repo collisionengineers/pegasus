@@ -89,9 +89,11 @@ provider-plus-sequence Draft naming and the same replay rule apply to both
 `automation.jobs` is a new scope with its own consent description on the
 Administrator consent page; a token without it cannot see the ledger. The
 estimate tools stay under `automation.assessment` because they write
-assessment values, but they accept AI drafts only: an estimate saved without
-a job reference, or naming a job that is not taken by the calling client, is
-refused. The existing `automation.mail` scope is granted today without a
+assessment values. `pegasus_estimate_save` accepts AI drafts only: an estimate
+saved without a job reference, or naming a job not taken by the calling client,
+is refused. `pegasus_estimate_import` transports a raw PDF or XML artifact for
+shared extraction and normalization and requires no AI job reference. The
+existing `automation.mail` scope is granted today without a
 consent description; it must carry one before any connector is consented to
 it. Each tool is proven under the tranche rule above — real caller, success,
 authorization failure, validation failure, and action-history evidence.

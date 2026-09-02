@@ -75,12 +75,14 @@ account, or cross-request lookup. An accepted upload result means only that the
 request-local custody boundary succeeded; it is not case creation, Box custody,
 EVA handoff, report generation, or external delivery.
 
-A link accepts **one successful submission** (D20, 2026-09-01). An identical
-retry reconciles to the same result rather than creating a second submission. A
-different later submission, a revoked link and an expired link are all refused
-without disclosing the Case, its reference, the earlier submission or its
-files. The decided size bounds are 100 MB per file and approximately 200 MB per
-multipart request.
+A link starts a fixed, non-sliding 15-minute submission session when it first
+accepts a file successfully (D20, amended 2026-09-02). Failed attempts before
+that first success do not start the session. The requester may add or replace
+files until explicit finalisation or session expiry; either event closes the
+link and all later bytes are refused without disclosing the Case or earlier
+submission. Idempotent retries reconcile to the same result. The current
+manual-upload bound remains 10 MiB per file; future bounds require the research
+and operator decision tracked by `INTK-052`.
 
 File type/count/size limits, authentication of the staff creator, token expiry
 and revocation, idempotent retry, abuse handling, durable custody, cross-request
