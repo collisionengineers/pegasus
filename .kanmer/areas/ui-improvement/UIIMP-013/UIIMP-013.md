@@ -2,12 +2,23 @@
 id: UIIMP-013
 type: ticket
 title: The test-ui gate costs 50 minutes of every build-affecting PR
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: chore
 stageEntered:
   preparing: '2026-09-02T03:09:00.895Z'
+taken_at: '2026-09-02T03:21:55.240Z'
+branch: task/uiimp-013-test-ui-cost
+worktree: ../pegasus-worktrees/uiimp-013-test-ui-cost
+claim_expires_at: '2026-09-02T03:51:55.240Z'
+claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
+lease_id: 11e0006c-506a-4d37-adc3-428d06b2e0a6
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\pguser\documents\github\pegasus-worktrees\uiimp-013-test-ui-cost
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T03:21:55.240Z'
 labels:
   - ci
   - performance
@@ -19,7 +30,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T03:09:00.895Z'
+updated: '2026-09-02T03:21:55.240Z'
 ---
 
 ## What
