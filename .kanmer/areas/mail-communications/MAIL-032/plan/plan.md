@@ -516,3 +516,84 @@ instruction, not by refactoring.
 
 *Implementation pass (Step 3) — to be appended below, dated, one line per lens
 with its disposition.*
+
+**Implementation pass 2026-09-02 (pegasus-implementer, attempt 1)** — lenses run
+over the real 13-file diff (`git diff origin/dev...HEAD`, +218 / −87) at merged
+head `3bf282441ddd3ba8c0355b8e59d06bea3d501cfb`. Zero repository lines authored
+by this pass; every disposition below is *applied on the branch already*,
+*rejected with a reason*, or *reported to the reviewer*.
+
+1. **Reuse / duplication — already applied on the branch, verified.**
+   `MessageModel.AssociationLabel` is now the single owner of the no-Case
+   wording: `grep '"No case"|"Not associated"' src/ --include=*.cs
+   --include=*.cshtml` returns exactly one hit, the helper's own body
+   (`Message.cshtml.cs:1154`). Three call sites (`Index.cshtml`,
+   `Index.cshtml.cs`, `Message.cshtml`) plus one assertion route through it. No
+   fourth copy remains.
+2. **Dead code — already applied on the branch, verified.** `resetSelection()`
+   is deleted (unreachable once both callers restore instead of hide), and the
+   `tr.is-preview-selected` block plus its `forced-colors` companion are gone
+   with the class that set them. `grep -rn is-preview-selected src/ tests/
+   docs/design/test-ui/pages/` returns nothing. Note for the record: those CSS
+   rules were *already* dead before this PR — the Inbox rows are
+   `div.row-button`, not `tr`, so the selector never matched the live markup.
+3. **Smallest change — rejected as a simplification target, with reason.**
+   Seeding `cache` from the pane's own rendered fields (+22 lines) looks like
+   the one place a plain re-fetch would be smaller. Rejected: a re-fetch makes
+   the restore path depend on the network, so a failed or slow
+   `OnGetPreviewAsync` would strand the pane in `aria-busy` with its actions
+   hidden — precisely the unreachable-actions failure this ticket exists to
+   remove. The complexity buys the invariant.
+4. **Efficiency — no change needed.** Restore is a cache hit, so it repaints in
+   the same tick; the `event.relatedTarget.closest('[data-mail-preview-row]')`
+   guard stops a repaint between every pair of rows as the pointer travels the
+   list. Both are cheaper than the alternatives, not more expensive.
+5. **Altitude / blast radius — REPORTED FINDING S1, no code change made.**
+   The two added `site.css` selectors do not match any Inbox element and do
+   change a non-Inbox surface, which inverts their stated purpose:
+   - Inbox markup puts `aria-current="true"` on the inner
+     `a.row-title[data-mail-preview-trigger]` (`Pages/Mail/Index.cshtml:253`),
+     while the `.row-button` is the *container* `div` and carries no
+     `aria-current`. So `.row-button[aria-current="true"]` (site.css:270) and
+     `.queue-layout .row-button[aria-current="true"] .row-title` (site.css:653)
+     match **nothing** in the Inbox.
+   - The one element in the repository they do match is the Cases list's
+     selected row — `<a class="row-button" … aria-current="true">`
+     (`Pages/Cases/Index.cshtml:126`), inside `.queue-layout`. That row
+     therefore gains `background:#f4f7fa; box-shadow:inset 4px 0 #263d56` and
+     `.row-title{color:var(--ink)}` it did not have before this PR.
+   - The plan's regression boundary states the added `aria-current` selectors
+     "must not change any non-mail row surface". This is that change. It is
+     plausibly a *desirable* consistency fix (the Cases selected row arguably
+     should read as selected), but it is unasserted: the pinned Test UI
+     snapshots compare HTML, so a CSS-only visual change cannot fail them, and
+     the browser job checks accessibility, not appearance.
+   - Disposition: **reported, not fixed.** The plan's Step 3 rule is that a lens
+     finding which would require a code change is a reported finding for the
+     reviewer to decide, never a quiet edit — and this ticket authors no
+     repository line. The reviewer's options are (a) accept the Cases
+     improvement and say so, (b) narrow the selector to the Inbox trigger, or
+     (c) drop the two selector additions as no-ops for the Inbox. Nothing in
+     the ticket's three Verification boxes depends on them: the Inbox selected
+     state is carried semantically by `aria-current`/`aria-expanded` on the
+     trigger, which the browser assertions check directly.
+6. **Comment truth — one inaccuracy, folded into S1.** The new browser-test
+   comment "the selected row's affordance is `aria-current` — the attribute the
+   row-button styles key on" is true of the *Cases* row-button and not of the
+   Inbox trigger it annotates. The `site.js` comments ("the pane is a fixture of
+   the page, not a tooltip"; the row-to-row guard; the actions rationale) each
+   describe what the code now does and were checked line by line.
+7. **Assertion strength — already applied on the branch, verified.**
+   `HoverPreviewRestoresTheSelectedMessageAndKeepsThePaneActionsReachable`
+   asserts the restored *subject*, `data-mail-preview-actions` visible again
+   after being hidden during the transient preview, `aria-expanded` true/false
+   across the two rows, and that the pane's full-detail link navigates to the
+   selected message — not merely that the pane is un-hidden. The pre-existing
+   focus-away assertion is inverted from hidden to restored rather than
+   deleted, and the seed grows from one message to two so restore is
+   observable. No test is skipped, loosened or removed.
+8. **Naming — no change needed.** `restoreSelection` / `selectedRow` /
+   `activeRow` read as what they are, and `restoreSelection` names the intent
+   rather than the mechanism (`select(selectedRow)`).
+
+**Net: one reported finding (S1), no repository line changed by this pass.**
