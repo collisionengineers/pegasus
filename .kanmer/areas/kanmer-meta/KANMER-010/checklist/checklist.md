@@ -12,11 +12,11 @@ notes rather than rewriting.*
 - [x] Step 2 — Delete `.grok/skills/kanmer-review/assets/` and its four `pr-*.md` files.
 - [x] Step 2 — Rewrite `.grok/skills/.kanmer-skills-version` from the bare `0.1.0` to the full `0.4.0` + `skills:` + twelve-name form, and confirm the name list matches the folders on disk.
 - [x] Step 2 — Confirm `git status --porcelain -- .grok` lists exactly 13 `M`, 4 `D`, 1 `M` stamp.
-- [ ] Step 3 — Run `node C:/Users/PGUSER/.claude/plugins/cache/kanmer/kanmer/0.4.0/scripts/agents-block.mjs <worktree>` twice and confirm `git status --porcelain -- AGENTS.md CLAUDE.md` is empty on both runs (the 0.4.0 block is already on `origin/dev`; a change outside the markers, or a line-ending-only rewrite, is a deviation stop).
+- [x] Step 3 — Run `node C:/Users/PGUSER/.claude/plugins/cache/kanmer/kanmer/0.4.0/scripts/agents-block.mjs <worktree>` twice and confirm `git status --porcelain -- AGENTS.md CLAUDE.md` is empty on both runs (the 0.4.0 block is already on `origin/dev`; a change outside the markers, or a line-ending-only rewrite, is a deviation stop).
 - [x] Step 4 — Prove content parity: `diff -rq --strip-trailing-cr` is silent for all twelve skills in both trees, no `differ` and no `Only in` line in either direction.
 - [x] Step 4 — Prove membership: whole-tree `diff -rq` reports only the stamp plus the four repository-owned skills under `.agents`, and only the stamp under `.grok`.
 - [x] Step 4 — `KANMER_REPO_ROOT=<worktree> get_status` reports **no `skills` artefact row**. (`repo.upToDate` stays `false` because `mcp-registration` is behind by design and `board-config` is `compensated`; that is the pass condition, not a failure.)
-- [ ] Step 4 — Confirm the diff contains nothing else: `git diff --name-only origin/dev...HEAD` lists only the 36 paths under `.agents/skills/kanmer-*`, `.grok/skills/kanmer-*` and the two stamps — no `AGENTS.md`, no `opencode.json`, no `.codex/`, no `.zcode/`, no `.kanmer/`.
+- [x] Step 4 — Confirm the diff contains nothing else: `git diff --name-only origin/dev...HEAD` lists only the 36 paths under `.agents/skills/kanmer-*`, `.grok/skills/kanmer-*` and the two stamps — no `AGENTS.md`, no `opencode.json`, no `.codex/`, no `.zcode/`, no `.kanmer/`.
 - [ ] Step 4 — Commit one logical slice on `task/kanmer-010-setup-drift` and push with `git push -u origin task/kanmer-010-setup-drift`.
 - [ ] Report-only: record in the post-implementation report what `origin/dev` carries for `opencode.json` (it registers `C:\Users\PC\Documents\GitHub\pegasus\.worktrees\kanmer`, another workstation's board) and `.codex/config.toml`, that `.mcp.json` is untracked and ignored, and that the fix is "reconnect this project in the Kanmer app" on the host that uses it — never a commit.
 - [ ] Confirm the dated `## Simplification pass — 2026-09-02` disposition in the plan still holds (`n/a — configuration and skill-tree refresh; no product code`), or replace it with real findings, before opening the PR.
@@ -81,3 +81,30 @@ Append with `set_ticket_doc(doc: "checklist", append: true)`.
   and unstaged; the outstanding acts are one staging call, one commit on
   `task/kanmer-010-setup-drift`, `push -u origin task/kanmer-010-setup-drift`, the
   post-implementation report, the pull request against `dev`, and the move to `review`.
+
+### Implementer attempt 1, resumed after the guard fix — 2026-09-02
+
+The controller corrected shell-guard rule 8 (installed copy sha `55c691be…`) so a command
+naming a ticket worktree is judged against that location instead of the session directory.
+Resumed at the point of the stop, in the same recorded location, nothing else re-done.
+
+- The `AGENTS.md` line-ending-only rewrite is reverted: `checkout -- AGENTS.md` succeeded and
+  the porcelain status for `AGENTS.md` and `CLAUDE.md` is empty. Step 3's box is now ticked —
+  the script is idempotent here, printed the same success line twice, and changed no content.
+- Two logical slices committed on `task/kanmer-010-setup-drift`, one per destination tree:
+  - `80a4f4022651d07929efb11509cf29770e7c2c59` — chore(kanmer): refresh the .agents skill tree
+    to 0.4.0 (KANMER-010). 18 entries: 13 modified skill files, 4 deletions, 1 stamp.
+  - `93ec918efa151ecfcdf7a87774cecb5538d78d9f` — chore(kanmer): refresh the .grok skill tree
+    to 0.4.0 (KANMER-010). 18 entries, the same shape.
+- Committed scope PASS: `diff --name-only origin/dev...HEAD` lists exactly 36 paths, every one
+  under `.agents/skills/kanmer-*`, `.grok/skills/kanmer-*` or one of the two stamps — no
+  `AGENTS.md`, no `opencode.json`, no `.codex/`, no `.zcode/`, no `.kanmer/`. Diffstat
+  36 files changed, +3,429 / −384, matching the plan's estimate to the line.
+- The 26 files that only ever differed by line endings staged as no-change, so they are
+  absent from both commits. Porcelain status is now empty: the index, the working copy and
+  the two commits agree.
+- Post-commit re-verification: `diff -rq --strip-trailing-cr` silent for all 24 skill
+  comparisons, and `KANMER_REPO_ROOT=<worktree> get_status` still shows no `skills` row and no
+  `agents-block` row (only `board-config` compensated and `mcp-registration` behind).
+- Not pushed, by the controller's instruction. Stop point READY_FOR_TESTS reached at
+  `93ec918efa151ecfcdf7a87774cecb5538d78d9f`; the test runner is next, then PR_OPEN.
