@@ -84,12 +84,13 @@ commits:
   - 1441550f
   - 25c14574a9e34c77e977f8a8eb203c2fe85dc13e
   - fb68225b3713fa6e992f500bf08ef8248c62cbb6
+  - 0f0e90ae44ffda7339ca2a460310deeb98121afa
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/643'
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T11:45:39.594Z'
+updated: '2026-09-02T11:45:55.573Z'
 ---
 
 ## What
@@ -129,3 +130,10 @@ OCR (`prebuilt-layout`, no raw response retained, measured threshold) stays with
 - [ ] Independent review confirms no unauthorized scope.
 
 ## Outcome
+
+Merged PR #643 into `dev` on 2026-09-02 at merge commit
+`0f0e90ae44ffda7339ca2a460310deeb98121afa`. Documentation verification
+passed at that exact SHA; deployment is not applicable (`n/a`). Operator review
+changed the delivered contract from the original plan: signature-policy work
+was deferred to [[DOCS-017]], and the 15-minute upload-session implementation
+to [[INTK-055]]. Both Codex and Claude work-pack plan sets were reconciled.
