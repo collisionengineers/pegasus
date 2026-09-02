@@ -178,10 +178,10 @@ third party sees are not places in the application (see
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
 | Escape | Close the open dialog |
 
-One documented exception to keyboard parity: the Assessment whole-page raw
-estimate drop is pointer-only (D16). Every other route to the same import — the
-MCP `pegasus_estimate_import` tool and manual line entry in the estimate
-editor — is keyboard-reachable.
+One accepted exception to keyboard parity: the Assessment whole-page raw
+estimate drop is pointer-only (D16), and it is a real gap — no staff keyboard
+route performs this import. Every other action on the page stays
+keyboard-reachable.
 
 Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
 initial focus on the first control, a focus trap, the rest of the document
@@ -1098,12 +1098,12 @@ stubbed, documented as delivered, or kept behind a flag:
 - the old Assessment section tabs, the old Triage action bar and the
   Additional case section;
 - the Assessment Import estimate dialog and its file picker — replaced by the
-  whole-page drop (D16);
-- the direct Glass's and Audatex service-launch controls (D21, ENG-030) — file
-  import stays in scope;
+  whole-page drop; still shipped, removal owed by ENG-033 (D16);
+- the direct Glass's and Audatex service-launch controls — still shipped as
+  disabled buttons, removal owed by ENG-030; file import stays in scope (D21);
 - a standalone Images list, runtime-managed email or document templates, and
-  any autonomous-send control (D21); staff-initiated outbound delivery stays in
-  scope under ADR-0036;
+  any autonomous-send control — never built (D21); staff-initiated outbound
+  delivery stays in scope under ADR-0036;
 - the Dashboard, Queues and combined Cases-search routes, which the 301 stubs
   cover until wave 5.
 
