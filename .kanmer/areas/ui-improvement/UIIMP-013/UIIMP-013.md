@@ -2,7 +2,7 @@
 id: UIIMP-013
 type: ticket
 title: Reduce the Test UI snapshot gate critical path without weakening coverage
-status: implementing
+status: review
 area: ui-improvement
 assignee: codex-root
 profile: chore
@@ -13,16 +13,16 @@ stageEntered:
 taken_at: '2026-09-02T03:21:55.240Z'
 branch: task/uiimp-013-test-ui-cost
 worktree: ../pegasus-worktrees/uiimp-013-test-ui-cost
-claim_expires_at: '2026-09-02T17:31:19.595Z'
+claim_expires_at: '2026-09-02T17:57:52.030Z'
 claim_controller: codex-root
 review_round: 1
 lease_id: 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4
-lease_revision: 8
+lease_revision: 9
 lease_workspace: >-
   worktree:c:\users\pguser\documents\github\pegasus-worktrees\uiimp-013-test-ui-cost
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T17:01:19.595Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-02T17:27:52.030Z'
 lease_reclaimed_from: claude-code/20260901T215000Z-claude-controller/implementer-a1
 labels:
   - ci
@@ -41,7 +41,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/644'
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T17:01:56.044Z'
+updated: '2026-09-02T17:27:52.030Z'
 ---
 
 ## What

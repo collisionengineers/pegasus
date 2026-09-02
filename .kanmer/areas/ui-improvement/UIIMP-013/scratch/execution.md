@@ -26,3 +26,13 @@
 - 2026-09-02T16:55:41.703Z stage review → implementing by codex-mcp-client; reason: needs-changes on 35667cb176baf31eceaa3eefa77ddb7ec3111ac8: F-001; review_round 1
 
 - 2026-09-02T17:01:19.599Z lease-phase review → implementing (lease 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4 rev 8; expires 2026-09-02T17:31:19.595Z)
+
+## Remediation handoff — 2026-09-02
+
+- F-001 fixed by `8116ac7b5545149670eb318708a2a4181bdba786`.
+- Existing PR #644 now points to that exact head; no second PR was opened.
+- Final-head repository-check run `33658537098` PASS; Test UI step 20:52.
+- `git diff --check` PASS and worktree clean.
+- Scope is one diagnostic string; capture behavior and budgets are unchanged.
+
+- 2026-09-02T17:27:52.034Z lease-phase implementing → review (lease 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4 rev 9; expires 2026-09-02T17:57:52.030Z)

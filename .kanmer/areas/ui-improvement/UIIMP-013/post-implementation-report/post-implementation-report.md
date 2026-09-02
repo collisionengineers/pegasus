@@ -106,5 +106,5 @@ capture, and the workflow retains the 35-minute step / 40-minute job budgets.
 - Scope: one diagnostic string; no capture behavior, timeout, test, snapshot,
   trigger, or other workflow lane changed.
 - Verification: `git diff --check` PASS; exact workflow text confirms the
-  configured timeout and diagnostic both name 35 minutes. The updated PR CI
-  run supplies final-head workflow validation.
+  configured timeout and diagnostic both name 35 minutes. Final-head
+  repository-check run `33658537098` PASS; Test UI completed in 20:52.
