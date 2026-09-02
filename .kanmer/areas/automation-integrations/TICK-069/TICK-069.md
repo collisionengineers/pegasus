@@ -14,6 +14,7 @@ labels:
   - EXT-15
   - later
   - requires-live-approval
+  - blocked
 groups:
   - HZN-002
   - EPIC-009
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:39.851Z'
-updated: '2026-09-01T14:50:16.761Z'
+updated: '2026-09-02T12:49:24.966Z'
 ---
 
 ## What
@@ -46,3 +47,7 @@ This is allocated to **Later / 0.5.0** in `docs/capabilities.md`. It is **not de
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-15.
+
+# BLOCK STATUS
+
+OPERATOR ADDED BLOCK 02/09/2026 - CURRENTLY OUT OF SCOPE - TO BE RE-EXAMINED
