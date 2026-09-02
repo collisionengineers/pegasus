@@ -466,6 +466,46 @@ Corrections or removals require separately accepted authority and a new explicit
 
 Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
 
+## Principal-identification corpus authoring
+
+The tracked principal-identification corpus is review evidence for all 49
+operational principals. It is generated from the retained Pegasus sources, an
+immutable local corpus, and a read-only CollisionSpike checkout. It is never
+loaded by the application and cannot activate a route, classification,
+association, or extraction policy.
+
+Inject both untracked source roots and run from PowerShell 7:
+
+```powershell
+$collisionSpikeRoot = "path-to-read-only-collisionspike-checkout"
+$corpusRoot = "path-to-immutable-pegasus-corpus"
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CollisionSpikeRoot $collisionSpikeRoot `
+  -CorpusRoot $corpusRoot
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CollisionSpikeRoot $collisionSpikeRoot `
+  -CorpusRoot $corpusRoot `
+  -Verify
+```
+
+Generation reads originals without modifying them, deduplicates by SHA-256,
+groups messages by thread root then stable case key then source hash, and
+assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
+regenerates canonical JSON and byte-compares the tracked package. The
+tracked text-source snapshots declare `normalized-lf` hashing so Git checkout
+line endings cannot create false drift; email, PDF, Office, workbook, and
+fixture evidence retains raw-byte hashes. The
+non-corpus tests validate its 49 dossiers, lifecycle counts, crosswalks,
+criterion states, deterministic split, and tracked Pegasus source hashes. The
+focused corpus lane additionally hashes every locally present original and
+runs it through the real MIME/PDF/Office reader.
+
+CollisionSpike confidence, priorities, thresholds, and winner selection are
+not copied into the normalized criteria. Dormant, unknown, conflicting, and
+multiple candidates remain review-only. A new runtime policy still requires
+the operator to select one principal and accept its development and untouched
+holdout outcomes.
+
 ## Provider inspection-mode setting
 
 Each Principal row carries an `InspectionMode` setting
