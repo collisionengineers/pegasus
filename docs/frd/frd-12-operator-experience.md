@@ -82,6 +82,10 @@ session start, idle lock, sign out).
 The utility bar carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), the **Add** action (Upload
 files, Create Case, Create upload request, Review Inbox) and notifications.
+**Create Case** takes the required identity and the attached or recorded
+instruction, records an attributable intake receipt, and then runs the normal
+principal and Case/PO allocation policy — never a second allocation path (D26,
+[FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)).
 A skip link precedes the rail; toasts announce in a live region; every
 dialog traps focus and inerts the page behind it.
 
@@ -89,7 +93,7 @@ dialog traps focus and inerts the page behind it.
 | --- | --- | --- |
 | `/` | Work Centre — needs-attention work and the metric strip | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md)) | — |
-| `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)) | — |
+| `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); a public link accepts one successful submission, an identical retry reconciles, and a later submission, revocation or expiry is refused without Case disclosure (D20) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions | Queues (`/Triage`) |
 | `/Cases/{id}` | Case workspace | — |
 | `/Cases/{id}/Assessment` | Engineer assessment | — |
@@ -182,7 +186,11 @@ replay shows the original result. The permanent U-reference and origin
 remain visible after resolution.
 
 Triage detail carries the determinations (roadworthiness, repair outcome),
-the source facts and notes; the existing server-side transitions remain
+the source facts, a `History` view that merges durable events with append-only
+attributable notes in chronological order, and a `Files` view of the retained
+sources, their attachments and the linked vehicle images with view and download
+(D25). A correction is a new note; there is no note edit, no note delete and no
+upload action on Triage. The existing server-side transitions remain
 reachable where a handler exists ([FRD-03](frd-03-triage.md)).
 
 ### Search
@@ -223,10 +231,11 @@ warns first; a stale version shows the current and proposed values as a
 non-destructive conflict.
 
 - Overview: the workflow position (Not ready → Review → With Engineer →
-  Complete, with Held as an exception badge), outstanding requirements
-  (title, source, reason, resolve action), the edit form (claimant, provider
-  reference, registration, make, model, accident circumstances) and the
-  work, party and accident facts.
+  Complete, with Held as an exception badge), outstanding requirements — the
+  named unmet items of the versioned instruction- and image-completeness sets,
+  each with title, source, reason and resolve action, and never a percentage
+  (D23) — the edit form (claimant, provider reference, registration, make,
+  model, accident circumstances) and the work, party and accident facts.
 - Vehicle: registration, make, model, year, mileage and its source; vehicle
   checks (DVLA / DVSA-MOT refresh, `EXT-01`) and the vehicle-history
   narrative ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
@@ -259,12 +268,35 @@ Close control.
 
 `/Cases/{id}/Assessment` opens for a Case in With Engineer or a later state,
 never in Review, and is read-only once Complete. It carries the evidence
-rail (instruction and images), the estimate set (`EXT-09`: named estimates
-with source, repair days, rates, materials, other costs, a free VAT
-percentage, lines and totals; one estimate is Current and drives the
-report), Import estimate (`EXT-12`), Send to Claude (`AI-09`, disabled
-without an Engineer's Value) and the report-draft generation and preview
+rail — instruction and images, with report-image preparation on the images:
+distinct `Close-up` first and `Overview` second, optional supporting images in
+explicit order, and non-destructive crops that leave the retained source and
+its hash untouched (D19) — the estimate set (`EXT-09`: named estimates
+with source, repair days, the selected labour-rate card, explicit paint
+labour, paint materials and other costs, a free VAT percentage, lines and
+totals; one estimate is Current and drives the report). Each version selects
+one of the global versioned labour-rate cards, which prices non-paint labour
+only; the version's own VAT percentage applies to the whole subtotal (D9,
+D17); no comparison or savings figure is shown. It also carries Send to Claude
+(`AI-09`, disabled without an Engineer's Value) and the report-draft
+generation and preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point)).
+
+Raw estimate import (`EXT-12`) has no control and no dialog. One file dropped
+anywhere on the Assessment page is imported immediately, with no confirmation
+step and no visible file picker (D16, 2026-09-01). Only currently registered
+parser types are accepted; the provider and parser are auto-detected and an
+ambiguous artifact is refused rather than guessed. The resulting Draft is named
+by provider plus sequence, and the filename, source hash, provider/parser,
+actor, channel and outcome are recorded. Dropping the same artifact on the same
+Case again replays the existing Draft; a different artifact creates the next
+immutable Draft
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#canonical-repair-specifications)).
+The drop is pointer-only and is a documented narrow accessibility exception:
+every other route that produces a Draft — the MCP `pegasus_estimate_import`
+tool ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools))
+and manual line entry in the estimate editor — is keyboard-reachable, so no
+capability is pointer-only.
 
 ### Operations
 
@@ -287,7 +319,22 @@ table), **Action Logs** (the permanent action history with search, area,
 actor, result and date filters) and **Reports** (the Engineer Report,
 `MI-01`: per Engineer and period, queries received and reports). Every
 consequential change — role, account state, principal credential, automation
-stop/start — takes a reason and enters permanent history.
+stop/start — takes a reason and enters permanent history. The **Staff accounts
+& roles** area carries a **Reset password** action beside Disable and Review:
+the Administrator enters and confirms a temporary password, the existing policy
+and hashing apply, the forced-change state is set, and the secret is never
+emailed or shown again (D28,
+[FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
+
+**Workflow configuration** holds the versioned instruction- and
+image-completeness rules as required/not-required items with exact blockers,
+and the chase interval as one global whole-calendar-day value (1 to 365,
+default 7, Europe/London), where `Held` preserves the remaining time (D23).
+It also holds labour-rate-card administration: the
+global versioned cards (name, non-paint hourly rate, enabled state) that every
+estimate version selects from, with disabling blocking future selection
+without changing history (D17). It stays inside that area; no ninth area is
+added.
 
 ### Workspace tabs, command palette and keyboard
 
@@ -312,6 +359,11 @@ finds Cases, references and routes by typing and opens the selection.
 
 A shortcut never bypasses a reason, confirmation or gate.
 
+One documented exception to keyboard parity exists: the Assessment whole-page
+raw-estimate drop is pointer-only (D16). It is recorded here rather than left
+implicit, and it removes no capability from the keyboard — the same import is
+reachable through the MCP tool and the estimate editor.
+
 ### Breakpoints
 
 Content is centred at up to 1580px. Below 980px the rail becomes a
@@ -330,6 +382,14 @@ state as `Closed · <outcome>` in Search. The mapping is owned by
 `Blocked intake` and `Unidentified` keep their settled meanings.
 
 ### Upload
+
+The decided intake bounds are 100 MB per file and approximately 200 MB per
+multipart request (D20, 2026-09-01); the Provider API envelope stays 30 MB and
+is owned by [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
+The authenticated staff `/Upload` route is available only where durable
+production intake and case custody exist; a production-local-only store is not
+an accepted custody path, and without durable custody the route is absent
+rather than offered.
 
 Selected files render one row per file — name, size, and a per-file state
 that is a spinner while the submission is in flight and a tick once the
@@ -355,8 +415,10 @@ uploaded material to it as an explicit staff decision. Cancel changes
 nothing — the material stays retained with its state honestly shown. The
 exact decision table and the attach contract are owned by
 [FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
-A grouped upload shows this per file; members of the same group can resolve
-independently and are never collapsed into one group-wide outcome.
+A grouped upload shows one submission decision with the per-file processing and
+outcome details beneath it (D20); the per-file confirmation decisions stay per
+file, so members of the same group resolve independently and are never
+collapsed into one group-wide confirmation outcome.
 
 ### Dashboard freshness and reconciliation
 
@@ -415,7 +477,9 @@ count, both redirects, the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
 Assessment access rule, the tab limit and eviction, the keyboard map, axe
 accessibility, focus behaviour and no document overflow at 1580, 1100 and
-760px. Snapshot and catalogue checks are owned by
+760px. The keyboard-map evidence records the Assessment whole-page drop as the
+one documented pointer-only exception (D16) and proves that the keyboard routes
+to the same import remain available. Snapshot and catalogue checks are owned by
 [design § Test UI](../design/README.md#test-ui). Deployment and live
 acceptance remain separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
