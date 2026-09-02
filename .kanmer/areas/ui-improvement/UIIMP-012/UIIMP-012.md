@@ -4,12 +4,23 @@ type: ticket
 title: >-
   Rename the Triage history panel to "Notes" and narrow D7 to uncomposed
   integrations
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: chore
 stageEntered:
   preparing: '2026-09-02T03:09:03.495Z'
+taken_at: '2026-09-02T03:21:10.906Z'
+branch: task/uiimp-012-triage-notes
+worktree: ../pegasus-worktrees/uiimp-012-triage-notes
+claim_expires_at: '2026-09-02T03:51:10.906Z'
+claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
+lease_id: ce05a2bf-9694-4517-95d6-ee98d710f878
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\pguser\documents\github\pegasus-worktrees\uiimp-012-triage-notes
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T03:21:10.906Z'
 labels:
   - ui
   - epic-contract
@@ -25,7 +36,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T08:29:54.971Z'
-updated: '2026-09-02T03:09:03.495Z'
+updated: '2026-09-02T03:21:10.906Z'
 ---
 
 ## What
