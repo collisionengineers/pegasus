@@ -15,17 +15,17 @@ stageEntered:
 taken_at: '2026-09-02T18:02:49.716Z'
 branch: TICK-058-verification-plan-remediation
 worktree: .worktrees/tick-058
-claim_expires_at: '2026-09-02T18:32:49.716Z'
+claim_expires_at: '2026-09-02T19:05:13.184Z'
 claim_controller: codex-api03
 review_round: 1
 lease_id: 52f7ffbd-c4b4-4d08-9b0a-ce5414b26f13
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260902T160919Z-codex-api03
 lease_worker_run: tick058-plan-remediation
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus\.worktrees\tick-058'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T18:02:49.716Z'
+lease_heartbeat_at: '2026-09-02T18:35:13.184Z'
 labels:
   - capability
   - API-01
@@ -75,7 +75,7 @@ delivery_sha: 0d985c9e0b3284f211f824d387e2f36460c0c826
 delivery_recorded_at: '2026-09-02T16:09:59.686Z'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-09-02T18:34:50.594Z'
+updated: '2026-09-02T18:35:13.184Z'
 ---
 
 ## What
