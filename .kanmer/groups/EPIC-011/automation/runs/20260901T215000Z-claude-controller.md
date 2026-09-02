@@ -8,7 +8,7 @@ project_id: b40b93fc-17b8-46f6-b7e1-db4d8977dea6  # logical identity, migrated b
 controller: claude-code/fable-5.1@PGUSER
 status: running
 created_at: 2026-09-01T21:50:00Z
-updated_at: 2026-09-02T03:10:00Z
+updated_at: 2026-09-02T04:35:00Z
 lane_limit: 3
 stop_reason:
 ---
@@ -78,12 +78,17 @@ stop_reason:
 
 | Order | Ticket | Observed stage | Gates / next action | Disposition | Worker | Branch / worktree | Attempt | Last action | Last result | PR | Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | KANMER-010 | verifying (02:57Z) | PR #642 reviewed independently (pass, 7 minor findings) and merged: merge commit fbf8ee40983ee30030b296d9e61274b238c80b04; verify worktree created; runner on the verification lanes; verifier Part 1 next | active (verify) | pegasus-test-runner → pegasus-verifier | task/kanmer-010-setup-drift / ../pegasus-worktrees/kanmer-010-setup-drift; verify ../pegasus-worktrees/verify-kanmer-010-fbf8ee40… | 1 | merged 02:56:50Z; review → verifying 02:57:11Z | reviewer pass | #642 (MERGED) | 2026-09-02T03:10Z |
-| 2 | DELIV-040 | review (PR_OPEN) | PR #643 open (head 25c14574, 12 commits, 16 docs files, ACC-15); fresh pegasus-reviewer dispatched 03:00Z | active (review) | pegasus-reviewer a1 | task/deliv-040-governing-docs / ../pegasus-worktrees/deliv-040-governing-docs | 1 | implementing → review | tests PASS (4 docs lanes) | #643 | 2026-09-02T03:10Z |
-| 3 | MAIL-032 | implementing (taken 01:40Z) | branch merged with origin/dev (head 3bf28244, pushed); runner PASS (SQL/test-ui CI-evidenced); implementer resumed for PR_UPDATED (retitle #640, report, move to review) | active | pegasus-implementer a1 | task/mail-028-inbox-preview-pin / ../pegasus-worktrees/mail-028-inbox-preview-pin | 1 | runner PASS 02:40Z | tests PASS | #640 | 2026-09-02T03:10Z |
-| 4 | MAIL-033 | verifying (02:53Z) | PR #641 reviewed independently (pass, 10 findings dispositioned) and merged: merge commit cc60cffc554ced423c97a86f014f577bc05d382b; verify worktree created; runner on the verification lanes; verifier Part 1 next | active (verify) | pegasus-test-runner → pegasus-verifier | task/mail-029-graph-received-datetime / ../pegasus-worktrees/mail-029-graph-received-datetime; verify ../pegasus-worktrees/verify-mail-033-cc60cffc… | 1 | merged 02:52:43Z; review → verifying 02:53:00Z | reviewer pass | #641 (MERGED) | 2026-09-02T03:10Z |
-| 5 | PR-069 | implementing (taken 02:58Z) | plan written (item-keyed operation keys, association-version freshness, one nullable-column migration, real-persistence recheck test); pegasus-implementer-escalated a1 dispatched 03:00Z; migration lock held by PR-069 | active | pegasus-implementer-escalated a1 | task/pr-069-unidentified-link-reversal / ../pegasus-worktrees/pr-069-unidentified-link-reversal | 1 | taken 02:58Z | — | — | 2026-09-02T03:10Z |
+| 1 | KANMER-010 | verifying | Part 1 proof written (INCONCLUSIVE, pending release; proof v5acb23ab040abf6d); merge fbf8ee40 | at target (dev) | — | task/kanmer-010-setup-drift; verify worktree retained | 1 | verifier a1 DONE 03:25Z | Part 1 PASS | #642 (MERGED) | 2026-09-02T04:35Z |
+| 2 | DELIV-040 | review (correction round 1 done) | reviewer a1 needs-changes (F-001 FRD-11 signature wording, F-002 RPT-02 delivered wording) → same implementer fixed (357f143b), refreshed onto dev (head 8e8dd8b2), docs lanes PASS at that head (attempt 3); reviewer a2 dispatched 04:30Z | active (re-review) | pegasus-reviewer a2 | task/deliv-040-governing-docs | 1 | pushed 8e8dd8b2 | lanes PASS | #643 | 2026-09-02T04:35Z |
+| 3 | MAIL-032 | verifying | PR #640 merged 2a48be04 (reviewer pass; F-001 CSS reach accepted-risk → MAIL-034); Part 1 proof written (INCONCLUSIVE pending release, v25c73a4db7a5bb13); checklist restored after a scratch collision | at target (dev) | — | task/mail-028-inbox-preview-pin; verify worktree retained | 1 | verifier a1 DONE 04:20Z | Part 1 PASS | #640 (MERGED) | 2026-09-02T04:35Z |
+| 4 | MAIL-033 | verifying | Part 1 proof written (INCONCLUSIVE pending release, v547ec212c71c11a1); merge cc60cffc | at target (dev) | — | task/mail-029-graph-received-datetime; verify worktree retained | 1 | verifier a1 DONE 03:20Z | Part 1 PASS | #641 (MERGED) | 2026-09-02T04:35Z |
+| 5 | PR-069 | implementing (taken 02:58Z) | escalated implementer at work toward READY_FOR_TESTS (migration lock held) | active | pegasus-implementer-escalated a1 | task/pr-069-unidentified-link-reversal | 1 | dispatched 03:00Z | — | — | 2026-09-02T04:35Z |
 | 6 | INTK-048 | implementing (taken, paused) | resumes after PR-069 merges: re-home `task/intk-048-unidentified-manual-link`, merge origin/dev, reopen a PR with only its scope (escalated tier); #639 closes when the successor merges | queued | — | task/intk-048-unidentified-manual-link / ../pegasus-worktrees/intk-048-unidentified-manual-link (to re-home) | 0 | scratch notes 2026-09-01 | — | #639 | 2026-09-02T01:35Z |
+
+| 7 | UIIMP-012 | implementing (taken 04:15Z) | planned (label moves to OperatorLabels.TriageRecord.NotesPanel; docs half covered by context.md and #643; snapshot expected byte-identical); implementer at work | active | pegasus-implementer a1 | task/uiimp-012-triage-notes / ../pegasus-worktrees/uiimp-012-triage-notes (from dev 2a48be04) | 1 | dispatched 04:20Z | — | — | 2026-09-02T04:35Z |
+| 8 | UIIMP-013 | implementing (taken 04:28Z) | planned (capture split: Browser half at 2 threads, remainder at the project cap of 4; timeout only lowered from measurement); implementer at work | active | pegasus-implementer a1 | task/uiimp-013-test-ui-cost / ../pegasus-worktrees/uiimp-013-test-ui-cost (from dev 2a48be04) | 1 | dispatched 04:32Z | — | — | 2026-09-02T04:35Z |
+| 9 | ENG-030 | preparing | research + files written (two inert Assessment controls at Index.cshtml:219-224 gated by Index.cshtml.cs:322-329; docs covered by #643); planner dispatched 04:05Z | active (planning) | pegasus-planner a1 | — | 0 | researcher a1 DONE | — | — | 2026-09-02T04:35Z |
+| 10 | CASE-037 / MAIL-034 | backlog | allocated 2026-09-02 (CASE-026 audit gap; MAIL-032 review follow-up); wave C | queued | — | — | 0 | created | — | — | 2026-09-02T04:35Z |
 
 The remaining tickets carry their phase, wave and disposition in the pack ledger and
 enter this table when a lane is assigned.
@@ -229,19 +234,34 @@ enter this table when a lane is assigned.
   commits; the test runner is executing the verification lanes (Part 1 evidence per the
   controller's LocalDB decision) before the verifiers run.
 
+- `2026-09-02T03:35:00Z` — **MAIL-032 merged**: PR #640 attested pass (F-001/S1 CSS reach accepted-risk;
+  follow-up MAIL-034 created); merge commit 2a48be0456e42d22994193b35d6b4cc33bc90a59; review →
+  verifying. MAIL-032's checklist, overwritten by a scratchpad collision, restored from board
+  history; dispatch preamble now mandates per-ticket work directories.
+- `2026-09-02T03:40:00Z` — DELIV-040 review needs-changes (F-001, F-002 majors); correction round 1
+  by the same implementer (357f143b), branch refreshed onto dev (8e8dd8b2), docs lanes PASS at
+  attempt 3 (two-dot diff lanes gave false FAILs after dev moved; plan corrected to three-dot);
+  reviewer a2 dispatched. F-008 (no D18 implementation owner): assigned to TICK-081/TICK-097 by
+  scratch note (non-binding).
+- `2026-09-02T04:20:00Z` — Part 1 proofs written for MAIL-033, KANMER-010 and MAIL-032 (all
+  INCONCLUSIVE pending release; Part 1 lanes PASS with CI evidence for the SQL/browser lanes).
+- `2026-09-02T04:30:00Z` — wave A: UIIMP-012 and UIIMP-013 planned, taken (worktrees from dev
+  2a48be04) and implementers dispatched; ENG-030 researched, planner dispatched.
+
 ## Resume instruction
 
 Re-read this record, the group context, current live ticket state, and each ticket's
 live gates before dispatching any new action. Reconcile the ledger; do not repeat a
 completed action solely because this run was interrupted. Kanmer access in a session
 without the MCP connection: `pegasus-work-pack/orchestration/claude/tools/kanmer-call.sh`.
-In flight at the last write: test runner on the verification lanes for MAIL-033 (merge cc60cffc)
-and KANMER-010 (merge fbf8ee40), then pegasus-verifier Part 1 for each; DELIV-040 reviewer on
-PR #643; MAIL-032 implementer finishing PR_UPDATED on #640 (then reviewer); PR-069 escalated
-implementer toward READY_FOR_TESTS (then runner incl. Test-MigrationGrants, PR, reviewer). After
+In flight at the last write: DELIV-040 reviewer a2 on PR #643 (head 8e8dd8b2); implementers on
+PR-069 (escalated), UIIMP-012, UIIMP-013 (each stops at READY_FOR_TESTS → runner → PR → fresh
+reviewer → verifier Part 1); ENG-030 planner. Lane cap 3 implementers plus one runner. After
 PR-069 merges: re-home task/intk-048-unidentified-manual-link, merge origin/dev, escalated
 implementer reopens INTK-048's PR with only its scope; #639 closes when the successor merges.
-After DELIV-040 merges: Phase 3 wave A (UIIMP-013 first, then ENG-030, UIIMP-012, TICK-082 …). Next: take KANMER-010
+After DELIV-040 merges: the ten DELIV-040-blocked tickets may leave Backlog (TICK-082, PLAT-062,
+INTK-052, PLAT-059, PLAT-064, ENG-031, ENG-033, INTK-054, MAIL-030, MAIL-031); continue wave A
+(ENG-032, TICK-041, INTK-053, CASE-036, PLAT-056/057/058/060/063, DOCS-016, DELIV-038, INTK-050). Next: take KANMER-010
 and DELIV-040 with their recorded worktrees once their plans exist, implementer → test
 runner → reviewer (merges under the standing delegation) → verifier Part 1; then Phase 1
 (MAIL-032/#640, MAIL-033/#641, PR-069 then INTK-048 at the escalated tier); Phase 2
