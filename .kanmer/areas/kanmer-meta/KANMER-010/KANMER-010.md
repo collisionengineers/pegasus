@@ -2,12 +2,13 @@
 id: KANMER-010
 type: ticket
 title: Reconcile Kanmer setup drift after KANMER-006
-status: implementing
+status: review
 area: kanmer-meta
 assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: chore
 stageEntered:
   preparing: '2026-09-02T00:55:56.588Z'
+  review: '2026-09-02T02:46:52.551Z'
 taken_at: '2026-09-02T01:19:02.163Z'
 branch: task/kanmer-010-setup-drift
 worktree: ../pegasus-worktrees/kanmer-010-setup-drift
@@ -34,7 +35,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-01T14:40:45.085Z'
-updated: '2026-09-02T02:46:38.291Z'
+updated: '2026-09-02T02:46:52.551Z'
 ---
 
 ## What
