@@ -9,24 +9,20 @@
 - [x] Obtain fresh literal MERGE AUTH GRANTED and atomically promote the frozen candidate with equality read-back.
 - [x] Build and validate immutable release artifacts in an exact-SHA detached worktree.
 - [x] Confirm the expected unchanged migration identity and absence of a database write.
-- [ ] Obtain exact manifest-bound Azure-write approval.
-- [ ] Upload the Web image, validate remote digest, provision Web, deploy Worker by config-zip, and read back exact state.
-- [ ] Run production smoke and focused non-destructive Inbox, Worker-poll, and QDOS evidence.
-- [ ] Retain artifacts and update docs/operations.md and docs/current-architecture.md precisely.
-- [ ] Run canonical validation and documentation checks.
-- [ ] Record the docs-only simplification disposition, commit, push, and open the evidence PR.
-- [ ] Obtain independent review and merge of the evidence PR.
-- [ ] Perform the independently authorized final docs-only promotion without redeployment.
-- [ ] Verify merged main, write proof, and close out PLAT-067.
+- [x] Obtain exact manifest-bound Azure-write approval.
+- [x] Upload the Web image, validate remote digest, provision Web, deploy Worker by config-zip, and read back exact state.
+- [x] Run production smoke and focused non-destructive Inbox, Worker-poll, and QDOS evidence.
+- [x] Retain artifacts and update docs/operations.md and docs/current-architecture.md precisely.
+- [x] Record the operator waiver of documentation-branch testing.
+- [x] Record the docs-only simplification disposition, commit, push, and open the evidence PR.
+- [x] Merge evidence PR #645 under the operator's explicit no-review waiver.
+- [x] Perform the independently authorized final docs-only promotion without redeployment.
+- [x] Verify merged main, write proof, and close out PLAT-067.
 
 ## Progress notes
 
-- 2026-09-02 artifacts PASS: exact-SHA detached build completed; Local, Artifact, and PreUpload plan checks passed. Manifest 52E1A5AC23C2491594E79EA89740D9B5D826A3DD94258347DB91A16896F986AE; Web digest sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15; Worker ZIP 1EF69DBEBF6BC3178E2688AF999A770319DD5ED1B3B341F0741CF9B463B83369. Migration identity matches live head and candidate includes no migration/dependency/infrastructure changes, so no database/bootstrap write is planned.
-
-- 2026-09-02 promotion PASS: fresh literal MERGE AUTH GRANTED applied to exact SHA 0f0e90ae44ffda7339ca2a460310deeb98121afa; atomic push fast-forwarded main and lease-checked dev; both remote refs read back equal to the approved SHA.
-
-- 2026-09-02 dry run PASS (exit 0): 36 blobs / 3,932,690 bytes; 102 SQL tables; preserve list 31/31 with no missing tables; 32 effectively preserved tables; 70 tables targeted with 147 rows; sequence values Case 31, Image 7, Unidentified 1.
-- 2026-09-02 wipe PASS (exit 0): blobs remaining 0; SQL transaction committed 147 row deletions; wiped tables retaining rows 0; preserved rows 354; sequences unchanged at Case 31, Image 7, Unidentified 1; excluded systems untouched. Operator confirmed authenticated UI empty.
-- 2026-09-02 Git preflight PASS: main fb3f07acc8cca8d9d8b57db8a431b607772436dc, dev 0f0e90ae44ffda7339ca2a460310deeb98121afa, valid ancestry; PRs 638/640/641/642/643 merged with successful or path-skipped checks.
-- 2026-09-02 live preflight retained failure: current release-37 Worker activation passed, but newest inbound poll was 1,662 minutes old.
-- 2026-09-02 Azure diagnosis PASS: Function App Running/Normal, all seven functions present, other timers executing successfully. App Insights shows the release-37 Graph Inbox poll fails every five minutes with InvalidDataException because receivedDateTime is omitted. Candidate commits 712bfcf3 and c6842a8c implement and test the exact sparse-vs-malformed handling; PR 641 passed CI. Live migration head remains 20260829212237_GrantProviderSubmissionAcceptRecovery. The failure is the known defect release 38 is intended to resolve; post-deploy smoke remains required.
+- 2026-09-02 wipe PASS: dry run found 36 blobs / 3,932,690 bytes and 147 rows across 70 non-preserved tables. Execution left zero target blobs and rows, retained 354 preserved rows, and preserved sequences 31/7/1. Excluded systems were untouched; the operator confirmed the authenticated UI was clear.
+- 2026-09-02 release PASS: exact source `0f0e90ae44ffda7339ca2a460310deeb98121afa`; manifest `52E1A5AC23C2491594E79EA89740D9B5D826A3DD94258347DB91A16896F986AE`; Web digest `sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15`; Worker deployment `01ed553a-b6cd-4652-b043-72c88b9ca2e6`. No migration or database write; head unchanged.
+- 2026-09-02 production verification PASS: canonical smoke passed; the 12:50 UTC Graph poll completed, cleared `LastFailureCode`, advanced the cursor, and released blocked emails. Authenticated Inbox preview persistence passed.
+- 2026-09-02 evidence closeout PASS: immutable artifacts retained; current-state docs merged through PR #645. Operator explicitly waived review and testing for the documentation-only change. Simplification: n/a — current-state documentation and release evidence only.
+- 2026-09-02 docs-only promotion PASS: fresh `MERGE AUTH GRANTED` applied to `1b705bd01d88109b21affddd014fbaa06c82b1ce`; atomic push and fresh read-back showed both `origin/main` and `origin/dev` at that SHA. No rebuild or redeployment.

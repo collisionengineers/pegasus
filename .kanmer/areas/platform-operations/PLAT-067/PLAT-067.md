@@ -28,10 +28,16 @@ labels:
 groups:
   - HZN-004
 links: []
-deployment: not-deployed
+commits:
+  - 0f0e90ae44ffda7339ca2a460310deeb98121afa
+  - 70bb9653b598f7944b46c6be0deae36fa09064ba
+  - 1b705bd01d88109b21affddd014fbaa06c82b1ce
+prs:
+  - '645'
+deployment: production
 archived: false
 created: '2026-09-02T11:55:45.210Z'
-updated: '2026-09-02T12:55:44.439Z'
+updated: '2026-09-02T13:36:22.327Z'
 ---
 
 ## What
@@ -40,7 +46,7 @@ Sterilize the production intake-generated Blob and SQL data, then promote and de
 
 ## Why
 
-A clean estate is required before the next intake test round, and the current `dev` candidate contains deployable mail, Web, Infrastructure, and Core changes that must follow the exact-SHA authorised release route.
+A clean estate was required before the next intake test round, and the `dev` candidate contained deployable mail, Web, Infrastructure, and Core changes that required the exact-SHA authorised release route.
 
 ## Approach
 
@@ -50,8 +56,10 @@ A clean estate is required before the next intake test round, and the current `d
 
 ## Verification
 
-- [ ] Blob and SQL wipe post-checks pass and the Web UI shows no wiped cases or intake emails.
-- [ ] Exact release SHA, artifact digest, Web revision, Worker deployment, smoke, and focused checks pass.
-- [ ] `docs/operations.md` and `docs/current-architecture.md` match the observed state on `main`.
+- [x] Blob and SQL wipe post-checks passed and the operator confirmed the wiped data was absent from the authenticated Web UI.
+- [x] Exact release SHA, artifact digest, Web revision, Worker deployment, smoke, and focused checks passed.
+- [x] `docs/operations.md` and `docs/current-architecture.md` match the observed state on `main`.
 
 ## Outcome
+
+Release 38 is production-verified. The sparse Graph entry no longer blocks the cursor, queued emails are arriving, and the release evidence is promoted to `main` at `1b705bd01d88109b21affddd014fbaa06c82b1ce`.
