@@ -2,7 +2,7 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: implementing
+status: review
 area: automation-integrations
 order: 330
 assignee: codex-api03
@@ -15,17 +15,17 @@ stageEntered:
 taken_at: '2026-09-02T18:02:49.716Z'
 branch: TICK-058-verification-plan-remediation
 worktree: .worktrees/tick-058
-claim_expires_at: '2026-09-02T20:09:23.830Z'
+claim_expires_at: '2026-09-02T20:04:26.805Z'
 claim_controller: codex-api03
 review_round: 1
 lease_id: 52f7ffbd-c4b4-4d08-9b0a-ce5414b26f13
-lease_revision: 3
+lease_revision: 4
 lease_controller_run: 20260902T160919Z-codex-api03
 lease_worker_run: tick058-plan-remediation
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus\.worktrees\tick-058'
 lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-02T18:39:23.830Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-02T19:34:26.805Z'
 labels:
   - capability
   - API-01
@@ -66,8 +66,10 @@ commits:
   - 1688504a
   - 79a4aaf9
   - 8ef4775c
+  - 32a5a62ce4f13baba45a0bad06df5498f38dcd19
 prs:
   - '594'
+  - '646'
 deployment: production
 delivery_state: integrated
 delivery_branch: dev
@@ -75,7 +77,7 @@ delivery_sha: 0d985c9e0b3284f211f824d387e2f36460c0c826
 delivery_recorded_at: '2026-09-02T16:09:59.686Z'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-09-02T18:39:23.830Z'
+updated: '2026-09-02T19:34:33.809Z'
 ---
 
 ## What

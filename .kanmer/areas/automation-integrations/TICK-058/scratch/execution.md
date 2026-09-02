@@ -11,3 +11,5 @@ PR #594 thread `PRRT_kwDOThBrk86dJ3SK` remains open-major. At exact source head 
 - 2026-09-02T18:34:50.602Z stage review → implementing by codex-mcp-client; reason: operator: API-01 is create-only. A definitive match to an existing Case must be rejected without updating that Case and without allocating a duplicate; existing-Case updates are deferred to AUTO-017.; review_round 1
 
 - 2026-09-02T18:39:23.834Z lease-phase implementing → running-command (lease 52f7ffbd-c4b4-4d08-9b0a-ce5414b26f13 rev 3; expires 2026-09-02T20:09:23.830Z)
+
+- 2026-09-02T19:34:26.809Z lease-phase running-command → review (lease 52f7ffbd-c4b4-4d08-9b0a-ce5414b26f13 rev 4; expires 2026-09-02T20:04:26.805Z)

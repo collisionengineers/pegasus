@@ -111,4 +111,4 @@ below describe the **declared JSON instruction** that replaced it.
 - [x] Fail unique and ambiguous existing-Case matches before association/allocation with a stable terminal code.
 - [x] Pin no mutation/no duplicate and unmatched-creation behavior in focused tests.
 - [x] Run the simplification pass and the named verification commands.
-- [ ] Update the existing PR lineage, report, and Review hand-off; do not merge.
+- [x] Open remediation PR #646 on the recorded branch, update the report, and prepare the Review hand-off; do not merge.
