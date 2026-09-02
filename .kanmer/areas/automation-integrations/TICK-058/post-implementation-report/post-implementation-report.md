@@ -199,3 +199,18 @@ an out-of-lane informational defect; no new ticket was created.
 Status remains **PR-open, review-blocked**. Independent review has not run on
 this head. The ticket has not been merged, proved on `main`, deployed or called
 by a provider; the feature gate remains off.
+
+## Verification-plan remediation — 2026-09-02
+
+The exact-SHA implementation, canonical suite, migration-grant check, and local
+deployment-plan check passed. Verification stopped because the historical
+Markdown-placement command used mutable `origin/dev` as its base.
+
+The plan now binds that check to merge commit
+`0d985c9e0b3284f211f824d387e2f36460c0c826` and its immutable first parent
+`23b0c564c81bf8a0665bc5a65f3f54d88010f835`. No repository file, production
+behavior, test, dependency, deployment configuration, or assertion changed.
+The fresh remediation worktree is clean at
+`cad00be9d42dbeaee9edf34c2d24de222d7ddb9d`; no new commit or PR exists.
+Independent review must attest the corrected verification boundary before a
+fresh verifier appends to the retained failed proof.

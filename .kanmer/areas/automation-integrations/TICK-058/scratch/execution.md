@@ -1,3 +1,5 @@
 ## Transitions
 
 - 2026-09-02T17:57:36.313Z stage verifying → preparing by codex-mcp-client; reason: proof FAIL plan: the recorded Markdown-placement check uses mutable origin/dev as its base; at exact merged SHA 0d985c9e0b3284f211f824d387e2f36460c0c826 it now reverse-diffs later unrelated removals and fails. Bind the check to an immutable integration base before fresh verification.
+
+- 2026-09-02T18:03:00Z plan-only verification remediation: released the unusable legacy missing-worktree claim after confirming its original PR was merged, then took fresh workspace `.worktrees/tick-058` on `TICK-058-verification-plan-remediation` from `origin/dev` at `cad00be9d42dbeaee9edf34c2d24de222d7ddb9d`. No repository file changed. The only change is the plan's immutable Markdown-placement base `23b0c564c81bf8a0665bc5a65f3f54d88010f835` for exact merge `0d985c9e0b3284f211f824d387e2f36460c0c826`; planning fact-check exit 0. Hand off to independent review of the corrected verification authority and unchanged merged PR #594.
