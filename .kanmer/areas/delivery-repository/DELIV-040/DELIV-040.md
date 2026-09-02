@@ -2,7 +2,7 @@
 id: DELIV-040
 type: ticket
 title: Record the 2026-09-01 operator interface decisions in the governing documents
-status: implementing
+status: verifying
 area: delivery-repository
 assignee: codex/deliv-040-operator-remediation
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-02T00:56:48.183Z'
   review: '2026-09-02T02:52:13.537Z'
   implementing: '2026-09-02T11:09:07.205Z'
+  verifying: '2026-09-02T11:26:05.905Z'
 taken_at: '2026-09-02T01:27:49.169Z'
 branch: task/deliv-040-governing-docs
 worktree: ../pegasus-worktrees/deliv-040-governing-docs
@@ -87,7 +88,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T11:25:46.652Z'
+updated: '2026-09-02T11:26:05.905Z'
 ---
 
 ## What
