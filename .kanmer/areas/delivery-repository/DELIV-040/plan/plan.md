@@ -556,6 +556,18 @@ records 'n/a — docs-only'"). The equivalent quality check for this ticket is t
 sweep above: one statement per decision, in the document that owns it, with no restatement in a
 second file where a citation does the job.
 
+**2026-09-02, implementer attempt 1 — pass run, nothing to change.** The four lenses were run over
+the real committed diff (12 commits, HEAD `25c14574`, 16 files, +333/-116), not merely anticipated.
+Reuse: each decision is stated once, in the document `AGENTS.md` gives it, and every other file
+cites that owner rather than restating it — FRD-05 and FRD-12 cite FRD-09 for the unchanged 30 MB
+provider envelope, `open-decisions.md` resolutions name their canonical owner, and `capabilities.md`
+rows carry allocation only. Simplification: no wording was added where an existing sentence could
+carry the decision; four edits were pure deletions (the not-yet-derivable paragraph, the
+signature-tuple gate, the Import estimate dialog, the Glass's/Audatex seam row). Efficiency and
+altitude: not applicable to prose, and no behaviour was described at implementation altitude — the
+durable technical shapes stay owed by `ENG-031`, `ENG-033`/`AUTO-016` and `TICK-082`. No code
+changed, so `AGENTS.md` step 4's "n/a — docs-only" stands as the recorded result.
+
 ## Stop condition
 
 Stop at **PR_OPEN**. The implementer's boundary is: the sixteen files edited on
