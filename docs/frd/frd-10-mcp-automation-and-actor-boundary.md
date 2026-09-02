@@ -78,6 +78,13 @@ refused before any tool runs.
 | `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
+| `pegasus_estimate_import` | `automation.assessment` | Import one raw estimate artifact on a Case through the same Core command as the Assessment page drop (D16): takes `case_id`, `expected_version`, `edit_lease_token`, `operation_key`, `file_name`, `media_type` and base64 bytes, and returns the Draft identity, name and status, the replay state, the source hash, the detected parser/provider and structured blockers or errors |
+
+`pegasus_estimate_import` and the Assessment page's drop are two callers of
+one shared Core command, not two implementations: the same registered parser
+types, the same fail-closed provider auto-detection, the same
+provider-plus-sequence Draft naming and the same replay rule apply to both
+(D16, 2026-09-01). Allocated to [[ENG-033]] and [[AUTO-016]]; not delivered.
 
 `automation.jobs` is a new scope with its own consent description on the
 Administrator consent page; a token without it cannot see the ledger. The
