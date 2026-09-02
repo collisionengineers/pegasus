@@ -48,13 +48,14 @@ refs:
   - docs/boundaries.md
   - docs/open-decisions.md
   - docs/engineering.md
+  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 commits:
   - 632ec0c436e301023f3aa6a5e1f4e0e149a192b5
 prs:
   - '647'
 archived: false
 created: '2026-09-02T20:31:38.561Z'
-updated: '2026-09-02T20:52:04.770Z'
+updated: '2026-09-02T21:55:22.131Z'
 ---
 
 ## What
