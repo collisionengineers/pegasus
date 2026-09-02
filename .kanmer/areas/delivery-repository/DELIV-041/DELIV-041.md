@@ -41,6 +41,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-04-parties-accounts-and-access.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-12-operator-experience.md
   - docs/design/README.md
@@ -48,14 +49,14 @@ refs:
   - docs/boundaries.md
   - docs/open-decisions.md
   - docs/engineering.md
-  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 commits:
   - 632ec0c436e301023f3aa6a5e1f4e0e149a192b5
+  - 2944cbf14851c1a79f5ad53df28c059bb3666aee
 prs:
   - '647'
 archived: false
 created: '2026-09-02T20:31:38.561Z'
-updated: '2026-09-02T21:55:22.131Z'
+updated: '2026-09-02T21:59:59.528Z'
 ---
 
 ## What
