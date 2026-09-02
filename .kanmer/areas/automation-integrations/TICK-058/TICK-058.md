@@ -2,7 +2,7 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: preparing
+status: implementing
 area: automation-integrations
 order: 330
 assignee: claude-code
@@ -64,7 +64,7 @@ delivery_sha: 0d985c9e0b3284f211f824d387e2f36460c0c826
 delivery_recorded_at: '2026-09-02T16:09:59.686Z'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-09-02T17:57:36.307Z'
+updated: '2026-09-02T18:01:53.122Z'
 ---
 
 ## What
