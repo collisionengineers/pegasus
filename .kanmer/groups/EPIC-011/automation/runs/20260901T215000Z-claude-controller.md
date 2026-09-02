@@ -3,11 +3,12 @@ kind: auto-run
 schema: 1
 run_id: 20260901T215000Z-claude-controller
 group: EPIC-011
-project_fingerprint: kanmer-proj-v1:37ebffe6d69ce76e2373ed932409501bc9980c1171d272d7908873f6ada150ec  # identity migrated by the GUI 2026-09-01T23:40Z; project_id b40b93fc-17b8-46f6-b7e1-db4d8977dea6 (was 65ac6d3b…)
+project_fingerprint: kanmer-proj-v1:65ac6d3b3a807ee23c64e34dae763abaa4e3978566f2ec3ba2acec76734884a0  # legacy, path-casing dependent (37ebffe6… from the lower-case path); never asserted
+project_id: b40b93fc-17b8-46f6-b7e1-db4d8977dea6  # logical identity, migrated by the GUI 2026-09-01T23:40Z; the expected_project token
 controller: claude-code/fable-5.1@PGUSER
 status: running
 created_at: 2026-09-01T21:50:00Z
-updated_at: 2026-09-02T01:00:00Z
+updated_at: 2026-09-02T01:35:00Z
 lane_limit: 3
 stop_reason:
 ---
@@ -21,9 +22,10 @@ stop_reason:
   (116 from the work pack plus TICK-092 and TICK-094, added by the operator), and the
   six tickets allocated on 2026-09-01 (ENG-033, AUTO-016, INTK-054, DELIV-039, PLAT-066,
   DELIV-040) — 124 ledger rows, each tagged with `origin`.
-- Target point: closeout after release 38 (plan Phase 7). The `dev` → `main` promotion
-  needs the operator's literal `MERGE AUTH GRANTED`; ticket PRs merge into `dev` under a
-  standing delegation still to be quoted here.
+- Target point: closeout after release 38 (plan Phase 7). **Scope of the resumed run
+  (operator 2026-09-02): merge to `dev` only; phases 6–7 deferred.** The `dev` → `main`
+  promotion needs the operator's literal `MERGE AUTH GRANTED` (not given); ticket PRs merge
+  into `dev` under the standing delegation quoted in the invariants.
 - Included tickets: every id in the pack ledger `tickets:` list; per-ticket phase, build
   wave (A/B/C), lane and disposition live there.
 - Lane partition: build waves A, B, C from the ledger; at most 3 worker lanes plus 1 test
@@ -33,7 +35,9 @@ stop_reason:
   `out_of_programme_dependent`); `PLAT-066` (capacity-evidence spike created outside the
   programme by operator decision D27, never claimed as passing); `TICK-216` (archived
   2026-09-01 with an Outcome — the typed signatory decision D18 supersedes it).
-- Project fingerprint: `kanmer-proj-v1:65ac6d3b3a807ee23c64e34dae763abaa4e3978566f2ec3ba2acec76734884a0`.
+- Project identity: project_id `b40b93fc-17b8-46f6-b7e1-db4d8977dea6` (logical, migrated
+  2026-09-01T23:40Z). The legacy fingerprint `kanmer-proj-v1:65ac6d3b…` / `37ebffe6…` depends on
+  the cwd casing and is never asserted.
 
 ## Run invariants
 
@@ -62,11 +66,11 @@ stop_reason:
 - Repository overrides bind over skill text: branch `task/<slug>` cut from `origin/dev`;
   worktree `../pegasus-worktrees/<slug>`; PRs target `dev`; never rebase, merge
   `origin/dev` in; never touch `.worktrees/kanmer`.
-- Guard hooks (`~/.claude/hooks/pegasus-guard*.ps1`, guard sha256
-  `46e09b96da5b8415d8c085e1ac3364f27c8ed3127938c1702c2c40efa090f81c`) are installed in
-  `~/.claude/settings.json`; they load only after a session restart, so no worker is
-  dispatched in the installing session. The session-start canary is a Bash
-  `git stash list`, which must be denied.
+- Guard hooks (`~/.claude/hooks/pegasus-guard*.ps1`) are installed in `~/.claude/settings.json`
+  and active since the 2026-09-02 session (canary denied, rule 3). Guard sha256 since
+  2026-09-02T01:10Z: `b3e7f81c886e554f40cd7349470ea7913cfd259e93fa94f8d63c228b7a33b3ca` (rule 10: `tools/kanmer-call.sh`
+  writes carry the Kanmer role rules; the 2026-09-01 hash was `46e09b96da5b8415…`). The Kanmer
+  guard matcher was widened to the plugin tool names and loads at the next session start.
 - Every worker returns at its assigned stop condition; worker text is never board
   evidence; live Kanmer, Git and GitHub state is re-read before each action.
 
@@ -78,7 +82,8 @@ stop_reason:
 | 2 | DELIV-040 | preparing | chore: plan (planner dispatched) then take + implement; governing docs for D15–D28; blocks ten feature tickets | active | pegasus-planner a1 | task/deliv-040-governing-docs / ../pegasus-worktrees/deliv-040-governing-docs (created from origin/dev 9b8f78a3) | 1 | moved backlog → preparing 2026-09-02T00:56Z | — | — | 2026-09-02T01:00Z |
 | 3 | MAIL-032 | preparing | adopt PR #640 (Phase 1): files + plan, then take with the re-homed branch | active (planning) | pegasus-planner a1 | task/mail-028-inbox-preview-pin / ../pegasus-worktrees/mail-028-inbox-preview-pin (re-homed 2026-09-02) | 0 | moved backlog → preparing 2026-09-02T01:00Z | — | #640 | 2026-09-02T01:00Z |
 | 4 | MAIL-033 | preparing | adopt PR #641 (Phase 1): files + plan, then take with the re-homed branch | active (planning) | pegasus-planner a1 | task/mail-029-graph-received-datetime / ../pegasus-worktrees/mail-029-graph-received-datetime (re-homed 2026-09-02) | 0 | moved backlog → preparing 2026-09-02T01:00Z | — | #641 | 2026-09-02T01:00Z |
-| 5 | PR-069 → INTK-048 | backlog / implementing | operator ruled: PR-069 first on its own branch, then INTK-048 resumed by merging `origin/dev` (Phase 1, escalated tier) | queued | — | task/intk-048-unidentified-manual-link (PR-069 branch to create) | 0 | scratch notes written on both tickets | — | #639 | 2026-09-01T22:25Z |
+| 5 | PR-069 | preparing | fix: files + plan (planner dispatched), then take + implement at the escalated tier on its own branch | active (planning) | pegasus-planner a1 | task/pr-069-unidentified-link-reversal / ../pegasus-worktrees/pr-069-unidentified-link-reversal (cut from origin/dev 9b8f78a3, restored) | 0 | moved backlog → preparing 2026-09-02T01:10Z | — | — | 2026-09-02T01:35Z |
+| 6 | INTK-048 | implementing (taken, paused) | resumes after PR-069 merges: re-home `task/intk-048-unidentified-manual-link`, merge origin/dev, reopen a PR with only its scope (escalated tier); #639 closes when the successor merges | queued | — | task/intk-048-unidentified-manual-link / ../pegasus-worktrees/intk-048-unidentified-manual-link (to re-home) | 0 | scratch notes 2026-09-01 | — | #639 | 2026-09-02T01:35Z |
 
 The remaining tickets carry their phase, wave and disposition in the pack ledger and
 enter this table when a lane is assigned.
@@ -156,15 +161,31 @@ enter this table when a lane is assigned.
   `../pegasus-worktrees/`; MAIL-032 and MAIL-033 moved backlog → preparing; planners
   dispatched (attempt 1).
 
+- `2026-09-02T01:10:00Z` — PR-069 moved backlog → preparing; worktree
+  `../pegasus-worktrees/pr-069-unidentified-link-reversal` cut from origin/dev 9b8f78a3 and
+  restored; `pegasus-planner` dispatched (attempt 1). Shell guard rule 10 added (guard sha
+  b3e7f81c…): `tools/kanmer-call.sh` writes now carry the Kanmer role rules; verified by a
+  denied `delete_item` probe.
+- `2026-09-02T01:30:00Z` — groom applied from the read-only Plan agent's proposal: no ticket
+  falsely blocked (Done blockers are inert; edges kept as history); no stale claim (31
+  Verifying claims with merged PRs, INTK-048 with #639; oldest take 2026-08-24); bodies of
+  PLAT-059 (D26), TICK-082 (D17), INTK-054 (Notes ruling) and KANMER-010 (env-var and
+  line-ending notes) corrected; PR-070 profile set to `fix`; relates links TICK-088 →
+  MAIL-026/MAIL-027 and CASE-009 → CASE-027; structured edge UIIMP-009 → DELIV-030; evidence
+  debt noted on CASE-024, INTK-033, INTK-034, DOCS-012. Pack ledger, orchestration plan
+  (§1, §2, §4–§7, §9, §14, new §17) and ticket-map.md refreshed. Non-binding: a blocker merged
+  into dev counts as at target for dispatch; local SQL/browser/test-ui lanes are evidenced by
+  CI at the exact SHA (LocalDB absent on this workstation).
+
 ## Resume instruction
 
 Re-read this record, the group context, current live ticket state, and each ticket's
 live gates before dispatching any new action. Reconcile the ledger; do not repeat a
 completed action solely because this run was interrupted. Kanmer access in a session
 without the MCP connection: `pegasus-work-pack/orchestration/claude/tools/kanmer-call.sh`.
-In flight at the last write: pegasus-planner attempts on KANMER-010, DELIV-040, MAIL-032
-and MAIL-033 (reports under `runs/20260901T215000Z-claude-controller/<ID>/planner-a1.md`);
-the groom Plan agent proposal (apply, then refresh the ledger rows). Next: take KANMER-010
+In flight at the last write: pegasus-planner attempts on KANMER-010, DELIV-040, MAIL-032,
+MAIL-033 and PR-069 (reports under `runs/20260901T215000Z-claude-controller/<ID>/planner-a1.md`).
+The groom is applied (event log 01:30Z). Next: take KANMER-010
 and DELIV-040 with their recorded worktrees once their plans exist, implementer → test
 runner → reviewer (merges under the standing delegation) → verifier Part 1; then Phase 1
 (MAIL-032/#640, MAIL-033/#641, PR-069 then INTK-048 at the escalated tier); Phase 2
