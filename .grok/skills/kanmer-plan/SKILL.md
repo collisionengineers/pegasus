@@ -53,6 +53,39 @@ resolve time, so its `profiles:` block is not the effective set.
    written. Design decisions become **ADRs** via `kanmer-docs`, linked into
    `refs`. (Gates check a doc exists; this content rule is enforced here and
    checked by `kanmer-review`.)
+   When the work will be executed one bounded step at a time by a constrained
+   worker, write each ordered step as its own `### Step N — <title>`
+   sub-section with the template's labelled bullets, and pin the evidence
+   versions in Starting state. Only an exact level-three
+   `### Step N — <title>` heading is a structured boundary: declared numbers
+   start at 1 and remain contiguous,
+   while nested or explanatory headings never become steps. Named checklist
+   authority exists only when the checkbox label begins with `Step N`; an
+   explanatory prose mention of `step N` never maps that checkbox to a step.
+   That is what `get_execution_packet id: <ID>,
+   step: <n>` compiles into a `step-packet/2` limited to that step's files and
+   carrying any declared symbols as descriptive, fail-closed authority;
+   a plan without it still executes normally, it simply cannot be compiled.
+   Every `Expected files`, `Do not modify`, and ordered-step `Files` entry is a
+   canonical repository-relative POSIX path: use literals, `*` within one path
+   segment, or `**` as a complete segment. Benign declaration backslashes are
+   normalized to `/`; absolute paths, `..`, colon forms, URI/pathspec syntax
+   and other glob syntax are refused. An
+   Expected-files glob may authorize a narrower step literal or pattern, but a
+   narrower Expected-files literal never authorizes a broader step glob;
+   intersecting Do-not-modify patterns always win. Runtime path matching is
+   iterative and explicitly bounded. The one shared budget is charged before
+   raw path parsing and before every literal or wildcard comparison;
+   exhaustion is `INCONCLUSIVE`, never permission or an undeclared-path claim.
+   Plan-time glob containment and intersection use one aggregate proof context
+   that charges alphabet construction, NFA closure/transitions, caches and
+   queues; exhaustion is the blocking `PLAN_GLOB_COMPLEXITY` finding. Free-form
+   `Symbols` cannot be proved from Git path evidence: after an actual change,
+   non-empty `allowedSymbols` yields `STEP_SYMBOL_SCOPE_INCONCLUSIVE`. Omit
+   `Symbols` when file-scoped reconciliation is the complete mechanical bound;
+   forbidden and undeclared file failures still take precedence.
+   `get_execution_packet` also returns an advisory `validation` report for any
+   plan — read its findings, but they remain advisory, not a gate.
 5. **Resolve planner decisions before dispatch.** In Required changes, words
    such as `investigate`, `decide`, `choose`, or `determine` are an advisory
    warning that planning remains: resolve it or use a spike. This is not a hard
@@ -62,7 +95,9 @@ resolve time, so its `profiles:` block is not the effective set.
 6. **Distill `checklist.md`** from `assets/checklist-template.md`: one `- [ ]`
    box per plan step, ending with the verification the post-implementation
    report will summarise. Each box must be independently checkable — "wire the
-   retry call", not "do the backend".
+   retry call", not "do the backend". A constrained packet is issued only when
+   its selected ordered step has at least one mapped unchecked checklist
+   marker; a plan-only or unrelated checklist is not executable authority.
    `[pre-review]` and `[post-merge]` labels are advisory human/skill text; gates
    ignore them, so `get_doc_gates` remains authoritative.
 7. **Sanity-check scope.** If the plan grew beyond one unit of work, split it:

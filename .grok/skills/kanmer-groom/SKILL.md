@@ -23,13 +23,23 @@ true`, and `get_activity` for recent movement. Look for:
 - **Doc-gate debt** — tickets with `docs_todo: true` whose governing PRD/FRD/ADR
   was never linked, or missing a doc a later stage requires (`get_doc_gates`
   names the gap). These silently stall at the next gate; hand them to
-  `kanmer-docs` to link/write the doc, or `link_doc` an existing one.
+  `kanmer-docs` to link/write the doc, or `link_doc` an existing one. Never a
+  quick capture (`capture: true`): it owes no document by design, and a capture
+  carrying `docs_todo` is itself the defect — clear the flag rather than
+  chasing a doc for it.
+- **Undecided captures** — quick captures that have accumulated. They are not
+  debt and never stale, but a pile of them is a decision nobody has made: list
+  them with `list_items profile: "capture"` and offer the user the six
+  dispositions (`duplicate`, `already-fixed`, `batch`, `promoted`, `retained`,
+  `not-required`). Promotion is always the user's call, never groom's.
 - **Oversized tickets** — bodies describing several units of work, or
   checklists that sprawl past one deliverable.
 - **Dead tickets** — untouched for months, superseded, or describing code
   that no longer exists.
 - **Board-vs-reality sweep** — before calling an open ticket stale, list only
-  non-archived Backlog or Preparing tickets. For each candidate, search `main`
+  non-archived Backlog or Preparing tickets, and drop quick captures from that
+  list: an observation nobody has promoted has not stalled, it is waiting on a
+  decision. For each candidate, search `main`
   history twice: the exact ticket id and a distinctive title phrase; when
   GitHub is available, search merged PRs too. A keyword/title hit is only a
   lead: open the matched commit, diff, or PR and record what portion of the
