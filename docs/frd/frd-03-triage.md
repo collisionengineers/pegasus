@@ -29,6 +29,16 @@ key and version stamped on the record. A known vehicle registration opens the Tr
 reason and opens no Triage, until a registration is known. A message whose classification
 is the recorded Ambiguous outcome is neither: it opens no Triage and reaches staff.
 
+`History` merges the record's durable events and its staff notes in one
+chronological order (D25, 2026-09-01). Notes are append-only and attributable:
+each carries its author, time and text. A correction is a new note; note
+editing and note deletion do not exist, on any surface or through any caller.
+
+`Files` lists the retained request sources and their attachments together with
+the vehicle images linked to the record, each with view and download. Triage
+adds no arbitrary file store and no upload action: material reaches a Triage
+record through the accepted intake routes only.
+
 Triage records have the states `Open`, `Awaiting information`, `Finding recorded`, `Completed`, and `Cancelled`.
 
 A recorded finding has two independently optional dimensions:
