@@ -2,7 +2,7 @@
 id: MAIL-033
 type: ticket
 title: Advance the Graph delta cursor when sparse messages omit receivedDateTime
-status: verifying
+status: done
 area: mail-communications
 assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-02T00:59:23.940Z'
   review: '2026-09-02T01:51:24.337Z'
   verifying: '2026-09-02T02:53:00.444Z'
+  done: '2026-09-02T13:00:52.991Z'
 taken_at: '2026-09-02T01:27:50.829Z'
 branch: task/mail-029-graph-received-datetime
 worktree: ../pegasus-worktrees/mail-029-graph-received-datetime
@@ -36,7 +37,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-01T14:40:45.067Z'
-updated: '2026-09-02T13:00:29.000Z'
+updated: '2026-09-02T13:00:52.991Z'
 ---
 
 ## What
