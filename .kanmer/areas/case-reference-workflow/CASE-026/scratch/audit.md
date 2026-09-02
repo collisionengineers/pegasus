@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=functional_gap. Inline @section Scripts is CSP-discarded in every deployed environment, leaving Copy Case/PO and Refresh acting on the stale row; disclosed (F1) but never dispositioned to an owner or ticket.

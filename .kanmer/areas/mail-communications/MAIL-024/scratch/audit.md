@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. Docs-only ADR-0036/FRD-08 ticket; merge and both commits reachable from origin/main; proof correctly distinguishes specification from implementation.

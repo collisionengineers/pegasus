@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. Docs-only ADR-0035/FRD-10/FRD-11 ticket; merge SHA and commit reachable from origin/main, downstream consumption confirmed by grep.

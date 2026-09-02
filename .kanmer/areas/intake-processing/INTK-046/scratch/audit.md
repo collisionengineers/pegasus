@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=traceability_debt. 5 of 7 recorded 40-char commit SHAs do not exist as git objects (corrupted/fabricated beyond the real 8-char prefix), though the actual PR merge (a01a640b) is real and reachable from origin/main.

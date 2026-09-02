@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. CI sql-integration flake fix; acceptance (10 consecutive clean runs) closed with 29 clean runs and every red attributed by name.

@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=functional_gap. Folder-move/check-move-status controls are behind a CLOSED production composition gate (UnavailableRetainedMailFolderMover); remediation MAIL-028 already exists and is linked. Also: stale remote branch task/mail-025-inbox-port never deleted.

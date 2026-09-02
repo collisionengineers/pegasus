@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. D20 reversal (five registered-but-unreachable estimate use cases) closed by ENG-028 (merged, reachable from origin/main); every named use case now has a routed caller.

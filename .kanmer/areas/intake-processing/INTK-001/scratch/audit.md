@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. Merge and all 8 commits reachable from origin/main; one unticked checklist item is disclosed debt with a named owner (UIIMP-010).

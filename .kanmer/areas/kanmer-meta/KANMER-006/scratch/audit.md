@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=traceability_debt. PR #638 was squash-merged (off the repo's merge-commit-only convention) and its merge SHA is not yet reachable from origin/main (dev-only, pending next promotion); two individual commits are permanently unreachable due to the squash.

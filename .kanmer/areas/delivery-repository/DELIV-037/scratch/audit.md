@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. Release-37 promotion record; fb3f07ac verified equal to current origin/main tip; proof discloses and corrects six false statements found by independent review.

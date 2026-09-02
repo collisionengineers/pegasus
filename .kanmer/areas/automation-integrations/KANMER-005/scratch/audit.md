@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. Exclusive edit-lease enforcement; merge and all 3 commits reachable from origin/main; both staff and Automation-actor callers verified wired.

@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. dev-only build-break fix reachable from origin/main; board record honestly disclosed as reconstructed after the fact.

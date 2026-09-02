@@ -1,0 +1,1 @@
+Done audit (batch 1, run 20260901T215000Z-claude-controller): disposition=verified_done. D20 reversal (registered-but-unreachable AI-job callers) closed by AUTO-014 (merged, reachable from origin/main); re-audit confirms real callers now exist.
