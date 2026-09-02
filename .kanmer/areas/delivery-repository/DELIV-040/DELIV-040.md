@@ -2,10 +2,12 @@
 id: DELIV-040
 type: ticket
 title: Record the 2026-09-01 operator interface decisions in the governing documents
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-02T00:56:48.183Z'
 labels:
   - docs
   - governing-docs
@@ -50,7 +52,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-01T22:00:08.909Z'
+updated: '2026-09-02T00:56:48.183Z'
 ---
 
 ## What
