@@ -8,7 +8,7 @@ project_id: b40b93fc-17b8-46f6-b7e1-db4d8977dea6  # logical identity, migrated b
 controller: claude-code/fable-5.1@PGUSER
 status: running
 created_at: 2026-09-01T21:50:00Z
-updated_at: 2026-09-02T04:35:00Z
+updated_at: 2026-09-02T10:20:00Z
 lane_limit: 3
 stop_reason:
 ---
@@ -77,13 +77,13 @@ stop_reason:
 ## Ticket ledger
 
 | Order | Ticket | Observed stage | Gates / next action | Disposition | Worker | Branch / worktree | Attempt | Last action | Last result | PR | Updated |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | KANMER-010 | verifying | Part 1 proof written (INCONCLUSIVE, pending release; proof v5acb23ab040abf6d); merge fbf8ee40 | at target (dev) | — | task/kanmer-010-setup-drift; verify worktree retained | 1 | verifier a1 DONE 03:25Z | Part 1 PASS | #642 (MERGED) | 2026-09-02T04:35Z |
 | 2 | DELIV-040 | review (correction round 1 done) | reviewer a1 needs-changes (F-001 FRD-11 signature wording, F-002 RPT-02 delivered wording) → same implementer fixed (357f143b), refreshed onto dev (head 8e8dd8b2), docs lanes PASS at that head (attempt 3); reviewer a2 dispatched 04:30Z | active (re-review) | pegasus-reviewer a2 | task/deliv-040-governing-docs | 1 | pushed 8e8dd8b2 | lanes PASS | #643 | 2026-09-02T04:35Z |
 | 3 | MAIL-032 | verifying | PR #640 merged 2a48be04 (reviewer pass; F-001 CSS reach accepted-risk → MAIL-034); Part 1 proof written (INCONCLUSIVE pending release, v25c73a4db7a5bb13); checklist restored after a scratch collision | at target (dev) | — | task/mail-028-inbox-preview-pin; verify worktree retained | 1 | verifier a1 DONE 04:20Z | Part 1 PASS | #640 (MERGED) | 2026-09-02T04:35Z |
 | 4 | MAIL-033 | verifying | Part 1 proof written (INCONCLUSIVE pending release, v547ec212c71c11a1); merge cc60cffc | at target (dev) | — | task/mail-029-graph-received-datetime; verify worktree retained | 1 | verifier a1 DONE 03:20Z | Part 1 PASS | #641 (MERGED) | 2026-09-02T04:35Z |
-| 5 | PR-069 | implementing (taken 02:58Z) | escalated implementer at work toward READY_FOR_TESTS (migration lock held) | active | pegasus-implementer-escalated a1 | task/pr-069-unidentified-link-reversal | 1 | dispatched 03:00Z | — | — | 2026-09-02T04:35Z |
-| 6 | INTK-048 | implementing (taken, paused) | resumes after PR-069 merges: re-home `task/intk-048-unidentified-manual-link`, merge origin/dev, reopen a PR with only its scope (escalated tier); #639 closes when the successor merges | queued | — | task/intk-048-unidentified-manual-link / ../pegasus-worktrees/intk-048-unidentified-manual-link (to re-home) | 0 | scratch notes 2026-09-01 | — | #639 | 2026-09-02T01:35Z |
+| 5 | PR-069 | implementing | **handed over 2026-09-02T10:17Z to run HZN-003 `20260902T101500Z-claude-intk048`** (lease expired 03:21Z, transferred there; worktree and 3 commits + uncommitted tests preserved) | skipped (handed over) | — | task/pr-069-unidentified-link-reversal | 1 | handover | — | — | 2026-09-02T10:20Z |
+| 6 | INTK-048 | implementing (taken, paused) | **handed over 2026-09-02T10:17Z to run HZN-003 `20260902T101500Z-claude-intk048`** (same plan: after PR-069 merges, re-home, merge origin/dev, reopen a PR with only its scope) | skipped (handed over) | — | task/intk-048-unidentified-manual-link | 0 | handover | — | #639 | 2026-09-02T10:20Z |
 
 | 7 | UIIMP-012 | implementing (taken 04:15Z) | planned (label moves to OperatorLabels.TriageRecord.NotesPanel; docs half covered by context.md and #643; snapshot expected byte-identical); implementer at work | active | pegasus-implementer a1 | task/uiimp-012-triage-notes / ../pegasus-worktrees/uiimp-012-triage-notes (from dev 2a48be04) | 1 | dispatched 04:20Z | — | — | 2026-09-02T04:35Z |
 | 8 | UIIMP-013 | implementing (taken 04:28Z) | planned (capture split: Browser half at 2 threads, remainder at the project cap of 4; timeout only lowered from measurement); implementer at work | active | pegasus-implementer a1 | task/uiimp-013-test-ui-cost / ../pegasus-worktrees/uiimp-013-test-ui-cost (from dev 2a48be04) | 1 | dispatched 04:32Z | — | — | 2026-09-02T04:35Z |
@@ -247,6 +247,14 @@ enter this table when a lane is assigned.
   INCONCLUSIVE pending release; Part 1 lanes PASS with CI evidence for the SQL/browser lanes).
 - `2026-09-02T04:30:00Z` — wave A: UIIMP-012 and UIIMP-013 planned, taken (worktrees from dev
   2a48be04) and implementers dispatched; ENG-030 researched, planner dispatched.
+- `2026-09-02T10:20:00Z` — **handover of lanes 5 and 6 (PR-069, INTK-048)** to the new
+  schema-3 run `20260902T101500Z-claude-intk048` on host group HZN-003 (same controller identity,
+  new session 018JHWyDh4u8xKvJxKcyLUs7, operator `/kanmer-auto INTK-048`). The PR-069 escalated
+  implementer a1 of this run left no report; its lease expired 03:21Z and was transferred there
+  without force. This run's other lanes (DELIV-040 reviewer a2, UIIMP-012, UIIMP-013, ENG-030
+  planner) were not reconciled by that session and remain as last written here; their workers
+  from session a179cc54 are no longer running. The `migration` lock passes to the new run with
+  PR-069.
 
 ## Resume instruction
 
@@ -255,10 +263,9 @@ live gates before dispatching any new action. Reconcile the ledger; do not repea
 completed action solely because this run was interrupted. Kanmer access in a session
 without the MCP connection: `pegasus-work-pack/orchestration/claude/tools/kanmer-call.sh`.
 In flight at the last write: DELIV-040 reviewer a2 on PR #643 (head 8e8dd8b2); implementers on
-PR-069 (escalated), UIIMP-012, UIIMP-013 (each stops at READY_FOR_TESTS → runner → PR → fresh
-reviewer → verifier Part 1); ENG-030 planner. Lane cap 3 implementers plus one runner. After
-PR-069 merges: re-home task/intk-048-unidentified-manual-link, merge origin/dev, escalated
-implementer reopens INTK-048's PR with only its scope; #639 closes when the successor merges.
+UIIMP-012, UIIMP-013 (each stops at READY_FOR_TESTS → runner → PR → fresh
+reviewer → verifier Part 1); ENG-030 planner. PR-069 and INTK-048 are owned by run
+HZN-003 `20260902T101500Z-claude-intk048` since 10:17Z — do not dispatch them from here. Lane cap 3 implementers plus one runner.
 After DELIV-040 merges: the ten DELIV-040-blocked tickets may leave Backlog (TICK-082, PLAT-062,
 INTK-052, PLAT-059, PLAT-064, ENG-031, ENG-033, INTK-054, MAIL-030, MAIL-031); continue wave A
 (ENG-032, TICK-041, INTK-053, CASE-036, PLAT-056/057/058/060/063, DOCS-016, DELIV-038, INTK-050). Next: take KANMER-010
