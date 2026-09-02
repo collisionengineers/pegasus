@@ -2,32 +2,53 @@
 
 ## Approach
 
-Add one Core-owned query over existing durable intake state. It accepts the authenticated Principal and that Principal's opaque API-01 receipt—not an arbitrary Case/PO. It returns generic unfinished, success only with an actual active Case link, or terminal failure when work completes without creating/linking a Case. It creates no result store and returns no files or Case detail.
-
-## Governing docs
-
-- Modify FRD-09 to state the three outcomes, actual Case-link authority, indistinguishable unknown/foreign absence, and strict identifier-only response.
-- ADR-0004 remains accepted. No new ADR is required.
-- Report/file delivery remains a separate contract and is not absorbed here.
+Simplify API-01's existing authenticated result endpoint into API-03's public
+contract. Keep Principal ownership and outcome policy in Core, reuse the
+existing durable-intake and active Case-link queries, and expose only an empty
+unfinished response, a Case/PO identifier, or a generic terminal failure.
 
 ## Steps
 
-1. Integrate API-01 receipt identity and the TICK-058 authentication boundary.
-2. Add one Core query/result vocabulary: unfinished; linked Case/PO success; terminal failure.
-3. Implement one no-tracking Azure SQL projection joining Principal ownership, staged/completed work, processed receipt, and actual active Case link. A `case_created` decision alone is insufficient.
-4. Add the result route to the existing Web Container App using the shared provider wire contract. Return only immutable Case/PO on success; bounded failure otherwise; unknown/random/foreign receipts remain indistinguishable.
-5. Omit files, reports, source material, general Case fields, internal state names, attempts, exception details, listing, and search.
-6. Add application-level per-credential throttling consistent with API-01 and disclosure-safe Application Insights outcome/latency telemetry.
-7. Add Core/SQL/Web/architecture tests, refresh current-state docs after deployment, and run simplification plus locked verification.
+1. Extend `IProviderSubmissionStore` only if required to scope the existing
+   submission read by authenticated Principal. Reuse the existing store and
+   query; add no result projection.
+2. Replace `ProviderSubmissionResult`'s detailed external vocabulary with
+   three Core outcomes: unfinished, success with the actual active Case
+   reference, and terminal failure. Treat completed-without-active-link as
+   failure.
+3. Keep `GET /api/provider/v1/submissions/{submissionId}` and map:
+   unknown/foreign to 404, unfinished to an empty 202, linked success to
+   `{"caseReference":"..."}`, and terminal failure to a generic 422.
+   Preserve paused reads and revoked/invalid 401 behavior.
+4. Update the existing Core and integration tests for ownership, unfinished,
+   linked success, completed-without-link, failed work, response minimality,
+   paused reads, revoked authentication, and random/cross-Principal
+   nondisclosure.
+5. Update FRD-09 and `docs/capabilities.md` so API-03 owns the result contract
+   and API-02's detailed processing-status contract is retired.
+6. Run the independent simplification lenses over this ticket's diff, apply
+   behavior-preserving findings, and record every disposition here.
+7. Run locked restore, Release build, and the non-Corpus solution test command.
+   Open a PR to `dev`; an independent reviewer owns review and merge.
+   Verification and proof run only at the exact merge SHA on `main`.
 
-## Azure decision
+## Reuse and boundaries
 
-Reuse the existing Container App and Azure SQL. Add no result database/table, queue, blob container, webhook service, APIM instance, or delivery channel.
+The production caller is the API-01 GET route. Authentication, feature
+composition, rate limiting, telemetry, durable intake state, active Case-link
+authority, and test infrastructure already exist. No new abstraction, route,
+store, SQL projection, database object, dependency, Azure resource, report/file
+surface, list/search capability, retry detail, compatibility response, or
+deployment is in scope.
 
-## Verification
+## Acceptance
 
-Seed unfinished, linked, completed-without-link, technical-failure, unknown, random, foreign, revoked, and disabled-route cases. Assert only an actual active Case link succeeds and every response contains neither files nor general Case information.
-
-## Deferred
-
-Exact wire status/error mappings follow TICK-058's approved contract. Webhooks, list/search, report delivery, and gateway services require separate evidence.
+- Unknown, random, and foreign identifiers are indistinguishable 404.
+- Owned unfinished work returns an empty 202.
+- Only an actual active Case link returns 200 and `caseReference`.
+- Failed or completed-without-link work returns generic 422.
+- No processing state, decision, failure code, provider reference, timestamp,
+  file, report, or general Case detail is returned.
+- Paused reads remain allowed; revoked and invalid credentials remain 401.
+- Canonical commands pass and the independent review records no unresolved
+  finding.

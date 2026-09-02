@@ -1,30 +1,27 @@
 # Files — TICK-060
 
-## Where the change lands
+## Change map
 
-| Path | Why |
-|---|---|
-| `src/Pegasus.Core/Intake/` | Add the single Principal-authorized submission-result query with nonterminal, linked Case/PO success, and terminal failure outcomes. |
-| `src/Pegasus.Infrastructure/Persistence/` | Resolve submission ownership, terminal work outcome, processed receipt, and actual Case link in one read model without duplicating state. |
-| `src/Pegasus.Web/` | Add the authenticated result endpoint after the shared provider wire contract is settled. |
-| `tests/Pegasus.Core.Tests/`, `tests/Pegasus.IntegrationTests/`, `tests/Pegasus.ArchitectureTests/` | Prove ownership, random/cross-Principal denial, actual Case-link authority, no-Case terminal failure, and absence of general lookup/file delivery. |
-| `docs/frd/frd-09-provider-and-intermediary-routes.md`, `docs/capabilities.md`, `docs/current-architecture.md` | Record Case/PO as the sole successful result and completed-without-Case as failure. |
+| Path | Change |
+| --- | --- |
+| `src/Pegasus.Core/ProviderApi/ProviderSubmission.cs` | Reuse the existing result query and collapse its public result to unfinished, Case/PO success, or terminal failure while retaining Principal ownership policy. |
+| `src/Pegasus.Infrastructure/Persistence/EfProviderSubmissionStore.cs` | If needed, scope the existing submission lookup by Principal; add no second projection or store. |
+| `src/Pegasus.Web/ProviderApi/ProviderApiEndpoints.cs` | Keep the existing GET route and map empty 202, identifier-only 200, generic 422, and indistinguishable 404. |
+| `tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs` | Pin Core ownership and the three result outcomes. |
+| `tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs` | Pin the public status/body contract, paused reads, revoked authentication, and cross-Principal nondisclosure. |
+| `docs/frd/frd-09-provider-and-intermediary-routes.md` | Make API-03 the identifier-only result contract and remove API-02-style processing detail. |
+| `docs/capabilities.md` | Record API-03 as the result owner and API-02 detailed status as retired. |
 
-## Context files
+## Existing seams reused
 
-| Path | What it tells the implementer |
-|---|---|
-| `src/Pegasus.Infrastructure/Persistence/EfQueuedIntakeStatusQueries.cs` | Existing join shape can be reused, but its staff state vocabulary must not leak externally. |
-| `src/Pegasus.Core/Intake/DurableIntake.cs` | Work completion/failure authority and the staged-to-processed identity chain. |
-| `src/Pegasus.Infrastructure/Persistence/EfIntakeWorkStore.cs` | Durable completion is distinguishable from work still in progress. |
-| `src/Pegasus.Infrastructure/Persistence/EfCaseAcceptanceStore.cs` | The actual Case link is the Case/PO authority. |
-| `docs/operator-notes.md` | Provider API is a future intake channel; report delivery is a separate contract. |
-| `docs/current-architecture.md` | A processing decision alone must never be reported as an allocated Case. |
+- `IGetProviderSubmissionResult` and `GetProviderSubmissionResult`
+- `IProviderSubmissionStore`
+- `IQueuedIntakeStatusQueries`
+- `IIntakeReceiptQueries`
+- `ProviderApiEndpoints.MapPegasusProviderApi`
+- API-01 authentication, rate limiting, feature composition, and test helpers
 
-## Ripple effects
+## Explicitly unchanged
 
-Depends on API-01 receipt identity and API-04 authentication. Contract tests must pin unknown/random/foreign equivalence, completed-without-Case failure, and identifier-only responses. Governing docs must remove API-02 wording without absorbing later report delivery.
-
-## Out of scope
-
-General Case/PO lookup or search, files, reports, source download, outbound delivery, Case detail, workflow actions, transient state names, progress percentages, webhooks, and performance changes.
+No new route, result store, SQL projection, table, migration, queue, resource,
+dependency, webhook, general Case lookup, report/file surface, or deployment.
