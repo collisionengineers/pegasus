@@ -2,10 +2,12 @@
 id: MAIL-033
 type: ticket
 title: Advance the Graph delta cursor when sparse messages omit receivedDateTime
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-02T00:59:23.940Z'
 labels: []
 groups:
   - EPIC-011
@@ -18,7 +20,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.067Z'
-updated: '2026-09-01T14:40:45.067Z'
+updated: '2026-09-02T00:59:23.940Z'
 ---
 
 ## What

@@ -2,10 +2,12 @@
 id: MAIL-032
 type: ticket
 title: Keep the selected Inbox preview available after pointerleave or blur
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-02T00:59:22.673Z'
 labels: []
 groups:
   - EPIC-011
@@ -18,7 +20,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.052Z'
-updated: '2026-09-01T14:40:45.052Z'
+updated: '2026-09-02T00:59:22.673Z'
 ---
 
 ## What
