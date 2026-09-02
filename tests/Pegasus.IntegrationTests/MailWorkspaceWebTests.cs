@@ -76,7 +76,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal($"Message 0 from {FirstMailboxId}", preview.GetProperty("subject").GetString());
         Assert.Equal("Please inspect the vehicle at the address supplied.", preview.GetProperty("excerpt").GetString());
         Assert.Equal("Not yet processed", preview.GetProperty("classification").GetString());
-        Assert.Equal("Not associated", preview.GetProperty("association").GetString());
+        Assert.Equal("No case", preview.GetProperty("association").GetString());
         Assert.Equal("estimate.pdf", Assert.Single(preview.GetProperty("attachments").EnumerateArray()).GetString());
 
         await using (var scope = factory.Services.CreateAsyncScope())

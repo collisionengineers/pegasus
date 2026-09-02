@@ -267,7 +267,7 @@ tbody tr:nth-child(even){background:#fbfcfc}
 tbody tr:hover{background:#f3f6f7}
 .row-button{display:grid;width:100%;min-height:var(--row);border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left;padding:9px 12px;color:inherit;gap:4px;transition:background-color .13s ease,box-shadow .13s ease,transform .13s ease,border-color .13s ease}
 .row-button:hover,.work-item:hover{background:#f5f7f8}
-.row-button[aria-selected="true"],.work-item[aria-selected="true"]{background:#f4f7fa;box-shadow:inset 4px 0 #263d56}
+.row-button[aria-selected="true"],.row-button[aria-current="true"],.work-item[aria-selected="true"]{background:#f4f7fa;box-shadow:inset 4px 0 #263d56}
 .row-button:focus-visible,.work-item:focus-visible{outline:2px solid #263d56;outline-offset:-2px}
 .row-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .row-title{font-size:12px;font-weight:790;min-width:0}
@@ -650,7 +650,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .queue-layout .row-title,.queue-layout .row-meta,.queue-layout .row-excerpt,.queue-layout .detail-canvas h2,.queue-layout .detail-canvas p,.queue-layout .decision-row span,.queue-layout .decision-row strong,.queue-layout .blocker{overflow-wrap:anywhere;word-break:break-word}
 .queue-layout .scope-button[aria-pressed="true"]{border-left-color:var(--navy);background:#eaf0f3;color:var(--ink)}
 .queue-layout .scope-button[aria-pressed="true"] .scope-visual-icon{background:var(--navy);border-color:var(--navy);color:#fff}
-.queue-layout .row-button[aria-selected="true"] .row-title{color:var(--ink)}
+.queue-layout .row-button[aria-selected="true"] .row-title,.queue-layout .row-button[aria-current="true"] .row-title{color:var(--ink)}
 .queue-group-label{margin:8px 7px 4px;color:var(--muted);font-size:9px;font-weight:850;letter-spacing:.09em;text-transform:uppercase}
 .queue-group-divider{height:1px;background:var(--line);margin:10px 7px 7px}
 .queue-exception{background:#fffaf3}
@@ -2018,18 +2018,9 @@ details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
 .mail-preview__facts dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
 .mail-preview__facts .plain-list { padding-left: var(--sp-4); }
 
-tr.is-preview-selected > td { background: var(--navy-bg); }
-tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-line); }
-
 @media (max-width: 1279px) {
   .mail-workspace { grid-template-columns: minmax(0, 1fr); }
   .mail-preview { order: 2; }
-}
-
-@media (forced-colors: active) {
-  tr.is-preview-selected > td { background: Highlight; color: HighlightText; }
-  tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 HighlightText; }
-  tr.is-preview-selected a { color: LinkText; }
 }
 
 
