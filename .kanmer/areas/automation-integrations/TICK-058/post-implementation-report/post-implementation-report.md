@@ -214,3 +214,42 @@ The fresh remediation worktree is clean at
 `cad00be9d42dbeaee9edf34c2d24de222d7ddb9d`; no new commit or PR exists.
 Independent review must attest the corrected verification boundary before a
 fresh verifier appends to the retained failed proof.
+
+## Operator-decision remediation — create-only existing-Case rejection
+
+The operator resolved the remaining API-01 policy question on 2026-09-02.
+API-01 creates new Cases only. A provider declaration that the Principal's
+accepted case-match policy resolves uniquely or ambiguously against existing
+Case work now terminates with `provider_existing_case_match` before assessment,
+association or allocation. It neither updates the existing Case nor creates a
+duplicate. A no-match declaration continues through the existing creation
+path. Existing-Case API updates are deferred to [[AUTO-017]].
+
+The implementation extends the existing Core owner rather than creating an API
+matcher: `EvaluateIntakeCaseMatch.ExecuteDeclaredAsync` asks the selected
+`IProviderCaseMatchPolicy` to derive its existing normalized index keys, then
+runs the same candidate query and eliminator used by mail intake. The durable
+worker classifies the explicit rejection as terminal input. FRD-09 records the
+create-only boundary.
+
+The integration proof creates one QDOS Case, submits the same declared identity
+under a new idempotency key, drains it to Failed, observes the stable failure
+code and null Case reference, and confirms the database still contains exactly
+one Case and one Case-intake link. Focused tests passed (28 Core, 15
+integration). The final canonical commands passed: locked restore exit 0;
+Release build exit 0 with 0 warnings/errors; Core 1,186, Architecture 100, and
+Integration 1,225 passed with 3 expected skips and 0 failures.
+
+One full-suite attempt before the final test-support correction is retained as
+FAIL (Core 1,186 and Architecture 100 passed; Integration 1 failed, 1,224
+passed, 3 skipped). It exposed that the first simplification made a Web-only
+status-query dependency mandatory for generic fixtures. The final version keeps
+the two required completion contracts distinct and shares only the dispatch
+and retry mechanism; the previously failing mailbox test passed in the focused
+rerun and in the final full suite. No production assertion or test assertion
+was removed or weakened.
+
+This is a post-merge remediation of PR #594, so it requires a new PR targeting
+`dev` while remaining on TICK-058's recorded remediation worktree and branch.
+The feature gate remains closed; no provider credential, deployment or cloud
+state changed.

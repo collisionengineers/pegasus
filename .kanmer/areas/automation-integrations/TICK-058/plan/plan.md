@@ -527,3 +527,38 @@ matches an existing QDOS Case ends Failed with
 not increase. A declaration with no match continues through normal API-01 creation.
 Run locked restore/build, focused case-match/provider tests, then the canonical
 non-corpus suite. Stop in Review with the existing PR lineage updated; do not merge.
+
+## Simplification pass — operator-decision remediation, 2026-09-02
+
+Independent reuse/simplicity review found two behaviour-preserving cleanups.
+The declared matcher entry now carries no unused exception outcome state, and
+the integration drain helpers share their dispatch/backoff mechanism. The first
+attempt consolidated the terminal-status query too aggressively; the full suite
+proved that generic non-Web fixtures do not register
+`IQueuedIntakeStatusQueries`. The final shape keeps the established
+completion-only drain for those callers, adds the terminal-status drain needed
+by the Provider API failure test, and shares only `DispatchNextAsync` between
+the two concrete callers. This preserves the existing fixture boundary while
+removing duplicated retry mechanics. No second matching vocabulary or policy
+owner was introduced: `ExecuteDeclaredAsync` reuses
+`IProviderCaseMatchPolicy.DeriveIndexKeys` and the existing eliminator.
+
+Verification attempts are retained:
+
+- Locked restore: PASS, exit 0.
+- Release build after orphaned interrupted-run processes were removed: PASS,
+  exit 0, 0 warnings and 0 errors. The preceding build failed only because the
+  exact stale `testhost`/VSTest process tree from the deliberately interrupted
+  earlier suite still locked this worktree's output DLLs; the process tree was
+  inspected and stopped before retry.
+- Focused matcher/provider tests before the final helper correction: 28 Core
+  and 14 integration tests passed, exit 0.
+- First canonical non-corpus run: Core 1,186 and Architecture 100 passed;
+  Integration failed 1, passed 1,224, skipped 3, exit 1. The failure proved the
+  over-broad test helper required a Web-only status service in a generic
+  mailbox fixture. No assertion was weakened or removed.
+- Focused rerun including that mailbox test: 28 Core and 15 integration tests
+  passed, exit 0.
+- Final canonical non-corpus run on the corrected binaries: Core 1,186,
+  Architecture 100, Integration 1,225 passed / 3 expected skips / 0 failed,
+  exit 0.

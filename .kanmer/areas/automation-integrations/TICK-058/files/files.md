@@ -40,3 +40,9 @@
 
 No endpoint, schema, migration, dependency, infrastructure, deployment, or credential
 file is in scope.
+
+## Test-support addition — 2026-09-02
+
+| Path | Bounded edit |
+| --- | --- |
+| `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs` | Add a terminal-status drain for the failure-path assertion and share the established dispatch/backoff operation with the completion-only drain. |

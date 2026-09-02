@@ -106,9 +106,9 @@ below describe the **declared JSON instruction** that replaced it.
 
 ## Operator-decision remediation — 2026-09-02
 
-- [ ] Record API-01 as create-only in FRD-09 and link deferred updates to [[AUTO-017]].
-- [ ] Reuse the accepted provider matcher for declared identity without duplicating its grammar.
-- [ ] Fail unique and ambiguous existing-Case matches before association/allocation with a stable terminal code.
-- [ ] Pin no mutation/no duplicate and unmatched-creation behavior in focused tests.
-- [ ] Run the simplification pass and the named verification commands.
+- [x] Record API-01 as create-only in FRD-09 and link deferred updates to [[AUTO-017]].
+- [x] Reuse the accepted provider matcher for declared identity without duplicating its grammar.
+- [x] Fail unique and ambiguous existing-Case matches before association/allocation with a stable terminal code.
+- [x] Pin no mutation/no duplicate and unmatched-creation behavior in focused tests.
+- [x] Run the simplification pass and the named verification commands.
 - [ ] Update the existing PR lineage, report, and Review hand-off; do not merge.
