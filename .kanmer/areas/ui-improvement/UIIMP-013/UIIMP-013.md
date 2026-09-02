@@ -1,7 +1,7 @@
 ---
 id: UIIMP-013
 type: ticket
-title: The test-ui gate costs 50 minutes of every build-affecting PR
+title: Reduce the Test UI snapshot gate critical path without weakening coverage
 status: implementing
 area: ui-improvement
 assignee: codex-root
@@ -11,15 +11,15 @@ stageEntered:
 taken_at: '2026-09-02T03:21:55.240Z'
 branch: task/uiimp-013-test-ui-cost
 worktree: ../pegasus-worktrees/uiimp-013-test-ui-cost
-claim_expires_at: '2026-09-02T13:21:14.356Z'
+claim_expires_at: '2026-09-02T13:23:29.115Z'
 claim_controller: codex-root
 lease_id: 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4
-lease_revision: 2
+lease_revision: 3
 lease_workspace: >-
   worktree:c:\users\pguser\documents\github\pegasus-worktrees\uiimp-013-test-ui-cost
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T12:51:14.356Z'
+lease_heartbeat_at: '2026-09-02T12:53:29.115Z'
 lease_reclaimed_from: claude-code/20260901T215000Z-claude-controller/implementer-a1
 labels:
   - ci
@@ -32,70 +32,42 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T12:51:14.356Z'
+updated: '2026-09-02T12:53:29.115Z'
 ---
 
 ## What
 
-Make the `test-ui` CI job cheaper. It currently needs a 75-minute budget and
-becomes the critical path for every PR that touches the build.
+Reduce the Test UI snapshot gate's pull-request critical path without weakening
+its complete capture, stale-file, orphan, or offline-render guarantees.
 
-## The measurements
+## Current evidence
 
-From run `33310451221` on PR #609, the job's own log:
+- Historical run `33310451221` spent 40m23s in capture before cancellation.
+- Recent successful build-relevant runs complete capture and verify in
+  approximately 24–27 minutes, so the original 50-minute headline is stale.
+- The script currently pins the whole capture selection to two threads even
+  though only browser tests require that cap; non-browser integration tests use
+  the repository's proven four-thread default elsewhere.
+- Verify is one fact over the retained capture, not a second run of all capture
+  tests.
 
-| Phase | Time |
-| --- | --- |
-| Capture — the 414-test suite | **40m23s**, 414 passed / 0 failed |
-| Verify — a second pass on the committed corpus | started, killed 11s in by the timeout |
-| Same capture suite locally | **18m52s** |
+## Decision
 
-So the hosted Windows runner is roughly **2.1× slower** than the local machine
-for this work. The capture runs at processor-count parallelism and the runner
-has fewer cores.
+Keep the full gate on every build-affecting pull request. Split the exact
+capture selection into browser and non-browser phases, retain the browser cap,
+let non-browser capture inherit the project cap, reuse the build and capture
+directory, and make incomplete-run output distinct from an explicit stale
+snapshot assertion.
 
-The timeout was raised twice while landing [[UIIMP-005]] — 30 killed it
-mid-capture, 45 killed it 11 seconds into verify — and **both failures were
-reported as a stale corpus rather than as a timeout**, which is the worst part:
-the gate's failure mode is indistinguishable from the defect it exists to catch.
-
-## Why it is expensive
-
-`Update-TestUiSnapshots.ps1 -Verify` runs the capture suite and then a second
-`dotnet test` for the verify, and **rebuilds between them** — the job log shows
-`Pegasus.Core -> …` twice. The rebuild is seconds, not minutes, so it is not the
-main cost, but it is free to remove.
-
-The real cost is running all 414 capture tests to regenerate a corpus in order
-to compare it against the committed one.
-
-## Approach
-
-Ideas, cheapest first — none of them decided:
-
-- Pass `--no-build` to the verify invocation; the capture already built.
-- Reuse the `browser` job's Playwright run rather than paying for a second
-  Chromium render of every page. `browser` already takes 11-15 minutes doing
-  adjacent work.
-- Capture once and publish the corpus as an artifact the verify step consumes,
-  instead of two full passes in one job.
-- Narrow the capture filter: the suite is
-  `WebTests|Category=Browser|StaffSignInSecurityTests|TestUiFocusedRenderTests|QdosCustodialWebTests|AutomationConnectorAuthorizationTests|ImageViewingWebTests`.
-  Establish which of those actually contribute captured pages.
-
-**Do not simply raise the timeout again.** If the job cannot be made cheaper,
-the honest alternative is to decide it should not run on every PR — but that is
-a change to what [[UIIMP-005]] delivered and needs its own argument.
-
-## Also fix
-
-The timeout failure mode. A job killed by its budget currently reads as a stale
-corpus. It should say it ran out of time, so the next person does not spend an
-hour looking for a snapshot drift that never existed.
+Do not reuse broader CI lane captures or introduce UI-only scheduling: both
+weaken the curated snapshot input or detection boundary.
 
 ## Verification
 
-- [ ] `test-ui` completes with real headroom, measured over several runs
-- [ ] A genuine stale corpus still fails it (the perturbation and orphan
-      injections [[UIIMP-005]] used both still exit 1)
-- [ ] A timeout is distinguishable from a stale corpus in the job output
+- [ ] The same 414 tests run across a disjoint two-filter partition.
+- [ ] Fresh verify, stale-file injection, orphan injection, and catalogue checks
+      retain their outcomes.
+- [ ] Three runs of one PR SHA all pass with median snapshot time at most
+      22 minutes and no run above 25 minutes.
+
+## Outcome
