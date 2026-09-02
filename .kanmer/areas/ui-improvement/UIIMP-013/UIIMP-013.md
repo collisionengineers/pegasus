@@ -2,10 +2,12 @@
 id: UIIMP-013
 type: ticket
 title: The test-ui gate costs 50 minutes of every build-affecting PR
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-02T03:09:00.895Z'
 labels:
   - ci
   - performance
@@ -17,7 +19,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-08-30T12:51:09.415Z'
+updated: '2026-09-02T03:09:00.895Z'
 ---
 
 ## What

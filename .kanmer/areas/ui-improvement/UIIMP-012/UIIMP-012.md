@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Rename the Triage history panel to "Notes" and narrow D7 to uncomposed
   integrations
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-02T03:09:03.495Z'
 labels:
   - ui
   - epic-contract
@@ -23,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T08:29:54.971Z'
-updated: '2026-09-01T22:00:25.040Z'
+updated: '2026-09-02T03:09:03.495Z'
 ---
 
 ## What
