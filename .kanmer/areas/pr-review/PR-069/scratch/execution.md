@@ -6,3 +6,7 @@
 - origin/dev moved to fbf8ee40 (skill trees + Graph mail only); the branch was refreshed from origin/dev by a fast-forward merge before any edit or migration scaffold.
 - In-flight migration census: only the INTK-048 branch carries one (20260829222702_UnidentifiedResolutionRecheckWatermark, deferred draft #639). Operator ruling: PR-069 lands first and owns this column; INTK-048 resumes after. Not a stop.
 - Read refutation evidence: PR-069 scratch/review@8d55a5c425d8c59a, INTK-048 scratch/review@3f51b4f13d8d53c8, commits b5fd8725 0147af6b 054bfe08 1f036337 on the INTK-048 branch (nothing cherry-picked).
+
+## Transitions
+
+- 2026-09-02T10:17:46.224Z claim-transfer claude-code/20260901T215000Z-claude-controller/implementer-escalated-a1 → claude-code/fable-5.1@PGUSER#intk048-session-018JHWyDh4u8xKvJxKcyLUs7 (expired; lease 7baf3a4e-d481-42c2-baa6-3a57744e60d1 → 26790757-76d5-411f-9340-5ec1a9e698e7 rev 2; branch task/pr-069-unidentified-link-reversal; worktree ../pegasus-worktrees/pr-069-unidentified-link-reversal; expires 2026-09-02T10:47:46.217Z; evidence: workspace dirty (matches-claim), pr unavailable, commits 0, proof absent)
