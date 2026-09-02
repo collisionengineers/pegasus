@@ -1,0 +1,1 @@
+Done audit (batch 2): traceability_debt. Reachable from origin/main and release-37; EvaSubmission single-segment route confirmed live. No deployment field on the item; dev-merge proof (D15) never updated after promotion. No action on the Done record.

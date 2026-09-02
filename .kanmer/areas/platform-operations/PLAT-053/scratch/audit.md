@@ -1,0 +1,1 @@
+Done audit (batch 2): traceability_debt. Reachable from origin/main and release-37; ExternalWorkStatePersistence.cs confirmed live with its three named readers. No deployment field; dev-merge proof never updated after promotion.

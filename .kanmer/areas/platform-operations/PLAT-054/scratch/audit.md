@@ -1,0 +1,1 @@
+Done audit (batch 2): traceability_debt. Reachable from origin/main and release-37; LondonCalendar.DayAndWeekBoundariesAt confirmed live, full caller chain from route / verified. No deployment field; dev-merge proof never updated after promotion.

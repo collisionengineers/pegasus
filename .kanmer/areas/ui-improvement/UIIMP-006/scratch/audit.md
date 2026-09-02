@@ -1,0 +1,1 @@
+Done audit (batch 2): traceability_debt. Reachable from origin/main and release-37; design/README.md Authenticated shell + site.css tokens confirmed live. No deployment field; dev-merge proof never updated after promotion.
