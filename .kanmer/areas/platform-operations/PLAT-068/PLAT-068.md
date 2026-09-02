@@ -20,10 +20,12 @@ links: []
 blocks:
   - CASE-040
   - ENG-029
+refs:
+  - docs/frd/frd-04-parties-accounts-and-access.md
 docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-02T20:53:21.795Z'
+updated: '2026-09-02T22:06:48.708Z'
 ---
 
 ## What

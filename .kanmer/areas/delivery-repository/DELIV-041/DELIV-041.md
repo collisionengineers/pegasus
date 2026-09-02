@@ -4,16 +4,15 @@ type: ticket
 title: >-
   Record the 2026-09-02 Case workspace decisions D29–D43 in the governing
   documents
-status: review
+status: done
 area: delivery-repository
 assignee: claude-fable-5.1/c4ea9419/deliv-041
 profile: chore
 stageEntered:
   preparing: '2026-09-02T20:34:59.540Z'
   review: '2026-09-02T20:52:04.770Z'
-taken_at: '2026-09-02T20:35:24.037Z'
-branch: task/deliv-041-case-workspace-decisions
-worktree: .worktrees/deliv-041
+  verifying: '2026-09-02T22:06:20.917Z'
+  done: '2026-09-02T22:06:22.086Z'
 labels:
   - docs
   - governing-docs
@@ -56,7 +55,7 @@ prs:
   - '647'
 archived: false
 created: '2026-09-02T20:31:38.561Z'
-updated: '2026-09-02T21:59:59.528Z'
+updated: '2026-09-02T22:06:23.255Z'
 ---
 
 ## What

@@ -19,10 +19,13 @@ groups:
 links: []
 blocks:
   - UIIMP-014
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
+  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.755Z'
-updated: '2026-09-02T20:33:59.752Z'
+updated: '2026-09-02T22:06:47.407Z'
 ---
 
 ## What

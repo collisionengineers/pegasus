@@ -24,10 +24,13 @@ blocks:
   - CASE-041
   - CASE-029
   - CASE-009
+refs:
+  - docs/frd/frd-12-operator-experience.md
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
 docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.600Z'
-updated: '2026-09-02T20:33:14.557Z'
+updated: '2026-09-02T22:06:33.612Z'
 ---
 
 ## What

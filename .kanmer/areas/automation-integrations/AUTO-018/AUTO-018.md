@@ -4,10 +4,12 @@ type: ticket
 title: >-
   AI market research job: external Cowork research completed through the
   Automation Actor into a valuation row and findings document
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:06:47.198Z'
 labels:
   - ai
   - valuation
@@ -21,7 +23,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-02T20:34:04.283Z'
+updated: '2026-09-02T22:06:47.198Z'
 ---
 
 ## What
