@@ -14,9 +14,9 @@ groups:
 links:
   - CASE-026
   - UIIMP-005
-archived: false
+archived: true
 created: '2026-08-29T08:07:00.986Z'
-updated: '2026-08-29T08:07:00.986Z'
+updated: '2026-09-02T12:50:31.732Z'
 ---
 
 ## What
@@ -44,6 +44,15 @@ page the `/Search` states cannot be captured or verified.
 
 ## Outcome
 
-Constants updated, `scripts/Update-TestUiSnapshots.ps1` (+ `-Verify
--SkipCapture`) green over the two `cases--*` states. The file is
-[[UIIMP-005]]'s; [[CASE-026]] reported it rather than editing it.
+Already delivered by [[UIIMP-005]] in commit
+`fbb4c2cde0a00fe408e6e2ab9b20aecc5e162d69`, which is reachable from
+`main`. The two state constants now match the Search page:
+
+- `cases--empty` matches `No cases match these filters.`
+- `cases--unavailable` matches
+  `<strong>Cases are unavailable</strong>`
+
+The regenerated `docs/design/test-ui/pages/cases--empty.html` and
+`cases--unavailable.html` contain the same current markup. No separate branch,
+worktree, or PR is required; this duplicate backlog record is archived with its
+delivery evidence preserved.
