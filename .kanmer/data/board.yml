@@ -93,10 +93,6 @@ repoDocs:
   prd: docs/prd/**
   frd: docs/frd/**
   adr: docs/adr/**
-delivery:
-  integrationBranch: dev
-  releaseBranch: main
-  hotfixBackport: true
 deployment:
   environments:
     - production
