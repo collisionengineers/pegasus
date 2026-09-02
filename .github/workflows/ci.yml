@@ -270,5 +270,5 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          Write-Host "The Test UI gate failed or exceeded its 40-minute step budget."
+          Write-Host "The Test UI gate failed or exceeded its 35-minute step budget."
           Write-Host "This is not itself a stale-catalogue verdict. Snapshot drift is reported explicitly by TestUiSnapshotTests with the stale or ungenerated file."
