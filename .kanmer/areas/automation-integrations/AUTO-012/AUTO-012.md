@@ -2,7 +2,7 @@
 id: AUTO-012
 type: ticket
 title: API-01 provider submission accept path is not atomic across its four writes
-status: verifying
+status: done
 area: automation-integrations
 order: 60
 assignee: ''
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-30T08:04:25.947Z'
   review: '2026-08-30T08:04:58.335Z'
   verifying: '2026-08-30T08:05:04.654Z'
+  done: '2026-09-02T16:42:37.855Z'
 labels:
   - API-01
   - requires-live-approval
@@ -31,7 +32,7 @@ delivery_sha: b9dcfec95f66d22623ab5ab9be72cfc974c11dc3
 delivery_recorded_at: '2026-09-02T16:09:59.546Z'
 archived: false
 created: '2026-08-29T08:17:39.146Z'
-updated: '2026-09-02T16:09:59.546Z'
+updated: '2026-09-02T16:42:37.855Z'
 ---
 
 ## What
