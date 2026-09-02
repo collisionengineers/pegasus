@@ -4,7 +4,7 @@ type: ticket
 title: >-
   A case created through the Provider API records no Work Provider, and a paused
   credential is refused only after the body is read
-status: verifying
+status: done
 area: automation-integrations
 order: 70
 assignee: ''
@@ -14,6 +14,7 @@ stageEntered:
   implementing: '2026-08-29T22:40:03.540Z'
   review: '2026-08-29T22:40:36.930Z'
   verifying: '2026-08-29T22:40:42.099Z'
+  done: '2026-09-02T17:01:29.719Z'
 labels:
   - API-01
 groups:
@@ -32,7 +33,7 @@ delivery_sha: 8b6d41345ee3afd1d7a1eb875ed3416516d50375
 delivery_recorded_at: '2026-09-02T16:09:59.592Z'
 archived: false
 created: '2026-08-29T08:35:46.076Z'
-updated: '2026-09-02T16:09:59.592Z'
+updated: '2026-09-02T17:01:29.719Z'
 ---
 
 ## What

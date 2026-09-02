@@ -96,3 +96,15 @@ restore, Release build, the canonical non-Corpus test gate, fresh
 `Update-TestUiSnapshots.ps1 -Verify`, and `Test-UiCatalogue.ps1`. Confirm the
 two capture counts remain 119 and 296, verify runs once over their shared
 capture, and the workflow retains the 35-minute step / 40-minute job budgets.
+
+## Remediation round 1
+
+- F-001: changed the incomplete-run diagnostic from a 40-minute step budget
+  to the configured 35-minute step budget in `.github/workflows/ci.yml`.
+- Remediation commit:
+  `8116ac7b5545149670eb318708a2a4181bdba786`.
+- Scope: one diagnostic string; no capture behavior, timeout, test, snapshot,
+  trigger, or other workflow lane changed.
+- Verification: `git diff --check` PASS; exact workflow text confirms the
+  configured timeout and diagnostic both name 35 minutes. The updated PR CI
+  run supplies final-head workflow validation.
