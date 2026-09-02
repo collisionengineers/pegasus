@@ -103,3 +103,12 @@ below describe the **declared JSON instruction** that replaced it.
   345-test assignment: 345 passed, 0 failed, 0 skipped, 9m26s. Every job in the
   run succeeded. The independent-review and merged-main proof items remain
   unticked; the ticket stays in `review`.
+
+## Operator-decision remediation — 2026-09-02
+
+- [ ] Record API-01 as create-only in FRD-09 and link deferred updates to [[AUTO-017]].
+- [ ] Reuse the accepted provider matcher for declared identity without duplicating its grammar.
+- [ ] Fail unique and ambiguous existing-Case matches before association/allocation with a stable terminal code.
+- [ ] Pin no mutation/no duplicate and unmatched-creation behavior in focused tests.
+- [ ] Run the simplification pass and the named verification commands.
+- [ ] Update the existing PR lineage, report, and Review hand-off; do not merge.

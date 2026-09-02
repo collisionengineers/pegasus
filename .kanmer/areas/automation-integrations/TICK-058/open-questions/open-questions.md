@@ -24,3 +24,7 @@
 - [ ] Whether the declared-verdict ruling is also recorded in `docs/operator-notes.md`. That file is protected; the ruling is recorded in FRD-01 and FRD-09 and in this document, and the operator has not yet been asked whether operator-notes should carry it too.
 - [ ] Cover type, excess, sum insured, repairer block, policy number, insurer/third-party name, estimate money and private-hire licensing. EVA's instruction model carries them; Pegasus holds no case field for any, and inventing domain data is a stop condition. A later widening needs an operator-accepted field for each.
 - [ ] Atomicity of the four-write accept path. Deferred to [[AUTO-012]] with the reason recorded there; not reachable while `Features:ProviderApi` is closed.
+
+## Operator decision — 2026-09-02
+
+- [x] **What happens when an API-01 declaration matches an existing Case?** — Reject it. API-01 is create-only: a matching submission must neither update the existing Case nor allocate a duplicate. Existing-Case API mutations are deferred to [[AUTO-017]].

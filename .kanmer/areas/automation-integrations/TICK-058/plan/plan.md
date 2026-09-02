@@ -498,3 +498,32 @@ preserves the already reviewed PR #594 implementation. A fresh independent
 review must attest that the immutable base is the correct change boundary
 before the ticket returns to Verifying. The next proof retains the failed
 plan attempt and appends the corrected exact-SHA attempt.
+
+## Operator-decision remediation — existing-Case rejection, 2026-09-02
+
+The operator settled the open PR #594 major: API-01 is create-only. A declared
+Provider API instruction is evaluated by the existing Principal/provider case-match
+policy before allocation. A unique existing-Case match is a terminal input rejection:
+processing records `provider_existing_case_match`, allocates no Case/PO, and performs
+no existing-Case association or mutation. Ambiguous matches also fail closed and
+allocate nothing. API-driven existing-Case updates are explicitly deferred to
+[[AUTO-017]].
+
+Reuse the existing `EvaluateIntakeCaseMatch` eliminator and each provider policy's
+`DeriveIndexKeys`; do not create a second matching grammar. The provider declaration
+supplies the same claim number, VRM, claimant, and incident-date facts already indexed
+for that Principal. Providers without an accepted match policy retain current behavior;
+activating another provider still requires its own accepted policy under FRD-09.
+
+Bounded changes: amend FRD-09, expose a declaration-shaped entry to the existing Core
+matcher, reject unique/ambiguous outcomes before `DeclaredAssessment`, classify that
+rejection as terminal in the durable worker, and add focused Core/integration tests.
+No endpoint, request schema, response detail, store, migration, dependency, deployment,
+or credential change is authorised.
+
+Acceptance: a repeated QDOS Provider API instruction whose declared identity uniquely
+matches an existing QDOS Case ends Failed with
+`provider_existing_case_match`; the existing Case is unchanged and the Case count does
+not increase. A declaration with no match continues through normal API-01 creation.
+Run locked restore/build, focused case-match/provider tests, then the canonical
+non-corpus suite. Stop in Review with the existing PR lineage updated; do not merge.

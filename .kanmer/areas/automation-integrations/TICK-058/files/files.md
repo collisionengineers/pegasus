@@ -26,3 +26,17 @@
 ## Not touched
 
 `docs/current-architecture.md` / `docs/operations.md` (DELIV-030), `docs/capabilities.md` (TICK-061 moved API-01 to Now), Principal settings dialog (PLAT-050), any Worker file (the binding port is registered by Infrastructure DI and resolved by `ProcessIntake`'s optional parameter).
+
+## Operator-decision remediation — 2026-09-02
+
+| Path | Bounded edit |
+| --- | --- |
+| `docs/frd/frd-09-provider-and-intermediary-routes.md` | Record API-01 create-only existing-Case rejection and defer mutations to [[AUTO-017]]. |
+| `src/Pegasus.Core/Intake/CaseMatching/EvaluateIntakeCaseMatch.cs` | Reuse the existing eliminator for provider-declared case identity through the provider's accepted policy. |
+| `src/Pegasus.Core/Intake/ProcessIntake.cs` | Evaluate Provider API declarations before allocation and reject a unique/ambiguous existing-Case outcome without association or mutation. |
+| `src/Pegasus.Core/Intake/DurableIntake.cs` | Classify the explicit create-only rejection as terminal input, preserving the stable failure code. |
+| `tests/Pegasus.Core.Tests/Intake/CaseMatching/EvaluateIntakeCaseMatchTests.cs` | Pin declared-data normalization through the existing provider policy. |
+| `tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs` | Prove a repeated matching submission fails, changes no existing Case, and allocates no duplicate. |
+
+No endpoint, schema, migration, dependency, infrastructure, deployment, or credential
+file is in scope.
