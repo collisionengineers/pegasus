@@ -7,6 +7,8 @@
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
+Direct Case creation is one of those ways, not an exception to them (D26, 2026-09-01). Staff enter the required identity and either attach the instruction or record it. Pegasus persists an attributable intake receipt for that instruction — actor, time, the attached or recorded instruction and its custody identity — and only then reuses the normal principal resolution and Case/PO allocation policy. There is no parallel allocation implementation and no direct-creation route that skips the receipt: the allocator that serves automatic creation is the only allocator.
+
 Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
 
 A usable registration therefore settles into one of two outcomes the operator
@@ -72,6 +74,13 @@ request/history state, other document, token-management function, external
 account, or cross-request lookup. An accepted upload result means only that the
 request-local custody boundary succeeded; it is not case creation, Box custody,
 EVA handoff, report generation, or external delivery.
+
+A link accepts **one successful submission** (D20, 2026-09-01). An identical
+retry reconciles to the same result rather than creating a second submission. A
+different later submission, a revoked link and an expired link are all refused
+without disclosing the Case, its reference, the earlier submission or its
+files. The decided size bounds are 100 MB per file and approximately 200 MB per
+multipart request.
 
 File type/count/size limits, authentication of the staff creator, token expiry
 and revocation, idempotent retry, abuse handling, durable custody, cross-request
@@ -162,7 +171,7 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
-**Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same seven-calendar-day interval a Not-ready formal Case's first chase falls due at, and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
+**Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same configured chase interval a Not-ready formal Case's first chase falls due at (one global whole-calendar-day value, 1 to 365, default 7 — D23), and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
 
 ### Grouped image-intake routing
 
@@ -261,10 +270,16 @@ claiming a separate raw source; provenance and value status remain distinct.
 
 ### Upload confirmation surface
 
+A grouped upload exposes **one submission decision** — whether the submission
+itself was accepted or refused — with the per-file processing and outcome
+details beneath it (D20, 2026-09-01). The submission decision is never a
+summary that hides a per-file outcome.
+
 Once a manually uploaded file's processing resolves (Complete or Failed), the
-operator sees a confirmation decision rather than a passive status label. The
-decision is per file — a grouped upload's members can terminal-decide
-independently, so the surface never assumes one outcome for a whole group.
+operator sees a confirmation decision rather than a passive status label. That
+confirmation decision is per file — a grouped upload's members can
+terminal-decide independently, so the surface never assumes one confirmation
+outcome for a whole group.
 
 The decision table, evaluated once per file:
 
