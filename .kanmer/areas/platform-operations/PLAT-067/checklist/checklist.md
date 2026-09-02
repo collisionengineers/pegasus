@@ -1,7 +1,7 @@
 # Checklist
 
-- [ ] Take PLAT-067 on the recorded branch and isolated worktree.
-- [ ] Run the fresh wipe dry run and record Blob, byte, SQL table/row, preserved-row, and sequence figures.
+- [x] Take PLAT-067 on the recorded branch and isolated worktree.
+- [x] Run the fresh wipe dry run and record Blob, byte, SQL table/row, preserved-row, and sequence figures.
 - [ ] Obtain exact wipe-write approval.
 - [ ] Execute the wipe and verify storage, SQL transaction, preserved state, sequences, untouched systems, and authenticated empty Web UI.
 - [ ] Re-fetch and validate the exact Git candidate, ancestry, direct-commit waiver, PRs, and checks.
@@ -18,3 +18,7 @@
 - [ ] Obtain independent review and merge of the evidence PR.
 - [ ] Perform the independently authorized final docs-only promotion without redeployment.
 - [ ] Verify merged main, write proof, and close out PLAT-067.
+
+## Progress notes
+
+- 2026-09-02 dry run PASS (exit 0): 36 blobs / 3,932,690 bytes; 102 SQL tables; preserve list 31/31 with no missing tables; 32 effectively preserved tables; 70 tables targeted with 147 rows; sequence row values Case 31, Image 7, Unidentified 1. No write performed.
