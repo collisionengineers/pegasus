@@ -2,7 +2,7 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: review
+status: implementing
 area: automation-integrations
 order: 330
 assignee: codex-api03
@@ -17,6 +17,7 @@ branch: TICK-058-verification-plan-remediation
 worktree: .worktrees/tick-058
 claim_expires_at: '2026-09-02T18:32:49.716Z'
 claim_controller: codex-api03
+review_round: 1
 lease_id: 52f7ffbd-c4b4-4d08-9b0a-ce5414b26f13
 lease_revision: 1
 lease_controller_run: 20260902T160919Z-codex-api03
@@ -74,7 +75,7 @@ delivery_sha: 0d985c9e0b3284f211f824d387e2f36460c0c826
 delivery_recorded_at: '2026-09-02T16:09:59.686Z'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-09-02T18:03:15.152Z'
+updated: '2026-09-02T18:34:50.594Z'
 ---
 
 ## What
