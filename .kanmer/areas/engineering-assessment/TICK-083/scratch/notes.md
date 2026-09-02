@@ -1,0 +1,1 @@
+2026-09-02 — Operator decision: EXT-10 stays later. EPIC-012's CASE-029 ships Glass's valuation, the Cazana seam, Engineer's Value and AI market research with guide month and mileage; EXT-10 keeps CAP HPI, AutoTrader as a manual source, Vehicle data, Engineer adjustments, rationale and revaluation history. Related only; no `blocks` edge.

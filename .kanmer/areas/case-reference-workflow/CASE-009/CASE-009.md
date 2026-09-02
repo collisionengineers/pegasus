@@ -17,6 +17,10 @@ labels:
   - queries
   - operator-reported
   - mail-association
+  - case-workspace-v2
+groups:
+  - EPIC-012
+  - EPIC-011
 links:
   - CASE-027
 refs:
@@ -24,7 +28,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T07:51:29.215Z'
-updated: '2026-09-02T01:10:30.568Z'
+updated: '2026-09-02T20:32:14.689Z'
 ---
 
 ## Why

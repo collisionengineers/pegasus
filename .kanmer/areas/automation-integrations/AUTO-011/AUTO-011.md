@@ -23,6 +23,8 @@ groups:
 links:
   - TICK-074
   - AUTO-009
+blocks:
+  - AUTO-018
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
@@ -31,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:47.092Z'
-updated: '2026-09-01T14:44:33.836Z'
+updated: '2026-09-02T20:33:40.329Z'
 ---
 
 ## What

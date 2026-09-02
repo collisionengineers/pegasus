@@ -1,0 +1,1 @@
+2026-09-02 — Joined EPIC-012. Placement per the v2 mockup: the Queries list lives in the Files section under Correspondence as a table (Raised, Resolved, Reason, Open message, Mark resolved). Source `Downloads/Pegasus_UI_v2_src/src/21-case-sections.js` §files. Blocked by the EPIC-012 frame ticket for the section container.

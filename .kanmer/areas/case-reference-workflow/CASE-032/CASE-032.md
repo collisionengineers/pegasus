@@ -17,12 +17,13 @@ links:
   - CASE-025
 blocks:
   - CASE-025
+  - CASE-042
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-29T13:04:56.182Z'
-updated: '2026-08-29T13:10:15.145Z'
+updated: '2026-09-02T20:33:37.483Z'
 ---
 
 ## What

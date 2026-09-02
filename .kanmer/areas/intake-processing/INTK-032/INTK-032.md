@@ -15,11 +15,12 @@ links:
   - INTK-056
   - TICK-041
   - PLAT-065
+  - CASE-038
 docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.932Z'
-updated: '2026-09-02T14:58:15.720Z'
+updated: '2026-09-02T20:34:07.216Z'
 ---
 
 ## Why — operator direction (2026-08-22)
