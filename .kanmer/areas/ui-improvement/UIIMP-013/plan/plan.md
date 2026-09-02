@@ -3,14 +3,16 @@
 ## Objective
 
 Reduce the full Test UI capture-and-verify critical path without changing the
-414-test selection, generated corpus, stale/orphan guarantees, or when the gate
+415-test selection, generated corpus, stale/orphan guarantees, or when the gate
 runs.
 
 ## Starting state
 
+- Evidence: `files/files.md`@`7c8eb9f83852e8ef`.
 - Recorded worktree: `../pegasus-worktrees/uiimp-013-test-ui-cost`.
 - Recorded branch: `task/uiimp-013-test-ui-cost`.
-- The recovered worktree is clean and 16 commits behind `origin/dev`.
+- The recovered worktree was clean and fast-forwarded to `origin/dev` at
+  `0f0e90ae44ffda7339ca2a460310deeb98121afa`.
 - Recent successful snapshot steps take approximately 24–27 minutes.
 - The capture applies `xUnit.MaxParallelThreads=2` to browser and non-browser
   tests alike; the repository default is four and only browser tests require
@@ -47,9 +49,11 @@ runs.
 
 ## Expected files
 
-- `scripts/Update-TestUiSnapshots.ps1`
-- `.github/workflows/ci.yml`
-- `docs/runbook.md`
+| Action | Path |
+| --- | --- |
+| Modify | `scripts/Update-TestUiSnapshots.ps1` |
+| Modify | `.github/workflows/ci.yml` |
+| Modify | `docs/runbook.md` |
 
 ## Do not modify
 
@@ -147,13 +151,18 @@ runs.
 - `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
 - `pwsh ./scripts/Update-TestUiSnapshots.ps1 -Verify`
 - `pwsh ./scripts/Test-UiCatalogue.ps1`
-- Combined capture count remains 414 and the filters are a disjoint partition.
+- Combined capture count remains 415 and the filters are a disjoint partition.
 - Perturbing one committed page makes `-Verify -SkipCapture` fail naming it as
   stale; restoring it returns the tree to clean.
 - Adding one orphan page makes the same command fail naming it as ungenerated;
   removing it returns the tree to clean.
 - `git diff origin/dev...HEAD -- docs/design/test-ui/` is empty.
 - Three exact-SHA CI runs meet the performance target.
+
+## Commands
+
+Use the commands listed in Acceptance checks from the recorded worktree. CI
+measurement uses `gh run view <run-id> --json jobs` and exact-SHA reruns.
 
 ## Failure and deviation rules
 

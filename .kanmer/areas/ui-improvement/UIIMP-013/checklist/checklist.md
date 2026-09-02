@@ -8,7 +8,7 @@
 - [ ] Step 3 — Add honest failure text that reserves “stale corpus” for an explicit snapshot assertion and never masks the job failure.
 - [ ] Step 4 — Add one runbook sentence describing the Test UI browser/non-browser concurrency split without changing command blocks.
 - [ ] Step 5 — Run locked restore, Release build, and the full non-Corpus solution test gate; record commands, cwd, output, and exit codes.
-- [ ] Step 5 — Run a fresh Test UI verify and the catalogue check; confirm the combined capture count is 414.
+- [ ] Step 5 — Run a fresh Test UI verify and the catalogue check; confirm the combined capture count is 415.
 - [ ] Step 5 — Prove stale-file and orphan negative cases with the retained capture, restoring/removing each temporary change.
 - [ ] Step 5 — Confirm `docs/design/test-ui/**` and `AGENTS.md` are unchanged.
 - [ ] Step 5 — Run the simplification pass and record dated findings and dispositions in the plan.
