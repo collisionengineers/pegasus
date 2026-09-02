@@ -1,0 +1,3 @@
+## 2026-09-02 D18 ownership (controller, non-binding)
+
+DELIV-040's reviewer (F-008) found no implementation ticket for decision D18 (any Engineer issues a report with typed identity only; signature assets retained, inactive). The controller assigns D18's implementation to this ticket's activation scope rather than allocating a new ticket: when report generation is activated, issuance renders the typed Engineer identity and drops the accepted-signature check (`AssessmentPolicy`, `AssessmentReportProjection`) as the governing FRD-11 now records. Reversible by the operator (allocate a separate D18 ticket instead).
