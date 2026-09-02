@@ -38,11 +38,13 @@ an off-board stage. Sections (omit empty ones):
 
 - **In flight** — working stages; one line each, `⛏ branch` for taken, `3/7` checklist.
 - **In review** — who each is waiting on.
-- **Up next** — top of the first stage, 3–5 max.
+- **Up next** — top of the first stage, 3–5 max, excluding quick captures
+  (`capture: true`): an unpromoted observation is not what anyone is doing next.
+  Count them in one line instead — "N captures awaiting a decision".
 - **Recently done** — reached the final stage in the last 7 days (prefer the activity log's `to: <last stage>`), with the actor when it wasn't the user.
 - **Blocked** — every `blocked: true`; name blockers from `get_links`.
 - **What happened since yesterday** — created / moved / taken / docs written, grouped by actor.
-- **Flags** — file warnings, stale (>7d) items, **doc-gate debt** (`docs_todo:true` still unlinked, or a required doc missing — from `get_doc_gates`), tickets taken >3d with no activity.
+- **Flags** — file warnings, stale (>7d) items, **doc-gate debt** (`docs_todo:true` still unlinked, or a required doc missing — from `get_doc_gates`), tickets taken >3d with no activity. Quick captures are excluded from every one of these: a capture may sit in Backlog indefinitely by design, owes no document, and can never be taken, so flagging one would report a debt that does not exist.
 
 ## Mode: since \<period\> (retro)
 `get_activity since: <period start>`. Report what reached the final stage

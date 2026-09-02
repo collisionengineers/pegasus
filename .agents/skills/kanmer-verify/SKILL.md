@@ -25,11 +25,13 @@ worktree remain untouched.
    observed result, and summary; preserve failures and inconclusive attempts.
 6. Replace `proof/proof.md` as one version-aware proof record. Only a truthful
    top-level `PASS` may proceed to the Done gate.
-7. Classify a non-PASS result as retryable by default and leave it in
-   Verifying. A failure that is irrecoverable or superseded may instead use
-   the explicit terminal-retirement path below, but only with the operator's
-   disposition. PASS moves only `verifying` → `done`. Both terminal paths hand
-   off to closeout.
+7. Give every non-PASS result a `failure_class` and route it by the table
+   below: `transient` retries in Verifying, `inconclusive` waits in Verifying,
+   `implementation` returns to Implementing, `plan` returns to Preparing. A
+   failure that is irrecoverable or superseded may instead use the explicit
+   terminal-retirement path below, but only with the operator's disposition.
+   PASS moves only `verifying` → `done`. Both terminal paths hand off to
+   closeout.
 
 ## Confirm the merge before touching Git
 
@@ -77,7 +79,10 @@ report condition; do not reuse it by force or choose an unrecorded alternate.
 ## Run and record the evidence
 
 Read the plan/checklist and packet command hint already bound to the ticket,
-then run the named deterministic checks in the detached worktree. Do not
+then run the named deterministic checks in the detached worktree. Give this
+verification its own log paths, named from the ticket and merged SHA: two
+verifiers running at once and sharing one log file destroy each other's
+evidence. Do not
 invent a green result for a manual GUI, hosted GitHub, provider, deployment,
 or Windows-lock check that is unavailable. Record that attempt as
 `INCONCLUSIVE` with exit code `null` when no process ran. A failed command is
@@ -113,14 +118,56 @@ attempts: []
 `merged_sha`, environment, and timestamp are non-empty. The top-level result
 is exactly `PASS | FAIL | INCONCLUSIVE | NOT_APPLICABLE | WAIVED_BY_OPERATOR`.
 `WAIVED_BY_OPERATOR` is a human disposition only and requires the operator
-identity and reason in the body; it is not a normal attempt result. Keep every
-failed or inconclusive attempt when a later run passes.
+identity and reason in the body; it is not a normal attempt result and the
+verifier never writes it on its own authority. Keep every failed or
+inconclusive attempt when a later run passes.
 
-Only `PASS` permits the final move. Call `get_doc_gates` immediately before
-`move_item`; move one boundary only, `verifying` → `done`. If any required
-check failed or is unavailable, write the truthful record and remain in
-Verifying. Do not turn the structural existence gate into a claim that the
-shipped result passed.
+When the result is `FAIL` or `INCONCLUSIVE`, add one more key:
+
+```yaml
+failure_class: implementation # implementation | plan | transient | inconclusive
+```
+
+- `implementation` — the shipped code or artefact is wrong against the plan
+  and governing docs (a real failing assertion, a missing production caller,
+  a broken artefact).
+- `plan` — the code does what the plan said and the plan is what is wrong
+  (an acceptance check that cannot be true, a governing-doc conflict, an
+  unmet requirement the plan never covered).
+- `transient` — the environment, not the change: flake, timeout under load,
+  a hosted service unavailable, a known host quirk already recorded on the
+  board. **`transient` is a conclusion you earn, never one you assert.** A red
+  run — local or hosted — is discharged only with all three of: a re-run of the
+  same job at the same SHA with no code change, a confirmation that the failing
+  test or file is untouched by this diff, and a mechanism argument for why the
+  change cannot reach it. Retain every attempt, red and green, in the proof.
+  Judging by a hosted rail is necessary and not sufficient: a single red hosted
+  run is no more proof of a regression than a single green local run is proof of
+  correctness.
+- `inconclusive` — no process ran or the evidence cannot distinguish the
+  three above; say what would make it conclusive.
+
+The class routes the ticket. The verifier writes the proof; the move itself
+is the controller's or operator's, made with `move_item` and a `reason` that
+quotes the proof (every backward move is audited under `## Transitions`):
+
+| `failure_class` | Next stage | How |
+|---|---|---|
+| `transient` | stays in Verifying | rerun the failed check; retain both attempts. Never the default: a proof that names no class is treated as `inconclusive`, not as retryable. |
+| `inconclusive` | stays in Verifying | report the unavailable check and what would make it conclusive; hosted rails may be authoritative. Default for any non-PASS proof that names no class. |
+| `implementation` | `verifying` → `implementing` | `move_item` with `reason: "proof FAIL implementation: <summary>"`; the fix reuses the same ticket, branch and worktree, but the reviewed PR is already merged, so the fix necessarily opens a new PR against the integration target and the next review binds to that new PR. |
+| `plan` | `verifying` → `preparing` | `move_item` with `reason: "proof FAIL plan: <summary>"`; the plan is revised through `kanmer-plan` before any new implementation. |
+
+Read a proof record **in full** before acting on it, your own or an earlier
+one — the frontmatter carries the only machine-readable verdict, and prose
+appended below it can contradict `result:`. A frontmatter-only read is how a
+failed attempt gets reported as a pass.
+
+Only `PASS`, or an operator's `WAIVED_BY_OPERATOR`, permits the final move.
+Call `get_doc_gates` immediately before `move_item`; move one boundary only,
+`verifying` → `done`. If any required check failed or is unavailable, write
+the truthful record and remain in Verifying until it is routed. Do not turn
+the structural existence gate into a claim that the shipped result passed.
 
 ## Terminal retirement after failed verification
 
@@ -154,7 +201,9 @@ merges, rewrites, or pulls main.
 
 ---
 
-**Hand off to `kanmer-closeout`** after either the exact merged-SHA PASS and
-Verifying → Done move, or an operator-disposed non-PASS retirement that remains
-Verifying and is archived. Closeout owns final traceability, release, and
+**Hand off to `kanmer-closeout`** after either the exact merged-SHA PASS (or
+operator waiver) and Verifying → Done move, or an operator-disposed non-PASS
+retirement that remains Verifying and is archived; an `implementation` or
+`plan` failure hands off to `kanmer-execute` or `kanmer-plan` instead through
+the routed backward move. Closeout owns final traceability, release, and
 cleanup; this skill never self-reviews, merges, or mutates the board worktree.
