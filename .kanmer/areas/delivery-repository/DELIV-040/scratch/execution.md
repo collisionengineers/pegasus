@@ -47,3 +47,7 @@ the worker session a working directory inside its worktree.
   Step 12's capability row needs a free id first (`ACC-15` is next free; `ACC-10` is taken).
 - The ticket stays taken. The uncommitted changes belong to this ticket; do not clean or recreate
   the worktree.
+
+## PR_OPEN reached 2026-09-02
+
+PR https://github.com/collisionengineers/pegasus/pull/643 (base dev, head 25c14574a9e34c77e977f8a8eb203c2fe85dc13e, footer Kanmer: DELIV-040). Gates read immediately before the move; ticket moved implementing to review. Branch task/deliv-040-governing-docs and its worktree stay recorded and taken for the reviewer.

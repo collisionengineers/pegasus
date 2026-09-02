@@ -20,10 +20,10 @@ progress notes; do not rewrite boxes.*
 - [x] Every `docs/capabilities.md` row touched still states its real state — dated 2026-09-01, decided/allocated, never delivered — and the summary arithmetic is internally consistent.
 - [x] Contradiction sweep clean: no surviving "not yet derivable", "original-versus-assessed", Pegasus savings/comparison feature, exact-signature-tuple gate, unqualified "seven calendar days", 10 MiB or 25 MB upload bound, Import estimate dialog or picker, Glass's/Audatex launch control, provisional 15-minute threshold, or completeness percentage in the edited files.
 - [x] Nothing out of scope touched: no OCR content, no ADR, no PRD line, no `docs/operator-notes.md`, no `docs/current-architecture.md` or `docs/operations.md` current-state figure, no FRD-07/FRD-09, no `src/`, `tests/`, `scripts/`, `.github/` or `docs/design/test-ui/`.
-- [ ] Test-runner role ran the CI `documentation` rail — `pwsh ./scripts/Test-TestMarkdownPlacement.ps1`, `pwsh ./scripts/Test-DocumentationLinks.ps1`, `pwsh ./scripts/Test-UiCatalogue.ps1` — plus `pwsh ./scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD`, with exact commands, cwd and exit codes recorded. The implementer did not run them.
-- [ ] Simplification pass recorded in the plan under the dated `## Simplification pass` heading as "n/a — docs-only" before the PR opened.
-- [ ] Post-implementation report written: files and sections changed per decision, the three recorded planner assumptions carried forward or corrected, every command with cwd/exit/result, any deviation with its observed text and line, and the PR URL plus head SHA.
-- [ ] Stopped at the boundary: PR opened against `dev` titled "Record the 2026-09-01 operator interface decisions in the governing documents (DELIV-040)" with the `Kanmer: DELIV-040` footer, ticket moved `implementing` → `review`, nothing merged, no other ticket started.
+- [x] Test-runner role ran the CI `documentation` rail — `pwsh ./scripts/Test-TestMarkdownPlacement.ps1`, `pwsh ./scripts/Test-DocumentationLinks.ps1`, `pwsh ./scripts/Test-UiCatalogue.ps1` — plus `pwsh ./scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD`, with exact commands, cwd and exit codes recorded. The implementer did not run them.
+- [x] Simplification pass recorded in the plan under the dated `## Simplification pass` heading as "n/a — docs-only" before the PR opened.
+- [x] Post-implementation report written: files and sections changed per decision, the three recorded planner assumptions carried forward or corrected, every command with cwd/exit/result, any deviation with its observed text and line, and the PR URL plus head SHA.
+- [x] Stopped at the boundary: PR opened against `dev` titled "Record the 2026-09-01 operator interface decisions in the governing documents (DELIV-040)" with the `Kanmer: DELIV-040` footer, ticket moved `implementing` → `review`, nothing merged, no other ticket started.
 
 ## Progress notes
 
@@ -99,3 +99,33 @@ Committed-state scope evidence, cwd the worktree:
 Owed to the test-runner role: the CI `documentation` job's three steps plus the placement validator
 invoked directly with `-Base origin/dev -Head HEAD`, exactly as the plan's § Commands lists them.
 The implementer ran none of them and ran no build (docs-only).
+
+
+### 2026-09-02 — implementer attempt 1, PR_OPEN reached
+
+Runner results returned by the controller, all on head `25c14574`: `1-docs-links` PASS,
+`2-markdown-placement` PASS, `3-no-new-markdown` PASS, `4-scope-only-docs` PASS. The implementer ran
+none of them.
+
+Stop point 2 completed in order:
+
+1. Simplification pass recorded under the plan's dated `## Simplification pass` heading. The
+   planner's "n/a — docs-only" entry stands; an implementer paragraph records that the four lenses
+   were actually run over the real committed diff and found nothing to change (plan
+   `ec9310a3d01c2fba` → `203f2182d5bac060`).
+2. Whole-file `post-implementation-report` written (`210c50d45117d003`): every file and the sections
+   changed per decision, the planner assumptions carried forward with the `ACC-10` → `ACC-15`
+   correction and ASSUMPTION 4, risks and follow-ups, and the verify hand-off.
+3. `update_item` recorded the twelve commits, then the PR.
+4. `git push -u origin task/deliv-040-governing-docs` — new branch created on the remote.
+5. `gh pr create --base dev` → **https://github.com/collisionengineers/pegasus/pull/643**.
+   Validated before recording: state OPEN, base `dev`, head `task/deliv-040-governing-docs`,
+   `headRefOid` `25c14574a9e34c77e977f8a8eb203c2fe85dc13e` (matches the pushed head exactly), and
+   the body carries one standalone `Kanmer: DELIV-040` footer line.
+6. `get_doc_gates` read immediately before the move: `leave-preparing` passable, `enter-done` not
+   passable (needs proof, which is the verifier's), `review` reachable.
+7. `move_item implementing` → `review`, one gated boundary.
+
+Hand-off: the PR is open and the ticket is in Review for an independent reviewer. The author does
+not write the review attestation, review the PR, merge it, move it to Verifying, clean up this
+worktree, or start another ticket. The worktree and branch stay recorded and taken.
