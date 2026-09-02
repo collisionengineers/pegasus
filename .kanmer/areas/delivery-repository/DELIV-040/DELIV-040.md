@@ -2,24 +2,28 @@
 id: DELIV-040
 type: ticket
 title: Record the 2026-09-01 operator interface decisions in the governing documents
-status: review
+status: implementing
 area: delivery-repository
-assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
+assignee: codex/deliv-040-operator-remediation
 profile: chore
 stageEntered:
   preparing: '2026-09-02T00:56:48.183Z'
   review: '2026-09-02T02:52:13.537Z'
+  implementing: '2026-09-02T11:09:07.205Z'
 taken_at: '2026-09-02T01:27:49.169Z'
 branch: task/deliv-040-governing-docs
 worktree: ../pegasus-worktrees/deliv-040-governing-docs
-claim_expires_at: '2026-09-02T01:57:49.169Z'
-claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
-lease_id: fe0dd564-63e7-456c-8ec1-1e3c86ff095d
-lease_revision: 1
+claim_expires_at: '2026-09-02T11:39:23.239Z'
+claim_controller: codex/deliv-040-operator-remediation
+review_round: 1
+lease_id: 3d7aca2e-eb9a-43c7-81b5-9bad193fac91
+lease_revision: 2
 lease_workspace: >-
   worktree:c:\users\pguser\documents\github\pegasus-worktrees\deliv-040-governing-docs
+lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T01:27:49.169Z'
+lease_heartbeat_at: '2026-09-02T11:09:23.239Z'
+lease_reclaimed_from: claude-code/20260901T215000Z-claude-controller/implementer-a1
 labels:
   - docs
   - governing-docs
@@ -79,7 +83,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T02:52:13.537Z'
+updated: '2026-09-02T11:09:23.239Z'
 ---
 
 ## What

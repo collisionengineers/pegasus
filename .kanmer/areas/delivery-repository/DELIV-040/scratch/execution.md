@@ -90,3 +90,9 @@ still 234/234 with 143+27+35+29=234, tree clean.
 Sent to the remote 25c14574..8e8dd8b2. PR #643 headRefOid is now
 8e8dd8b25567d26a45d29ab7dcc5c19b9848971b, state OPEN, base dev, mergeStateStatus CLEAN. No second
 PR, no stage move. Head for the lane rerun and the re-review: 8e8dd8b2.
+
+## Transitions
+
+- 2026-09-02T11:09:07.213Z stage review → implementing by codex-mcp-client; reason: needs-changes on 8e8dd8b25567d26a45d29ab7dcc5c19b9848971b: F-001 through F-013; review_round 1
+
+- 2026-09-02T11:09:23.244Z claim-transfer claude-code/20260901T215000Z-claude-controller/implementer-a1 → codex/deliv-040-operator-remediation (expired; lease fe0dd564-63e7-456c-8ec1-1e3c86ff095d → 3d7aca2e-eb9a-43c7-81b5-9bad193fac91 rev 2; branch task/deliv-040-governing-docs; worktree ../pegasus-worktrees/deliv-040-governing-docs; expires 2026-09-02T11:39:23.239Z; evidence: workspace clean (matches-claim), pr open, commits 12, proof absent)
