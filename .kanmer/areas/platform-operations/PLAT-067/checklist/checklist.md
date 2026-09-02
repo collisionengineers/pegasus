@@ -7,8 +7,8 @@
 - [x] Re-fetch and validate the exact Git candidate, ancestry, direct-commit waiver, PRs, and checks.
 - [x] Inventory live Azure state, migration head, and rollback position, accounting for any external deployment.
 - [x] Obtain fresh literal MERGE AUTH GRANTED and atomically promote the frozen candidate with equality read-back.
-- [ ] Build and validate immutable release artifacts in an exact-SHA detached worktree.
-- [ ] Confirm the expected unchanged migration identity and absence of a database write.
+- [x] Build and validate immutable release artifacts in an exact-SHA detached worktree.
+- [x] Confirm the expected unchanged migration identity and absence of a database write.
 - [ ] Obtain exact manifest-bound Azure-write approval.
 - [ ] Upload the Web image, validate remote digest, provision Web, deploy Worker by config-zip, and read back exact state.
 - [ ] Run production smoke and focused non-destructive Inbox, Worker-poll, and QDOS evidence.
@@ -20,6 +20,8 @@
 - [ ] Verify merged main, write proof, and close out PLAT-067.
 
 ## Progress notes
+
+- 2026-09-02 artifacts PASS: exact-SHA detached build completed; Local, Artifact, and PreUpload plan checks passed. Manifest 52E1A5AC23C2491594E79EA89740D9B5D826A3DD94258347DB91A16896F986AE; Web digest sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15; Worker ZIP 1EF69DBEBF6BC3178E2688AF999A770319DD5ED1B3B341F0741CF9B463B83369. Migration identity matches live head and candidate includes no migration/dependency/infrastructure changes, so no database/bootstrap write is planned.
 
 - 2026-09-02 promotion PASS: fresh literal MERGE AUTH GRANTED applied to exact SHA 0f0e90ae44ffda7339ca2a460310deeb98121afa; atomic push fast-forwarded main and lease-checked dev; both remote refs read back equal to the approved SHA.
 
