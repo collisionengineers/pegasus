@@ -52,7 +52,7 @@ The lifecycle must support:
 - four distinct instructed-Case terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`; Image-initiated merge/closure is a separate image-origin lifecycle outcome, not a fifth formal Case closure state;
 - reasoned reopen through normal destination gates, excluding `Created in error` and `Held` as a reopen destination.
 
-Each unmet progression requirement is an individual actionable blocker. The UI identifies its exact field or material, source/provenance, reason, and permitted resolution; an opaque aggregate such as “no unresolved field reviews” is prohibited. An action is enabled exactly when its current explicit prerequisites are satisfied. Saving unchanged or unrelated data must neither unlock it nor reset lifecycle, readiness, or advisory state.
+Each unmet progression requirement is an individual actionable blocker. The UI identifies its exact field or material, source/provenance, reason, and permitted resolution; an opaque aggregate such as “no unresolved field reviews”, and a completeness percentage or score of any kind, are prohibited. Instruction completeness and image completeness are each a versioned set of required and not-required items with exact named blockers (D23, 2026-09-01): the configuration records which items are required, the gate names every required item that is unmet, and nothing is reduced to a single figure. An action is enabled exactly when its current explicit prerequisites are satisfied. Saving unchanged or unrelated data must neither unlock it nor reset lifecycle, readiness, or advisory state.
 
 Durable receipt acknowledgement, retained correspondence, prepared or copied text, the `First sent to Engineer` export proxy, and a `Report sent` event are not terminal case outcomes. Report-sent evidence enters post-report work; post-report completion is a separate named closure action.
 
@@ -135,7 +135,7 @@ Web and MCP Automation Actor callers use the same guard. Background append-only 
 
 ### Due work, chasing, and action history
 
-`Due by` comes from the inspection date or accepted equivalent deadline. For a case entering `Not ready`, the first chase occurs at the same Europe/London local time seven calendar days later and repeats every seven calendar days. `Held` preserves the remaining interval; release to `Not ready` resumes it. `Review`, accepted material arrival, or terminal closure stops the schedule.
+`Due by` comes from the inspection date or accepted equivalent deadline. The chase interval is one global whole-calendar-day value in workflow configuration, range 1 to 365 days, default 7, calculated in Europe/London (D23, 2026-09-01). For a case entering `Not ready`, the first chase occurs at the same Europe/London local time that many calendar days later and repeats at the same interval. A configuration change applies to schedules calculated after it; a chase already calculated keeps its date. `Held` preserves the remaining interval; release to `Not ready` resumes it. `Review`, accepted material arrival, or terminal closure stops the schedule.
 
 Manual chasing remains a staff action in the alpha unless an allocated capability and accepted integration explicitly authorize automation. The history records what was attempted, by whom, through which channel, against which party/address, when, and with what evidence. A recorded action is not proof of external delivery.
 
