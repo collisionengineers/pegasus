@@ -129,3 +129,13 @@ Stop point 2 completed in order:
 Hand-off: the PR is open and the ticket is in Review for an independent reviewer. The author does
 not write the review attestation, review the PR, merge it, move it to Verifying, clean up this
 worktree, or start another ticket. The worktree and branch stay recorded and taken.
+
+## Remediation round 2 — operator dispositions
+
+- [ ] R2-01 — Update governing documents and AGENTS.md for every settled disposition.
+- [ ] R2-02 — Update EPIC-011 context and all affected existing tickets.
+- [ ] R2-03 — Create and link DOCS-017 and INTK-055.
+- [ ] R2-04 — Synchronize shared, Codex and Claude work-pack plans and ledgers.
+- [ ] R2-05 — Run contradiction, YAML, documentation and canonical solution checks.
+- [ ] R2-06 — Commit and push the existing PR; publicly disposition and resolve every thread.
+- [ ] R2-07 — Refresh the post-implementation report and return DELIV-040 to Review.
