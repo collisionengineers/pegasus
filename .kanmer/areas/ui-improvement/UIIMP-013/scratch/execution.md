@@ -36,3 +36,5 @@
 - Scope is one diagnostic string; capture behavior and budgets are unchanged.
 
 - 2026-09-02T17:27:52.034Z lease-phase implementing → review (lease 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4 rev 9; expires 2026-09-02T17:57:52.030Z)
+
+- 2026-09-02T17:48:42.874Z lease-phase review → running-command (lease 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4 rev 10; expires 2026-09-02T19:48:42.869Z)
