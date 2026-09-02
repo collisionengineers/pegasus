@@ -471,3 +471,30 @@ own report.
   (non-atomic accept path; paused-credential check ordering; provider
   principal absent from case-data snapshot; existing-case-matching
   escalation).
+
+## Verification-plan remediation — 2026-09-02
+
+The first exact-SHA verification attempt proved the implementation but exposed
+one plan defect. The recorded Markdown-placement command used mutable
+`origin/dev` as the base for historical merge
+`0d985c9e0b3284f211f824d387e2f36460c0c826`. Current `origin/dev` is a
+descendant, so the reverse comparison falsely attributes later unrelated
+Markdown removals to TICK-058.
+
+The immutable comparison is:
+
+```powershell
+pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base 23b0c564c81bf8a0665bc5a65f3f54d88010f835 -Head 0d985c9e0b3284f211f824d387e2f36460c0c826
+```
+
+`23b0c564c81bf8a0665bc5a65f3f54d88010f835` is the exact first parent of
+the GitHub merge commit. A read-only planning check confirmed that command
+passes with exit 0; this observation is not verification proof and must be run
+again by a fresh verifier.
+
+No production, test, documentation, dependency, or deployment change is
+required. Execution for this remediation records the plan-only correction and
+preserves the already reviewed PR #594 implementation. A fresh independent
+review must attest that the immutable base is the correct change boundary
+before the ticket returns to Verifying. The next proof retains the failed
+plan attempt and appends the corrected exact-SHA attempt.
