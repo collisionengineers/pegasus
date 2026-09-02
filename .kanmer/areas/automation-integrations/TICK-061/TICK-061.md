@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-28T10:49:38.535Z'
   verifying: '2026-08-28T12:42:03.965Z'
   done: '2026-09-02T17:37:46.398Z'
-taken_at: '2026-08-28T10:34:38.605Z'
-branch: task/tick-061-provider-credentials
-worktree: ../pegasus-worktrees/tick-061-provider-credentials
 labels:
   - capability
   - API-04
@@ -41,7 +38,7 @@ delivery_sha: 41a17163b31a76c6e28307c7767cdceff3602950
 delivery_recorded_at: '2026-09-02T16:09:59.631Z'
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-09-02T17:38:30.254Z'
+updated: '2026-09-02T17:39:23.871Z'
 ---
 
 ## What

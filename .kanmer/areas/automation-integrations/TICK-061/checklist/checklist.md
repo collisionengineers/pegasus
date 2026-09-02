@@ -13,11 +13,11 @@
 
 ## Closeout — TICK-061
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date appended)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove` recorded workspace
-- [ ] `git branch -d task/tick-061-provider-credentials` (`-D` only if required)
-- [ ] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] Recorded implementation worktree was already absent; clean detached verifier removed
+- [x] Local ticket branch was absent; merged remote branch deleted
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"`
