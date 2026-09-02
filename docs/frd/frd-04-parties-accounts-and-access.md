@@ -16,7 +16,7 @@ Staff accounts use Pegasus-managed usernames and passwords with non-reversible p
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment; principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration; approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment/password reset (D28); principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration, including labour-rate-card administration (D17); approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
 | `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
 | `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
 
@@ -64,6 +64,15 @@ a reason. Create staff account, Disable, and Review are the account actions.
 Review records that the account was reviewed by the acting Administrator at a
 time with a reason; it is a permanent action-history event and has no page of
 its own. An account never disables or reviews itself.
+
+**Reset password** is an Administrator-only account action on the same table
+(D28, 2026-09-01). The Administrator enters and confirms a temporary password;
+the existing password policy validates it and the existing non-reversible hash
+stores it, so no second policy or hashing route is created. The existing
+forced-change state is set, so the account must choose a new password at its
+next sign-in. The reset is a permanent action-history event with actor, time and
+reason. The temporary secret is never emailed, logged, persisted in raw form or
+placed in analytics, and no reset email is sent.
 
 ### Permanent action history
 

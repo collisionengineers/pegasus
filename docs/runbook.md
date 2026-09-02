@@ -899,7 +899,7 @@ The following contracts must be proved through the owning Core policy and actual
 - wrong-principal handling makes the original case terminal `Created in error`, creates exactly one linked replacement, reuses neither number, and refuses reopening the original;
 - direct edits to used principal codes fail;
 - Administrator cutover creates one linked successor, atomically deactivates the predecessor, continues the cutover-year next/exhausted state, starts later years at `001`, records reason/history, and survives stale, concurrent, and fault-injected transaction tests;
-- the first chase occurs at the same London local time after seven calendar days;
+- the first chase occurs at the same London local time after the configured chase interval (one global whole-calendar-day value, 1 to 365, default 7 — D23);
 - `Held` preserves and resumes the remaining chase duration;
 - reopening requires a reason and returns to an otherwise valid nonterminal state;
 - London-midnight and Monday dashboard boundaries are correct;

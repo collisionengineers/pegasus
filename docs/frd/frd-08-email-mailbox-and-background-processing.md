@@ -204,7 +204,10 @@ access requirement.
 The default workspace view is the incoming Inbox across all approved mailboxes;
 folder-specific, mailbox-specific, queue and search views are explicit
 refinements. Sent mail and read-only Deleted Items search remain separate
-folder scopes. General mailbox search includes retained message bodies,
+folder scopes. There is no historical backfill (D22, 2026-09-01): the
+workspace shows retained mail from the genuine retention-start boundary of
+each approved mailbox onwards, names that boundary, and states that mail
+before it is absent. Nothing earlier is reconstructed or implied. General mailbox search includes retained message bodies,
 attachment filenames and searchable attachment content. An unsupported or
 unsearchable attachment remains visibly so; it is not silently omitted.
 Search remains within the current mailbox/folder scope unless the operator
@@ -223,7 +226,9 @@ On a fresh visit, the workspace resets to the default all-Inboxes view rather
 than retaining a cross-session user preference.
 The workspace provides an explicit manual refresh, last successful update time,
 and distinct stale and unavailable states rather than silently presenting old
-data. It does not refresh automatically while an operator is reading or acting.
+data. The stale threshold is a fixed 15 minutes since the last successful
+update (D22, 2026-09-01); it is not configurable and is not derived from load.
+It does not refresh automatically while an operator is reading or acting.
 Refresh preserves the active mailbox, folder, queue, search filters,
 page and open-message context when that message remains available.
 If it no longer remains in that scope, its detail stays visible with an
@@ -405,7 +410,9 @@ surfaces carry no send, Flag or Delete control and no composer.
 - **Delete.** Requires a reason, moves the exact item to Deleted Items — never
   a hard delete — and is recorded in the message's history. The retained
   message, its evidence, and its associations remain; the item stays reachable
-  through the existing read-only Deleted Items search.
+  through the existing read-only Deleted Items search. Permanent deletion is
+  absent: no surface, action or tool removes a mailbox item irrecoverably
+  (D22, 2026-09-01).
 
 Local alpha and every test profile use the unavailable implementation of the
 seam and never mutate a mailbox. Production activation is a separately
