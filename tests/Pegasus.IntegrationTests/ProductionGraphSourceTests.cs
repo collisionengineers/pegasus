@@ -400,6 +400,59 @@ public sealed class ProductionGraphSourceTests
         Assert.All(requests, request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
     }
 
+    /// <summary>
+    /// Microsoft Graph guarantees only "at least the updated properties" on a sparse
+    /// delta entry, so an already-known item can recur without receivedDateTime (e.g. a
+    /// read/flag change) even though the initial call selected it. That must not stall
+    /// the mailbox poll cursor the way it did in production (MAIL-029).
+    /// </summary>
+    [Fact]
+    public async Task InboxSkipsASparseDeltaItemMissingReceivedDateTimeWithoutFetchingMime()
+    {
+        var requests = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request.RequestUri!.AbsolutePath);
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"sparse-update-1","parentFolderId":"inbox-folder"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        var page = await source.ReadAsync(
+            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            10,
+            CancellationToken.None);
+
+        Assert.Empty(page.Messages);
+        Assert.DoesNotContain(requests, path => path.EndsWith("/$value", StringComparison.Ordinal));
+        var cursor = GraphCursor.Parse(page.NextCursor, new Uri("https://example.test"));
+        Assert.Equal(
+            "v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta",
+            cursor.PageUri.GetComponents(UriComponents.Path, UriFormat.Unescaped));
+    }
+
+    /// <summary>
+    /// A present-but-unparseable receivedDateTime is a different, reportable fault from
+    /// Graph genuinely omitting it, and must still surface rather than being silently
+    /// treated as a benign sparse update (review finding on MAIL-029).
+    /// </summary>
+    [Fact]
+    public async Task InboxThrowsOnAPresentButUnparseableReceivedDateTimeRatherThanSkipping()
+    {
+        var handler = new DelegateHandler(_ => Response(HttpStatusCode.OK,
+            """{"value":[{"id":"corrupt-1","parentFolderId":"inbox-folder","receivedDateTime":"not-a-date"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}"""));
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => source.ReadAsync(
+            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            10,
+            CancellationToken.None));
+    }
+
     [Fact]
     public async Task InboxAcceptsTheGraphCanonicalODataCursorForTheExactFolder()
     {
