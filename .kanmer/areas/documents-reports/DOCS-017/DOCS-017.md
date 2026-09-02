@@ -2,10 +2,12 @@
 id: DOCS-017
 type: ticket
 title: 'Report signatory policy: sign-off Engineer tuple on every report'
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T20:51:35.667Z'
 labels:
   - sign-off
   - renderer
@@ -28,7 +30,7 @@ refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 archived: false
 created: '2026-09-02T11:20:50.869Z'
-updated: '2026-09-02T20:33:32.223Z'
+updated: '2026-09-02T20:51:35.667Z'
 ---
 
 ## What
