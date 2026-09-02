@@ -2,12 +2,23 @@
 id: KANMER-010
 type: ticket
 title: Reconcile Kanmer setup drift after KANMER-006
-status: preparing
+status: implementing
 area: kanmer-meta
-assignee: ''
+assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: chore
 stageEntered:
   preparing: '2026-09-02T00:55:56.588Z'
+taken_at: '2026-09-02T01:19:02.163Z'
+branch: task/kanmer-010-setup-drift
+worktree: ../pegasus-worktrees/kanmer-010-setup-drift
+claim_expires_at: '2026-09-02T01:49:02.163Z'
+claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
+lease_id: 3d30ceda-1ff5-4b95-8ad2-dbc47bd603d0
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\pguser\documents\github\pegasus-worktrees\kanmer-010-setup-drift
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T01:19:02.163Z'
 labels:
   - kanmer
   - setup
@@ -18,7 +29,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-09-01T14:40:45.085Z'
-updated: '2026-09-02T01:10:25.856Z'
+updated: '2026-09-02T01:19:02.163Z'
 ---
 
 ## What
