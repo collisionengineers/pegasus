@@ -1,1 +1,5 @@
 Done audit (batch 2): superseded. Reachable from origin/main and release-37, deployment:production consistent, all checklist items accounted for. EPIC-011 context.md D16 (2026-09-01) removes the Import estimate dialog/picker this ticket delivered, replacing it with a whole-page drop (ENG-033, currently backlog). The delivered UI control is confirmed still live on main today, i.e. still superseded-but-undischarged pending ENG-033. No action on the Done record; no new ticket created (ENG-033 already exists and owns it).
+
+## 2026-09-02 controller disposition
+
+superseded: decision D16 (whole-page drop, ENG-033; MCP raw import, AUTO-016) replaces the dialog import this ticket delivered. No action on the Done record.
