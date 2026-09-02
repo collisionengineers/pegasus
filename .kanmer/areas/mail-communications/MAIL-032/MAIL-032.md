@@ -2,12 +2,23 @@
 id: MAIL-032
 type: ticket
 title: Keep the selected Inbox preview available after pointerleave or blur
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: fix
 stageEntered:
   preparing: '2026-09-02T00:59:22.673Z'
+taken_at: '2026-09-02T01:27:52.605Z'
+branch: task/mail-028-inbox-preview-pin
+worktree: ../pegasus-worktrees/mail-028-inbox-preview-pin
+claim_expires_at: '2026-09-02T01:57:52.605Z'
+claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
+lease_id: 9c2f8a19-84c3-4ede-bdf4-acd560bb73c6
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\pguser\documents\github\pegasus-worktrees\mail-028-inbox-preview-pin
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T01:27:52.605Z'
 labels: []
 groups:
   - EPIC-011
@@ -20,7 +31,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.052Z'
-updated: '2026-09-02T00:59:22.673Z'
+updated: '2026-09-02T01:27:52.605Z'
 ---
 
 ## What
