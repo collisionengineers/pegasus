@@ -195,7 +195,7 @@ exact-message action. The catalogue stores no Graph identifier or colour,
 performs no Outlook master-category synchronization, and supplies no search,
 Case-linking, or generic mailbox-rule behaviour.
 
-At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and dismisses when focus moves away. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
+At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and restores the selected message when that intent moves away; the pane stays visible with its navigation links rather than dismissing to blank. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
 The workspace does not include `View in Outlook`: operator review accepted that
 the in-app full message, attachment and thread view provides the needed value.
 It therefore creates no Outlook-navigation integration, action, or external

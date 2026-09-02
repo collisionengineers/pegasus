@@ -125,7 +125,9 @@
                 </a>
             }
         </div>
-        <div class="pane-body pane-scroll">
+        @* The list and preview scroll bodies are height-capped at constrained
+           widths, so each must be keyboard-scrollable, not pointer-only. *@
+        <div class="pane-body pane-scroll" tabindex="0">
             @if (Model.SearchValidationMessage is { } validationMessage)
             {
                 <div class="notice notice--warning" role="alert">
@@ -353,7 +355,7 @@
             : null;
         <div class="pane">
             <div class="pane-head"><h2>Message preview</h2></div>
-            <div class="pane-body pane-scroll">
+            <div class="pane-body pane-scroll" tabindex="0">
                 @* Links only: the preview pane is a viewer, and the row that
                    selects it is already a link. *@
                 <aside id="mail-quick-preview" class="mail-preview" data-mail-preview
@@ -400,7 +402,7 @@
                             </dl>
                             <dl class="fact">
                                 <dt>Case association</dt>
-                                <dd data-mail-preview-association>@(summary.CaseReference ?? "No case")</dd>
+                                <dd data-mail-preview-association>@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</dd>
                             </dl>
                             <dl class="fact">
                                 <dt>Folder</dt>
@@ -411,7 +413,7 @@
                                 <dd>@(matchValue ?? "—")</dd>
                             </dl>
                         </div>
-                        <div class="button-row section-gap">
+                        <div class="button-row section-gap" data-mail-preview-actions>
                             <a class="btn btn--dark"
                                asp-page="/Mail/Message"
                                asp-route-id="@summary.Id"
