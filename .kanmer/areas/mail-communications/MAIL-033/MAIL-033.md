@@ -26,12 +26,15 @@ links:
   - MAIL-025
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - 712bfcf3a695ab67c0bcde570ebd30ac9b25e740
+  - c6842a8c3a36fe806a3103d067fef207d22651d3
 prs:
   - '641'
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.067Z'
-updated: '2026-09-02T01:27:50.829Z'
+updated: '2026-09-02T01:47:51.966Z'
 ---
 
 ## What
@@ -51,9 +54,9 @@ PR #641 implements this recovery but incorrectly identifies itself as MAIL-029; 
 
 ## Verification
 
-- [ ] A sparse entry is skipped, produces no MIME fetch, and does not wedge the poller.
-- [ ] The page's cursor advances exactly once and replay is idempotent.
-- [ ] Ordinary complete messages and removal/change evidence retain their existing behavior.
-- [ ] All required PR checks are green.
+- [x] A sparse entry is skipped, produces no MIME fetch, and does not wedge the poller.
+- [x] The page's cursor advances exactly once and replay is idempotent.
+- [x] Ordinary complete messages and removal/change evidence retain their existing behavior.
+- [x] All required PR checks are green.
 
 ## Outcome
