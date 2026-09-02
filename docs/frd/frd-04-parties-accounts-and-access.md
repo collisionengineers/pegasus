@@ -16,7 +16,7 @@ Staff accounts use Pegasus-managed usernames and passwords with non-reversible p
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment/password reset (D28); principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration, including labour-rate-card administration (D17); approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment/password reset (D28); the Sign-off Engineer account setting (D31); principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration, including labour-rate-card administration (D17); approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
 | `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
 | `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
 
@@ -73,6 +73,17 @@ forced-change state is set, so the account must choose a new password at its
 next sign-in. The reset is a permanent action-history event with actor, time and
 reason. The temporary secret is never emailed, logged, persisted in raw form or
 placed in analytics, and no reset email is sent.
+
+**Sign-off Engineer** is an Administrator-only account setting (D31,
+2026-09-02): a flag, the account's qualifications and a signature image. Only
+flagged accounts are offered as a Case's Sign-off Engineer
+([FRD-01](frd-01-case-identity-and-lifecycle.md#sign-off-engineer)), and
+reports render the flagged account's tuple
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).
+Every change to the flag, qualifications or signature image is a permanent
+action-history event read in Action Logs. The initial flagged accounts and
+their qualifications are application data; an account's qualifications may
+be recorded later by an Administrator.
 
 ### Permanent action history
 

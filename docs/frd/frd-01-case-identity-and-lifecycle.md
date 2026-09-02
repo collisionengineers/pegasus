@@ -36,7 +36,7 @@ The active alpha types are:
 
 Diminution and Commercial remain deferred unless their capability rows and activation evidence say otherwise. They are not active alpha aliases or generic case types.
 
-A case owns immutable identity, principal, internal reference, type, accepted source links, snapshotted parties/addresses, vehicle identity, work state, due work, documents, correspondence, findings, decisions, action history, and closure history.
+A case owns immutable identity, principal, internal reference, type, accepted source links, snapshotted parties/addresses, vehicle identity, work state, due work, documents, correspondence, findings, decisions, action history, and closure history. It also owns its assigned Engineer and Sign-off Engineer (D31), its Engineer notes (D32), and its storage location and inspect-at choice (D33).
 
 ### Lifecycle closure and correspondence
 
@@ -102,13 +102,17 @@ that rail and render as Closed · `<outcome>` in Search. A label is never a
 state: every transition remains a named Core action, and history records the
 Core state, not the label.
 
-- **Send to EVA** is offered in Review. The handoff carries the Engineer
-  assignment and offers ZIP export or API submission; the package, mapping,
-  and per-Principal submission policy are owned by
+- **Send to EVA** is offered in Review and again in With Engineer as a
+  re-send (D36). The dialog holds Engineer, Sign-off Engineer and Download
+  ZIP / Send via API; Send via API is disabled unless the Principal enables
+  it. There is no separate Download EVA package action. The package,
+  mapping, and per-Principal submission policy are owned by
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-and-external-engineering-handoff).
-- **Assessment** availability by state is owned by
-  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point):
-  With Engineer or onwards, never Review, read-only once Complete.
+- The **Engineer sections** of the Case record (Damage, Valuation, Estimate,
+  Settlement, Report) are always viewable and read-only once Complete (D30;
+  the former D11 access rule is now this read-only rule). Editing them uses
+  the Case edit lease below; the report-draft entry point is owned by
+  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point).
 - **Report sent** is evidence-driven; no manual "sent" assertion exists. A
   report sent from Pegasus through an approved mailbox
   ([FRD-08 outbound correspondence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence))
@@ -124,6 +128,26 @@ Core state, not the label.
   gates.
 - **Close Case** is offered while the Case is not Complete and selects one
   named terminal outcome as above.
+
+### Sign-off Engineer
+
+Sign-off Engineer is a Case field beside Engineer (D31, 2026-09-02). Only
+staff accounts flagged as Sign-off Engineer
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)) are offered.
+The default is the assigned Engineer when that account is flagged, otherwise
+A Patterson; the initial flagged accounts are held as application data, never
+hard-coded. Reports render the Case's sign-off tuple — name, qualifications
+and signature image
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).
+D31 supersedes D18 (2026-09-02): reports no longer render typed Engineer
+identity alone, and the Engineer who issues a report is not thereby its
+signatory.
+
+### Engineer notes
+
+Engineer notes are append-only, attributed staff notes addressed to the
+Engineer (D32). They are a separate section of the Case record from the Notes
+history; a correction is a new note, and there is no edit or delete.
 
 ### Case edit authority and recovery
 

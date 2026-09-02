@@ -43,6 +43,14 @@ history; the always-image-based autofill records its provider-setting
 provenance and a permanent Case-history event. Neither the mode default nor
 any address is inferred from a corpus row or domain match.
 
+Inspect at is a fast-update choice on the Case record's Inspection section
+(D33, 2026-09-02): `Image Based Assessment`, Claimant address, Repairer
+location, Storage location, the previous addresses used for this Principal,
+and Manual entry. An option whose value is not recorded on the Case is
+disabled, never offered empty. A Case records a storage location as its own
+field. Choosing an option records the chosen value with the provenance and
+reason rules above; the choice never invents an address.
+
 When `DATA-02` activates, its separately approved reference-data pipeline
 accepts only reviewed full addresses, retaining each complete display address
 with a normalized postcode. It preserves operator-maintained confirmed rows
@@ -145,6 +153,12 @@ value, or higher-tier mileage. Acceptance, rejection, or linking of an
 external fact enters permanent business history. Routine calls, retries, and
 polling remain content-safe telemetry.
 
+The Case record offers one **Look up DVLA & MOT** action (D34, 2026-09-02).
+Looked-up values are suggestions: each appears as a chip beside its field and
+fills the field only when chosen, with the accepted value recorded as above.
+There is no checks panel and no suggestion table. Experian stays a disabled
+seam (D7, `ENG-001`).
+
 **Source limitation:** no allowed source selects the live DVLA/DVSA provider,
 API, licence, exact response fields, credentials, rate/limit behavior, error
 contract, target, or caller proof. Those items remain activation gates.
@@ -185,6 +199,44 @@ human own accepted facts, economics, findings, outcome, legal use, and approval.
 A skill, prompt, model, workspace, external schema, or imported reference never
 becomes current OEM instruction, repair policy, valuation authority, legal
 advice, Engineer approval, or product policy merely by existing.
+
+### Damage record
+
+Damage is a list of zones (D39, 2026-09-02): front, left front, right front,
+left side, right side, left rear, right rear, rear, roof, the four wheels,
+underside, interior and mechanical. Each zone carries a severity, a type and
+a note. The record also carries tyres and seat belts per corner, the spare
+tyre, the centre belt, unrelated damage with its deduction, and paint or
+material transfer. `impact_location` and `impact_severity` are derived from
+the zone list by `Pegasus.Core`, never entered. The report prints the marked
+diagram
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+
+### Valuation sources
+
+The valuation sources in this programme are Glass's (valuation), Cazana (a
+disabled seam under D7), Engineer's Value and AI market research (D40,
+2026-09-02); every entry records its guide month and mileage. Glass's
+valuation and Glass's repair estimating are two systems and both are used:
+the valuation source and the estimate import source keep separate label
+entries and are never merged. An AI market research entry is the proposal
+recorded by the `MarketResearch` job
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list));
+it never becomes the Engineer's Value by itself. Valuation adjustments,
+rationale and revaluation history stay with `EXT-10` (later).
+
+### Settlement
+
+The settlement fields are outcome, category, salvage value, excess,
+betterment, claimant VAT registered, reserve, equity (derived), repair
+duration and delays, report delay, storage per day, recovery, hire start and
+daily cost, diminution, and salvage logistics (D41, 2026-09-02). Derived
+figures — repair cost, equity and financial ratio lines against the Current
+estimate and the Engineer's Value — are computed once by `Pegasus.Core`.
+Financial ratio lines are permitted; the "no percentage" rule
+([FRD-01](frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence))
+is about completeness only. Outcome semantics are owned by
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
 ### Canonical repair specifications
 
