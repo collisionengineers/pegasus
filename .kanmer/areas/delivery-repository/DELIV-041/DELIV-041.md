@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Record the 2026-09-02 Case workspace decisions D29–D43 in the governing
   documents
-status: implementing
+status: review
 area: delivery-repository
 assignee: claude-fable-5.1/c4ea9419/deliv-041
 profile: chore
 stageEntered:
   preparing: '2026-09-02T20:34:59.540Z'
+  review: '2026-09-02T20:52:04.770Z'
 taken_at: '2026-09-02T20:35:24.037Z'
 branch: task/deliv-041-case-workspace-decisions
 worktree: .worktrees/deliv-041
@@ -47,9 +48,13 @@ refs:
   - docs/boundaries.md
   - docs/open-decisions.md
   - docs/engineering.md
+commits:
+  - 632ec0c436e301023f3aa6a5e1f4e0e149a192b5
+prs:
+  - '647'
 archived: false
 created: '2026-09-02T20:31:38.561Z'
-updated: '2026-09-02T20:35:24.037Z'
+updated: '2026-09-02T20:52:04.770Z'
 ---
 
 ## What
