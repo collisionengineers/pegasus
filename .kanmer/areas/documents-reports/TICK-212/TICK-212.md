@@ -4,7 +4,7 @@ type: ticket
 title: Add report-renderer package lock files
 status: done
 area: documents-reports
-order: 1940
+order: 2010
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.782Z'
-updated: '2026-08-26T14:34:46.324Z'
+updated: '2026-09-01T14:44:33.616Z'
 ---
 
 ## What

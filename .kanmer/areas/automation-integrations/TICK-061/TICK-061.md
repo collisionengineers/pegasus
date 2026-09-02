@@ -4,6 +4,7 @@ type: ticket
 title: 'API-04 — Issue, reset, revoke, pause, and resume provider credentials'
 status: verifying
 area: automation-integrations
+order: 340
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -32,7 +33,7 @@ prs:
   - '592'
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-08-28T12:42:03.965Z'
+updated: '2026-09-01T14:44:16.656Z'
 ---
 
 ## What

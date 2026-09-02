@@ -31,3 +31,34 @@ Wave 2: A UIIMP-008 · B MAIL-025 · C1 CASE-025 · C2 INTK-046 · D CASE-026 ·
 Wave 3 (migration order): AUTO-011 (merged 658a7984) → TICK-061 (+TICK-058) → ENG-026 → ENG-027 → CASE-028 → PLAT-048 (no migration) → MAIL-027. Added 2026-08-28 by the operator: KANMER-005 (exclusive edit leases across staff and Automation Actors) ships with CASE-024 (PR #581 merged 1f2cf4a6); Case/Assessment lanes rebase over both.
 Wave 4: PLAT-049, AUTO-010, PLAT-050, PLAT-051, CASE-029, ENG-028, MAIL-026, CASE-030.
 Wave 5: UIIMP-009 → DELIV-030 → UIIMP-010.
+
+## Build waves — Claude Code programme (2026-09-01)
+
+Waves 0–4 above are history; waves 1–4 landed in releases up to 37. The remaining work
+runs as phases 0–7 of `pegasus-work-pack/orchestration/claude/orchestration-plan.md`
+with three build waves on `dev` (per-ticket placement in its `ticket-ledger.yml`). Each
+wave exits when `repository-check` is green at the wave's `origin/dev` SHA; the test
+runner, not the worker, runs the loop above after each merge. Lanes refresh with
+`git merge --no-edit origin/dev`, never a rebase. Shared-file locks with capacity one:
+`src/Pegasus.Infrastructure/Persistence/Migrations/**`; `Pages/Shared/*`,
+`Pages/Cases/Shared/*`, `Pages/Administration/Shared/*`, `wwwroot/css/site.css`,
+`wwwroot/js/site.js`; `Presentation/OperatorLabels.cs`; `docs/design/test-ui/**`;
+`Pages/Cases/Assessment/*` plus `Core/Assessment/{Estimates,EstimateImport,RepairSpecifications}.cs`;
+`Pages/Mail/*`; the governing docs.
+
+- Phase 0 (this record): KANMER-010, the governing-docs chore, groom, claims.
+- Phase 1: MAIL-032 (#640), MAIL-033 (#641), PR-069 then INTK-048 (#639).
+- Phase 2: Done audit (31 tickets) and Part 1 proofs for the Verifying tickets.
+- Wave A (foundation, backend first, migrations serialized): UIIMP-013, ENG-030,
+  TICK-082, ENG-032, TICK-041, INTK-052, INTK-053, CASE-036, PLAT-056, PLAT-057,
+  PLAT-058, PLAT-060, PLAT-063, PLAT-062, DOCS-016, DELIV-038, INTK-050, DELIV-033.
+- Wave B (capability callers): whole-page estimate import then the MCP raw import,
+  ENG-029, ENG-031, TICK-085, CASE-028, CASE-029, CASE-030, CASE-032, CASE-033,
+  CASE-034, CASE-035, PLAT-059, Triage notes, MAIL-026 → MAIL-027 → TICK-054 →
+  MAIL-028 (code only) → MAIL-031, TICK-075 → MAIL-030, MAIL-029, AUTO-010, AUTO-015,
+  PLAT-050, PLAT-051, PLAT-064, PLAT-028, TICK-081, TICK-096, TICK-097, DOCS-001 after
+  their blockers, PLAT-065 code behind configuration.
+- Wave C (UI reconciliation, shell and CSS serialized): PLAT-061, TICK-223, UIIMP-009,
+  UIIMP-011, PR-070, UIIMP-010 last.
+- Phases 4–7: approved external activation, integrated acceptance at one SHA,
+  release 38 (one deployment, two promotions), post-release proofs and closeout.

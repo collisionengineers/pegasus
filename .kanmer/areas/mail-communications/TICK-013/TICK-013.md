@@ -4,7 +4,7 @@ type: ticket
 title: MAIL-14 — Detect an exact Outlook Sent item as report-sent evidence
 status: done
 area: mail-communications
-order: 1660
+order: 1730
 assignee: ''
 profile: feature
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.026Z'
-updated: '2026-08-26T14:34:45.652Z'
+updated: '2026-09-01T14:44:33.330Z'
 ---
 
 ## What

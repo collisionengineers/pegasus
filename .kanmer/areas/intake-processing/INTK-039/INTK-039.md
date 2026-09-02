@@ -4,6 +4,7 @@ type: ticket
 title: Complete grouped image matching and lifecycle merge
 status: verifying
 area: intake-processing
+order: 200
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -35,7 +36,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T12:11:40.078Z'
-updated: '2026-08-25T13:40:37.179Z'
+updated: '2026-09-01T14:44:16.460Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Record Audit reuse of the Inspection report template
 status: done
 area: documents-reports
-order: 740
+order: 800
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -27,7 +27,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.409Z'
-updated: '2026-08-26T14:34:43.852Z'
+updated: '2026-09-01T14:44:32.425Z'
 ---
 
 ## What

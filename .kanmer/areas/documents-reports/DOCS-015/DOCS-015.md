@@ -4,6 +4,7 @@ type: ticket
 title: Extract and normalize the complete EVA API PDF as Markdown
 status: verifying
 area: documents-reports
+order: 160
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -29,7 +30,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-28T14:47:06.673Z'
-updated: '2026-08-29T20:55:39.489Z'
+updated: '2026-09-01T14:44:16.426Z'
 ---
 
 ## What

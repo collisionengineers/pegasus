@@ -4,6 +4,7 @@ type: ticket
 title: AI job ledger and automation.jobs connector tools
 status: done
 area: automation-integrations
+order: 2230
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -30,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:47.092Z'
-updated: '2026-08-30T20:23:56.372Z'
+updated: '2026-09-01T14:44:33.836Z'
 ---
 
 ## What

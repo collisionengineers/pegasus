@@ -4,6 +4,7 @@ type: ticket
 title: 'Operations: AI Job List, Service health and Send Unidentified to AI'
 status: verifying
 area: platform-operations
+order: 310
 assignee: claude-plat-049
 profile: feature
 stageEntered:
@@ -20,8 +21,7 @@ labels:
 groups:
   - EPIC-011
 links: []
-blocks:
-  - AUTO-011
+blocks: []
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
@@ -37,7 +37,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:24.068Z'
-updated: '2026-08-30T20:13:42.359Z'
+updated: '2026-09-01T14:46:06.793Z'
 ---
 
 ## What

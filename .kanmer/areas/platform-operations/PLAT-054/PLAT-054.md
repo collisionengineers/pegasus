@@ -6,6 +6,7 @@ title: >-
   page — one conversion owner
 status: done
 area: platform-operations
+order: 2540
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -32,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/611'
 archived: false
 created: '2026-08-28T10:58:44.482Z'
-updated: '2026-08-30T20:25:00.730Z'
+updated: '2026-09-01T14:44:34.120Z'
 ---
 
 ## What

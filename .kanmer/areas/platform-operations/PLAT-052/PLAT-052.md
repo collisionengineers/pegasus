@@ -6,6 +6,7 @@ title: >-
   (/Administration/Principals/EvaSubmission/{org}/{principal}/EvaSubmission)
 status: done
 area: platform-operations
+order: 2520
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/614'
 archived: false
 created: '2026-08-28T08:58:50.335Z'
-updated: '2026-08-30T20:24:53.952Z'
+updated: '2026-09-01T14:44:34.098Z'
 ---
 
 ## What

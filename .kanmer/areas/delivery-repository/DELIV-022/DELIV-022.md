@@ -4,6 +4,7 @@ type: ticket
 title: 'Release 31: deploy mailbox Image Intake and interrupted-work recovery'
 status: verifying
 area: delivery-repository
+order: 130
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -34,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-25T17:22:39.944Z'
-updated: '2026-08-25T18:16:38.905Z'
+updated: '2026-09-01T14:44:16.403Z'
 ---
 
 ## What

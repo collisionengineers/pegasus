@@ -19,12 +19,13 @@ groups:
 links:
   - MAIL-024
 blocks:
-  - MAIL-025
+  - MAIL-030
+  - MAIL-031
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:47.116Z'
-updated: '2026-08-29T13:10:30.310Z'
+updated: '2026-09-01T14:46:06.706Z'
 ---
 
 ## What

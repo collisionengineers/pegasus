@@ -6,6 +6,7 @@ title: >-
   immutable report references
 status: preparing
 area: documents-reports
+order: 50
 assignee: ''
 profile: feature
 stageEntered:
@@ -34,7 +35,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T08:56:26.089Z'
-updated: '2026-08-25T06:48:37.623Z'
+updated: '2026-09-01T14:50:16.719Z'
 ---
 
 ## What

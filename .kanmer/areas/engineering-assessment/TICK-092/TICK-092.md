@@ -6,6 +6,7 @@ title: >-
   every deterministic report, fee note, addendum, query…
 status: preparing
 area: engineering-assessment
+order: 160
 assignee: ''
 profile: feature
 stageEntered:
@@ -17,6 +18,7 @@ labels:
 groups:
   - EPIC-003
   - EPIC-004
+  - EPIC-011
 links: []
 blocks:
   - TICK-096
@@ -27,7 +29,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-25T06:48:37.639Z'
+updated: '2026-09-01T22:00:10.917Z'
 ---
 
 ## What

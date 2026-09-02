@@ -4,7 +4,7 @@ type: ticket
 title: Stop the Functions worker SIGABRT crash loop (dotnet exit 134)
 status: done
 area: platform-operations
-order: 1510
+order: 1570
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -27,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:25:25.690Z'
-updated: '2026-08-26T14:34:45.359Z'
+updated: '2026-09-01T14:44:33.153Z'
 ---
 
 ## What

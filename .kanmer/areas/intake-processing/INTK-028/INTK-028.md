@@ -4,7 +4,7 @@ type: ticket
 title: Read report mileage from a multi-column Speedo line
 status: done
 area: intake-processing
-order: 1290
+order: 1350
 assignee: ''
 profile: fix
 stageEntered:
@@ -20,7 +20,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T18:17:17.436Z'
-updated: '2026-08-26T14:34:44.826Z'
+updated: '2026-09-01T14:44:32.934Z'
 ---
 
 ## Why

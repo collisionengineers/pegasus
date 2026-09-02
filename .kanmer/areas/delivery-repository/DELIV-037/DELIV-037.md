@@ -6,6 +6,7 @@ title: >-
   API-01 residuals
 status: done
 area: delivery-repository
+order: 2310
 assignee: ''
 profile: chore
 stageEntered:
@@ -26,7 +27,7 @@ links:
 deployment: production
 archived: false
 created: '2026-08-29T20:40:03.988Z'
-updated: '2026-08-30T20:11:39.795Z'
+updated: '2026-09-01T14:44:33.903Z'
 ---
 
 ## What

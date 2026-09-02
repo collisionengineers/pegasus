@@ -4,6 +4,7 @@ type: ticket
 title: Wake approved mailbox intake through Graph change notifications
 status: verifying
 area: mail-communications
+order: 250
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -31,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/563'
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-26T16:37:45.060Z'
+updated: '2026-09-01T14:44:16.512Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   category/value, and roadworthiness/reason drive derived figures…
 status: preparing
 area: engineering-assessment
+order: 170
 assignee: ''
 profile: feature
 stageEntered:
@@ -17,6 +18,7 @@ labels:
 groups:
   - EPIC-003
   - EPIC-004
+  - EPIC-011
 links:
   - TICK-092
   - SIMPLI-014
@@ -33,7 +35,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.590Z'
-updated: '2026-08-25T06:48:37.658Z'
+updated: '2026-09-01T22:00:12.298Z'
 ---
 
 ## What

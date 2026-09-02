@@ -4,6 +4,7 @@ type: ticket
 title: Port the Cases queues page (/Cases) with workflow rail groups and filters
 status: verifying
 area: case-reference-workflow
+order: 110
 assignee: zcode
 profile: feature
 stageEntered:
@@ -27,7 +28,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.861Z'
-updated: '2026-08-30T20:14:03.353Z'
+updated: '2026-09-01T14:44:16.386Z'
 ---
 
 ## What

@@ -6,7 +6,7 @@ title: >-
   the staff app
 status: done
 area: automation-integrations
-order: 650
+order: 710
 assignee: grok-shell-kanmer
 profile: feature
 stageEntered:
@@ -35,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-26T14:34:43.699Z'
+updated: '2026-09-01T14:44:32.334Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: 'Queues: one Not-ready table, dropdown filters, sortable newest-first columns'
 status: done
 area: intake-processing
-order: 1250
+order: 1310
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +24,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T18:44:30.327Z'
-updated: '2026-08-26T14:34:44.749Z'
+updated: '2026-09-01T14:44:32.896Z'
 ---
 
 ## Why

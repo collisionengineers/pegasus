@@ -4,7 +4,7 @@ type: ticket
 title: Promote an Unidentified triage request once its registration is known
 status: verifying
 area: intake-processing
-order: 90
+order: 50
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-24T08:33:08.297Z'
-updated: '2026-08-25T06:39:43.157Z'
+updated: '2026-09-01T14:44:16.313Z'
 ---
 
 ## Why

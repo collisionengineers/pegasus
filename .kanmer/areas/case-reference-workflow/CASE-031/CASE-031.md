@@ -4,6 +4,7 @@ type: ticket
 title: 'Extract, retain, display and submit claimant addresses'
 status: preparing
 area: case-reference-workflow
+order: 40
 assignee: ''
 profile: feature
 stageEntered:
@@ -23,7 +24,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-08-28T17:48:41.298Z'
+updated: '2026-09-01T14:50:16.709Z'
 ---
 
 # Extract, retain, display and submit claimant addresses

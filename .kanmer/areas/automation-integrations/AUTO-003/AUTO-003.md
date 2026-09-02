@@ -4,6 +4,7 @@ type: ticket
 title: Expose the completed email-workspace actions through the Automation Actor
 status: preparing
 area: automation-integrations
+order: 10
 assignee: ''
 profile: feature
 stageEntered:
@@ -34,7 +35,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-20T09:23:33.334Z'
-updated: '2026-08-25T06:41:06.893Z'
+updated: '2026-09-01T14:50:16.681Z'
 ---
 
 ## What

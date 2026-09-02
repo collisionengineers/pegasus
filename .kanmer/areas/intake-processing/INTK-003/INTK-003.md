@@ -4,7 +4,7 @@ type: ticket
 title: Recover dispatched intake work whose queue message never arrives
 status: done
 area: intake-processing
-order: 2010
+order: 2080
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -24,7 +24,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:46:06.025Z'
-updated: '2026-08-26T14:34:46.477Z'
+updated: '2026-09-01T14:44:33.682Z'
 ---
 
 ## What

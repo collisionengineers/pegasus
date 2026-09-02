@@ -4,6 +4,7 @@ type: ticket
 title: Redesign Approved Mailboxes administration
 status: verifying
 area: platform-operations
+order: 270
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -23,7 +24,9 @@ groups:
   - EPIC-011
 links:
   - PLAT-029
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
+  - docs/frd/frd-12-operator-experience.md
 commits:
   - 95ea1ce64b88b4684a5b615548feffc7ca8ee671
   - ce3fbd6600672121a89cf66b1a02daa70a3d8650
@@ -35,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.361Z'
-updated: '2026-08-30T20:13:35.306Z'
+updated: '2026-09-01T14:44:16.534Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: Route unidentified mailbox image attachments through Image Intake
 status: verifying
 area: intake-processing
+order: 210
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -35,7 +36,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T14:43:04.295Z'
-updated: '2026-08-25T15:53:01.845Z'
+updated: '2026-09-01T14:44:16.470Z'
 ---
 
 ## What

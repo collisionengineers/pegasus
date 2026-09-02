@@ -6,6 +6,7 @@ title: >-
   data through the approved renderer contract
 status: preparing
 area: documents-reports
+order: 140
 assignee: ''
 profile: feature
 stageEntered:
@@ -28,7 +29,7 @@ refs:
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
 archived: false
 created: '2026-08-12T15:05:40.146Z'
-updated: '2026-08-25T06:46:34.317Z'
+updated: '2026-09-01T14:50:16.771Z'
 ---
 
 ## What

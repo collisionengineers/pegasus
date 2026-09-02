@@ -6,7 +6,7 @@ title: >-
   consent
 status: done
 area: automation-integrations
-order: 330
+order: 350
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -32,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T12:57:32.747Z'
-updated: '2026-08-26T14:34:43.111Z'
+updated: '2026-09-01T14:44:31.978Z'
 ---
 
 ## Why

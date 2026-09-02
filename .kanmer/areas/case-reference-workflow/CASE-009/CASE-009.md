@@ -6,6 +6,7 @@ title: >-
   creation
 status: preparing
 area: case-reference-workflow
+order: 30
 assignee: ''
 profile: fix
 stageEntered:
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T07:51:29.215Z'
-updated: '2026-08-21T07:55:33.794Z'
+updated: '2026-09-01T14:50:16.696Z'
 ---
 
 ## Why

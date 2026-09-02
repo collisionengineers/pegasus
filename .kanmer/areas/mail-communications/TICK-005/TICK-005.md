@@ -6,7 +6,7 @@ title: >-
   reasoning
 status: done
 area: mail-communications
-order: 590
+order: 640
 assignee: ''
 profile: custom
 requires: {}
@@ -19,7 +19,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.870Z'
-updated: '2026-08-26T14:34:43.586Z'
+updated: '2026-09-01T14:44:32.265Z'
 ---
 
 ## What

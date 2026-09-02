@@ -2,8 +2,9 @@
 id: MAIL-025
 type: ticket
 title: Port the Inbox list and message pages to the Integrated Operations Workspace
-status: verifying
+status: done
 area: mail-communications
+order: 155
 assignee: zcode
 profile: feature
 stageEntered:
@@ -11,9 +12,6 @@ stageEntered:
   review: '2026-08-28T14:25:03.997Z'
   verifying: '2026-08-28T18:39:58.208Z'
   done: '2026-08-29T10:26:02.140Z'
-taken_at: '2026-08-28T13:40:46.480Z'
-branch: task/mail-025-inbox-port
-worktree: ../pegasus-worktrees/mail-025-inbox-port
 labels:
   - ui
   - wave-2
@@ -30,7 +28,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-08-30T20:14:09.686Z'
+updated: '2026-09-01T22:00:49.141Z'
 ---
 
 ## What

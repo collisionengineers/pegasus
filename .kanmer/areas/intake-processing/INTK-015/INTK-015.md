@@ -6,7 +6,7 @@ title: >-
   per-image case explosion
 status: done
 area: intake-processing
-order: 1200
+order: 1260
 assignee: group-lane
 profile: fix
 stageEntered:
@@ -38,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.547Z'
-updated: '2026-08-26T14:34:44.648Z'
+updated: '2026-09-01T14:44:32.847Z'
 ---
 
 ## What

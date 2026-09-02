@@ -4,7 +4,7 @@ type: ticket
 title: MCP-05 — Automation Actor actions for the broader classified-email workspace
 status: done
 area: automation-integrations
-order: 1830
+order: 1900
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.507Z'
-updated: '2026-08-26T14:34:46.017Z'
+updated: '2026-09-01T14:44:33.500Z'
 ---
 
 ## What

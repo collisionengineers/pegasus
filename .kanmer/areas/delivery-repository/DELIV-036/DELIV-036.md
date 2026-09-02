@@ -6,6 +6,7 @@ title: >-
   timeout
 status: verifying
 area: delivery-repository
+order: 150
 assignee: codex-gpt-5.6-luna
 profile: fix
 stageEntered:
@@ -36,7 +37,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-29T16:03:14.405Z'
-updated: '2026-08-30T20:12:52.832Z'
+updated: '2026-09-01T14:44:16.417Z'
 ---
 
 ## What

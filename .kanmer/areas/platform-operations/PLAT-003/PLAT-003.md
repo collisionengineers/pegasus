@@ -4,7 +4,7 @@ type: ticket
 title: Wire real outstanding counts into the operator rail
 status: done
 area: platform-operations
-order: 1440
+order: 1500
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -23,7 +23,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T09:39:12.271Z'
-updated: '2026-08-26T14:34:45.194Z'
+updated: '2026-09-01T14:44:33.081Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: 'Show case evidence on the Evidence tab, not the document custody ledger'
 status: verifying
 area: documents-reports
-order: 40
+order: 20
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T15:19:38.272Z'
-updated: '2026-08-25T06:39:43.096Z'
+updated: '2026-09-01T14:44:16.270Z'
 ---
 
 ## What the operator saw

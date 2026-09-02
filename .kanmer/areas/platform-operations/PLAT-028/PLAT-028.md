@@ -4,6 +4,7 @@ type: ticket
 title: Redesign Organizations and Principals with provider API controls
 status: preparing
 area: platform-operations
+order: 80
 assignee: ''
 profile: feature
 stageEntered:
@@ -31,7 +32,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-08-28T08:08:00.889Z'
+updated: '2026-09-01T14:50:16.737Z'
 ---
 
 ## What

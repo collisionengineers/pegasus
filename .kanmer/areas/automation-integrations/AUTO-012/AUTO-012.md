@@ -4,6 +4,7 @@ type: ticket
 title: API-01 provider submission accept path is not atomic across its four writes
 status: verifying
 area: automation-integrations
+order: 60
 assignee: ''
 profile: fix
 stageEntered:
@@ -22,7 +23,7 @@ links:
 deployment: production
 archived: false
 created: '2026-08-29T08:17:39.146Z'
-updated: '2026-08-30T20:12:41.395Z'
+updated: '2026-09-01T14:44:16.326Z'
 ---
 
 ## What

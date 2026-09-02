@@ -4,6 +4,7 @@ type: ticket
 title: EXT-04 — Direct EVA API integration
 status: done
 area: engineering-assessment
+order: 2560
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +29,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.045Z'
-updated: '2026-08-30T20:25:09.945Z'
+updated: '2026-09-01T14:44:34.141Z'
 ---
 
 ## What

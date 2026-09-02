@@ -6,6 +6,7 @@ title: >-
   pane
 status: done
 area: case-reference-workflow
+order: 2240
 assignee: zcode
 profile: feature
 stageEntered:
@@ -36,7 +37,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/606'
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-08-30T20:24:02.860Z'
+updated: '2026-09-01T14:44:33.845Z'
 ---
 
 ## What

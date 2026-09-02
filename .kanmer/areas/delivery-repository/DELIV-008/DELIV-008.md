@@ -6,7 +6,7 @@ title: >-
   docs
 status: done
 area: delivery-repository
-order: 430
+order: 450
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T10:49:05.877Z'
-updated: '2026-08-26T14:34:43.301Z'
+updated: '2026-09-01T14:44:32.067Z'
 ---
 
 ## What

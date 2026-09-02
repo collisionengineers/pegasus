@@ -4,7 +4,7 @@ type: ticket
 title: Associate each vehicle-image group or create one Image-initiated Case
 status: done
 area: intake-processing
-order: 60
+order: 70
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -39,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-25T01:26:59.649Z'
+updated: '2026-09-01T14:44:31.711Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Fix PollSentEvidence rejecting the correctly approved mailbox
 status: done
 area: mail-communications
-order: 1330
+order: 1390
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +25,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:25:25.713Z'
-updated: '2026-08-26T14:34:44.910Z'
+updated: '2026-09-01T14:44:32.972Z'
 ---
 
 ## What

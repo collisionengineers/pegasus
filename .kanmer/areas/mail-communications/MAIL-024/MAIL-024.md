@@ -6,6 +6,7 @@ title: >-
   report detection
 status: done
 area: mail-communications
+order: 2480
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -29,7 +30,7 @@ prs:
   - '584'
 archived: false
 created: '2026-08-28T08:05:30.146Z'
-updated: '2026-08-30T20:24:34.191Z'
+updated: '2026-09-01T14:44:34.057Z'
 ---
 
 ## What

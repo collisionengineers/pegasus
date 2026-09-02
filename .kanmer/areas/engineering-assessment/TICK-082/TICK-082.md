@@ -2,8 +2,8 @@
 id: TICK-082
 type: ticket
 title: >-
-  EXT-09 — Versioned repair-estimate lines, source versions, approvals,
-  original-versus-assessed comparison, and savings
+  EXT-09 — Versioned repair-estimate lines, source versions, global labour-rate
+  cards, and per-version VAT
 status: backlog
 area: engineering-assessment
 assignee: ''
@@ -11,8 +11,9 @@ profile: feature
 labels:
   - capability
   - EXT-09
-  - later
+  - now
   - requires-live-approval
+  - work-pack-activated
 groups:
   - HZN-002
   - EPIC-009
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:40.173Z'
-updated: '2026-08-25T06:46:34.586Z'
+updated: '2026-09-01T21:54:51.106Z'
 ---
 
 ## What

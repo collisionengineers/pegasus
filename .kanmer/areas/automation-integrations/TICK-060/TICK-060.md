@@ -4,6 +4,7 @@ type: ticket
 title: API-03 — Return the provider's resulting Case/PO or fail
 status: preparing
 area: automation-integrations
+order: 120
 assignee: ''
 profile: feature
 stageEntered:
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.465Z'
-updated: '2026-08-25T06:46:29.290Z'
+updated: '2026-09-01T14:50:16.756Z'
 ---
 
 ## What

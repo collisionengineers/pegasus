@@ -4,7 +4,7 @@ type: ticket
 title: Remove Markdown-placement CI gate
 status: done
 area: delivery-repository
-order: 410
+order: 430
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T09:33:13.048Z'
-updated: '2026-08-26T14:34:43.258Z'
+updated: '2026-09-01T14:44:32.052Z'
 ---
 
 ## Why

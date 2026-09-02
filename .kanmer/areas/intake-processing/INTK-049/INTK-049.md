@@ -4,6 +4,7 @@ type: ticket
 title: Resolve OCR O/0 registration ambiguity through DVLA/DVSA lookup
 status: preparing
 area: intake-processing
+order: 70
 assignee: ''
 profile: feature
 stageEntered:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-28T20:37:48.985Z'
-updated: '2026-08-28T20:37:55.677Z'
+updated: '2026-09-01T14:50:16.730Z'
 ---
 
 # Resolve OCR O/0 registration ambiguity through DVLA/DVSA lookup

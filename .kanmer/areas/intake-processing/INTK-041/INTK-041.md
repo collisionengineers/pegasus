@@ -4,7 +4,7 @@ type: ticket
 title: Define near-real-time two-stage durable intake
 status: done
 area: intake-processing
-order: 2020
+order: 2090
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -34,7 +34,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-26T14:34:46.506Z'
+updated: '2026-09-01T14:44:33.694Z'
 ---
 
 ## What

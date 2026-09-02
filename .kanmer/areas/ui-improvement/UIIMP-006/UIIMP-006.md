@@ -4,6 +4,7 @@ type: ticket
 title: Rewrite the design authority to the Integrated Operations Workspace
 status: done
 area: ui-improvement
+order: 2580
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -31,7 +32,7 @@ prs:
   - '587'
 archived: false
 created: '2026-08-28T08:05:30.031Z'
-updated: '2026-08-30T20:25:13.491Z'
+updated: '2026-09-01T14:44:34.159Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: API-01 — Principal-scoped provider submission API
 status: verifying
 area: automation-integrations
+order: 330
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -59,7 +60,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-30T20:13:45.381Z'
+updated: '2026-09-01T14:44:16.645Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: Redesign the Automation & AI administration area
 status: done
 area: automation-integrations
+order: 2210
 assignee: claude-auto-006
 profile: feature
 stageEntered:
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/618'
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-08-30T20:23:40.461Z'
+updated: '2026-09-01T14:44:33.819Z'
 ---
 
 ## What

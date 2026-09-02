@@ -6,6 +6,7 @@ title: >-
   poll)
 status: done
 area: mail-communications
+order: 2440
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -26,7 +27,7 @@ prs:
   - '#573'
 archived: false
 created: '2026-08-27T10:06:22.829Z'
-updated: '2026-08-27T17:05:53.827Z'
+updated: '2026-09-01T14:44:34.014Z'
 ---
 
 ## Problem

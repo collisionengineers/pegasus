@@ -6,6 +6,7 @@ title: >-
   own edit mode
 status: verifying
 area: case-reference-workflow
+order: 100
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -21,8 +22,7 @@ labels:
   - concurrency
 links:
   - KANMER-005
-blocks:
-  - KANMER-005
+blocks: []
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -38,7 +38,7 @@ prs:
   - '581'
 archived: false
 created: '2026-08-28T05:09:12.450Z'
-updated: '2026-08-28T10:52:02.387Z'
+updated: '2026-09-01T14:46:06.827Z'
 ---
 
 ## What

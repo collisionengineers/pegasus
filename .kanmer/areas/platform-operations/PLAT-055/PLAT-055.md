@@ -4,6 +4,7 @@ type: ticket
 title: Restore the EVA client secret from Infisical after duplicated Key Vault value
 status: done
 area: platform-operations
+order: 2550
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -23,7 +24,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-28T14:01:57.910Z'
-updated: '2026-08-30T20:25:03.870Z'
+updated: '2026-09-01T14:44:34.131Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: Measure and reduce durable intake processing latency
 status: preparing
 area: automation-integrations
+order: 20
 assignee: ''
 profile: spike
 stageEntered:
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-21T14:19:30.094Z'
-updated: '2026-08-25T06:36:39.151Z'
+updated: '2026-09-01T14:50:16.692Z'
 ---
 
 ## What

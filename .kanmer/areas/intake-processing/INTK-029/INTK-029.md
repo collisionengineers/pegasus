@@ -4,7 +4,7 @@ type: ticket
 title: Unlink must clear the case link and warn when it cancels the case
 status: done
 area: intake-processing
-order: 1300
+order: 1360
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -18,7 +18,7 @@ links: []
 deployment: production
 archived: false
 created: '2026-08-21T18:17:18.865Z'
-updated: '2026-08-26T14:34:44.845Z'
+updated: '2026-09-01T14:44:32.942Z'
 ---
 
 ## Why

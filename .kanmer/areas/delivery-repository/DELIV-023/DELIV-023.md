@@ -4,7 +4,7 @@ type: ticket
 title: Allow pre-release Worker timer renames through pre-provision validation
 status: done
 area: delivery-repository
-order: 1980
+order: 2050
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-26T10:40:08.668Z'
-updated: '2026-08-26T14:34:46.418Z'
+updated: '2026-09-01T14:44:33.653Z'
 ---
 
 ## What

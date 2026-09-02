@@ -4,7 +4,7 @@ type: ticket
 title: MAIL-08 — Suggested next actions for classified email
 status: done
 area: mail-communications
-order: 1790
+order: 1860
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.237Z'
-updated: '2026-08-26T14:34:45.931Z'
+updated: '2026-09-01T14:44:33.458Z'
 ---
 
 ## What

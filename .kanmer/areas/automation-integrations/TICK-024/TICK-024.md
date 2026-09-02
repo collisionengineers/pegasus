@@ -6,7 +6,7 @@ title: >-
   staff app
 status: done
 area: automation-integrations
-order: 1720
+order: 1790
 assignee: ''
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.256Z'
-updated: '2026-08-26T14:34:45.779Z'
+updated: '2026-09-01T14:44:33.386Z'
 ---
 
 ## What

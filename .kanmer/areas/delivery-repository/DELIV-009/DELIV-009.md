@@ -4,7 +4,7 @@ type: ticket
 title: 'Release 10: promote dev to main and deploy the connector authorization flow'
 status: done
 area: delivery-repository
-order: 440
+order: 460
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T13:22:24.613Z'
-updated: '2026-08-26T14:34:43.320Z'
+updated: '2026-09-01T14:44:32.075Z'
 ---
 
 ## What

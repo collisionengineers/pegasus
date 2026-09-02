@@ -4,7 +4,7 @@ type: ticket
 title: Make ai-centre standalone repository
 status: done
 area: automation-integrations
-order: 210
+order: 230
 assignee: claude-code
 profile: custom
 requires: {}
@@ -17,7 +17,7 @@ blocks: []
 deployment: n/a
 archived: false
 created: '2026-08-13T10:58:18.698Z'
-updated: '2026-08-26T14:34:42.887Z'
+updated: '2026-09-01T14:44:31.856Z'
 ---
 
 

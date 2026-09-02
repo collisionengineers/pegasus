@@ -6,7 +6,7 @@ title: >-
   in the app, including read-only search of accepted D…
 status: done
 area: mail-communications
-order: 480
+order: 500
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -45,7 +45,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-26T14:34:43.401Z'
+updated: '2026-09-01T14:44:32.110Z'
 ---
 
 ## What

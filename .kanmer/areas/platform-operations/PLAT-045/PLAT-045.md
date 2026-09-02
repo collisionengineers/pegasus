@@ -4,6 +4,7 @@ type: ticket
 title: Fourth test-data wipe of the Azure estate after release 34
 status: done
 area: platform-operations
+order: 2500
 assignee: ''
 profile: chore
 stageEntered:
@@ -25,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-27T08:17:14.924Z'
-updated: '2026-08-27T09:37:14.295Z'
+updated: '2026-09-01T14:44:34.075Z'
 ---
 
 ## Why

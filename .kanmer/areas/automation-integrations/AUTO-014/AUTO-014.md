@@ -6,6 +6,7 @@ title: >-
   jobs
 status: verifying
 area: automation-integrations
+order: 80
 assignee: codex-gpt-5.6-sol
 profile: feature
 stageEntered:
@@ -24,8 +25,7 @@ groups:
   - EPIC-011
 links:
   - AUTO-011
-blocks:
-  - AUTO-011
+blocks: []
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
@@ -37,7 +37,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-29T13:04:32.304Z'
-updated: '2026-08-30T20:13:06.461Z'
+updated: '2026-09-01T14:46:06.746Z'
 ---
 
 ## What

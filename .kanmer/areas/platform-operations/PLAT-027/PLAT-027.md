@@ -4,6 +4,7 @@ type: ticket
 title: 'Consolidate Staff accounts, roles, and access review administration'
 status: verifying
 area: platform-operations
+order: 280
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -23,7 +24,11 @@ groups:
   - EPIC-008
   - EPIC-011
 links: []
-docs_todo: true
+blocks:
+  - PLAT-064
+refs:
+  - docs/frd/frd-04-parties-accounts-and-access.md
+  - docs/frd/frd-12-operator-experience.md
 commits:
   - 774ff072
   - ed29e97d
@@ -36,7 +41,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.382Z'
-updated: '2026-08-30T20:13:38.504Z'
+updated: '2026-09-01T14:44:16.546Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   UIIMP-004)
 status: verifying
 area: ui-improvement
+order: 350
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -35,7 +36,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-27T08:17:30.643Z'
-updated: '2026-08-30T20:10:02.726Z'
+updated: '2026-09-01T14:44:16.668Z'
 ---
 
 ## What

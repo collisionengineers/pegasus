@@ -6,6 +6,7 @@ title: >-
   internal owner
 status: done
 area: platform-operations
+order: 2530
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -31,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/613'
 archived: false
 created: '2026-08-28T10:58:39.368Z'
-updated: '2026-08-30T20:24:57.569Z'
+updated: '2026-09-01T14:44:34.110Z'
 ---
 
 ## What

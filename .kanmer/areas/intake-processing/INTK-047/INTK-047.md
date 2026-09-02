@@ -4,6 +4,7 @@ type: ticket
 title: 'Port Upload, upload status pages and the public upload request'
 status: verifying
 area: intake-processing
+order: 230
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -35,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.964Z'
-updated: '2026-08-30T20:13:23.654Z'
+updated: '2026-09-01T14:44:16.492Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   structure
 status: verifying
 area: platform-operations
+order: 290
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -32,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.464Z'
-updated: '2026-08-30T20:14:12.917Z'
+updated: '2026-09-01T14:44:16.556Z'
 ---
 
 ## What

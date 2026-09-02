@@ -4,6 +4,7 @@ type: ticket
 title: Service health snapshot and Engineer activity report queries
 status: verifying
 area: platform-operations
+order: 300
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -37,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:24.047Z'
-updated: '2026-08-30T20:14:23.820Z'
+updated: '2026-09-01T14:44:16.566Z'
 ---
 
 ## What

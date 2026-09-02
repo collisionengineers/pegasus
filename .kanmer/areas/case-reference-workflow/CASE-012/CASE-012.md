@@ -4,6 +4,7 @@ type: ticket
 title: Redesign the Case page workspace
 status: verifying
 area: case-reference-workflow
+order: 90
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -32,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.268Z'
-updated: '2026-08-30T20:14:00.205Z'
+updated: '2026-09-01T14:44:16.370Z'
 ---
 
 ## What

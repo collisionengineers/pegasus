@@ -4,7 +4,7 @@ type: ticket
 title: 'Extract claimant, vehicle and incident date from the real QDOS letter shapes'
 status: done
 area: intake-processing
-order: 1260
+order: 1320
 assignee: ''
 profile: fix
 stageEntered:
@@ -21,7 +21,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T10:45:24.375Z'
-updated: '2026-08-26T14:34:44.767Z'
+updated: '2026-09-01T14:44:32.906Z'
 ---
 
 ## What

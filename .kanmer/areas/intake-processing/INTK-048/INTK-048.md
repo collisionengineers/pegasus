@@ -4,6 +4,7 @@ type: ticket
 title: Resolve manually linked Unidentified receipts to their Case destination
 status: implementing
 area: intake-processing
+order: 10
 assignee: codex
 profile: fix
 stageEntered:
@@ -28,9 +29,10 @@ commits:
   - 14e0ad6f522a8b39c735f31535e842d8b0738fc8
 prs:
   - '#601'
+  - '#639'
 archived: false
 created: '2026-08-28T13:59:07.307Z'
-updated: '2026-08-30T20:10:31.210Z'
+updated: '2026-09-01T14:51:05.550Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: Remove intake and custody warm-path delay for the five-second target
 status: verifying
 area: intake-processing
+order: 220
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/560'
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-26T14:56:37.343Z'
+updated: '2026-09-01T14:44:16.480Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   Worker telemetry by mid-morning
 status: done
 area: mail-communications
+order: 2450
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +26,7 @@ prs:
   - '#576'
 archived: false
 created: '2026-08-27T10:06:22.851Z'
-updated: '2026-08-27T17:55:00.015Z'
+updated: '2026-09-01T14:44:34.024Z'
 ---
 
 ## Problem

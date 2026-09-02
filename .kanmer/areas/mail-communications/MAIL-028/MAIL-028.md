@@ -18,12 +18,12 @@ links:
   - MAIL-027
   - TICK-054
 blocks:
-  - MAIL-025
+  - MAIL-031
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-29T13:05:48.271Z'
-updated: '2026-08-29T13:10:32.203Z'
+updated: '2026-09-01T14:46:06.728Z'
 ---
 
 ## What

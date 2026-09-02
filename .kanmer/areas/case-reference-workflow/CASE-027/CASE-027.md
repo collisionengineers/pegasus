@@ -4,6 +4,7 @@ type: ticket
 title: 'Port the Case Vehicle, Inspection address, Case Files and Notes views'
 status: verifying
 area: case-reference-workflow
+order: 120
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -37,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.925Z'
-updated: '2026-08-30T20:13:14.462Z'
+updated: '2026-09-01T14:44:16.395Z'
 ---
 
 ## What

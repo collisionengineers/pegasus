@@ -4,6 +4,7 @@ type: ticket
 title: Preserve final Sent evidence through post-report correction
 status: preparing
 area: documents-reports
+order: 200
 assignee: ''
 profile: feature
 stageEntered:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:08:05.482Z'
-updated: '2026-08-25T06:48:37.696Z'
+updated: '2026-09-01T14:50:16.805Z'
 ---
 
 ## What

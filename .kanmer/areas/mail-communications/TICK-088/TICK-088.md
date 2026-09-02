@@ -6,6 +6,7 @@ title: >-
   Pegasus
 status: preparing
 area: mail-communications
+order: 150
 assignee: ''
 profile: feature
 stageEntered:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:06:02.476Z'
-updated: '2026-08-25T06:46:35.955Z'
+updated: '2026-09-01T14:50:16.775Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   once, and applies the fixed Collision Engineers de…
 status: preparing
 area: documents-reports
+order: 180
 assignee: ''
 profile: feature
 stageEntered:
@@ -28,7 +29,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.638Z'
-updated: '2026-08-25T06:48:37.676Z'
+updated: '2026-09-01T14:50:16.796Z'
 ---
 
 ## What

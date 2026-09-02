@@ -4,6 +4,7 @@ type: ticket
 title: Redesign workflow configurations
 status: verifying
 area: platform-operations
+order: 260
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -35,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.339Z'
-updated: '2026-08-30T20:13:29.825Z'
+updated: '2026-09-01T14:44:16.522Z'
 ---
 
 ## What

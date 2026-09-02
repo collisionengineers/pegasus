@@ -6,7 +6,7 @@ title: >-
   Not ready split by case origin, operator-safe copy
 status: done
 area: intake-processing
-order: 1140
+order: 1200
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -34,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:12:15.125Z'
-updated: '2026-08-26T14:34:44.538Z'
+updated: '2026-09-01T14:44:32.793Z'
 ---
 
 ## What

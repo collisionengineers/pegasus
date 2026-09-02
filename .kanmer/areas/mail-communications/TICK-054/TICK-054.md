@@ -6,6 +6,7 @@ title: >-
   the app
 status: preparing
 area: mail-communications
+order: 110
 assignee: ''
 profile: feature
 stageEntered:
@@ -13,38 +14,47 @@ stageEntered:
 labels:
   - capability
   - MAIL-13
-  - next
+  - now
   - requires-live-approval
+  - work-pack-activated
 groups:
   - EPIC-003
   - EPIC-006
+  - EPIC-011
 links: []
-blocks: []
+blocks:
+  - MAIL-031
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.318Z'
-updated: '2026-08-25T06:46:28.233Z'
+updated: '2026-09-01T14:50:16.752Z'
 ---
 
 ## What
 
-Plan and research **MAIL-13**: Change read state, Outlook categories, flags, or delete messages in the app
+Deliver MAIL-13 for one opened exact message: read/unread, configured approved-category add/remove, flag/unflag, recoverable deletion to Deleted Items, and restoration to the server-recorded prior approved folder.
 
 ## Why
 
-This is allocated to **Next / 0.3.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+The operator committed the prototype's staff-driven message-state behavior for the EPIC-011 work pack. The checked open-questions document already settles the safety boundary: no permanent deletion, no arbitrary category/folder input, and no local or unapproved mailbox write.
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- Reuse the existing retained-message identity, approved category catalogue, MAIL-07 folder mover and durable operation/history conventions.
+- Keep immutable arrival evidence separate from latest-known Outlook state and freshness.
+- Require exact message identity, expected Pegasus/provider state, actor, authorization, reason where required, and operation key.
+- Preserve unrelated Outlook categories when adding/removing one approved category.
+- Use fake Graph HTTP and LocalDB locally. Permission/RBAC activation and every live action remain separately exact-target approval gated.
+- Refresh the existing plan/checklist before implementation: their older permanent-delete lines are superseded by the checked open-questions boundary and must not be executed.
+- [[MAIL-031]] owns Administration policy; this ticket owns the message mutations.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [ ] The settled exact-message action set is implemented through one Core owner.
+- [ ] Retained Pegasus evidence and history survive every Outlook state change.
+- [ ] Stale/replayed/unknown external outcomes recover or fail closed without duplicate mutation.
+- [ ] No permanent-delete action exists for any role.
+- [ ] No local/test profile mutates Outlook.
 
-## Notes
-
-- Source: `docs/capabilities.md` — MAIL-13.
+## Outcome

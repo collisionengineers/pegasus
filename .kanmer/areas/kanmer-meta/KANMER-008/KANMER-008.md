@@ -4,7 +4,7 @@ type: ticket
 title: Apply the 2026-08-25 full-board groom
 status: done
 area: kanmer-meta
-order: 2030
+order: 2100
 assignee: ''
 profile: chore
 labels:
@@ -19,7 +19,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-08-25T06:58:08.309Z'
-updated: '2026-08-26T14:34:46.531Z'
+updated: '2026-09-01T14:44:33.706Z'
 ---
 
 ## What

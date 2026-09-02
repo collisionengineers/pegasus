@@ -4,7 +4,7 @@ type: ticket
 title: Rebuild the Inbox message page on the record container
 status: done
 area: mail-communications
-order: 1360
+order: 1420
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T08:24:32.333Z'
-updated: '2026-08-26T14:34:44.982Z'
+updated: '2026-09-01T14:44:33.000Z'
 ---
 
 ## What

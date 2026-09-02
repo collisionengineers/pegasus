@@ -6,6 +6,7 @@ title: >-
   QueuedIntakeStatus, which INTK-001 removed
 status: done
 area: delivery-repository
+order: 2300
 assignee: ''
 profile: fix
 stageEntered:
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T15:20:22.951Z'
-updated: '2026-08-29T17:21:34.792Z'
+updated: '2026-09-01T14:44:33.895Z'
 ---
 
 ## What

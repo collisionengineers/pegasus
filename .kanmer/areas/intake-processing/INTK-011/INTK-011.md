@@ -6,7 +6,7 @@ title: >-
   group, no member terminal-decides alone
 status: done
 area: intake-processing
-order: 1160
+order: 1220
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -40,7 +40,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:21:58.876Z'
-updated: '2026-08-26T14:34:44.575Z'
+updated: '2026-09-01T14:44:32.810Z'
 ---
 
 ## What

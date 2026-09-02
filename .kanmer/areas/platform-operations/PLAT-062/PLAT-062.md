@@ -17,54 +17,44 @@ groups:
   - EPIC-011
 links:
   - PLAT-025
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
+  - docs/frd/frd-12-operator-experience.md
+docs_todo: true
 archived: false
 created: '2026-08-29T10:23:02.768Z'
-updated: '2026-08-29T10:23:02.768Z'
+updated: '2026-09-01T14:43:23.549Z'
 ---
 
 ## What
 
-EPIC-011 `context.md` §1.12 names the Workflow configuration admin surface as:
-
-> Instruction completeness (2 checkboxes), Review (2 checkboxes), Due work
-> (chase interval); Save configuration.
-
-PLAT-025 ported the page and could only wire the "Review (2 checkboxes)"
-group — `RequireStaffInstructionReviewBeforeEngineerAssignment` and
-`RequireStaffImageReviewBeforeEngineerAssignment` — because that is the only
-part of the contract with real Core backing. The other two groups have none:
-
-- **Instruction completeness (2 checkboxes).** There is no administrator-
-  configurable completeness *policy* anywhere in `Pegasus.Core` — instruction
-  and image completeness (`CaseReadinessEvidence.InstructionsComplete` /
-  `ImagesComplete`) are per-case evidence flags, not a toggleable rule.
-- **Due work (chase interval).** `CaseWorkScheduling.cs` fixes the chase
-  interval as a constant; there is no admin-configurable global interval
-  setting, port, or persisted column.
+Add the remaining real Workflow configuration controls shown by EPIC-011: `Instruction document required`, `Eligible images required`, and the chase interval, alongside the already-backed review settings.
 
 ## Why
 
-The redesign contract calls for both groups, but building them for real needs
-a new Core port, a persistence change, and a migration — explicitly out of
-scope for PLAT-025 (a wave-2 UI-port lane may not add a migration or a new
-Core port; EPIC-011 migrations are serialized in wave 3). Per AGENTS.md rule
-22 / EPIC-011 D19 this is deferred to its own ticket rather than built
-inline or left silently unaddressed.
+[[PLAT-025]] could port only the two existing review requirements. The other controls need a Core-owned configuration contract, persistence and migration rather than inert UI.
+
+## Settled boundary
+
+- The two completeness switches govern readiness for Engineer assignment/Review only where a route does not impose a stricter mandatory requirement.
+- They never waive identity, Principal/reference allocation, Audit-original-report, processing-limit, custody or route-specific fail-closed requirements.
+- The chase interval replaces the existing seven-calendar-day scheduling constant; default remains seven calendar days and Held work preserves the remaining interval.
+- Existing Case evidence remains factual. Changing policy does not rewrite whether a Case actually has instructions or eligible images.
 
 ## Approach
 
-- Needs an explicit operator decision on what the two completeness checkboxes
-  and the chase-interval control should actually govern — the two-line
-  contract sentence does not specify the rule, only the control shapes.
-- Add the Core port/config surface once that decision exists, its persistence
-  and migration, then extend `Pages/Administration/Configuration.*` (PLAT-025's
-  file) to render the additional controls through it.
+- Update FRD-01/12 and capabilities before implementation leaves Backlog.
+- Extend the existing workflow-configuration Core owner rather than creating a second settings service.
+- Persist one versioned global policy and apply optimistic concurrency, Administrator authorization and permanent history.
+- Extend `Pages/Administration/Configuration.*` through that port; add no explanatory copy.
+- Reuse existing London-calendar and Held-interval behavior.
 
 ## Verification
 
-- [ ] The approved backend design supports administrator-configurable
-      instruction/image completeness and a chase interval.
-- [ ] `Pages/Administration/Configuration.*` renders all three groups from the
-      contract, each backed by a real Core setting.
+- [ ] All five displayed controls read and write real versioned policy.
+- [ ] Disabling a readiness requirement cannot bypass a stricter route/product invariant.
+- [ ] Existing Cases are re-evaluated from their retained facts without facts being rewritten.
+- [ ] Chase scheduling uses the configured calendar-day interval and preserves Held remainder.
+- [ ] Unauthorized, stale and replayed updates fail safely.
 
 ## Outcome

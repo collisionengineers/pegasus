@@ -4,7 +4,7 @@ type: ticket
 title: Map renderer templates to capabilities and decide proposed retirements
 status: done
 area: documents-reports
-order: 2090
+order: 2160
 assignee: ''
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.359Z'
-updated: '2026-08-26T14:34:46.702Z'
+updated: '2026-09-01T14:44:33.771Z'
 ---
 
 ## What

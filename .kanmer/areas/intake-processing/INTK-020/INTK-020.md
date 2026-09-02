@@ -6,7 +6,7 @@ title: >-
   everywhere images appear
 status: done
 area: intake-processing
-order: 30
+order: 40
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T14:08:22.595Z'
-updated: '2026-08-25T06:40:07.592Z'
+updated: '2026-09-01T14:44:31.673Z'
 ---
 
 ## Why

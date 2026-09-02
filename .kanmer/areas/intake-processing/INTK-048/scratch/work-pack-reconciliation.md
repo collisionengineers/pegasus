@@ -1,0 +1,5 @@
+## 2026-09-01 — supplied-work-pack reconciliation
+
+PR #601 remains historical and closed. Draft PR #639 is the current implementation reference for the lane shared with [[PR-069]]. This reconciliation records traceability only: it does not authorise starting, merging, or advancing either ticket.
+
+2026-09-01 (Claude controller, Phase 0): the operator chose the split for PR #639: PR-069 lands first on its own `task/pr-069-unidentified-link-reversal` branch cut from origin/dev; then this ticket is resumed at the escalated implementer tier by merging origin/dev into `task/intk-048-unidentified-manual-link` (head 51e7306c is on origin), fixing the failing `changes` and `sql-integration-coverage` checks, and reopening a PR that carries only INTK-048's scope with the footer `Kanmer: INTK-048`. PR #639 closes when its successor merges. The recorded worktree `../pegasus-worktrees/intk-048-unidentified-manual-link` does not exist on this workstation; it is re-homed with `git worktree add` from the remote branch, with no Kanmer take/release.

@@ -6,6 +6,7 @@ title: >-
   throws until they land
 status: preparing
 area: platform-operations
+order: 90
 assignee: ''
 profile: fix
 stageEntered:
@@ -21,7 +22,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-08-28T07:54:27.369Z'
+updated: '2026-09-01T14:50:16.744Z'
 ---
 
 ## What

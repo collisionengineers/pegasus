@@ -6,7 +6,7 @@ title: >-
   parity (assessment get/update, case-detail update, EVA…
 status: done
 area: automation-integrations
-order: 90
+order: 100
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-26T14:34:42.650Z'
+updated: '2026-09-01T14:44:31.741Z'
 ---
 
 ## What

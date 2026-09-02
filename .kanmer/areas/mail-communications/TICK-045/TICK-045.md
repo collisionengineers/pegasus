@@ -4,7 +4,7 @@ type: ticket
 title: MAIL-03 — One shared classification policy across all supported mailboxes
 status: done
 area: mail-communications
-order: 160
+order: 180
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-26T14:34:42.800Z'
+updated: '2026-09-01T14:44:31.815Z'
 ---
 
 ## What

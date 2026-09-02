@@ -6,6 +6,7 @@ title: >-
   note plus itemised repair-specification breakdown
 status: preparing
 area: documents-reports
+order: 190
 assignee: ''
 profile: feature
 stageEntered:
@@ -27,7 +28,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.661Z'
-updated: '2026-08-25T06:41:06.540Z'
+updated: '2026-09-01T14:50:16.800Z'
 ---
 
 ## What

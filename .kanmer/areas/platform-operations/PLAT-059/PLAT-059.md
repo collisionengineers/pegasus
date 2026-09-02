@@ -5,18 +5,24 @@ title: Settle the "Create Case" entry point so one label has one destination
 status: backlog
 area: platform-operations
 assignee: ''
-profile: fix
+profile: feature
 labels:
   - ui
   - shell
+  - case-creation
+  - work-pack
+  - wave-B
 groups:
   - EPIC-011
 links:
   - CASE-026
   - PLAT-029
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T08:06:53.293Z'
-updated: '2026-08-29T08:06:53.293Z'
+updated: '2026-09-01T21:54:54.083Z'
 ---
 
 ## What

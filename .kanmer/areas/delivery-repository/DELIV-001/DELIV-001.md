@@ -6,7 +6,7 @@ title: >-
   workflow
 status: done
 area: delivery-repository
-order: 360
+order: 380
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -27,7 +27,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-17T11:05:47.371Z'
-updated: '2026-08-26T14:34:43.172Z'
+updated: '2026-09-01T14:44:32.007Z'
 ---
 
 ## What

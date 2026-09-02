@@ -6,7 +6,7 @@ title: >-
   Engineer-entered percentage
 status: done
 area: documents-reports
-order: 750
+order: 810
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -33,7 +33,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.703Z'
-updated: '2026-08-26T14:34:43.873Z'
+updated: '2026-09-01T14:44:32.435Z'
 ---
 
 ## What

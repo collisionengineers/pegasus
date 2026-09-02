@@ -6,6 +6,7 @@ title: >-
   already ends in "A"
 status: verifying
 area: delivery-repository
+order: 140
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -31,7 +32,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-29T14:27:28.216Z'
-updated: '2026-08-30T20:12:49.521Z'
+updated: '2026-09-01T14:44:16.410Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: Integrate approved Test UI experiments into Live Razor pages
 status: preparing
 area: ui-improvement
+order: 210
 assignee: ''
 profile: feature
 stageEntered:
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-26T12:09:14.838Z'
-updated: '2026-08-26T12:10:20.470Z'
+updated: '2026-09-01T14:50:16.816Z'
 ---
 
 ## What

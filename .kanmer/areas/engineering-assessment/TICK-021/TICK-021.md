@@ -6,7 +6,7 @@ title: >-
   supplied-versus-external-versus-estimated classification
 status: done
 area: engineering-assessment
-order: 1690
+order: 1760
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.185Z'
-updated: '2026-08-26T14:34:45.711Z'
+updated: '2026-09-01T14:44:33.359Z'
 ---
 
 ## What

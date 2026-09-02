@@ -4,6 +4,7 @@ type: ticket
 title: EXT-15 — Automated WhatsApp ingestion and coexistence
 status: preparing
 area: automation-integrations
+order: 130
 assignee: ''
 profile: feature
 stageEntered:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:39.851Z'
-updated: '2026-08-25T06:46:30.946Z'
+updated: '2026-09-01T14:50:16.761Z'
 ---
 
 ## What
