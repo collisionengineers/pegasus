@@ -32,9 +32,10 @@ commits:
   - 1ee04b97
 prs:
   - '586'
+deployment: production
 archived: false
 created: '2026-08-28T08:05:30.058Z'
-updated: '2026-09-01T14:44:34.172Z'
+updated: '2026-09-02T01:53:47.134Z'
 ---
 
 ## What

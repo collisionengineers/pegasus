@@ -37,9 +37,10 @@ commits:
   - d39db01672bad8ddb6005a76b1c2bd292f925990
 prs:
   - '#605'
+deployment: production
 archived: false
 created: '2026-08-28T08:35:23.884Z'
-updated: '2026-09-01T14:44:33.955Z'
+updated: '2026-09-02T01:53:19.675Z'
 ---
 
 ## What
