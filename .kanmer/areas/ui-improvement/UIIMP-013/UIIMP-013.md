@@ -2,12 +2,13 @@
 id: UIIMP-013
 type: ticket
 title: Reduce the Test UI snapshot gate critical path without weakening coverage
-status: implementing
+status: review
 area: ui-improvement
 assignee: codex-root
 profile: chore
 stageEntered:
   preparing: '2026-09-02T03:09:00.895Z'
+  review: '2026-09-02T14:52:45.734Z'
 taken_at: '2026-09-02T03:21:55.240Z'
 branch: task/uiimp-013-test-ui-cost
 worktree: ../pegasus-worktrees/uiimp-013-test-ui-cost
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/644'
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T14:21:15.390Z'
+updated: '2026-09-02T14:52:45.734Z'
 ---
 
 ## What
@@ -48,11 +49,11 @@ its complete capture, stale-file, orphan, or offline-render guarantees.
 ## Current evidence
 
 - Historical run `33310451221` spent 40m23s in capture before cancellation.
-- Recent successful build-relevant runs complete capture and verify in
-  approximately 24–27 minutes, so the original 50-minute headline is stale.
-- The script currently pins the whole capture selection to two threads even
-  though only browser tests require that cap; non-browser integration tests use
-  the repository's proven four-thread default elsewhere.
+- Recent successful build-relevant runs completed capture and verify in
+  approximately 24–27 minutes before this change.
+- The old script pinned the whole capture selection to two threads although
+  only browser tests require that cap; non-browser integration tests use the
+  repository's proven four-thread default elsewhere.
 - Verify is one fact over the retained capture, not a second run of all capture
   tests.
 
@@ -69,10 +70,15 @@ weaken the curated snapshot input or detection boundary.
 
 ## Verification
 
-- [ ] The same 415 tests run across a disjoint two-filter partition.
-- [ ] Fresh verify, stale-file injection, orphan injection, and catalogue checks
-      retain their outcomes.
-- [ ] Three runs of one PR SHA all pass with median snapshot time at most
-      22 minutes and no run above 25 minutes.
+- [x] The same 415 tests run across a disjoint two-filter partition.
+- [x] Fresh verify and catalogue pass; unchanged stale/orphan assertions retain
+      the linked UIIMP-005 negative-injection proof.
+- [x] Three runs of one PR SHA all pass with a 21:32 median and 22:42 maximum.
 
 ## Outcome
+
+Implemented in PR #644. Browser capture remains capped at two threads;
+non-browser capture inherits four; the second capture and verifier reuse the
+build; phase timings are explicit. The measured timeout formula reduced the
+snapshot step/job budgets to 35/40 minutes. Final-SHA repository check
+`33641477638` passed.
