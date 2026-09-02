@@ -125,10 +125,15 @@ the accepted numbers and their qualification.
    (`integration-fixture-v1`, 1-hour lifetime, 1 MB per file); those are test
    values and must never become production policy.
 
-   Raising the per-file cap to 100 MB is [[INTK-052]], and is a Core change
-   rather than a configuration one — `DurableIntake` bounds the `ManualUpload`
-   channel by `IntakeEnvelopeLimits.MaximumContentLength`, and the batch budget
-   derived from it feeds a global multipart limit.
+   No larger target is accepted. Manual upload remains **10 MiB per file**;
+   the Provider API envelope stays 30 MB. [[INTK-052]] researches representative
+   requirements, cost, performance and Azure constraints before an operator
+   decision,
+   and is a Core change rather than a configuration one — `DurableIntake`
+   bounds the `ManualUpload` channel by
+   `IntakeEnvelopeLimits.MaximumContentLength`, and the batch budget derived
+   from it feeds a global multipart limit. Until INTK-052 lands, the
+   `int-31-interim-v1` values above remain the truthful current policy.
 
 2. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
@@ -331,7 +336,7 @@ adapters.
 | Post-report query and dispute lifecycle | Allowed states/transitions and actors; case/report/reply-chain evidence; correction/reopen and due/chaser interaction; response proof; closure; and dispute resolution. | A mailbox event could silently change case state, close work prematurely, lose a correction, or create a duplicate case/reference. | Preserve the correspondence against the existing case for staff review; let no Outlook adapter decide lifecycle or closure. | What exact CASE-23 lifecycle governs a received query/dispute through Engineer response and reasoned completion? |
 | Audatex PDF ingestion | Representative PDF variants and accepted field-mapping evidence. | Variant layouts could produce incomplete or incorrect extraction. | Do not activate generic Audatex PDF mapping from unrepresentative examples. | Have the supported Audatex PDF variants and their mappings been accepted from representative evidence? |
 | Mandatory global vehicle checks | Global requirements are settled as vehicle identity/specification, vehicle-history/risk, and market valuation. All three require a result or explicit exception before Engineers-queue eligibility. The authorised staff reviewer records each exception as a named, reasoned Case action. Each provider/route still needs its exact source, required result, and unavailable/failure contract. | A Case could proceed to an Engineer without a globally required result, or a provider-specific behavior could silently override the common baseline. | Preserve the global checks; use source-labelled `Unavailable` or approved local replay while live callers are unaccepted; retain unmet checks as `Not ready` rather than inventing a result. | What unavailable/failure contract applies to each global check for each provider/route? |
-| Report wording outside the approved assessment baseline | Assessment wording and the complete `A Patterson | M.Inst.IAEA | andy_patterson` tuple in `rendererref1` are accepted for draft generation. Qualifications completing the Ed Mawdsley and Neil O'Reilly tuples, salvage Categories A/B/N/A wording, recovery/storage wording, and a final statement of truth remain absent or unaccepted. | Unsupported reports could contain incomplete, unauthorized, or inconsistent statements. | Keep absent wording and incomplete identity tuples unavailable; fail closed and never infer them from signatures or samples. | Has the exact missing wording or qualification needed by the family being activated been supplied and accepted? |
+| Report wording outside the approved assessment baseline | The `rendererref1` assessment wording and exact `A Patterson | M.Inst.IAEA | andy_patterson` tuple remain accepted for draft generation. Other signature-policy changes are deferred to `DOCS-017`. Salvage Categories A/B/N/A wording, recovery/storage wording, and a final statement of truth remain absent or unaccepted. | Unsupported reports could contain incomplete, unauthorized, or inconsistent statements. | Keep absent wording and incomplete identity tuples unavailable; fail closed and never infer them. | Has the exact missing wording or qualification been supplied and accepted? |
 
 ## Send-to-AI transport and assessment toolset (`AI-09` / `MCP-06`)
 
@@ -349,9 +354,8 @@ Still open after the 2026-08-03 implementation:
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Rate-card ownership and accepted derivation formulas (EXT-09): who owns published rate cards, and acceptance of WU÷10×rate, sundry percentages, material bands, and the VAT rule as Core policy. | Without accepted authority no estimate total, report worklist, or repair-cost-to-PAV ratio can be derived; the PAV slider names the missing costed total instead. | Keep derivation absent; raw line writes continue. | Which rate-card owner and derivation formulas are accepted for EXT-09? |
-| Assessment markup ambiguities recorded rather than guessed: betterment semantics, the estimate `guide` code meaning, approved signatory-list ownership, whether fee fields stay in the assessment record given EXT-11 is `1.2.0`, and where guide/external valuation figures are stored (EXT-10/EXT-13; the valuation API contract should name which figures it supplies). | Guessing any of these would invent business semantics the screens deliberately left unstated. | Store free text where shipped today; decide each with its owning capability. | What are the accepted semantics for each recorded ambiguity, and where do valuation-service figures land when EXT-10/EXT-13 are contracted? |
-| The Suggestions screen's fate and the PAV slider's parameters at the UI-15 re-entry review: repurpose the built Suggestions markup as a read-only automation-change review or retire it; confirm slider placement and step/rounding; resolve the recorded `.send-action` contrast shortfall (2.3–4.2:1 vs 4.5:1) before any activation puts the control in front of staff; ratio basis and threshold source (per-principal or per-instruction; QDOS 80% is the only evidenced example). | Unresolved presentation decisions block staff-facing activation, not gated local work. | Decide at the UI-15 re-entry review; keep the slider a review aid that writes nothing. | What does the UI-15 re-entry review accept for the Suggestions screen, the slider, the contrast fix, and the threshold source? |
+| Assessment markup ambiguities recorded rather than guessed: whether fee fields stay in the assessment record given EXT-11 is `1.2.0`, and where guide/external valuation figures are stored (EXT-10/EXT-13; the valuation API contract should name which figures it supplies). Betterment semantics, the estimate `guide` code meaning and approved signatory-list ownership are settled by the 2026-09-01 confirmation (EPIC-011 D17/D18): the first two are retained evidence only, owned by [FRD-06 § Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction), and the third is answered by typed Engineer identity in [FRD-11](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation). | Guessing either remaining item would invent business semantics the screens deliberately left unstated. | Store free text where shipped today; decide each with its owning capability. | Do fee fields stay in the assessment record, and where do valuation-service figures land when EXT-10/EXT-13 are contracted? |
+| The Suggestions screen's fate and remaining PAV-slider presentation questions at UI-15 re-entry: repurpose or retire the Suggestions markup; confirm placement and step/rounding; resolve contrast; and decide threshold source. The requested value is optional, 0–80 %, no default, visibly derived from Engineer's Value, and proposal guidance only (D24, amended 2026-09-02). | Unresolved presentation decisions block staff-facing activation, not gated local work. | Decide at UI-15 re-entry; keep the control a review aid that writes nothing. | What presentation and threshold-source choices are accepted? |
 | Tier-5 external-client evidence: one recorded DevelopmentOffline round-trip run — real Claude Code channel session, send → channel event → Actor read → attributed write → reply → Completed on reconcile — over the full fourteen-tool inventory, plus the connector JSONL evidence-log retention rule beyond local-only/gitignored. | Without it no activation claim can be made; the surface stays composition-gated. | Fold into the queued tier-5 MCP evidence run. | When is the recorded round-trip run performed and where is its evidence filed? |
 
 ## Future custom assessor
@@ -375,13 +379,21 @@ Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-f
 
 ## Mail workspace freshness threshold and retention start
 
-The mail workspace ships reading retained messages. Two of its numbers are
-provisional and are recorded here rather than presented as settled.
+**Resolved 2026-09-01.** The operator confirmed both numbers on 2026-09-01
+(EPIC-011 D22). The heading is kept unchanged because
+[current architecture](current-architecture.md) links to this anchor.
+The stale threshold is a **fixed 15 minutes** since the last successful update —
+three missed `ApprovedInboxPollSchedule` recovery ticks at `0 */5 * * * *`,
+recorded in `GetRetainedMailFreshness.StaleAfter` — and it is not configurable.
+There is **no historical backfill**: the workspace starts at each approved
+mailbox's genuine retention-start boundary, surfaces `HasUnretainedHistory` and
+says the gap exists rather than reconstructing display material for messages
+whose MIME was retained but never parsed for display. Delete remains a
+recoverable move to Deleted Items and permanent deletion is absent.
 
-| Decision | Evidence needed | Impact | Recommended default | Decision question |
-|---|---|---|---|---|
-| Stale threshold | Observed poll behaviour under real load: how often a tick is genuinely late, and how long an operator can act on mail without knowing polling has stopped. | Too short and the chip cries wolf on every slow tick; too long and a stopped Worker is invisible while staff work from a list that is no longer arriving. | Ship the provisional 15 minutes (three missed `ApprovedInboxPollSchedule` recovery ticks at `0 */5 * * * *`), recorded in `GetRetainedMailFreshness.StaleAfter`. | How long after the last successful poll should the workspace stop calling its data current? |
-| Historical mail | Whether operators need messages received before message-level retention began, and if so what a reconstruction from retained artifacts could honestly recover. | A backfill invents display material for messages whose MIME was retained but never parsed for display, and would present reconstructed fields as if they had been read at poll time. | Start empty. The list surfaces `HasUnretainedHistory` and says the gap exists rather than presenting nothing as "nothing was received". | Should retained mail be backfilled for messages polled before retention began? |
+Canonical owner:
+[FRD-08](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing).
+Allocated to [[MAIL-031]] and [[TICK-054]]; not delivered.
 
 ## App Insights daily cap
 

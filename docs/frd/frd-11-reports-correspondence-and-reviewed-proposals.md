@@ -15,8 +15,8 @@ Assessment rendering (RPT-02) has one closed outcome vocabulary:
 repair is a distinct fourth outcome; it is not a presentation alias for
 repairable. Every outcome uses the same assessment bundle: outcome and
 findings, vehicle data and the repair-cost calculation, the itemised repair
-specification, selected vehicle images, the statement and authorised
-signature, and the fee note.
+specification, selected vehicle images, the statement and the typed Engineer
+identity, and the fee note.
 
 | Outcome | Title and badge | Headline figures | Settlement meaning |
 | --- | --- | --- | --- |
@@ -70,15 +70,20 @@ engineer identity, computes the figures once, and selects one of the four
 outcomes. Infrastructure renders only that selection with the governed
 template, stylesheet, logo, and signature resource.
 
-The supplied assessment wording and the named engineer/signature evidence are
+The supplied assessment wording and named engineer/signature evidence are
 accepted only as exact matching tuples. The currently complete supplied tuple
 is `A Patterson | M.Inst.IAEA | andy_patterson`; the Ed Mawdsley and Neil
-O'Reilly signature images are governed assets, but no assessment may select
-either until an accepted qualification completes that person's tuple. Missing,
-unknown, mismatched, or substituted names, qualifications, keys, assets, source
+O'Reilly signature images remain governed but cannot be selected until an
+accepted qualification completes that person's tuple. Missing, unknown,
+mismatched, or substituted names, qualifications, keys, assets, source
 versions, custody references, or required values fail closed. No custom
 signature path, arbitrary local attachment path, placeholder, or wording absent
-from the accepted evidence is permitted.
+from the accepted evidence is permitted. Signature-policy changes are deferred
+to `DOCS-017`.
+
+Generation remains deterministic, versioned, retained and review-gated, and
+generation, approval, issue, sending, external receipt and Case closure remain
+distinct recorded events.
 
 Generation returns draft assessment and fee-note artifacts with their bytes,
 hashes, page counts, template version, and engine version. It is not approval,
@@ -109,8 +114,8 @@ new cycle and requires a fresh export before the workspace opens again.
 **Readiness.** A single readiness rail decides whether the control is enabled:
 `AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
 post-Review list) plus only requirements first introduced after the case
-entered `Review`: an accepted engineer signature tuple and repair-cost figures
-(below). Requirements already enforced by the transition into `Review` are not
+entered `Review`: the issuing Engineer's identity and the accepted estimate
+figures (below). Requirements already enforced by the transition into `Review` are not
 recalculated as report readiness. The saved case identity, instruction,
 inspection and custody facts are consumed when the draft is generated; if one
 is unexpectedly absent, generation fails as an invalid case state rather than
@@ -123,20 +128,39 @@ reason by name; nothing is guessed to make the control available.
 Confirmed) — the same confirmation gate the EVA hand-off bundle already uses
 for its own image evidence. `Sources` are every other custody-confirmed case
 document, reported by its own file name, version and hash. Both are real
-custody facts, not curated: the Assessment screen's photograph
-curation/ordering control is separately deferred (UI-15), so every confirmed
-image on the case is offered. Their absence after entry to `Review` is an
-invalid case state, not another report-readiness classification.
+custody facts: every confirmed image on the case is offered to curation, and
+nothing is filtered out before the Engineer sees it. Their absence after entry
+to `Review` is an invalid case state, not another report-readiness
+classification.
 
-**Repair-cost figures are not yet derivable.** No accepted formula exists
-anywhere in the domain to convert recorded estimate lines and a chosen rate
-card into a numeric labour rate or paint-materials charge — the rate card is
-explicitly published reference data the assessment screen never stores a
-figure for, and estimate-total derivation is documented as deliberately
-absent pending its own accepted authority (EXT-09, open decision D2). The
-report draft does not fabricate one: until EXT-09 is accepted, every case's
-readiness names "Repair cost figures" as outstanding and the control stays
-disabled. This is the current, honest state of the capability, not a defect.
+Curation itself is decided (D19, 2026-09-01) and no longer deferred with the
+rest of the UI-15 workbench: preparation is non-destructive, a report requires
+distinct `Close-up` and `Overview` images in that order, optional supporting
+images follow in explicit operator order, crop and ordering data are
+normalized, versioned, attributable and protected by expected-version and
+edit-lease rules, and an issued report retains its exact curation snapshot and
+source hashes
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)).
+Allocated to [[ENG-031]]; not delivered.
+
+**Repair-cost figures.** The accepted derivation is D17 (2026-09-01):
+non-paint labour is the estimate version's normalized non-paint hours
+multiplied by the rate held on the labour-rate card that version selected;
+paint labour, paint materials, parts and other costs are explicit amounts on
+the version; the version's own VAT percentage applies to the whole subtotal.
+Multiple global, versioned labour-rate cards exist as Administrator-managed
+configuration (id, name, non-paint hourly rate, enabled state, actor,
+timestamps); staff select one card for every new or amended estimate version,
+and a report version records the card version it used. Disabling a card blocks
+future selection without changing history. Normalized imported and manual
+estimates are directly editable under the ordinary expected-version and
+edit-lease rules. Their retained source artifacts and hashes remain immutable;
+every change records actor, time, reason and before/after values, and may move
+the estimate through Draft, Accepted and Current. No original-versus-assessed
+comparison figure and no savings figure exists, in the editor or on the
+report. A case whose current estimate version has no selected card names that
+card as the outstanding readiness reason; nothing is fabricated. The rate-card
+aggregate itself is allocated to `TICK-082` and is not yet delivered.
 
 ### Report correction, finality, and post-report work
 
@@ -219,7 +243,7 @@ creation.
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Assessment `Send to Claude` (With Engineer or onwards) | Direction text and a target percentage of the recorded Engineer's Value; refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Estimate | Assessment `Send to Claude` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 80 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
@@ -273,13 +297,22 @@ by `Pegasus.Core`:
 
 | Figure | Rule |
 | --- | --- |
-| Parts | Sum of part prices × quantity |
-| Labour | Labour hours × labour rate |
-| Paint | Paint hours × paint labour rate, plus paint materials |
-| Other | Other costs |
+| Parts | Explicit part prices × quantity |
+| Labour | Normalized non-paint hours × the non-paint hourly rate of the labour-rate card the estimate version selected (D17) |
+| Paint | Explicit paint labour plus explicit paint materials |
+| Other | Explicit other costs |
 | Subtotal | Parts + Labour + Paint + Other |
 | VAT | Subtotal × VAT % |
 | Total | Subtotal + VAT |
 
+The labour-rate card prices non-paint labour only; paint labour, paint
+materials, parts and other costs are explicit amounts carried on the estimate
+version by whichever route supplied it, and are never derived from the card. No comparison figure between an imported provider version and
+an assessed version, and no savings figure, is computed or rendered (D17).
+Normalized provider and manual estimates are editable records; their retained
+raw source evidence and hashes are immutable. Every direct change follows the
+same lease, expected-version, attribution, reason, and history contract.
+
 Signatures embedded in governed renderer documents are provenance-sensitive
-document assets, not Web decorative imagery.
+document assets, not Web decorative imagery. Signature-policy changes remain
+deferred to `DOCS-017`.
