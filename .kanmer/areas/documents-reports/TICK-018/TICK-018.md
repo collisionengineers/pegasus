@@ -21,9 +21,9 @@ groups:
 links: []
 refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
-archived: false
+archived: true
 created: '2026-08-12T15:03:53.124Z'
-updated: '2026-09-01T14:50:16.747Z'
+updated: '2026-09-02T12:55:03.359Z'
 ---
 
 ## What
@@ -49,3 +49,9 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 - Source: `docs/capabilities.md` — DOC-02.
 - Canonical owner: [Owning FRD](docs/frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)
 - Activation/boundary: Day-one accepted Case custody requirement. Blob is temporary hot staging only; preserve the approved test-target scope for local and non-production deployment evidence.
+
+## Outcome
+
+Archived as stale on 2026-09-02 after operator confirmation that Box storage is implemented and working.
+
+The current production path retains accepted source emails, instruction attachments and images in Box; managed case documents support the settled semantic roles; Image-initiated Case custody and merge handling were delivered by [[INTK-014]]; and Box-backed image viewing was delivered by [[CASE-006]]. Later report and correspondence workflows remain independently owned by [[DOCS-001]], [[MAIL-027]], [[TICK-075]], and [[TICK-055]] rather than by this umbrella implementation ticket.
