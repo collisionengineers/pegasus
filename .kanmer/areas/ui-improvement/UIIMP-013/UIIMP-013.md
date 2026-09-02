@@ -12,20 +12,7 @@ stageEntered:
   implementing: '2026-09-02T16:55:41.695Z'
   verifying: '2026-09-02T17:44:31.300Z'
   done: '2026-09-02T18:17:11.269Z'
-taken_at: '2026-09-02T03:21:55.240Z'
-branch: task/uiimp-013-test-ui-cost
-worktree: ../pegasus-worktrees/uiimp-013-test-ui-cost
-claim_expires_at: '2026-09-02T19:48:42.869Z'
-claim_controller: codex-root
 review_round: 1
-lease_id: 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4
-lease_revision: 10
-lease_workspace: >-
-  worktree:c:\users\pguser\documents\github\pegasus-worktrees\uiimp-013-test-ui-cost
-lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-02T17:48:42.869Z'
-lease_reclaimed_from: claude-code/20260901T215000Z-claude-controller/implementer-a1
 labels:
   - ci
   - performance
@@ -45,7 +32,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T18:36:44.583Z'
+updated: '2026-09-02T18:37:42.270Z'
 ---
 
 ## What

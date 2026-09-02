@@ -50,7 +50,7 @@ Append execution evidence; never remove a failed attempt.
 - [x] proof.md finalised (PR URL + merge date appended)
 - [x] Moved to final stage
 - [x] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove ../pegasus-worktrees/uiimp-013-test-ui-cost`
-- [ ] `git branch -d task/uiimp-013-test-ui-cost` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] cd out of worktree; `git worktree remove ../pegasus-worktrees/uiimp-013-test-ui-cost`
+- [x] `git branch -d task/uiimp-013-test-ui-cost` (`-D` if squash/rebase-merged)
+- [x] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
