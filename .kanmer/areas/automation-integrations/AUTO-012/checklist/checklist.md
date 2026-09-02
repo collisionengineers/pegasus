@@ -6,4 +6,4 @@
 - [x] Outcome recorded in ticket body (PR link, follow-ups)
 - [x] Recorded implementation worktree/branch cleanup assessed — no claim was recorded
 - [x] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] `take_ticket action: "release"`
