@@ -122,6 +122,8 @@ The assessment may run before market valuation and neither creates nor returns a
 
 Image-readiness advice never selects, excludes, orders, or otherwise decides report images. Report-image selection is a human Engineering decision in the report-generation section, not an opposing-toggle control on the Case evidence surface.
 
+Report-image preparation is non-destructive (D19, 2026-09-01): the retained source bytes and their hashes never change, and every crop or ordering act produces normalized output beside the source rather than replacing it. A report requires two distinct images, one designated `Close-up` first and one `Overview` second; optional supporting images follow in the explicit order the operator set. The crop and ordering data are a normalized, versioned, attributable record protected by the same expected-version and edit-lease rules as other Case mutations. An issued report retains the exact curation snapshot and the source hashes it used, so a later Case-image or curation change never alters an issued report.
+
 This allocation creates no AI caller. Its activation still requires accepted model/transport, data, cost, evaluation, failure/recovery, real-caller, and approval evidence. Broader image or damage analysis and AI-generated repair specifications remain separate capabilities.
 
 ### Vehicle data and MOT enrichment
@@ -163,6 +165,11 @@ destination gates must occur before the correction; `Created in error` remains
 non-reopenable. Current views may recompute from the superseding version, but
 historical reports, events, and counts keep their original provenance.
 
+Betterment figures and estimate `guide` codes recorded on a source or an
+estimate version are retained evidence only (D17, 2026-09-01). No finding,
+figure, outcome, deduction, or settlement semantics are derived from either;
+they are shown and retained as they were recorded.
+
 Triage findings and their corrections have no case, report, Audit-reference,
 fee, or invoice effect. Invoicing is separately deferred: a professional
 finding correction must not silently create, alter, credit, or void an invoice.
@@ -187,13 +194,21 @@ Case's report projections.
 
 Each version retains its stable identity, ordered technical
 lines, source route, source artifact identity/version/hash, mapping evidence,
-raw calculation basis and totals, creating actor/time, and—when accepted—the
+raw calculation basis and totals, the selected labour-rate card version where
+one was selected, creating actor/time, and—when accepted—the
 named Engineer and acceptance time. Glass's, Audatex PDF, an approved AI
 proposal, and manual entry are provenance routes, never authorities: imported
 or automated material remains a draft until an authorised Engineer accepts the
 exact source, mapping, ordered lines, and calculation basis. Legacy lines with
 no such evidence remain explicit `LegacyUnresolved` drafts and cannot satisfy
 report readiness.
+
+A raw artifact imported through either caller of the shared import command is
+keyed by Case plus source hash (D16, 2026-09-01): the same Case with the same
+hash is an idempotent replay that returns the existing Draft, while a different
+artifact creates the next immutable Draft. The provider and parser are
+auto-detected from the registered types and an ambiguous artifact is refused,
+never guessed.
 
 Corrections create a new reasoned version which retains and supersedes the
 earlier accepted version; accepted rows and their evidence are never edited in
