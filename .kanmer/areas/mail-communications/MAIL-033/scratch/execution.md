@@ -16,3 +16,24 @@ created and `take_ticket` was not called.
 - **Zero repository lines changed.** No commit was made; no deviation and no code defect found.
 - Next: the controller runs the test runner. On PASS the implementer does steps 5-9 (retitle and
   re-footer PR #641, `update_item`, simplification pass, post-implementation report, move to review).
+
+## Implementer attempt 1 — PR_UPDATED, moved to Review (2026-09-02)
+
+Controller PASS received for the local lanes (5-sql-integration INCONCLUSIVE: LocalDB absent,
+error 52; CI run `33525322197` at this head is the recorded evidence for that shard).
+
+- PR https://github.com/collisionengineers/pegasus/pull/641 — title now
+  "Advance the Graph delta cursor when sparse messages omit receivedDateTime (MAIL-033)",
+  body footer `Kanmer: MAIL-033`, exactly one body line changed from the pre-edit original.
+  `gh pr edit` exited 1 (token missing `read:project`); the same two fields were applied with
+  `gh api -X PATCH repos/collisionengineers/pegasus/pulls/641` (exit 0) — ASSUMPTION 1 in
+  `open-questions`. Base `dev`, head `c6842a8c3a36fe806a3103d067fef207d22651d3`, CLEAN.
+- Head SHA is unchanged and nothing was pushed: the branch was 0 behind `origin/dev`, so there
+  was no merge commit and no code change to commit.
+- Documents: `plan`@`74a5ddf0a5ef2ece` (dated simplification pass),
+  `open-questions`@`568172e0a56fb947` (F3 + ASSUMPTION 1),
+  `post-implementation-report`@`e04eede6877ed0f9`, `checklist`@`40bd81aaaa7ea1f6` (all boxes).
+- `get_doc_gates` read immediately before the move: `enter-review` passable (both requirements
+  satisfied). `move_item` implementing → review at 2026-09-02T01:51:24.337Z. One boundary only.
+- Stop condition met. The ticket is handed to an independent reviewer; the implementer does not
+  merge, does not promote to `main`, and takes no other ticket.

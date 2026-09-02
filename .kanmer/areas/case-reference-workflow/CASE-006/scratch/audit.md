@@ -1,0 +1,1 @@
+Done audit (batch 2): evidence_debt. Reachable from origin/main and release-37, deployment:production consistent. Gallery/endpoint capability independently confirmed wired on main (Cases/Shared/_CaseFiles.cshtml, _ImageGallery partial). Checklist doc is 0/9 checked with no named debt/owner — a real record gap on an otherwise-functioning ticket.

@@ -1,0 +1,1 @@
+Done audit (batch 2): docs_debt. Reachable from origin/main and release-37, deployment:production consistent, caller chain independently plausible. get_doc_gates shows docs_todo:true with refs:[] — governing-doc obligation never discharged on this Done ticket.

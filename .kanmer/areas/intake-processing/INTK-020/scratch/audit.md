@@ -1,0 +1,1 @@
+Done audit (batch 2): evidence_debt. Reachable from origin/main and release-37, deployment:production consistent, capability (group decision card, thumbnails, AttachGroupAsync) independently confirmed wired on main. Checklist doc is 0/10 checked with no named debt — record gap only.

@@ -1,0 +1,1 @@
+Done audit (batch 2): evidence_debt. No merge SHA, PR, or commit reference anywhere in the item or proof (proof is a pure production-observation narrative). deployment:production is plausible but uncorroborated by any traceable code reference. C1 fails outright.

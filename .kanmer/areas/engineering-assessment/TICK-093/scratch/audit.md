@@ -1,0 +1,1 @@
+Done audit (batch 2): verified_done. Reachable from origin/main and release-37, deployment:production consistent, checklist 6/6, production caller (CaseRepairSpecifications readers) independently confirmed. Checked against D17 (rate cards) — D17 names TICK-082 as owner of the rate-card formula; TICK-093's generic versioned-specification aggregate is unaffected. Not superseded.
