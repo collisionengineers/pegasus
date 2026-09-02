@@ -230,7 +230,7 @@ public sealed class IndexModel(
                 classification = detail.Classification is { } dossier
                     ? MessageModel.DecisionLabel(dossier.Current)
                     : MessageModel.ClassificationLabel(detail.ClassificationOutcome),
-                association = summary.CaseReference ?? "Not associated",
+                association = MessageModel.AssociationLabel(summary.CaseReference),
                 attachments = detail.Attachments.Select(attachment => attachment.FileName).ToArray()
             });
         }

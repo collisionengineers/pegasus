@@ -252,7 +252,7 @@
                                     }
                                     else
                                     {
-                                        <strong class="quiet">No case</strong>
+                                        <strong class="quiet">@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</strong>
                                     }
                                 </div>
                                 @if (Model.Detail.LatestFolderMove is { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain })
