@@ -172,8 +172,17 @@ with cwd and exit code in the post-implementation report.
 
 ## Simplification pass
 
-Pending. Record the dated reuse, simplification, efficiency, and altitude
-findings before opening the PR.
+### 2026-09-02
+
+- Reuse: retained the existing capture filter, project concurrency cap, browser
+  cap, capture directory, and CI trigger.
+- Simplification: one local helper owns the three otherwise duplicated
+  `dotnet test` invocations; no public switch, dependency, or second path
+  taxonomy was introduced.
+- Efficiency: only the first phase may build; non-browser capture inherits the
+  proven higher cap.
+- Altitude: no application/test policy or neighbouring CI lane changed.
+- Disposition: no further behaviour-preserving simplification found.
 
 ## Stop condition
 

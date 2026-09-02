@@ -32,7 +32,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T12:55:09.016Z'
+updated: '2026-09-02T12:59:00.891Z'
 ---
 
 ## What
@@ -64,7 +64,7 @@ weaken the curated snapshot input or detection boundary.
 
 ## Verification
 
-- [ ] The same 414 tests run across a disjoint two-filter partition.
+- [ ] The same 415 tests run across a disjoint two-filter partition.
 - [ ] Fresh verify, stale-file injection, orphan injection, and catalogue checks
       retain their outcomes.
 - [ ] Three runs of one PR SHA all pass with median snapshot time at most
