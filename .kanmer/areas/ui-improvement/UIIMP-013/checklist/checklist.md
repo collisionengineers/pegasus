@@ -16,7 +16,7 @@
 - [x] Step 6 — Obtain three Test UI executions at the same PR SHA and record every duration and conclusion.
 - [x] Step 6 — Confirm all three pass, median snapshot duration is at most 22 minutes, and no run exceeds 25 minutes.
 - [x] Step 6 — Apply the deterministic timeout formula if it lowers the initial 40/45 budgets, then obtain green CI on the amended SHA.
-- [ ] Step 6 — Write the post-implementation report, move UIIMP-013 implementing → review, and stop without merging.
+- [x] Step 6 — Write the post-implementation report, move UIIMP-013 implementing → review, and stop without merging.
 
 ## Progress notes
 
