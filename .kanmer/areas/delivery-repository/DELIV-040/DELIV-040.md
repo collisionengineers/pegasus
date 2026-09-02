@@ -60,10 +60,23 @@ refs:
   - docs/boundaries.md
   - docs/open-decisions.md
   - docs/design/README.md
+commits:
+  - 48cb2816
+  - '33811713'
+  - d0527096
+  - d161ae1e
+  - 399f1ac8
+  - 4525afcc
+  - 436b38dc
+  - 4089599e
+  - bd140c7c
+  - e670d4fd
+  - 1441550f
+  - 25c14574a9e34c77e977f8a8eb203c2fe85dc13e
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T01:27:49.169Z'
+updated: '2026-09-02T02:50:56.917Z'
 ---
 
 ## What
