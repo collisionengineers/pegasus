@@ -15,8 +15,10 @@ Assessment rendering (RPT-02) has one closed outcome vocabulary:
 repair is a distinct fourth outcome; it is not a presentation alias for
 repairable. Every outcome uses the same assessment bundle: outcome and
 findings, vehicle data and the repair-cost calculation, the itemised repair
-specification, selected vehicle images, the statement and the typed Engineer
-identity, and the fee note.
+specification, the marked damage diagram (D39,
+[FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)),
+selected vehicle images, the statement and the sign-off Engineer tuple (D31),
+and the fee note.
 
 | Outcome | Title and badge | Headline figures | Settlement meaning |
 | --- | --- | --- | --- |
@@ -71,15 +73,26 @@ outcomes. Infrastructure renders only that selection with the governed
 template, stylesheet, logo, and signature resource.
 
 The supplied assessment wording and named engineer/signature evidence are
-accepted only as exact matching tuples. The currently complete supplied tuple
-is `A Patterson | M.Inst.IAEA | andy_patterson`; the Ed Mawdsley and Neil
-O'Reilly signature images remain governed but cannot be selected until an
-accepted qualification completes that person's tuple. Missing, unknown,
-mismatched, or substituted names, qualifications, keys, assets, source
-versions, custody references, or required values fail closed. No custom
+accepted only as exact matching tuples. A report renders the Case's sign-off
+tuple — name, qualifications and signature image — read from the Sign-off
+Engineer account setting (D31, 2026-09-02;
+[FRD-01](frd-01-case-identity-and-lifecycle.md#sign-off-engineer),
+[FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)). D31
+supersedes D18: typed Engineer identity alone is no longer the rendered
+signatory. A tuple is complete when the name and the signature image are
+present; the qualification line is optional (D31). The initial Sign-off
+Engineer accounts are A Patterson, N O'Reilly and E Mawdsley
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)); the
+currently supplied tuple with a qualification is
+`A Patterson | M.Inst.IAEA | andy_patterson`, and Neil O'Reilly's
+qualifications are recorded later by an Administrator — until then his
+reports print the name without a qualification line. A missing name or
+signature image, and an unknown, mismatched or substituted name,
+qualification, key, asset, source version, custody reference or required
+value, fail closed. No custom
 signature path, arbitrary local attachment path, placeholder, or wording absent
-from the accepted evidence is permitted. Signature-policy changes are deferred
-to `DOCS-017`.
+from the accepted evidence is permitted. The sign-off tuple on every report is
+allocated to `DOCS-017`.
 
 Generation remains deterministic, versioned, retained and review-gated, and
 generation, approval, issue, sending, external receipt and Case closure remain
@@ -94,22 +107,30 @@ trigger, immutable reference/version and custody workflow is separately owned.
 ### Report-draft entry point
 
 The renderer boundary above is reachable from one operator action (DELIV-012):
-a "Generate report draft" control on the case Assessment screen
-(`/Cases/{id}/Assessment`), open to the same staff roles as the rest of that
-screen (Administrator, Engineer, User). It projects the case's already-saved,
+a "Generate report draft" control on the Report section of the Case record
+(`/Cases/{id}?section=report`; `/Cases/{id}/Assessment` is a permanent
+redirect, D30), open to the same staff roles as the rest of that
+record (Administrator, Engineer, User). It projects the case's already-saved,
 confirmed assessment record into the accepted snapshot, renders it, and
 returns the assessment PDF to the operator's browser. Nothing is saved,
 approved, or sent by this action — it is strictly the draft-generation step
 the renderer boundary above already defines; approval and issue remain the
 separately owned human acts described below.
 
-The Assessment workspace is available once the Case has entered `Report
-preparation` or later (displayed "With Engineer") and a successful EVA export
-or submission exists for the current Review cycle. It is never available in
-`Not ready`, `Review` or `Held`; it is editable in `Report preparation` and
-`Post report`, read-only in `Post-report complete`, and unavailable in the
-other terminal outcomes. Returning to Review for corrected case data starts a
-new cycle and requires a fresh export before the workspace opens again.
+The Engineer sections of the Case record — Damage, Valuation, Estimate,
+Settlement, Report — are always viewable (D30, 2026-09-02). They are editable
+in `Report preparation` and `Post report` (displayed "With Engineer") under
+the Case edit lease, and read-only in `Post-report complete` and the other
+terminal outcomes; the former D11 access rule is now this read-only rule.
+Report generation still requires the Case to have entered `Report
+preparation` with a successful EVA export or submission for the current
+Review cycle; returning to Review for corrected case data starts a new cycle
+and requires a fresh export before generation is offered again.
+
+**Fee note preview.** The Report section renders a fee note preview from the
+agreed fee and the description lines recorded on the Case (D42, 2026-09-02).
+It is a preview of the fee-note artifact the renderer emits; sending stays
+`MAIL-17`.
 
 **Readiness.** A single readiness rail decides whether the control is enabled:
 `AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
@@ -243,10 +264,11 @@ creation.
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Assessment `Send to Claude` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 80 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Estimate | Estimate section `Send to Claude` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 80 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
+| MarketResearch | The Case record's Valuation section (D35) | The Case. The research runs outside Pegasus: the operator's Claude Cowork connector polls the job ledger through the Automation Actor, searches AutoTrader, and completes the job with a findings document plus retail and trade figures | The findings document retained as Case evidence and a valuation entry of source `AI market research` with the retail and trade figures ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#valuation-sources)) | None on the job — the entry is a proposal on the Case and never becomes the Engineer's Value by itself; no scraping or AutoTrader integration exists inside Pegasus |
 
 **States.** `Queued` → `Taken` → `Draft ready` → `Completed`, with `Failed`,
 `Cancelled` and `Expired` as the other terminal states.
@@ -276,7 +298,7 @@ claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 **Operations panel.** The AI Job List on `/operations` shows every non-terminal
 job and the terminal jobs of the current day: Job (kind and detail), Record,
 Started by, Created, State, Action. The action is one of `Review estimate`
-(opens the Assessment estimate tab), `Open query` (opens the message), or
+(opens the Case record's Estimate section), `Open query` (opens the message), or
 `Review` (opens the Unidentified item) for a `Draft ready` job; `Complete
 job` for a `Draft ready` Query response or Unidentified-queue pass; `Cancel`
 (reason required) for any non-terminal job; otherwise nothing. `Send
@@ -314,5 +336,5 @@ raw source evidence and hashes are immutable. Every direct change follows the
 same lease, expected-version, attribution, reason, and history contract.
 
 Signatures embedded in governed renderer documents are provenance-sensitive
-document assets, not Web decorative imagery. Signature-policy changes remain
-deferred to `DOCS-017`.
+document assets, not Web decorative imagery. The signatory is the Case's
+Sign-off Engineer (D31); rendering that tuple is allocated to `DOCS-017`.

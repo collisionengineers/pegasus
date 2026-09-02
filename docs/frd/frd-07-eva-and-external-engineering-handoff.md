@@ -10,10 +10,13 @@ staff to import into EVA; that import is the operational handoff to
 engineering, although Pegasus cannot prove EVA receipt or a named-Engineer
 assignment. The API submission (EXT-04) sends the same case to EVA directly and
 does prove delivery. Both are reached from one **Send to EVA** control on the
-case, which opens a page offering whichever routes that case and principal
-allow.
+case, offered in `Review` and again in `With Engineer` as a re-send (D36,
+2026-09-02). Its dialog holds Engineer, Sign-off Engineer, Download ZIP and —
+when the Principal enables it — Send via API; it offers whichever routes that
+case and principal allow. There is no separate Download EVA package action.
 
-Export is available only while the case is in `Review`. `Review` is the single
+Export is first available while the case is in `Review`, and again from
+`With Engineer` as a re-send (D36). `Review` is the single
 business readiness decision: reaching it requires complete instructions and
 at least one eligible case image. Staff-review flags cannot override missing
 completeness. The export does not repeat a second field, evidence-status, Case
@@ -77,7 +80,7 @@ separately gated change.
 Each Principal carries two independent settings, both off by default:
 
 - **Manual API submission** — an operator may submit a case in `Review` from
-  the Send to EVA page.
+  the Send to EVA dialog, and re-send it from `With Engineer` (D36).
 - **Automatic API submission** — a case reaching `Review` is submitted without
   operator action.
 
@@ -88,18 +91,25 @@ submission work row, so a submission that exhausted its retries is recovered
 from the Operations external-work retry surface, which every queued kind
 shares. A replacement Principal inherits its predecessor's settings.
 
-**A case is submitted at most once.** EVA has no idempotency: a second accepted
-instruction creates a second claim with its own File Reference, and no API call
-can withdraw it. So a case that has reached EVA is never submitted again, by
-either route, and the rule is a database constraint rather than only a code
-path. Reaching EVA means a `Succeeded` **or** a `Partial` outcome: an
+**A case is submitted automatically at most once.** EVA has no idempotency: a
+second accepted instruction creates a second claim with its own File
+Reference, and no API call can withdraw it; EVA's update endpoints are not
+suitable for this product's use case (operator decision, 2026-08-27). So
+automatic submission fires once, on reaching `Review`, the reconciliation
+sweep never re-arms a case that carries a submission work row, and a case
+retracted from `Review`, reworked and returned is not resubmitted
+automatically. Reaching EVA means a `Succeeded` **or** a `Partial` outcome: an
 acceptance that returned no identifier still created the claim.
 
-The consequence must be stated plainly: **once a case has been submitted, later
-changes to it do not reach EVA.** A case retracted from `Review`, reworked and
-returned is not resubmitted. EVA's update endpoints are not suitable for this
-product's use case (operator decision, 2026-08-27), so the export remains the
-only route by which a changed case reaches EVA a second time.
+The consequence must be stated plainly: **once a case has been submitted,
+later changes to it reach EVA only through an explicit re-send.** The earlier
+rule that a submitted case is never submitted again by either route is
+superseded by D36 (2026-09-02): from `With Engineer` the Send to EVA dialog
+offers Download ZIP, and Send via API when the Principal enables it. A
+re-send over the API is a new, separately recorded submission with its own
+outcome and EVA identifiers; because EVA cannot update a claim, it creates a
+second claim, and that is the operator's deliberate act in the dialog — never
+a retry and never an update.
 
 Every submission records its outcome, and the four outcomes stay distinct:
 
@@ -115,8 +125,9 @@ not have reached EVA. Both EVA identifiers are retained: the response
 identifier and the File Reference EVA embeds in its message text, which is what
 an operator quotes.
 
-Submission is gated on `Review` and on at least one eligible image, exactly as
-the export is; it repeats no other readiness policy. It records replay-safe
+Submission is gated on `Review` — or on `With Engineer` for a re-send (D36) —
+and on at least one eligible image, exactly as the export is; it repeats no
+other readiness policy. It records replay-safe
 Case action history and does not change the Case state or version.
 
 Values EVA's instruction model has no field for — the inspection date and the

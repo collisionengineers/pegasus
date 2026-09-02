@@ -95,11 +95,11 @@ dialog traps focus and inerts the page behind it.
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md)) | — |
 | `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); first successful file acceptance starts a fixed non-sliding 15-minute add/replace session, closed by explicit finalisation or expiry (D20) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions | Queues (`/Triage`) |
-| `/Cases/{id}` | Case workspace | — |
-| `/Cases/{id}/Assessment` | Engineer assessment | — |
+| `/Cases/{id}` | Case record — one scrolling page of eleven sections; `?section=` jumps (D29, D30) | Case workspace side-nav sections; the Assessment page |
+| `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` (D30) | Engineer assessment page |
 | `/Search` | Advanced search (`UI-07`) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}` | Triage and Unidentified detail | — |
-| `/Operations` | AI jobs, service health, attention, upload links, EVA handoffs | — |
+| `/Operations` | AI jobs, attention, upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
 | `/Admin`, `/Admin/{area}` | Administration areas | Administration index, Organisations, Access review, Roles, Automation Activity |
 
 `/Triage` and `/Unidentified` are permanent redirects to `/Cases?tab=triage`
@@ -108,7 +108,9 @@ than left dead. The `/VehicleImages` list route is removed; the vehicle-image
 detail page remains the image record and is reached from Not-ready
 Image-initiated rows, the Case Files section and upload outcomes. There is no
 separate top-level Unidentified, Organisations, Access review, Roles or
-Automation Activity entry.
+Automation Activity entry. `/Cases/{id}/Assessment` is a permanent redirect
+to `/Cases/{id}?section=estimate` (D30): the Engineer workbench is a set of
+sections on the Case record, not a page of its own.
 
 ### Work Centre
 
@@ -147,15 +149,18 @@ interface wording for the `Blocked intake` boundary and remains pre-case.
 | Group | Queues |
 | --- | --- |
 | Workflow | Not ready, Review, With Engineer, Complete |
-| Pre-Case work | Triage |
+| Pre-Case work | Triage, Awaiting instruction |
 | Exceptions | Held, Unidentified |
 
-`?tab=` selects the queue. Filters are Principal (every queue) and, on Not
-ready only, Missing — `All`, `Instructions`, `Images`, `Both missing` —
-plus Clear. Each queue keeps its own row shape rather than being forced into
-one column set: a Case row carries reference and registration, state,
-claimant and principal, origin and received, due; an Image-initiated row
-carries its VRM reference, registration, file count and custody; a Triage
+Awaiting instruction lists the Image-initiated Cases still awaiting an
+instruction; it is Pre-Case work beside Triage, never a workflow queue, and
+its rows keep the Image-initiated row shape (D38). `?tab=` selects the queue.
+Filters are Principal (every queue) and, on Not ready only, Missing — `All`,
+`Instructions`, `Images`, `Both missing` — plus Clear. Each queue keeps its
+own row shape rather than being forced into one column set: a Case row
+carries reference and registration, state, claimant and principal, origin and
+received, due; an Image-initiated row carries its VRM reference,
+registration, file count and custody; a Triage
 row carries reference, registration, provider and assignee; an Unidentified
 row carries the U-reference, kind, operator-meaningful handle (the original
 filename, or the e-mail subject and sender — never an internal identifier),
@@ -165,9 +170,9 @@ origin, compact workflow position, outstanding requirements and current work
 (due, Engineer, next action) with Open full Case; for other kinds the
 definition list and the open action.
 
-Not ready rows are either origin settled for the Image-initiated Case
-lifecycle: a formal instructed Case, or an ImageIntake-backed projection
-still awaiting one. Unidentified media kind (`Images` or `E-mails`) is
+Not ready rows are formal instructed Cases; an ImageIntake-backed projection
+still awaiting an instruction is listed under Awaiting instruction (D38) with
+its origin visible. Unidentified media kind (`Images` or `E-mails`) is
 derived from the retained receipt's source channel and content type, not a
 separate stored field. Terminal Cases other than Complete are excluded from
 the Cases rail and appear in Search as `Closed · <outcome>`.
@@ -209,22 +214,33 @@ Staff-closed.
 
 ### Case workspace
 
-`/Cases/{id}` shows an identity ribbon (Case/PO, registration, claimant,
-principal, state), the presence strip, the action bar and six sections:
-**Overview**, **Vehicle**, **Valuations**, **Inspection address**,
-**Case Files**, **Notes**. A context column keeps the current position
-(state, version, due, Engineer, edit authority) and the next action visible.
+`/Cases/{id}` is one scrolling page (D29): a sticky identity ribbon
+(Case/PO, registration, claimant, principal, state, with Engineer and
+Sign-off Engineer beside it — D31), the presence strip, a sticky action bar
+and a sticky section jump-nav whose current entry follows the scroll
+position. `?section=` jumps to a section; sections below the fold render
+lazily; there is no layout switch. The sections, in order, are **Overview**,
+**Engineer notes**, **Inspection**, **Vehicle**, **Damage**, **Valuation**,
+**Estimate**, **Settlement**, **Report**, **Files**, **Notes** (D30). Every
+section is always viewable; the Engineer sections — Damage, Valuation,
+Estimate, Settlement, Report — are editable in With Engineer and read-only
+once Complete (D30; the former D11 access rule is now this read-only rule).
+The whole record enters one edit mode over one lease
+([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 
 The action bar offers only actions the Core use cases permit for the current
 state: Edit Case / Finish editing / Renew editing, or the holder and expiry
 when another account holds the lease ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery));
 Place on Hold / Release Hold; Create upload link; **Send to EVA** in Review
-or **Download EVA package** once exported ([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
+and again in With Engineer as a re-send (D36) — the dialog holds Engineer,
+Sign-off Engineer and Download ZIP / Send via API, with Send via API disabled
+unless the Principal enables it ([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
+there is no separate Download EVA package action;
 **Report sent** in With Engineer, which confirms detected or linked Sent
 evidence and enters post-report work — it never completes the Case and
 never records a manual assertion ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
-**Return to Engineer** in Complete; **Open Assessment** in With Engineer or
-Complete only; Close Case when not Complete; Reopen Case when closed. Every
+**Return to Engineer** in Complete; Close Case when not Complete; Reopen
+Case when closed. There is no Open Assessment action (D30). Every
 hold, release, close and reopen takes a reason. Editing shows a sticky bar
 with the lease text, an unsaved marker, Discard and Save; saving in Review
 warns first; a stale version shows the current and proposed values as a
@@ -236,14 +252,44 @@ non-destructive conflict.
   each with title, source, reason and resolve action, and never a percentage
   (D23) — the edit form (claimant, provider reference, registration, make,
   model, accident circumstances) and the work, party and accident facts.
-- Vehicle: registration, make, model, year, mileage and its source; vehicle
-  checks (DVLA / DVSA-MOT refresh, `EXT-01`) and the vehicle-history
-  narrative ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
-- Valuations: each observation with source, date, time, mileage, retail and
-  trade values, and Add valuation (`EXT-10`).
-- Inspection address: recorded value, provider default, previous values,
-  edit ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
-- Case Files: documents with custody state, preview and save-as; the
+- Engineer notes: append-only, attributed staff notes to the Engineer, a
+  separate section from the Notes history (D32,
+  [FRD-01](frd-01-case-identity-and-lifecycle.md#engineer-notes)).
+- Inspection: the recorded inspect-at value with its fast-update choice —
+  Image Based Assessment, Claimant address, Repairer location, Storage
+  location, previous addresses used for this principal, Manual entry; an
+  option without a value is disabled — and the Case's storage location (D33,
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
+- Vehicle: registration, make, model, year, mileage and its source; one
+  **Look up DVLA & MOT** action (`EXT-01`) whose looked-up values appear as
+  per-field suggestion chips that fill the field when chosen — no checks
+  panel and no suggestion table; Run Experian check stays the disabled seam
+  (D34) — and the vehicle-history narrative
+  ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+- Damage: the zone list with severity, type and note per zone; tyres and
+  seat belts per corner, spare tyre and centre belt; unrelated damage with
+  its deduction; paint or material transfer; impact location and severity
+  shown as derived values (D39,
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)).
+- Valuation: each entry with source, date, time, mileage, retail and trade
+  values, plus guide month per entry (`CASE-029`), and Add valuation
+  (`EXT-10`); sources are Glass's valuation, Cazana
+  (disabled seam), Engineer's Value and AI market research (D40); requesting
+  AI market research creates a `MarketResearch` job (D35,
+  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
+- Estimate: the estimate set and raw estimate import (§ Assessment).
+- Settlement: outcome, category, salvage value, excess, betterment, claimant
+  VAT registered, reserve, equity (derived), repair duration and delays,
+  report delay, storage per day, recovery, hire start and daily cost,
+  diminution, salvage logistics; financial ratio lines are permitted (D41,
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md#settlement)).
+- Report: report-image preparation (D19, `ENG-031`), the readiness list of
+  named outstanding items, the agreed fee and description lines with the fee
+  note preview (D42), and Generate / Preview report draft
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point));
+  the report renders the sign-off Engineer tuple (D31) and the marked damage
+  diagram (D39).
+- Files: documents with custody state, preview and save-as; the
   retained vehicle-image gallery (`CASE-006`) whose lazy-loaded thumbnails
   expand to the full image with the original filename as the accessible
   name, served only by an authorised staff endpoint that returns the stored
@@ -266,24 +312,26 @@ Close control.
 
 ### Assessment
 
-`/Cases/{id}/Assessment` opens for a Case in With Engineer or a later state,
-never in Review, and is read-only once Complete. It carries the evidence
-rail — instruction and images, with report-image preparation on the images:
-distinct `Close-up` first and `Overview` second, optional supporting images in
-explicit order, and non-destructive crops that leave the retained source and
-its hash untouched (D19) — the estimate set (`EXT-09`: named estimates
+The Engineer workbench is the Damage, Valuation, Estimate, Settlement and
+Report sections of the Case record (D30); `/Cases/{id}/Assessment` is a
+permanent redirect to `/Cases/{id}?section=estimate`. The sections are
+always viewable and read-only once Complete. Report-image preparation lives
+on the Report section: distinct `Close-up` first and `Overview` second,
+optional supporting images in explicit order, and non-destructive crops that
+leave the retained source and its hash untouched (D19). The Estimate section
+carries the estimate set (`EXT-09`: named estimates
 with source, repair days, the selected labour-rate card, explicit paint
 labour, paint materials and other costs, a free VAT percentage, lines and
 totals; one estimate is Current and drives the report). Each version selects
 one of the global versioned labour-rate cards, which prices non-paint labour
 only; the version's own VAT percentage applies to the whole subtotal (D9,
 D17); no comparison or savings figure is shown. It also carries Send to Claude
-(`AI-09`, disabled without an Engineer's Value) and the report-draft
-generation and preview
+(`AI-09`, disabled without an Engineer's Value); the report-draft
+generation and preview sit on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point)).
 
 Raw estimate import (`EXT-12`) has no control and no dialog. One file dropped
-anywhere on the Assessment page is imported immediately, with no confirmation
+anywhere on the Case record is imported immediately, with no confirmation
 step and no visible file picker (D16, 2026-09-01). Only currently registered
 parser types are accepted; the provider and parser are auto-detected and an
 ambiguous artifact is refused rather than guessed. The resulting Draft is named
@@ -306,11 +354,12 @@ capability: it retains no source artifact, hash or parser provenance.
 
 `/Operations` shows, with a partial-data notice when any query is not
 current: the **AI Job List** (`AI-10`: kind, record, started by, created,
-state, next action, Send Unidentified to AI); **Service health** (area,
-service, state, latest evidence, dependency, retry); **Attention required**
+state, next action, Send Unidentified to AI); **Attention required**
 (retryable external work with attempts, failure and Retry); **Active upload
 links** (recipient, last activity, accepted, expiry, state, Withdraw); and
-**EVA handoffs** (route, Engineer, state, result).
+**EVA handoffs** (route, Engineer, state, result). Service health is
+Administration-only; Operations carries no service health table, and its
+one-line partial-data notice links to Administration Service health (D37).
 
 ### Administration
 
@@ -318,9 +367,9 @@ links** (recipient, last activity, accepted, expiry, state, Withdraw); and
 ([FRD-04](frd-04-parties-accounts-and-access.md)): **Staff accounts &
 roles**, **Principals** (one area; an organisation is created inline by
 Create Principal and is never a separate area), **Workflow configuration**,
-**Mail settings**, **Automation & AI**, **Service health** (the Operations
-table), **Action Logs** (the permanent action history with search, area,
-actor, result and date filters) and **Reports** (the Engineer Report,
+**Mail settings**, **Automation & AI**, **Service health** (the only
+service health table — D37), **Action Logs** (the permanent action history
+with search, area, actor, result and date filters) and **Reports** (the Engineer Report,
 `MI-01`: per Engineer and period, queries received and reports). Every
 consequential change — role, account state, principal credential, automation
 stop/start — takes a reason and enters permanent history. The **Staff accounts
@@ -363,11 +412,11 @@ finds Cases, references and routes by typing and opens the selection.
 
 A shortcut never bypasses a reason, confirmation or gate.
 
-One accepted exception to keyboard parity exists: the Assessment whole-page
-raw-estimate drop is pointer-only (D16). It is recorded here rather than left
-implicit, and it is a real gap — a keyboard-only operator cannot import a raw
-estimate artifact. Every other staff action on the Assessment page remains
-keyboard-reachable.
+One accepted exception to keyboard parity exists: the Case record's
+whole-page raw-estimate drop is pointer-only (D16). It is recorded here rather
+than left implicit, and it is a real gap — a keyboard-only operator cannot
+import a raw estimate artifact. Every other staff action on the Case record
+remains keyboard-reachable.
 
 ### Breakpoints
 
@@ -481,10 +530,12 @@ current state and account.
 Authenticated Web and real-browser tests prove: every rail route and its
 count, both redirects, the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
-Assessment access rule, the tab limit and eviction, axe accessibility, focus
-behaviour and no document overflow at 1580, 1100 and 760px. The Assessment
-whole-page drop remains the one accepted pointer-only exception (D16); ordinary
-keyboard accessibility remains required for every other action on that page.
+`/Cases/{id}/Assessment` redirect and the read-only rule once Complete
+(D30), the eleven Case record sections and the `?section=` jump (D29), the
+tab limit and eviction, axe accessibility, focus behaviour and no document
+overflow at 1580, 1100 and 760px. The Case record whole-page drop remains
+the one accepted pointer-only exception (D16); ordinary keyboard
+accessibility remains required for every other action on that page.
 Snapshot and catalogue checks are owned by
 [design § Test UI](../design/README.md#test-ui). Deployment and live
 acceptance remain separate evidence tiers
@@ -492,8 +543,9 @@ acceptance remain separate evidence tiers
 
 ## Links
 
-- Capabilities: `UI-01`–`UI-09`, `UI-11`, `UI-13`, `UI-16`, `UI-07`
-  (Search), `AI-10`, `EXT-09`, `EXT-10`, `MI-01` in
+- Capabilities: `UI-01`–`UI-09`, `UI-11`, `UI-13`, `UI-16`–`UI-19`, `UI-07`
+  (Search), `AI-10`, `AI-11`, `CASE-32`–`CASE-34`, `ENG-03`, `ENG-04`,
+  `EXT-09`, `EXT-10`, `RPT-06`, `MI-01` in
   [capabilities](../capabilities.md#capabilities).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
