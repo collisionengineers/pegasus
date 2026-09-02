@@ -126,3 +126,31 @@ behaviour, so there is no post-merge environment check.
    dialog or picker, Glass's or Audatex launch control, provisional 15-minute threshold, or
    completeness percentage. Every surviving occurrence of those phrases should be a negation.
 6. No screenshot is owed: no UI was built.
+
+## Remediation round 1
+
+Reviewer `claude-code/20260901T215000Z-claude-controller/reviewer-a1` returned **needs-changes** on
+PR #643 at head `25c14574a9e34c77e977f8a8eb203c2fe85dc13e` (attestation `scratch/review`
+v `b9bcd6ad94d49f55`). Coverage of D15–D28 was found complete; two majors blocked. All five
+actionable findings are closed in one commit, **`357f143b5c8c00cd5ec8981944b8684c4606b659`**, which
+touches `docs/capabilities.md`, `docs/design/README.md`, `docs/frd/frd-11-…` and `docs/frd/frd-12-…`
+— all four already in this ticket's Expected files. No new file, no heading renamed, no widened
+scope.
+
+| Finding | Severity | Disposition | What changed |
+|---|---|---|---|
+| **F-001** | major | **fixed** | Confirmed: FRD-11 L70–71 still said Infrastructure renders "with the governed template, stylesheet, logo, and signature resource" four lines above the new D18 paragraph saying a signature asset is not rendered, and L311 called signatures "embedded in governed renderer documents", while this PR's design README rows asserted "never embedded by Infrastructure" against the higher-authority FRD. Both FRD-11 statements are corrected — Infrastructure renders with the governed template, stylesheet and logo, and no signature resource is embedded in a rendered report; the trailing sentence records the assets as retained, governed and inactive with the typed identity rendered instead. The losing statements were fixed in the same commit, per `docs/index.md` § Authority order. FRD-11, the design README and D18 now agree; verified by sweeping every "signature" occurrence in the three files for a render or embed claim. |
+| **F-002** | major | **fixed** | Confirmed against source: the accepted engineer-signature check still ships (`src/Pegasus.Core/Assessment/AssessmentPolicy.cs:255`, `src/Pegasus.Core/Reports/AssessmentReportProjection.cs:117-129`, read at this head). `RPT-02`'s account of *delivered* behaviour reads "plus the accepted engineer-signature check" again, and its D18 sentence now carries the same **not delivered** marker its D17 and D19 siblings carry, adding that no D18 implementation ticket is allocated yet and that the shipped check stays in force until one lands. This was a real truthfulness defect: the row described undelivered intent in the tense of shipped behaviour. |
+| **F-003** | minor | **fixed** | The three bullets this PR added to § Removed surfaces sat under the lead "deleted by their wave tickets" while the Import estimate dialog and the disabled Glass's/Audatex buttons still ship (`src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml`). They now take the section's existing pending-removal qualifier and name the owing tickets (`ENG-033`, `ENG-030`); the never-built exclusions are marked as such. |
+| **F-004** | minor | **fixed** | "amounts entered on the estimate version" was narrower than D17's "explicit amounts" and rubbed against `docs/operator-notes.md` § Repair estimates ("Repair cost figures are not typed into Pegasus by hand"). The clause now reads explicit amounts carried on the estimate version by whichever route supplied it, never derived from the card — which is what D17 says and makes no hand-entry claim. `operator-notes.md` itself was not touched. |
+| **F-005** | minor | **fixed** | The justification did overstate: manual line entry performs no import, retains no source artifact, hash or parser provenance, and MCP is an automation boundary rather than a staff keyboard route, so "no capability is pointer-only" was unsupported. FRD-12 § Assessment, the FRD-12 keyboard contract, FRD-12 § Acceptance evidence and the design README keyboard contract now record the drop as an accepted exception and a **real gap** for keyboard-only operators, which is what D16 asks to be documented rather than explained away. |
+| **F-006** | note | accepted-risk (reviewer's own disposition, unchanged) | `ACC-15` sits between `ACC-10` and `ACC-11` rather than in id order. Cosmetic; no count, link or anchor depends on row order and the arithmetic verifies clean. Re-verified after this commit: 234 rows, 234 unique ids, 143 + 27 + 35 + 29 = 234, `0.1.0-alpha.1` 143. |
+| **F-007** | note | rejected-with-reason (reviewer's own, agreed) | D15 as confirmed names the adjacent work-pack HTML, which lives outside the repository; adding a copy or link would be a new non-Markdown asset outside Expected files. |
+| **F-008** | note | accepted-risk, **escalated** | The identity binding point at render time is an implementation design question D18 does not settle. The reviewer notes no D18 implementation ticket exists anywhere in the decision record. `RPT-02` now states that absence explicitly rather than leaving it implied, and the controller is asked to allocate one; no ticket was invented here. |
+| **F-009** | note | rejected-with-reason (reviewer's own, agreed) | Rule 24 covers commands and agent conventions; `AGENTS.md` routes UI behaviour to the FRDs and the design README, which is where both rules landed. No `AGENTS.md` edit is owed. |
+
+Re-verified after the correction commit, at head `357f143b`: no heading added, removed or renamed in
+any changed file; every relative link target resolves; `docs/capabilities.md` arithmetic consistent;
+the contradiction sweep still clean; and against `origin/dev` the diff is exactly the sixteen
+Expected `docs/` files, +345 / −120, with no file added and none deleted. The four docs lanes are
+owed to the test-runner role at this new head — the implementer ran none of them.

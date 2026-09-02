@@ -51,3 +51,24 @@ the worker session a working directory inside its worktree.
 ## PR_OPEN reached 2026-09-02
 
 PR https://github.com/collisionengineers/pegasus/pull/643 (base dev, head 25c14574a9e34c77e977f8a8eb203c2fe85dc13e, footer Kanmer: DELIV-040). Gates read immediately before the move; ticket moved implementing to review. Branch task/deliv-040-governing-docs and its worktree stay recorded and taken for the reviewer.
+
+## Remediation round 1 — 2026-09-02
+
+Reviewer verdict needs-changes on PR #643 at 25c14574 (attestation scratch/review v b9bcd6ad94d49f55).
+Findings F-001 and F-002 (major) and F-003, F-004, F-005 (minor) are all fixed in one commit,
+357f143b5c8c00cd5ec8981944b8684c4606b659, on the same branch and the same PR. F-006 to F-009 keep
+the reviewer dispositions; F-008 is escalated to the controller for D18 ticket allocation and the
+absence is now stated in RPT-02 rather than implied. Each id and its disposition is recorded in the
+post-implementation-report under ## Remediation round 1.
+
+Both majors were confirmed before being fixed, not taken on trust: FRD-11 L70-71 and L311 did
+contradict the new D18 paragraph, and the accepted engineer-signature check does still ship
+(AssessmentPolicy.cs:255, AssessmentReportProjection.cs:117-129, read at this head).
+
+New head 357f143b5c8c00cd5ec8981944b8684c4606b659, 13 commits, 16 files, +345/-120, no file added
+or deleted, no heading renamed, links resolve, capabilities arithmetic still 234/234 with
+143+27+35+29=234. Working tree clean. Not sent to the remote: the correction dispatch said to stop
+at READY_FOR_TESTS, so PR #643 still shows 25c14574 and needs one push before a fresh reviewer can
+see this work. No second PR will be opened; the ticket stays in review with no backward move.
+
+Owed to the test-runner role at the new head: the four docs lanes. The implementer ran none.
