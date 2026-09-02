@@ -2,10 +2,12 @@
 id: PLAT-068
 type: ticket
 title: Sign-off Engineer account setting with qualifications and signature image
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T20:53:21.795Z'
 labels:
   - administration
   - accounts
@@ -21,7 +23,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-02T20:33:35.828Z'
+updated: '2026-09-02T20:53:21.795Z'
 ---
 
 ## What
