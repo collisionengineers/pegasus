@@ -2,12 +2,23 @@
 id: DELIV-040
 type: ticket
 title: Record the 2026-09-01 operator interface decisions in the governing documents
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: chore
 stageEntered:
   preparing: '2026-09-02T00:56:48.183Z'
+taken_at: '2026-09-02T01:27:49.169Z'
+branch: task/deliv-040-governing-docs
+worktree: ../pegasus-worktrees/deliv-040-governing-docs
+claim_expires_at: '2026-09-02T01:57:49.169Z'
+claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
+lease_id: fe0dd564-63e7-456c-8ec1-1e3c86ff095d
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\pguser\documents\github\pegasus-worktrees\deliv-040-governing-docs
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T01:27:49.169Z'
 labels:
   - docs
   - governing-docs
@@ -52,7 +63,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T00:56:48.183Z'
+updated: '2026-09-02T01:27:49.169Z'
 ---
 
 ## What
