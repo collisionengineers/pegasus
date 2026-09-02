@@ -26,12 +26,17 @@ links:
   - MAIL-025
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - df9716e3ab4b83074ea3175cae6c3539c9006727
+  - ad3779c999afa4caee9447ec577f42e957525174
+  - ed19e77ff2da8c6a5f87eb20a0222eae17ff15b2
+  - 3bf282441ddd3ba8c0355b8e59d06bea3d501cfb
 prs:
   - '640'
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.052Z'
-updated: '2026-09-02T01:27:52.605Z'
+updated: '2026-09-02T02:56:22.951Z'
 ---
 
 ## What
