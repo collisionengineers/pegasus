@@ -216,7 +216,9 @@ diagram
 
 The valuation sources in this programme are Glass's (valuation), Cazana (a
 disabled seam under D7), Engineer's Value and AI market research (D40,
-2026-09-02); every entry records its guide month and mileage. Glass's
+2026-09-02). Every entry keeps its date, time, mileage, retail and trade
+values; guide month is an additional per-entry field owned by `CASE-029`
+(EPIC-012 context). Glass's
 valuation and Glass's repair estimating are two systems and both are used:
 the valuation source and the estimate import source keep separate label
 entries and are never merged. An AI market research entry is the proposal
@@ -230,12 +232,11 @@ rationale and revaluation history stay with `EXT-10` (later).
 The settlement fields are outcome, category, salvage value, excess,
 betterment, claimant VAT registered, reserve, equity (derived), repair
 duration and delays, report delay, storage per day, recovery, hire start and
-daily cost, diminution, and salvage logistics (D41, 2026-09-02). Derived
-figures — repair cost, equity and financial ratio lines against the Current
-estimate and the Engineer's Value — are computed once by `Pegasus.Core`.
-Financial ratio lines are permitted; the "no percentage" rule
+daily cost, diminution, and salvage logistics (D41, 2026-09-02). Equity is
+derived, never entered. Financial ratio lines are permitted, not required;
+the "no percentage" rule
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence))
-is about completeness only. Outcome semantics are owned by
+applies only to completeness. Outcome semantics are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
 ### Canonical repair specifications

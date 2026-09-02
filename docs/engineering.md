@@ -200,13 +200,12 @@ into a second test file is the third-copy rule applied to tests.
 
 ### Case Workspace v2 fixture values (D43)
 
-Test fixtures and snapshot states may use the values in the Case Workspace
-v2 mockup's fixture file (`Pegasus_UI_v2_src/src/04-fixtures.js`), which
-were derived from the local corpus (D43, 2026-09-02). Those values include
-real claimant names and telephone numbers. They are copied into the
-repository only after the operator has signed off that use; until then a
-fixture uses the documented estate as before. `corpus/` itself stays local,
-ignored and immutable, and no corpus file is committed, renamed or modified.
+Test fixtures and snapshot states may use the Case Workspace v2 mockup's
+corpus-derived fixture values (`Pegasus_UI_v2_src/src/04-fixtures.js`).
+These values include real claimant names and telephone numbers. D43
+(2026-09-02) supersedes the EPIC-011 rule that the prototype's fixture data
+is not domain data for this fixture set only. `corpus/` stays local, ignored
+and immutable, and no corpus file is committed, renamed or modified.
 
 ### Plan sizing
 

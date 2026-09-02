@@ -36,7 +36,12 @@ The active alpha types are:
 
 Diminution and Commercial remain deferred unless their capability rows and activation evidence say otherwise. They are not active alpha aliases or generic case types.
 
-A case owns immutable identity, principal, internal reference, type, accepted source links, snapshotted parties/addresses, vehicle identity, work state, due work, documents, correspondence, findings, decisions, action history, and closure history. It also owns its assigned Engineer and Sign-off Engineer (D31), its Engineer notes (D32), and its storage location and inspect-at choice (D33).
+A case owns immutable identity, principal, internal reference, type, accepted
+source links, snapshotted parties/addresses, vehicle identity, work state,
+due work, documents, correspondence, findings, decisions, action history, and
+closure history. It also owns its assigned Engineer and Sign-off Engineer
+(D31), its Engineer notes (D32), and its storage location and inspect-at
+choice (D33).
 
 ### Lifecycle closure and correspondence
 
