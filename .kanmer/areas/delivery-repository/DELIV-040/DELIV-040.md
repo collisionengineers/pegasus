@@ -39,6 +39,8 @@ links:
   - TICK-082
   - ENG-031
   - PLAT-064
+  - DOCS-017
+  - INTK-055
 blocks:
   - ENG-033
   - INTK-054
@@ -50,6 +52,7 @@ blocks:
   - INTK-052
   - MAIL-030
   - MAIL-031
+  - INTK-055
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -78,12 +81,13 @@ commits:
   - e670d4fd
   - 1441550f
   - 25c14574a9e34c77e977f8a8eb203c2fe85dc13e
+  - fb68225b3713fa6e992f500bf08ef8248c62cbb6
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/643'
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T11:09:23.239Z'
+updated: '2026-09-02T11:25:46.652Z'
 ---
 
 ## What
