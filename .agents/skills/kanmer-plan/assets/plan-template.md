@@ -6,6 +6,7 @@
 One bounded outcome.
 ## Starting state
 Verified current behaviour, source paths, components, and constraints.
+Pin the evidence versions this plan was written against on one line, so a later worker can tell whether the plan went stale — for example: Evidence: `research/research.md`@`3f2b1c…`, `files/files.md`@`9c01ab…`. `get_ticket_doc` returns each version.
 ## Governing docs
 For each linked PRD/FRD/ADR: **Meets** the requirement, **Modifies** only with explicit authorization, or records a **New ADR**. Review checks this against the diff.
 ## Required changes
@@ -23,6 +24,22 @@ Protected surfaces and forbidden scope.
 Only applicable compatibility, dependency, path, security/data, performance, and architectural constraints.
 ## Ordered steps
 1. Input, target path/symbol, expected result, and ordering dependency.
+
+For work a constrained worker will execute one step at a time, write each step as its own `### Step N — <title>` sub-section here instead of a bare list item. That is the form `get_execution_packet id: <ID>, step: <n>` compiles into a bounded packet; a bare list item stays readable but cannot be compiled. Labelled bullets, one per line:
+
+### Step N — <title>
+- Preconditions: what must already be true.
+- Files: only the paths this step may touch — each must also appear in Expected files, and none may appear in Do not modify.
+- Symbols: the exact functions, types, or exports involved.
+- Change: the exact change.
+- Preserved behaviour: what must still hold afterwards.
+- Forbidden: behaviour this step must not introduce.
+- Negative cases: what must fail, and how.
+- Tests: the test files that prove it.
+- Commands: the exact commands to run.
+- Expected output: what a passing run looks like.
+- Done when: the observable done condition.
+- Deviation stop: what makes the worker stop and report instead of improvising.
 ## Acceptance checks
 - When applicable, name the production caller, registration, route, or composition entry.
 - When applicable, prove runtime dependencies ship in the packaged/deployed artifact.
