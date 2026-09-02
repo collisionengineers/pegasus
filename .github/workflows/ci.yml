@@ -245,14 +245,12 @@ jobs:
     needs: changes
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
-    # Observed on GitHub's windows runners: the 414-test capture alone
-    # took 40m23s (run 33310451221), against 18m52s for the same suite
-    # locally -- the capture runs at processor-count parallelism and the
-    # hosted runner has fewer cores. Verify then runs a second pass on top.
-    # 30 killed it mid-capture and 45 killed it 11 seconds into verify, both
-    # reported as a stale corpus rather than as a timeout. This is the real
-    # cost of the job as designed; making it cheaper is UIIMP-013.
-    timeout-minutes: 75
+    # The historical 40m23s capture (run 33310451221) and recent 24-27 minute
+    # snapshot steps both ran the whole selection at two threads. UIIMP-013
+    # keeps that cap for browser tests and lets non-browser tests inherit the
+    # project's four-thread cap. Verify is one fact over the retained capture,
+    # not a second pass through the capture suite.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/dotnet-build
@@ -265,5 +263,12 @@ jobs:
         shell: pwsh
         run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Capture and verify the Test UI snapshots
+        timeout-minutes: 40
         shell: pwsh
         run: ./scripts/Update-TestUiSnapshots.ps1 -Verify
+      - name: Explain an incomplete Test UI result
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "The Test UI gate failed or exceeded its 40-minute step budget."
+          Write-Host "This is not itself a stale-catalogue verdict. Snapshot drift is reported explicitly by TestUiSnapshotTests with the stale or ungenerated file."

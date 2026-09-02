@@ -330,7 +330,9 @@ in `tests/Pegasus.IntegrationTests/xunit.runner.json`: several agents may run
 suites at once against one LocalDB instance, and the cap is what bounds the
 concurrent restores. The browser selection halves it again on the command line,
 because each of its tests starts a Chromium and a loopback host beside its own
-database. Leave `parallelAlgorithm` at its default `conservative`; `aggressive`
+database. Test UI capture applies the same split in two passes: browser tests at
+the halved cap, then non-browser tests at the project cap. Leave
+`parallelAlgorithm` at its default `conservative`; `aggressive`
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 

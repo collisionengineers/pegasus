@@ -10,6 +10,41 @@ $mode = if ($Verify) { 'verify' } else { 'update' }
 $previousMode = $env:PEGASUS_TEST_UI_MODE
 $previousCaptureDirectory = $env:PEGASUS_TEST_UI_CAPTURE_DIR
 $captureDirectory = Join-Path $repoRoot 'artifacts/test-ui-capture'
+$testProject = "$repoRoot/tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj"
+$captureFilter = '(FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests)&Category!=Corpus'
+
+function Invoke-TestUiPhase {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Filter,
+        [switch]$NoBuild,
+        [int]$MaxParallelThreads
+    )
+
+    $arguments = @(
+        'test',
+        $testProject,
+        '--configuration', 'Release',
+        '--no-restore'
+    )
+    if ($NoBuild) {
+        $arguments += '--no-build'
+    }
+    $arguments += @('--filter', $Filter)
+    if ($MaxParallelThreads -gt 0) {
+        $arguments += @('--', "xUnit.MaxParallelThreads=$MaxParallelThreads")
+    }
+
+    Write-Host "Test UI phase: $Name"
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    & dotnet @arguments
+    $exitCode = $LASTEXITCODE
+    $timer.Stop()
+    Write-Host "Test UI phase completed: $Name ($($timer.Elapsed.ToString('hh\:mm\:ss')))"
+    if ($exitCode -ne 0) {
+        throw "Test UI phase '$Name' failed with exit code $exitCode."
+    }
+}
 
 try {
     if (-not $SkipCapture) {
@@ -23,27 +58,25 @@ try {
     }
     $env:PEGASUS_TEST_UI_CAPTURE_DIR = $captureDirectory
     if (-not $SkipCapture) {
-        # The browser lane's cap: the capture suite includes every browser test,
-        # and each one starts a Chromium, a Kestrel host and its own database.
         $env:PEGASUS_TEST_UI_MODE = $null
-        dotnet test "$repoRoot/tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj" `
-            --configuration Release `
-            --no-restore `
-            --filter '(FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests)&Category!=Corpus' `
-            -- xUnit.MaxParallelThreads=2
-        if ($LASTEXITCODE -ne 0) {
-            throw "The integration capture suite failed with exit code $LASTEXITCODE."
-        }
+        # Each browser test starts Chromium, Kestrel and its own database, so
+        # this half keeps the browser lane's cap. The non-browser half inherits
+        # the integration project's proven default cap.
+        Invoke-TestUiPhase `
+            -Name 'Capture browser responses' `
+            -Filter "($captureFilter)&Category=Browser" `
+            -MaxParallelThreads 2
+        Invoke-TestUiPhase `
+            -Name 'Capture non-browser responses' `
+            -Filter "($captureFilter)&Category!=Browser" `
+            -NoBuild
     }
 
     $env:PEGASUS_TEST_UI_MODE = $mode
-    dotnet test "$repoRoot/tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj" `
-        --configuration Release `
-        --no-restore `
-        --filter 'FullyQualifiedName~TestUiSnapshotTests'
-    if ($LASTEXITCODE -ne 0) {
-        throw "Test UI snapshot $mode failed with exit code $LASTEXITCODE."
-    }
+    Invoke-TestUiPhase `
+        -Name "Snapshot $mode" `
+        -Filter 'FullyQualifiedName~TestUiSnapshotTests' `
+        -NoBuild
 }
 finally {
     $env:PEGASUS_TEST_UI_MODE = $previousMode
