@@ -81,9 +81,11 @@ flagged accounts are offered as a Case's Sign-off Engineer
 reports render the flagged account's tuple
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).
 Every change to the flag, qualifications or signature image is a permanent
-action-history event read in Action Logs. The initial flagged accounts and
-their qualifications are application data; an account's qualifications may
-be recorded later by an Administrator.
+action-history event read in Action Logs. The initial Sign-off Engineer
+accounts are A Patterson, N O'Reilly and E Mawdsley (Andy, Neil, Ed). Andy is
+the default; Neil's qualifications are recorded later by an Administrator,
+and until then his reports print the name without a qualification line. The
+flags and qualifications are application data, never hard-coded.
 
 ### Permanent action history
 

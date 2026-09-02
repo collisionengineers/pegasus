@@ -576,7 +576,7 @@ sixty glyphs; the pre-PLAT-029 seventeen-glyph sprite was
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
 | `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
-| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download EVA package |
+| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog (D36) |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
 | `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance, informational notice |
 | `car` | `car` | `36AE3DC22866D02D1159AB8D6256BB09E91B2D98C03BC7126EE576437BECF0C5` | Vehicle section |
@@ -608,7 +608,8 @@ Genuine case images, emails and documents are operational evidence, not
 decorative assets. Use only authorised repository-provided evidence through
 its owning workflow. Never generate placeholder cases, damage images, emails,
 documents or people. The prototype's fixture data is not domain data and is
-never copied.
+never copied, except the Case Workspace v2 fixture set permitted by D43
+([engineering](../engineering.md#case-workspace-v2-fixture-values-d43)).
 
 ### Web and renderer boundary
 
@@ -689,7 +690,7 @@ this section owns only how those decisions appear in the UI.
 | Actor | UI boundary |
 | --- | --- |
 | Administrator | Staff shell plus the Administration areas: Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports. No secret display beyond the masked Principal API key. |
-| Engineer, User | Staff shell without Administration. Their ordinary Inbox, Cases, Search, Case, Assessment, Upload and Operations controls are identical. |
+| Engineer, User | Staff shell without Administration. Their ordinary Inbox, Cases, Search, Case record (including its Engineer sections, D30), Upload and Operations controls are identical. |
 | Automated processing | No UI account or interactive control; the Automation Actor appears only as `SYSTEM` / `AI` in notes and Action Logs. |
 | Provider API client | No staff shell, Case workspace, or Administration surface; its credential is the Principal "Pegasus API key" (D8). |
 | External/customer | No application account; the only external surface is the request-scoped `/Uploads/{token}` page, which exposes no case or request state. |
@@ -810,9 +811,9 @@ deleted in wave 5.
 | `suggest-btn` | Per-field suggestion chip that fills its field when chosen (D34) |
 | `damage-diagram`, `impact` | The clickable damage diagram and its zone markers; `impact` marks a zone with recorded damage (D39) |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt (D39) |
-| `valuation-card` | One valuation entry: source, guide month, mileage, retail, trade (D40) |
+| `valuation-card` | One valuation entry: source, date, time, mileage, guide month (CASE-029), retail, trade (D40) |
 | `outcome-option` | Settlement outcome choice (D41) |
-| `derived` | A value computed by Core, never entered: impact location and severity, equity, ratio lines (D39, D41) |
+| `derived` | A value derived, never entered: impact location and severity (D39), equity, and a permitted ratio line where one is shown (D41) |
 | `report-image`, `cropper` | Report-image preparation on the Report section: designated Close-up and Overview, supporting images in order, non-destructive crop (D19, ENG-031) |
 | `workflow-stepper`, `workflow-step` | Not ready → Review → With Engineer → Complete; Held badge |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
@@ -1005,8 +1006,9 @@ Report are read-only once Complete.
   `tyre-card` per corner (tyre, seat belt), spare tyre, centre belt;
   Unrelated damage with Deduction; Paint or material transfer; Impact
   location and Impact severity as `derived` values (D39).
-- **Valuation:** `valuation-card` per entry (Source, Guide month, Mileage,
-  Retail value, Trade value, Edit) and Add valuation; Source offers Glass's
+- **Valuation:** `valuation-card` per entry (Source, Date, Time, Mileage,
+  Guide month — CASE-029, Retail value, Trade value, Edit) and Add
+  valuation; Source offers Glass's
   (valuation), Cazana (disabled seam, ENG-008 / ENG-009), Engineer's Value,
   AI market research (D40); Request AI market research creates a
   `MarketResearch` job (D35).
@@ -1015,7 +1017,8 @@ Report are read-only once Complete.
   Contract repair), Category, Salvage value, Excess, Betterment, Claimant
   VAT registered, Reserve, Equity (`derived`), Repair duration, Delays,
   Report delay, Storage per day, Recovery, Hire start, Hire daily cost,
-  Diminution, Salvage logistics; ratio lines as `derived` values (D41).
+  Diminution, Salvage logistics; ratio lines are permitted, not required
+  (D41).
 - **Report:** `report-image` preparation with `cropper` (Close-up first,
   Overview second, supporting images in order — D19, ENG-031); Sign-off
   Engineer (flagged accounts only, D31); Agreed fee and Description lines
@@ -1121,7 +1124,9 @@ Reports** | content panel (heading, area label, meta).
 - **Automation & AI:** Automation panel (status, Registered clients, Active
   jobs, Failed jobs, Stop / Start automation danger → reason) and AI settings
   (Proposal, Timeout, enabled checkbox, Save).
-- **Service health:** the Operations table.
+- **Service health:** the only service health table (Area, Service, State,
+  Latest evidence, Dependency, Retry / View); Administration-only, Operations
+  links to it (D37).
 - **Action Logs:** filters (Search, Area, Actor, Result, From, To, sort
   toggle, Clear) and table Time, Actor, Area, Action, Reference, Result.
 - **Reports:** From, To, Engineer; Generate / Preview / Export; "Engineer
@@ -1402,25 +1407,28 @@ happen — one exact message, never bulk. Outbound Reply, Forward and Compose
 retain Sent evidence linked to the Case (D4).
 
 **Cases** is the workflow viewer: Not ready, Review, With Engineer and
-Complete as Case stages; Triage as pre-Case work; Held and Unidentified as
-exceptions. Triage and Unidentified records open on their own routes and
-never become Case states.
+Complete as Case stages; Triage and Awaiting instruction as pre-Case work
+(D38); Held and Unidentified as exceptions. Triage and Unidentified records
+open on their own routes and never become Case states.
 
-**Case** is read-only until an explicit edit lease. The identity ribbon keeps
-Case/PO, registration, claimant, principal and state visible; the context
-column keeps state, version, due, Engineer and edit authority. Outstanding
-requirements name their field, source, reason and resolution. Lifecycle
-actions are the named Core outcomes: hold, release, close with reason, reopen
-with reason; `Created in error` offers only its linked replacement.
-Report sent is evidence-driven (D10); the Assessment opens With Engineer or
-onwards (D11).
+**Case** is read-only until an explicit edit lease, and is one scrolling
+page (D29): the sticky identity ribbon keeps Case/PO, registration,
+claimant, principal, state, Engineer and Sign-off Engineer visible, and the
+section jump-nav marks the section in view. Outstanding requirements name
+their field, source, reason and resolution. Lifecycle actions are the named
+Core outcomes: hold, release, close with reason, reopen with reason;
+`Created in error` offers only its linked replacement. Report sent is
+evidence-driven (D10); the Engineer sections are always viewable and
+read-only once Complete, and `/Cases/{id}/Assessment` is a permanent 301
+(D30); Send to EVA is offered in Review and re-sent from With Engineer with
+Download ZIP or Send via API (D36).
 
 **Search** runs the advanced query and previews the selected Case; closed
 cases show their outcome.
 
 **Operations** is the staff-wide work ledger: AI jobs ending in staff
-review, service health, retryable external work, upload links and EVA
-handoffs.
+review, retryable external work, upload links and EVA handoffs; Service
+health is Administration-only and Operations links to it (D37).
 
 **Administration** is Administrator-only and implements the linked role
 matrix through its eight areas. No generic rules editor, credential/cloud
@@ -1490,7 +1498,7 @@ this section holds the cross-cutting rules every page is held to.
 | Request-scoped upload | Staff create a temporary token bound to one request and server-enforced expiry. The public page exposes bound upload fields and an immediate request-local result only. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
-| Identity ribbon | Read-only Case/PO, registration, claimant, principal, state; the Assessment adds mileage and vehicle. |
+| Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it (D31); sticky on the single-scroll Case record (D29). There is no separate Assessment ribbon (D30). |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
 | Estimates | Free VAT % per estimate; the Current estimate's VAT % overrides the report rule (D9); totals computed once in Core. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |

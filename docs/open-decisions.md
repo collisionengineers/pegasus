@@ -328,7 +328,7 @@ adapters. AutoTrader market research runs outside Pegasus through the
 inside Pegasus is open here.
 
 | Decision | Evidence needed | Impact | Recommended default | Decision question |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Glass's direct repair-estimate access | Accepted licensing, API or embedded-access terms, technical access, and cost. | Repair-estimate integration and its commercial viability cannot be established. | Do not select or represent Glass's as an available direct estimate adapter. | Are Glass's licensing, access mode, technical contract, and cost accepted for direct repair estimates? |
 | Direct valuation access | Accepted direct-access contracts and terms for CAP, Glass's, and Cazana, including the basis for selecting any adapter. | Valuation sourcing, permissions, and cost remain uncertain. | Treat all three as candidates only; do not imply that any valuation adapter is selected. | Is there an accepted direct-access and commercial contract for a selected valuation source? |
 | Provider API tenancy and wire contract | An accepted client/tenant representation, exact routes, headers, schemas, attachment encoding, request limits, throttling/error contract, administration workflow, named clients, and rollout. The settled isolation boundary remains one principal-scoped client with own receipt/status/result only. | Treating an email domain, intermediary, or shared external tenant as the API principal could disclose another principal's work or create a second policy engine. | Keep the API absent. Use stable Pegasus principal identity as the isolation boundary and infer no tenancy model from provider-domain evidence. | What exact provider API contract and client/tenant representation preserves the accepted principal-scoped isolation boundary? |
@@ -355,7 +355,7 @@ query-response proposals (`AI-07`/`AI-08`), which stay proposals.
 Still open after the 2026-08-03 implementation:
 
 | Evidence needed | Impact | Recommended default | Decision question |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Assessment markup ambiguities recorded rather than guessed: whether fee fields stay in the assessment record given EXT-11 is `1.2.0`, and where guide/external valuation figures are stored (EXT-10/EXT-13; the valuation API contract should name which figures it supplies). Betterment semantics, the estimate `guide` code meaning and approved signatory-list ownership are settled by the 2026-09-01 confirmation (EPIC-011 D17/D18): the first two are retained evidence only, owned by [FRD-06 § Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction), and the third is answered by the Case's Sign-off Engineer tuple (D31, 2026-09-02, superseding D18) in [FRD-11](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation). | Guessing either remaining item would invent business semantics the screens deliberately left unstated. | Store free text where shipped today; decide each with its owning capability. | Do fee fields stay in the assessment record, and where do valuation-service figures land when EXT-10/EXT-13 are contracted? |
 | The Suggestions screen's fate and remaining PAV-slider presentation questions at UI-15 re-entry: repurpose or retire the Suggestions markup; confirm placement and step/rounding; resolve contrast; and decide threshold source. The requested value is optional, 0–80 %, no default, visibly derived from Engineer's Value, and proposal guidance only (D24, amended 2026-09-02). | Unresolved presentation decisions block staff-facing activation, not gated local work. | Decide at UI-15 re-entry; keep the control a review aid that writes nothing. | What presentation and threshold-source choices are accepted? |
 | Tier-5 external-client evidence: one recorded DevelopmentOffline round-trip run — real Claude Code channel session, send → channel event → Actor read → attributed write → reply → Completed on reconcile — over the full fourteen-tool inventory, plus the connector JSONL evidence-log retention rule beyond local-only/gitignored. | Without it no activation claim can be made; the surface stays composition-gated. | Fold into the queued tier-5 MCP evidence run. | When is the recorded round-trip run performed and where is its evidence filed? |
@@ -375,10 +375,17 @@ selects a Pegasus runtime, caller, deployment, or business-policy owner.
 
 Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-first directions are retained only as comparison evidence and do not override the complete design requirements.
 
-Resolved 2026-09-02 (EPIC-012): the Case record is one scrolling page with a sticky ribbon, action bar and section jump-nav (D29) and the Engineer workbench is its Damage, Valuation, Estimate, Settlement and Report sections (D30); sections as tabs remain the rule for other records, and no layout switch ships. The signatory question is closed by D31 (the Case's Sign-off Engineer tuple, superseding D18). Owners: [FRD-12 § Case workspace](frd/frd-12-operator-experience.md#case-workspace), [FRD-01 § Sign-off Engineer](frd/frd-01-case-identity-and-lifecycle.md#sign-off-engineer).
+Resolved 2026-09-02 (EPIC-012): the Case record is one scrolling page with a
+sticky ribbon, action bar and section jump-nav (D29) and the Engineer
+workbench is its Damage, Valuation, Estimate, Settlement and Report sections
+(D30); sections as tabs remain the rule for other records, and no layout
+switch ships. The signatory question is closed by D31 (the Case's Sign-off
+Engineer tuple, superseding D18). Owners:
+[FRD-12 § Case workspace](frd/frd-12-operator-experience.md#case-workspace),
+[FRD-01 § Sign-off Engineer](frd/frd-01-case-identity-and-lifecycle.md#sign-off-engineer).
 
 | Evidence needed | Impact | Recommended default | Decision question |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Completion of the full design route for each later UI capability, using the canonical [design process](design/README.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
 
 ## Mail workspace freshness threshold and retention start

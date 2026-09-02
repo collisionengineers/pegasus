@@ -155,11 +155,12 @@ interface wording for the `Blocked intake` boundary and remains pre-case.
 Awaiting instruction lists the Image-initiated Cases still awaiting an
 instruction; it is Pre-Case work beside Triage, never a workflow queue, and
 its rows keep the Image-initiated row shape (D38). `?tab=` selects the queue.
-Filters are Principal (every queue) and, on Not ready only, Missing — `All`, `Instructions`, `Images`, `Both missing` —
-plus Clear. Each queue keeps its own row shape rather than being forced into
-one column set: a Case row carries reference and registration, state,
-claimant and principal, origin and received, due; an Image-initiated row
-carries its VRM reference, registration, file count and custody; a Triage
+Filters are Principal (every queue) and, on Not ready only, Missing — `All`,
+`Instructions`, `Images`, `Both missing` — plus Clear. Each queue keeps its
+own row shape rather than being forced into one column set: a Case row
+carries reference and registration, state, claimant and principal, origin and
+received, due; an Image-initiated row carries its VRM reference,
+registration, file count and custody; a Triage
 row carries reference, registration, provider and assignee; an Unidentified
 row carries the U-reference, kind, operator-meaningful handle (the original
 filename, or the e-mail subject and sender — never an internal identifier),
@@ -270,8 +271,9 @@ non-destructive conflict.
   its deduction; paint or material transfer; impact location and severity
   shown as derived values (D39,
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)).
-- Valuation: each entry with source, guide month, mileage, retail and trade
-  values, and Add valuation (`EXT-10`); sources are Glass's valuation, Cazana
+- Valuation: each entry with source, date, time, mileage, retail and trade
+  values, plus guide month per entry (`CASE-029`), and Add valuation
+  (`EXT-10`); sources are Glass's valuation, Cazana
   (disabled seam), Engineer's Value and AI market research (D40); requesting
   AI market research creates a `MarketResearch` job (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).

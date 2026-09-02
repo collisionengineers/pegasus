@@ -79,12 +79,17 @@ Engineer account setting (D31, 2026-09-02;
 [FRD-01](frd-01-case-identity-and-lifecycle.md#sign-off-engineer),
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)). D31
 supersedes D18: typed Engineer identity alone is no longer the rendered
-signatory. The currently complete supplied tuple
-is `A Patterson | M.Inst.IAEA | andy_patterson`; the Ed Mawdsley and Neil
-O'Reilly signature images remain governed, and Neil O'Reilly's qualifications
-are recorded later by an Administrator. Missing, unknown,
-mismatched, or substituted names, qualifications, keys, assets, source
-versions, custody references, or required values fail closed. No custom
+signatory. A tuple is complete when the name and the signature image are
+present; the qualification line is optional (D31). The initial Sign-off
+Engineer accounts are A Patterson, N O'Reilly and E Mawdsley
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)); the
+currently supplied tuple with a qualification is
+`A Patterson | M.Inst.IAEA | andy_patterson`, and Neil O'Reilly's
+qualifications are recorded later by an Administrator — until then his
+reports print the name without a qualification line. A missing name or
+signature image, and an unknown, mismatched or substituted name,
+qualification, key, asset, source version, custody reference or required
+value, fail closed. No custom
 signature path, arbitrary local attachment path, placeholder, or wording absent
 from the accepted evidence is permitted. The sign-off tuple on every report is
 allocated to `DOCS-017`.
@@ -263,7 +268,7 @@ creation.
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
-| MarketResearch | The Case record's Valuation section (D35) | The Case reference only | The research runs outside Pegasus: the operator's Claude Cowork connector claims the job through the Automation Actor tools, searches AutoTrader, and completes it with a findings document plus retail and trade figures; Pegasus retains the document as Case evidence and records a valuation entry of source `AI market research` ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#valuation-sources)) | None on the job — the entry is a proposal on the Case and never becomes the Engineer's Value by itself; no scraping or AutoTrader integration exists inside Pegasus |
+| MarketResearch | The Case record's Valuation section (D35) | The Case. The research runs outside Pegasus: the operator's Claude Cowork connector polls the job ledger through the Automation Actor, searches AutoTrader, and completes the job with a findings document plus retail and trade figures | The findings document retained as Case evidence and a valuation entry of source `AI market research` with the retail and trade figures ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#valuation-sources)) | None on the job — the entry is a proposal on the Case and never becomes the Engineer's Value by itself; no scraping or AutoTrader integration exists inside Pegasus |
 
 **States.** `Queued` → `Taken` → `Draft ready` → `Completed`, with `Failed`,
 `Cancelled` and `Expired` as the other terminal states.
