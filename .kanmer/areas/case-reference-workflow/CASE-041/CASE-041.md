@@ -18,10 +18,12 @@ groups:
 links: []
 blocks:
   - UIIMP-014
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-02T20:34:01.263Z'
+updated: '2026-09-02T22:04:12.795Z'
 ---
 
 ## What

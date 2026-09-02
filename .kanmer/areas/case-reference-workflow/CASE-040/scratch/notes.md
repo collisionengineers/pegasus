@@ -1,0 +1,1 @@
+2026-09-02 kanmer-research (Claude wrapper over gpt-5.6-terra high): Codex launched read-only in `.worktrees/research` (origin/dev cad00be9); prompt/output in session scratchpad `prep/CASE-040/`. MCP tool replies in this session return only the project stub; write landing verified on disk.
