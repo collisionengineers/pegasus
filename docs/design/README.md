@@ -21,6 +21,11 @@ below governs every such claim.
 
 ## Evidence discipline
 
+The canonical visual execution source is the work-pack
+`Pegasus_UI_Frontend_Design_Premium_Full_End_State.html` (D15, 2026-09-01). A
+visual conflict between it and a delivered surface pauses only the affected
+lane and its dependants; it never pauses the programme.
+
 Intended, planned, implemented, caller-proved, deployed and accepted are distinct:
 
 - **Planned** describes the approved target contract — the Integrated
@@ -172,6 +177,11 @@ third party sees are not places in the application (see
 | F5 | Refresh — re-query the current page, never a browser reload |
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
 | Escape | Close the open dialog |
+
+One documented exception to keyboard parity: the Assessment whole-page raw
+estimate drop is pointer-only (D16). Every other route to the same import — the
+MCP `pegasus_estimate_import` tool and manual line entry in the estimate
+editor — is keyboard-reachable.
 
 Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
 initial focus on the first control, a focus trap, the rest of the document
@@ -601,7 +611,7 @@ never copied.
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
-| Supplied engineer signatures | Andy Patterson's approved exact tuple is embedded by Infrastructure; other supplied assets remain governed but inactive; never Web decorative imagery |
+| Supplied engineer signatures | Retained and governed but inactive: a report renders the issuing Engineer's typed identity only (D18); never embedded by Infrastructure and never Web decorative imagery |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
 The imported renderer can exercise its own assets without proving the planned
@@ -699,8 +709,13 @@ in the approved design:
 | Seam | Control | Ticket |
 | --- | --- | --- |
 | Experian | Vehicle checks → Run Experian check | ENG-001 |
-| Glass's, Audatex | Assessment record bar sources | EXT-09 |
 | Cazana | Valuation source | ENG-008 / ENG-009 |
+
+**Narrowed 2026-09-01 (D21).** An excluded capability is absent, never drawn as
+a disabled control. The direct Glass's and Audatex service-launch controls are
+removed on that rule (ENG-030); Glass's and Audatex file import stays in scope
+through the whole-page drop, and the manual Glass's, Cazana and Engineer
+valuation records stay active.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its
@@ -895,9 +910,13 @@ Refresh. Record head (reference; registration, provider; state chip). Record
 bar: eyebrow "Triage" and assignee. Body: Determinations panel
 (Roadworthiness select, Repair outcome select, Save determinations primary),
 Source panel (Material, Received, Case link), Notes panel (Date / Time / ID
-and text). The existing server-side transitions — await information, link,
-complete, cancel, reopen — stay available through the determinations flow and
-dialogs where a handler exists.
+and text; Add note — append-only, no edit and no delete, D25), Files panel
+(Name, Kind, Received; View / Download — retained sources, their attachments
+and the linked vehicle images, with no upload action, D25). The Notes panel and
+the record's durable events read as one chronological History. The existing
+server-side transitions — await information, link, complete, cancel, reopen —
+stay available through the determinations flow and dialogs where a handler
+exists.
 
 ### Unidentified `/Unidentified/{id}`
 
@@ -971,31 +990,43 @@ content, Disposition, Reason); Case note; finish-edit; stale-version conflict
 
 Opens for With Engineer or onwards, never Review; read-only once Complete
 (D11). Header "Assessment" / "reference · registration"; seven-item identity
-ribbon (adds Mileage and Vehicle); record bar: New estimate (dark), Import
-estimate, Glass's and Audatex (disabled seams, EXT-09), **Send to Claude**
-(primary); right: Generate report draft / Preview report draft.
+ribbon (adds Mileage and Vehicle); record bar: New estimate (dark), **Send to
+Claude** (primary); right: Generate report draft / Preview report draft. There
+is no Import estimate control and no Glass's or Audatex launch control (D16,
+D21): one raw estimate artifact dropped anywhere on the page imports
+immediately, with no confirmation and no visible picker, the parser is
+auto-detected and fails closed on ambiguity, Drafts are named by provider plus
+sequence, and the same Case with the same hash replays.
 `assessment-v3`: collapsible Evidence rail (instruction and images) |
 "Estimates" pane — estimate tabs (tablist) and editor (Delete estimate
 danger, Duplicate, Use estimate / Current chip, Save estimate dark; fields
-Estimate name, Source, Repair days, Labour rate, Paint labour rate, Paint
+Estimate name, Source, Repair days, Labour-rate card, Paint labour, Paint
 materials, Other costs, VAT %; lines table Operation (Replace / Repair / R&I /
 Paint / Other), Description, Part number, Qty, Labour h, Paint h, Part £,
 remove; notes; totals Parts / Labour / Paint / Other / Subtotal / VAT /
-Total). VAT % is free per estimate and the Current estimate's VAT % overrides
-the report's built-in rule (D9). Dialogs: Import estimate (name, source
-Audatex PDF / JSON / Other, file); Send to Claude (direction textarea, Target
-Estimate % slider of Engineer's Value, Case Valuation, Target amount;
-disabled without an Engineer's Value); Delete estimate; Report draft preview;
+Total). The Labour-rate card select offers the enabled global versioned cards
+and prices non-paint labour only; Paint labour, Paint materials and Other
+costs are explicit amounts (D17). VAT % is free per estimate, applies to the
+whole subtotal, and the Current estimate's VAT % overrides the report's
+built-in rule (D9). No comparison or savings figure appears in the totals or
+on the report (D17). Dialogs: Send to Claude (direction textarea, Target
+Estimate % slider of Engineer's Value — optional, 0–100 %, no default, and the
+derived Target amount shown beside it as proposal guidance only (D24) — Case
+Valuation, Target amount; disabled without an Engineer's Value); Delete estimate; Report draft preview;
 image viewer.
 
 ### Upload `/Upload`, public `/Uploads/{token}`
 
 Upload: header only; dropzone ("Drag files here or choose files" · "EML, MSG,
-PDF, DOC, DOCX, JPG or PNG · up to 25 MB each · 10 files" · Choose files
-dark); file rows (status chip, progress, per-file outcome with Open X / Add to
-existing Case / Create Case / Cancel); Upload (primary) and Clear. Public:
-external shell, company logo, "Secure file request", heading "Upload files
-for REF", request reference and expiry, dropzone, Submit files.
+PDF, DOC, DOCX, JPG or PNG · up to 100 MB each" · Choose files dark) — the
+request bound is approximately 200 MB per multipart submission (D20); file rows
+(status chip, progress, per-file outcome with Open X / Add to existing Case /
+Create Case / Cancel) beneath one submission decision (D20); Upload (primary)
+and Clear. Public: external shell, company logo, "Secure file request",
+heading "Upload files for REF", request reference and expiry, dropzone, Submit
+files; one successful submission per link, an identical retry reconciles, and a
+later submission, revoked or expired link is refused without naming the Case
+(D20).
 
 ### Operations `/Operations`
 
@@ -1018,16 +1049,21 @@ configuration, Mail settings, Automation & AI, Service health, Action Logs,
 Reports** | content panel (heading, area label, meta).
 
 - **Accounts:** table Name, Username, Role (inline select), State, Save
-  (disabled until changed; reason prompt), Account (Disable danger / Review);
-  Create staff account.
+  (disabled until changed; reason prompt), Account (Disable danger / Review /
+  Reset password → Temporary password, Confirm temporary password, Reason;
+  forced change at next sign-in, never emailed — D28); Create staff account.
 - **Principals:** table Name, Principal Code, Roles, State, Settings; Create
   Principal (creates the backing Organisation inline, D2); Settings dialog —
   route e-mail addresses (read-only), the two independent ADR-0034 EVA
   toggles — Manual API submission, Automatic API submission (ZIP export
   needs no setting) — Pegasus API key (masked, Show / Hide), Generate new
   key (danger → reason), Save.
-- **Workflow configuration:** Instruction completeness (two checkboxes),
-  Review (two checkboxes), Due work (chase interval); Save configuration.
+- **Workflow configuration:** Instruction completeness and Image completeness
+  (versioned required / not-required item rules with exact blockers, never a
+  percentage — D23), Review (two checkboxes), Due work (Chase interval: whole
+  calendar days, 1–365, default 7, Europe/London — D23), Labour-rate cards
+  (Name, Non-paint hourly rate, State; Create card, Disable card — D17); Save
+  configuration.
 - **Mail settings:** Approved mailboxes table (Mailbox, Scope, Last update,
   State, Review folders / Refresh) and Mail categories table (Add category).
 - **Automation & AI:** Automation panel (status, Registered clients, Active
@@ -1061,6 +1097,13 @@ stubbed, documented as delivered, or kept behind a flag:
 - the Automation Activity page — replaced by Action Logs;
 - the old Assessment section tabs, the old Triage action bar and the
   Additional case section;
+- the Assessment Import estimate dialog and its file picker — replaced by the
+  whole-page drop (D16);
+- the direct Glass's and Audatex service-launch controls (D21, ENG-030) — file
+  import stays in scope;
+- a standalone Images list, runtime-managed email or document templates, and
+  any autonomous-send control (D21); staff-initiated outbound delivery stays in
+  scope under ADR-0036;
 - the Dashboard, Queues and combined Cases-search routes, which the 301 stubs
   cover until wave 5.
 
@@ -1115,7 +1158,10 @@ There is no control, route or placeholder for:
 - post-report query/dispute work beyond the AI query-response job;
 - AI/vision assistance for vehicle images or damage evidence;
 - spreadsheet preparation of future inspection-address/repairer reference
-  data.
+  data;
+- direct Glass's or Audatex service launch, a standalone Images list,
+  runtime-managed templates or autonomous outbound sending — each absent, not
+  disabled (D21).
 
 Provider APIs and MCP are non-browser boundaries and do not create staff-shell
 destinations. The Provider API credential is administered through the
@@ -1130,7 +1176,8 @@ There is no control, route or placeholder for:
 - automated WhatsApp ingestion;
 - replacing EVA assignment or engineering workflow;
 - direct Experian, Glass's, Audatex, Cazana, finance or invoicing
-  integrations beyond their named disabled seams;
+  integrations — Experian and Cazana keep their named disabled seams, while the
+  Glass's and Audatex service-launch controls are absent (D21);
 - guided mobile image capture or third-party guided-capture integration;
 - a custom application domain;
 - management information beyond the Engineer Report.
@@ -1224,7 +1271,7 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 | Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` (PLAT-029) |
 | Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_LayoutExternal.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | Embedded by `src/Pegasus.Infrastructure`; Core owns report policy and accepted presentation values |
-| Engineer signatures | Repository renderer signature sources | Infrastructure embeds only the active Andy Patterson asset; excluded from Web decorative imagery |
+| Engineer signatures | Repository renderer signature sources | Retained, governed and inactive (D18); no asset is embedded and none is Web decorative imagery |
 | Retired renderer/skills/AI source | Git history and accepted integration records | No separate caller, runtime, or policy owner |
 | Decision rationale | [Decision records](../adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
