@@ -12,7 +12,8 @@
         "C:\\Users\\PC\\Documents\\GitHub\\pegasus"
       ],
       "environment": {
-        "ELECTRON_RUN_AS_NODE": "1"
+        "ELECTRON_RUN_AS_NODE": "1",
+        "KANMER_BOARD_BRANCH": "kanmer-board"
       },
       "enabled": true
     }

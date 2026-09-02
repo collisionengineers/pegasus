@@ -12,10 +12,10 @@ namespace Pegasus.Core.Intake;
 /// than one category match, the result is the recorded Ambiguous outcome, never an
 /// invented winner; when none match, the message fails closed as Unclassified.
 ///
-/// MAIL-011/MAIL-012: QDOS sends triage requests in two templates, and the corpus shows
-/// them to be disjoint — seven messages carry the body phrase, five carry the subject
-/// line, none carry both. Recognising only the phrase left the whole second family
-/// unclassifiable, U34 included. Two tells, one triage candidate.
+/// MAIL-011/MAIL-012: QDOS sends triage requests in two templates, and the reviewed
+/// corpus shows the body-phrase and subject-line templates to be disjoint. Current
+/// cohort counts belong to the versioned evidence/evaluation output rather than this
+/// policy comment. Two tells, one triage candidate.
 /// </summary>
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
