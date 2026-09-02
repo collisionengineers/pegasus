@@ -8,8 +8,8 @@ scope: list
 scope_selector: AUTO-012,AUTO-013,TICK-061,TICK-058,TICK-060
 project_fingerprint: b40b93fc-17b8-46f6-b7e1-db4d8977dea6
 controller: codex-api03
-status: running
-updated_at: 2026-09-02T19:34:54.056Z
+status: paused
+updated_at: 2026-09-02T19:42:04.909Z
 ---
 
 # Current auto run — EPIC-009
