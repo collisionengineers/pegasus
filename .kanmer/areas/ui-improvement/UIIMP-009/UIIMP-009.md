@@ -13,11 +13,13 @@ labels:
 groups:
   - EPIC-011
 links: []
+blocks:
+  - DELIV-030
 refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.210Z'
-updated: '2026-08-28T08:35:24.210Z'
+updated: '2026-09-02T01:10:31.886Z'
 ---
 
 ## What

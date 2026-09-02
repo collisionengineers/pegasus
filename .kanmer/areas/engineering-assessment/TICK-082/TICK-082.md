@@ -24,27 +24,34 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:40.173Z'
-updated: '2026-09-01T21:54:51.106Z'
+updated: '2026-09-02T01:10:22.209Z'
 ---
 
 ## What
 
-Plan and research **EXT-09**: Versioned repair-estimate lines, source versions, approvals, original-versus-assessed comparison, and savings
+Deliver EXT-09 as decided in D17: versioned repair-estimate lines with immutable imported provider versions and printed totals; multiple global versioned labour-rate cards (id, name, non-paint hourly rate, enabled state, actor, timestamps) selected per new or amended estimate version; non-paint labour = normalized non-paint hours × the selected card rate; paint labour, paint materials, parts and other costs explicit; VAT % belongs to the estimate version and applies to the whole subtotal; betterment and guide codes are evidence only. No original-versus-assessed comparison and no savings feature.
 
 ## Why
 
-This is allocated to **Later / 1.0.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+Brought forward to Now on 2026-08-28 for EPIC-011; D17 confirmed binding on 2026-09-01 (EPIC-011 `context.md`, `decisions/2026-09-01-work-pack.md`). `docs/capabilities.md` EXT-09 and FRD-06/11/12 still describe comparison and savings; [[DELIV-040]] corrects FRD-04/06/11/12, `capabilities.md`, `open-decisions.md` and the design README first, so this ticket leaves Backlog after that merge.
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- Core: `Core/Assessment/Estimates.cs` (estimate versions, card selection, VAT on the whole subtotal — reuse [[ENG-026]]'s per-estimate VAT and [[ENG-028]]'s editor), a rate-card entity, store and one migration (`migration` lock, `Test-MigrationGrants.ps1`).
+- Administration: a rate-card area per FRD-12 § Administration (the planner decides whether the optional NEW-RATE-CARD-ADMIN split from the pack ledger is warranted).
+- Disabling a card blocks future selection without changing history; an Engineer successor version selects a card and can become the accepted/report version; imported provider versions and their printed totals are immutable.
+- Blocks [[TICK-081]] (report activation).
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [ ] Card create, rename, enable and disable are administrator-only, versioned and attributed; a disabled card is unselectable for new versions and history is unchanged.
+- [ ] Non-paint labour and VAT derive deterministically from the selected card and the estimate-version VAT % (unit tests with literal comparisons).
+- [ ] Imported provider versions and printed totals are immutable; a successor version selects a card.
+- [ ] No comparison or savings figure is computed or rendered.
+- [ ] Migration, grants and `Test-MigrationGrants.ps1` pass; Core and integration tests green.
 
 ## Notes
 
-- Source: `docs/capabilities.md` — EXT-09.
+Source: `docs/capabilities.md` EXT-09; D17 in EPIC-011 `context.md`. Retitled 2026-09-01 (comparison and savings dropped); body rewritten 2026-09-02 to match.
+
+## Outcome

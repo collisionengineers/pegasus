@@ -18,13 +18,15 @@ labels:
   - requires-live-approval
 groups:
   - EPIC-006
-links: []
+links:
+  - MAIL-027
+  - MAIL-026
 blocks: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:06:02.476Z'
-updated: '2026-09-01T14:50:16.775Z'
+updated: '2026-09-02T01:10:29.337Z'
 ---
 
 ## What

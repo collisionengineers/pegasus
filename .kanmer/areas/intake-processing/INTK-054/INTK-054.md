@@ -22,7 +22,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T21:54:35.701Z'
-updated: '2026-09-01T21:54:35.701Z'
+updated: '2026-09-02T01:10:23.391Z'
 ---
 
 ## What
@@ -31,7 +31,7 @@ The Triage `History` merges durable events and append-only attributable staff no
 
 ## Why
 
-Operator decision D25 (2026-09-01). Triage has no note entity today; every history entry is a retained business event ([[INTK-046]], `frd-03`). The panel keeps its shipped name "Permanent history" unless the operator rules otherwise on [[UIIMP-012]].
+Operator decision D25 (2026-09-01). Triage has no note entity today; every history entry is a retained business event ([[INTK-046]], `frd-03`). The panel is named **Notes** (operator ruling 2026-09-01); [[UIIMP-012]] renames the shipped heading first and this ticket follows it under the `triage_page` lock.
 
 ## Approach
 

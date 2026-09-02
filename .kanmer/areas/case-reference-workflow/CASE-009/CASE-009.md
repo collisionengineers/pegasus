@@ -17,13 +17,14 @@ labels:
   - queries
   - operator-reported
   - mail-association
-links: []
+links:
+  - CASE-027
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T07:51:29.215Z'
-updated: '2026-09-01T14:50:16.696Z'
+updated: '2026-09-02T01:10:30.568Z'
 ---
 
 ## Why

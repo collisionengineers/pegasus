@@ -22,40 +22,29 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T08:06:53.293Z'
-updated: '2026-09-01T21:54:54.083Z'
+updated: '2026-09-02T01:10:21.029Z'
 ---
 
 ## What
 
-`Create Case` is drawn in four places and resolves to two different
-destinations, and two of them are dead links.
-
-| Call site | Target | Result today |
-| --- | --- | --- |
-| `Pages/Shared/_ShellDialogs.cshtml:64` (Add dialog card) | `/Cases/Create` | 404 |
-| `wwwroot/js/site.js:1364` (Ctrl N) | `/Cases/Create` | 404 |
-| `Pages/Search/Index.cshtml:24` (header action, [[CASE-026]]) | `/Upload` | works |
-| `Pages/Index.cshtml` Work Centre header (context.md §1.2) | not yet ported | — |
-
-`Pages/Cases/Create.cshtml.cs:215-219` returns `NotFound()` for an empty
-`receiptId`, and every working call site (`Pages/Intake/Details.cshtml:451`,
-`Presentation/UploadOutcome.cs:322`) reaches it *with* a receipt: a case is
-made from received material, so `/Cases/Create` is receipt-bound by design.
-A page with no receipt in hand therefore has no receipt-less form to send the
-operator to, which is why [[CASE-026]] pointed its contracted header action at
-`/Upload` — the only place that produces the receipt.
+Give "Create Case" one destination at every call site — the Add dialog (`Pages/Shared/_ShellDialogs.cshtml`), the Ctrl N shortcut (`wwwroot/js/site.js`), the Search header (`Pages/Search/Index.cshtml`) and the Work Centre header (EPIC-011 context §1.2) — and make that destination the D26 flow: staff enter the required identity and attach or record the instruction; Pegasus persists an attributable intake receipt (actor, time, material), then reuses the normal principal and Case/PO allocation policy. `Pages/Cases/Create.cshtml(.cs)` stays receipt-bound; the new entry produces the receipt it needs.
 
 ## Why
 
-EPIC-011 `context.md` §1.1 draws `Upload files` and `Create Case` as separate
-entries in the Add dialog, so collapsing them is a product judgement no ticket
-has taken; and one label with two destinations breaks one-list-per-concept for
-the label→destination mapping. It also leaves two shipped controls that 404.
+Operator decision D26 (binding 2026-09-01, EPIC-011 `context.md`; `decisions/2026-09-01-work-pack.md` § Direct Case creation). Two shipped controls resolve to a route that does not exist today, and one label with two destinations breaks one-list-per-concept. The Add dialog keeps Upload files and Create Case as separate entries (context §1.1); direct creation is not a second allocation implementation (rule 7).
+
+## Approach
+
+- Reuse the intake-receipt producer the working call sites already use (`Presentation/UploadOutcome.cs`, `Pages/Intake/Details.cshtml`) and the existing allocation use case; no parallel allocation.
+- Files: the shell files owned by the `global_shell` lock (`Pages/Shared/_ShellDialogs.cshtml`, `wwwroot/js/site.js`), `Pages/Cases/Create.*`, `Pages/Search/Index.cshtml`, `Pages/Index.cshtml` header, tests; labels in `Presentation/OperatorLabels.cs`.
+- Governing documents: FRD-02 § Ways intake starts / INT-26 and FRD-12 § Add dialog carry D26 once [[DELIV-040]] merges; this ticket leaves Backlog after that.
+- Blocked by [[DELIV-040]]; related [[CASE-026]], [[PLAT-029]].
+
+## Verification
+
+- [ ] Every Create Case call site resolves to one route; no 404.
+- [ ] A Case created directly has an intake receipt (actor, time, material) recorded before allocation, and allocation reuses the existing use case (the test names it).
+- [ ] The Add dialog keeps Upload files and Create Case as separate entries.
+- [ ] Browser lane green; Test UI snapshots regenerated for the changed routed pages.
 
 ## Outcome
-
-Settle it once and apply it to every call site — either retarget the two shell
-call sites to `/Upload`, or give `/Cases/Create` a receipt-less entry point
-that picks or receives material. Files are [[PLAT-029]]'s
-(`Pages/Shared/_ShellDialogs.cshtml`, `wwwroot/js/site.js`) and E1's
-(`Pages/Cases/Create.*`); [[CASE-026]] reported them rather than editing them.

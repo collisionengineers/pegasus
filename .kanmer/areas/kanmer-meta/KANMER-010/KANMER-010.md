@@ -18,7 +18,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-09-01T14:40:45.085Z'
-updated: '2026-09-02T00:55:56.588Z'
+updated: '2026-09-02T01:10:25.856Z'
 ---
 
 ## What
@@ -27,7 +27,7 @@ Run the current Kanmer setup reconciliation (`kanmer-setup`, Kanmer 0.4.0) for t
 
 ## Why
 
-`get_status` on 2026-09-01 (repo root at `fb3f07ac`, server 0.3.12 `639df4cf`) reported four `behind` artefacts: the managed `AGENTS.md` block; `.agents/skills` (15 differ, 10 missing); `.grok/skills` (15 differ); the `mcp-registration` (`opencode.json` pointed at another workstation's board). On 2026-09-02 the Kanmer plugin became 0.4.0 (server sha `efe89029`; the local plugin copy carries a display patch, sha `e15615a1`), so the bundled skills changed again: against 0.4.0, `.agents/skills` and `.grok/skills` on `origin/dev` are stamped 0.3.3 and 0.1.0 and differ in 44 files (3,403 insertions), and the managed block on `origin/dev` lacks the 0.4.0 board-branch, resumed-worktree and MCP-convention paragraphs.
+`get_status` on 2026-09-01 (repo root at `fb3f07ac`, server 0.3.12 `639df4cf`) reported four `behind` artefacts: the managed `AGENTS.md` block; `.agents/skills` (15 differ, 10 missing); `.grok/skills` (15 differ); the `mcp-registration` (`opencode.json` pointed at another workstation's board). On 2026-09-02 the Kanmer plugin became 0.4.0 (server sha `efe89029`; the local plugin copy carries a display patch, sha `e15615a1`), so the bundled skills changed again: against 0.4.0, `.agents/skills` and `.grok/skills` on `origin/dev` are stamped 0.3.3 and 0.1.0 and differ in 44 files against the bundle (re-measure in the worktree before quoting figures), and the managed block on `origin/dev` lacks the 0.4.0 board-branch, resumed-worktree and MCP-convention paragraphs.
 
 The 0.4.0 `kanmer-setup` was run on 2026-09-02 in the primary checkout on the operator's command, so the target content is known and `get_status.repo.upToDate` is already `true` there; those working-tree changes are uncommitted on `main`. This ticket lands the same refresh on `dev` through a reviewed PR (precedent PR #638, KANMER-006, which truthfully closed the earlier slice and is not reopened). The direct dev commit `9b8f78a3` ("carry the board branch by env, not by cwd") is the baseline this ticket reconciles from.
 
@@ -43,7 +43,8 @@ The 0.4.0 `kanmer-setup` was run on 2026-09-02 in the primary checkout on the op
 
 - [ ] `diff -rq <worktree>/.agents/skills C:/Users/PGUSER/.claude/plugins/cache/kanmer/kanmer/0.4.0/skills` and the same for `.grok/skills` report only the stamp file and repository-owned skills.
 - [ ] `node .../scripts/agents-block.mjs <worktree>` a second time changes nothing; `git diff` shows the block, the skill trees and the stamps only.
-- [ ] `KANMER_REPO_ROOT=<worktree> tools/kanmer-call.sh get_status` reports `repo.upToDate: true` with no `behind` entry, or only the `mcp-registration` entry the operator defers.
+- [ ] `KANMER_ROOT=C:/Users/PGUSER/Documents/github/pegasus/.worktrees/kanmer KANMER_REPO_ROOT=<worktree> bash tools/kanmer-call.sh get_status` (both env values are read by the server) reports `repo.upToDate: true` with no `behind` entry, or only the `mcp-registration` entry the operator defers; if the server cannot resolve the worktree that way, the `diff -rq` check plus the second idempotent `agents-block.mjs` run is the evidence.
+- [ ] The refreshed files are LF in the bundle and the repository renormalizes to CRLF: commit what `git add` produces; never hand-convert line endings.
 - [ ] `scripts/Test-DocumentationLinks.ps1` and `scripts/Test-MarkdownPlacement.ps1` pass in the runner; CI `repository-check` green.
 - [ ] Merge SHA recorded and reachable from `origin/dev`.
 
