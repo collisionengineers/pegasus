@@ -293,7 +293,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 37**. A branch
+- **Deployed evidence:** the estate currently serves **release 38**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -311,6 +311,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 38 | 2026-09-02 | `0f0e90ae44ffda7339ca2a460310deeb98121afa` | `sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15` | `pegasus-prod-web-252ow37gij--0f0e90ae44ff` | none (head unchanged at `20260829212237_GrantProviderSubmissionAcceptRecovery`) |
   | 37 | 2026-08-30 | `0b3ec847aae42ee1c1bee4fb99459f9192534dca` | `sha256:47f57ea5031953ef93ccb09b2eb829b30d468647c96c0dc804310cc6f368595b` | `pegasus-prod-web-252ow37gij--0b3ec847aae4` | eleven, head `20260829212237_GrantProviderSubmissionAcceptRecovery` (`AiJobs`, `GrantAiJobs`, `PrincipalApiCredentials`, `GrantPrincipalApiCredentials`, `CaseEditLeaseHolderKind`, `ProviderSubmissions`, `GrantProviderSubmissions`, `NamedEstimates`, `ProviderDeclaredInstruction`, `CaseValuations`, `GrantProviderSubmissionAcceptRecovery`) |
   | 36 | 2026-08-28 | `84132d01ccb0afca7af6c6ce519e6f3491aee160` | `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032` | `pegasus-prod-web-252ow37gij--84132d01ccb0` | `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions` |
   | 35 | 2026-08-27 | `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f` | `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8` | `pegasus-prod-web-252ow37gij--3a1a017c8dea` | `20260827100901_ReactivateBoundApprovedMailboxes` (data-only, matched zero rows) |
@@ -350,6 +351,61 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 38** (2026-09-02, source
+    `0f0e90ae44ffda7339ca2a460310deeb98121afa`, image
+    `sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15`,
+    manifest SHA-256
+    `52E1A5AC23C2491594E79EA89740D9B5D826A3DD94258347DB91A16896F986AE`)
+    deployed the sparse-Graph-message polling repair, Inbox selected-preview
+    retention, and the version-five QDOS classification/reference evidence.
+    The authorised exact-SHA promotion advanced both `main` and `dev` from
+    `fb3f07acc8cca8d9d8b57db8a431b607772436dc` and the same candidate was read
+    back from both refs. The immutable Worker ZIP SHA-256 is
+    `1EF69DBEBF6BC3178E2688AF999A770319DD5ED1B3B341F0741CF9B463B83369`;
+    the `config-zip` deployment id is
+    `01ed553a-b6cd-4652-b043-72c88b9ca2e6`.
+
+    No migration, bootstrap, or other database write formed part of the
+    deployment. The migration head remained
+    `20260829212237_GrantProviderSubmissionAcceptRecovery`. The new Web
+    revision is Healthy and the sole active revision in Single mode with 100%
+    traffic on the manifest digest. An immediate read during normal Container
+    Apps replacement briefly observed release 37 as `Deprovisioning`; the
+    authoritative follow-up read showed only release 38 active. Production
+    smoke then passed live/ready health, exact version/source diagnostics,
+    HTTPS authentication redirection, Worker activation and function census,
+    the active Graph subscription, and Inbox polling liveness.
+
+    Before deployment, the release-37 Worker failed every five minutes on a
+    real Graph delta item that omitted `receivedDateTime`, leaving the newest
+    completed poll at 2026-09-01 08:35 UTC with
+    `invalid_mailbox_source`. After release 38, the 2026-09-02 12:50 UTC timer
+    completed successfully in 4.323 seconds, cleared `LastFailureCode`, and
+    advanced the cursor. The previously blocked emails then arrived in the
+    Inbox; this natural recovery is live evidence for the sparse-message fix,
+    without constructing or modifying an Outlook message. An authenticated UI
+    check also moved focus to retained-mail search and the pointer away from
+    the message rows; the same selected message stayed expanded and its preview
+    remained visible. The malformed-message branch and the QDOS classification
+    corpus remain local/artifact evidence rather than live-production cases.
+
+    **The sixth operator-approved test-data wipe** ran before promotion. The
+    dry run found 36 blobs (3,932,690 bytes), 70 non-preserved SQL tables and
+    147 rows. It validated all 31 preserve-list entries, with 32 effective
+    preserved tables, and recorded Case/Image/Unidentified sequences 31/7/1.
+    Execution removed all 36 blobs and all 147 non-preserved rows in a checked,
+    committed SQL transaction. Post-checks found zero blobs, zero wiped tables
+    retaining rows, 354 preserved rows, and unchanged sequences 31/7/1. The
+    authentication ring, box links, `pegtrans252ow37gij`, Outlook, Graph and Box
+    were untouched. The operator authenticated to the Web UI and confirmed the
+    wiped test round was absent. Emails subsequently released by the repaired
+    mailbox cursor are new post-wipe ingestion, not failed wipe residue.
+
+    Rollback retains release 37's digest
+    `sha256:47f57ea5031953ef93ccb09b2eb829b30d468647c96c0dc804310cc6f368595b`
+    and Worker artifact as the application basis; the database head is
+    unchanged and no down-migration is required.
 
   - **Release 37** (2026-08-30, source
     `0b3ec847aae42ee1c1bee4fb99459f9192534dca`, image
