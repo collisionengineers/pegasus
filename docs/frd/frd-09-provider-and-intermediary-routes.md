@@ -38,8 +38,9 @@ idempotency identities remain distinct per principal, and the provider client
 is the attributable action actor. Cross-principal query or result disclosure
 fails closed. The transport channel alone never changes extraction, instruction
 eligibility, or automatic allocation: a definitive provider-API instruction
-for its authenticated principal follows the same case-creation path as an
-equally definitive email instruction.
+for its authenticated principal follows the same new-Case creation policies as
+an equally definitive email instruction. API-01 is create-only, however; it
+never associates material with or mutates an existing Case.
 
 **Source limitation:** the accepted sources do not define an external tenant
 model, exact routes, headers, schema, attachment encoding, request limits,
@@ -137,6 +138,15 @@ HTTP already holds the fields, and states them.
   vehicle registration — are the only ones that withhold a reference; ordinary
   detail missing from a declaration leaves the case `Not ready`, exactly as it
   does for an e-mail.
+- **Existing-Case rejection.** Before allocating, Pegasus applies the
+  authenticated Principal's accepted case-match policy to the declared claim
+  number, vehicle registration, claimant and incident date. A unique or
+  ambiguous existing-Case outcome fails processing with
+  `provider_existing_case_match`: it allocates no Case/PO and performs no Case
+  association or mutation. With no match, ordinary API-01 creation continues.
+  Updating an existing Case over the Provider API is deferred and requires its
+  own authorised contract; it is not inferred from this submission route
+  (operator decision, 2026-09-02; [[AUTO-017]]).
 - **Pause.** A paused credential is refused for submission before Pegasus reads
   the request body (403, recorded) and still reads its own receipts and results;
   a revoked one is refused everywhere.

@@ -46,6 +46,57 @@ public sealed class EvaluateIntakeCaseMatch(
         }
 
         var keys = policy.ExtractMatchKeys(readResult);
+        return await EvaluateAsync(
+            route.WorkProviderCode,
+            policy,
+            keys,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies the provider's accepted normalization and the shared eliminator
+    /// to identity facts declared over the Provider API. This deliberately
+    /// reuses <see cref="IProviderCaseMatchPolicy.DeriveIndexKeys"/>: the API
+    /// does not acquire a second matching grammar merely because its facts did
+    /// not arrive inside an email.
+    /// </summary>
+    public async Task<CaseMatchEvaluationResult?> ExecuteDeclaredAsync(
+        string workProviderCode,
+        CaseMatchSourceData sourceData,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workProviderCode);
+        ArgumentNullException.ThrowIfNull(sourceData);
+        var policy = policies.SingleOrDefault(candidate =>
+            string.Equals(
+                candidate.WorkProviderCode,
+                workProviderCode,
+                StringComparison.Ordinal));
+        if (policy is null)
+        {
+            return null;
+        }
+
+        var indexKeys = policy.DeriveIndexKeys(sourceData);
+        var keys = new CaseMatchKeys(
+            indexKeys.DurableClaimToken,
+            indexKeys.NormalizedVrm,
+            indexKeys.NormalizedSurname,
+            indexKeys.NormalizedFirstInitial,
+            indexKeys.IncidentDate);
+        return await EvaluateAsync(
+            workProviderCode,
+            policy,
+            keys,
+            cancellationToken);
+    }
+
+    private async Task<CaseMatchEvaluationResult> EvaluateAsync(
+        string workProviderCode,
+        IProviderCaseMatchPolicy policy,
+        CaseMatchKeys keys,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(keys);
         if (!keys.HasAnyKey)
         {
@@ -61,7 +112,7 @@ public sealed class EvaluateIntakeCaseMatch(
         }
 
         var candidates = await candidateQueries.FindByAnyKeyAsync(
-            route.WorkProviderCode,
+            workProviderCode,
             keys,
             cancellationToken);
 
