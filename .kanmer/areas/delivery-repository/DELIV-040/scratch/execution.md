@@ -72,3 +72,21 @@ at READY_FOR_TESTS, so PR #643 still shows 25c14574 and needs one push before a 
 see this work. No second PR will be opened; the ticket stays in review with no backward move.
 
 Owed to the test-runner role at the new head: the four docs lanes. The implementer ran none.
+
+## Refresh onto the moved dev — 2026-09-02
+
+origin/dev advanced 9b8f78a3 to 2a48be04 (KANMER-010 skill trees plus two mail PRs), which is why
+the docs lanes at 357f143b misattributed dev-side changes to this branch. Refreshed with the merge
+rule, never a rebase: conflict-free, merge commit 8e8dd8b25567d26a45d29ab7dcc5c19b9848971b.
+
+dev had also edited docs/design/README.md and docs/frd/frd-08-email-mailbox-and-background-
+processing.md, so the auto-merge was checked both ways: dev new mail-preview wording is present in
+both merged files and this ticket D22 and D18 edits are still present.
+
+Scope re-verified against the new origin/dev: exactly the sixteen Expected docs files, added and
+deleted filters both empty, 16 files changed 345 insertions 120 deletions, capabilities arithmetic
+still 234/234 with 143+27+35+29=234, tree clean.
+
+Sent to the remote 25c14574..8e8dd8b2. PR #643 headRefOid is now
+8e8dd8b25567d26a45d29ab7dcc5c19b9848971b, state OPEN, base dev, mergeStateStatus CLEAN. No second
+PR, no stage move. Head for the lane rerun and the re-review: 8e8dd8b2.

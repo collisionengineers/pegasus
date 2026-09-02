@@ -19,7 +19,7 @@ Verified read-only from `origin/dev` at `fbf8ee40983ee30030b296d9e61274b238c80b0
 (`git show origin/dev:<path>`; the run's recorded `9b8f78a3…` has advanced, and every file
 below is identical on `origin/dev` and `origin/main`).
 
-Evidence: `files`@this ticket's `files` document; repository at
+Evidence: `files/files.md`@`273e1de3988712e5`; repository at
 `fbf8ee40983ee30030b296d9e61274b238c80b04`; measurement source run `33310451221` on PR #609
 as quoted in the ticket body and in the `ci.yml` `test-ui` comment.
 
@@ -156,8 +156,6 @@ corpora. Nothing in the job ever says "this ran out of time".
 - `scripts/Test-UiCatalogue.ps1`, `scripts/Invoke-TestShard.ps1`,
   `.github/actions/dotnet-build/action.yml`.
 - `docs/operator-notes.md` — never edited by an agent.
-- Every job in `.github/workflows/ci.yml` other than `test-ui`. `sql-integration` and
-  `browser` supply this plan's measurements; changing them invalidates the evidence.
 
 ## Constraints
 
@@ -182,6 +180,9 @@ corpora. Nothing in the job ever says "this ran out of time".
 - **Rule 24 condition.** `AGENTS.md` may be edited only if implementation changes a
   documented command name or switch. It should not. If it does, lines 168-174 are updated in
   the same PR and the deviation is reported.
+- **Only the `test-ui` job changes.** Within the one workflow file this plan may edit, no
+  other job is touched: `sql-integration` and `browser` supply this plan's measurements, so
+  editing either invalidates the evidence the change rests on.
 - **This agent's role runs no tests.** Build only, for compiler feedback. The capture, the
   verify, the perturbation injections and the catalogue check belong to the test runner.
 
@@ -274,6 +275,8 @@ corpora. Nothing in the job ever says "this ran out of time".
 - Negative cases: none.
 - Tests: none; `./scripts/Test-DocumentationLinks.ps1` runs in the `documentation` lane.
 - Commands: none beyond `git diff`.
+- Expected output: `git diff` shows one file changed, one sentence added, and no line
+  removed from either command block in that section.
 - Done when: the paragraph names the capture's split in one sentence and the section's
   commands are untouched.
 - Deviation stop: if the sentence cannot be added without restating a command, stop — that
