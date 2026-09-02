@@ -14,10 +14,11 @@ links:
   - INTK-028
   - INTK-032
   - CASE-014
+  - INTK-056
 docs_todo: true
 archived: false
 created: '2026-08-21T20:10:24.265Z'
-updated: '2026-08-21T23:30:55.367Z'
+updated: '2026-09-02T14:57:58.696Z'
 ---
 
 ## What
@@ -56,6 +57,25 @@ This raises the bar for this ticket in two ways:
   must say so rather than defaulting to either prefix. What happens then is
   [[INTK-032]]'s subject.
 
+## Operator direction, 2026-09-02 — build the corpus up
+
+> "this is related to the reports format. tpreportexample.pdf added to corpus
+> (this is one of many third party engineers — there should be a ticket to
+> build up an extraction corpus of these on kanmer). … This report uses a
+> 'Vehicle Details' table with: Status Repairable, Legal Status Roadworthy."
+
+This ticket is that corpus ticket. Two shapes are now on record:
+
+- `corpus/documentexamples/tpreportexample.pdf` — the reference third-party
+  report format the operator supplied (local, immutable; survey it in place).
+- The bodyshop report behind Unidentified U45 (2026-09-02, QDOS audit
+  REB//48099/1): a `Repairable Damage Assessment Report` whose Vehicle Details
+  table reads `Status  Repairable` / `Legal Status  Roadworthy`, and whose
+  vehicle-history block reads `Previous Cat N Total Loss`. The whole-document
+  literal scan read both outcomes and abstained; [[INTK-056]] is the bounded
+  rule fix, this ticket owns the per-issuer statement of *where* the outcome
+  lives so the next firm's layout does not repeat it.
+
 ## Why
 
 An audit instruction arrives with an original report written by a different
@@ -79,10 +99,13 @@ whatever firms are already recognised, instead of restarting the survey.
   sends them, take the non-instruction document attachment as the original
   report, and label each by issuing firm — from the report's own content
   (letterhead, footer, issuer block), never from the file name and never from
-  which principal forwarded it.
+  which principal forwarded it. Include `corpus/documentexamples/` alongside the
+  mailbox corpus.
 - Record, per issuer: the layout tells that identify it, which facts its reports
   carry (vehicle, registration, speedo, make/model, colour, VIN), where they sit,
-  **and how that issuer states Repairable versus Total Loss**.
+  **and how that issuer states Repairable versus Total Loss** — including
+  table-cell statements such as a Vehicle Details `Status` row, and the history
+  vocabulary (`Previous Cat N/S …`) that must *not* be read as the outcome.
 - Turn that into an issuer identification step in the intake extraction route
   that names the issuer on the extracted facts' provenance, and abstains rather
   than guessing when no issuer matches.
@@ -101,9 +124,10 @@ its rules, never corpus content or excerpts of it.
 
 - [ ] Corpus survey recorded in the ticket's research: audit instructions found,
       issuers identified, count per issuer, which principal each arrived via,
-      and which reports could not be attributed.
+      and which reports could not be attributed — `tpreportexample.pdf` and the
+      U45 report shape included.
 - [ ] The survey records, per issuer, how Repairable and Total Loss are stated,
-      including the wording each firm uses.
+      including the wording each firm uses and the history vocabulary excluded.
 - [ ] Extraction tests cover at least two distinct issuers' real layouts, plus
       an unattributable report that still extracts what it can.
 - [ ] The same issuer is recognised identically regardless of which principal
