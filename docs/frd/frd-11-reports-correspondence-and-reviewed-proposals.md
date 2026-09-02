@@ -68,18 +68,18 @@ there is no caller-selectable template or density setting. Core accepts an
 immutable, source-labelled snapshot, validates readiness and the selected
 engineer identity, computes the figures once, and selects one of the four
 outcomes. Infrastructure renders only that selection with the governed
-template, stylesheet, and logo. No signature resource is embedded in a rendered
-report (D18, 2026-09-01).
+template, stylesheet, logo, and signature resource.
 
-Any user in the `Engineer` role may issue a report (D18, 2026-09-01). The
-report renders the typed identity of the issuing Engineer only; a handwritten
-signature asset and a qualification string are not required and are not
-rendered. The supplied signature images remain governed assets but are
-inactive. The supplied assessment wording is still accepted only as exact
-approved wording: missing, unknown, mismatched, or substituted wording, keys,
-source versions, custody references, or required values fail closed. No custom
+The supplied assessment wording and named engineer/signature evidence are
+accepted only as exact matching tuples. The currently complete supplied tuple
+is `A Patterson | M.Inst.IAEA | andy_patterson`; the Ed Mawdsley and Neil
+O'Reilly signature images remain governed but cannot be selected until an
+accepted qualification completes that person's tuple. Missing, unknown,
+mismatched, or substituted names, qualifications, keys, assets, source
+versions, custody references, or required values fail closed. No custom
 signature path, arbitrary local attachment path, placeholder, or wording absent
-from the accepted evidence is permitted.
+from the accepted evidence is permitted. Signature-policy changes are deferred
+to `DOCS-017`.
 
 Generation remains deterministic, versioned, retained and review-gated, and
 generation, approval, issue, sending, external receipt and Case closure remain
@@ -152,9 +152,11 @@ Multiple global, versioned labour-rate cards exist as Administrator-managed
 configuration (id, name, non-paint hourly rate, enabled state, actor,
 timestamps); staff select one card for every new or amended estimate version,
 and a report version records the card version it used. Disabling a card blocks
-future selection without changing history. Imported provider versions and
-their printed totals stay immutable; an Engineer successor version selects a
-card and may become the accepted report version. No original-versus-assessed
+future selection without changing history. Normalized imported and manual
+estimates are directly editable under the ordinary expected-version and
+edit-lease rules. Their retained source artifacts and hashes remain immutable;
+every change records actor, time, reason and before/after values, and may move
+the estimate through Draft, Accepted and Current. No original-versus-assessed
 comparison figure and no savings figure exists, in the editor or on the
 report. A case whose current estimate version has no selected card names that
 card as the outstanding readiness reason; nothing is fabricated. The rate-card
@@ -241,7 +243,7 @@ creation.
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Assessment `Send to Claude` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 100 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Estimate | Assessment `Send to Claude` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 80 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
@@ -307,9 +309,10 @@ The labour-rate card prices non-paint labour only; paint labour, paint
 materials, parts and other costs are explicit amounts carried on the estimate
 version by whichever route supplied it, and are never derived from the card. No comparison figure between an imported provider version and
 an assessed version, and no savings figure, is computed or rendered (D17).
-Imported provider versions and their printed totals are immutable.
+Normalized provider and manual estimates are editable records; their retained
+raw source evidence and hashes are immutable. Every direct change follows the
+same lease, expected-version, attribution, reason, and history contract.
 
-The governed renderer signature assets are provenance-sensitive document
-assets, not Web decorative imagery. They are retained and governed but inactive:
-none is embedded in a rendered report, which carries the issuing Engineer's
-typed identity instead (D18, 2026-09-01).
+Signatures embedded in governed renderer documents are provenance-sensitive
+document assets, not Web decorative imagery. Signature-policy changes remain
+deferred to `DOCS-017`.

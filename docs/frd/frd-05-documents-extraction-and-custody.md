@@ -10,7 +10,11 @@ The intended intake boundary covers PDF, DOC, DOCX, EML, and MSG source material
 Pegasus must:
 
 - preserve source bytes before deriving content;
-- isolate parsing and enforce depth, count, size, decompression, relationship, and cancellation limits — the decided intake bounds are 100 MB per file and approximately 200 MB per multipart request (D20, 2026-09-01), while the Provider API envelope stays at 30 MB and is owned by [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary);
+- isolate parsing and enforce depth, count, size, decompression, relationship,
+  and cancellation limits — manual upload currently remains bounded at 10 MiB
+  per file; future intake bounds require the research and operator decision in
+  `INTK-052`, while the Provider API envelope stays at 30 MB and is owned by
+  [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary);
 - return structured text/images/provenance and explicit partial/unsupported/technical-failure outcomes;
 - retain extraction engine/package/version and policy provenance;
 - never execute macros, active content, external relationships, or embedded instructions;

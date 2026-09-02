@@ -93,7 +93,7 @@ dialog traps focus and inerts the page behind it.
 | --- | --- | --- |
 | `/` | Work Centre — needs-attention work and the metric strip | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md)) | — |
-| `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); a public link accepts one successful submission, an identical retry reconciles, and a later submission, revocation or expiry is refused without Case disclosure (D20) | — |
+| `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); first successful file acceptance starts a fixed non-sliding 15-minute add/replace session, closed by explicit finalisation or expiry (D20) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions | Queues (`/Triage`) |
 | `/Cases/{id}` | Case workspace | — |
 | `/Cases/{id}/Assessment` | Engineer assessment | — |
@@ -388,9 +388,10 @@ state as `Closed · <outcome>` in Search. The mapping is owned by
 
 ### Upload
 
-The decided intake bounds are 100 MB per file and approximately 200 MB per
-multipart request (D20, 2026-09-01); the Provider API envelope stays 30 MB and
-is owned by [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
+Manual upload currently remains bounded at 10 MiB per file. Future intake
+bounds require `INTK-052` research and an operator decision; the Provider API
+envelope stays 30 MB and is owned by
+[FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
 The authenticated staff `/Upload` route is available only where durable
 production intake and case custody exist; a production-local-only store is not
 an accepted custody path, and without durable custody the route is absent
@@ -480,11 +481,11 @@ current state and account.
 Authenticated Web and real-browser tests prove: every rail route and its
 count, both redirects, the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
-Assessment access rule, the tab limit and eviction, the keyboard map, axe
-accessibility, focus behaviour and no document overflow at 1580, 1100 and
-760px. The keyboard-map evidence records the Assessment whole-page drop as the
-one accepted pointer-only exception (D16) and proves that every other action on
-that page is keyboard-reachable. Snapshot and catalogue checks are owned by
+Assessment access rule, the tab limit and eviction, axe accessibility, focus
+behaviour and no document overflow at 1580, 1100 and 760px. The Assessment
+whole-page drop remains the one accepted pointer-only exception (D16); ordinary
+keyboard accessibility remains required for every other action on that page.
+Snapshot and catalogue checks are owned by
 [design § Test UI](../design/README.md#test-ui). Deployment and live
 acceptance remain separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
