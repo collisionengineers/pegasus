@@ -281,3 +281,77 @@ diff changes code, `n/a — docs-only` is not an available disposition.
 PR #641 retitled and re-footered at a green head, ticket moved implementing → review — stop
 for the independent reviewer. Do not merge, do not promote to `main`, do not start or take
 another ticket, do not dispatch.
+
+## Simplification pass (2026-09-02)
+
+Run by the implementer (attempt 1) over the real diff `gh pr diff 641` at head
+`c6842a8c3a36fe806a3103d067fef207d22651d3` (+72 / -3, 2 files). This section supersedes the
+"Not yet run" placeholder under the earlier `## Simplification pass` heading. Four lenses:
+reuse, simplification, efficiency, altitude. Nothing was applied — the plan defines any
+repository code change on this adoption as a deviation, so every finding below is recorded with
+its reason rather than fixed.
+
+### Reuse — 1 finding, not applied
+
+- **F1 (minor).** `ParseItem` now probes the same JSON property twice: `OptionalInstant(value,
+  "receivedDateTime")` (line 558) reaches `OptionalString` → `value.TryGetProperty(...)`
+  (line 577), and the new positional argument calls `value.TryGetProperty("receivedDateTime",
+  out _)` again (line 565). The two facts (parsed instant, raw presence) are a tri-state —
+  absent / unparseable / present-and-valid — encoded as two record members. A single helper
+  returning both, e.g. `(DateTimeOffset? Instant, bool Present) OptionalInstantWithPresence(...)`,
+  would state the tri-state once.
+  *Disposition: not applied.* It is a repository code change on an adoption whose expected diff
+  is zero; the duplicate probe costs one dictionary lookup on an already-materialised
+  `JsonElement` (see the efficiency lens); and the shared `OptionalInstant` / `OptionalString`
+  helpers have six other callers in the same file that the current form leaves untouched.
+  Revisit only if those parse helpers are refactored for an independent reason — not worth its
+  own ticket.
+- **No finding on the tests.** Both new facts reuse the existing `DelegateHandler`,
+  `FixedCredential`, `Response`, `Options()` and `Lease()` helpers already on
+  `ProductionGraphSourceTests`; no new test double, fixture or trait was introduced, and neither
+  assertion is weakened (the skip test pins the absence of a `/$value` request path and the exact
+  delta path of the returned cursor, not merely that nothing threw).
+
+### Simplification — 1 finding, judged neutral, not applied
+
+- **F2 (cosmetic).** The `if (item.ReceivedDateTimePresent) throw ...` nested inside
+  `if (item.ReceivedAtUtc is null)` (lines 637-649) could be flattened into two guard clauses.
+  *Disposition: not applied, and not recommended.* Flattening repeats the `is null` test and
+  splits the external-contract comment away from one of the two halves; the nested form keeps
+  Graph's "at least the updated properties" contract stated once, at the single decision point.
+  Behaviour is identical either way, so this is a wash rather than an improvement.
+
+### Efficiency — no finding
+
+Per delta item the diff adds exactly one `TryGetProperty` dictionary probe on an already-parsed
+`JsonElement` and one `bool` field in a record that was allocated anyway — negligible against the
+HTTP page read. The change is net-negative work: a skipped sparse item no longer performs its
+MIME `GET .../$value`, which is the expensive call on this path. The cursor arithmetic
+(`processed`, `consumed`, `pageCursor`, lines 630-671) is untouched, so no extra Graph round trip
+and no repeated page read.
+
+### Altitude — no finding, one confirmation
+
+The knowledge of Graph's sparse-delta contract stays inside the Graph adapter
+(`GraphApprovedInboxSource`), the only layer that holds it. `Pegasus.Core`'s
+`MailboxIntake.PollOneAsync` and the `IApprovedInboxSource` port are unchanged, so
+`LocalDurableApprovedInboxSource` is unaffected and no Core concept learned about Microsoft's
+wire format. The new skip sits immediately beside the existing `Removed` skip in the same loop —
+the same shape, no second classification mechanism — and the new message
+("Microsoft Graph returned an unparseable receivedDateTime.") matches the voice of its siblings
+in the same file. Correct altitude; nothing to raise or lower.
+
+### One correctness observation, recorded not fixed
+
+- **F3 (parked risk, not a defect against any Verification box).** `TryGetProperty` returns true
+  for an explicit JSON `"receivedDateTime": null`, so such a payload is classified as
+  present-but-unparseable and throws rather than being skipped. That is the desired reading only
+  if Graph never nulls the property: `receivedDateTime` is non-nullable in the Graph message
+  schema and a sparse delta representation omits properties rather than nulling them, and the
+  2026-09-01 incident payloads are not evidence either way (the pre-fix code threw for absent,
+  null and unparseable alike). *Disposition: not fixed here.* It is the same speculative class as
+  the two risks already parked in this ticket's `open-questions`, and widening the skip to
+  swallow an explicit null on speculation would weaken the negative case that the second new test
+  exists to pin. Recorded in `open-questions` under Parked and named in the post-implementation
+  report so the reviewer decides with it in view; reopens as a follow-up ticket if a mailbox
+  stalls with `InvalidDataException` on a payload whose `receivedDateTime` is literally `null`.
