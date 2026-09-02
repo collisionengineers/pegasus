@@ -1,13 +1,13 @@
 ---
 kind: review-attestation
 pr: "644"
-head_sha: "35667cb176baf31eceaa3eefa77ddb7ec3111ac8"
-verdict: needs-changes
+head_sha: "8116ac7b5545149670eb318708a2a4181bdba786"
+verdict: pass
 reviewer: "codex-review-agent-uiimp-013"
 independent: true
 plan_hash: "a0d5938e370f1a96"
-ticket_updated: "2026-09-02T14:53:07.044Z"
-board_sha: "bfcd88520df76064b54a03d1f9227f306f9c5f90"
+ticket_updated: "2026-09-02T17:27:52.030Z"
+board_sha: "ef4defd19a630e33d601d7297299b594d82c2857"
 expected_reviewers:
   - "codex-review-agent-uiimp-013"
 threads_snapshot: []
@@ -15,53 +15,56 @@ findings:
   - id: F-001
     severity: major
     summary: "Report the actual 35-minute snapshot-step timeout in the failure diagnostic."
-    disposition: open
+    disposition: fixed
 ---
 
-# Independent review — UIIMP-013
+# Independent delta review — UIIMP-013
 
 ## Scope reviewed
 
-Reviewed PR #644 at exact head
-`35667cb176baf31eceaa3eefa77ddb7ec3111ac8` against merge base
-`0f0e90ae44ffda7339ca2a460310deeb98121afa`, the complete ticket
-packet, EPIC-011 context, `docs/engineering.md`, `docs/design/README.md`,
-the affected test support, all PR checks, comments, reviews, and review
-threads. The expected reviewer set is settled by this attestation. There were
-no GitHub review threads or comments at gather time.
+This review is round 1 and is strictly limited to original finding F-001, the
+delta from attested head
+`35667cb176baf31eceaa3eefa77ddb7ec3111ac8` to current PR head
+`8116ac7b5545149670eb318708a2a4181bdba786`, the changed workflow line
+and its direct timeout contract, final-head checks, and newly settled review
+evidence. Unchanged implementation was not reopened.
 
-## Changes and acceptance checks
+The expected reviewer set is settled by this attestation. The PR had no
+comments, reviews, or review threads at the final gather.
 
-The implementation preserves the original 415-test selection as a disjoint
-119-browser/296-non-browser partition, retains the shared once-wiped capture
-directory, keeps the browser two-thread cap, lets non-browser capture inherit
-the four-thread project cap, and reuses the build after the first phase. The
-three exact-SHA performance runs passed at 22:42, 21:32, and 20:50. Final-head
-repository check 33641477638 passed every reported job, including Test UI.
+## Delta and acceptance checks
 
-The local canonical integration run remains inconclusive because LocalDB is
-unavailable. The unchanged stale-file and orphan assertions rely on retained
-negative-injection evidence from UIIMP-005. These are recorded residual test
-limits, not additional review findings.
+The remediation changes exactly one diagnostic string in
+`.github/workflows/ci.yml`: it now reports a 35-minute step budget, matching
+the adjacent `timeout-minutes: 35`. No timeout, trigger, capture behavior, test,
+snapshot, or other workflow lane changed. `git diff --check` passed.
+
+Repository-check run `33658537098` is green at exact head
+`8116ac7b5545149670eb318708a2a4181bdba786`. Every reported job passed,
+including Test UI, whose capture-and-verify step completed in 20:52.
 
 ## Findings
 
-### F-001 — open major
+### F-001 — fixed
 
-`.github/workflows/ci.yml:273` says the snapshot step may have exceeded a
-40-minute step budget, but the same diff sets that step's timeout to 35 minutes
-at line 268. A timeout therefore emits the diagnostic specifically at 35
-minutes while reporting a false limit. Update the diagnostic to name the
-actual 35-minute step budget (or avoid duplicating the number).
+The incomplete-run diagnostic and configured snapshot-step timeout now both
+name 35 minutes. The false 40-minute limit identified in round 0 is removed.
+
+No new finding was raised. There was no changed-line regression, new adverse
+evidence, or late reviewer finding that would justify expanding this delta
+review.
 
 ## Verdict
 
-Needs changes. F-001 violates the plan's requirement for honest incomplete-run
-failure language. No other correctness, security, performance, or meaningful
-maintainability defect was found.
+Pass. F-001 is fixed, the exact-head checks are green, and there is no open
+blocker or major finding.
 
 ## Residual risk
 
-Hosted Windows timing remains variable; the final safety run took 25:04, while
-the measured 35-minute step budget retained headroom. No implementation file
-was modified by this review.
+The previously recorded local LocalDB run remains inconclusive, and the
+unchanged stale/orphan assertions continue to rely on UIIMP-005's retained
+negative-injection evidence. Hosted Windows execution time remains variable,
+but the unchanged 35-minute step budget passed this final-head run.
+
+No implementation file was modified by this review. The PR was not merged and
+the ticket remains in Review pending merge authorization.
