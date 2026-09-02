@@ -76,5 +76,6 @@ UI catalogue all passed without retry.
 ## Traceability
 
 - PR: https://github.com/collisionengineers/pegasus/pull/644
+- Merged at: `2026-09-02T17:44:13Z`
 - Reviewed head: `8116ac7b5545149670eb318708a2a4181bdba786`
 - Merged SHA: `cad00be9d42dbeaee9edf34c2d24de222d7ddb9d`

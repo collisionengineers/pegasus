@@ -39,11 +39,13 @@ commits:
   - fa7d82ed95c7dc8a0b90f9d22db74118603def75
   - 35667cb176baf31eceaa3eefa77ddb7ec3111ac8
   - 8116ac7b5545149670eb318708a2a4181bdba786
+  - cad00be9d42dbeaee9edf34c2d24de222d7ddb9d
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/644'
+deployment: n/a
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T18:17:11.269Z'
+updated: '2026-09-02T18:36:44.583Z'
 ---
 
 ## What
@@ -86,4 +88,6 @@ Implemented in PR #644. Browser capture remains capped at two threads;
 non-browser capture inherits four; the second capture and verifier reuse the
 build; phase timings are explicit. The measured timeout formula reduced the
 snapshot step/job budgets to 35/40 minutes. Final-SHA repository check
-`33641477638` passed.
+`33641477638` passed. PR #644 merged to `dev` at
+`cad00be9d42dbeaee9edf34c2d24de222d7ddb9d`; exact-SHA verification passed
+and no follow-up ticket is required.
