@@ -14,7 +14,7 @@ progress notes; do not rewrite boxes.*
 - [x] Step 9 — D25 Triage: FRD-03, FRD-12 Triage detail and design README § Triage state the chronological merge of durable events with append-only attributable notes, corrections as new notes, no edit or delete, and a Files view of retained sources/attachments and linked vehicle images with no upload action.
 - [x] Step 10 — D26 direct Case creation: FRD-02 § Ways intake starts and FRD-12's Add/Create Case entries state the attributable instruction receipt followed by the normal principal and Case/PO allocation policy with no parallel allocation; `capabilities.md` `INT-26` records it as decided, not delivered.
 - [x] Step 11 — D19/D21/D27/D15: report-image curation (non-destructive, distinct Close-up first and Overview second, optional ordered supporting images, versioned attributable crop/order data, immutable issued snapshot) is in FRD-06, FRD-11 § Photographs and source evidence and FRD-12, and has left the UI-15 deferral in `capabilities.md`; exclusions read as absent not disabled in `boundaries.md`, `capabilities.md` (`EXT-13`, `ENG-01`) and the design README (§ Absent versus disabled seam row removed, § Removed surfaces, § Deferred integration surfaces); the 2,000-case tier-10 evidence is recorded as not run and never passing in `capabilities.md` `OPS-20`, `engineering.md` tier 10 and `boundaries.md`; the design README § Evidence discipline names the work-pack HTML as the canonical visual source.
-- [ ] Step 12 — D28 reset and the recount: FRD-04 (§ Staff role access matrix Administrator column, § Staff accounts), FRD-12 § Administration and the design README Accounts bullet describe the administrator-entered temporary password, existing policy and hashing, forced change, permanent record and never-emailed secret; `capabilities.md` has the new `ACC-10` row (`Now` / `0.1.0-alpha.1` / FRD-04 owner / decided 2026-09-01, `PLAT-064`, not delivered) and the allocation summary reads `Now` 143, total 234/234 recounted 2026-09-01, `0.1.0-alpha.1` 143.
+- [x] Step 12 — D28 reset and the recount: FRD-04 (§ Staff role access matrix Administrator column, § Staff accounts), FRD-12 § Administration and the design README Accounts bullet describe the administrator-entered temporary password, existing policy and hashing, forced change, permanent record and never-emailed secret; `capabilities.md` has the new `ACC-10` row (`Now` / `0.1.0-alpha.1` / FRD-04 owner / decided 2026-09-01, `PLAT-064`, not delivered) and the allocation summary reads `Now` 143, total 234/234 recounted 2026-09-01, `0.1.0-alpha.1` 143.
 - [x] No new Markdown file and no file outside the plan's Expected files: `git diff --name-only --diff-filter=A origin/dev...HEAD` prints nothing and `git diff --name-only origin/dev...HEAD` lists only the sixteen `docs/` files.
 - [x] No heading renamed anywhere except the one resolved-decision heading in Step 3 (cross-document anchors are not checked by the link script, so a rename breaks them silently).
 - [x] Every `docs/capabilities.md` row touched still states its real state — dated 2026-09-01, decided/allocated, never delivered — and the summary arithmetic is internally consistent.
@@ -70,3 +70,32 @@ Two blockers, both reported to the controller rather than worked around:
 
 The MCP tool name `pegasus_estimate_import` was checked for collision before use: no pre-existing
 use anywhere in `docs/` or `src/`.
+
+
+### 2026-09-02 — implementer attempt 1, controller round 2
+
+Both blockers cleared by the controller and the work committed.
+
+- Guard rule 8 corrected at 01:41Z; staging and committing from the worktree verified working.
+- Step 12 completed with the controller-assigned id: `ACC-15` (`Now` / `0.1.0-alpha.1` / FRD-04
+  § Staff role access matrix / decided 2026-09-01, `PLAT-064`, not delivered), inserted with the
+  other `Now` account rows. Allocation summary recounted to `Now` 143, total 234 capabilities and
+  234 unique IDs (mechanical recount 2026-09-01), `0.1.0-alpha.1` 143. Verified mechanically: 234
+  rows, 234 unique ids, and 143 + 27 + 35 + 29 = 234.
+- ASSUMPTION 4 accepted and ticked by the controller; the mail-freshness heading stays unchanged.
+
+Twelve commits on `task/deliv-040-governing-docs`, HEAD `25c14574a9e34c77e977f8a8eb203c2fe85dc13e`
+(`48cb2816`, `33811713`, `d0527096`, `d161ae1e`, `399f1ac8`, `4525afcc`, `436b38dc`, `4089599e`,
+`bd140c7c`, `e670d4fd`, `1441550f`, `25c14574`). Not pushed — READY_FOR_TESTS.
+
+Committed-state scope evidence, cwd the worktree:
+
+- `diff --name-only --diff-filter=A origin/dev...HEAD` → empty (no file added).
+- `diff --name-only --diff-filter=D origin/dev...HEAD` → empty (no file deleted).
+- `diff --name-only origin/dev...HEAD` → exactly the sixteen Expected `docs/` files.
+- `diff --stat origin/dev...HEAD` → 16 files changed, 333 insertions, 116 deletions.
+- `status --porcelain` → clean.
+
+Owed to the test-runner role: the CI `documentation` job's three steps plus the placement validator
+invoked directly with `-Base origin/dev -Head HEAD`, exactly as the plan's § Commands lists them.
+The implementer ran none of them and ran no build (docs-only).

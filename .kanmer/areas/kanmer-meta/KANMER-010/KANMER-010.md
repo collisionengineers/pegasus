@@ -26,10 +26,13 @@ labels:
 links:
   - KANMER-006
   - KANMER-009
+commits:
+  - 80a4f4022651d07929efb11509cf29770e7c2c59
+  - 93ec918efa151ecfcdf7a87774cecb5538d78d9f
 deployment: n/a
 archived: false
 created: '2026-09-01T14:40:45.085Z'
-updated: '2026-09-02T01:19:02.163Z'
+updated: '2026-09-02T02:01:00.757Z'
 ---
 
 ## What
