@@ -29,11 +29,17 @@ blocks:
   - PLAT-028
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
+commits:
+  - c0a55807b514193d929d485630fb03fcf06a0a7e
 prs:
   - '592'
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 41a17163b31a76c6e28307c7767cdceff3602950
+delivery_recorded_at: '2026-09-02T16:09:59.631Z'
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-09-01T14:44:16.656Z'
+updated: '2026-09-02T16:09:59.631Z'
 ---
 
 ## What

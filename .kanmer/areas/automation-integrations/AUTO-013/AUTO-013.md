@@ -21,10 +21,18 @@ groups:
 links:
   - TICK-058
   - AUTO-012
+commits:
+  - 2090104a2caecb5bd620c4d810afed4f0261134a
+prs:
+  - '634'
 deployment: production
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 8b6d41345ee3afd1d7a1eb875ed3416516d50375
+delivery_recorded_at: '2026-09-02T16:09:59.592Z'
 archived: false
 created: '2026-08-29T08:35:46.076Z'
-updated: '2026-09-01T14:44:16.343Z'
+updated: '2026-09-02T16:09:59.592Z'
 ---
 
 ## What

@@ -58,9 +58,13 @@ commits:
 prs:
   - '594'
 deployment: production
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 0d985c9e0b3284f211f824d387e2f36460c0c826
+delivery_recorded_at: '2026-09-02T16:09:59.686Z'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-09-01T14:44:16.645Z'
+updated: '2026-09-02T16:09:59.686Z'
 ---
 
 ## What
