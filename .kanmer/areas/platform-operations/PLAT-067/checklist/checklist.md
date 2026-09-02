@@ -6,7 +6,7 @@
 - [x] Execute the wipe and verify storage, SQL transaction, preserved state, sequences, untouched systems, and authenticated empty Web UI.
 - [x] Re-fetch and validate the exact Git candidate, ancestry, direct-commit waiver, PRs, and checks.
 - [x] Inventory live Azure state, migration head, and rollback position, accounting for any external deployment.
-- [ ] Obtain fresh literal MERGE AUTH GRANTED and atomically promote the frozen candidate with equality read-back.
+- [x] Obtain fresh literal MERGE AUTH GRANTED and atomically promote the frozen candidate with equality read-back.
 - [ ] Build and validate immutable release artifacts in an exact-SHA detached worktree.
 - [ ] Confirm the expected unchanged migration identity and absence of a database write.
 - [ ] Obtain exact manifest-bound Azure-write approval.
@@ -20,6 +20,8 @@
 - [ ] Verify merged main, write proof, and close out PLAT-067.
 
 ## Progress notes
+
+- 2026-09-02 promotion PASS: fresh literal MERGE AUTH GRANTED applied to exact SHA 0f0e90ae44ffda7339ca2a460310deeb98121afa; atomic push fast-forwarded main and lease-checked dev; both remote refs read back equal to the approved SHA.
 
 - 2026-09-02 dry run PASS (exit 0): 36 blobs / 3,932,690 bytes; 102 SQL tables; preserve list 31/31 with no missing tables; 32 effectively preserved tables; 70 tables targeted with 147 rows; sequence values Case 31, Image 7, Unidentified 1.
 - 2026-09-02 wipe PASS (exit 0): blobs remaining 0; SQL transaction committed 147 row deletions; wiped tables retaining rows 0; preserved rows 354; sequences unchanged at Case 31, Image 7, Unidentified 1; excluded systems untouched. Operator confirmed authenticated UI empty.
