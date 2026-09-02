@@ -8,7 +8,7 @@ project_id: b40b93fc-17b8-46f6-b7e1-db4d8977dea6  # logical identity, migrated b
 controller: claude-code/fable-5.1@PGUSER
 status: running
 created_at: 2026-09-01T21:50:00Z
-updated_at: 2026-09-02T01:35:00Z
+updated_at: 2026-09-02T01:50:00Z
 lane_limit: 3
 stop_reason:
 ---
@@ -78,10 +78,10 @@ stop_reason:
 
 | Order | Ticket | Observed stage | Gates / next action | Disposition | Worker | Branch / worktree | Attempt | Last action | Last result | PR | Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | KANMER-010 | preparing | chore: plan (planner dispatched) then take + implement; refresh to Kanmer 0.4.0 | active | pegasus-planner a1 | task/kanmer-010-setup-drift / ../pegasus-worktrees/kanmer-010-setup-drift (created from origin/dev 9b8f78a3, restored) | 1 | body rewritten to 0.4.0 facts; moved backlog → preparing 2026-09-02T00:55Z | — | — | 2026-09-02T01:00Z |
-| 2 | DELIV-040 | preparing | chore: plan (planner dispatched) then take + implement; governing docs for D15–D28; blocks ten feature tickets | active | pegasus-planner a1 | task/deliv-040-governing-docs / ../pegasus-worktrees/deliv-040-governing-docs (created from origin/dev 9b8f78a3) | 1 | moved backlog → preparing 2026-09-02T00:56Z | — | — | 2026-09-02T01:00Z |
-| 3 | MAIL-032 | preparing | adopt PR #640 (Phase 1): files + plan, then take with the re-homed branch | active (planning) | pegasus-planner a1 | task/mail-028-inbox-preview-pin / ../pegasus-worktrees/mail-028-inbox-preview-pin (re-homed 2026-09-02) | 0 | moved backlog → preparing 2026-09-02T01:00Z | — | #640 | 2026-09-02T01:00Z |
-| 4 | MAIL-033 | preparing | adopt PR #641 (Phase 1): files + plan, then take with the re-homed branch | active (planning) | pegasus-planner a1 | task/mail-029-graph-received-datetime / ../pegasus-worktrees/mail-029-graph-received-datetime (re-homed 2026-09-02) | 0 | moved backlog → preparing 2026-09-02T01:00Z | — | #641 | 2026-09-02T01:00Z |
+| 1 | KANMER-010 | implementing (taken 01:19Z) | plan written (planner a1 DONE); implementer at work → READY_FOR_TESTS → runner → PR_OPEN → review | active | pegasus-implementer a1 | task/kanmer-010-setup-drift / ../pegasus-worktrees/kanmer-010-setup-drift | 1 | taken 2026-09-02T01:19Z; implementer dispatched 01:25Z | planner DONE (AGENTS.md already 0.4.0 on dev; 13 files differ per tree) | — | 2026-09-02T01:50Z |
+| 2 | DELIV-040 | implementing (taken 01:40Z) | plan written (planner a1 DONE; three ASSUMPTION lines accepted by the controller and ticked); implementer at work | active | pegasus-implementer a1 | task/deliv-040-governing-docs / ../pegasus-worktrees/deliv-040-governing-docs | 1 | taken 2026-09-02T01:40Z; implementer dispatched 01:45Z | planner DONE | — | 2026-09-02T01:50Z |
+| 3 | MAIL-032 | implementing (taken 01:40Z) | adoption plan written (planner a1 DONE); waiting for a free lane (lane cap 3) | queued (taken) | — | task/mail-028-inbox-preview-pin / ../pegasus-worktrees/mail-028-inbox-preview-pin | 0 | taken 2026-09-02T01:40Z | planner DONE | #640 | 2026-09-02T01:50Z |
+| 4 | MAIL-033 | implementing (taken 01:40Z) | adoption plan written (planner a1 DONE); implementer at work (adopt #641, retitle, re-footer) | active | pegasus-implementer a1 | task/mail-029-graph-received-datetime / ../pegasus-worktrees/mail-029-graph-received-datetime | 1 | taken 2026-09-02T01:40Z; implementer dispatched 01:45Z | planner DONE | #641 | 2026-09-02T01:50Z |
 | 5 | PR-069 | preparing | fix: files + plan (planner dispatched), then take + implement at the escalated tier on its own branch | active (planning) | pegasus-planner a1 | task/pr-069-unidentified-link-reversal / ../pegasus-worktrees/pr-069-unidentified-link-reversal (cut from origin/dev 9b8f78a3, restored) | 0 | moved backlog → preparing 2026-09-02T01:10Z | — | — | 2026-09-02T01:35Z |
 | 6 | INTK-048 | implementing (taken, paused) | resumes after PR-069 merges: re-home `task/intk-048-unidentified-manual-link`, merge origin/dev, reopen a PR with only its scope (escalated tier); #639 closes when the successor merges | queued | — | task/intk-048-unidentified-manual-link / ../pegasus-worktrees/intk-048-unidentified-manual-link (to re-home) | 0 | scratch notes 2026-09-01 | — | #639 | 2026-09-02T01:35Z |
 
@@ -177,15 +177,31 @@ enter this table when a lane is assigned.
   into dev counts as at target for dispatch; local SQL/browser/test-ui lanes are evidenced by
   CI at the exact SHA (LocalDB absent on this workstation).
 
+- `2026-09-02T01:19:00Z` — KANMER-010 planner DONE (plan/checklist/files; corrections: AGENTS.md
+  already at the 0.4.0 block on dev, 13 files differ per tree, stale pr-*.md in both trees);
+  `take_ticket` KANMER-010 (branch task/kanmer-010-setup-drift, worktree
+  ../pegasus-worktrees/kanmer-010-setup-drift, lease 3d30ceda…); resumed packet ready;
+  `pegasus-implementer` a1 dispatched 01:25Z. Test plan written to
+  `runs/<run-id>/KANMER-010/tests/plan.yml`.
+- `2026-09-02T01:40:00Z` — planners DONE for DELIV-040, MAIL-033, MAIL-032. DELIV-040's three
+  ASSUMPTION lines (rate cards inside Workflow configuration; D28 as new row ACC-10; MCP tool
+  `pegasus_estimate_import`) accepted by the controller as non-binding decisions and ticked;
+  DELIV-040, MAIL-033 and MAIL-032 taken with their recorded branches/worktrees. Implementers
+  dispatched for DELIV-040 and MAIL-033 (01:45Z); MAIL-032 waits for a lane. Test plans written
+  for all three. Tooling: `tools/kanmer-call.sh` now accepts `@file` arguments (large writes);
+  a broken intermediate version (01:35–01:42Z) may have failed a worker's Kanmer calls — any
+  such failure is retried, not treated as board state.
+
 ## Resume instruction
 
 Re-read this record, the group context, current live ticket state, and each ticket's
 live gates before dispatching any new action. Reconcile the ledger; do not repeat a
 completed action solely because this run was interrupted. Kanmer access in a session
 without the MCP connection: `pegasus-work-pack/orchestration/claude/tools/kanmer-call.sh`.
-In flight at the last write: pegasus-planner attempts on KANMER-010, DELIV-040, MAIL-032,
-MAIL-033 and PR-069 (reports under `runs/20260901T215000Z-claude-controller/<ID>/planner-a1.md`).
-The groom is applied (event log 01:30Z). Next: take KANMER-010
+In flight at the last write: pegasus-implementer a1 on KANMER-010, DELIV-040 and MAIL-033 (each
+stops at READY_FOR_TESTS, then the controller runs `pegasus-test-runner` with
+`runs/<run-id>/<ID>/tests/plan.yml` and messages the result back for PR_OPEN); MAIL-032 taken and
+queued; pegasus-planner a1 on PR-069. Lane cap 3 plus one runner. Next: take KANMER-010
 and DELIV-040 with their recorded worktrees once their plans exist, implementer → test
 runner → reviewer (merges under the standing delegation) → verifier Part 1; then Phase 1
 (MAIL-032/#640, MAIL-033/#641, PR-069 then INTK-048 at the escalated tier); Phase 2
