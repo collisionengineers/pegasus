@@ -1,0 +1,1 @@
+Done audit (batch 2): verified_done. deployment:production present and consistent. The proof's own three-pass history (dev-merge / HELD for an inert ExternalWork record link / CLEARED after PR #628 fixed it on main) is confirmed accurate against origin/main today; a neighbour-file copy of the same defect class was correctly filed to CASE-027, not absorbed.
