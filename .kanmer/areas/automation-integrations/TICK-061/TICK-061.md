@@ -31,16 +31,17 @@ blocks:
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 commits:
-  - c0a55807b514193d929d485630fb03fcf06a0a7e
+  - 41a17163b31a76c6e28307c7767cdceff3602950
 prs:
-  - '592'
+  - 'https://github.com/collisionengineers/pegasus/pull/592'
+deployment: not-deployed
 delivery_state: integrated
 delivery_branch: dev
 delivery_sha: 41a17163b31a76c6e28307c7767cdceff3602950
 delivery_recorded_at: '2026-09-02T16:09:59.631Z'
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-09-02T17:37:46.398Z'
+updated: '2026-09-02T17:38:30.254Z'
 ---
 
 ## What
@@ -61,8 +62,8 @@ API-01 and API-03 need a real Principal-scoped machine identity. Administrators 
 
 ## Verification
 
-- [ ] Core, persistence, authentication, migration, and architecture plans/tests cover the complete lifecycle and fail-closed isolation.
-- [ ] No live credential is issued without separate exact-target approval.
+- [x] Core, persistence, authentication, migration, and architecture plans/tests cover the complete lifecycle and fail-closed isolation.
+- [x] No live credential was issued; live issuance remains subject to separate exact-target approval.
 
 ## Notes
 
@@ -70,3 +71,12 @@ API-01 and API-03 need a real Principal-scoped machine identity. Administrators 
 - Blocks API-01 and PLAT-028 through structured dependencies.
 
 ## Outcome
+
+- PR [#592](https://github.com/collisionengineers/pegasus/pull/592) merged to `dev`
+  at `41a17163b31a76c6e28307c7767cdceff3602950` on
+  2026-08-28T12:41:28Z.
+- Exact-SHA verification PASS on 2026-09-02. The retained first-run
+  ActivitySource failure was discharged as transient by a green unchanged-SHA
+  rerun, untouched-file census, and the documented process-wide listener race.
+- No live credential was issued or deployed.
+- Follow-on consumers remain [[TICK-058]] and [[PLAT-028]].
