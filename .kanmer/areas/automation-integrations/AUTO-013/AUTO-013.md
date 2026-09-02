@@ -24,6 +24,7 @@ links:
   - AUTO-012
 commits:
   - 2090104a2caecb5bd620c4d810afed4f0261134a
+  - 8b6d41345ee3afd1d7a1eb875ed3416516d50375
 prs:
   - '634'
 deployment: production
@@ -33,7 +34,7 @@ delivery_sha: 8b6d41345ee3afd1d7a1eb875ed3416516d50375
 delivery_recorded_at: '2026-09-02T16:09:59.592Z'
 archived: false
 created: '2026-08-29T08:35:46.076Z'
-updated: '2026-09-02T17:01:29.719Z'
+updated: '2026-09-02T17:02:08.699Z'
 ---
 
 ## What
@@ -115,3 +116,17 @@ window between enabling the flag and any provider actually calling.
 ## Notes
 
 - The other API-01 residual, the non-atomic accept path, is [[AUTO-012]].
+
+
+## Outcome
+
+Merged as [PR #634](https://github.com/collisionengineers/pegasus/pull/634)
+on 2026-08-29 at `8b6d41345ee3afd1d7a1eb875ed3416516d50375`.
+Exact-SHA verification passed on 2026-09-02: 2,483 non-corpus tests passed,
+3 corpus-dependent tests skipped, and none failed.
+
+The Provider API automatic path now records Work Provider from the authenticated
+credential binding, while staff correction does not claim that provenance. A
+paused credential is rejected before its request body is read. The missing EVA
+export regression pin remains explicitly deferred to [[DOCS-016]]; the
+existing-case matching policy question remains outside this ticket.
