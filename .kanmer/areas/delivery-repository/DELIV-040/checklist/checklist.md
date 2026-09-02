@@ -143,10 +143,10 @@ worktree, or start another ticket. The worktree and branch stay recorded and tak
 ## Closeout — DELIV-040
 
 - [x] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date appended)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove ../pegasus-worktrees/deliv-040-governing-docs`
-- [ ] `git branch -d task/deliv-040-governing-docs` (`-D` if required)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] cd out of worktree; `git worktree remove ../pegasus-worktrees/deliv-040-governing-docs`
+- [x] `git branch -d task/deliv-040-governing-docs` (`-D` if required)
+- [x] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
