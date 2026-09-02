@@ -292,11 +292,15 @@ actor, channel and outcome are recorded. Dropping the same artifact on the same
 Case again replays the existing Draft; a different artifact creates the next
 immutable Draft
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#canonical-repair-specifications)).
-The drop is pointer-only and is a documented narrow accessibility exception:
-every other route that produces a Draft — the MCP `pegasus_estimate_import`
-tool ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools))
-and manual line entry in the estimate editor — is keyboard-reachable, so no
-capability is pointer-only.
+The drop is pointer-only, and D16 records that as a narrow accepted
+accessibility exception rather than explaining it away: it is the only staff
+route to raw-artifact import, so a keyboard-only operator cannot perform this
+import. The same Core command is reachable without a pointer only through the
+MCP `pegasus_estimate_import` tool
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)),
+which is an automation boundary and not a staff keyboard route. Manual line
+entry in the estimate editor stays keyboard-reachable but is a different
+capability: it retains no source artifact, hash or parser provenance.
 
 ### Operations
 
@@ -359,10 +363,11 @@ finds Cases, references and routes by typing and opens the selection.
 
 A shortcut never bypasses a reason, confirmation or gate.
 
-One documented exception to keyboard parity exists: the Assessment whole-page
+One accepted exception to keyboard parity exists: the Assessment whole-page
 raw-estimate drop is pointer-only (D16). It is recorded here rather than left
-implicit, and it removes no capability from the keyboard — the same import is
-reachable through the MCP tool and the estimate editor.
+implicit, and it is a real gap — a keyboard-only operator cannot import a raw
+estimate artifact. Every other staff action on the Assessment page remains
+keyboard-reachable.
 
 ### Breakpoints
 
@@ -478,8 +483,8 @@ groups and filters, the Work Centre kinds against Core queries, the
 Assessment access rule, the tab limit and eviction, the keyboard map, axe
 accessibility, focus behaviour and no document overflow at 1580, 1100 and
 760px. The keyboard-map evidence records the Assessment whole-page drop as the
-one documented pointer-only exception (D16) and proves that the keyboard routes
-to the same import remain available. Snapshot and catalogue checks are owned by
+one accepted pointer-only exception (D16) and proves that every other action on
+that page is keyboard-reachable. Snapshot and catalogue checks are owned by
 [design § Test UI](../design/README.md#test-ui). Deployment and live
 acceptance remain separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

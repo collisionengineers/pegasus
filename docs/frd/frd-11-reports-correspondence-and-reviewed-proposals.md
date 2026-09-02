@@ -68,7 +68,8 @@ there is no caller-selectable template or density setting. Core accepts an
 immutable, source-labelled snapshot, validates readiness and the selected
 engineer identity, computes the figures once, and selects one of the four
 outcomes. Infrastructure renders only that selection with the governed
-template, stylesheet, logo, and signature resource.
+template, stylesheet, and logo. No signature resource is embedded in a rendered
+report (D18, 2026-09-01).
 
 Any user in the `Engineer` role may issue a report (D18, 2026-09-01). The
 report renders the typed identity of the issuing Engineer only; a handwritten
@@ -303,10 +304,12 @@ by `Pegasus.Core`:
 | Total | Subtotal + VAT |
 
 The labour-rate card prices non-paint labour only; paint labour, paint
-materials, parts and other costs are amounts entered on the estimate version,
-never derived. No comparison figure between an imported provider version and
+materials, parts and other costs are explicit amounts carried on the estimate
+version by whichever route supplied it, and are never derived from the card. No comparison figure between an imported provider version and
 an assessed version, and no savings figure, is computed or rendered (D17).
 Imported provider versions and their printed totals are immutable.
 
-Signatures embedded in governed renderer documents are provenance-sensitive
-document assets, not Web decorative imagery.
+The governed renderer signature assets are provenance-sensitive document
+assets, not Web decorative imagery. They are retained and governed but inactive:
+none is embedded in a rendered report, which carries the issuing Engineer's
+typed identity instead (D18, 2026-09-01).
