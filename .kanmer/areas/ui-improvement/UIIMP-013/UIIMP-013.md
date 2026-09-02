@@ -4,21 +4,23 @@ type: ticket
 title: The test-ui gate costs 50 minutes of every build-affecting PR
 status: implementing
 area: ui-improvement
-assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
+assignee: codex-root
 profile: chore
 stageEntered:
   preparing: '2026-09-02T03:09:00.895Z'
 taken_at: '2026-09-02T03:21:55.240Z'
 branch: task/uiimp-013-test-ui-cost
 worktree: ../pegasus-worktrees/uiimp-013-test-ui-cost
-claim_expires_at: '2026-09-02T03:51:55.240Z'
-claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
-lease_id: 11e0006c-506a-4d37-adc3-428d06b2e0a6
-lease_revision: 1
+claim_expires_at: '2026-09-02T13:21:14.356Z'
+claim_controller: codex-root
+lease_id: 1ae99c27-83ef-4d11-81a3-d6f25bc61fa4
+lease_revision: 2
 lease_workspace: >-
   worktree:c:\users\pguser\documents\github\pegasus-worktrees\uiimp-013-test-ui-cost
+lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T03:21:55.240Z'
+lease_heartbeat_at: '2026-09-02T12:51:14.356Z'
+lease_reclaimed_from: claude-code/20260901T215000Z-claude-controller/implementer-a1
 labels:
   - ci
   - performance
@@ -30,7 +32,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T03:21:55.240Z'
+updated: '2026-09-02T12:51:14.356Z'
 ---
 
 ## What
