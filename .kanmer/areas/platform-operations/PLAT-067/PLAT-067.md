@@ -2,10 +2,24 @@
 id: PLAT-067
 type: ticket
 title: Sterilize intake data and deploy release 38
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-root
 profile: chore
+taken_at: '2026-09-02T12:06:39.290Z'
+branch: task/plat-067-wipe-release-38
+worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/plat-067-wipe-release-38'
+claim_expires_at: '2026-09-02T12:36:39.290Z'
+claim_controller: codex-root
+lease_id: e74166af-f738-4d01-844d-9f13461f8311
+lease_revision: 1
+lease_controller_run: 20260902T120412Z-codex-root
+lease_worker_run: 20260902T120412Z-codex-root-execute-1
+lease_workspace: >-
+  worktree:c:\users\alex\documents\github\pegasus-worktrees\plat-067-wipe-release-38
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T12:06:39.290Z'
 labels:
   - production
   - release
@@ -17,7 +31,7 @@ links: []
 deployment: not-deployed
 archived: false
 created: '2026-09-02T11:55:45.210Z'
-updated: '2026-09-02T12:03:56.796Z'
+updated: '2026-09-02T12:06:39.290Z'
 ---
 
 ## What
