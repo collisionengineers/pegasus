@@ -32,11 +32,12 @@ refs:
   - docs/engineering.md
 commits:
   - fa7d82ed95c7dc8a0b90f9d22db74118603def75
+  - 35667cb176baf31eceaa3eefa77ddb7ec3111ac8
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/644'
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T13:17:08.819Z'
+updated: '2026-09-02T14:21:15.390Z'
 ---
 
 ## What
