@@ -5,16 +5,26 @@ title: API-01 — Principal-scoped provider submission API
 status: implementing
 area: automation-integrations
 order: 330
-assignee: claude-code
+assignee: codex-api03
 profile: feature
 stageEntered:
   preparing: '2026-08-21T14:20:03.598Z'
   review: '2026-08-28T11:31:30.687Z'
   implementing: '2026-08-28T16:58:50.515Z'
   verifying: '2026-08-29T20:56:01.802Z'
-taken_at: '2026-08-28T11:08:34.214Z'
-branch: task/tick-058-provider-submission-api
-worktree: ../pegasus-worktrees/tick-058-provider-submission-api
+taken_at: '2026-09-02T18:02:49.716Z'
+branch: TICK-058-verification-plan-remediation
+worktree: .worktrees/tick-058
+claim_expires_at: '2026-09-02T18:32:49.716Z'
+claim_controller: codex-api03
+lease_id: 52f7ffbd-c4b4-4d08-9b0a-ce5414b26f13
+lease_revision: 1
+lease_controller_run: 20260902T160919Z-codex-api03
+lease_worker_run: tick058-plan-remediation
+lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus\.worktrees\tick-058'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-02T18:02:49.716Z'
 labels:
   - capability
   - API-01
@@ -64,7 +74,7 @@ delivery_sha: 0d985c9e0b3284f211f824d387e2f36460c0c826
 delivery_recorded_at: '2026-09-02T16:09:59.686Z'
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-09-02T18:01:53.122Z'
+updated: '2026-09-02T18:02:49.716Z'
 ---
 
 ## What
