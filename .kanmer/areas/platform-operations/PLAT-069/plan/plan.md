@@ -1,17 +1,20 @@
-# Plan — PLAT-069 (2026-09-02, gpt-5.6-terra high)
+# Plan — PLAT-069 (2026-09-02, gpt-5.6-terra high; revised 2026-09-03 after plan review)
 
 ## Objective
 
 At `897db953`, remove the Operations Service health table and add the
-administrator-only D37 partial-data notice linking to Administration Service
-health. Do not create or alter the Administration page.
+administrator-only D37 partial-data notice. Do not create or alter the
+Administration page.
 
 ## Starting state
 
 `/Operations` currently renders the Service health table when
 `GetServiceHealth` is composed. `ServiceHealthSnapshot` has row states and
 `ExternalWorkLimitReached`, but no D37 predicate. `PLAT-051`'s destination
-`Pages/Administration/ServiceHealth/Index.cshtml` is absent.
+`Pages/Administration/ServiceHealth/Index.cshtml` is absent (verified:
+`ls src/Pegasus.Web/Pages/Administration/` lists Access, Accounts,
+Automation, Configuration, MailCategories, Mailboxes, Organizations,
+Principals, Roles, Shared only).
 
 The Test UI capture already includes `OperationsWebTests`; its composed-health
 fixture has a retryable external-work failure, producing a `Failed` health row.
@@ -24,32 +27,44 @@ capturable without changing a capture host.
    predicate deliberately excludes `Running`, `Configured`, and
    `ReviewRequired`, matching D37's mockup condition. It also excludes
    `ExternalWorkLimitReached`: that flag means the Operations projection is
-   truncated, not that a health query is stale or failed.
+   truncated, not that a health query is stale or failed. (Open question 1,
+   resolved by the controller 2026-09-03.)
 
-2. Keep `Operations.LimitReached` as a separate condition, but reduce its
-   notice to the `Partial data` label only. This is the smallest in-scope
-   correction to pre-existing explanatory copy while touching the notice
-   markup; do not merge its predicate into health state. The alternative is to
-   leave its sentence byte-for-byte as an explicitly accepted existing
-   violation.
+2. The Operations result-limit condition stays a separate notice, and its
+   explanatory sentence is removed so both notices are label-only. The two
+   notices must not read as the same line: the limit notice keeps the existing
+   `Partial data` label (it is the pre-existing name for that condition), and
+   the D37 health notice carries its own `Service health` label. (Open
+   question 2, resolved by the controller 2026-09-03.)
 
-3. PLAT-069 merges only after PLAT-051 has merged the Service health endpoint
-   to `origin/dev`. An `asp-page` link has no valid endpoint in this revision,
-   and the Administration rail itself omits future areas to avoid dead links.
-   The implementation uses
-   `asp-page="/Administration/ServiceHealth/Index"` once that page exists.
+3. PLAT-069 merges before PLAT-051. Because the Administration Service health
+   endpoint does not exist, the notice ships **without an anchor at all** —
+   absent, not dead, and not a disabled seam. This follows the established
+   `_AdminNav.cshtml` rule (future areas are omitted, "never as dead links")
+   and is a static omission, not a runtime endpoint probe. The link line is
+   added by the PR that creates the destination (PLAT-051, wave 4), which
+   adds one anchor to `Pages/Operations/Index.cshtml`; PLAT-069 is out of the
+   lane by then, so there is no capacity conflict. (Open question 3, resolved
+   by the controller 2026-09-03.)
+
+   Evidence for "no provisional link":
+   `tests/Pegasus.IntegrationTests/WorkCentreLabelTests.cs:50-66` (UIIMP-008)
+   records that an `asp-page` naming an unknown page renders `href=""`
+   silently — exactly the dead link the ticket forbids.
 
 ## Dependencies
 
-- **PLAT-051:** must provide
-  `src/Pegasus.Web/Pages/Administration/ServiceHealth/Index.cshtml` and its
-  working endpoint before PLAT-069 renders or verifies the link. Do not edit
-  that page or `Pages/Administration/Shared/_AdminNav.cshtml`.
+- **PLAT-051:** owns
+  `src/Pegasus.Web/Pages/Administration/ServiceHealth/**` and, when it lands,
+  adds the one Service health anchor to the Operations notice and its
+  live-link assertion. PLAT-069 does not edit that page or
+  `Pages/Administration/Shared/_AdminNav.cshtml`.
 - No migration is required; do not touch
   `src/Pegasus.Infrastructure/Persistence/Migrations/**`.
 - Do not alter governing documents or current-state documents; D37 is already
   recorded by DELIV-041, and deployment-state refresh remains DELIV-030's
-  responsibility.
+  responsibility. FRD-12's "links to Administration Service health" wording
+  describes the end state of the epic and is satisfied when PLAT-051 lands.
 
 ## Shared-path lease
 
@@ -67,23 +82,22 @@ shared-lock path.
 D37 requires Administration-only Service health and no Operations table.
 Notices contain labels and controls only: do not port "Some figures may be
 behind." or the existing limit-warning explanation. Visible labels belong only
-in `Presentation/OperatorLabels.cs`; preserve exact Core state labels. The
-notice link is a live control, not an inert or disabled seam. PLAT-051's absent
-destination is absent, not represented by a provisional link.
+in `Presentation/OperatorLabels.cs`; preserve exact Core state labels. An
+absent destination is absent: no provisional, empty or disabled link.
 
 ## Ordered steps
 
-1. **Confirm PLAT-051 and acquire the two shared-path leases.**
+1. **Refresh the lane and acquire the two shared-path leases.**
 
-   Verify the Administration Service health endpoint is present on refreshed
-   `origin/dev`; if it is absent, pause rather than rendering a dead link.
-   Record the two exact leases above.
+   `git merge --no-edit origin/dev`. Re-check
+   `src/Pegasus.Web/Pages/Administration/ServiceHealth/`: while it is absent
+   the notice ships without an anchor (assumption 3). Record the two exact
+   leases above.
 
    Files: none.
 
-   Reuses: the EPIC lane-refresh convention
-   `git merge --no-edit origin/dev` and the existing Administration rail's
-   no-dead-link rule.
+   Reuses: the EPIC lane-refresh convention `git merge --no-edit origin/dev`
+   and the Administration rail's existing no-dead-link rule.
 
 2. **Add the Core D37 notice predicate and focused boundary tests.**
 
@@ -96,75 +110,103 @@ destination is absent, not represented by a provisional link.
    `Partial`, `Failed`, the excluded `Running`/`Configured`/`ReviewRequired`
    states, and the ignored limit flag.
 
-   Reuses: `ServiceHealthPolicy`, `ServiceHealthSnapshot`,
-   `ServiceHealthState`, and the existing `Build(Sources)` test fixtures.
+   Reuses: `ServiceHealthPolicy` (ServiceHealth.cs:127),
+   `ServiceHealthSnapshot`, `ServiceHealthState`, and the existing
+   `Build(Sources)` fixture (`ServiceHealthTests.cs:232`).
 
 3. **Replace Operations table markup with the two compliant notices.**
 
    In `src/Pegasus.Web/Presentation/OperatorLabels.cs`, add the Operations
-   `Partial data` and `Service health` labels under one focused nested label
-   owner.
+   notice labels under one focused nested label class, following the
+   `OperatorLabels.AiJobs` / `OperatorLabels.EvaHandoffs` shape: the health
+   notice's `Service health` label and the limit notice's existing
+   `Partial data` label, so neither stays a Razor literal.
+
+   Retain `ServiceHealthAreaName`, `ServiceHealthServiceName`,
+   `ServiceHealthStateName` and `ServiceHealthDependencyName`: removing the
+   table leaves them without a caller until PLAT-051's Administration table,
+   which is their named next caller in this epic. Do not delete them in the
+   simplification pass; record the retention there.
 
    In `src/Pegasus.Web/Pages/Operations/Index.cshtml`, delete the entire
-   Service health panel and its table. Keep the optional snapshot loading
-   already supplied by `IndexModel`; no code-behind change is needed. Render
-   the warning only when the snapshot is present, the Core predicate is true,
-   and `User.IsInRole(StaffRoleNames.Administrator)` is true. Use the existing
-   warning icon and notice classes, with the Administration link generated by
-   `asp-page="/Administration/ServiceHealth/Index"`.
+   Service health panel (lines 149–187) and its table. Keep the optional
+   snapshot loading already supplied by `IndexModel`; **no `Index.cshtml.cs`
+   change is made**. Render the health warning only when the snapshot is
+   present, the Core predicate is true, and
+   `User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator)` is
+   true (`_Layout.cshtml:12` spelling). It is a one-line label-only notice
+   with no anchor while the destination is absent.
 
-   Retain a separate `LimitReached` notice, replacing its explanatory sentence
-   with the centralized `Partial data` label only.
+   Keep the separate `LimitReached` notice, deleting its explanatory sentence
+   ("— Showing recent operational results; refresh for the latest activity.")
+   and leaving the centralized `Partial data` label.
 
    Reuses: `.notice.notice--warning`, `#icon-alert-triangle`,
-   `User.IsInRole`, `asp-page`, `ServiceHealthPolicy`, and
-   `OperatorLabels`.
+   `User.IsInRole`, `ServiceHealthPolicy`, `OperatorLabels`.
 
 4. **Replace table-focused web assertions with D37 coverage.**
 
-   In `tests/Pegasus.IntegrationTests/OperationsWebTests.cs`, adapt the
-   composed-health test to prove the table and its columns/internal vocabulary
-   are absent; prove an Administrator with a failed row sees the label and a
-   resolved Service health link; prove a User-role request does not see that
-   notice or link. Request the resolved link as the Administrator to prove it
-   is not dead after PLAT-051.
+   In `tests/Pegasus.IntegrationTests/OperationsWebTests.cs`:
 
-   Keep retry coverage on Attention required, since it remains the canonical
-   action surface.
+   - Adapt
+     `ComposedServiceHealthRenamesInternalVocabularyAndRetriesThroughTheCanonicalCommand`
+     to prove the table, its column headers and its internal vocabulary are
+     absent, and that the Administrator sees the D37 label; keep its retry
+     coverage on Attention required, which remains the canonical action
+     surface.
+   - Prove the negative role cases for **both** non-Administrator staff roles
+     the acceptance condition names, as a `[Theory]` with
+     `X-Test-Roles: Engineer` and `X-Test-Roles: User`
+     (`IntakeWebTestSupport.cs:277-288`): neither sees the D37 notice.
+   - Assert the Operations response contains no `href=""`, following
+     `WorkCentreLabelTests.TheWorkCentreRendersNoEmptyLink`, so the dead-link
+     class cannot regress while the destination is absent.
+   - Make `RecordingOperationsStore`'s `LimitReached` configurable (it is
+     hard-coded `false` at `OperationsWebTests.cs:649`, so no web test
+     exercises the limit notice today) and add a combined-state test: with
+     the limit flag set and a `Failed` health row, the page renders two
+     separate one-line notices and neither carries the removed explanatory
+     sentence.
 
    Reuses: `Configure(..., withServiceHealth: true)`,
-   `RecordingOperationsStore`, `NoServiceHealthFacts`, `CreateClient`, and the
-   `X-Test-Roles` convention.
+   `RecordingOperationsStore`, `NoServiceHealthFacts`, `CreateClient`,
+   `GetHtmlAsync`, and the `X-Test-Roles` convention.
 
 5. **Add and generate the reachable Operations snapshot state.**
 
    Add an `operations--partial-data` state to
-   `docs/design/test-ui/catalogue.json`, backed by
-   `docs/design/test-ui/pages/operations--partial-data.html`. Add its
-   `StateMatches` marker in
-   `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`.
+   `docs/design/test-ui/catalogue.json` under the existing `/Operations`
+   entry, backed by `docs/design/test-ui/pages/operations--partial-data.html`.
+   Add its `StateMatches` marker in
+   `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs:19-53`; the marker
+   must be a string only that state renders, so `operations--default` (which
+   has no marker and takes the fallback branch) still matches its own capture.
 
-   Generate the snapshot using the composed-health web test captured by the
-   existing Test UI script. Commit only Operations snapshot files; do not touch
-   UIIMP-014's Case-record states.
+   The capture is the rewritten composed-health test, whose default identity
+   is Administrator and whose fixture yields a `Failed` row. Commit only
+   Operations snapshot files; do not touch UIIMP-014's Case-record states.
 
-   Reuses: the existing Operations catalogue entries,
-   `StateMatches`, `TestUiResponseCaptureMiddleware`, and
+   Reuses: the existing Operations catalogue entries (catalogue.json
+   lines 531–549), `StateMatches`, `TestUiResponseCaptureMiddleware`
+   (armed by `IntakeWebTestSupport.cs:174-176`), and
    `Update-TestUiSnapshots.ps1`.
 
 ## Acceptance conditions
 
 - `/Operations` contains no Service health table, heading, columns, or rows.
-- An Administrator sees one label-only partial-data notice with a working
-  Service health link when a health row is `Partial` or `Failed`.
-- Engineer/User requests do not see the D37 health notice or link.
+- An Administrator sees one label-only partial-data health notice when a
+  health row is `Partial` or `Failed`; it carries no anchor while
+  `Pages/Administration/ServiceHealth` is absent, and the page renders no
+  `href=""`.
+- Engineer and User requests do not see the D37 health notice.
 - `Running`, `Configured`, `ReviewRequired`, and the independent
   `ExternalWorkLimitReached` flag do not trigger the D37 predicate.
-- The independent limit warning remains separate and contains no explanatory
-  sentence.
+- The independent limit notice remains separate, is label-only, and contains
+  no explanatory sentence; both notices render together when both conditions
+  hold.
 - The new Operations snapshot state is captured, committed, and verified.
-- No Administration, migration, governing-document, shell, or unrelated
-  snapshot path changes.
+- No Administration, migration, governing-document, shell, code-behind, or
+  unrelated snapshot path changes.
 
 ## Commands
 
@@ -189,34 +231,42 @@ Stop when the scoped PR targeting `dev` is open and PLAT-069 is in Review.
   `897db953`; the checkout was clean afterwards.
 - VERIFIED — `tests/Pegasus.IntegrationTests/WorkCentreLabelTests.cs:50-66`
   (UIIMP-008): in this app an `asp-page` that names an unknown page renders
-  `href=""`; it does not throw. Merging before PLAT-051 would therefore ship
-  exactly the dead link the ticket forbids, which settles planning
-  assumption 3 on repository evidence. Step 4 should also assert the
-  Operations response contains no `href=""` (the
-  `TheWorkCentreRendersNoEmptyLink` pattern) so the class cannot regress.
-- VERIFIED — `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs:281-288`:
+  `href=""`; it does not throw. This is why the notice ships anchorless.
+- VERIFIED — `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs:277-288`:
   the test identity is `Administrator` unless `X-Test-Roles` (or
-  `X-Test-Roleless`) is sent, so the User-role case in step 4 sends
-  `X-Test-Roles: User`.
+  `X-Test-Roleless`) is sent.
 - VERIFIED — `src/Pegasus.Core/Operations/ServiceHealth.cs:271-285` and
   `OperationsWebTests.cs:646`: the composed fixture's retryable failed
   external-work item yields a `Failed` row, so the rewritten composed test
-  renders the notice and is the capture that feeds the new snapshot state
-  (`TestUiResponseCaptureMiddleware`, `TestUiSnapshotTests.StateMatches`).
+  renders the notice and is the capture that feeds the new snapshot state.
 - VERIFIED — `.kanmer/data/board.yml`: profile `fix` gates leave-preparing
   on `files` + `plan` and enter-done on `proof`; the checklist is written
   for execution, not for a gate.
-- The step-3 role check uses the established spelling
-  `User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator)`
-  (`_Layout.cshtml:12`).
-- The simplification pass (CLAUDE.md workflow step 4) is added to the
-  checklist; its dated "Simplification pass" heading is appended to this
-  plan at execution time.
-- The three operator questions stay open in `open-questions/`; the plan's
-  defaults are recorded there beside each question.
+- The simplification pass (CLAUDE.md workflow step 4) is on the checklist;
+  its dated "Simplification pass" heading is appended to this plan at
+  execution time.
 
 ## Resolutions (2026-09-03)
 
 - Controller: the notice shows for Partial or Failed only.
-- Controller: one label-only notice line each; the limit warning's hint sentence is removed.
-- Controller: PLAT-069 may merge before PLAT-051; the Administration link is absent until `Pages/Administration/ServiceHealth` exists.
+- Controller: one label-only notice line each; the limit warning's hint
+  sentence is removed.
+- Controller: PLAT-069 may merge before PLAT-051; the Administration link is
+  absent until `Pages/Administration/ServiceHealth` exists.
+
+## Plan review (2026-09-03, gpt-5.6-sol xhigh; dispositions Claude Opus)
+
+Reviewer verdict: REQUEST CHANGES. All four findings are dispositioned below;
+a fifth was raised by the dispositioning wrapper. The reviewer confirmed every
+named reuse exists, that the file set is disjoint from the ENG-034, CASE-039,
+CASE-040, CASE-041, CASE-029, CASE-042 and CASE-009 lanes, and that nothing in
+the plan assumes a staff review flag (D44) or a damage type (D45); D46 is out
+of scope.
+
+| # | Severity | Step | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | 1, 3–5, acceptance | The plan body still required PLAT-051 to merge first and mandated a live `asp-page` link, contradicting the resolved open question 3 appended below it; step 1 would have paused execution immediately. | Fixed. Assumption 3, Dependencies, Governing rules, steps 1 and 3 and the acceptance conditions are rewritten: PLAT-069 ships the notice anchorless and PLAT-051 adds the link with its destination. The reviewer's suggested mechanism — render the anchor only when `Url.Page(...)` is non-empty — is rejected: a runtime endpoint probe is a disabled seam and a speculative conditional whose live branch no test in this PR can cover, where the repository's own convention (`_AdminNav.cshtml`: future areas omitted, "never as dead links") is a static omission. The `no href=""` assertion the reviewer asked for is adopted in step 4. |
+| 2 | should-fix | 4 | Only the `User` role was tested although the acceptance condition names Engineer and User. | Fixed — step 4 specifies a `[Theory]` over `X-Test-Roles: Engineer` and `X-Test-Roles: User`. |
+| 3 | should-fix | 4 | The resolved two-notice behaviour is untested: `RecordingOperationsStore` hard-codes `LimitReached: false` (`OperationsWebTests.cs:649`, confirmed by grep), so no web test exercises the limit notice or the removal of its sentence. | Fixed — step 4 makes the flag configurable and adds the combined-state test; the acceptance conditions name the both-conditions case. |
+| 4 | nit | files inventory | `files.md` listed `Index.cshtml.cs` as "change (if needed)" while the plan says no code-behind change. | Fixed — `files.md` marks it unchanged, and step 3 plus the acceptance conditions state it explicitly. |
+| 5 | should-fix (wrapper) | 3 | Deleting the table leaves `ServiceHealthAreaName`, `ServiceHealthServiceName`, `ServiceHealthStateName` and `ServiceHealthDependencyName` in `OperatorLabels.cs` with no caller anywhere in the solution (verified by grep). | Fixed as an explicit retention: step 3 keeps them for PLAT-051's Administration table — their named next caller in this epic — and tells the simplification pass to record the retention rather than delete them. |
