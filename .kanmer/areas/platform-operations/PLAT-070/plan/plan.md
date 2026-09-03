@@ -487,3 +487,44 @@ just precisely instead of over-broadly).
 Post-pass verification: `dotnet build` (0 errors), `Pegasus.Core.Tests`
 (1182/1182), `Pegasus.ArchitectureTests` (100/100) all green on the rebuilt
 tree.
+
+## Review response (2026-09-03, gpt-5.6-sol medium under a Sonnet wrapper)
+
+Applied review findings 1-7 from `reference/reference.md` (findings 1 and 2 were
+red CI on this branch's own tests and blocked the merge on their own; 3-7 were
+in owned paths). Findings 8 and 9 stay deferred to [[PLAT-072]] and finding 10
+stays rejected — none of those three were this pass's job.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema`'s exact migration list was missing this branch's own migration. | fixed — appended `"20260903153134_RemoveStaffReviewFlags"` after `"20260829212237_GrantProviderSubmissionAcceptRecovery"`. |
+| 2 | `CaseDataCompletenessPersistenceTests.AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues` asserted the stale `NotReady`/`SatisfiesPolicy=false` outcome for a case with complete instruction and images. | fixed — asserts `CaseLifecycleState.Review` and `SatisfiesPolicy=true` deliberately; this is the ticket's own acceptance-condition proof, not a weakening. |
+| 3 | `CaseMutationPageModel.RetainableFormFields`/`BooleanFormFields` still retained `instructionConfirmedByStaff`/`imagesConfirmedByStaff`, so a refused mutation re-rendered two review-shaped rows outside `OperatorLabels`. | fixed — both names removed from both frozen sets; the hidden pass-through inputs themselves are untouched. |
+| 4 | `CaseCompleteness.IsReadyForReview` and `CaseCompletenessPolicy.EvaluateAcceptanceCommand` duplicated the same completeness expression with no test holding them together. | fixed — `EvaluateAcceptanceCommand` now computes `satisfiesPolicy` via `completeness.IsReadyForReview(automaticallyDefinitive)`; one Core owner, no duplicate rule. |
+| 5 | Deleting the Configuration page's save form also deleted `EfWorkflowConfigurationStore`'s only integration proof (versioning/replay/conflict/audit), while the store and `UpdateWorkflowConfiguration` stay live for PLAT-062. | fixed — added `WorkflowConfigurationUpdateIsVersionedAuditedAndReplaySafe` back to `AdministrationPolicyPersistenceTests.cs`, adapted to the reduced 4-arg `UpdateWorkflowConfigurationRequest`, proving the version bump, replay safety, the stale-version conflict, and exactly one `ActionHistory` row. The new read-only identity test is kept unchanged alongside it. |
+| 6 | The completeness-preservation assertion in `ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory` seeded both `*ConfirmedByStaff` values `false` and confirmed with the same `false` values, so `Assert.Equal(false, false)` could not detect a regression. | fixed — `CaseDataHarness.CreateAsync` gained optional `instructionConfirmedByStaff`/`imagesConfirmedByStaff` parameters (default `false`, every other call site unaffected); this test now seeds both `true` and the unchanged preservation assertions are a real proof. |
+| 7 | `Configuration.cshtml`'s `TempData["AdministrationStatus"]` success-notice block had no producer left after the Save handler was removed. | fixed — the unreachable `@if` block deleted; confirmed no matching `TempData["AdministrationStatus"] = ...` assignment exists in `Configuration.cshtml.cs` (the page never set it). |
+
+Verification after the fixes: `dotnet restore --locked-mode` (0),
+`dotnet build --configuration Release --no-restore` (0 warnings/errors),
+`dotnet test --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+run in full this time (Pegasus.Core.Tests 1182/1182, Pegasus.ArchitectureTests
+100/100, Pegasus.IntegrationTests 1106/1108 passed + 2 pre-existing skips, 0
+failed), `Update-TestUiSnapshots.ps1` full capture/update cycle (one real diff:
+`administration-configuration--default.html` loses the same now-dead notice
+block finding 7 removed from the Razor; every other reported-modified snapshot
+was a CRLF/LF normalization no-op, reverted), `Update-TestUiSnapshots.ps1
+-Verify -SkipCapture` (0), `Test-UiCatalogue.ps1` (0, 54 routed sources / 58
+prototypes / 0 broken references), `Test-MigrationGrants.ps1` (0, 88 migration
+files checked — this pass added no migration).
+
+### Decision needed outside this ticket (not actioned here)
+
+The `documentation` CI lane is red for a reason unrelated to PLAT-070:
+`.opencode/skills/kanmer-setup/SKILL.md` links to a non-existent
+`docs/manual/greenfield.md` on `dev` itself (confirmed identical on
+`origin/dev` — not this branch's regression), which will fail every PR in
+EPIC-012 until it is fixed. That fix is outside PLAT-070's owned paths and is
+not made here; whether it becomes a separate chore ticket or an administrator
+push straight to `dev` is a call for the controller/administrator, not this
+pass.
