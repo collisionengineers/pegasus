@@ -13,6 +13,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
+using Labels = Pegasus.Web.Presentation.OperatorLabels;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -48,32 +49,61 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The gallery entries for each associated Image-initiated Case, loaded
-    /// only when the Evidence tab is the one being rendered.
+    /// only when the Files section's body is being rendered.
     /// </summary>
     public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     /// <summary>
-    /// Which section of the case workspace is open.
+    /// Which section of the Case record the request addresses.
     /// </summary>
     /// <remarks>
-    /// The sections are alternatives, not a reading order, so they are one
-    /// query-selectable surface rather than panels stacked down the page. The
-    /// section is in the query string and the panels are server-rendered, so
-    /// the screen works with no script and every section is linkable.
+    /// The record is one scrolling page (D29), so the section is a jump
+    /// target rather than an alternative: it is rendered server-side on the
+    /// first response and the jump-nav scrolls to it. The vocabulary is the
+    /// eleven keys of <see cref="Labels.CaseWorkspace.Sections"/>; a value
+    /// the record does not own selects Overview.
     /// </remarks>
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? SectionFilter { get; set; }
 
-    public string Section => SectionFilter?.ToLowerInvariant() switch
+    public string Section => NormalizeSection(SectionFilter);
+
+    private static string NormalizeSection(string? value)
     {
-        "vehicle" => "vehicle",
-        "valuations" => "valuations",
-        "inspection-address" => "inspection-address",
-        "case-files" => "case-files",
-        "notes" => "notes",
-        _ => "overview"
-    };
+        var key = value?.Trim().ToLowerInvariant();
+        return Labels.CaseWorkspace.Sections.Any(section =>
+            string.Equals(section.Key, key, StringComparison.Ordinal))
+            ? key!
+            : Labels.CaseWorkspace.DefaultSectionKey;
+    }
+
+    /// <summary>
+    /// The sections whose body is fetched as a fragment when it approaches the
+    /// viewport, and the view that renders each. Only sections that have a
+    /// body below the fold are here: the first three are always rendered, and
+    /// a section whose body its owning lane has not built yet is a heading the
+    /// frame renders itself.
+    /// </summary>
+    private static readonly Dictionary<string, string> LazySectionViews =
+        new(StringComparer.Ordinal)
+        {
+            ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
+            ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
+            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
+        };
+
+    /// <summary>
+    /// Whether <paramref name="key"/> is fetched rather than rendered with the
+    /// first response. The addressed section is always rendered, so
+    /// <c>?section=</c> works over plain HTTP; while the viewer holds the edit
+    /// lease nothing is deferred at all, so unsaved input can never be
+    /// replaced by a mounting body.
+    /// </summary>
+    public bool SectionIsDeferred(string key) =>
+        LeaseToken is null
+        && !string.Equals(key, Section, StringComparison.Ordinal)
+        && LazySectionViews.ContainsKey(key);
 
     /// <summary>
     /// Whether the case has been exported as an EVA bundle at least once,
@@ -152,7 +182,12 @@ public sealed partial class DetailsModel(
 
     public CaseDetails? Case { get; private set; }
 
-    public bool CanOpenAssessment { get; private set; }
+    /// <summary>
+    /// Whether the Engineer sections are read-only: the one Core access rule
+    /// (Complete only). The record has no Open Assessment action and no
+    /// section visibility gate (D30).
+    /// </summary>
+    public bool AssessmentIsReadOnly { get; private set; }
 
     /// <summary>
     /// The values a refused editor submitted, held for comparison against the values the case now
@@ -197,29 +232,24 @@ public sealed partial class DetailsModel(
             {
                 return NotFound();
             }
-            CanOpenAssessment = (await getAssessmentAccess.ExecuteAsync(
+            AssessmentIsReadOnly = (await getAssessmentAccess.ExecuteAsync(
                 new(id, actor),
-                cancellationToken))?.CanOpen == true;
-            ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
-            EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
-            if (Section == "case-files")
-            {
-                var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
-                foreach (var intake in ImageIntakes)
-                {
-                    imagesByIntake[intake.Id] = await imageIntakeQueries.ListImagesAsync(
-                        intake.Id,
-                        cancellationToken);
-                }
-                ImagesByIntake = imagesByIntake;
-            }
-            await DescribeWorkspaceExtrasAsync(cancellationToken);
+                cancellationToken))?.IsReadOnly == true;
+            // The lease decides how much of the record is rendered now, so it is
+            // restored before the section-specific loads are chosen.
             RestoreLeaseState(id, actor, Case.ActiveEditLease);
             if (LeaseToken is not null)
             {
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
+            ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
+            EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
+            if (!SectionIsDeferred("files"))
+            {
+                await LoadIntakeGalleriesAsync(cancellationToken);
+            }
+            await DescribeWorkspaceExtrasAsync(cancellationToken);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
             ManualChaseAttemptedAtUtc = timeProvider.GetUtcNow();
@@ -232,6 +262,69 @@ public sealed partial class DetailsModel(
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             return Page();
         }
+    }
+
+    /// <summary>
+    /// One Case section's body, for the frame's lazy mount. It runs the same
+    /// authorized load, lease restoration and section-specific supplemental
+    /// query as the full GET and returns only the named body, so a mounted
+    /// section carries the same lease token and version the page holds.
+    /// </summary>
+    public async Task<IActionResult> OnGetSectionAsync(
+        Guid id,
+        string? section,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (id == Guid.Empty)
+        {
+            return NotFound();
+        }
+
+        var key = NormalizeSection(section);
+        if (!LazySectionViews.TryGetValue(key, out var view))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            Case = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+            if (Case is null)
+            {
+                return NotFound();
+            }
+            SectionFilter = key;
+            RestoreLeaseState(id, actor, Case.ActiveEditLease);
+            ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
+            EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
+            if (key == "files")
+            {
+                await LoadIntakeGalleriesAsync(cancellationToken);
+            }
+            await DescribeWorkspaceExtrasAsync(cancellationToken);
+            return Partial(view, this);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseDetailsQueryFailed(logger, id, exception);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+
+    private async Task LoadIntakeGalleriesAsync(CancellationToken cancellationToken)
+    {
+        var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+        foreach (var intake in ImageIntakes)
+        {
+            imagesByIntake[intake.Id] = await imageIntakeQueries.ListImagesAsync(
+                intake.Id,
+                cancellationToken);
+        }
+        ImagesByIntake = imagesByIntake;
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(

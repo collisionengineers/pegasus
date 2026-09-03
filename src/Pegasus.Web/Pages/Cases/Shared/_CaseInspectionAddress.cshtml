@@ -68,12 +68,13 @@
                    operator types is followed by the case's current values for
                    the rest; the binder reads the first entry for a repeated
                    name, so the typed address wins. *@
-                @* `case-edit-form` / `data-edit-save` are the ids the sticky edit
-                   bar's Save and site.js's Ctrl+S already bind to. Only one
-                   section renders an edit form at a time, so this is the same
-                   single form under a second section, not a second one. *@
+                @* CASE-038: the record renders every section at once, so this
+                   form carries its own id and is not the sticky bar's Save
+                   target — `case-edit-form` / `data-edit-save` belong to the
+                   Overview form alone. It posts to the same Details `Save`
+                   handler with the same lease token and version. *@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
-                      asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save class="stack">
+                      asp-route-id="@workflow.CaseId" id="case-inspection-address-form" class="stack">
                     <input type="hidden" name="id" value="@workflow.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
