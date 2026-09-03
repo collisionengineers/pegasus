@@ -387,3 +387,51 @@ canonical `dotnet test ... --filter "Category!=Corpus"` was re-run (Core 1200, A
 Integration 1227 passed/2 skipped, 0 failed, exit 0 — see post-implementation report) with the fix in
 place. No assertion was weakened. `git diff --check origin/dev` reported only line-ending notices, no
 whitespace errors. Only files inside the ENG-035 owned-path list were touched by the pass.
+
+## Review disposition (2026-09-03) — PR #648 CI/review findings
+
+Two findings came back from PR #648's review. Both are dispositioned as
+**reasoned rejection / defer — no ENG-035 code change**; the branch's own
+diff is unchanged (`git status` clean, verified after this pass).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | The `documentation` repository-check is red on a broken relative link — `.opencode/skills/kanmer-setup/SKILL.md:169` links `../../../../docs/manual/greenfield.md`, which does not resolve to any file. | **Rejected for ENG-035, tracked separately.** Confirmed pre-existing on `origin/dev`: `git log --oneline origin/dev..HEAD -- .opencode/skills/kanmer-setup/SKILL.md` is empty (no commit on this branch touches the file), and the line was introduced by `c5c7a874` ("chore(kanmer): add OpenCode skills and localize provider config"), which `git merge-base --is-ancestor c5c7a874 origin/dev` confirms is already an ancestor of `origin/dev`. The file is not in this ticket's Expected files table or its "must not touch" table — it is simply outside ENG-035's owned paths (a Kanmer/OpenCode tooling skill doc, not an engineering-assessment file). Per CLAUDE.md rule 1 ("scope is the brief") and the repository task workflow ("touch only the owned paths — a needed change outside them is reported as a dependency, not made"), ENG-035 does not fix it. Filed as its own ticket, [[KANMER-011]] ("Fix broken greenfield.md link in kanmer-setup SKILL.md"), linked from ENG-035, so it is not lost. |
+| 2 | Confirmed correctness defect: `AssessmentPolicy.NormalizeValue` (`AssessmentFieldType.Date` case) and `AssessmentReportProjection.ParseDate` both use the culture-sensitive `DateOnly.TryParseExact(value, "yyyy-MM-dd", out var date)` overload (resolves against `CultureInfo.CurrentCulture`), so a canonical `yyyy-MM-dd` value can misparse under a non-Gregorian default calendar. | **Deferred, not fixed in ENG-035.** Pre-existing on `dev`; this ticket's own four new `Date` paths (`vehicle.tax_expiry`, `vehicle.mot_expiry`, `settlement.hire_start`, `settlement.salvage.settled`) inherit the same two call sites and so widen the blast radius, but ENG-035 did not introduce the defect and fixing it is not this ticket's Expected files/steps. Deferred to [[ENG-037]] ("Parse assessment and report dates with the invariant culture"), already filed, linked from ENG-035, added to group EPIC-012, and positioned at the top of the `engineering-assessment` backlog so it is scheduled ahead of other unscheduled backlog items given the widened blast radius. |
+
+**Merge-timing question raised by review** — "wait for the KANMER-011 link
+repair to land on `dev` then refresh and merge" versus "merge PR #648 now
+over the red `documentation` check it neither caused nor can fix": this
+ticket's implementer does not merge (repository task workflow rule 5 —
+review/merge is a separate agent's action, and rule 5 of Agent conduct: never
+merge your own PR). Recorded for the reviewer/merge authority: option (a) —
+wait for KANMER-011, then refresh with `git merge --no-edit origin/dev` and
+merge — is the recommended path, since the `documentation` check is an
+available, meaningful CI signal (a genuinely broken doc link) and KANMER-011
+is a one-line fix with no coupling to ENG-035; bypassing a known-red check
+that could be cleared in one small unrelated PR is not justified by any
+urgency on this ticket. Option (b) is not rejected outright — if KANMER-011
+stalls, a reviewer/merge-authority may still elect to merge over it since the
+failure is provably unrelated to ENG-035's diff — but it is not this session's
+call to make.
+
+Verification performed for this disposition pass (this session, PR #648 head
+`551959b94ff36a037b8eb27b9613cef03f21d2c5`, no new commit):
+
+- `git status --short` — clean, no changes.
+- `git log --oneline origin/dev..HEAD -- .opencode/skills/kanmer-setup/SKILL.md` — empty.
+- `git merge-base --is-ancestor c5c7a874 origin/dev` — true.
+- `dotnet restore ./Pegasus.slnx --locked-mode` — exit 0.
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"` — see post-implementation report for the re-run's counts and exit code.
+
+A Codex verification pass (`gpt-5.6-sol`, medium effort) was attempted for
+this disposition to independently confirm the worktree stayed unchanged, but
+Codex's backend was down for both attempts (`wss://chatgpt.com/backend-api/codex/responses`
+and its HTTPS fallback both returned `404 Not Found` before any response was
+produced, confirmed unrelated to this task by a bare `read-only` "PONG" probe
+against the same model, which failed identically) — an external outage, not
+an ENG-035 issue. Since neither finding calls for any ENG-035 code change,
+the git and merge-base checks above (run directly, not through Codex) fully
+cover what the Codex pass was asked to confirm; no code-level verification
+was left undone.
