@@ -28,6 +28,51 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(["Door skin"], snapshot.NewParts);
         Assert.Equal(["Nearside door"], snapshot.Repairs);
         Assert.Equal(["Blend nearside wing"], snapshot.Operations);
+        Assert.True(snapshot.Vehicle.VinChecked);
+        Assert.Equal("Manual", snapshot.Vehicle.Transmission);
+        Assert.Equal("Blue", snapshot.Vehicle.Colour);
+        Assert.Equal("Hatchback", snapshot.Vehicle.Body);
+        Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
+        Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
+        Assert.Equal("None", snapshot.Vehicle.AirbagsDeployed);
+        Assert.Equal("P0001", snapshot.Vehicle.FaultCodes);
+        Assert.True(snapshot.Vehicle.TemporaryRepairsPossible);
+        Assert.Equal("Secure bumper", snapshot.Vehicle.TemporaryRepairMethod);
+        Assert.Equal(25m, snapshot.Vehicle.TemporaryRepairCost);
+        var impact = Assert.Single(snapshot.Damage.Impacts);
+        Assert.Equal(new ReportImpact("Right rear", "Moderate", "Quarter panel"), impact);
+        Assert.Equal("OK", snapshot.Damage.RightFrontTyre);
+        Assert.Equal("Worn", snapshot.Damage.LeftFrontTyre);
+        Assert.Equal("Damaged", snapshot.Damage.RightRearTyre);
+        Assert.Equal("Illegal", snapshot.Damage.LeftRearTyre);
+        Assert.Equal("OK", snapshot.Damage.RightFrontBelt);
+        Assert.Equal("Locked", snapshot.Damage.LeftFrontBelt);
+        Assert.Equal("Deployed", snapshot.Damage.RightRearBelt);
+        Assert.Equal("Not fitted", snapshot.Damage.LeftRearBelt);
+        Assert.Equal("Repair kit", snapshot.Damage.SpareTyre);
+        Assert.Equal("Not fitted", snapshot.Damage.CentreBelt);
+        Assert.Equal("Door scratch", snapshot.Damage.Unrelated);
+        Assert.Equal(75m, snapshot.Damage.UnrelatedDeduction);
+        Assert.Equal("Red paint", snapshot.Damage.MaterialTransfer);
+        Assert.Equal(250m, snapshot.Settlement.Excess);
+        Assert.Equal(100m, snapshot.Settlement.Betterment);
+        Assert.True(snapshot.Settlement.ClaimantVatRegistered);
+        Assert.Equal(6_000m, snapshot.Settlement.Reserve);
+        Assert.Equal(4_830m, snapshot.Settlement.Equity);
+        Assert.Equal("Parts delay", snapshot.Settlement.RepairDelays);
+        Assert.Equal("None", snapshot.Settlement.ReportDelay);
+        Assert.Equal(20m, snapshot.Settlement.StoragePerDay);
+        Assert.Equal(80m, snapshot.Settlement.Recovery);
+        Assert.Equal(new DateOnly(2026, 8, 4), snapshot.Settlement.HireStart);
+        Assert.Equal(35m, snapshot.Settlement.HireDailyCost);
+        Assert.Equal(200m, snapshot.Settlement.Diminution);
+        Assert.Equal("Repairer", snapshot.Settlement.SalvageAt);
+        Assert.Equal("Salvage Co", snapshot.Settlement.SalvageAgent);
+        Assert.Equal("SAL-1", snapshot.Settlement.SalvageAgentReference);
+        Assert.True(snapshot.Settlement.SalvageMoved);
+        Assert.False(snapshot.Settlement.SalvageOwnerRetains);
+        Assert.True(snapshot.Settlement.SalvageValueAgreed);
+        Assert.Equal(new DateOnly(2026, 8, 20), snapshot.Settlement.SalvageSettled);
         Assert.Single(snapshot.Photos);
         Assert.Single(snapshot.Sources);
 
@@ -158,7 +203,23 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(["Bonnet"], result.Snapshot.NewParts);
         Assert.Equal(["Repair wing"], result.Snapshot.Repairs);
         Assert.Equal(["Paint wing"], result.Snapshot.Operations);
+        Assert.Equal(2, result.Snapshot.Settlement.RepairDays);
         result.Snapshot.Validate();
+    }
+
+    [Fact]
+    public void EquitySubtractsRepairAfterBettermentAndSalvageButNotExcess()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.SalvageValue, "500.00"))
+            .ToArray();
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        Assert.Equal(4_330m, result.Snapshot!.Settlement.Equity);
+        Assert.Equal(250m, result.Snapshot.Settlement.Excess);
     }
 
     [Fact]
@@ -207,9 +268,34 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.VehicleVin, "VIN12345"),
             Field(AssessmentVocabulary.VehicleEngineCc, "1600"),
             Field(AssessmentVocabulary.VehicleFuel, "Petrol"),
+            Field(AssessmentVocabulary.VehicleVinChecked, "true"),
+            Field(AssessmentVocabulary.VehicleTransmission, "manual"),
+            Field(AssessmentVocabulary.VehicleColour, "Blue"),
+            Field(AssessmentVocabulary.VehicleBody, "Hatchback"),
+            Field(AssessmentVocabulary.VehicleTaxExpiry, "2027-01-02"),
+            Field(AssessmentVocabulary.VehicleMotExpiry, "2027-03-04"),
+            Field(AssessmentVocabulary.VehicleAirbagsDeployed, "None"),
+            Field(AssessmentVocabulary.VehicleFaultCodes, "P0001"),
+            Field(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true"),
+            Field(AssessmentVocabulary.VehicleTemporaryRepairMethod, "Secure bumper"),
+            Field(AssessmentVocabulary.VehicleTemporaryRepairCost, "25.00"),
             Field(AssessmentVocabulary.IncidentAssessed, "2026-08-03"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
             Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
+            Field(AssessmentVocabulary.DamageImpacts, "[{\"zone\":\"right_rear\",\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
+            Field(AssessmentVocabulary.DamageTyreRightFront, "ok"),
+            Field(AssessmentVocabulary.DamageTyreLeftFront, "worn"),
+            Field(AssessmentVocabulary.DamageTyreRightRear, "damaged"),
+            Field(AssessmentVocabulary.DamageTyreLeftRear, "illegal"),
+            Field(AssessmentVocabulary.DamageBeltRightFront, "ok"),
+            Field(AssessmentVocabulary.DamageBeltLeftFront, "locked"),
+            Field(AssessmentVocabulary.DamageBeltRightRear, "deployed"),
+            Field(AssessmentVocabulary.DamageBeltLeftRear, "not_fitted"),
+            Field(AssessmentVocabulary.DamageSpareTyre, "repair_kit"),
+            Field(AssessmentVocabulary.DamageCentreBelt, "not_fitted"),
+            Field(AssessmentVocabulary.DamageUnrelated, "Door scratch"),
+            Field(AssessmentVocabulary.DamageUnrelatedDeduction, "75.00"),
+            Field(AssessmentVocabulary.DamageMaterialTransfer, "Red paint"),
             Field(AssessmentVocabulary.ValueRetail, "5000.00"),
             Field(AssessmentVocabulary.ValueTrade, "4000.00"),
             Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
@@ -223,6 +309,24 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.EngineerSignature, "andy_patterson"),
             Field(AssessmentVocabulary.AgreedFee, "120.00"),
             Field(AssessmentVocabulary.FeeDescriptionLines, "Engineering assessment"),
+            Field(AssessmentVocabulary.SettlementExcess, "250.00"),
+            Field(AssessmentVocabulary.SettlementBetterment, "100.00"),
+            Field(AssessmentVocabulary.SettlementClaimantVatRegistered, "true"),
+            Field(AssessmentVocabulary.SettlementReserve, "6000.00"),
+            Field(AssessmentVocabulary.SettlementRepairDelays, "Parts delay"),
+            Field(AssessmentVocabulary.SettlementReportDelay, "None"),
+            Field(AssessmentVocabulary.SettlementStoragePerDay, "20.00"),
+            Field(AssessmentVocabulary.CostRecoveryCharge, "80.00"),
+            Field(AssessmentVocabulary.SettlementHireStart, "2026-08-04"),
+            Field(AssessmentVocabulary.SettlementHireDailyCost, "35.00"),
+            Field(AssessmentVocabulary.SettlementDiminution, "200.00"),
+            Field(AssessmentVocabulary.SettlementSalvageAt, "Repairer"),
+            Field(AssessmentVocabulary.SettlementSalvageAgent, "Salvage Co"),
+            Field(AssessmentVocabulary.SettlementSalvageAgentReference, "SAL-1"),
+            Field(AssessmentVocabulary.SettlementSalvageMoved, "true"),
+            Field(AssessmentVocabulary.SettlementSalvageOwnerRetains, "false"),
+            Field(AssessmentVocabulary.SettlementSalvageValueAgreed, "true"),
+            Field(AssessmentVocabulary.SettlementSalvageSettled, "2026-08-20"),
         };
 
         var estimateLines = new[]

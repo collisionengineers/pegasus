@@ -5,6 +5,13 @@ namespace Pegasus.Core.Tests.Reports;
 
 public sealed class AssessmentReportRenderingTests
 {
+    [Fact]
+    public void ExpandedSnapshotUsesVersionTwoAndImpactHasOnlyD45Members()
+    {
+        Assert.Equal("rendererref1-v2", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal(["Zone", "Severity", "Note"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
+    }
+
     [Theory]
     [InlineData(AssessmentReportOutcome.TotalLoss)]
     [InlineData(AssessmentReportOutcome.Repairable)]
@@ -89,7 +96,7 @@ public sealed class AssessmentReportRenderingTests
             ClaimantName: "Alex Example", IncidentDate: new DateOnly(2026, 8, 1),
             InstructionsReceived: new DateOnly(2026, 8, 2), Assessed: new DateOnly(2026, 8, 3),
             ReportFor: ["Approved Principal", "1 Example Street"],
-            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol"),
+            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol", true, "manual", "Blue", "Hatchback", new(2027, 1, 2), new(2027, 3, 4), "None", "P0001", true, "Secure bumper", 25m),
             Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null,
             ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
             EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m,
@@ -97,12 +104,23 @@ public sealed class AssessmentReportRenderingTests
             SalvageValue: outcome == AssessmentReportOutcome.TotalLoss ? 500m : null,
             Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true),
             NewParts: ["Front bumper"], Repairs: ["Bonnet"], Operations: ["Paint front panels"],
+            Damage: Damage(), Settlement: Settlement(),
             HistoryCheck: "History clear", EngineerComments: null,
             Engineer: new ReportEngineer("A Patterson", "M.Inst.IAEA", "andy_patterson"),
             AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
             Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", image, Convert.ToHexStringLower(SHA256.HashData(image)))],
             Sources: [new AcceptedReportSource("assessment", "7", new string('a', 64))]);
     }
+
+    internal static ReportDamage Damage() => new(
+        [new("Right rear", "Moderate", "Quarter panel")],
+        "ok", "worn", "damaged", "illegal", "ok", "locked", "deployed", "not_fitted",
+        "repair_kit", "not_fitted", "Door scratch", 75m, "Red paint");
+
+    internal static ReportSettlement Settlement() => new(
+        250m, 100m, true, 6_000m, 4_125m, 4, "Parts delay", "None", 20m, 80m,
+        new(2026, 8, 4), 35m, 200m, "Repairer", "Salvage Co", "SAL-1", true, false, true,
+        new(2026, 8, 20));
 
     private static string RepositoryRoot()
     {
