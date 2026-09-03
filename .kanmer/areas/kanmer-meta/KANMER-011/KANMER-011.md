@@ -13,14 +13,14 @@ stageEntered:
 taken_at: '2026-09-03T19:24:13.971Z'
 branch: task/kanmer-011-skill-link
 worktree: ../pegasus-worktrees/kanmer-011-skill-link
-claim_expires_at: '2026-09-03T19:54:13.971Z'
+claim_expires_at: '2026-09-03T19:56:47.471Z'
 claim_controller: claude-code
 lease_id: 9a5af218-c9d3-4a92-ab82-cf94b11f4c5e
-lease_revision: 1
+lease_revision: 2
 lease_workspace: >-
   worktree:c:\users\alex\documents\github\pegasus-worktrees\kanmer-011-skill-link
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T19:24:13.971Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-03T19:26:47.471Z'
 labels:
   - documentation
   - ci-red
@@ -33,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/652'
 archived: false
 created: '2026-09-03T15:15:14.652Z'
-updated: '2026-09-03T19:26:04.843Z'
+updated: '2026-09-03T19:26:47.471Z'
 ---
 
 ## What
