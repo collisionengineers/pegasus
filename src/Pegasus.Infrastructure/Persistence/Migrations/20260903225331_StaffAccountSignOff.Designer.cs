@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903225331_StaffAccountSignOff")]
+    partial class StaffAccountSignOff
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -486,37 +489,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LeaseExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("MarketResearchCompletionHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<Guid?>("MarketResearchDocumentOccurrenceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("MarketResearchDocumentVersionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long?>("MarketResearchMileage")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateOnly?>("MarketResearchRecordedDate")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly?>("MarketResearchRecordedTime")
-                        .HasColumnType("time");
-
-                    b.Property<decimal?>("MarketResearchRetailValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("MarketResearchTradeValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("MarketResearchValuationId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("OperationKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -580,10 +552,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAtUtc");
 
-                    b.HasIndex("MarketResearchDocumentOccurrenceId");
-
-                    b.HasIndex("MarketResearchValuationId");
-
                     b.HasIndex("OperationKey")
                         .IsUnique();
 
@@ -593,11 +561,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("AiJobs", null, t =>
                         {
-                            t.HasCheckConstraint("CK_AiJobs_Kind", "[Kind] IN ('Estimate', 'UnidentifiedResolution', 'QueryResponse', 'UnidentifiedQueuePass', 'MarketResearch')");
+                            t.HasCheckConstraint("CK_AiJobs_Kind", "[Kind] IN ('Estimate', 'UnidentifiedResolution', 'QueryResponse', 'UnidentifiedQueuePass')");
 
-                            t.HasCheckConstraint("CK_AiJobs_MarketResearchResult", "([ResultKind] = 'MarketResearch' AND [MarketResearchDocumentOccurrenceId] IS NOT NULL AND [MarketResearchDocumentVersionId] IS NOT NULL AND [MarketResearchValuationId] IS NOT NULL AND [MarketResearchRecordedDate] IS NOT NULL AND [MarketResearchRecordedTime] IS NOT NULL AND [MarketResearchMileage] >= 0 AND [MarketResearchRetailValue] >= 0 AND [MarketResearchTradeValue] >= 0 AND [MarketResearchCompletionHash] IS NOT NULL) OR ([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') AND [MarketResearchDocumentOccurrenceId] IS NULL AND [MarketResearchDocumentVersionId] IS NULL AND [MarketResearchValuationId] IS NULL AND [MarketResearchRecordedDate] IS NULL AND [MarketResearchRecordedTime] IS NULL AND [MarketResearchMileage] IS NULL AND [MarketResearchRetailValue] IS NULL AND [MarketResearchTradeValue] IS NULL AND [MarketResearchCompletionHash] IS NULL)");
-
-                            t.HasCheckConstraint("CK_AiJobs_ResultKind", "[ResultKind] IS NULL OR [ResultKind] IN ('Estimate', 'ProposedResolution', 'DraftReply', 'MarketResearch')");
+                            t.HasCheckConstraint("CK_AiJobs_ResultKind", "[ResultKind] IS NULL OR [ResultKind] IN ('Estimate', 'ProposedResolution', 'DraftReply')");
 
                             t.HasCheckConstraint("CK_AiJobs_State", "[State] IN ('Queued', 'Taken', 'DraftReady', 'Completed', 'Failed', 'Cancelled', 'Expired')");
 
@@ -2537,7 +2503,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseValuations_RetailValue", "[RetailValue] >= 0");
 
-                            t.HasCheckConstraint("CK_CaseValuations_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch')");
+                            t.HasCheckConstraint("CK_CaseValuations_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue')");
 
                             t.HasCheckConstraint("CK_CaseValuations_TradeValue", "[TradeValue] >= 0");
                         });

@@ -517,5 +517,14 @@ public sealed class DashboardBoundaryTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }
