@@ -32,3 +32,9 @@
 - [ ] Open question 1 in `open-questions/` is answered and ticked (or parked) before implementation starts.
 - [ ] post-implementation report written
 - [ ] PR opened with Kanmer: PLAT-070
+
+## Added 2026-09-03 (finding 7, option b)
+
+- [ ] `Pages/Administration/Configuration.cshtml(.cs)`: render the current policy version read-only; remove the Reason field, the Save button and the page's `UpdateWorkflowConfiguration` call; leave the Core command and the store in place for PLAT-062.
+- [ ] `WorkflowConfigurationWebTests.cs`: replace the save tests with a test proving the page renders no form and no Save control.
+- [ ] Regenerate and verify the `administration-configuration` snapshots after the change.

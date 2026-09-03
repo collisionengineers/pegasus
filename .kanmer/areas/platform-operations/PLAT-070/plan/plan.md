@@ -394,3 +394,7 @@ Checks that passed with no finding:
 - Proportionality: the plan is long for a `fix` profile, but the diff is ~45
   files and the "Verified scope correction" section is load-bearing, not ritual.
   No speculative abstraction is introduced.
+
+## Resolutions (2026-09-03)
+
+- Finding 7 resolved by the controller as option (b): keep `/Administration/Configuration` and its nav entry; render the policy version read-only; remove the Reason field, Save button and the page's `UpdateWorkflowConfiguration` call; keep the Core command and store for PLAT-062; update `WorkflowConfigurationWebTests.cs` to prove the form is absent. Add these steps to the checklist before the snapshot regeneration step.
