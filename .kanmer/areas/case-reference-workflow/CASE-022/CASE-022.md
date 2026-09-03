@@ -13,11 +13,12 @@ labels:
   - ui
   - design
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-09-03T14:35:23.555Z'
+updated: '2026-09-03T15:13:16.464Z'
 ---
 
 ## What the operator saw
