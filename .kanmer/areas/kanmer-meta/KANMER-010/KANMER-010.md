@@ -37,7 +37,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-01T14:40:45.085Z'
-updated: '2026-09-03T09:11:04.225Z'
+updated: '2026-09-03T09:12:03.536Z'
 ---
 
 ## What
@@ -68,3 +68,10 @@ The 0.4.0 `kanmer-setup` was run on 2026-09-02 in the primary checkout on the op
 - [ ] Merge SHA recorded and reachable from `origin/dev`.
 
 ## Outcome
+
+PR [#642](https://github.com/collisionengineers/pegasus/pull/642) merged into
+`dev` on 2026-09-02 at
+`fbf8ee40983ee30030b296d9e61274b238c80b04`. The change was subsequently
+promoted to `main`; fresh ancestry evidence on 2026-09-03 resolved the
+pre-promotion INCONCLUSIVE proof and the final proof result is PASS. The
+repository setup is reconciled and no follow-up ticket is required.

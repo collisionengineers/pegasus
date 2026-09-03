@@ -108,3 +108,14 @@ Resumed at the point of the stop, in the same recorded location, nothing else re
   `agents-block` row (only `board-config` compensated and `mcp-registration` behind).
 - Not pushed, by the controller's instruction. Stop point READY_FOR_TESTS reached at
   `93ec918efa151ecfcdf7a87774cecb5538d78d9f`; the test runner is next, then PR_OPEN.
+
+## Closeout — KANMER-010
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date appended)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; recorded worktree absence confirmed / stale registration pruned
+- [ ] `git branch -d task/kanmer-010-setup-drift` (local branch already absent)
+- [ ] `git fetch --prune` + `git worktree prune`; merged remote branch removed
+- [ ] `take_ticket action: "release"`
