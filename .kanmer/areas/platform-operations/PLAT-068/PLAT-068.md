@@ -8,16 +8,16 @@ assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-09-02T20:53:21.795Z'
-taken_at: '2026-09-03T19:41:32.473Z'
+taken_at: '2026-09-03T20:59:06.544Z'
 branch: task/plat-068-sign-off-account
 worktree: .worktrees/plat-068
-claim_expires_at: '2026-09-03T20:11:32.473Z'
+claim_expires_at: '2026-09-03T21:29:06.544Z'
 claim_controller: claude-code
-lease_id: dad782e3-960c-4e06-bfa5-51f0c19d7354
+lease_id: e68edca2-8741-4cdb-ace5-412ef02b57fb
 lease_revision: 1
 lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-068'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T19:41:32.473Z'
+lease_heartbeat_at: '2026-09-03T20:59:06.544Z'
 labels:
   - administration
   - accounts
@@ -35,7 +35,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-03T19:41:32.473Z'
+updated: '2026-09-03T20:59:06.544Z'
 ---
 
 ## What
