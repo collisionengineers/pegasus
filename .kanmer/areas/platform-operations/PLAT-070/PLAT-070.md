@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Remove the staff review requirement flags and the Workflow configuration
   review panel (D44); record D45 no damage type
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-03T08:06:45.998Z'
 labels:
   - case-workspace-v2
   - d44
@@ -25,7 +27,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-09-03T07:47:48.081Z'
-updated: '2026-09-03T07:48:25.584Z'
+updated: '2026-09-03T08:06:45.998Z'
 ---
 
 ## What
