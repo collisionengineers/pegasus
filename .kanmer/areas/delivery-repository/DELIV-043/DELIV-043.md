@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Cancel superseded repository-check runs and gate the heavy lanes behind the
   cheap invariant jobs
-status: review
+status: verifying
 area: delivery-repository
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-09-03T19:24:35.091Z'
   review: '2026-09-03T19:30:31.553Z'
+  verifying: '2026-09-03T23:51:19.996Z'
 taken_at: '2026-09-03T19:24:36.901Z'
 branch: task/deliv-043-ci-concurrency-preflight
 worktree: ../pegasus-worktrees/deliv-043-ci-concurrency-preflight
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/653'
 archived: false
 created: '2026-09-03T19:23:48.496Z'
-updated: '2026-09-03T23:46:02.199Z'
+updated: '2026-09-03T23:51:19.996Z'
 ---
 
 ## What
