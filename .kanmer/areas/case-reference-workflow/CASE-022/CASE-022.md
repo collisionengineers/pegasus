@@ -29,10 +29,12 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
   - 251ad4493b4a11ac0b9d4e68055bf0bcedf10fef
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/650'
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-09-03T16:21:48.507Z'
+updated: '2026-09-03T16:22:18.768Z'
 ---
 
 ## What the operator saw
