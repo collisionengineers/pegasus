@@ -17,14 +17,16 @@ groups:
 links:
   - DELIV-030
   - DELIV-037
+  - PLAT-067
+  - 'https://github.com/collisionengineers/pegasus/pull/645'
 refs:
   - docs/runbook.md
   - docs/engineering.md
   - docs/operations.md
 deployment: not-deployed
-archived: false
+archived: true
 created: '2026-09-01T21:54:35.713Z'
-updated: '2026-09-01T21:54:35.713Z'
+updated: '2026-09-03T14:12:18.406Z'
 ---
 
 ## What
@@ -48,3 +50,5 @@ AGENTS.md rule 4 (the ticket precedes the branch) and the [[DELIV-037]] preceden
 - [ ] Every programme ticket's proof gains its Part 2 release evidence.
 
 ## Outcome
+
+Superseded and wholly delivered by [[PLAT-067]] through PR #645. Release 38 was promoted, deployed, smoke-tested, and production-verified; the current-state documents record the resulting source, artifact, migration, and runtime evidence.
