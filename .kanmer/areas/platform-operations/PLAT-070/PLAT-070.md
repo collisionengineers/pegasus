@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Remove the staff review requirement flags and the Workflow configuration
   review panel (D44); record D45 no damage type
-status: implementing
+status: review
 area: platform-operations
 assignee: wf-build/plat-070
 profile: fix
 stageEntered:
   preparing: '2026-09-03T08:06:45.998Z'
+  review: '2026-09-03T16:17:56.104Z'
 taken_at: '2026-09-03T13:04:09.384Z'
 branch: task/plat-070-remove-review-flags
 worktree: .worktrees/plat-070
@@ -36,9 +37,11 @@ refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
   - docs/design/README.md
+prs:
+  - '649'
 archived: false
 created: '2026-09-03T07:47:48.081Z'
-updated: '2026-09-03T15:29:07.343Z'
+updated: '2026-09-03T16:17:56.104Z'
 ---
 
 ## What
