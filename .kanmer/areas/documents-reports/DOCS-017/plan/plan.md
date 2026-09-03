@@ -428,3 +428,92 @@ Confirmed clean and not raised: no step assumes a staff review flag, checkbox
 or dialog (D44) or a damage type (D45); D46 is untouched; no new package,
 migration, or speculative abstraction is introduced; `Pegasus.Core` remains the
 sole owner of report-tuple policy.
+
+## PR review response (2026-09-03, gpt-5.6-sol medium via Codex; dispositions Claude)
+
+PR #651 review verdict: DOCS-017's own change is approved and every CI lane
+that exercises it is green. One open item and one informational note.
+
+### `documentation` CI lane — rejected as out of scope; no code change
+
+**Finding as raised:** `Test-DocumentationLinks.ps1` reports a broken
+relative link in `.opencode/skills/kanmer-setup/SKILL.md` →
+`docs/manual/greenfield.md`, introduced by commit `c5c7a874` (already on
+`origin/dev`), asked whether to (a) merge PR #651 treating this as a known
+pre-existing red, or (b) hold DOCS-017 until a separate lane fixes it.
+
+**Independently verified** (Codex `gpt-5.6-sol` medium, read-only + one
+allowed-fix pass in `.worktrees/docs-017`; `git status --porcelain` clean
+before and after):
+
+- `git log --oneline -1 -- .opencode/skills/kanmer-setup/SKILL.md` → only
+  `c5c7a874`; `git rev-parse origin/dev:...SKILL.md` and
+  `HEAD:...SKILL.md` resolve to the identical blob
+  `0d8a66b588f2d9d412da57176500ab0321c5202a`; `git diff origin/dev...HEAD --
+  .opencode` is empty. DOCS-017 neither introduced nor touched this file —
+  `.opencode/**` was never in `files/files.md`'s owned or supporting paths.
+- The PR's own `documentation` job log (run 33791263169, job
+  100768149463) shows exactly one reported failure:
+  `BROKEN .opencode/skills/kanmer-setup/SKILL.md: ../../../../docs/manual/greenfield.md`,
+  `1 broken relative Markdown link(s)`. No file DOCS-017 touched is named.
+- **Correction to the reviewer's supporting citation:** the cited dev run
+  `9eec6dc2` predates `c5c7a874` by a week (`9eec6dc2` = 2026-08-27;
+  `c5c7a874` = 2026-09-03) and `9eec6dc2` is an *ancestor* of `c5c7a874`, not
+  a run against current `dev` HEAD — `git merge-base --is-ancestor
+  9eec6dc2 c5c7a874` exits 0, the reverse exits 1. That specific run is not
+  evidence about the current failure. The finding's substance still holds —
+  confirmed instead directly from PR #651's own job log above, plus a fresh
+  `pwsh -File scripts/Test-DocumentationLinks.ps1` run in this worktree
+  reporting the same single broken link and nothing else.
+- **Root cause identified:** `scripts/Test-DocumentationLinks.ps1` excludes
+  `.agents`, `.codex`, `.grok` and `.kanmer` from link checking (vendored
+  Kanmer skill-bundle content) but the exclusion regex was never extended
+  when operator commit `c5c7a874` added a fifth such tree, `.opencode`. The
+  same broken `docs/manual/greenfield.md` link is present today, unfixed, in
+  `.agents/skills/kanmer-setup/SKILL.md` and
+  `.grok/skills/kanmer-setup/SKILL.md` on `origin/dev` too (verified by
+  direct grep) — they simply don't fail CI because those two directories are
+  already excluded. [[PR-065]] (PR #561, merged) fixed this exact link once
+  before in `.grok/skills`, but a later wholesale Kanmer skill-tree
+  reconciliation (KANMER-006/KANMER-010) re-vendored the unfixed upstream
+  content over that fix.
+
+**Disposition: rejected — no change made in DOCS-017.** `.opencode/**` is
+outside every owned and supporting path in `files/files.md`; per repo rule
+("touch only the owned paths — a needed change outside them is reported as a
+dependency, not made") and conduct rule 1 ("scope is the brief"), the fix
+does not belong in this branch. `docs/manual/greenfield.md` was not
+fabricated to satisfy the linter — it is vendored tooling content this
+repository does not own.
+
+**Recommendation on (a) vs (b): (a) — merge PR #651.** The `documentation`
+lane failure is pre-existing on `origin/dev`, independent of and unworsened
+by this PR (proven above, not merely asserted), and DOCS-017 `blocks`
+CASE-040 and PLAT-068 — holding it blocks two dependent lanes and, per the
+reviewer's own note, would otherwise block every EPIC-012 PR on an unrelated
+regression. Filed [[PR-071]] (fix profile, `pr-review` area, linked to
+DOCS-017) to add `.opencode` to the checker's existing vendored-tree
+exclusion list — a one-line change consistent with the existing treatment of
+`.agents`/`.codex`/`.grok`/`.kanmer` — so the lane goes green on `dev`
+without hand-editing content that the next Kanmer setup reconciliation would
+overwrite anyway. Merge authority and disposition of (a)/(b) itself remain
+with the reviewer/operator; this ticket does not merge its own PR.
+
+### Finding 1 deferral (ENG-038) — confirmed already recorded
+
+Acknowledged: finding 1 (D31 post-Review readiness still gated by the D18
+assessment-vocabulary signatory fields) was deferred to [[ENG-038]]
+("Retire the D18 assessment signatory fields from post-Review report
+readiness"), created 2026-09-03 and linked to DOCS-017 (and to CASE-040 /
+PLAT-068 / ENG-035). No further action from DOCS-017: ENG-038 correctly
+records that it must land after CASE-040 and PLAT-068 supply the D31 tuple,
+so D31 is never left with no signatory requirement at all, and that D31 is
+not true end-to-end until ENG-038 lands. DOCS-017's own scope (the Core
+signatory contract and renderer) is unaffected and requires no rework.
+
+### Re-verification after this response
+
+No production/test file changed by this response (`git status --porcelain`
+clean throughout). Re-ran the canonical delivery gate on head
+`ddf739fbc210be1df08eaa0cf62580edb37f6c46` to reconfirm nothing regressed;
+see the post-implementation report for exit codes.
