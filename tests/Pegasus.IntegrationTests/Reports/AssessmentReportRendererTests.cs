@@ -39,6 +39,10 @@ public sealed class AssessmentReportRendererTests
         Assert.Contains("Statement of Truth", assessmentText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Front bumper", assessmentText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(outcomeText, assessmentText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "Ed Mawdsley — ATA VDA AQP",
+            assessmentText,
+            StringComparison.OrdinalIgnoreCase);
 
         var feeText = PdfText(result.FeeNote.Pdf);
         Assert.Contains("FEE NOTE", feeText, StringComparison.OrdinalIgnoreCase);
@@ -91,22 +95,44 @@ public sealed class AssessmentReportRendererTests
         Assert.Contains("Stress repair 080", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Stress operation 080", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Statement of Truth", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("A Patterson", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Ed Mawdsley", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("{{", text, StringComparison.Ordinal);
         Assert.DoesNotContain('«', text);
         Assert.True(pages.Sum(page => page.GetImages().Count()) >= 8, "Every accepted stress photo must remain embedded in the flowed PDF.");
     }
 
     [Fact]
-    public void OnlyActiveSignatureResourceIsEmbeddedByteForByte()
+    public void NoSignatoryResourceIsEmbedded()
     {
         var assembly = typeof(PlaywrightAssessmentReportRenderer).Assembly;
-        using var embedded = assembly.GetManifestResourceStream("Pegasus.Infrastructure.Reports.Assets.brand.signatures.andy_patterson.png");
-        Assert.NotNull(embedded);
-        using var memory = new MemoryStream();
-        embedded.CopyTo(memory);
-        Assert.Equal(File.ReadAllBytes(Path.Combine(RepositoryRoot(), "docs", "design", "brand", "signatures", "andy_patterson.png")), memory.ToArray());
-        Assert.DoesNotContain(assembly.GetManifestResourceNames(), name => name.Contains("ed_mawdsley", StringComparison.Ordinal) || name.Contains("neil_oreilly", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            assembly.GetManifestResourceNames(),
+            name => name.Contains("brand.signatures", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    [Trait("Category", "Browser")]
+    public async Task MissingQualificationsRenderTheSignatoryNameAlone()
+    {
+        await using var provider = RendererProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var ready = Snapshot(AssessmentReportOutcome.Repairable);
+        var snapshot = ready with
+        {
+            Signatory = new ReportSignatory(
+                "Neil O'Reilly",
+                null,
+                ready.Signatory.SignatureContent,
+                "image/png"),
+        };
+
+        var result = await scope.ServiceProvider
+            .GetRequiredService<GenerateAssessmentReportDraft>()
+            .ExecuteAsync(snapshot);
+        var text = PdfText(result.Assessment.Pdf);
+
+        Assert.Contains("Neil O'Reilly", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Neil O'Reilly —", text, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AssertArtifact(RenderedReportArtifact artifact)
@@ -144,7 +170,7 @@ public sealed class AssessmentReportRendererTests
             Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null, ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
             EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m, SalvageCategory: outcome == AssessmentReportOutcome.TotalLoss ? "S" : null, SalvageValue: outcome == AssessmentReportOutcome.TotalLoss ? 500m : null,
             Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true), NewParts: ["Front bumper"], Repairs: ["Bonnet"], Operations: ["Paint front panels"],
-            HistoryCheck: "History clear", EngineerComments: "No further comments.", Engineer: new ReportEngineer("A Patterson", "M.Inst.IAEA", "andy_patterson"), AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
+            HistoryCheck: "History clear", EngineerComments: "No further comments.", Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", image, "image/png"), AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
             Photos: [new ReportImageEvidence("reference/eva_information/screenshots/engineer-screens/engineer1.png", "image/png", image, Convert.ToHexStringLower(SHA256.HashData(image)))],
             Sources: [new AcceptedReportSource("assessment", "7", new string('a', 64))]);
     }
