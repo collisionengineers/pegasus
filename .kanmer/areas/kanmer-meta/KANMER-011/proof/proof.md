@@ -2,7 +2,7 @@
 kind: proof-record
 merged_sha: "659cec770c52d900c8c126e60a704482138665c3"
 result: PASS
-proof_type: command-log
+environment: "detached worktree ../pegasus-worktrees/verify-kanmer-011-659cec77 on the Windows 11 workstation, pwsh 7"
 verified_at: "2026-09-03T19:31:09Z"
 ---
 # Proof — KANMER-011 (command-log)
