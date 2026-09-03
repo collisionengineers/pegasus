@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    [Migration("20260903195515_MarketResearchAiJob")]
+    [Migration("20260903233954_MarketResearchAiJob")]
     partial class MarketResearchAiJob
     {
         /// <inheritdoc />
@@ -598,7 +598,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_AiJobs_Kind", "[Kind] IN ('Estimate', 'UnidentifiedResolution', 'QueryResponse', 'UnidentifiedQueuePass', 'MarketResearch')");
 
-                            t.HasCheckConstraint("CK_AiJobs_MarketResearchResult", "([ResultKind] = 'MarketResearch' AND [MarketResearchDocumentOccurrenceId] IS NOT NULL AND [MarketResearchDocumentVersionId] IS NOT NULL AND [MarketResearchValuationId] IS NOT NULL AND [MarketResearchRecordedDate] IS NOT NULL AND [MarketResearchRecordedTime] IS NOT NULL AND [MarketResearchMileage] >= 0 AND [MarketResearchRetailValue] >= 0 AND [MarketResearchTradeValue] >= 0 AND [MarketResearchCompletionHash] IS NOT NULL) OR ([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') AND [MarketResearchDocumentOccurrenceId] IS NULL AND [MarketResearchDocumentVersionId] IS NULL AND [MarketResearchValuationId] IS NULL AND [MarketResearchRecordedDate] IS NULL AND [MarketResearchRecordedTime] IS NULL AND [MarketResearchMileage] IS NULL AND [MarketResearchRetailValue] IS NULL AND [MarketResearchTradeValue] IS NULL AND [MarketResearchCompletionHash] IS NULL)");
+                            t.HasCheckConstraint("CK_AiJobs_MarketResearchResult", "([ResultKind] = 'MarketResearch' AND [MarketResearchDocumentOccurrenceId] IS NOT NULL AND [MarketResearchDocumentVersionId] IS NOT NULL AND [MarketResearchValuationId] IS NOT NULL AND [MarketResearchRecordedDate] IS NOT NULL AND [MarketResearchRecordedTime] IS NOT NULL AND [MarketResearchMileage] IS NOT NULL AND [MarketResearchMileage] >= 0 AND [MarketResearchRetailValue] IS NOT NULL AND [MarketResearchRetailValue] >= 0 AND [MarketResearchTradeValue] IS NOT NULL AND [MarketResearchTradeValue] >= 0 AND [MarketResearchCompletionHash] IS NOT NULL) OR (([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') AND [MarketResearchDocumentOccurrenceId] IS NULL AND [MarketResearchDocumentVersionId] IS NULL AND [MarketResearchValuationId] IS NULL AND [MarketResearchRecordedDate] IS NULL AND [MarketResearchRecordedTime] IS NULL AND [MarketResearchMileage] IS NULL AND [MarketResearchRetailValue] IS NULL AND [MarketResearchTradeValue] IS NULL AND [MarketResearchCompletionHash] IS NULL)");
 
                             t.HasCheckConstraint("CK_AiJobs_ResultKind", "[ResultKind] IS NULL OR [ResultKind] IN ('Estimate', 'ProposedResolution', 'DraftReply', 'MarketResearch')");
 
@@ -1187,7 +1187,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_CaseAssessmentFields_Confirmation", "([ConfirmedBy] IS NULL AND [ConfirmedAtUtc] IS NULL) OR ([ConfirmedBy] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_CaseAssessmentFields_FieldPath", "[FieldPath] IN ('assessment.category', 'assessment.impact_location', 'assessment.impact_severity', 'assessment.legal_status', 'assessment.outcome', 'assessment.salvage_value', 'assessment.unroadworthy_reason', 'assessment.values.engineer', 'assessment.values.retail', 'assessment.values.trade', 'costs.recovery_charge', 'costs.repairer_vat_registered', 'costs.storage_charge', 'engineer.name', 'engineer.qualifications', 'engineer.signature', 'fee.agreed_fee', 'fee.description_lines', 'incident.assessed', 'narrative.engineers_comments', 'narrative.history_check', 'narrative.nature_of_incident', 'rates.card', 'rates.class', 'rates.manufacturer_approved', 'rates.regional_uplift', 'statement_of_truth', 'vehicle.condition', 'vehicle.engine_cc', 'vehicle.fuel', 'vehicle.mileage_source', 'vehicle.vehicle_type', 'vehicle.vin', 'vehicle.year')");
+                            t.HasCheckConstraint("CK_CaseAssessmentFields_FieldPath", "[FieldPath] IN ('assessment.category', 'assessment.impact_location', 'assessment.impact_severity', 'assessment.legal_status', 'assessment.outcome', 'assessment.salvage_value', 'assessment.unroadworthy_reason', 'assessment.values.engineer', 'assessment.values.retail', 'assessment.values.trade', 'costs.recovery_charge', 'costs.repairer_vat_registered', 'costs.storage_charge', 'damage.impacts', 'damage.material_transfer', 'damage.tyres.centre_belt', 'damage.tyres.left_front.belt', 'damage.tyres.left_front.tyre', 'damage.tyres.left_rear.belt', 'damage.tyres.left_rear.tyre', 'damage.tyres.right_front.belt', 'damage.tyres.right_front.tyre', 'damage.tyres.right_rear.belt', 'damage.tyres.right_rear.tyre', 'damage.tyres.spare', 'damage.unrelated', 'damage.unrelated_deduction', 'engineer.name', 'engineer.qualifications', 'engineer.signature', 'fee.agreed_fee', 'fee.description_lines', 'incident.assessed', 'narrative.engineers_comments', 'narrative.history_check', 'narrative.nature_of_incident', 'rates.card', 'rates.class', 'rates.manufacturer_approved', 'rates.regional_uplift', 'settlement.betterment', 'settlement.claimant_vat_registered', 'settlement.diminution', 'settlement.excess', 'settlement.hire_daily_cost', 'settlement.hire_start', 'settlement.repair_delays', 'settlement.report_delay', 'settlement.reserve', 'settlement.salvage.agent', 'settlement.salvage.agent_reference', 'settlement.salvage.at', 'settlement.salvage.moved', 'settlement.salvage.owner_retains', 'settlement.salvage.settled', 'settlement.salvage.value_agreed', 'settlement.storage_per_day', 'statement_of_truth', 'vehicle.airbags_deployed', 'vehicle.body', 'vehicle.colour', 'vehicle.condition', 'vehicle.engine_cc', 'vehicle.fault_codes', 'vehicle.fuel', 'vehicle.mileage_source', 'vehicle.mot_expiry', 'vehicle.tax_expiry', 'vehicle.temporary_repair_cost', 'vehicle.temporary_repair_method', 'vehicle.temporary_repairs_possible', 'vehicle.transmission', 'vehicle.vehicle_type', 'vehicle.vin', 'vehicle.vin_checked', 'vehicle.year')");
 
                             t.HasCheckConstraint("CK_CaseAssessmentFields_RecordedByKind", "[RecordedByKind] IN ('Staff', 'Automation')");
                         });
@@ -4679,10 +4679,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsDefaultSignOffEngineer")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsEnabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsSignOffEngineer")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
@@ -4715,6 +4725,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SignOffPrintedName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("SignOffQualifications")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("SignOffSignature")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("SignOffSignatureDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
@@ -4723,6 +4748,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsDefaultSignOffEngineer")
+                        .IsUnique()
+                        .HasFilter("[IsDefaultSignOffEngineer] = 1");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -6318,12 +6347,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<bool>("RequireStaffImageReviewBeforeEngineerAssignment")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("RequireStaffInstructionReviewBeforeEngineerAssignment")
-                        .HasColumnType("bit");
-
                     b.Property<int>("Version")
                         .HasColumnType("int");
 
@@ -6335,8 +6358,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = "case-workflow",
-                            RequireStaffImageReviewBeforeEngineerAssignment = true,
-                            RequireStaffInstructionReviewBeforeEngineerAssignment = true,
                             Version = 1
                         });
                 });
