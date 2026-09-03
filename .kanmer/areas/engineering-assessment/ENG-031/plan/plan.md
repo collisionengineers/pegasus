@@ -324,3 +324,9 @@ merge, release, proof, or neighbouring-ticket work has been performed.
 ## Simplification pass
 
 Recorded at execution time under a dated heading.
+
+## Resolutions (2026-09-03)
+
+- Controller: report approval (`CaseReportApprovals`) snapshots the curation.
+- Controller: the `Not used` role is the disposition for a reflection image; no new marker.
+- Operator (D46): the crop tool behaves like any photo-editing cropper (drag, handles, rotate, aspect, reset, live preview) and opens from the Files image viewer and the Report image cards without pressing Edit Case; saving a crop starts the edit lease. Plan the viewer entry point alongside the card entry point; one curation record per image.

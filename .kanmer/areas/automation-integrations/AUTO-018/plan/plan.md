@@ -363,3 +363,7 @@ same checkout:
 `YYYY-MM-DD — pending implementation`: review the branch diff for reuse,
 unnecessary abstractions, duplicated policy, avoidable fields, and scope drift;
 record each finding and disposition here before opening the PR.
+
+## Resolutions (2026-09-03)
+
+- Controller (D35 "proposal only"): the MarketResearch job lands in the existing review state (`DraftReady`) and is completed by the existing staff confirmation on the AI Job List; no new closure surface and no change to the Completed-is-staff rule.

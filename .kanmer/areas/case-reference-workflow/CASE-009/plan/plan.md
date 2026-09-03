@@ -220,3 +220,8 @@ when step 3 is reached, if a needed change falls outside the owned files, or
 if any command fails. Otherwise: PR open against `dev` titled with
 `Kanmer: CASE-009`, post-implementation report written, ticket in Review.
 Never merge; never start the next ticket.
+
+## Resolutions (2026-09-03)
+
+- Controller: the Queries table is filled from the existing Inbox `Queries` destination set through the existing policy.
+- Controller: heading and table absent when nothing qualifies; no `No queries` label.

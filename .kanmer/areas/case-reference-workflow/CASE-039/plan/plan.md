@@ -258,3 +258,7 @@ and absent-versus-disabled rule to the constraints; split the checklist so
 each item is one verifiable step. No other change.
 
 Simplification pass: recorded at execution time under a dated heading here.
+
+## Resolutions (2026-09-03)
+
+- Operator: no event in the case Notes history when an Engineer note is added; the plan's default stands.

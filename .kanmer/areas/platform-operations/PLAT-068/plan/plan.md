@@ -242,3 +242,10 @@ tail `20260829212237`; `ActorDisplayNames.ResolveStaffNamesAsync` returns
 `UserName`. Added by the wrapper: the FRD-04 application-data premise, the
 printed-name gap (open question 3), the Settings label, and the Edit-route
 note. No Codex claim was dropped.
+
+## Resolutions (2026-09-03)
+
+- Operator: signatures are uploaded by an Administrator through the new control; no migration seed.
+- Controller: eligibility = enabled + Engineer role + flag + signature on file; qualifications optional.
+- Controller: the setting carries the printed signatory name (nullable column in the same migration, required when the flag is Yes).
+- Operator (scope addition): the setting also carries one "Default sign-off Engineer" designation an Administrator sets on exactly one flagged account; CASE-040 reads it. Add it to the migration, the Core profile and the Accounts page in this ticket.

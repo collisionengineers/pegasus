@@ -313,3 +313,9 @@ plan introduces, not reuse claims.
 | 13 | Existing production rows for `assessment.impact_*` (hand-recorded via MCP) were not addressed. | Fixed: step 3 states the migration is additive and the rows stay valid until the next damage save replaces them (assumed, not checked against production; a read-only SQL check at execution is permitted). |
 | 14 | Plan proportionality: ~230 lines for an 18-file diff; the "Open-question isolation" paragraph is the only ritual-leaning part. | Accepted: kept because both questions are still open and the split tells the implementer what can proceed. |
 | 15 | Rules check: Core owns policy (derivation and equity are Core statics beside `EstimateTotals.Compute`); one list per concept (codes in `AssessmentVocabulary` only, labels in `OperatorLabels.cs`, no template-side arithmetic); no explanatory copy (template rows are labels and values); no new package; migration and census in the same diff, no grant needed because no table is created. | No violation found. |
+
+## Resolutions (2026-09-03)
+
+- Controller: derived `impact_severity` = highest zone severity; Core's existing severity codes are canonical.
+- Controller: equity = Engineer's value − (repair cost − betterment) − salvage value; excess is a separate field, not part of equity.
+- Operator (D45): no damage type — the `damage[]` record is zone, severity, note; drop `type` from the vocabulary, the projection and the template.

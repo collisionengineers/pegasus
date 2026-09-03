@@ -214,3 +214,9 @@ Stop when the scoped PR targeting `dev` is open and PLAT-069 is in Review.
   plan at execution time.
 - The three operator questions stay open in `open-questions/`; the plan's
   defaults are recorded there beside each question.
+
+## Resolutions (2026-09-03)
+
+- Controller: the notice shows for Partial or Failed only.
+- Controller: one label-only notice line each; the limit warning's hint sentence is removed.
+- Controller: PLAT-069 may merge before PLAT-051; the Administration link is absent until `Pages/Administration/ServiceHealth` exists.

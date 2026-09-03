@@ -204,3 +204,8 @@ simplification, efficiency, altitude findings with dispositions._
 
 PR targeting `dev` is open with the commands' outputs recorded and CASE-042 is
 in **Review**. Do not merge; do not start another ticket.
+
+## Resolutions (2026-09-03)
+
+- Controller: keep the shipped `Pre-Case work` group label; no OperatorLabels change.
+- Controller: no vehicle column until a vehicle is recorded (absent, not drawn); no data-model ticket.
