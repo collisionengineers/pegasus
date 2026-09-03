@@ -158,6 +158,11 @@ public static class AssessmentReportProjection
         }
         var costs = input.CurrentEstimate is { } estimate ? CostsOf(estimate) : input.Costs!;
         var lines = input.CurrentEstimate?.Lines ?? assessment.EstimateLines;
+        var fields = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var field in assessment.Fields)
+        {
+            fields.TryAdd(field.Path, field.Value);
+        }
 
         var claimantName = RequiredReviewValue(input.ClaimantName, "claimant name");
         var yourReference = RequiredReviewValue(input.YourReference, "claim number");
@@ -168,10 +173,10 @@ public static class AssessmentReportProjection
         var assessmentMethod = MapAssessmentMethod(assessment.CaseOwned.InspectionMode)
             ?? throw new InvalidDataException(
                 "A Review case is missing its accepted inspection method.");
-        var engineerSignature = Field(assessment, AssessmentVocabulary.EngineerSignature)!;
-        var engineerName = Field(assessment, AssessmentVocabulary.EngineerName)!;
+        var engineerSignature = Field(fields, AssessmentVocabulary.EngineerSignature)!;
+        var engineerName = Field(fields, AssessmentVocabulary.EngineerName)!;
         var engineerQualifications = Field(
-            assessment,
+            fields,
             AssessmentVocabulary.EngineerQualifications)!;
 
         var snapshot = new AssessmentReportSnapshot(
@@ -181,21 +186,21 @@ public static class AssessmentReportProjection
             ClaimantName: claimantName,
             IncidentDate: incidentDate,
             InstructionsReceived: instructionDate,
-            Assessed: ParseDate(Field(assessment, AssessmentVocabulary.IncidentAssessed)) ?? default,
+            Assessed: ParseDate(Field(fields, AssessmentVocabulary.IncidentAssessed)) ?? default,
             ReportFor: input.ReportFor,
-            Vehicle: BuildVehicle(assessment),
-            Outcome: MapOutcome(Field(assessment, AssessmentVocabulary.Outcome)!),
-            LegalStatus: Field(assessment, AssessmentVocabulary.LegalStatus)!,
-            UnroadworthyReason: Field(assessment, AssessmentVocabulary.UnroadworthyReason),
-            ImpactSeverity: Field(assessment, AssessmentVocabulary.ImpactSeverity)!,
-            ImpactLocation: Field(assessment, AssessmentVocabulary.ImpactLocation)!,
+            Vehicle: BuildVehicle(assessment, fields),
+            Outcome: MapOutcome(Field(fields, AssessmentVocabulary.Outcome)!),
+            LegalStatus: Field(fields, AssessmentVocabulary.LegalStatus)!,
+            UnroadworthyReason: Field(fields, AssessmentVocabulary.UnroadworthyReason),
+            ImpactSeverity: Field(fields, AssessmentVocabulary.ImpactSeverity)!,
+            ImpactLocation: Field(fields, AssessmentVocabulary.ImpactLocation)!,
             AssessmentMethod: assessmentMethod!,
             LocationAddress: assessment.CaseOwned.InspectionAddress,
-            EngineerValue: ParseMoney(Field(assessment, AssessmentVocabulary.ValueEngineer)) ?? 0m,
-            RetailValue: ParseMoney(Field(assessment, AssessmentVocabulary.ValueRetail)) ?? 0m,
-            TradeValue: ParseMoney(Field(assessment, AssessmentVocabulary.ValueTrade)) ?? 0m,
-            SalvageCategory: Field(assessment, AssessmentVocabulary.SalvageCategory),
-            SalvageValue: ParseMoney(Field(assessment, AssessmentVocabulary.SalvageValue)),
+            EngineerValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m,
+            RetailValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueRetail)) ?? 0m,
+            TradeValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueTrade)) ?? 0m,
+            SalvageCategory: Field(fields, AssessmentVocabulary.SalvageCategory),
+            SalvageValue: ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)),
             Costs: costs,
             NewParts: LinesOfType(lines, "new_part"),
             Repairs: LinesOfType(lines, "repair"),
@@ -203,11 +208,13 @@ public static class AssessmentReportProjection
                 lines,
                 "check_labour", "paint_new", "paint_repair", "paint_blend", "paint_prep",
                 "specialist_fixed", "specialist_wu"),
-            HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
-            EngineerComments: Field(assessment, AssessmentVocabulary.EngineersComments),
+            Damage: BuildDamage(fields),
+            Settlement: BuildSettlement(fields, input.CurrentEstimate, costs),
+            HistoryCheck: Field(fields, AssessmentVocabulary.HistoryCheck)!,
+            EngineerComments: Field(fields, AssessmentVocabulary.EngineersComments),
             Engineer: new ReportEngineer(engineerName!, engineerQualifications!, engineerSignature!),
-            AgreedFee: ParseMoney(Field(assessment, AssessmentVocabulary.AgreedFee)) ?? 0m,
-            FeeDescriptionLines: SplitLines(Field(assessment, AssessmentVocabulary.FeeDescriptionLines)),
+            AgreedFee: ParseMoney(Field(fields, AssessmentVocabulary.AgreedFee)) ?? 0m,
+            FeeDescriptionLines: SplitLines(Field(fields, AssessmentVocabulary.FeeDescriptionLines)),
             Photos: input.Photos,
             Sources: input.Sources);
 
@@ -225,9 +232,14 @@ public static class AssessmentReportProjection
     private static string? Field(CaseAssessmentProjection assessment, string path) =>
         assessment.Field(path)?.Value;
 
-    private static ReportVehicle BuildVehicle(CaseAssessmentProjection assessment)
+    private static string? Field(IReadOnlyDictionary<string, string?> fields, string path) =>
+        fields.GetValueOrDefault(path);
+
+    private static ReportVehicle BuildVehicle(
+        CaseAssessmentProjection assessment,
+        IReadOnlyDictionary<string, string?> fields)
     {
-        var mileageSource = Field(assessment, AssessmentVocabulary.VehicleMileageSource) ?? "tbc";
+        var mileageSource = Field(fields, AssessmentVocabulary.VehicleMileageSource) ?? "tbc";
         var mileage = assessment.CaseOwned.Mileage;
         var mileageUnit = assessment.CaseOwned.MileageUnit ?? "miles";
         var mileageDescription = mileage is { } value
@@ -238,14 +250,81 @@ public static class AssessmentReportProjection
             Registration: assessment.CaseOwned.Registration ?? string.Empty,
             Make: assessment.CaseOwned.Make ?? string.Empty,
             Model: assessment.CaseOwned.Model ?? string.Empty,
-            Year: Field(assessment, AssessmentVocabulary.VehicleYear) ?? string.Empty,
-            VehicleType: Field(assessment, AssessmentVocabulary.VehicleType) ?? string.Empty,
-            Condition: Field(assessment, AssessmentVocabulary.VehicleCondition) ?? string.Empty,
+            Year: Field(fields, AssessmentVocabulary.VehicleYear) ?? string.Empty,
+            VehicleType: Field(fields, AssessmentVocabulary.VehicleType) ?? string.Empty,
+            Condition: Field(fields, AssessmentVocabulary.VehicleCondition) ?? string.Empty,
             MileageDescription: mileageDescription,
             MileageSource: mileageSource,
-            Vin: Field(assessment, AssessmentVocabulary.VehicleVin),
-            Engine: Field(assessment, AssessmentVocabulary.VehicleEngineCc),
-            Fuel: Field(assessment, AssessmentVocabulary.VehicleFuel));
+            Vin: Field(fields, AssessmentVocabulary.VehicleVin),
+            Engine: Field(fields, AssessmentVocabulary.VehicleEngineCc),
+            Fuel: Field(fields, AssessmentVocabulary.VehicleFuel),
+            VinChecked: ParseFlag(Field(fields, AssessmentVocabulary.VehicleVinChecked)),
+            Transmission: AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.VehicleTransmission)),
+            Colour: Field(fields, AssessmentVocabulary.VehicleColour),
+            Body: Field(fields, AssessmentVocabulary.VehicleBody),
+            TaxExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleTaxExpiry)),
+            MotExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleMotExpiry)),
+            AirbagsDeployed: Field(fields, AssessmentVocabulary.VehicleAirbagsDeployed),
+            FaultCodes: Field(fields, AssessmentVocabulary.VehicleFaultCodes),
+            TemporaryRepairsPossible: ParseFlag(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairsPossible)),
+            TemporaryRepairMethod: Field(fields, AssessmentVocabulary.VehicleTemporaryRepairMethod),
+            TemporaryRepairCost: ParseMoney(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairCost)));
+    }
+
+    private static ReportDamage BuildDamage(IReadOnlyDictionary<string, string?> fields)
+    {
+        var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
+            .Select(impact => new ReportImpact(
+                AssessmentReportPresentation.DamageZone(impact.Zone),
+                AssessmentReportPresentation.DamageSeverity(impact.Severity),
+                impact.Note))
+            .ToArray();
+        return new(
+            impacts,
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreRightFront)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreLeftFront)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreRightRear)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreLeftRear)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltRightFront)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltLeftFront)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltRightRear)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltLeftRear)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageSpareTyre)),
+            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageCentreBelt)),
+            Field(fields, AssessmentVocabulary.DamageUnrelated),
+            ParseMoney(Field(fields, AssessmentVocabulary.DamageUnrelatedDeduction)),
+            Field(fields, AssessmentVocabulary.DamageMaterialTransfer));
+    }
+
+    private static ReportSettlement BuildSettlement(
+        IReadOnlyDictionary<string, string?> fields,
+        RepairSpecificationVersion? estimate,
+        ReportRepairCosts costs)
+    {
+        var engineerValue = ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m;
+        var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
+        var salvage = ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue));
+        return new(
+            ParseMoney(Field(fields, AssessmentVocabulary.SettlementExcess)),
+            betterment,
+            ParseFlag(Field(fields, AssessmentVocabulary.SettlementClaimantVatRegistered)),
+            ParseMoney(Field(fields, AssessmentVocabulary.SettlementReserve)),
+            engineerValue - (costs.Total - (betterment ?? 0m)) - (salvage ?? 0m),
+            estimate?.Details.RepairDays,
+            Field(fields, AssessmentVocabulary.SettlementRepairDelays),
+            Field(fields, AssessmentVocabulary.SettlementReportDelay),
+            ParseMoney(Field(fields, AssessmentVocabulary.SettlementStoragePerDay)),
+            ParseMoney(Field(fields, AssessmentVocabulary.CostRecoveryCharge)),
+            ParseDate(Field(fields, AssessmentVocabulary.SettlementHireStart)),
+            ParseMoney(Field(fields, AssessmentVocabulary.SettlementHireDailyCost)),
+            ParseMoney(Field(fields, AssessmentVocabulary.SettlementDiminution)),
+            Field(fields, AssessmentVocabulary.SettlementSalvageAt),
+            Field(fields, AssessmentVocabulary.SettlementSalvageAgent),
+            Field(fields, AssessmentVocabulary.SettlementSalvageAgentReference),
+            ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageMoved)),
+            ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)),
+            ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)),
+            ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)));
     }
 
     /// <summary>
@@ -292,6 +371,13 @@ public static class AssessmentReportProjection
         value is not null && DateOnly.TryParseExact(value, "yyyy-MM-dd", out var parsed)
             ? parsed
             : null;
+
+    private static bool? ParseFlag(string? value) => value switch
+    {
+        "true" => true,
+        "false" => false,
+        _ => null,
+    };
 
     private static string[] SplitLines(string? value) =>
         value is null

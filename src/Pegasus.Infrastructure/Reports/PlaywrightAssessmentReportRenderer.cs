@@ -36,6 +36,10 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
             assessment["tiles"] = Tiles(snapshot, presentation);
             assessment["introduction"] = Introduction(snapshot);
             assessment["vehicle_rows"] = VehicleRows(snapshot);
+            assessment["impact_rows"] = ImpactRows(snapshot.Damage.Impacts);
+            assessment["damage_rows"] = DamageRows(snapshot.Damage);
+            assessment["restraint_rows"] = RestraintRows(snapshot.Damage);
+            assessment["settlement_rows"] = SettlementRows(snapshot.Settlement);
             assessment["desktop_assessment"] = snapshot.AssessmentMethod == "image_based"
                 ? "<section class=\"section\"><h2>Desktop Assessment</h2><p>This report has been compiled from a desktop review of the information available relating to this claim.</p></section>"
                 : string.Empty;
@@ -159,6 +163,15 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         ("Model", snapshot.Vehicle.Model), ("VIN", snapshot.Vehicle.Vin ?? "—"),
         ("Odometer", snapshot.Vehicle.MileageDescription),
         ("Engine / Fuel", Join(" · ", snapshot.Vehicle.Engine, snapshot.Vehicle.Fuel)),
+        ("VIN Checked", Flag(snapshot.Vehicle.VinChecked)),
+        ("Transmission", snapshot.Vehicle.Transmission ?? "—"),
+        ("Colour / Body", Join(" · ", snapshot.Vehicle.Colour, snapshot.Vehicle.Body)),
+        ("Tax Expiry", Date(snapshot.Vehicle.TaxExpiry)), ("MOT Expiry", Date(snapshot.Vehicle.MotExpiry)),
+        ("Airbags Deployed", snapshot.Vehicle.AirbagsDeployed ?? "—"),
+        ("Fault Codes", snapshot.Vehicle.FaultCodes ?? "—"),
+        ("Temporary Repairs Possible", Flag(snapshot.Vehicle.TemporaryRepairsPossible)),
+        ("Temporary Repair Method", snapshot.Vehicle.TemporaryRepairMethod ?? "—"),
+        ("Temporary Repair Cost", OptionalMoney(snapshot.Vehicle.TemporaryRepairCost)),
         ("Pre-Incident Condition", Display(snapshot.Vehicle.Condition)),
         ("Impact Magnitude", $"{Display(snapshot.ImpactSeverity)} — {Display(snapshot.ImpactLocation)}"));
 
@@ -168,6 +181,35 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         ("Year", snapshot.Vehicle.Year), ("Odometer", snapshot.Vehicle.MileageDescription),
         ("Engine", snapshot.Vehicle.Engine ?? "—"), ("Fuel", snapshot.Vehicle.Fuel ?? "—"),
         ("Condition", Display(snapshot.Vehicle.Condition)));
+
+    private static string ImpactRows(IReadOnlyList<ReportImpact> impacts) => impacts.Count == 0
+        ? "<tr><td colspan=\"3\">—</td></tr>"
+        : string.Join(string.Empty, impacts.Select(impact =>
+            $"<tr><td>{Encode(impact.Zone)}</td><td>{Encode(impact.Severity)}</td><td>{Encode(impact.Note)}</td></tr>"));
+
+    private static string DamageRows(ReportDamage damage) => Rows(
+        ("Unrelated Damage", damage.Unrelated ?? "—"),
+        ("Unrelated Damage Deduction", OptionalMoney(damage.UnrelatedDeduction)),
+        ("Paint / Material Transfer", damage.MaterialTransfer ?? "—"));
+
+    private static string RestraintRows(ReportDamage damage) => Rows(
+        ("Right Front Tyre / Belt", Join(" / ", damage.RightFrontTyre, damage.RightFrontBelt)),
+        ("Left Front Tyre / Belt", Join(" / ", damage.LeftFrontTyre, damage.LeftFrontBelt)),
+        ("Right Rear Tyre / Belt", Join(" / ", damage.RightRearTyre, damage.RightRearBelt)),
+        ("Left Rear Tyre / Belt", Join(" / ", damage.LeftRearTyre, damage.LeftRearBelt)),
+        ("Spare Tyre", damage.SpareTyre ?? "—"), ("Centre Belt", damage.CentreBelt ?? "—"));
+
+    private static string SettlementRows(ReportSettlement settlement) => Rows(
+        ("Excess", OptionalMoney(settlement.Excess)), ("Betterment", OptionalMoney(settlement.Betterment)),
+        ("Claimant VAT Registered", Flag(settlement.ClaimantVatRegistered)), ("Reserve", OptionalMoney(settlement.Reserve)),
+        ("Equity", Money(settlement.Equity)), ("Repair Duration", settlement.RepairDays is { } days ? $"{days} days" : "—"),
+        ("Repair Delays", settlement.RepairDelays ?? "—"), ("Report Delay", settlement.ReportDelay ?? "—"),
+        ("Storage Per Day", OptionalMoney(settlement.StoragePerDay)), ("Recovery", OptionalMoney(settlement.Recovery)),
+        ("Hire Start", Date(settlement.HireStart)), ("Hire Daily Cost", OptionalMoney(settlement.HireDailyCost)),
+        ("Diminution", OptionalMoney(settlement.Diminution)), ("Salvage At", settlement.SalvageAt ?? "—"),
+        ("Salvage Agent", settlement.SalvageAgent ?? "—"), ("Salvage Agent Reference", settlement.SalvageAgentReference ?? "—"),
+        ("Salvage Moved", Flag(settlement.SalvageMoved)), ("Owner Retains Salvage", Flag(settlement.SalvageOwnerRetains)),
+        ("Salvage Value Agreed", Flag(settlement.SalvageValueAgreed)), ("Salvage Settled", Date(settlement.SalvageSettled)));
 
     private static string CostRows(ReportRepairCosts costs) => AmountRows(
         ("Labour Hours", costs.LabourHours.ToString("0.00", CultureInfo.InvariantCulture)),
@@ -267,6 +309,9 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
 
     private static string Display(string value) =>
         CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(value.Replace('_', ' ').ToLowerInvariant());
+    private static string Flag(bool? value) => value switch { true => "Yes", false => "No", null => "—" };
+    private static string Date(DateOnly? value) => value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—";
+    private static string OptionalMoney(decimal? value) => value is { } amount ? Money(amount) : "—";
     private static string Join(string separator, params string?[] values) =>
         string.Join(separator, values.Where(x => !string.IsNullOrWhiteSpace(x)));
 
