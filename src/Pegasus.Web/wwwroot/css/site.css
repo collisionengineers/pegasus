@@ -380,7 +380,7 @@ tbody tr:hover{background:#f3f6f7}
 .record-bar{min-height:48px;padding:7px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .record-bar-end{margin-left:auto;display:flex;gap:7px;align-items:center}
 .record-body{padding:14px}
-.record-ribbon{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:#fff;margin-bottom:10px;box-shadow:0 1px 2px rgba(20,30,35,.06),0 8px 22px rgba(20,30,35,.035)}
+.record-ribbon{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));align-items:stretch;min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:#fff;margin-bottom:10px;box-shadow:0 1px 2px rgba(20,30,35,.06),0 8px 22px rgba(20,30,35,.035)}
 .ribbon-item{min-height:66px;padding:10px 12px;border-right:1px solid var(--line);min-width:0;display:flex;flex-direction:column;justify-content:flex-start}
 .ribbon-item:last-child{border-right:0}
 .ribbon-label{font-size:9px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.06em}
@@ -395,15 +395,25 @@ tbody tr:hover{background:#f3f6f7}
    Case workspace (§1.8)
    --------------------------------------------------------------------------- */
 
-.case-workspace{display:grid;grid-template-columns:190px minmax(0,1fr) 285px;gap:10px;align-items:start}
-.case-section-nav{position:sticky;top:61px;border:1px solid var(--line);border-radius:6px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,35,.06),0 8px 22px rgba(20,30,35,.035);background:#fff;padding:5px}
-.case-section-nav a{display:flex;align-items:center;gap:7px;min-height:42px;margin:2px 0;padding:8px;border-left:3px solid transparent;border-radius:4px;color:var(--ink);text-decoration:none;font-size:11px;font-weight:750;transition:background-color .13s ease,box-shadow .13s ease,transform .13s ease,border-color .13s ease}
-.case-section-nav a:hover{background:#f5f7f8}
-.case-section-nav a[aria-current="page"]{border-left-color:var(--red);background:linear-gradient(90deg,#fff0ee,#fff8f7 70%,#fff);box-shadow:inset 3px 0 var(--red)}
-.case-section-nav a .icon{width:27px;height:27px;padding:5px;flex:none;color:#5d686d;border:1px solid #d7dde0;border-radius:5px;background:linear-gradient(180deg,#fff,#eef2f3)}
-.case-section-nav a[aria-current="page"] .icon{color:#fff;border-color:var(--red);background:var(--red)}
-.case-context{position:sticky;top:61px}
-.case-main{min-width:0}
+/* The Case record is one scrolling page (D29): the identity ribbon, action
+   bar, edit bar and jump-nav ride together in `.case-sticky`, whose measured
+   height (`--case-sticky-h`, set by site.js) is what the section anchors and
+   the context column are offset by. */
+.case-sticky{position:sticky;top:51px;z-index:20;background:#fff;border-bottom:1px solid var(--line)}
+.case-sticky .record-ribbon{margin-bottom:0;border:0;border-radius:0;box-shadow:none}
+.case-sticky .record-bar{border-bottom:0}
+.case-sticky .edit-bar{position:static;margin-bottom:0;border-left:0;border-right:0;border-top:0}
+.section-nav{display:flex;gap:2px;padding:0 10px;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.section-nav::-webkit-scrollbar{display:none}
+.section-link{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;min-height:40px;padding:0 9px;border-bottom:2px solid transparent;color:var(--muted);text-decoration:none;font-size:11px;font-weight:750;white-space:nowrap}
+.section-link:hover{color:var(--ink);background:#f5f7f8;text-decoration:none}
+.section-link[aria-current="true"]{color:var(--ink);border-bottom-color:var(--red)}
+.section-link .icon{width:16px;height:16px;flex:none}
+.case-workspace{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:10px;align-items:start;padding:14px}
+.case-context{position:sticky;top:calc(51px + var(--case-sticky-h,190px) + 10px)}
+.case-main{min-width:0;display:grid;gap:10px}
+.case-section{scroll-margin-top:calc(51px + var(--case-sticky-h,190px) + 8px)}
+.section-placeholder{min-height:320px;border:1px dashed var(--line);background:repeating-linear-gradient(45deg,transparent 0 11px,#f4f6f7 11px 22px)}
 .blocker-list{list-style:none;padding:0;margin:0;display:grid;gap:7px}
 .blocker{padding:9px 10px;border:1px solid var(--line);border-left:4px solid var(--amber);background:var(--amber-bg)}
 .blocker strong{display:block;font-size:11px}
@@ -750,7 +760,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
    --------------------------------------------------------------------------- */
 
 @media(max-width:1360px){
-  .case-workspace{grid-template-columns:175px minmax(0,1fr)}.case-context{display:none}
+  .case-workspace{grid-template-columns:minmax(0,1fr)}.case-context{display:none}
   .admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:1180px){
@@ -779,11 +789,11 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .nav-link:hover{transform:none}.nav-link .icon{width:26px;height:26px}
   .nav-link[aria-current="page"]{border-left:0;border-bottom-color:var(--red)}
   .utility-bar{top:0}
-  .case-section-nav,.admin-nav{position:static;display:flex;gap:2px;overflow-x:auto;margin-bottom:9px}
-  .case-section-nav a,.admin-nav a{flex:0 0 auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
-  .case-section-nav a[aria-current="page"],.admin-nav a[aria-current="page"]{border-bottom-color:var(--red)}
-  .case-section-nav a .icon,.admin-nav a .icon{width:25px;height:25px}
-  .case-workspace,.admin-layout{grid-template-columns:1fr}
+  .admin-nav{position:static;display:flex;gap:2px;overflow-x:auto;margin-bottom:9px}
+  .admin-nav a{flex:0 0 auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
+  .admin-nav a[aria-current="page"]{border-bottom-color:var(--red)}
+  .admin-nav a .icon{width:25px;height:25px}
+  .admin-layout{grid-template-columns:1fr}
   .pane-layout--2{grid-template-columns:minmax(280px,.72fr) minmax(390px,1.28fr)}
   .queue-layout{grid-template-columns:150px minmax(0,.8fr) minmax(0,1.2fr)}
   .integrated-home.integrated-home--expanded{grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr)}
@@ -815,7 +825,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .pane-scroll{max-height:340px}
   .detail-canvas{padding:13px}
   .scope-button{grid-template-columns:27px minmax(0,1fr) auto}
-  .case-workspace{display:block}.case-context{display:block;position:static;margin-top:10px}
+  .case-workspace{display:block;padding:12px}.case-context{display:block;position:static;margin-top:10px}
   .record-head{grid-template-columns:1fr;gap:7px}.record-head-end{justify-self:start}
   .record-bar-end{margin-left:0;width:100%;padding-top:4px;border-top:1px solid var(--line)}
   .record-ribbon{grid-template-columns:1fr}.record-ribbon .ribbon-item{border-right:0;border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
@@ -835,18 +845,18 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 }
 @media(prefers-reduced-motion:reduce){
   *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
-  .nav-link,.btn,.metric,.row-button,.work-item,.scope-button,.case-section-nav a,.admin-nav a{transform:none!important}
+  .nav-link,.btn,.metric,.row-button,.work-item,.scope-button,.admin-nav a{transform:none!important}
 }
 @media(forced-colors:active){
   .status::before,.health-dot,.unread-indicator{forced-color-adjust:none}
-  .nav-link[aria-current="page"],.tab[aria-selected="true"],.case-section-nav a[aria-current="page"]{outline:2px solid CanvasText}
+  .nav-link[aria-current="page"],.tab[aria-selected="true"],.section-link[aria-current="true"]{outline:2px solid CanvasText}
   .btn--primary,.btn--dark{border:2px solid ButtonText}
   .app-rail::before,.brand::after,.record-head::after,.page-title h1::after{display:none}
   .app-rail,.brand,.utility-bar,.workspace-tabs,.record-head,.toast,.utility-search input,.utility-bar .btn,.btn--primary,.btn--dark,.nav-link,.nav-link[aria-current="page"],.nav-count,.rail-health,.avatar,.workspace-tab,.shortcut-hint,.estimate-totals .estimate-total{background:Canvas;color:CanvasText;text-shadow:none}
   .brand-copy span,.nav-label,.rail-health,.rail-user small,.utility-freshness,.shortcut-hint,.record-identity,.record-identity b,.estimate-totals .estimate-total dt{color:CanvasText}
   .app-rail,.utility-bar,.workspace-tab,.nav-link[aria-current="page"],.rail-health,.utility-search input{border-color:CanvasText}
-  .nav-link .icon,.scope-visual-icon,.case-section-nav a .icon,.admin-nav a .icon{border:1px solid CanvasText;background:Canvas;color:CanvasText}
-  .nav-link[aria-current="page"] .icon,.scope-button[aria-pressed="true"] .scope-visual-icon,.case-section-nav a[aria-current="page"] .icon,.admin-nav a[aria-current="page"] .icon{background:Highlight;color:HighlightText}
+  .nav-link .icon,.scope-visual-icon,.admin-nav a .icon{border:1px solid CanvasText;background:Canvas;color:CanvasText}
+  .nav-link[aria-current="page"] .icon,.scope-button[aria-pressed="true"] .scope-visual-icon,.admin-nav a[aria-current="page"] .icon{background:Highlight;color:HighlightText}
 }
 
 /* ==== LEGACY (wave 5 deletes) ==== */
