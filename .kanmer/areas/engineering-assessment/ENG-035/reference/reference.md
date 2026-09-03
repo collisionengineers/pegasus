@@ -1,121 +1,192 @@
 # Review record — ENG-035 (PR https://github.com/collisionengineers/pegasus/pull/648)
 
-- Reviewer family: Claude (Opus), independent of the implementer (codex).
-- Head SHA reviewed: `551959b94ff36a037b8eb27b9613cef03f21d2c5`
-- Branch: `task/eng-035-assessment-vocabulary`; base `origin/dev` @ `07ac7f1b`
-- Review checkout: `.worktrees/eng-035-review` (detached)
-- Second reader: gpt-5.6-terra, `model_reasoning_effort=xhigh`, run over the
-  same checkout with the plan, checklist, D-decisions and owned-path list.
-- Date: 2026-09-03
+Reviewer family: Claude (Opus) with gpt-5.6-terra xhigh as the independent
+reader. The PR was built by Codex, so the reading family differs from the
+implementing family.
+
+Head SHA reviewed: `551959b94ff36a037b8eb27b9613cef03f21d2c5`
+Base: `origin/dev` (`07ac7f1b`). Review checkout:
+`.worktrees/eng-035-review` (detached at the PR head).
 
 ## Verdict
 
-**Approved on content. Merge blocked** by a red `documentation` CI check that
-is pre-existing on `origin/dev` and outside this ticket's owned paths (see
-finding 4). No change is required of ENG-035.
+**Code review: APPROVE.** No blocker survives dispositioning against the
+code. The diff matches the plan's pinned vocabulary table exactly, stays
+inside the owned paths, keeps every policy decision in `Pegasus.Core`, and
+proves each acceptance claim with a named test.
+
+**Merge: BLOCKED on a red required-lane check that ENG-035 neither caused
+nor owns.** The `documentation` job of `repository-check` fails on a broken
+relative Markdown link in `.opencode/skills/kanmer-setup/SKILL.md:169`
+(`../../../../docs/manual/greenfield.md`). It is pre-existing on `origin/dev`
+and outside this ticket's owned paths, so this reviewer will not merge over
+it without an explicit merge-authority decision. See "Merge decision
+required" below.
+
+## What was reviewed
+
+Ticket body, `plan/plan.md` (including its plan-review and Simplification
+pass sections), `checklist/checklist.md`,
+`post-implementation-report/post-implementation-report.md`,
+`open-questions/open-questions.md`, and EPIC-012 `context.md` (D29–D50).
+
+`git diff --name-only origin/dev...HEAD` returns 17 files, every one inside
+the plan's Expected-files table. `AssessmentMcpTools.cs`, Case Razor pages and
+partials, `OperatorLabels.cs`, estimate/valuation files, report-image
+curation, D31 sign-off files, the governing FRDs, `docs/operator-notes.md`
+and `corpus/` are all untouched.
+
+`tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs`
+appears in the plan's Expected files but not in the diff. Verified benign:
+it does not construct `AssessmentReportSnapshot` positionally, so the two new
+members required no edit there. The plan over-predicted; the build proves it.
+
+## Independent verification (this review checkout, at the PR head)
+
+The full suite was deliberately not re-run locally — GitHub CI runs the
+canonical `Category!=Corpus` filter sharded on this exact head SHA, and the
+merge is gated on it below. Locally I ran the build rails plus every test
+project that owns a changed type, and the migration gate.
+
+| Command | Exit |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` |
+| `dotnet test ./tests/Pegasus.Core.Tests/... --configuration Release --no-build` | `CORETEST_EXIT=0` — 1200/1200 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/... --configuration Release --no-build` | `ARCHTEST_EXIT=0` — 100/100 passed |
+| `./scripts/Test-MigrationGrants.ps1` | `GRANTS_EXIT=0` |
+
+Why that scope covers the change. Every changed production type is either a
+Core type (`AssessmentVocabulary`, `AssessmentPolicy`,
+`AssessmentReportProjection`, `AssessmentReportContract`, `ReportVehicle`,
+`ReportDamage`, `ReportSettlement`, `AssessmentReportPresentation`) — covered
+by `Pegasus.Core.Tests`, which carries the new vocabulary, normalizer,
+derivation, save-bound, equity, payload-version and D45-member assertions —
+or an Infrastructure type whose contract is enforced by
+`Pegasus.ArchitectureTests` (Core-owns-policy, dependency direction) and by
+the migration-grant script (the one new migration). The SQL-Server and
+Browser-category proofs (`AssessmentPersistenceIntegrationTests`,
+`AutomationAssessmentIngressTests`, `IntakePersistenceIntegrationTests`
+census, `AssessmentReportRendererTests` PDF text) need LocalDB and Playwright
+and are proven by CI on this same SHA: `unit`, `sql-integration (1..3)`,
+`sql-integration-coverage`, `browser` and `test-ui` all conclude SUCCESS.
+`./scripts/Update-TestUiSnapshots.ps1 -Verify` was not run — no routed Razor
+page changed and `docs/design/test-ui/**` is not in the diff.
+
+CI on `551959b9`: 11 of 12 checks SUCCESS, `infrastructure` SKIPPED,
+`documentation` FAILURE (finding 4). `mergeable: MERGEABLE`,
+`mergeStateStatus: UNSTABLE`.
 
 ## Findings and dispositions
 
 | # | Sev | Finding | Disposition |
 | --- | --- | --- | --- |
-| 1 | blocker (claimed) | `AssessmentPolicy.cs` — a whitespace-only `damage.impacts` clears the field instead of failing closed as malformed JSON, taking both derived rows with it. | **Rejected.** `NormalizeValue` (`AssessmentPolicy.cs:442-446`) has always treated a blank value as a clear for *every* field type; `Json` is not special-cased, so a blank clears `damage.impacts` exactly as a blank clears a Money or Date path. That is the vocabulary's single clear convention (one list per concept), and the intended clear path is proven by `AssessmentPersistenceIntegrationTests.DamageImpactsPersistAndClearTheirCoreDerivedHeadlineRows`, which asserts both derived rows are removed. Special-casing `Json` would introduce a second clear semantic. |
-| 1b | nit | Null array elements, nested arrays and non-string members have no explicit `InlineData` row. | **Accepted risk.** All three land on the single `element.ValueKind != JsonValueKind.Object` / member-kind guard in `ReadImpacts` (`AssessmentPolicy.cs:512-524`), which is already exercised by the `{}`, missing-member, extra-member and unknown-code rows of `DamageImpactsFailClosed`. Additional rows would add coverage of the same branch. |
-| 2 | blocker (claimed) | `DateOnly.TryParseExact(value, "yyyy-MM-dd", out var date)` resolves against the current culture; under `th-TH` `2027-01-02` parses as Gregorian 1484. Same overload in `AssessmentReportProjection.ParseDate`. | **Confirmed, deferred to [[ENG-037]].** The defect is real but **pre-existing on `origin/dev`**: `git show origin/dev:…AssessmentPolicy.cs` carries the same line (unchanged context in this diff), and `origin/dev`'s `AssessmentReportProjection.cs:292` carries the other. ENG-035 adds four `Date` paths that inherit it but introduces no new bug. Fixing it here is scope creep (rule 1). |
-| 3 | blocker (claimed) | `PlaywrightAssessmentReportRenderer.cs:46,176` still title-cases impact severity/location through Infrastructure's `Display()`, against the plan's Core-owned-display-text requirement. | **Rejected — not evidenced.** Line 176 is the pre-existing, unchanged `Impact Magnitude` row, rendering the *headline* codes whose closed list is unchanged (`ImpactLocation`'s codes are `DamageZones.Values.Select(ImpactLocation).Distinct()` + `multiple`, reproducing the previous list exactly). All four new `wheel_*` zone codes derive to the existing `wheel` code (`AssessmentContracts.cs:120-124`), so no new code ever reaches `Display()` and no `Wheel Rf` can be produced. Line 46 is `assessment["impact_rows"] = ImpactRows(snapshot.Damage.Impacts)`, which consumes Core display text produced by `AssessmentReportPresentation.DamageZone`/`DamageSeverity` in `AssessmentReportProjection.BuildDamage` — exactly what the plan required. |
-| 4 | blocker | The PR's `documentation` check is red: `BROKEN .opencode/skills/kanmer-setup/SKILL.md: ../../../../docs/manual/greenfield.md` — 1 broken relative Markdown link. | **Confirmed; outside scope, merge blocked.** Verified pre-existing at `origin/dev` (`git show 07ac7f1b:.opencode/skills/kanmer-setup/SKILL.md:169`); `git diff --name-only origin/dev...HEAD` touches no `.opencode/` file. `.opencode/skills/` is a Kanmer-managed skill tree, not an ENG-035 owned path, and rule 1 forbids repairing it in this PR. Reported to the controller for a base-branch fix or an explicit merge decision. |
-| 5 | nit | The canonical-length check in `NormalizeImpacts` (`AssessmentPolicy.cs:487-491`) is unreachable — `NormalizeValue` already rejects a raw value over 4000, and the canonical form is never longer than its input (same keys and values, `note` only trimmed). `DamageImpactNoteAndSerializedValueBoundsFailClosed`'s 4003-character case is caught by the generic bound, not by this check. | **Accepted risk.** Harmless defensive guard; removing it is a behaviour-preserving tidy with no benefit worth another round. |
-| 6 | nit | `AssessmentReportPresentation.AssessmentCode`'s fallback duplicates the `en-GB` title-casing expression in `PlaywrightAssessmentReportRenderer.Display()`. | **Accepted risk.** A duplicated two-line formatting expression, not a duplicated list or business rule; both layers are permitted to format, and Core owns every code list. |
-| 7 | nit | `PlaywrightAssessmentReportRenderer.RestraintRows` uses `damage.SpareTyre ?? "—"`, but `AssessmentCode(null)` already returns `"—"`, so the coalesce is dead. | **Accepted risk.** Dead but harmless; consistent with the surrounding row helpers. |
+| 1 | blocker (claimed) | `AssessmentPolicy.cs:377-381` — a whitespace-only `damage.impacts` value is turned into `null` by `NormalizeValue` before the JSON normalizer runs, so `"   "` clears the impacts and both derived rows instead of failing closed. | **Rejected with reason.** The blank-is-a-clear rule is `NormalizeValue`'s first statement and has always applied to *every* field type in the vocabulary — Text, Enumerated, Money, WholeNumber, Date and now Json alike. Special-casing Json would create a second clearing convention for one path ("the existing convention wins"; one list per concept). Nothing fails open: malformed JSON that is not blank still throws — proven by `DamageImpactsFailClosed` over `not-json`, `{}`, a missing member, an unknown zone, an unknown severity, an extra member and a duplicate zone. Clearing is itself a legitimate, lease-held, reason-carrying operation whose derived-row cleanup is proven by `DamageImpactsPersistAndClearTheirCoreDerivedHeadlineRows`, so a blank submission reaches exactly the state an explicit `null` reaches — no data is lost that an authorised clear would not also remove. |
+| 2 | nit (regraded from blocker) | Codex asked for extra `damage.impacts` cases: a `null` array element, a nested array, a non-string member. | **Accept risk / no change.** All three are already rejected by the same `element.ValueKind != JsonValueKind.Object \|\| … ValueKind != JsonValueKind.String` guard in `ReadImpacts` (`AssessmentPolicy.cs:502-517`), and that guard's branch is exercised by the existing `DamageImpactsFailClosed` rows. The gap is test breadth over one already-covered branch, not behaviour; it does not justify another round trip. |
+| 3 | blocker (claimed) | `AssessmentPolicy.cs:460` and `AssessmentReportProjection.cs` `ParseDate` use the culture-sensitive `DateOnly.TryParseExact(value, "yyyy-MM-dd", out _)` overload, so a canonical date can misparse under a non-Gregorian default calendar; ENG-035's four new `Date` paths widen the blast radius. | **Deferred — disposition upheld.** Confirmed genuine and confirmed pre-existing: neither call site appears as a changed line in `git diff origin/dev...HEAD`, and both exist verbatim on `origin/dev`. ENG-035 widens the exposure but did not introduce it, and neither call site is a step in this ticket's plan. Already filed as [[ENG-037]] ("Parse assessment and report dates with the invariant culture"), linked from ENG-035, added to EPIC-012 and placed at the top of the `engineering-assessment` backlog. The implementer's defer is honest and correctly recorded; this reviewer endorses it rather than re-opening scope. |
+| 4 | blocker (claimed) | `PlaywrightAssessmentReportRenderer.cs:176` still applies Infrastructure's generic `Display()` title-caser to `snapshot.ImpactSeverity` and `snapshot.ImpactLocation`, contrary to "report code display text lives in Core". | **Rejected with reason.** The cited line is unchanged context, not a changed line: it appears with a leading space in `git diff origin/dev...HEAD` and is byte-identical on `origin/dev` (`PlaywrightAssessmentReportRenderer.cs:163` there). It also operates on an unchanged code set — `ImpactLocation`'s accepted codes are now derived as `DamageZones.Values.Select(z => z.ImpactLocation).Distinct()` plus `multiple`, which yields exactly the fourteen codes the previous literal list held, so no new code reaches `Display()` and no `Wheel Rf` can be produced (the four wheel zones all derive the existing `wheel`). The plan's actual requirement — that the *new* zone and severity codes not be left to title-casing — is met: every per-impact row takes its text from Core via `AssessmentReportPresentation.DamageZone` / `DamageSeverity`. Rewriting a pre-existing line is out of scope (rule 1). |
+| 5 | nit (this reviewer) | Core's new `AssessmentReportPresentation.AssessmentCode` and Infrastructure's existing `Display()` are two title-casing helpers for assessment codes. | **Accept risk.** They cover disjoint code sets (`AssessmentCode` the new enumerations with their explicit overrides `OK`, `CVT`, `Semi-automatic`, `Repair kit`, `Not fitted`; `Display` the pre-existing scalars), and merging them means editing the pre-existing helper and its callers — scope this ticket does not own. Worth folding into ENG-037's neighbourhood or a later report-presentation ticket; not worth a round trip now. |
+| 6 | blocker | The `documentation` job of `repository-check` is FAILURE on this head: `Test-DocumentationLinks.ps1` reports "1 broken relative Markdown link(s)" for `.opencode/skills/kanmer-setup/SKILL.md:169` → `../../../../docs/manual/greenfield.md`. | **Upheld as a merge blocker, not as an ENG-035 defect.** Independently confirmed pre-existing and unrelated: `git log --oneline origin/dev..551959b9 -- .opencode/` is empty (no commit on this branch touches the directory), and the identical link is present on `origin/dev`. It is outside ENG-035's owned paths, so the implementer correctly did not fix it and filed [[KANMER-011]]. The reviewer's own rail is nevertheless "a red CI check blocks the merge", and this reviewer is not the merge authority for a bypass. |
 
-## What I verified independently
+## Answers to the review questions
 
-- **Owned paths only.** The 17 changed files match the plan's Expected-files
-  table exactly. `AssessmentMcpTools.cs`, every Case Razor page and partial,
-  `OperatorLabels.cs`, the damage-diagram assets, valuation/estimate files,
-  report-image curation, D31 sign-off files, the governing FRDs and
-  `docs/operator-notes.md` are all untouched.
-- **D45.** No `type` member appears in `AssessmentImpact`, `ReportImpact`, the
-  normalizer, the Scriban table (`<th>Zone</th><th>Severity</th><th>Note</th>`)
-  or any fixture. `AssessmentReportRenderingTests.ExpandedSnapshotUsesVersionTwoAndImpactHasOnlyD45Members`
-  asserts it by reflection.
-- **D44 / D46 / D47 / D50.** No review state, flag, checkbox, dialog, history
-  line or gate; no crop or image-curation change; no case-state transition; no
-  Create-Case route.
-- **D49 — no stranded edit route.** Nothing is retired from the vocabulary.
-  `assessment.impact_location` / `assessment.impact_severity` become
-  Core-derived-only, which removes a *write* route; `grep` over `src/` finds no
-  Razor page, page model or Web source that ever wrote either path (only the
-  compiled binaries match), so no production edit route was lost. The generic
-  `pegasus_assessment_update` MCP route remains the production caller and now
-  carries `damage.impacts` instead — proven end-to-end by
-  `AutomationAssessmentIngressTests`.
-- **Core owns policy.** Vocabulary, zone/severity catalogues, the JSON
-  normalizer, the derivation rules and the D41 equity calculation all live in
-  `Pegasus.Core`. Infrastructure only persists Core-derived rows
-  (`EfCaseAssessmentStore.cs:155-170`) and formats snapshot values; the Scriban
-  template carries no arithmetic and no parsing. 100/100 architecture tests pass.
-- **Equity.** `engineerValue - (costs.Total - (betterment ?? 0)) - (salvage ?? 0)`
-  matches the plan, and `EquitySubtractsRepairAfterBettermentAndSalvageButNotExcess`
-  asserts excess is excluded.
-- **Save bound.** 76 definitions, `MaximumFieldsPerSave` raised 60 → 80, and
-  `SaveBoundCoversTheWholeVocabulary` asserts the invariant rather than the
-  literal.
-- **Migration.** A pure `CK_CaseAssessmentFields_FieldPath` swap — no table,
-  entity, `DbSet`, package or backfill, so no new grant is owed; the `Down`
-  re-adds the prior constraint and fails transactionally rather than deleting
-  rows. The generated name is appended to the exact census in
-  `IntakePersistenceIntegrationTests.cs`.
-- **No weakened assertions.** The one edited existing test swapped
-  `vehicle.colour` for `vehicle.not_a_field` as the unknown-path probe, because
-  `vehicle.colour` is now a real path — the assertion is unchanged in strength.
-  `EveryEnumeratedCodeFromTheScreenRoundTrips` excludes the two derived paths,
-  which is required now that they fail closed, and the new
-  `EveryWritableVocabularyPathRoundTripsThroughItsCoreNormalizer` covers the
-  whole writable vocabulary in exchange.
-- **Simplification pass honest.** The single applied fix — the projection-local
-  ordinal `Dictionary` with `TryAdd` replacing the per-field
-  `CaseAssessmentProjection.Field` linear scan — is present at
-  `AssessmentReportProjection.cs:161-165` and preserves first-match semantics
-  for duplicate paths. The four reported-not-applied findings each carry a
-  reason.
-- **No explanatory copy.** The new report rows are label/value pairs only; the
-  new sections add three `<h2>` headings and no prose.
+- **Every new field has a named production caller.** Yes. Each new path is
+  admitted by `AssessmentPolicy.ValidateAndNormalize`, persisted by
+  `EfCaseAssessmentStore.SaveAsync` behind `ISaveAssessment`, reachable over
+  the generic `pegasus_assessment_update` MCP tool (proven end-to-end by
+  `AutomationAssessmentIngressTests`, which now round-trips `vehicle.colour`
+  and `damage.impacts` through the real HTTP tool call), and projected into
+  the report by `AssessmentReportProjection.Project`, whose production caller
+  is `GenerateAssessmentReportDraft`. No stub, TODO, mock or test-only path.
+- **No explanatory copy.** The template gains three section headings
+  (`Damage`, `Tyres and Seat Belts`) and label/value rows only. No hints, no
+  how-it-works prose, no empty-state panel — an absent value renders `—`.
+- **Labels.** `OperatorLabels.cs` is untouched. Report display text for the
+  new codes lives in Core beside `AssessmentReportPresentation`. Infrastructure
+  gained no label catalogue; the renderer only formats what the snapshot
+  carries. The zone and severity code lists exist exactly once, in
+  `AssessmentVocabulary.DamageZones` / `DamageSeverities`, and the vocabulary
+  definitions for `impact_severity` and `impact_location` are now *derived
+  from* those dictionaries rather than restated.
+- **Core owns policy.** All JSON parsing, member validation, zone/severity
+  admission, uniqueness, the note bound, canonical re-serialization, the
+  derivation rules and the D41 equity calculation are in
+  `Pegasus.Core`. Infrastructure asks Core for derived values and writes them
+  through the existing writer; the Scriban template does no arithmetic and no
+  parsing. `Pegasus.ArchitectureTests` 100/100 green.
+- **Equity.** `engineerValue - (costs.Total - betterment) - salvage`, with
+  excess kept as its own field and excluded. Checked against the binding
+  mockup source `Pegasus_UI_v2_src/src/05-state.js:124-129`, where
+  `repairCost = totals.total` (VAT-inclusive) and
+  `equity = engineerValue - (repairCost - betterment) - salvage` — the
+  implementation matches, including the VAT-inclusive reading of "repair
+  cost". Proven by `EquitySubtractsRepairAfterBettermentAndSalvageButNotExcess`.
+- **D45.** No damage `type` appears in the contract, the normalizer, the
+  projection, the snapshot, the template or any fixture.
+  `ExpandedSnapshotUsesVersionTwoAndImpactHasOnlyD45Members` asserts
+  `ReportImpact` has exactly `Zone`, `Severity`, `Note`, and the report table
+  has exactly those three columns.
+- **D44 / D46 / D50.** No review flag, checkbox, dialog or history line; no
+  crop or image-curation change; no case-creation change. Confirmed by the
+  file list.
+- **D49 coordination.** No field is retired from the Assessment vocabulary
+  and re-homed on the case vehicle record, so no production edit route is
+  stranded ahead of [[CASE-043]]. The diff is purely additive to the
+  vocabulary; the only removal is the *direct writability* of the two derived
+  impact scalars, which is the ticket's own intended behaviour and is
+  replaced by derivation from `damage.impacts`.
+- **Tests prove the claim; nothing weakened.** Two existing assertions
+  changed, both legitimately and both strengthened rather than loosened:
+  `UnknownPathRejected` moved its probe from `vehicle.colour` to
+  `vehicle.not_a_field` because `vehicle.colour` is now a real path, and
+  `EveryEnumeratedCodeFromTheScreenRoundTrips` now skips the two derived
+  paths — because they can no longer be written at all, a stronger rule
+  proven by `DerivedImpactFieldsCannotBeWrittenDirectly`. Coverage added for:
+  canonical round trip of every writable path
+  (`EveryWritableVocabularyPathRoundTripsThroughItsCoreNormalizer`), canonical
+  re-serialization with member reordering and note trimming, multi-zone
+  `multiple` and wheel-zone `wheel` derivation, highest-severity derivation,
+  seven fail-closed impact shapes, the 200-character note bound and the
+  4000-character serialized bound, direct derived-write rejection at both the
+  Core and the live MCP boundary, persistence and clear of derived rows with
+  Automation provenance, the raised save bound
+  (`SaveBoundCoversTheWholeVocabulary`: 76 definitions ≤ 80), every new
+  projection field, equity, the bumped payload version, and representative
+  PDF text.
+- **Migration.** One migration, drop-and-re-add of
+  `CK_CaseAssessmentFields_FieldPath` only. No table, entity, `DbSet`,
+  package or backfill, so no new grant is required —
+  `Test-MigrationGrants.ps1` exits 0 over all 88 migration files. The model
+  snapshot matches the migration's constraint text exactly, and the migration
+  name is appended to the applied-migration census in
+  `IntakePersistenceIntegrationTests.cs`. `Down` re-adds the narrower
+  constraint, which SQL Server refuses transactionally if any new-path row
+  exists — evidence is never deleted, as the plan requires.
+- **Simplification pass.** The single applied fix is present in the diff:
+  `AssessmentReportProjection.Project` now builds one ordinal
+  `Dictionary<string,string?>` and every read goes through it instead of
+  `CaseAssessmentProjection.Field`'s linear scan. Behaviour-preserving —
+  `TryAdd` keeps the first occurrence for a duplicated path, which is what
+  `SingleOrDefault`-style first-match reading returned before. The four
+  "no change needed" claims were spot-checked and hold; the reported-but-
+  unapplied double-parse finding (#2 in the plan's table) is named with a
+  reason rather than silently dropped, which is an honest disposition.
 
-## Commands and exit codes (this review's own runs, in `.worktrees/eng-035-review`)
+## Merge decision required
 
-| Command | Exit |
-| --- | --- |
-| `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` |
-| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` (0 warnings, 0 errors) |
-| `dotnet test ./tests/Pegasus.Core.Tests/…csproj --configuration Release --no-build` | `CORE_EXIT=0` — 1200 passed, 0 failed |
-| `dotnet test ./tests/Pegasus.ArchitectureTests/…csproj --configuration Release --no-build` | `ARCH_EXIT=0` — 100 passed, 0 failed |
-| `pwsh -File ./scripts/Test-MigrationGrants.ps1` | `GRANTS_EXIT=0` — 88 migration files checked |
+This is a controller/merge-authority call, not the reviewer's, and it is the
+only thing standing between this PR and `dev`:
 
-Scope rationale: the full suite was deliberately not re-run locally because
-GitHub CI runs it sharded on this PR. The local scope covers the changed types
-directly — `Pegasus.Core.Tests` owns every changed Core type
-(`AssessmentVocabulary`, `AssessmentPolicy`, `AssessmentReportProjection`,
-`AssessmentReportRendering`), `Pegasus.ArchitectureTests` proves the
-Core/Infrastructure dependency direction the new Core-owned presentation code
-depends on, and `Test-MigrationGrants.ps1` covers the added migration. The
-SQL-integration and Browser assertions (`EfCaseAssessmentStore`, the MCP
-ingress, the rendered PDF) are proven by CI, which is green on all of them.
-`docs/design/test-ui` is unchanged and no routed Razor page was touched, so the
-Test UI snapshot commands do not apply.
+- **(a) Land [[KANMER-011]] first** (a one-line link repair, no coupling to
+  ENG-035), then `git merge --no-edit origin/dev` on this branch, let CI go
+  fully green, and merge. This is the recommended path and matches the
+  implementer's own recommendation.
+- **(b) Merge over the red `documentation` check.** Defensible on the
+  evidence — the failure is provably pre-existing on `origin/dev`, provably
+  untouched by this diff, and GitHub reports the PR `MERGEABLE` with
+  `mergeStateStatus: UNSTABLE` (the check is not branch-protection-required).
+  It needs an explicit instruction; this reviewer will not take it unilaterally.
 
-## CI at the reviewed head
-
-`changes` SUCCESS · `local-development-scripts` SUCCESS · `reference-data`
-SUCCESS · `unit` SUCCESS · `sql-integration (1..3)` SUCCESS · `browser` SUCCESS
-· `test-ui` SUCCESS · `sql-integration-coverage` SUCCESS · `infrastructure`
-SKIPPED · **`documentation` FAILURE** (finding 4, inherited from `origin/dev`).
-`mergeStateStatus` is `UNSTABLE`.
-
-## Outstanding for the controller
-
-1. Finding 4 — the red `documentation` check. Either land the one-line
-   `.opencode/skills/kanmer-setup/SKILL.md` link repair on `dev` and refresh
-   this branch, or make an explicit decision to merge over a base-branch
-   failure that ENG-035 neither caused nor can fix within its scope. Until then
-   ENG-035 stays in Review and is not merged.
-2. Finding 2 is deferred to [[ENG-037]] and needs scheduling.
+Until one of those happens ENG-035 stays in Review at
+`551959b94ff36a037b8eb27b9613cef03f21d2c5`. Nothing in the ticket's own code
+is asked to change.
