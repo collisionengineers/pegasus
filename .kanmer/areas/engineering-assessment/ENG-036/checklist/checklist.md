@@ -1,15 +1,20 @@
-- [ ] Step 1: verify ENG-034, ENG-035, ENG-029, CASE-038, renderer, and UIIMP-014 hand-offs.
-- [ ] Step 2: add and embed/link the single shared SVG geometry asset.
-- [ ] Step 3: add the keyboard-operable `damage-diagram.js` initializer.
-- [ ] Step 4: compose the lease-bound, type-free Damage section and responsive styles.
-- [ ] Step 5: after renderer ownership transfer, print and test the marked shared SVG in the PDF.
-- [ ] Step 6: supply UIIMP-014's click, Enter, read-only, and three-width assertions.
+- [ ] Step 1: verify the eight hand-offs — ENG-035 vocabulary (no `type`), ENG-035 per-zone report snapshot collection, ENG-034 shell, ENG-029 writer, CASE-038 `site.js` calling `window.pegasusDamageDiagram.init` on initial and lazy mount, the ENG-035 two-line report insertion contract, PLAT-070 (no surviving staff-review flag or control — D44), and the `open-questions` answer on snapshot ownership.
+- [ ] Step 1: confirm `report.css` is held by no other open lane.
+- [ ] Step 2: add the single shared SVG geometry asset; embed it in Infrastructure and add the one explicit static-web-asset item in `Pegasus.Web.csproj` (no existing Web convention fits).
+- [ ] Step 2: assert `GET /img/damage-diagram.svg` returns the embedded bytes as `image/svg+xml`.
+- [ ] Step 3: add `damage-diagram.js` exposing an idempotent `window.pegasusDamageDiagram.init(root)`; diagram zones plus `underside`/`interior`/`mechanical` chips; add, remove, severity change and note change each rewrite the hidden `damage.impacts` JSON, marker class, `aria-pressed`, accessible name, row list and focus.
+- [ ] Step 4: compose the lease-bound, type-free Damage section (diagram, chips, impact rows, tyre/belt cards, spare tyre, centre belt, unrelated damage and deduction, material transfer, `derived` impact location and severity) with the 1180px/760px rules.
+- [ ] Step 5: add `DamageDiagramMarkup.cs` and the `report.css` marker rules; hand ENG-035 the two verbatim insertions for its renderer and template.
+- [ ] Step 5: `AssessmentReportDamageDiagramTests.cs` — structural marker assertion (marked set equals projected set, with an unmarked control and an individual wheel), PDF text assertion for the diagram section and Zone/Severity/Note with no type wording, and caller evidence that a saved `damage.impacts` reaches the snapshot.
+- [ ] Step 5: `tests/Pegasus.Core.Tests/Assessment/DamageZoneTests.cs` — canonical zones, unique zones, highest-severity derivation, individual wheels, no `type` member.
+- [ ] Step 6: simplification pass over the branch diff (reuse, simplification, efficiency, altitude) with findings and dispositions recorded in the plan under a dated heading.
+- [ ] Step 6: supply UIIMP-014's assertions — click and Enter from diagram and chips, initialization on initial and lazy mount, read-only has no toggle, no overflow at 1580/1100/760.
 - [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
 - [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportRendererTests"`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
+- [ ] `pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium`
+- [ ] `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportDamageDiagramTests"`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify` (verify only; update mode writes UIIMP-014's `docs/design/test-ui/**` — stop and hand off any drift)
 - [ ] `./scripts/Test-UiCatalogue.ps1`
 - [ ] post-implementation report written
 - [ ] PR opened with Kanmer: ENG-036
