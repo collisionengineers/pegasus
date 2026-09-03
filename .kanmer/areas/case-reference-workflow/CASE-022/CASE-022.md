@@ -2,7 +2,7 @@
 id: CASE-022
 type: ticket
 title: Deliver public upload links (INT-31) to the operator's accepted limits
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: codex
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-03T14:35:23.555Z'
   review: '2026-09-03T16:22:55.937Z'
   verifying: '2026-09-03T17:31:01.523Z'
+  done: '2026-09-03T18:06:57.739Z'
 taken_at: '2026-09-03T15:39:27.322Z'
 branch: task/case-022-repair-public-upload
 worktree: .worktrees/case-022
@@ -30,13 +31,13 @@ links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
-  - 251ad4493b4a11ac0b9d4e68055bf0bcedf10fef
+  - c804056deaa6d65aaba46754a89687f964609479
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/650'
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-09-03T17:52:26.882Z'
+updated: '2026-09-03T18:07:19.649Z'
 ---
 
 ## What the operator saw
@@ -140,3 +141,14 @@ this ticket, not [[DOCS-012]]. They stop being dead once this ships.
 accepted limits move to their canonical owner (FRD-05), per the register's own
 rule that accepted decisions leave it. The § *Manual upload in a deployed
 environment* contradiction is resolved for this route and should say so.
+
+## Outcome
+
+PR [#650](https://github.com/collisionengineers/pegasus/pull/650) merged to
+`dev` at `c804056deaa6d65aaba46754a89687f964609479` on
+2026-09-03. Exact-merge locked restore, zero-warning Release build, and 32
+focused tests passed. The operator waived a duplicate full-suite rerun because
+the same suite had already passed 2,525 tests before merge, and directed this
+ticket to close. Production deployment and live Box/SQL/telemetry testing are
+not claimed; the operator will perform them with the next deployment outside
+CASE-022. No successor ticket is required by this closeout.
