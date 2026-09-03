@@ -53,10 +53,42 @@ unset). For several at once use `create_items` and check its per-entry results.
 on a governing PRD/FRD/ADR: give the ticket `refs` to the doc it implements
 (`link_doc <id> docs/frd/<slug>.md`), or set **`docs_todo: true`** when the doc
 is still to be written (hand off to `kanmer-docs`). Without one of the two a
-ticket can't leave Backlog. Quick-filed tickets default to `docs_todo`.
+ticket can't leave Backlog.
 
 Filing a ticket isn't the same as starting it: if the user only asked you to
 file one, create it and stop there.
+
+## Quick capture
+
+Not every observation is a ticket yet. When something is worth recording but
+you cannot honestly size it — a glitch you saw in passing, a smell, a "someone
+should look at this" — file it as a **capture**: `create_item` with
+`profile: "capture"`, a concise title, and the observation as the body. Add
+`capture_evidence` (paths or links) if you have any; it is genuinely optional.
+
+That is the whole obligation. A capture owes **no** document at any boundary
+and must **not** be given `docs_todo` — inventing a doc debt for an observation
+is exactly the malformed backlog entry captures exist to prevent. It stays in
+Backlog, visible on the board and findable by the words of its observation
+(`search_items`), and `list_items profile: "capture"` lists them.
+
+A capture cannot leave Backlog, cannot be taken, and is never picked up by
+`/goal`; the server refuses all three with `CAPTURE_NOT_PROMOTED`. It leaves
+that state only through one recorded decision — `update_item` with
+`capture_disposition`:
+
+| Disposition | Use it when | Also pass |
+|---|---|---|
+| `duplicate` | it is already filed | `capture_result` — the ticket id; it is linked and archived |
+| `already-fixed` | it turned out to be fixed | — (archived) |
+| `batch` | it joins an explicit small-fix batch | `capture_result` (batch id) **and** the `profile` it now carries |
+| `promoted` | it is real work | the `profile` it now carries |
+| `retained` | not yet decided | — (stays a capture; the only decision that may be revisited) |
+| `not-required` | it no longer matters | — (archived) |
+
+The new profile's gates apply from that decision onward and never retroactively.
+Record the disposition even when the answer is "nothing" — an archived capture
+with a reason is a decision; a silently deleted one is a loss.
 
 ## Epic context
 

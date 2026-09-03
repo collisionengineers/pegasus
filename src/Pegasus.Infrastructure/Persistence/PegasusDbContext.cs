@@ -71,8 +71,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseEstimateLineEntity> CaseEstimateLines => Set<CaseEstimateLineEntity>();
     internal DbSet<CaseRepairSpecificationEntity> CaseRepairSpecifications =>
         Set<CaseRepairSpecificationEntity>();
+    internal DbSet<CaseValuationEntity> CaseValuations => Set<CaseValuationEntity>();
     internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
+    internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
+    internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();
+    internal DbSet<ProviderSubmissionEntity> ProviderSubmissions => Set<ProviderSubmissionEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
@@ -174,6 +178,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         EvaHandoffModelConfiguration.Configure(builder);
         EvaSubmissionModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
+        PrincipalCredentialModelConfiguration.Configure(builder);
+        ProviderSubmissionModelConfiguration.Configure(builder);
         IntakeAllocationModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
@@ -252,6 +258,14 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DateOfIncident).HasColumnType("date");
             entity.Property(item => item.InstructionDate).HasColumnType("date");
             entity.Property(item => item.InspectionAddress).HasMaxLength(1000);
+            entity.Property(item => item.VehicleMileageUnit).HasMaxLength(40);
+            entity.Property(item => item.VatStatus).HasMaxLength(100);
+            entity.Property(item => item.ClaimantAddress).HasMaxLength(1000);
+            entity.Property(item => item.ClaimantContactNumber).HasMaxLength(100);
+            entity.Property(item => item.FileHandlerName).HasMaxLength(300);
+            entity.Property(item => item.FileHandlerEmailAddress).HasMaxLength(320);
+            entity.Property(item => item.FileHandlerPhoneNumber).HasMaxLength(100);
+            entity.Property(item => item.Notes).HasMaxLength(2000);
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.InstructionDraft)
                 .HasForeignKey<InstructionDraftEntity>(item => item.IntakeReceiptId)
@@ -1418,6 +1432,18 @@ internal sealed class InstructionDraftEntity
     public DateOnly? InstructionDate { get; set; }
     public DateOnly? InspectionDate { get; set; }
     public string? InspectionAddress { get; set; }
+
+    // Declared-instruction fields (API-01). No extraction policy reads these
+    // today; a provider that states its instruction over the API supplies them
+    // directly.
+    public string? VehicleMileageUnit { get; set; }
+    public string? VatStatus { get; set; }
+    public string? ClaimantAddress { get; set; }
+    public string? ClaimantContactNumber { get; set; }
+    public string? FileHandlerName { get; set; }
+    public string? FileHandlerEmailAddress { get; set; }
+    public string? FileHandlerPhoneNumber { get; set; }
+    public string? Notes { get; set; }
 }
 
 internal sealed class IntakeAssetEntity

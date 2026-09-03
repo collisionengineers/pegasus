@@ -16,8 +16,10 @@ public enum StaffAccessRight
     ManageApprovedMailboxes,
     ManageApprovedOutlookCategories,
     ManageAutomationClients,
+    ViewOperationalReports,
     ExecuteSystemWork,
-    SubmitRequestUpload
+    SubmitRequestUpload,
+    SubmitProviderInstruction
 }
 
 /// <summary>
@@ -48,11 +50,16 @@ public static class StaffAuthorization
             StaffAccessRight.ManageWorkflowConfiguration or
             StaffAccessRight.ManageApprovedMailboxes or
             StaffAccessRight.ManageApprovedOutlookCategories or
-            StaffAccessRight.ManageAutomationClients =>
+            StaffAccessRight.ManageAutomationClients or
+            StaffAccessRight.ViewOperationalReports =>
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,
             StaffAccessRight.SubmitRequestUpload => actor.Kind == ActorKind.RequestLink,
+            // The Provider API actor (API-01) may only submit its own
+            // Principal's instructions and read its own receipts; every staff,
+            // management and system-work right above stays denied for it.
+            StaffAccessRight.SubmitProviderInstruction => actor.Kind == ActorKind.Provider,
             _ => false
         };
     }

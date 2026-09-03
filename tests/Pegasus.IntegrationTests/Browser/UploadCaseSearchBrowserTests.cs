@@ -84,7 +84,7 @@ public sealed class UploadCaseSearchBrowserTests
         await support.Page.Locator("[data-case-search] button[type=submit]").ClickAsync();
         await support.Page.WaitForURLAsync("**/Upload/Status/**");
 
-        var confirmation = support.Page.Locator(".status-card");
+        var confirmation = support.Page.Locator("[data-confirmation]");
         await confirmation.WaitForAsync();
         Assert.Contains("added to case BRWS01", await confirmation.TextContentAsync() ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains(

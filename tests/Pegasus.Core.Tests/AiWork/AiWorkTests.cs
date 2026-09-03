@@ -379,7 +379,7 @@ public sealed class AiWorkTests
                 state,
                 new(new(true, true, true, true), new(true, "policy", 1)),
                 new(Empty<string>()),
-                new(Empty<string>()),
+                new(Empty<string>(), Empty<string>(), Empty<string>()),
                 new(Empty<string>()),
                 new(
                     Empty<string>(),

@@ -330,7 +330,9 @@ in `tests/Pegasus.IntegrationTests/xunit.runner.json`: several agents may run
 suites at once against one LocalDB instance, and the cap is what bounds the
 concurrent restores. The browser selection halves it again on the command line,
 because each of its tests starts a Chromium and a loopback host beside its own
-database. Leave `parallelAlgorithm` at its default `conservative`; `aggressive`
+database. Test UI capture applies the same split in two passes: browser tests at
+the halved cap, then non-browser tests at the project cap. Leave
+`parallelAlgorithm` at its default `conservative`; `aggressive`
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 
@@ -465,6 +467,46 @@ Every previous provider/suffix pair must remain. Removal fails `non-monotonic-so
 Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
 
 Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
+
+## Principal-identification corpus authoring
+
+The tracked principal-identification corpus is review evidence for all 49
+operational principals. It is generated from the retained Pegasus sources, an
+immutable local corpus, and a read-only CollisionSpike checkout. It is never
+loaded by the application and cannot activate a route, classification,
+association, or extraction policy.
+
+Inject both untracked source roots and run from PowerShell 7:
+
+```powershell
+$collisionSpikeRoot = "path-to-read-only-collisionspike-checkout"
+$corpusRoot = "path-to-immutable-pegasus-corpus"
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CollisionSpikeRoot $collisionSpikeRoot `
+  -CorpusRoot $corpusRoot
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CollisionSpikeRoot $collisionSpikeRoot `
+  -CorpusRoot $corpusRoot `
+  -Verify
+```
+
+Generation reads originals without modifying them, deduplicates by SHA-256,
+groups messages by thread root then stable case key then source hash, and
+assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
+regenerates canonical JSON and byte-compares the tracked package. The
+tracked text-source snapshots declare `normalized-lf` hashing so Git checkout
+line endings cannot create false drift; email, PDF, Office, workbook, and
+fixture evidence retains raw-byte hashes. The
+non-corpus tests validate its 49 dossiers, lifecycle counts, crosswalks,
+criterion states, deterministic split, and tracked Pegasus source hashes. The
+focused corpus lane additionally hashes every locally present original and
+runs it through the real MIME/PDF/Office reader.
+
+CollisionSpike confidence, priorities, thresholds, and winner selection are
+not copied into the normalized criteria. Dormant, unknown, conflicting, and
+multiple candidates remain review-only. A new runtime policy still requires
+the operator to select one principal and accept its development and untouched
+holdout outcomes.
 
 ## Provider inspection-mode setting
 
@@ -859,7 +901,7 @@ The following contracts must be proved through the owning Core policy and actual
 - wrong-principal handling makes the original case terminal `Created in error`, creates exactly one linked replacement, reuses neither number, and refuses reopening the original;
 - direct edits to used principal codes fail;
 - Administrator cutover creates one linked successor, atomically deactivates the predecessor, continues the cutover-year next/exhausted state, starts later years at `001`, records reason/history, and survives stale, concurrent, and fault-injected transaction tests;
-- the first chase occurs at the same London local time after seven calendar days;
+- the first chase occurs at the same London local time after the configured chase interval (one global whole-calendar-day value, 1 to 365, default 7 — D23);
 - `Held` preserves and resumes the remaining chase duration;
 - reopening requires a reason and returns to an otherwise valid nonterminal state;
 - London-midnight and Monday dashboard boundaries are correct;

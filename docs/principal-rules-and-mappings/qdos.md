@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`
-(`qdos_mail_classification`, Version 4).
+(`qdos_mail_classification`, Version 5).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -50,13 +50,25 @@ being chased, not a new instruction.
 | `attachment.audit-report-notification` | `AUDIT REPORT NOTIFICATION` | An attached document's text |
 | `attachment.engineer-notification` | `ENGINEER NOTIFICATION` (with or without the `REPORT + AUDIT REPORT` marker) | An attached document's text |
 
-QDOS sends triage requests in two templates and they are disjoint: over the
-corpus, seven messages carry the body phrase, five carry the subject line, and
-none carry both. The two tells therefore feed **one** triage candidate — a
-second candidate for the same category would resolve to Ambiguous, so a message
-carrying both tells would classify worse than one carrying either. Both
-predicates are still recorded separately, so the decision says which fired
-(MAIL-012).
+QDOS sends triage requests in two reviewed templates and the templates are
+disjoint in the evaluated corpus. The two tells therefore feed **one** triage
+candidate — a second candidate for the same category would resolve to
+Ambiguous, so a message carrying both tells would classify worse than one
+carrying either. Both predicates are still recorded separately, so the
+decision says which fired (MAIL-012). Exact current source counts and immutable
+hashes live in the versioned
+[principal-identification corpus](../../reference/workproviders-and-repairers/principal-identification-corpus.v1.json)
+and the corpus-lane output.
+
+The refreshed Version 5 volume evaluation processed 138 genuine messages: 10
+were unreadable; routing produced 47 Accepted, 8 NeedsSorting, and 73 NoMatch.
+Among accepted routes, classification produced 3 Audit, 2 Inspection, 3
+Triage, and 39 Unclassified outcomes. The matched tells were 3 Audit titles, 2
+Engineer Notification titles, 3 body Triage phrases, and 29 reply prefixes;
+the subject Engineer Triage tell matched none in this particular volume cohort.
+All 47 accepted routes yielded a durable claim token. These counts are bound to
+the source aggregate in `qdos-policy-v5-volume-evaluation` and supersede the
+stale seven/five statement without changing policy behaviour.
 
 Outcomes: exactly one category predicate → that category; more than one → the
 recorded **Ambiguous** outcome (never an invented winner); none →
@@ -77,6 +89,24 @@ Display labels for the taxonomy (family · subtype) are owned by
 (`MailClassification`, exhaustive map, throws on an unmapped value) and the
 correction options by
 `src/Pegasus.Web/Presentation/MailClassificationSelection.cs`.
+
+### Candidate review rows — not runtime rules
+
+The structured corpus adds genuine-message review rows for the following
+shapes. Each remains `observed`, with no shared-taxonomy target, until the
+operator labels positive and confusable-negative examples. None changes
+Version 5 behaviour:
+
+| Candidate shape | Required review |
+| --- | --- |
+| Final repair account or final audit request | Label current-content positives and report/attachment confusers. |
+| Report chase | Separate a chase from a new instruction and from quoted history. |
+| Post-inspection repair authorisation | Prove the sender-authored authorisation wording and case association. |
+| Pre-accident-value dispute | Separate a dispute from an amendment or ordinary query. |
+| Repair, total-loss, or category amendment | Label each accepted shared-taxonomy outcome without a principal-specific vocabulary. |
+| Additional images, estimates, or updates | Separate current evidence from quoted or nested-message evidence. |
+| Third-party-insurer comments or query | Prove authorship, direction, and the applicable shared category. |
+| Automatic reply and reply-thread exclusion | Pin automatic-reply handling and exclude quoted/nested tells. |
 
 ## 3. Case type
 
@@ -118,7 +148,7 @@ Owner: `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs`
 Owners: `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` (the
 provider-neutral `InstructionFieldEngine`) and
 `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs`
-(the QDOS grammar, `Version 6`). The engine carries no QDOS knowledge; every
+(the QDOS grammar, `Version 7`). The engine carries no QDOS knowledge; every
 QDOS-specific label, guard, and synthesis rule is supplied by the policy.
 
 Mechanics (engine):

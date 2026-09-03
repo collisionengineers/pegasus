@@ -48,6 +48,12 @@ public sealed record SearchCasesQuery(
     int PageSize = 25,
     CaseSearchOrder Order = CaseSearchOrder.ReceivedDesc);
 
+/// <summary>
+/// One case as a list row. <see cref="VehicleMake"/>, <see cref="VehicleModel"/>
+/// and <see cref="AccidentCircumstances"/> ride the same projection so the
+/// Search page can draw its vehicle column and selected-case preview from the
+/// search read alone (CASE-026); they are display facts, not filters.
+/// </summary>
 public sealed record CaseSearchItem(
     Guid CaseId,
     string Reference,
@@ -63,7 +69,20 @@ public sealed record CaseSearchItem(
     DateOnly? InstructionDate,
     string Origin,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? NextChaseAtUtc = null);
+    DateTimeOffset? NextChaseAtUtc = null,
+    string? VehicleMake = null,
+    string? VehicleModel = null,
+    string? AccidentCircumstances = null)
+{
+    /// <summary>
+    /// The case's recorded completeness facts (<see cref="CaseCompleteness"/>),
+    /// so a Not ready list can say what each case is still missing without a
+    /// second query per row. Null when the store did not project them.
+    /// </summary>
+    public bool? InstructionComplete { get; init; }
+
+    public bool? ImagesComplete { get; init; }
+}
 
 public sealed record SearchCasesResult(
     IReadOnlyList<CaseSearchItem> Items,
@@ -72,8 +91,14 @@ public sealed record SearchCasesResult(
     bool HasPreviousPage,
     bool HasNextPage);
 
+/// <summary>
+/// A live lease as other readers see it. <paramref name="HolderKind"/> is null only for a lease
+/// retained before the holder's kind was recorded; such a holder is nobody's and stays read-only
+/// to every actor until the lease expires.
+/// </summary>
 public sealed record CaseEditLeaseSnapshot(
     string Holder,
+    ActorKind? HolderKind,
     DateTimeOffset ExpiresAtUtc,
     string OperationKey);
 

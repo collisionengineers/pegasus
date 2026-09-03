@@ -16,8 +16,8 @@
     var allocationSucceeded = Model.Receipt.CurrentCaseId is not null;
 }
 
-<header class="page-heading">
-    <div>
+<header class="page-header">
+    <div class="page-title">
         <p class="eyebrow">Received review</p>
         @if (allocationSucceeded)
         {
@@ -32,7 +32,12 @@
             <h1>@DetailsModel.DecisionLabel(Model.Receipt)</h1>
         }
     </div>
-    <a class="secondary-action" asp-page="/Operations">Back to Operations</a>
+    <div class="page-actions">
+        <a class="btn" asp-page="/Operations/Index">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Operations</span>
+        </a>
+    </div>
 </header>
 
 @if (allocationIncomplete)
@@ -41,403 +46,490 @@
        the handler refuses anything else, so this copy describes what exists
        today rather than pointing at a control that is not on the page. The
        recovery action belongs to the upload/inbox claim. *@
-    <div class="status-card status-card--attention" role="status">No case reference was allocated; ask an Administrator to check that its Principal exists and is active.</div>
+    <div class="notice notice--warning mb-2" role="status">No case reference was allocated; ask an Administrator to check that its Principal exists and is active.</div>
 }
 @if (!allocationSucceeded && !allocationIncomplete && !string.IsNullOrEmpty(Model.Receipt.DecisionReason))
 {
-    <div class="status-card" role="status">@Model.Receipt.DecisionReason</div>
+    <div class="notice mb-2" role="status">@Model.Receipt.DecisionReason</div>
 }
 
 @if (Model.IsDuplicate)
 {
-    <div class="status-card" role="status">This file was already received. The existing record is shown.</div>
+    <div class="notice mb-2" role="status">This file was already received. The existing record is shown.</div>
 }
 @if (TempData["InspectionAddressStatus"] is string inspectionAddressStatus)
 {
-    <div class="status-card" role="status">@inspectionAddressStatus</div>
+    <div class="notice mb-2" role="status">@inspectionAddressStatus</div>
 }
 @if (TempData["IntakeDetailsStatus"] is string intakeDetailsStatus)
 {
-    <div class="status-card" role="status">@intakeDetailsStatus</div>
+    <div class="notice notice--success mb-2" role="status" data-confirmation>@intakeDetailsStatus</div>
 }
 @if (TempData["IntakeDetailsError"] is string intakeDetailsError)
 {
-    <div class="validation-summary" role="alert">@intakeDetailsError</div>
+    <div class="validation-summary mb-2" role="alert">@intakeDetailsError</div>
 }
 
 @if (Model.Receipt.AllocationState is { } allocation
     && allocation.Status is IntakeAllocationProjectionStatus.FailedRecoverable
         or IntakeAllocationProjectionStatus.FailedBlocked)
 {
-    <section class="panel form-panel section-gap" aria-labelledby="allocation-failure-title">
-        <h2 id="allocation-failure-title" class="section-label">Case not created</h2>
-        <p class="failure-detail">@(allocation.SafeReason ?? "No case reference was allocated.")</p>
-        <dl class="detail-list">
-            <div><dt>Attempted case type</dt><dd>@DetailsModel.CaseTypeLabel(allocation.AttemptedCaseType)</dd></div>
-            <div><dt>Recorded</dt><dd>@OperatorLabels.OfficeTime(allocation.OccurredAtUtc)</dd></div>
-        </dl>
-        @if (allocation.FailureKind == IntakeAllocationFailureKind.PrincipalUnavailable)
-        {
-            <p><a asp-page="/Administration/Principals/Index">Open Principal administration</a> to correct the Principal before retrying.</p>
-        }
-        @if (Model.CanRetryAllocation)
-        {
-            <form method="post" asp-page-handler="RetryAllocation" asp-route-id="@Model.Receipt.Id">
-                <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
-                <input type="hidden" name="expectedAttemptId" value="@allocation.AttemptId" />
-                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                <label for="allocation-retry-reason">Reason for retrying case creation</label>
-                <textarea id="allocation-retry-reason" name="reason" maxlength="500" rows="3" required></textarea>
-                <button type="submit" class="primary-action">Retry case creation</button>
-            </form>
-        }
+    <section class="panel section-gap" aria-labelledby="allocation-failure-title">
+        <div class="panel-head"><h2 id="allocation-failure-title">Case not created</h2></div>
+        <div class="panel-body stack">
+            <div class="notice notice--danger" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>@(allocation.SafeReason ?? "No case reference was allocated.")</span>
+            </div>
+            <div class="definition-list">
+                <dl class="definition"><dt>Attempted case type</dt><dd>@DetailsModel.CaseTypeLabel(allocation.AttemptedCaseType)</dd></dl>
+                <dl class="definition"><dt>Recorded</dt><dd>@OperatorLabels.OfficeTime(allocation.OccurredAtUtc)</dd></dl>
+            </div>
+            @if (allocation.FailureKind == IntakeAllocationFailureKind.PrincipalUnavailable)
+            {
+                <div class="button-row">
+                    <a class="btn" asp-page="/Administration/Principals/Index">Open Principal administration</a>
+                </div>
+            }
+            @if (Model.CanRetryAllocation)
+            {
+                <form method="post" asp-page-handler="RetryAllocation" asp-route-id="@Model.Receipt.Id" class="stack">
+                    <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+                    <input type="hidden" name="expectedAttemptId" value="@allocation.AttemptId" />
+                    <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                    <div class="field">
+                        <label class="req" for="allocation-retry-reason">Reason for retrying case creation</label>
+                        <textarea id="allocation-retry-reason" name="reason" maxlength="500" rows="3" required></textarea>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">Retry case creation</button>
+                    </div>
+                </form>
+            }
+        </div>
     </section>
 }
 
-
-<div class="review-grid">
+<div class="grid grid-2 section-gap">
     <section class="panel" aria-labelledby="result-title">
-        <h2 id="result-title" class="section-label">Result</h2>
-        @if (Model.Receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-        {
-            <a class="upload-thumb" href="/Received/@Model.Receipt.Id/Image" target="_blank">
-                <img src="/Received/@Model.Receipt.Id/Image" loading="lazy" alt="@Model.Receipt.SourceFileName" />
-            </a>
-        }
-        <dl class="detail-list">
-            <div><dt>Decision</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt)</dd></div>
-            <div><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></div>
-            <div><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(Model.Receipt.SourceIdentity.Channel)</dd></div>
-            @* The source-receipt token was printed here in full: a Graph
-               message identifier the operator can neither read, act on, nor
-               quote to anyone. It is the transport's handle on the message,
-               not the business's, and the register names it by name. The
-               channel above already says where the message came from. *@
-            <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Receipt.ReceivedAtUtc)</dd></div>
-        </dl>
-        @if (Model.Receipt.FailureReason is not null)
-        {
-            @* The failure code led this block in its persisted snake_case
-               form. The distinction it carries is the point of the screen —
-               an operator has to know whether the document was unreadable or
-               simply too large — so it stays, in words. Only the spelling
-               changes. *@
-            <div class="failure-detail">
-                <strong>@OperatorLabels.IntakeFailure(Model.Receipt.FailureCode)</strong>
-                <span>@Model.Receipt.FailureReason</span>
+        <div class="panel-head"><h2 id="result-title">Result</h2></div>
+        <div class="panel-body stack">
+            @if (Model.Receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                var imageHref = $"/Received/{Model.Receipt.Id:D}/Image";
+                <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(
+                    imageHref, imageHref, Model.Receipt.SourceFileName, Model.Receipt.MediaType) }" />
+            }
+            <div class="definition-list">
+                <dl class="definition"><dt>Decision</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt)</dd></dl>
+                <dl class="definition"><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></dl>
+                <dl class="definition"><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(Model.Receipt.SourceIdentity.Channel)</dd></dl>
+                <dl class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Receipt.ReceivedAtUtc)</dd></dl>
             </div>
-        }
+            @* The source-receipt token was printed here in full in an earlier
+               port: a Graph message identifier the operator can neither read,
+               act on, nor quote to anyone. The channel above already says
+               where the message came from. *@
+            @if (Model.Receipt.FailureReason is not null)
+            {
+                @* The failure code led this block in its persisted snake_case
+                   form. The distinction it carries is the point of the screen —
+                   an operator has to know whether the document was unreadable
+                   or simply too large — so it stays, in words. *@
+                <div class="notice notice--danger" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@OperatorLabels.IntakeFailure(Model.Receipt.FailureCode) — @Model.Receipt.FailureReason</span>
+                </div>
+            }
+        </div>
     </section>
 
-    <section class="panel" aria-labelledby="missing-title">
-        <h2 id="missing-title" class="section-label">Missing fields</h2>
-        @if (Model.Receipt.MissingFields.Count == 0)
-        {
-            <p class="empty-state">No missing field suggestions were identified.</p>
-        }
-        else
-        {
-            <ul class="plain-list">
-                @foreach (var field in Model.Receipt.MissingFields)
-                {
-                    <li>@field</li>
-                }
-            </ul>
-        }
-    </section>
+    @if (Model.Receipt.MissingFields.Count > 0)
+    {
+        <section class="panel" aria-labelledby="missing-title">
+            <div class="panel-head"><h2 id="missing-title">Missing fields</h2></div>
+            <div class="panel-body">
+                <ul class="stack">
+                    @foreach (var field in Model.Receipt.MissingFields)
+                    {
+                        <li>@field</li>
+                    }
+                </ul>
+            </div>
+        </section>
+    }
 </div>
+
 @if (Model.ImageIntake is { } imageIntake)
 {
     <section class="panel section-gap" aria-labelledby="image-intake-title">
-        <h2 id="image-intake-title" class="section-label">Image intake</h2>
-        <dl class="detail-list">
-            <div><dt>Image Intake Reference</dt><dd><a asp-page="/ImageIntake/Details" asp-route-id="@imageIntake.Record.Id">@imageIntake.Record.ImageIntakeReference</a></dd></div>
-            <div><dt>Vehicle registration</dt><dd>@imageIntake.Record.NormalizedVehicleRegistration</dd></div>
-            <div><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(imageIntake.RegisteredAtUtc)</dd></div>
-            <div>
-                <dt>Status</dt>
-                <dd>
-                    @if (imageIntake.AssociatedCaseId is { } associatedCase)
-                    {
-                        <text>Associated with Case </text><a asp-page="/Cases/Details" asp-route-id="@associatedCase">@(imageIntake.AssociatedCaseReference ?? associatedCase.ToString())</a>
-                    }
-                    else
-                    {
-                        <text>Image intake registered</text>
-                    }
-                </dd>
+        <div class="panel-head"><h2 id="image-intake-title">Image intake</h2></div>
+        <div class="panel-body stack">
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Image Intake Reference</dt>
+                    <dd><a asp-page="/ImageIntake/Details" asp-route-id="@imageIntake.Record.Id">@imageIntake.Record.ImageIntakeReference</a></dd>
+                </dl>
+                <dl class="definition"><dt>Vehicle registration</dt><dd>@imageIntake.Record.NormalizedVehicleRegistration</dd></dl>
+                <dl class="definition"><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(imageIntake.RegisteredAtUtc)</dd></dl>
+                <dl class="definition">
+                    <dt>Status</dt>
+                    <dd>
+                        @if (imageIntake.AssociatedCaseId is { } associatedCase)
+                        {
+                            <text>Associated with Case </text><a asp-page="/Cases/Details" asp-route-id="@associatedCase">@(imageIntake.AssociatedCaseReference ?? associatedCase.ToString())</a>
+                        }
+                        else
+                        {
+                            <text>Image intake registered</text>
+                        }
+                    </dd>
+                </dl>
             </div>
-        </dl>
+        </div>
     </section>
 }
 
 @if (Model.CanRegisterImageIntake)
 {
-    <section class="panel form-panel section-gap" aria-labelledby="register-image-intake-title">
-        <h2 id="register-image-intake-title" class="section-label">Register Image intake</h2>
-        <p>Image-only material with a usable registration becomes an Image-initiated Case with a permanent reference; it never becomes a formal Case by itself.</p>
-        <form method="post" asp-page-handler="RegisterImageIntake" asp-route-id="@Model.Receipt.Id">
-            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-            <label for="register-vrm">Vehicle registration</label>
-            <input id="register-vrm" name="vehicleRegistration" value="@Model.RegistrationPrefill" maxlength="20" required autocomplete="off" />
-            <label for="register-reason">Reason for registering</label>
-            <textarea id="register-reason" name="reason" maxlength="500" rows="2" required></textarea>
-            <button type="submit" class="primary-action">Register Image intake</button>
-        </form>
+    <section class="panel section-gap" aria-labelledby="register-image-intake-title">
+        <div class="panel-head"><h2 id="register-image-intake-title">Register Image intake</h2></div>
+        <div class="panel-body">
+            <form method="post" asp-page-handler="RegisterImageIntake" asp-route-id="@Model.Receipt.Id" class="stack">
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <div class="field">
+                    <label class="req" for="register-vrm">Vehicle registration</label>
+                    <input id="register-vrm" name="vehicleRegistration" value="@Model.RegistrationPrefill" maxlength="20" required autocomplete="off" />
+                </div>
+                <div class="field">
+                    <label class="req" for="register-reason">Reason for registering</label>
+                    <textarea id="register-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--primary">Register Image intake</button>
+                </div>
+            </form>
+        </div>
     </section>
 }
 
 @if (Model.Triage is { } triage)
 {
     <section class="panel section-gap" aria-labelledby="triage-title">
-        <h2 id="triage-title" class="section-label">Triage</h2>
-        <dl class="detail-list">
-            <div><dt>Vehicle registration</dt><dd><a asp-page="/Triage/Details" asp-route-id="@triage.Id">@triage.NormalizedVehicleRegistration</a></dd></div>
-            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(triage.State)</dd></div>
-            <div><dt>Opened</dt><dd>@OperatorLabels.OfficeTime(triage.CreatedAtUtc)</dd></div>
-        </dl>
+        <div class="panel-head"><h2 id="triage-title">Triage</h2></div>
+        <div class="panel-body stack">
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Vehicle registration</dt>
+                    <dd><a asp-page="/Triage/Details" asp-route-id="@triage.Id">@triage.NormalizedVehicleRegistration</a></dd>
+                </dl>
+                <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.TriageState(triage.State)</dd></dl>
+                <dl class="definition"><dt>Opened</dt><dd>@OperatorLabels.OfficeTime(triage.CreatedAtUtc)</dd></dl>
+            </div>
+        </div>
     </section>
 }
 
 @if (Model.CanOpenTriage)
 {
-    <section class="panel form-panel section-gap" aria-labelledby="open-triage-title">
-        <h2 id="open-triage-title" class="section-label">Open the Triage</h2>
-        <form method="post" asp-page-handler="OpenTriage" asp-route-id="@Model.Receipt.Id">
-            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-            <label for="open-triage-vrm">Vehicle registration</label>
-            <input id="open-triage-vrm" name="vehicleRegistration" maxlength="20" required autocomplete="off" />
-            <button type="submit" class="primary-action">Open the Triage</button>
-        </form>
+    <section class="panel section-gap" aria-labelledby="open-triage-title">
+        <div class="panel-head"><h2 id="open-triage-title">Open the Triage</h2></div>
+        <div class="panel-body">
+            <form method="post" asp-page-handler="OpenTriage" asp-route-id="@Model.Receipt.Id" class="stack">
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <div class="field">
+                    <label class="req" for="open-triage-vrm">Vehicle registration</label>
+                    <input id="open-triage-vrm" name="vehicleRegistration" maxlength="20" required autocomplete="off" />
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--primary">Open the Triage</button>
+                </div>
+            </form>
+        </div>
     </section>
 }
 
 @if (Model.VrmSuggestions.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="vrm-suggestions-title">
-        <h2 id="vrm-suggestions-title" class="section-label">Registration reading results</h2>
-        <p>A suggestion never registers, links or identifies anything on its own; an unreadable image, an unavailable engine and a technical failure remain distinct recorded outcomes.</p>
-        <ul class="evidence-list">
+        <div class="panel-head"><h2 id="vrm-suggestions-title">Registration reading results</h2></div>
+        <div class="panel-body stack">
             @foreach (var suggestion in Model.VrmSuggestions)
             {
-                <li>
-                    <strong>@DetailsModel.SuggestionOutcomeLabel(suggestion)</strong>
-                    <span>@suggestion.EngineKey v@(suggestion.EngineVersion) · @OperatorLabels.OfficeTime(suggestion.OccurredAtUtc) · @suggestion.Disposition.ToString().ToLowerInvariant()</span>
+                <div class="stack">
+                    <div class="decision-row">
+                        <span>@OperatorLabels.OfficeTime(suggestion.OccurredAtUtc)</span>
+                        <strong>@DetailsModel.SuggestionOutcomeLabel(suggestion)</strong>
+                    </div>
+                    <div class="decision-row">
+                        <span>Engine</span>
+                        <strong>@suggestion.EngineKey v@(suggestion.EngineVersion) · @suggestion.Disposition.ToString().ToLowerInvariant()</strong>
+                    </div>
                     @if (suggestion.FailureReason is not null)
                     {
-                        <span>@suggestion.FailureReason</span>
+                        <div class="decision-row">
+                            <span>Failure</span>
+                            <strong>@suggestion.FailureReason</strong>
+                        </div>
                     }
                     @if (suggestion.Disposition == ImageVrmSuggestionDisposition.Pending
                         && suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested)
                     {
-                        <form method="post" asp-page-handler="DismissSuggestion" asp-route-id="@Model.Receipt.Id">
+                        <form method="post" asp-page-handler="DismissSuggestion" asp-route-id="@Model.Receipt.Id" class="stack">
                             <input type="hidden" name="suggestionId" value="@suggestion.Id" />
                             <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                            <label for="dismiss-reason-@suggestion.Id">Reason for dismissing this suggestion</label>
-                            <textarea id="dismiss-reason-@suggestion.Id" name="reason" maxlength="500" rows="2" required></textarea>
-                            <button type="submit" class="secondary-action">Dismiss suggestion</button>
+                            <div class="field">
+                                <label class="req" for="dismiss-reason-@suggestion.Id">Reason for dismissing this suggestion</label>
+                                <textarea id="dismiss-reason-@suggestion.Id" name="reason" maxlength="500" rows="2" required></textarea>
+                            </div>
+                            <div class="button-row">
+                                <button type="submit" class="btn">Dismiss suggestion</button>
+                            </div>
                         </form>
                     }
-                </li>
+                </div>
             }
-        </ul>
+        </div>
     </section>
 }
 
 @if (Model.Receipt.AcceptedCaseId is null)
 {
-    <section class="panel form-panel section-gap" aria-labelledby="intake-resolution-title">
-        <h2 id="intake-resolution-title" class="section-label">Resolution</h2>
-        <p>Every correction, block and re-evaluation is versioned and retained in permanent history.</p>
+    <section class="panel section-gap" aria-labelledby="intake-resolution-title">
+        <div class="panel-head"><h2 id="intake-resolution-title">Resolution</h2></div>
+        <div class="panel-body stack">
+            @* Correcting the detail belongs on the create screen now, where the
+               same values are confirmed on the way to a case. It survives here
+               for one reason: a blocked item has no other route forward, and
+               deleting this form would strand it. The field markup itself
+               lives once, in the shared partial both screens render. *@
+            @if (Model.Receipt.Decision == IntakeDecision.BlockedIntake)
+            {
+                <form method="post" asp-page-handler="CorrectDraft" asp-route-id="@Model.Receipt.Id" class="stack">
+                    <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+                    <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                    <div class="field">
+                        <label class="req" for="correction-reason">Reason for correction</label>
+                        <textarea id="correction-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    </div>
+                    <partial name="_InstructionDraftFields" model="Model.DraftFields" />
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">Record corrected draft</button>
+                    </div>
+                </form>
+            }
 
-        @* Correcting the detail belongs on the create screen now, where the
-           same values are confirmed on the way to a case. It survives here for
-           one reason: a blocked item has no other route forward, and deleting
-           this form would strand it. The field markup itself lives once, in the
-           shared partial both screens render. *@
-        @if (Model.Receipt.Decision == IntakeDecision.BlockedIntake)
-        {
-            <form method="post" asp-page-handler="CorrectDraft" asp-route-id="@Model.Receipt.Id">
+            <form method="post" asp-page-handler="Reevaluate" asp-route-id="@Model.Receipt.Id" class="stack">
                 <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
                 <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                <label for="correction-reason">Reason for correction</label>
-                <textarea id="correction-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                <partial name="_InstructionDraftFields" model="Model.DraftFields" />
-                <button type="submit" class="primary-action">Record corrected draft</button>
+                <div class="field">
+                    <label class="req" for="reevaluation-reason">Reason for policy re-evaluation</label>
+                    <textarea id="reevaluation-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn">Re-evaluate with current policy</button>
+                </div>
             </form>
-        }
 
-        <form method="post" asp-page-handler="Reevaluate" asp-route-id="@Model.Receipt.Id">
-            <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
-            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-            <label for="reevaluation-reason">Reason for policy re-evaluation</label>
-            <textarea id="reevaluation-reason" name="reason" maxlength="500" rows="2" required></textarea>
-            <button type="submit" class="secondary-action">Re-evaluate with current policy</button>
-        </form>
-
-        <form method="post" asp-page-handler="Block" asp-route-id="@Model.Receipt.Id">
-            <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
-            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-            <label for="block-reason">Reason for blocking</label>
-            <textarea id="block-reason" name="reason" maxlength="500" rows="2" required></textarea>
-            <button type="submit" class="secondary-action">Block</button>
-        </form>
+            <form method="post" asp-page-handler="Block" asp-route-id="@Model.Receipt.Id" class="stack">
+                <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <div class="field">
+                    <label class="req" for="block-reason">Reason for blocking</label>
+                    <textarea id="block-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--danger">Block</button>
+                </div>
+            </form>
+        </div>
     </section>
 }
 
-<section class="panel form-panel section-gap" aria-labelledby="case-association-title">
-    <h2 id="case-association-title" class="section-label">Current case association</h2>
-    @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
-    {
-        <p>Currently linked to Case/PO <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@Model.Receipt.CurrentCaseReference</a>.</p>
-    }
-    else
-    {
-        <p>This received item is not currently linked to a case.</p>
-    }
+<section class="panel section-gap" aria-labelledby="case-association-title">
+    <div class="panel-head"><h2 id="case-association-title">Current case association</h2></div>
+    <div class="panel-body stack">
+        <div class="definition-list">
+            <dl class="definition">
+                <dt>Case/PO</dt>
+                <dd>
+                    @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
+                    {
+                        <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@Model.Receipt.CurrentCaseReference</a>
+                    }
+                    else
+                    {
+                        @:None
+                    }
+                </dd>
+            </dl>
+        </div>
 
-    @if (Model.AssociationCandidates.Count > 0 && Model.Receipt.CurrentCaseId is null)
-    {
-        <p>Eligible pre-report cases with this Image intake's confirmed registration:</p>
-        <ul class="plain-list">
-            @foreach (var candidate in Model.AssociationCandidates)
+        @if (Model.AssociationCandidates.Count > 0 && Model.Receipt.CurrentCaseId is null)
+        {
+            <ul class="stack">
+                @foreach (var candidate in Model.AssociationCandidates)
+                {
+                    <li>@candidate.CaseReference · case @candidate.CaseId · version @candidate.CaseVersion</li>
+                }
+            </ul>
+        }
+
+        @if (Model.LeasedCaseId is null)
+        {
+            <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id" class="stack">
+                @if (Model.Receipt.CurrentCaseId is { } associatedCaseId)
+                {
+                    <input type="hidden" name="caseId" value="@associatedCaseId" />
+                }
+                else
+                {
+                    <div class="field">
+                        <label class="req" for="association-case-id">Case identifier</label>
+                        <input id="association-case-id" name="caseId" required autocomplete="off" />
+                    </div>
+                }
+                <div class="field">
+                    <label class="req" for="association-case-version">Expected case version</label>
+                    <input id="association-case-version" name="expectedCaseVersion" type="number" min="0" required />
+                </div>
+                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                <div class="button-row">
+                    <button type="submit" class="btn">Enter case edit mode</button>
+                </div>
+            </form>
+        }
+        else if (Model.LeasedCaseVersion is { } leasedCaseVersion
+            && Model.CaseEditLeaseToken is { } editLeaseToken)
+        {
+            if (Model.Receipt.CurrentCaseId == Model.LeasedCaseId)
             {
-                <li>@candidate.CaseReference · case @candidate.CaseId · version @candidate.CaseVersion</li>
+                <form method="post" asp-page-handler="ReverseCaseLink" asp-route-id="@Model.Receipt.Id" class="stack">
+                    <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
+                    <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
+                    <input type="hidden" name="expectedCaseVersion" value="@leasedCaseVersion" />
+                    <input type="hidden" name="editLeaseToken" value="@editLeaseToken" />
+                    <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                    <div class="field">
+                        <label class="req" for="reverse-link-reason">Reason for reversing this association</label>
+                        <textarea id="reverse-link-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn">Reverse current association</button>
+                    </div>
+                </form>
             }
-        </ul>
-    }
-
-    @if (Model.LeasedCaseId is null)
-    {
-        <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id">
-            @if (Model.Receipt.CurrentCaseId is { } associatedCaseId)
+            else if (Model.Receipt.CurrentCaseId is null)
             {
-                <input type="hidden" name="caseId" value="@associatedCaseId" />
-                <p>Enter the current version of Case/PO @Model.Receipt.CurrentCaseReference to enter case edit mode.</p>
+                <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Receipt.Id" class="stack">
+                    <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
+                    <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
+                    <input type="hidden" name="expectedCaseVersion" value="@leasedCaseVersion" />
+                    <input type="hidden" name="editLeaseToken" value="@editLeaseToken" />
+                    <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                    <div class="field">
+                        <label class="req" for="link-case-reason">Reason for linking this case</label>
+                        <textarea id="link-case-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">Link selected case</button>
+                    </div>
+                </form>
             }
             else
             {
-                <label for="association-case-id">Case identifier</label>
-                <input id="association-case-id" name="caseId" type="text" required />
+                <div class="notice notice--warning" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>The claimed case does not match the current association; reload and enter edit mode for the current case.</span>
+                </div>
             }
-            <label for="association-case-version">Expected case version</label>
-            <input id="association-case-version" name="expectedCaseVersion" type="number" min="0" required />
-            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-            <button type="submit" class="secondary-action">Enter case edit mode</button>
-        </form>
-    }
-    else if (Model.LeasedCaseVersion is { } leasedCaseVersion
-        && Model.CaseEditLeaseToken is { } editLeaseToken)
-    {
-        if (Model.Receipt.CurrentCaseId == Model.LeasedCaseId)
-        {
-            <form method="post" asp-page-handler="ReverseCaseLink" asp-route-id="@Model.Receipt.Id">
-                <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
-                <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
-                <input type="hidden" name="expectedCaseVersion" value="@leasedCaseVersion" />
-                <input type="hidden" name="editLeaseToken" value="@editLeaseToken" />
-                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                <label for="reverse-link-reason">Reason for reversing this association</label>
-                <textarea id="reverse-link-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                <button type="submit" class="secondary-action">Reverse current association</button>
-            </form>
         }
-        else if (Model.Receipt.CurrentCaseId is null)
-        {
-            <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Receipt.Id">
-                <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
-                <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
-                <input type="hidden" name="expectedCaseVersion" value="@leasedCaseVersion" />
-                <input type="hidden" name="editLeaseToken" value="@editLeaseToken" />
-                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                <label for="link-case-reason">Reason for linking this case</label>
-                <textarea id="link-case-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                <button type="submit" class="primary-action">Link selected case</button>
-            </form>
-        }
-        else
-        {
-            <p class="failure-detail">The claimed case does not match the current association; reload and enter edit mode for the current case.</p>
-        }
-    }
+    </div>
 </section>
 
 @if (Model.Receipt.InstructionDraft is not null)
 {
     var draft = Model.Receipt.InstructionDraft;
     <section class="panel section-gap" aria-labelledby="typed-draft-title">
-        <h2 id="typed-draft-title" class="section-label">Typed review draft</h2>
-        <dl class="detail-list">
-            <div><dt>Suggested principal</dt><dd>@(draft.SuggestedPrincipalCode ?? "Not suggested")</dd></div>
-            <div><dt>Claimant name</dt><dd>@(draft.ClaimantName ?? "Not resolved")</dd></div>
-            <div><dt>Claim number</dt><dd>@(draft.ClaimNumber ?? "Not resolved")</dd></div>
-            <div><dt>Vehicle registration</dt><dd>@(draft.VehicleRegistration ?? "Not resolved")</dd></div>
-            <div><dt>Vehicle make</dt><dd>@(draft.VehicleMake ?? "Not resolved")</dd></div>
-            <div><dt>Vehicle model</dt><dd>@(draft.VehicleModel ?? "Not resolved")</dd></div>
-            <div><dt>Vehicle mileage</dt><dd>@(draft.VehicleMileage?.ToString("N0") ?? "Not resolved")</dd></div>
-            <div><dt>Accident circumstances</dt><dd>@(draft.AccidentCircumstances ?? "Not resolved")</dd></div>
-            <div><dt>Date of incident</dt><dd>@(draft.DateOfIncident?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></div>
-            <div><dt>Instruction date</dt><dd>@(draft.InstructionDate?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></div>
-            <div><dt>Inspection address</dt><dd>@(draft.InspectionAddress ?? "Not resolved")</dd></div>
-        </dl>
+        <div class="panel-head"><h2 id="typed-draft-title">Typed review draft</h2></div>
+        <div class="panel-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Suggested principal</dt><dd>@(draft.SuggestedPrincipalCode ?? "Not suggested")</dd></dl>
+                <dl class="definition"><dt>Claimant name</dt><dd>@(draft.ClaimantName ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Claim number</dt><dd>@(draft.ClaimNumber ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Vehicle registration</dt><dd>@(draft.VehicleRegistration ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Vehicle make</dt><dd>@(draft.VehicleMake ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Vehicle model</dt><dd>@(draft.VehicleModel ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Vehicle mileage</dt><dd>@(draft.VehicleMileage?.ToString("N0") ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Accident circumstances</dt><dd>@(draft.AccidentCircumstances ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Date of incident</dt><dd>@(draft.DateOfIncident?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Instruction date</dt><dd>@(draft.InstructionDate?.ToString("dd MMM yyyy") ?? "Not resolved")</dd></dl>
+                <dl class="definition"><dt>Inspection address</dt><dd>@(draft.InspectionAddress ?? "Not resolved")</dd></dl>
+            </div>
+        </div>
     </section>
 }
-<section class="panel form-panel section-gap" aria-labelledby="inspection-address-title">
-    <h2 id="inspection-address-title" class="section-label">Inspection-address confirmation</h2>
-    @if (Model.ProviderIsImageBased)
-    {
-        <p>The inspection address is recorded as &ldquo;Image Based Assessment&rdquo; automatically, even if the instruction mentions a physical location; a physical address can still be added afterwards with a reason.</p>
-    }
-    else if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
-    {
-        @* Read-only here. Settling the address is part of creating the case,
-           so it is asked once, on the create screen, alongside everything else
-           the same decision depends on. *@
-        <dl class="detail-list">
-            <div><dt>Address found in the document</dt><dd>@addressSuggestion.Value</dd></div>
-            <div><dt>Evidence type</dt><dd>@(addressSuggestion.Kind == Pegasus.Core.Address.InspectionAddressEvidenceKind.ImageBasedAssessment ? "Image Based Assessment instruction" : "Extracted physical address")</dd></div>
-            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
-            @if (Model.AddressResolution.ResolvedValue is not null)
-            {
-                <div><dt>Confirmed value</dt><dd>@Model.AddressResolution.ResolvedValue</dd></div>
-                <div><dt>Confirmed</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></div>
-            }
-        </dl>
-        <h3 class="section-label">Source provenance</h3>
-        <ul class="plain-list">
-            @foreach (var provenance in addressSuggestion.Provenance)
-            {
-                <li>Extracted from @provenance.SourceLabel</li>
-            }
-        </ul>
-    }
-    else if (Model.AddressResolution.ResolvedValue is { } suppliedAddress)
-    {
-        <dl class="detail-list">
-            <div><dt>Inspection address</dt><dd>@suppliedAddress</dd></div>
-            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.AddressStateLabel(Model.AddressResolution.State)</dd></div>
-            <div><dt>Recorded</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></div>
-        </dl>
-        <p>Nothing in the file said where the vehicle is, so a member of staff entered this address.</p>
-    }
-    else
-    {
-        <p class="failure-detail">Missing or conflicting physical-address evidence remains unresolved; a member of staff can enter the location when the case is created.</p>
-        @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+
+<section class="panel section-gap" aria-labelledby="inspection-address-title">
+    <div class="panel-head"><h2 id="inspection-address-title">Inspection-address confirmation</h2></div>
+    <div class="panel-body stack">
+        @if (Model.ProviderIsImageBased)
         {
-            <ul class="evidence-list">
+            <div class="definition-list">
+                <dl class="definition"><dt>Inspection address</dt><dd>Image Based Assessment</dd></dl>
+            </div>
+        }
+        else if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
+        {
+            @* Read-only here. Settling the address is part of creating the
+               case, so it is asked once, on the create screen, alongside
+               everything else the same decision depends on. *@
+            <div class="definition-list">
+                <dl class="definition"><dt>Address found in the document</dt><dd>@addressSuggestion.Value</dd></dl>
+                <dl class="definition"><dt>Evidence type</dt><dd>@(addressSuggestion.Kind == Pegasus.Core.Address.InspectionAddressEvidenceKind.ImageBasedAssessment ? "Image Based Assessment instruction" : "Extracted physical address")</dd></dl>
+                <dl class="definition"><dt>Status</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.AddressStateLabel(Model.AddressResolution.State)</dd></dl>
+                @if (Model.AddressResolution.ResolvedValue is not null)
+                {
+                    <dl class="definition"><dt>Confirmed value</dt><dd>@Model.AddressResolution.ResolvedValue</dd></dl>
+                    <dl class="definition"><dt>Confirmed</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></dl>
+                }
+            </div>
+            @if (addressSuggestion.Provenance.Count > 0)
+            {
+                <ul class="stack">
+                    @foreach (var provenance in addressSuggestion.Provenance)
+                    {
+                        <li>Extracted from @provenance.SourceLabel</li>
+                    }
+                </ul>
+            }
+        }
+        else if (Model.AddressResolution.ResolvedValue is { } suppliedAddress)
+        {
+            <div class="definition-list">
+                <dl class="definition"><dt>Inspection address</dt><dd>@suppliedAddress</dd></dl>
+                <dl class="definition"><dt>Status</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.AddressStateLabel(Model.AddressResolution.State)</dd></dl>
+                <dl class="definition"><dt>Recorded</dt><dd>@OperatorLabels.OfficeTime(Model.AddressResolution.ResolvedAtUtc, "Not recorded")</dd></dl>
+            </div>
+        }
+        else if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+        {
+            <div class="notice notice--warning" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>Missing or conflicting physical-address evidence remains unresolved.</span>
+            </div>
+            <div class="timeline">
                 @foreach (var evidence in Model.AddressResolution.Evaluation.ConflictingEvidence)
                 {
-                    <li>
-                        <strong>@evidence.Value</strong>
-                        <span>@evidence.Provenance.SourceLabel · @evidence.Provenance.Source · @evidence.Provenance.PolicyKey v@evidence.Provenance.PolicyVersion</span>
-                    </li>
+                    <div class="timeline-item">
+                        <div class="timeline-title">@evidence.Value</div>
+                        <div class="timeline-meta">@evidence.Provenance.SourceLabel · @evidence.Provenance.PolicyKey v@evidence.Provenance.PolicyVersion</div>
+                    </div>
                 }
-            </ul>
+            </div>
         }
-    }
+    </div>
 </section>
-
 
 @* There is exactly one acceptance caller in the application, and it is not
    here. This screen is the record of what arrived and what was decided about
@@ -446,42 +538,48 @@
 @if (Model.CanCreateCase)
 {
     <section class="panel section-gap" aria-labelledby="create-case-title">
-        <h2 id="create-case-title" class="section-label">Create a case from this item</h2>
-        <p>Review the detail that was read from the file, then create the Case/PO when its route and principal are definitive.</p>
-        <a class="primary-action" asp-page="/Cases/Create" asp-route-receiptId="@Model.Receipt.Id">Create a case</a>
+        <div class="panel-head"><h2 id="create-case-title">Create a case from this item</h2></div>
+        <div class="panel-body">
+            <div class="button-row">
+                <a class="btn btn--primary" asp-page="/Cases/Create" asp-route-receiptId="@Model.Receipt.Id">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Create a case</span>
+                </a>
+            </div>
+        </div>
     </section>
 }
 
 @if (Model.Receipt.AssetRecords.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="assets-title">
-        <h2 id="assets-title" class="section-label">Source and extracted assets</h2>
-        <p>Each attachment, inline image and discrete embedded image remains a separate review occurrence; matching hashes are grouped, not removed.</p>
-        <div class="field-grid">
-            @foreach (var asset in Model.Receipt.AssetRecords)
-            {
-                var duplicateCount = Model.DuplicateOccurrenceCount(asset);
-                <article class="field-card">
-                    <h3>@asset.FileName</h3>
-                    @if (asset.Kind == IntakeAssetKind.Source)
-                    {
-                        <a asp-page="/Intake/Source" asp-route-id="@Model.Receipt.Id">Download retained source</a>
-                    }
-                    else
-                    {
-                        <span>Retained evidence occurrence</span>
-                    }
-                    <small>@asset.SourceLabel · @asset.Kind · @asset.MediaType</small>
-                    @if (asset.PageNumber is not null)
-                    {
-                        <small>PDF page @asset.PageNumber</small>
-                    }
-                    @if (duplicateCount > 1)
-                    {
-                        <small>Exact content match: @duplicateCount retained occurrences</small>
-                    }
-                </article>
-            }
+        <div class="panel-head"><h2 id="assets-title">Source and extracted assets</h2></div>
+        <div class="panel-body">
+            <ul class="blocker-list">
+                @foreach (var asset in Model.Receipt.AssetRecords)
+                {
+                    var duplicateCount = Model.DuplicateOccurrenceCount(asset);
+                    <li class="blocker">
+                        @if (asset.Kind == IntakeAssetKind.Source)
+                        {
+                            <strong><a asp-page="/Intake/Source" asp-route-id="@Model.Receipt.Id">@asset.FileName</a></strong>
+                        }
+                        else
+                        {
+                            <strong>@asset.FileName</strong>
+                        }
+                        <small>@asset.SourceLabel · @asset.Kind · @asset.MediaType</small>
+                        @if (asset.PageNumber is not null)
+                        {
+                            <small>PDF page @asset.PageNumber</small>
+                        }
+                        @if (duplicateCount > 1)
+                        {
+                            <small>Exact content match: @duplicateCount retained occurrences</small>
+                        }
+                    </li>
+                }
+            </ul>
         </div>
     </section>
 }
@@ -489,47 +587,59 @@
 @if (Model.Receipt.ScannedPdfPages.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="ocr-title">
-        <h2 id="ocr-title" class="section-label">Scanned PDF pages</h2>
-        <p>Text review is required only for these scan-like PDF pages:</p>
-        <ul class="plain-list">
-            @foreach (var candidate in Model.Receipt.ScannedPdfPages)
-            {
-                <li>@candidate.SourceLabel, page @candidate.PageNumber</li>
-            }
-        </ul>
+        <div class="panel-head"><h2 id="ocr-title">Scanned PDF pages</h2></div>
+        <div class="panel-body">
+            <ul class="stack">
+                @foreach (var candidate in Model.Receipt.ScannedPdfPages)
+                {
+                    <li>@candidate.SourceLabel, page @candidate.PageNumber</li>
+                }
+            </ul>
+        </div>
     </section>
 }
 
 @if (Model.Receipt.Fields.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="fields-title">
-        <h2 id="fields-title" class="section-label">Suggested fields</h2>
-        <div class="field-grid">
-            @foreach (var field in Model.Receipt.Fields)
-            {
-                <article class="field-card @(field.HasConflict ? "field-card--conflict" : string.Empty)">
-                    <h3>@field.Name</h3>
-                    <strong>@(field.SuggestedValue ?? (field.HasConflict ? "Conflicting suggestions" : "Not found"))</strong>
-                    @if (field.IsDefaulted)
-                    {
-                        <small>Defaulted from processing date</small>
-                    }
-                    @foreach (var candidate in field.Candidates)
-                    {
-                        <small>@candidate.SourceLabel: @candidate.Value</small>
-                    }
-                </article>
-            }
+        <div class="panel-head"><h2 id="fields-title">Suggested fields</h2></div>
+        <div class="panel-body">
+            <ul class="blocker-list">
+                @foreach (var field in Model.Receipt.Fields)
+                {
+                    <li class="blocker">
+                        <strong>@field.Name: @(field.SuggestedValue ?? (field.HasConflict ? "Conflicting suggestions" : "Not found"))</strong>
+                        @if (field.IsDefaulted)
+                        {
+                            <small>Defaulted from processing date</small>
+                        }
+                        @foreach (var candidate in field.Candidates)
+                        {
+                            <small>@candidate.SourceLabel: @candidate.Value</small>
+                        }
+                    </li>
+                }
+            </ul>
         </div>
     </section>
 }
 
-<section class="panel section-gap" aria-labelledby="evidence-title">
-    <h2 id="evidence-title" class="section-label">Decision evidence</h2>
-    <ul class="evidence-list">
-        @foreach (var item in Model.Receipt.Evidence)
-        {
-            <li><strong>@item.Source</strong><span>@item.Detail</span></li>
-        }
-    </ul>
-</section>
+@if (Model.Receipt.Evidence.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="evidence-title">
+        <div class="panel-head"><h2 id="evidence-title">Decision evidence</h2></div>
+        <div class="panel-body">
+            <div class="timeline">
+                @foreach (var item in Model.Receipt.Evidence)
+                {
+                    <div class="timeline-item">
+                        <div class="timeline-title">@item.Source</div>
+                        <div class="timeline-text">@item.Detail</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+<partial name="Shared/_EvidenceViewer" />

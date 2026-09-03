@@ -118,7 +118,7 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata; API submission proved against the vendor's own recorded traffic — the camelCase success envelope, the `RequestFrom` and unbound-field rejections inside HTTP 200, and the `text/plain` 500 | Operator drag/drop acceptance; a first submission to EVA from Pegasus, which has never happened in any environment; and the operator-gated live-credential swap |
 | EVA API credentials | Required in Production from the release that ships EXT-04: `Eva__ClientId` and `Eva__ClientSecret` resolve from Key Vault through `EVA_CLIENT_ID_SECRET_URI` and `EVA_CLIENT_SECRET_SECRET_URI`; `Eva__BaseUri`, `Eva__RequestFrom`, `Eva__InspectionType` and `Eva__InstructionEmail` are plain settings. Web fails to start if any is missing. EVA serves test and live from one host, so the credential pair alone decides which environment a deployment talks to | Live credentials, which are a separate operator-gated change |
-| Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
+| Provider API | **Live from release 37**: `Features__ProviderApi=true` on the Web app, `POST/GET /api/provider/v1/submissions` mounted behind the `PegasusProviderApi` bearer scheme with a database-backed `PrincipalApiCredentials` store. Verified after deployment: an unauthenticated `POST` answers **401**, not 404 — the route exists and admits nobody. | **No credential has been issued**, so no provider can call it yet; issuing the first one is a separate exact-target approval ([capabilities](capabilities.md)). Real caller evidence still outstanding. |
 | Automation MCP | Implemented; composition gate **enabled in production by release 9** (ADR-0026) with a Key Vault-backed client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP; live token/inventory/denial/history/kill-switch evidence recorded on 2026-08-18 under Production environment | Real external client evidence, production certificate/transport decisions, and separately approved activation |
 | Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0031) |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
@@ -293,7 +293,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 35**. A branch
+- **Deployed evidence:** the estate currently serves **release 38**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -311,6 +311,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 38 | 2026-09-02 | `0f0e90ae44ffda7339ca2a460310deeb98121afa` | `sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15` | `pegasus-prod-web-252ow37gij--0f0e90ae44ff` | none (head unchanged at `20260829212237_GrantProviderSubmissionAcceptRecovery`) |
+  | 37 | 2026-08-30 | `0b3ec847aae42ee1c1bee4fb99459f9192534dca` | `sha256:47f57ea5031953ef93ccb09b2eb829b30d468647c96c0dc804310cc6f368595b` | `pegasus-prod-web-252ow37gij--0b3ec847aae4` | eleven, head `20260829212237_GrantProviderSubmissionAcceptRecovery` (`AiJobs`, `GrantAiJobs`, `PrincipalApiCredentials`, `GrantPrincipalApiCredentials`, `CaseEditLeaseHolderKind`, `ProviderSubmissions`, `GrantProviderSubmissions`, `NamedEstimates`, `ProviderDeclaredInstruction`, `CaseValuations`, `GrantProviderSubmissionAcceptRecovery`) |
   | 36 | 2026-08-28 | `84132d01ccb0afca7af6c6ce519e6f3491aee160` | `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032` | `pegasus-prod-web-252ow37gij--84132d01ccb0` | `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions` |
   | 35 | 2026-08-27 | `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f` | `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8` | `pegasus-prod-web-252ow37gij--3a1a017c8dea` | `20260827100901_ReactivateBoundApprovedMailboxes` (data-only, matched zero rows) |
   | 34 | 2026-08-27 | `1ec65dc894f121f4bb5b31ae82c818a401d08beb` | `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0` | `pegasus-prod-web-252ow37gij--1ec65dc894f1` | none (head unchanged at `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`) |
@@ -349,6 +351,172 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 38** (2026-09-02, source
+    `0f0e90ae44ffda7339ca2a460310deeb98121afa`, image
+    `sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15`,
+    manifest SHA-256
+    `52E1A5AC23C2491594E79EA89740D9B5D826A3DD94258347DB91A16896F986AE`)
+    deployed the sparse-Graph-message polling repair, Inbox selected-preview
+    retention, and the version-five QDOS classification/reference evidence.
+    The authorised exact-SHA promotion advanced both `main` and `dev` from
+    `fb3f07acc8cca8d9d8b57db8a431b607772436dc` and the same candidate was read
+    back from both refs. The immutable Worker ZIP SHA-256 is
+    `1EF69DBEBF6BC3178E2688AF999A770319DD5ED1B3B341F0741CF9B463B83369`;
+    the `config-zip` deployment id is
+    `01ed553a-b6cd-4652-b043-72c88b9ca2e6`.
+
+    No migration, bootstrap, or other database write formed part of the
+    deployment. The migration head remained
+    `20260829212237_GrantProviderSubmissionAcceptRecovery`. The new Web
+    revision is Healthy and the sole active revision in Single mode with 100%
+    traffic on the manifest digest. An immediate read during normal Container
+    Apps replacement briefly observed release 37 as `Deprovisioning`; the
+    authoritative follow-up read showed only release 38 active. Production
+    smoke then passed live/ready health, exact version/source diagnostics,
+    HTTPS authentication redirection, Worker activation and function census,
+    the active Graph subscription, and Inbox polling liveness.
+
+    Before deployment, the release-37 Worker failed every five minutes on a
+    real Graph delta item that omitted `receivedDateTime`, leaving the newest
+    completed poll at 2026-09-01 08:35 UTC with
+    `invalid_mailbox_source`. After release 38, the 2026-09-02 12:50 UTC timer
+    completed successfully in 4.323 seconds, cleared `LastFailureCode`, and
+    advanced the cursor. The previously blocked emails then arrived in the
+    Inbox; this natural recovery is live evidence for the sparse-message fix,
+    without constructing or modifying an Outlook message. An authenticated UI
+    check also moved focus to retained-mail search and the pointer away from
+    the message rows; the same selected message stayed expanded and its preview
+    remained visible. The malformed-message branch and the QDOS classification
+    corpus remain local/artifact evidence rather than live-production cases.
+
+    **The sixth operator-approved test-data wipe** ran before promotion. The
+    dry run found 36 blobs (3,932,690 bytes), 70 non-preserved SQL tables and
+    147 rows. It validated all 31 preserve-list entries, with 32 effective
+    preserved tables, and recorded Case/Image/Unidentified sequences 31/7/1.
+    Execution removed all 36 blobs and all 147 non-preserved rows in a checked,
+    committed SQL transaction. Post-checks found zero blobs, zero wiped tables
+    retaining rows, 354 preserved rows, and unchanged sequences 31/7/1. The
+    authentication ring, box links, `pegtrans252ow37gij`, Outlook, Graph and Box
+    were untouched. The operator authenticated to the Web UI and confirmed the
+    wiped test round was absent. Emails subsequently released by the repaired
+    mailbox cursor are new post-wipe ingestion, not failed wipe residue.
+
+    Rollback retains release 37's digest
+    `sha256:47f57ea5031953ef93ccb09b2eb829b30d468647c96c0dc804310cc6f368595b`
+    and Worker artifact as the application basis; the database head is
+    unchanged and no down-migration is required.
+
+  - **Release 37** (2026-08-30, source
+    `0b3ec847aae42ee1c1bee4fb99459f9192534dca`, image
+    `sha256:47f57ea5031953ef93ccb09b2eb829b30d468647c96c0dc804310cc6f368595b`,
+    manifest SHA-256
+    `5DC59E80A5A5CE324D391CF8BBDCBC7C4E33DAEDEB0BD5A2C592961A6CD1E7A7`)
+    carried the EPIC-011 operations workspace and opened two surfaces that had
+    never been reachable in production. Measured from release 36's source
+    (`84132d01`) to this one: **49 merged PRs, 405 commits, 434 files changed,
+    +142,535/−17,804**.
+
+    It applied **eleven** migrations, advancing the head from
+    `20260827143200_GrantEvaSubmissions` to
+    `20260829212237_GrantProviderSubmissionAcceptRecovery` and the applied count
+    from 76 to 87. `AiJobs`, `PrincipalApiCredentials`, `ProviderSubmissions`
+    and `CaseValuations` are new tables; `NamedEstimates` is a reshape of
+    `CaseRepairSpecifications` and creates no table of its own. Both
+    structurally risky migrations were harmless against live data:
+    `CaseRepairSpecifications` and `CaseEstimateLines` each held zero rows, so
+    the data `UPDATE` and six new check constraints touched nothing, and
+    `ProviderDeclaredInstruction`'s widened `CK_CaseDataFields_FieldName` and
+    `CK_CaseDataFields_SourceKind` lists are strict supersets of the thirteen
+    field names and four source kinds the 98 live `CaseDataFields` rows use.
+    `Invoke-AzureDatabaseBootstrap.ps1` then verified **544 catalogued
+    permission/denial rows and 377 effective runtime DML rows**, up from
+    526/359 at release 35 — that gate is an equality check in both directions,
+    so the Worker's new `UPDATE` on `ProviderSubmissions` had to be both present
+    and expected.
+
+    **`Features__ProviderApi` is `true` in production for the first time.** The
+    surface did not exist at release 36: `git grep ProviderApi -- src/` at
+    `84132d01` returns nothing. Its routes, bearer scheme, flag and two of the
+    eleven migrations (`ProviderSubmissions`, `PrincipalApiCredentials`) were
+    all introduced inside this release's own range, and the gate was then opened
+    in the same range — closed by omission rather than by any ADR restricting
+    it. Verified after deployment: an
+    unauthenticated `POST /api/provider/v1/submissions` answers **401, not
+    404** — the route exists and admits nobody, because **no credential has been
+    issued**. Issuing the first one is a separate exact-target approval.
+
+    **Document upload links compose in production for the first time**
+    (INTK-051), under the INT-31 interim limits: `int-31-interim-v1`, 10 MB
+    aggregate and per file, ten files, a 168-hour token, 20 requests per token
+    per ten minutes, and the seven content types
+    `MimeKitPdfPigOpenXmlIntakeSourceReader` resolves. Opening that gate removed
+    the middleware 404 that had been the only thing stopping an anonymous caller
+    forcing a bounded body read, so the release also adds `PublicUploadLink`, a
+    per-calling-address bound of 30 requests a minute on the one anonymous page.
+
+    The sole Web revision `pegasus-prod-web-252ow37gij--0b3ec847aae4` is ready
+    with **zero restarts**, 100% traffic in Single mode, and its digest matches
+    the manifest. That restart count is the load-bearing evidence for the
+    configuration: `RequestUploadLimits` is registered as a factory
+    (`Program.cs:242`) and resolved lazily, and nothing in `src/` calls
+    `UseDefaultServiceProvider`, so container validation follows the ASP.NET
+    Core host default of validating on build only under `IsDevelopment()` —
+    false here. A wrong `DocumentRequests` key or a missing `Eva:*` value
+    therefore surfaces as a crash-loop or a 500 on first use rather than a
+    startup error. The
+    Worker `config-zip` deployment succeeded and read back exactly seven
+    functions, all `Disabled=false`. Production smoke passed twice, fifteen
+    minutes apart, with the inbox poll advancing 15:25:02Z → 15:30:03Z against a
+    Graph subscription expiring 2026-09-02 10:25:00Z — the expiry is
+    independently checkable in `ApprovedMailboxSubscriptions`, but **the two
+    poll timestamps are an uncorroborated operator self-report**: no smoke
+    artifact was retained, `LastCompletedAtUtc` advances every five minutes, and
+    this is the release for which telemetry cannot back them up.
+
+    **Row-count baseline at deploy.** All four new tables read zero rows
+    (`AiJobs`, `PrincipalApiCredentials`, `ProviderSubmissions`,
+    `CaseValuations`) against seven `Cases`. That is the evidence the new
+    subsystems carry no production usage yet, and the number a later reader
+    compares against to detect first use.
+
+    **Where the levers are.** Both opened gates are container-app environment
+    variables set from `infra/modules/platform.bicep` — `Features__ProviderApi`
+    and the fifteen `DocumentRequests__*` keys — so they change by editing that
+    file and re-provisioning, not by a portal edit or an azd input. Closing
+    either in a hurry means setting the value and running `azd provision`;
+    removing `DocumentRequests__AcceptedLimitsVersion` alone is enough to
+    decompose the upload-link surface, and it is the one that admits anonymous
+    internet callers.
+
+    **Rollback position.** The previous good state is release 36: revision
+    `pegasus-prod-web-252ow37gij--84132d01ccb0`, image
+    `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032`,
+    still present in the ACR, whose retention policy is disabled so nothing
+    auto-purges it. **The eleven migrations are not assumed down-reversible
+    against live data** — `NamedEstimates` performs a data `UPDATE` and
+    `CaseEditLeaseHolderKind` alters a lease column — so a rollback is a Web
+    revision rollback, not a schema rollback, and the schema stays forward. The
+    release-36 `worker.zip` is **not** retained on this workstation (releases
+    33-36 ran from a different machine), so a Worker rollback would have to be
+    rebuilt from source at `84132d01ccb0`.
+
+    Artifacts are retained at
+    `artifacts/releases/release-37-0b3ec847` in the primary checkout — the
+    manifest, `worker.zip` and `efbundle.exe`. The 1.4 GB `web-image.tar.gz` is
+    not retained: the image itself is in the ACR under tag
+    `0b3ec847aae42ee1c1bee4fb99459f9192534dca`, which is what a rollback pulls.
+    The retained manifest hashes to the SHA-256 recorded above, so that figure
+    is checkable rather than resting on the deploying operator's word.
+
+    **Telemetry does not cover this release.** Application Insights ingestion
+    stopped at 12:41Z when the workspace hit its 0.5 GB daily cap
+    (`RespectQuota`, resetting 03:00Z) — roughly two hours forty before the
+    deploy. Every post-deploy check above is therefore direct observation:
+    replica state and restart count, HTTP probes against
+    `/diagnostics/version`, `/health/live` and `/health/ready`, and the
+    database-backed liveness check. Any incident before the next reset is
+    invisible in telemetry.
 
   - **Release 36** (2026-08-28, source
     `84132d01ccb0afca7af6c6ce519e6f3491aee160`, image

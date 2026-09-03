@@ -171,6 +171,17 @@ public sealed record RenewCaseEditLeaseRequest(
     string OperationKey,
     string LeaseToken);
 
+/// <summary>
+/// Extends the lease the caller already holds, so an open editor is never timed
+/// out mid-edit. It carries no operation key and no expected version: a version
+/// cannot move under a live lease, because every mutation clears the lease as it
+/// commits, so demanding one would only invent a failure the holder cannot fix.
+/// </summary>
+public sealed record HeartbeatCaseEditLeaseRequest(
+    Guid CaseId,
+    ActionActor Actor,
+    string LeaseToken);
+
 public sealed record ReleaseCaseEditLeaseRequest(
     Guid CaseId,
     ActionActor Actor,
@@ -330,6 +341,10 @@ public interface ILeaseCaseForEdit
     Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken);
 
     Task<CaseEditLease> RenewAsync(RenewCaseEditLeaseRequest request, CancellationToken cancellationToken);
+
+    Task<CaseEditLease> HeartbeatAsync(
+        HeartbeatCaseEditLeaseRequest request,
+        CancellationToken cancellationToken);
 
     Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken);
 }

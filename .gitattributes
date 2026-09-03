@@ -7,6 +7,7 @@
 reference/eva_information/*.json text eol=lf
 reference/**/*.xlsm binary
 src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json binary
+reference/workproviders-and-repairers/principal-identification-corpus.v1.json binary
 docs/design/assets/report-renderer/**/*.css text eol=lf
 docs/design/assets/report-renderer/**/*.scriban text eol=lf
 # design-sync hashes these files as raw bytes for its render/source-key anchor;

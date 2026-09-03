@@ -11,7 +11,8 @@ namespace Pegasus.Web.Pages;
 public sealed class UploadStatusModel(
     IQueuedIntakeStatusQueries queries,
     IUploadOutcomeQueries outcomeQueries,
-    IUploadCaseDecision caseDecision) : UploadConfirmationPageModel(caseDecision)
+    IUploadCaseDecision caseDecision,
+    TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
     public bool IsDuplicate { get; private set; }
@@ -23,8 +24,14 @@ public sealed class UploadStatusModel(
     /// </summary>
     public UploadOutcomeView? Outcome { get; private set; }
 
-    public bool RefreshAutomatically =>
-        Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing;
+    /// <summary>
+    /// How long before this page reloads itself, or null once the file has
+    /// stopped moving and there is nothing left to wait for.
+    /// </summary>
+    public int? AutomaticRefreshMilliseconds =>
+        Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing
+            ? UploadStatusRefresh.DelayMilliseconds(Status, timeProvider.GetUtcNow())
+            : null;
 
     public string Heading => Status.Status switch
     {
@@ -35,23 +42,18 @@ public sealed class UploadStatusModel(
         _ => throw new InvalidOperationException("The queued intake status is not recognized.")
     };
 
-    public string Message => IsDuplicate
-        ? $"{Status.SourceFileName} was already received. No duplicate was created. {StateMessage}"
-        : StateMessage;
-
-    private string StateMessage => Status.Status switch
-    {
-        QueuedIntakeStatusKind.Received =>
-            "The file is safely received and waiting for background processing.",
-        QueuedIntakeStatusKind.Processing => "The file is being processed.",
-        QueuedIntakeStatusKind.Complete => "Processing is complete.",
-        QueuedIntakeStatusKind.Failed => OperatorLabels.IntakeFailure(Status.FailureCode) + ".",
-        _ => throw new InvalidOperationException("The queued intake status is not recognized.")
-    };
+    /// <summary>
+    /// The terminal failure value when the authenticated principal has no
+    /// usable staff actor and the richer outcome cannot be built.
+    /// </summary>
+    public string? FailureReason =>
+        Status.Status == QueuedIntakeStatusKind.Failed && Outcome is null
+            ? OperatorLabels.IntakeFailure(Status.FailureCode)
+            : null;
 
     /// <param name="duplicate">
     /// Carried on the URL, as <c>/Received/{id}?duplicate=true</c> already does,
-    /// so the notice survives the page's own refreshes. It only changes wording.
+    /// so the duplicate value survives the page's own refreshes.
     /// </param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,

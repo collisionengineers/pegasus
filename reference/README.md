@@ -18,7 +18,11 @@ authority.
 - `eva_information/` — reviewed EVA notes, example payloads, and screenshots;
   evidence only.
 - `workproviders-and-repairers/` — raw historical provider, repairer, contact,
-  and job spreadsheets; no automatic import.
+  and job spreadsheets; no automatic import. Its versioned
+  `principal-identification-corpus.v1.json` is a reviewed, hash-bound crosswalk
+  and criteria dossier over those sources, immutable local mail, and the
+  read-only CollisionSpike evidence. The JSON is not loaded by runtime code;
+  accepted behaviour remains explicit in versioned Core policies.
 - `rendererref1/` — supplied report samples, design notes, logo, and signature
   sources. Its logo and three signature files are byte-identical to the four
   same-named governed assets under `docs/design/brand/`. Both placements remain:
@@ -41,5 +45,10 @@ documentation are removed; git history retains them.
 - Preserve retained raw bytes. Treat supplied schemas, screenshots, examples,
   workbooks, and contact exports as temporal evidence, not product policy or
   live integration proof.
+- Preserve source evidence outside the tracked package as well: the package
+  deduplicates originals by SHA-256 and records source locations, metadata,
+  deterministic groups, and development/holdout assignment without rewriting
+  an email, PDF, Office document, image, fixture, workbook, or CollisionSpike
+  file.
 - Any future import or directory use requires operator review, an accepted data
   contract, and separately authorized target operations.

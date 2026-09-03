@@ -126,15 +126,61 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void MissingRepairCostsIsNotReadyNamingTheAcceptedFormulaGap()
     {
-        // Production never supplies Costs today: no accepted formula exists
-        // to convert estimate lines and a rate card into a labour rate
-        // (EXT-09, open decision D2). This is the honest, permanent state of
-        // the capability until that formula is accepted.
+        // Without a Current estimate (and no hand-typed costs) the draft
+        // fails closed naming the missing estimate (EXT-09).
         var result = AssessmentReportProjection.Project(ReadyInput() with { Costs = null });
 
         var reason = AssertNotReady(result, AssessmentReportProjection.RepairCostRequirement);
         Assert.Contains("EXT-09", reason.WhyOutstanding, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void TheCurrentEstimateSuppliesTheCostBlockAndTheListsWithItsOwnVat()
+    {
+        var estimate = CurrentEstimate(new("Repairer", 2, 45m, 32m, 60m, 15m, 5m, null));
+        var input = ReadyInput() with { Costs = null, CurrentEstimate = estimate };
+
+        var result = AssessmentReportProjection.Project(input);
+
+        Assert.Empty(result.Reasons);
+        var totals = EstimateTotals.Compute(estimate);
+        var costs = result.Snapshot!.Costs;
+        Assert.Equal(45m, costs.HourlyRate);
+        Assert.Equal(3m, costs.LabourHours);
+        Assert.Equal(totals.Parts, costs.Parts);
+        Assert.Equal(totals.Paint, costs.PaintMaterials);
+        Assert.Equal(totals.Other, costs.SpecialistOther);
+        Assert.Equal(totals.Subtotal, costs.Subtotal);
+        // 5 % from the estimate, not the built-in 20 % rule.
+        Assert.Equal(totals.Vat, costs.Vat);
+        Assert.Equal(decimal.Round(totals.Subtotal * 0.05m, 2), costs.Vat);
+        Assert.Equal(totals.Total, costs.Total);
+        Assert.Equal(["Bonnet"], result.Snapshot.NewParts);
+        Assert.Equal(["Repair wing"], result.Snapshot.Repairs);
+        Assert.Equal(["Paint wing"], result.Snapshot.Operations);
+        result.Snapshot.Validate();
+    }
+
+    [Fact]
+    public void ACurrentEstimateWithoutALabourRateIsNotReady()
+    {
+        var estimate = CurrentEstimate(new("Repairer", null, null, null, null, null, 20m, null));
+
+        var result = AssessmentReportProjection.Project(
+            ReadyInput() with { Costs = null, CurrentEstimate = estimate });
+
+        AssertNotReady(result, AssessmentReportProjection.LabourRateRequirement);
+    }
+
+    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details) => new(
+        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
+        new(RepairSpecificationSourceRoute.Manual, null, null, null),
+        [
+            Line(1, "new_part", "Bonnet") with { WorkUnits = null, Price = 310m, Quantity = 1 },
+            Line(2, "repair", "Repair wing") with { WorkUnits = 3m },
+            Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m },
+        ],
+        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true);
 
     private static AssessmentReadinessItem AssertNotReady(
         AssessmentReportProjectionResult result, string requirement)

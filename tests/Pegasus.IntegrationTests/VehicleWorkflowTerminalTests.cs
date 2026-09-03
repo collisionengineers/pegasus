@@ -149,7 +149,7 @@ public sealed class VehicleWorkflowTerminalTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE CaseWorkflows SET EditLeaseToken = {editLeaseToken}, EditLeaseTokenHash = {leaseHash}, EditLeaseRequestHash = {leaseHash}, EditLeaseHolder = {Staff.SubjectId}, EditLeaseOperationKey = {"active-editor"}, EditLeaseExpiresAtUtc = {FixedUtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
+                $"UPDATE CaseWorkflows SET EditLeaseToken = {editLeaseToken}, EditLeaseTokenHash = {leaseHash}, EditLeaseRequestHash = {leaseHash}, EditLeaseHolder = {Staff.SubjectId}, EditLeaseHolderKind = {nameof(ActorKind.Staff)}, EditLeaseOperationKey = {"active-editor"}, EditLeaseExpiresAtUtc = {FixedUtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO ExternalWorkItems (Id, CaseId, Kind, OperationKey, State, AttemptCount, DueAtUtc) VALUES ({workItemId}, {caseId}, {ExternalWorkKinds.VehicleLookup}, {"seeded-vehicle-work"}, {"pending"}, {0}, {FixedUtcNow})");
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -237,7 +237,7 @@ public sealed class VehicleWorkflowTerminalTests
             SHA256.HashData(Encoding.UTF8.GetBytes(editLeaseToken)));
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET EditLeaseToken = {editLeaseToken}, EditLeaseTokenHash = {leaseHash}, EditLeaseRequestHash = {leaseHash}, EditLeaseHolder = {Staff.SubjectId}, EditLeaseOperationKey = {"canonical-registration-edit"}, EditLeaseExpiresAtUtc = {FixedUtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
+            $"UPDATE CaseWorkflows SET EditLeaseToken = {editLeaseToken}, EditLeaseTokenHash = {leaseHash}, EditLeaseRequestHash = {leaseHash}, EditLeaseHolder = {Staff.SubjectId}, EditLeaseHolderKind = {nameof(ActorKind.Staff)}, EditLeaseOperationKey = {"canonical-registration-edit"}, EditLeaseExpiresAtUtc = {FixedUtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) SELECT Id, OriginIntakeReceiptId, {"manual_upload"}, {"canonical-registration-source"}, {new string('1', 64)}, {FixedUtcNow}, {"vehicle-test-reader"}, {"1"}, {"vehicle-test-completeness"}, {1}, {true}, {FixedUtcNow} FROM Cases WHERE Id = {caseId}");
         if (registration is not null)
