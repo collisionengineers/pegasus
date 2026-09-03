@@ -509,17 +509,10 @@ public static class SignOffEngineerEligibility
         IReadOnlyCollection<StaffRole> roles,
         bool isSignOffEngineer,
         byte[]? signature) =>
-        IsEligible(isEnabled, roles, isSignOffEngineer, signature is { Length: > 0 });
-
-    public static bool IsEligible(
-        bool isEnabled,
-        IReadOnlyCollection<StaffRole> roles,
-        bool isSignOffEngineer,
-        bool hasSignature) =>
         isEnabled
         && roles.Contains(StaffRole.Engineer)
         && isSignOffEngineer
-        && hasSignature;
+        && signature is { Length: > 0 };
 }
 
 public static class StaffAccountAdministrationPolicy
