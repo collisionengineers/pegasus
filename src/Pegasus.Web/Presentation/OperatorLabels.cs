@@ -1325,6 +1325,50 @@ public static class OperatorLabels
         /// seam — the control enables as soon as a registration is recorded.
         /// </summary>
         public const string NoRegistrationCondition = "No registration recorded";
+
+        /// <summary>One section of the Case record, as the jump-nav names it.</summary>
+        public sealed record CaseSection(string Key, string Label, string Icon);
+
+        /// <summary>
+        /// The eleven Case record sections in their fixed order (D30,
+        /// FRD-12 §Case workspace). One list: the page model's accepted
+        /// <c>?section=</c> vocabulary, the jump-nav, the section hosts and
+        /// their headings all read it, so no second section list exists in
+        /// Razor, CSS or script.
+        /// </summary>
+        public static readonly IReadOnlyList<CaseSection> Sections =
+        [
+            new("overview", "Overview", "icon-layout-dashboard"),
+            new("engineer-notes", "Engineer notes", "icon-pencil"),
+            new("inspection", "Inspection", "icon-map-pin"),
+            new("vehicle", "Vehicle", "icon-car"),
+            new("damage", "Damage", "icon-alert-triangle"),
+            new("valuation", "Valuation", "icon-file-text"),
+            new("estimate", "Estimate", "icon-list"),
+            new("settlement", "Settlement", "icon-check-circle"),
+            new("report", "Report", "icon-file"),
+            new("files", "Files", "icon-folder"),
+            new("notes", "Notes", "icon-history")
+        ];
+
+        /// <summary>The section a <c>?section=</c> value the record does not own selects.</summary>
+        public const string DefaultSectionKey = "overview";
+
+        public const string SectionNav = "Case sections";
+
+        // The identity ribbon the frame itself renders (D29, D31).
+        public const string RibbonReference = "Case/PO";
+        public const string RibbonRegistration = "Registration";
+        public const string RibbonClaimant = "Claimant";
+        public const string RibbonPrincipal = "Principal";
+        public const string RibbonState = "State";
+        public const string RibbonEngineer = "Engineer";
+        public const string RibbonSignOff = "Sign-off";
+
+        /// <summary>
+        /// What the record prints where a value it would show is not held.
+        /// </summary>
+        public const string AbsentValue = "Not recorded";
     }
 
     /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
