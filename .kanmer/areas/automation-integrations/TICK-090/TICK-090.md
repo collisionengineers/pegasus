@@ -19,7 +19,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.515Z'
-updated: '2026-08-25T06:46:36.497Z'
+updated: '2026-09-03T08:57:57.465Z'
 ---
 
 ## What
@@ -43,3 +43,15 @@ This is allocated to **Later / 1.4.0** in `docs/capabilities.md`. It is **not de
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-17.
+
+
+Operator Note: 03/09/2026 - Tractable will be the likely candidate.
+
+Options were from:
+
+1. Box File Request
+2. In-built Pegasus link (current integration)
+3. ravin.ai
+4. Tractable
+
+Will continue on hardening 2. as custom integration preferential but likely to be replaced with Tractable API and integration pending receipt of credentials and API documentation.
