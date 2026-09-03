@@ -39,3 +39,7 @@ including browser, test-ui and every SQL integration lane passed. The
 unrelated CSS-selector limitation remains owned by MAIL-034.
 
 Result: **PASS**.
+
+## Closeout traceability
+
+PR [#640](https://github.com/collisionengineers/pegasus/pull/640) merged into `dev` at 2026-09-02T03:11:14Z.

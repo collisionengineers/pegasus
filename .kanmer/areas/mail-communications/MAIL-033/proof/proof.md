@@ -36,3 +36,7 @@ The pre-release exact-merge verification and green PR #641 CI remain
 applicable.
 
 Result: **PASS**.
+
+## Closeout traceability
+
+PR [#641](https://github.com/collisionengineers/pegasus/pull/641) merged into `dev` at 2026-09-02T02:52:43Z.

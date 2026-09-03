@@ -71,3 +71,14 @@ Adoption of PR #641. Expected repository diff: none. Plan: `plan`@`e289d8dd1ebe9
   Verification boxes ticked against the evidence in the report.
 - `post-implementation-report`@`e04eede6877ed0f9` written whole-file. Nothing was pushed and no
   commit was made: the head is the same `c6842a8c` the tests ran against.
+
+## Closeout — MAIL-033
+
+- [x] PR merge verified ([#641](https://github.com/collisionengineers/pegasus/pull/641), merged 2026-09-02T02:52:43Z)
+- [x] proof.md finalised with PR URL and merge date
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body
+- [ ] cd out of worktree; remove recorded ticket worktree
+- [ ] delete local branch (and merged remote branch)
+- [ ] prune stale worktree metadata
+- [ ] release ticket claim

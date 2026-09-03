@@ -39,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-01T14:40:45.052Z'
-updated: '2026-09-02T13:00:52.931Z'
+updated: '2026-09-03T08:46:32.669Z'
 ---
 
 ## What
@@ -63,3 +63,5 @@ PR #640 implements this fix but incorrectly identifies itself as MAIL-028; live 
 - [ ] UI snapshots/tests and the full required PR checks are green.
 
 ## Outcome
+
+PR [#640](https://github.com/collisionengineers/pegasus/pull/640) merged into `dev` at 2026-09-02T03:11:14Z; verification passed and the clean ticket workspace is closed out. No follow-up arose from closeout.

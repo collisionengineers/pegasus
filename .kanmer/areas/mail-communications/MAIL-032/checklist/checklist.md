@@ -31,3 +31,14 @@ Append with `set_ticket_doc(doc: "checklist", append: true)`.
 
 - 2026-09-02 (implementer-a1, from the post-implementation report and reviewer-a1's attestation): merge from origin/dev conflict-free (head 3bf28244, pushed); Release build 0 errors; audit against the three Verification boxes, FRD-12 §Inbox and context §1.3 recorded in the report; simplification pass (8 lenses) appended to the plan; PR #640 retitled and re-footered via `gh api PATCH`; `commits` and `prs` recorded; CI run 33581617718 green at the head; snapshots unchanged. Finding S1 (CSS selector reach) accepted-risk by the reviewer; follow-up ticket allocated by the controller.
 - 2026-09-02T03:50Z (controller): this document was overwritten at 02:59Z with PR-069's checklist by a scratchpad filename collision between two concurrent agents; restored from the board branch history (commit 37da319b) with every box ticked per the evidence above. PR #640 merged as 2a48be0456e42d22994193b35d6b4cc33bc90a59; ticket in Verifying.
+
+## Closeout — MAIL-032
+
+- [x] PR merge verified ([#640](https://github.com/collisionengineers/pegasus/pull/640), merged 2026-09-02T03:11:14Z)
+- [x] proof.md finalised with PR URL and merge date
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body
+- [ ] cd out of worktree; remove recorded ticket worktree
+- [ ] delete local branch (and merged remote branch)
+- [ ] prune stale worktree metadata
+- [ ] release ticket claim
