@@ -130,9 +130,7 @@ public sealed record CaseCompleteness(
     bool ImagesConfirmedByStaff)
 {
     public bool IsReadyForReview(bool automaticallyDefinitive) =>
-        InstructionComplete
-        && ImagesComplete
-        && (automaticallyDefinitive || (InstructionConfirmedByStaff && ImagesConfirmedByStaff));
+        InstructionComplete && ImagesComplete;
 }
 
 public sealed record CaseIdentity(
