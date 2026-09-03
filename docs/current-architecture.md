@@ -336,6 +336,17 @@ was **not**: it did not exist at release 36 at all, and its routes, scheme,
 flag and two of the eleven migrations were introduced inside the release-37
 range. See [operations](operations.md#production-environment).
 
+The public-upload persistence path now enters the same managed-document
+custody boundary as staff uploads. It allocates the next persisted case
+document ordinal, carries that ordinal and the case's persisted Box root into
+`ManagedDocumentContentAddress`, and calls `StoreVersionAsync`; the legacy
+content-store call cannot address the production Box layout. Request telemetry
+canonicalises every `/Uploads/{token}` URL to `/Uploads/Request`, removing its
+query and fragment while retaining request result and correlation fields. This
+is repository source state only: release 38 still contains the broken legacy
+call and the unredacted telemetry behaviour described in
+[operations](operations.md#production-environment).
+
 ## Business-rule ownership
 
 Core owns:
