@@ -113,6 +113,29 @@ it does not adopt the mockup's differing payment wording or description.
    and remains available whenever the existing report-draft preview is
    available, including after Complete if that preview remains available.
 
+   This is a deliberate, recorded divergence from the mockup, which draws
+   `Preview fee note` with no readiness condition
+   (`Pegasus_UI_v2_src/src/22-case-engineer.js:130`). Three checked facts
+   settle it against the mockup (plan review finding 1, 2026-09-03):
+
+   - FRD-11 governs and is more specific: the Report section's fee-note
+     preview "is a preview of the fee-note artifact the renderer emits"
+     (`docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md:130-133`).
+     The renderer only emits that artifact from a projected, ready snapshot,
+     so an ungated control would have nothing to preview.
+   - `AssessmentPolicy.cs:256` already requires `fee.agreed_fee` for report
+     readiness, so the reviewer's "fee-ready but report-incomplete" Case
+     cannot be previewed under either condition; an ungated anchor would
+     only turn a hidden control into a `NotReady` redirect.
+   - A fee-note-only projection and render path would be a second Core
+     implementation of report-projection policy for one caller, and the
+     ticket's stated Approach is to reuse the renderer and the report
+     contract constants. Building one is a stop condition, not a fix.
+
+   `Pegasus_UI_v2_notes.md` itself lists the fee note under "Backend gaps the
+   mockup exposes"; the mockup dialog is an illustration of the content, not
+   an authority over the readiness rail.
+
 ## Expected files
 
 | Path | Change | Existing component reused |
@@ -122,6 +145,30 @@ it does not adopt the mockup's differing payment wording or description.
 | `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add the one `PreviewFeeNote` Report-action label. | [[ENG-034]]'s `CaseWorkspace.EngineerSections` group. |
 | `tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs` | Add direct fee-note preview coverage. | `Compose`, `FakeRenderer`, and `ThrowingDocumentContentStore`. |
 | `docs/design/test-ui/pages/case-details--*.html` | Only if the regenerated capture differs: commit the regenerated file(s). | `Update-TestUiSnapshots.ps1` (UIIMP-005 tooling); capacity-one lease shared with [[UIIMP-014]]. |
+
+## Ownership reallocation (plan review finding 2, 2026-09-03)
+
+Every file in "Expected files" sits outside the orchestrator's approximate
+issued paths for DOCS-018 (`_CaseFeeNote.cshtml` and the Infrastructure
+fee-note template). That reallocation is deliberate — research verified the
+template and renderer need no change, and a one-anchor partial would leave
+DOCS-018 with no production caller ("Done means wired") — but a scratch note
+inside DOCS-018 does not by itself grant authority over another lane's file.
+Before any edit, the implementer records and confirms the reallocation:
+
+| File | Taken from | Precondition | How the reallocation is recorded |
+| --- | --- | --- | --- |
+| `Pages/Cases/Details.cshtml.cs` | [[CASE-038]] host, [[ENG-029]] handlers | both merged to `dev` | `append_scratch` on [[ENG-029]] naming the `OnGetPreviewFeeNoteAsync` addition, before taking the lease |
+| `Pages/Cases/Shared/_CaseReport.cshtml` | [[ENG-034]] then [[ENG-029]] | ENG-029 merged | same ENG-029 scratch note; DOCS-018 adds one action anchor, no editor |
+| `Presentation/OperatorLabels.cs` | capacity-one shared lock | [[ENG-034]]'s `CaseWorkspace.EngineerSections` group exists | confirm the lock is free before editing; one key added, nothing reordered |
+| `tests/…/AssessmentReportDraftWebTests.cs` | [[ENG-029]] extends it for the assessment | ENG-029 merged | same ENG-029 scratch note |
+| `docs/design/test-ui/pages/case-details--*.html` | [[UIIMP-014]] | only if the verify run reports drift | `append_scratch` on [[UIIMP-014]] naming the captures committed |
+
+The rejected alternative is to keep the issued boundary and depend on ENG-029
+to deliver the handler, anchor and test: that reproduces exactly the
+no-production-caller defect the research flagged, and splits one D42 feature
+across two lanes' proofs. If a lease cannot be confirmed free, stop and report
+rather than editing the file.
 
 ## Do not modify
 
@@ -140,10 +187,13 @@ introduced.
 - Reconfirm that [[CASE-038]], [[ENG-034]], and [[ENG-029]] have merged, then
   refresh the DOCS-018 worktree from `origin/dev`
   (`git merge --no-edit origin/dev`).
-- Take the sequential capacity-one leases for
+- Record the ownership reallocation first (see "Ownership reallocation"):
+  `append_scratch` on [[ENG-029]] naming the handler, anchor and test rows
+  DOCS-018 takes, then take the sequential capacity-one leases for
   `Details.cshtml.cs`, `_CaseReport.cshtml`, `OperatorLabels.cs`, and
-  `AssessmentReportDraftWebTests.cs`; confirm [[UIIMP-014]] is not mid-lease
-  on `docs/design/test-ui/**` before step 5 commits a capture.
+  `AssessmentReportDraftWebTests.cs`. Confirm [[UIIMP-014]] is not mid-lease
+  on `docs/design/test-ui/**` before step 5 commits a capture. If any lease is
+  held, stop and report rather than editing the file.
 - Reuse the post-[[ENG-034]] `DetailsModel` report-preview host and the
   post-[[ENG-029]] Report action cluster; do not recreate an Assessment-page
   handler or retain a compatibility endpoint.
@@ -167,19 +217,34 @@ introduced.
   `OperatorLabels.CaseWorkspace.EngineerSections` vocabulary; do not hard-code
   a second label list in Razor.
 - Add one `target="_blank"`/`rel="noopener"` anchor beside the existing
-  `Preview report draft` control in `_CaseReport.cshtml`, targeting
-  `/Cases/{id}?handler=PreviewFeeNote`.
+  `Preview report draft` control in `_CaseReport.cshtml`, built with the same
+  tag helpers that control uses today
+  (`asp-page` / `asp-route-id` / `asp-page-handler="PreviewFeeNote"`,
+  `Assessment/Index.cshtml:251-256`). Do not hand-write a `?handler=` query
+  string: the existing convention wins.
 - Reuse the existing button, icon, URL-generation, and visibility-condition
   markup. Render no dialog, helper copy, disabled placeholder, or extra
   partial.
 
 ### Step 4 — Prove the new endpoint is reachable and side-effect free
 
-- Extend `AssessmentReportDraftWebTests` with a complete-case GET to
-  `?handler=PreviewFeeNote`, using its existing `Compose`, ready projection,
-  `FakeRenderer`, and `ThrowingDocumentContentStore`.
-- Assert an OK `application/pdf` response and the fake fee-note PDF bytes.
-  The throwing document store proves this preview path does not store an
+- **First make the fake able to fail.** `FakeRenderer` currently builds both
+  artifacts from the same `pdfBytes`
+  (`AssessmentReportDraftWebTests.cs:286-296`), so a handler that wrongly
+  returned `Draft.Assessment.Pdf` would still pass. Give the fake distinct
+  bytes per family (derive them from the family name it already takes) before
+  writing the new assertion; the existing assessment assertions keep passing
+  against the assessment bytes. Do not weaken any existing assertion.
+- Extend `AssessmentReportDraftWebTests` with GET coverage of the new handler,
+  using its existing `Compose`, ready projection, `FakeRenderer`, and
+  `ThrowingDocumentContentStore`, for all three outcomes the handler maps:
+  - ready Case → 200, `application/pdf`, and the **fee-note** bytes
+    specifically (not the assessment bytes);
+  - not-ready Case → the existing `NotReady` redirect, not a PDF;
+  - Case the actor cannot open → 404.
+  Existing coverage exercises the `GenerateReportDraft` POST, so none of these
+  three is inherited: each is written for `PreviewFeeNote` itself.
+- The throwing document store proves this preview path does not store an
   artifact; the handler's reused render-only use case proves it does not send.
 - Preserve existing incomplete-case failure-closed coverage. Do not duplicate
   renderer VAT tests: existing renderer integration coverage remains the owner
@@ -220,9 +285,13 @@ Do not run `./scripts/Test-MigrationGrants.ps1`: no migration is introduced.
 - The response is the renderer's fee-note artifact, which already contains the
   agreed fee, description, net, fixed 20% VAT, total, and report-contract fee
   terms.
-- The direct Web test proves the fee-note response bytes and that no document
-  content store is invoked. No sending, persistence, new renderer, migration,
-  template, route, or dependency is added.
+- The direct Web tests prove the fee-note response bytes are distinguishable
+  from the assessment bytes, that the not-ready redirect and the 404 hold for
+  this handler, and that no document content store is invoked. No sending,
+  persistence, new renderer, migration, template, route, or dependency is
+  added.
+- The ownership reallocation is recorded on [[ENG-029]] (and [[UIIMP-014]] if
+  a capture is committed) before any shared file is edited.
 - `Update-TestUiSnapshots.ps1 -Verify -SkipCapture` and `Test-UiCatalogue.ps1`
   exit 0 on the branch as pushed.
 
@@ -247,3 +316,24 @@ the PR targeting `dev` is open, and the ticket is in Review. Do not merge.
 
 (Written by the implementer after the diff exists: dated heading, the four
 lenses, findings and dispositions.)
+
+## Plan review (2026-09-03, gpt-5.6-sol xhigh; dispositions Claude Opus)
+
+gpt-5.6-sol read the plan independently at `origin/dev` = `897db953` in the
+shared read-only checkout (verdict: REQUEST CHANGES; the checkout was clean
+afterwards). Every finding is dispositioned below with a checked fact; the
+accepted ones are already folded into the sections above.
+
+| # | Severity | Plan step | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | Steps 2-3, decision 3 | The mockup draws `Preview fee note` with no readiness condition; the plan gates it on report-draft readiness, so a fee-ready but report-incomplete Case cannot preview. Suggested a separate Core fee-note projection/render path. | **Rejected, with the reason recorded in decision 3.** FRD-11:130-133 defines the preview as "a preview of the fee-note artifact the renderer emits", and the renderer emits it only from a ready snapshot. `AssessmentPolicy.cs:256` already requires `fee.agreed_fee` for readiness, so the described Case cannot exist in a form the ungated control could serve — the anchor would only redirect. A fee-note-only projection path is a second Core implementation of report-projection policy for one caller, against the ticket's own Approach and the simplicity rails. Decision 3 now states the divergence, the three checked facts, and that `Pegasus_UI_v2_notes.md` files the fee note under "Backend gaps the mockup exposes". |
+| 2 | blocker | Step 1, Expected files | The plan's files are outside the orchestrator's issued DOCS-018 paths and overlap ENG-029, ENG-034 and UIIMP-014; sequencing avoids collisions but a DOCS-018-local note does not grant authority over another lane's file. | **Accepted; fixed in the plan.** New "Ownership reallocation" section names each file, the lane it comes from, its merge precondition, and how the reallocation is recorded (`append_scratch` on [[ENG-029]], and on [[UIIMP-014]] if a capture is committed) before any lease is taken; step 1 and the checklist now carry that as the first action, with "stop and report" if a lease is held. The reviewer's alternative — keep the issued boundary and let ENG-029 deliver the handler — is rejected in-plan: it reproduces the no-production-caller defect research flagged and splits one D42 feature across two proofs. |
+| 3 | should-fix | Step 4 | `FakeRenderer` builds both artifacts from the same `pdfBytes` (`AssessmentReportDraftWebTests.cs:286-296`), so the proposed assertion would pass even if the handler returned `Draft.Assessment.Pdf`; and the existing not-ready/404 coverage is on the `GenerateReportDraft` POST, not the new GET. | **Accepted; fixed in the plan.** Confirmed by reading the fake. Step 4 now requires distinct per-family bytes in the fake *before* the new assertion, an explicit fee-note-bytes assertion, and GET coverage of all three mapped outcomes (ready, not-ready redirect, 404), with no existing assertion weakened. |
+| 4 | nit (wrapper) | Step 3 | The plan wrote the anchor target as a hand-built `?handler=PreviewFeeNote` URL; the existing `Preview report draft` control uses `asp-page` / `asp-route-id` / `asp-page-handler` (`Assessment/Index.cshtml:251-256`). | **Accepted; fixed in step 3** — the tag helpers are named, and hand-writing the query string is ruled out. |
+| 5 | nit (wrapper, checked non-issue) | Commands | The `dotnet test` filter `Category!=Corpus&Category!=Browser` is narrower than CLAUDE.md's canonical `Category!=Corpus`. | **Rejected — checked and correct as written.** `AssessmentReportDraftWebTests` is `[Trait("Category","SqlServer")]`, so it runs in that lane; the Browser complement is executed by `Update-TestUiSnapshots.ps1`'s capture run, whose filter includes `FullyQualifiedName~WebTests|Category=Browser`. The pair mirrors CI's two lanes (`ci.yml:178` and `:236`). No change. |
+
+Claims the reviewer checked and confirmed sound: every reuse claim resolves in
+the checkout; no package, migration, duplicate Core policy, explanatory copy,
+staff review flag (D44) or damage type (D45) appears anywhere in the plan; the
+89-day contract terms and the generic description fallback are correctly kept
+over the mockup's 30-day wording and long default; D46 is outside this scope.
