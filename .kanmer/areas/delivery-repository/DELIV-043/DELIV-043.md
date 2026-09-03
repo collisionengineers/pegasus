@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Cancel superseded repository-check runs and gate the heavy lanes behind the
   cheap invariant jobs
-status: implementing
+status: review
 area: delivery-repository
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-09-03T19:24:35.091Z'
+  review: '2026-09-03T19:30:31.553Z'
 taken_at: '2026-09-03T19:24:36.901Z'
 branch: task/deliv-043-ci-concurrency-preflight
 worktree: ../pegasus-worktrees/deliv-043-ci-concurrency-preflight
@@ -26,9 +27,13 @@ labels:
 links:
   - KANMER-011
   - UIIMP-013
+commits:
+  - 8cdbb3062913f8be335c46b72f75c07bee803090
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/653'
 archived: false
 created: '2026-09-03T19:23:48.496Z'
-updated: '2026-09-03T19:26:47.426Z'
+updated: '2026-09-03T19:30:31.553Z'
 ---
 
 ## What
