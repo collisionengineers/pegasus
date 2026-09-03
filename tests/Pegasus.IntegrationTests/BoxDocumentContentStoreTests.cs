@@ -51,6 +51,25 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     [Fact]
+    public async Task RequestUploadAddressUsesThePersistedCaseRootAndManagedOrdinal()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("request upload evidence");
+        var address = Address() with
+        {
+            SemanticRole = DocumentSemanticRole.Other,
+            FileName = "request upload evidence.txt",
+            MediaType = "text/plain"
+        };
+
+        await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
+
+        Assert.True(box.PathExists($"{CaseReference}/002 request upload evidence.txt"));
+    }
+
+    [Fact]
     public async Task IdenticalRepeatStoreIsAReplayNotASecondUpload()
     {
         var box = new InMemoryBox();
