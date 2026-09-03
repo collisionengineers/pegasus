@@ -2,10 +2,22 @@
 id: PLAT-071
 type: ticket
 title: Reconcile the documented DOC/MSG extraction deployment status
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: codex-root
 profile: fix
+taken_at: '2026-09-03T08:24:26.514Z'
+branch: task/plat-071-doc-msg-deployment-status
+worktree: ../pegasus-worktrees/plat-071-doc-msg-deployment-status
+claim_expires_at: '2026-09-03T08:54:26.514Z'
+claim_controller: codex-root
+lease_id: d2208183-acaa-45ab-af7b-68bf1d3d7998
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\alex\documents\github\pegasus-worktrees\plat-071-doc-msg-deployment-status
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-03T08:24:26.514Z'
 labels:
   - documentation
   - operations
@@ -18,7 +30,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-09-03T08:19:46.266Z'
-updated: '2026-09-03T08:19:46.266Z'
+updated: '2026-09-03T08:24:26.514Z'
 ---
 
 ## What
