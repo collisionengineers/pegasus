@@ -2,13 +2,14 @@
 id: PLAT-068
 type: ticket
 title: Sign-off Engineer account setting with qualifications and signature image
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-09-02T20:53:21.795Z'
   review: '2026-09-03T21:09:35.151Z'
+  verifying: '2026-09-03T23:36:17.640Z'
 taken_at: '2026-09-03T20:59:06.544Z'
 branch: task/plat-068-sign-off-account
 worktree: .worktrees/plat-068
@@ -43,9 +44,13 @@ commits:
   - a1f5b947c85ceee6ceef14a0318eb4dcdd49ac19
 prs:
   - '655'
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 3f0cb45edf5eef0e9cd592b7e7305aaea8e96c44
+delivery_recorded_at: '2026-09-03T23:36:18.976Z'
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-03T21:09:35.151Z'
+updated: '2026-09-03T23:36:18.976Z'
 ---
 
 ## What
