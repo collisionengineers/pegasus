@@ -4,12 +4,13 @@ type: ticket
 title: >-
   AI market research job: external Cowork research completed through the
   Automation Actor into a valuation row and findings document
-status: implementing
+status: review
 area: automation-integrations
 assignee: wf-build/auto-018
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:06:47.198Z'
+  review: '2026-09-03T20:09:56.795Z'
 taken_at: '2026-09-03T13:49:10.474Z'
 branch: task/auto-018-market-research-job
 worktree: .worktrees/auto-018
@@ -32,9 +33,11 @@ links:
   - TICK-083
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+prs:
+  - '654'
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-03T13:49:10.474Z'
+updated: '2026-09-03T20:09:56.795Z'
 ---
 
 ## What
