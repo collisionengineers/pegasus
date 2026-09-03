@@ -348,9 +348,39 @@ excludes them is INCONCLUSIVE for those claims, not a PASS.
 
 No migration is planned, so do not run `./scripts/Test-MigrationGrants.ps1`.
 
-## Simplification pass (2026-09-02)
+## Simplification pass (2026-09-03)
 
-to be recorded by the implementer before the PR opens
+Sonnet-wrapped Codex pass (`gpt-5.6-sol`, low effort) ran read-only inspection
+plus the applied change directly in the task worktree
+(`task/docs-017-report-signatory`) against
+`git diff $(git merge-base HEAD origin/dev)` — the 14-file DOCS-017 diff
+(two Core report files, one Infrastructure persistence source, one renderer,
+one Scriban template, one csproj, FRD-11, one Test UI snapshot, six test
+files). Four lenses: reuse, simplification, efficiency, altitude.
+
+| Finding | Lens | Disposition |
+| --- | --- | --- |
+| `EfAssessmentReportProjectionSource` declared its own accepted-image-media-type `HashSet` instead of reusing Core's `ReportImageEvidence.IsAcceptedContentType`. | Reuse / altitude | **Applied.** Infrastructure now calls the existing Core policy method instead of duplicating the accepted-type list, keeping report-image media-type policy owned solely by `Pegasus.Core`. |
+| Several test/interim call sites pass an explicit `Signatory: null` argument where the record default already supplies `null`. | Simplification | **Not applied.** Rejected: the explicit `null` documents the intentionally fail-closed interim boundary (no signatory supplied until [[CASE-040]] / [[PLAT-068]] land) at each call site; removing it would make that boundary implicit and harder to audit. |
+
+No other reuse, simplification, efficiency, or altitude finding was raised;
+no correctness issue was found (none would have been applied here regardless
+— this pass is behaviour-preserving only). No test assertion was weakened or
+removed.
+
+Verification after the one applied change (run directly, not from Codex's
+self-report):
+
+| Command | Exit |
+| --- | ---: |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 (1,191 passed) |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 (100 passed) |
+
+The pass touched no routed Razor page or its partial, so the Test UI snapshot
+verify and catalogue check were not re-run after this pass (they had already
+passed in the main implementation run and remain valid — the affected
+snapshot file is untouched by the simplification diff).
 
 ## Stop condition
 
