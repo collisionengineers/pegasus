@@ -48,7 +48,9 @@ choice (D33).
 The lifecycle must support:
 
 - pre-case receiving, and the sorting of material that is not definitive (this is the `Needs sorting`/`Blocked intake` path and its reasoned resolution, not a manual acceptance step applied to definitive intake — see the allocation rule above);
-- active work, `Not ready`, `Held`, `Review`, due-work visibility, and separate mandatory instruction-completeness, image-completeness, and staff-review gates before Engineers-queue eligibility; provider policy may define accepted gate evidence but may not remove a gate;
+- active work, `Not ready`, `Held`, `Review`, due-work visibility, and
+  mandatory instruction- and image-completeness before Review; there is no
+  separate staff act of reviewing instructions or images (D44, 2026-09-03);
 
 - manual chasing with the exact schedule below;
 - inspection/report preparation appropriate to desktop assessment;
@@ -61,7 +63,16 @@ Each unmet progression requirement is an individual actionable blocker. The UI i
 
 Durable receipt acknowledgement, retained correspondence, prepared or copied text, the `First sent to Engineer` export proxy, and a `Report sent` event are not terminal case outcomes. Report-sent evidence enters post-report work; post-report completion is a separate named closure action.
 
-The named Core workflow records the policy key and version used for every configured readiness gate. It permits Engineer assignment only when the configured instruction-completeness, image-completeness, instruction-review, and image-review gates each pass; no caller, assignment, prepared artifact, or later workflow event supplies a missing gate by implication. A Report approval identifies one immutable artifact and its approving staff actor. `Report sent` requires one retained exact approved-mailbox Sent item with its mailbox/Sent-folder scope, immutable item, conversation/reply-chain identities, authoritative Sent time, and separate link time; an assertion, draft, queue result, generated file, or export proxy fails closed.
+The named Core workflow records the policy key and version used for readiness.
+Complete instructions and images move a Case from Not ready to Review. In
+Review, **Send to EVA** is the implicit review action and moves the Case to
+With Engineer; no instruction-review or image-review evidence or setting
+exists (D44, 2026-09-03). A Report approval identifies one immutable artifact
+and its approving staff actor. `Report sent` requires one retained exact
+approved-mailbox Sent item with its mailbox/Sent-folder scope, immutable item,
+conversation/reply-chain identities, authoritative Sent time, and separate
+link time; an assertion, draft, queue result, generated file, or export proxy
+fails closed.
 
 Every closure selects exactly one named terminal outcome, records the authenticated actor, time, reason and prior/new state in permanent history, and leaves the Case, Case/PO, source relationships, and closure chronology intact. A closed case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
 
@@ -76,8 +87,9 @@ the original image record shows its formal Case target.
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
-When a Case passes its staff-review gate, it becomes visible in the Engineers
-queue. Assignment is optional: staff may assign an eligible Pegasus Engineer
+When a Case has complete instructions and images, it enters Review. Sending it
+to EVA moves it to With Engineer and makes it visible in the Engineers queue.
+Assignment is optional: staff may assign an eligible Pegasus Engineer
 directly when required, or an Engineer may take an unassigned case when starting
 work. Assignment is ownership, not readiness, and never substitutes for a
 missing Review or export gate. Pegasus assignment does not prove EVA receipt or

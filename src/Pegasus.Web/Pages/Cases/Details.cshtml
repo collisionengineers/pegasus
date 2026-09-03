@@ -551,8 +551,6 @@
             ["destination"] = nameof(CaseReopenDestination.ReportPreparation),
             ["instructionsComplete"] = details.Data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString(),
             ["imagesComplete"] = details.Data?.Completeness.Values.ImagesComplete.ToString() ?? false.ToString(),
-            ["instructionsReviewedByStaff"] = details.Data?.Completeness.Values.InstructionConfirmedByStaff.ToString() ?? false.ToString(),
-            ["imagesReviewedByStaff"] = details.Data?.Completeness.Values.ImagesConfirmedByStaff.ToString() ?? false.ToString(),
             ["evidenceReference"] = "case-completeness-projection"
         }
     })" />

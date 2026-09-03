@@ -19,8 +19,6 @@ internal static class AdministrationPolicyModelConfiguration
             entity.HasData(new WorkflowConfigurationEntity
             {
                 Id = WorkflowPolicyKey,
-                RequireStaffInstructionReviewBeforeEngineerAssignment = true,
-                RequireStaffImageReviewBeforeEngineerAssignment = true,
                 Version = 1
             });
         });
