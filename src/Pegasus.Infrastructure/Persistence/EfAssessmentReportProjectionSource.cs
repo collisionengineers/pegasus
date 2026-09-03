@@ -19,9 +19,6 @@ internal sealed class EfAssessmentReportProjectionSource(
     IDocumentContentStore contentStore,
     TimeProvider timeProvider) : IAssessmentReportProjectionSource
 {
-    private static readonly HashSet<string> PhotoMediaTypes =
-        new(StringComparer.Ordinal) { "image/jpeg", "image/png", "image/webp" };
-
     public async Task<AssessmentReportProjectionInput?> GetAsync(
         Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
     {
@@ -66,7 +63,7 @@ internal sealed class EfAssessmentReportProjectionSource(
 
         var photoRows = confirmed
             .Where(row => row.SemanticRole == DocumentSemanticRole.Image
-                && PhotoMediaTypes.Contains(row.MediaType)
+                && ReportImageEvidence.IsAcceptedContentType(row.MediaType)
                 && row.ContentLength is >= 0 and <= int.MaxValue)
             .ToArray();
         var reads = photoRows
@@ -108,7 +105,8 @@ internal sealed class EfAssessmentReportProjectionSource(
             photos,
             sources,
             Costs: null,
-            CurrentEstimate: workspace.AcceptedSpecification);
+            CurrentEstimate: workspace.AcceptedSpecification,
+            Signatory: null);
     }
 
     private sealed record ConfirmedDocumentRow(
