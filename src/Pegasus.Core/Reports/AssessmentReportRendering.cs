@@ -57,10 +57,52 @@ public sealed record ReportVehicle(
     string VehicleType,
     string Condition,
     string MileageDescription,
-    string MileageSource = "tbc",
-    string? Vin = null,
-    string? Engine = null,
-    string? Fuel = null);
+    string MileageSource,
+    string? Vin,
+    string? Engine,
+    string? Fuel,
+    bool? VinChecked,
+    string? Transmission,
+    string? Colour,
+    string? Body,
+    DateOnly? TaxExpiry,
+    DateOnly? MotExpiry,
+    string? AirbagsDeployed,
+    string? FaultCodes,
+    bool? TemporaryRepairsPossible,
+    string? TemporaryRepairMethod,
+    decimal? TemporaryRepairCost);
+
+public sealed record ReportImpact(string Zone, string Severity, string Note);
+
+public sealed record ReportDamage(
+    IReadOnlyList<ReportImpact> Impacts,
+    string? RightFrontTyre, string? LeftFrontTyre, string? RightRearTyre, string? LeftRearTyre,
+    string? RightFrontBelt, string? LeftFrontBelt, string? RightRearBelt, string? LeftRearBelt,
+    string? SpareTyre, string? CentreBelt,
+    string? Unrelated, decimal? UnrelatedDeduction, string? MaterialTransfer);
+
+public sealed record ReportSettlement(
+    decimal? Excess,
+    decimal? Betterment,
+    bool? ClaimantVatRegistered,
+    decimal? Reserve,
+    decimal Equity,
+    int? RepairDays,
+    string? RepairDelays,
+    string? ReportDelay,
+    decimal? StoragePerDay,
+    decimal? Recovery,
+    DateOnly? HireStart,
+    decimal? HireDailyCost,
+    decimal? Diminution,
+    string? SalvageAt,
+    string? SalvageAgent,
+    string? SalvageAgentReference,
+    bool? SalvageMoved,
+    bool? SalvageOwnerRetains,
+    bool? SalvageValueAgreed,
+    DateOnly? SalvageSettled);
 
 public sealed record ReportImageEvidence(
     string CustodyReference,
@@ -139,7 +181,30 @@ public sealed record AssessmentReportPresentation(
     string SettlementHeading,
     string SettlementLabel,
     string SettlementText,
-    decimal? RecommendedSettlement);
+    decimal? RecommendedSettlement)
+{
+    public static string DamageZone(string code) =>
+        Assessment.AssessmentVocabulary.DamageZones.TryGetValue(code, out var item)
+            ? item.Display
+            : throw new ReportRenderRejectedException($"Unsupported damage zone '{code}'.");
+
+    public static string DamageSeverity(string code) =>
+        Assessment.AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var display)
+            ? display.Display
+            : throw new ReportRenderRejectedException($"Unsupported damage severity '{code}'.");
+
+    public static string AssessmentCode(string? code) => code switch
+    {
+        null => "—",
+        "semi_automatic" => "Semi-automatic",
+        "cvt" => "CVT",
+        "ok" => "OK",
+        "repair_kit" => "Repair kit",
+        "not_fitted" => "Not fitted",
+        _ => CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(
+            code.Replace('_', ' ').ToLowerInvariant()),
+    };
+}
 
 public sealed record AssessmentReportSnapshot(
     string OurReference,
@@ -167,6 +232,8 @@ public sealed record AssessmentReportSnapshot(
     IReadOnlyList<string> NewParts,
     IReadOnlyList<string> Repairs,
     IReadOnlyList<string> Operations,
+    ReportDamage Damage,
+    ReportSettlement Settlement,
     string HistoryCheck,
     string? EngineerComments,
     ReportSignatory Signatory,

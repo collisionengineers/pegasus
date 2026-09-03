@@ -61,8 +61,8 @@ public sealed class AssessmentPolicyTests
     {
         var exception = Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["vehicle.colour"] = "red" })));
-        Assert.Contains("vehicle.colour", exception.Message, StringComparison.Ordinal);
+                Request(new() { ["vehicle.not_a_field"] = "red" })));
+        Assert.Contains("vehicle.not_a_field", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -78,7 +78,8 @@ public sealed class AssessmentPolicyTests
     public void EveryEnumeratedCodeFromTheScreenRoundTrips()
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
-            .Where(value => value.Type == AssessmentFieldType.Enumerated))
+            .Where(value => value.Type == AssessmentFieldType.Enumerated
+                && !AssessmentVocabulary.DerivedPaths.Contains(value.Path)))
         {
             foreach (var code in definition.Codes!)
             {
@@ -137,6 +138,87 @@ public sealed class AssessmentPolicyTests
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(new() { ["incident.assessed"] = "03/08/2026" })));
+    }
+
+    [Fact]
+    public void EveryWritableVocabularyPathRoundTripsThroughItsCoreNormalizer()
+    {
+        foreach (var definition in AssessmentVocabulary.Definitions.Values
+            .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)))
+        {
+            var value = definition.Type switch
+            {
+                AssessmentFieldType.Text => "value",
+                AssessmentFieldType.Enumerated => definition.Codes![0],
+                AssessmentFieldType.WholeNumber => "1",
+                AssessmentFieldType.Money => "1.00",
+                AssessmentFieldType.Flag => "true",
+                AssessmentFieldType.Date => "2026-09-03",
+                AssessmentFieldType.Json => "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"value\"}]",
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            var normalized = AssessmentPolicy.ValidateAndNormalize(
+                Request(new() { [definition.Path] = value }, Engineer));
+
+            Assert.NotNull(normalized.Fields[definition.Path]);
+        }
+    }
+
+    [Fact]
+    public void DamageImpactsAreCanonicalAndDeriveHeadlineValues()
+    {
+        const string json = "[ { \"note\": \" Bonnet \" , \"severity\": \"light\", \"zone\": \"front\" }, { \"zone\": \"wheel_left_rear\", \"severity\": \"heavy\", \"note\": \"Wheel\" } ]";
+
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
+
+        Assert.Equal("[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Bonnet\"},{\"zone\":\"wheel_left_rear\",\"severity\":\"heavy\",\"note\":\"Wheel\"}]", normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+        Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
+        Assert.Equal(("wheel", "heavy"), AssessmentPolicy.DeriveImpactValues("[{\"zone\":\"wheel_left_rear\",\"severity\":\"heavy\",\"note\":\"\"}]"));
+    }
+
+    [Theory]
+    [InlineData("not-json")]
+    [InlineData("{}")]
+    [InlineData("[{\"zone\":\"front\",\"severity\":\"light\"}]")]
+    [InlineData("[{\"zone\":\"unknown\",\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"zone\":\"front\",\"severity\":\"unknown\",\"note\":\"x\"}]")]
+    [InlineData("[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"x\",\"extra\":\"unexpected\"}]")]
+    [InlineData("[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"x\"},{\"zone\":\"front\",\"severity\":\"heavy\",\"note\":\"y\"}]")]
+    public void DamageImpactsFailClosed(string json)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = json })));
+    }
+
+    [Fact]
+    public void DamageImpactNoteAndSerializedValueBoundsFailClosed()
+    {
+        var longNote = new string('x', 201);
+        Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(Request(new()
+        {
+            [AssessmentVocabulary.DamageImpacts] = $"[{{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"{longNote}\"}}]"
+        })));
+        Assert.Throws<ArgumentOutOfRangeException>(() => AssessmentPolicy.ValidateAndNormalize(Request(new()
+        {
+            [AssessmentVocabulary.DamageImpacts] = "[" + new string(' ', 4001) + "]"
+        })));
+    }
+
+    [Theory]
+    [InlineData(AssessmentVocabulary.ImpactLocation)]
+    [InlineData(AssessmentVocabulary.ImpactSeverity)]
+    public void DerivedImpactFieldsCannotBeWrittenDirectly(string path)
+    {
+        Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [path] = "front" })));
+    }
+
+    [Fact]
+    public void SaveBoundCoversTheWholeVocabulary()
+    {
+        Assert.True(AssessmentPolicy.MaximumFieldsPerSave >= AssessmentVocabulary.Definitions.Count);
     }
 
     [Fact]

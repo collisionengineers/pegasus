@@ -19,8 +19,11 @@ public enum AssessmentFieldType
     WholeNumber,
     Money,
     Flag,
-    Date
+    Date,
+    Json
 }
+
+public sealed record AssessmentImpact(string Zone, string Severity, string Note);
 
 public sealed record AssessmentFieldDefinition(
     string Path,
@@ -39,9 +42,34 @@ public static class AssessmentVocabulary
     public const string VehicleFuel = "vehicle.fuel";
     public const string VehicleMileageSource = "vehicle.mileage_source";
     public const string VehicleCondition = "vehicle.condition";
+    public const string VehicleVinChecked = "vehicle.vin_checked";
+    public const string VehicleTransmission = "vehicle.transmission";
+    public const string VehicleColour = "vehicle.colour";
+    public const string VehicleBody = "vehicle.body";
+    public const string VehicleTaxExpiry = "vehicle.tax_expiry";
+    public const string VehicleMotExpiry = "vehicle.mot_expiry";
+    public const string VehicleAirbagsDeployed = "vehicle.airbags_deployed";
+    public const string VehicleFaultCodes = "vehicle.fault_codes";
+    public const string VehicleTemporaryRepairsPossible = "vehicle.temporary_repairs_possible";
+    public const string VehicleTemporaryRepairMethod = "vehicle.temporary_repair_method";
+    public const string VehicleTemporaryRepairCost = "vehicle.temporary_repair_cost";
     public const string IncidentAssessed = "incident.assessed";
     public const string ImpactSeverity = "assessment.impact_severity";
     public const string ImpactLocation = "assessment.impact_location";
+    public const string DamageImpacts = "damage.impacts";
+    public const string DamageTyreRightFront = "damage.tyres.right_front.tyre";
+    public const string DamageTyreLeftFront = "damage.tyres.left_front.tyre";
+    public const string DamageTyreRightRear = "damage.tyres.right_rear.tyre";
+    public const string DamageTyreLeftRear = "damage.tyres.left_rear.tyre";
+    public const string DamageBeltRightFront = "damage.tyres.right_front.belt";
+    public const string DamageBeltLeftFront = "damage.tyres.left_front.belt";
+    public const string DamageBeltRightRear = "damage.tyres.right_rear.belt";
+    public const string DamageBeltLeftRear = "damage.tyres.left_rear.belt";
+    public const string DamageSpareTyre = "damage.tyres.spare";
+    public const string DamageCentreBelt = "damage.tyres.centre_belt";
+    public const string DamageUnrelated = "damage.unrelated";
+    public const string DamageUnrelatedDeduction = "damage.unrelated_deduction";
+    public const string DamageMaterialTransfer = "damage.material_transfer";
     public const string NatureOfIncident = "narrative.nature_of_incident";
     public const string ValueRetail = "assessment.values.retail";
     public const string ValueTrade = "assessment.values.trade";
@@ -66,6 +94,47 @@ public static class AssessmentVocabulary
     public const string AgreedFee = "fee.agreed_fee";
     public const string FeeDescriptionLines = "fee.description_lines";
     public const string StatementOfTruth = "statement_of_truth";
+    public const string SettlementExcess = "settlement.excess";
+    public const string SettlementBetterment = "settlement.betterment";
+    public const string SettlementClaimantVatRegistered = "settlement.claimant_vat_registered";
+    public const string SettlementReserve = "settlement.reserve";
+    public const string SettlementRepairDelays = "settlement.repair_delays";
+    public const string SettlementReportDelay = "settlement.report_delay";
+    public const string SettlementStoragePerDay = "settlement.storage_per_day";
+    public const string SettlementHireStart = "settlement.hire_start";
+    public const string SettlementHireDailyCost = "settlement.hire_daily_cost";
+    public const string SettlementDiminution = "settlement.diminution";
+    public const string SettlementSalvageAt = "settlement.salvage.at";
+    public const string SettlementSalvageAgent = "settlement.salvage.agent";
+    public const string SettlementSalvageAgentReference = "settlement.salvage.agent_reference";
+    public const string SettlementSalvageMoved = "settlement.salvage.moved";
+    public const string SettlementSalvageOwnerRetains = "settlement.salvage.owner_retains";
+    public const string SettlementSalvageValueAgreed = "settlement.salvage.value_agreed";
+    public const string SettlementSalvageSettled = "settlement.salvage.settled";
+
+    public static IReadOnlyDictionary<string, (string Display, string ImpactLocation)> DamageZones { get; } =
+        new Dictionary<string, (string, string)>(StringComparer.Ordinal)
+        {
+            ["front"] = ("Front", "front"), ["left_front"] = ("Left front", "left_front"),
+            ["right_front"] = ("Right front", "right_front"), ["left_side"] = ("Left side", "left_side"),
+            ["right_side"] = ("Right side", "right_side"), ["rear"] = ("Rear", "rear"),
+            ["left_rear"] = ("Left rear", "left_rear"), ["right_rear"] = ("Right rear", "right_rear"),
+            ["roof"] = ("Roof", "roof"), ["wheel_right_front"] = ("Right front wheel", "wheel"),
+            ["wheel_left_front"] = ("Left front wheel", "wheel"), ["wheel_right_rear"] = ("Right rear wheel", "wheel"),
+            ["wheel_left_rear"] = ("Left rear wheel", "wheel"), ["underside"] = ("Underside", "underside"),
+            ["interior"] = ("Interior", "interior"), ["mechanical"] = ("Mechanical", "mechanical")
+        };
+
+    public static IReadOnlyDictionary<string, (string Display, int Rank)> DamageSeverities { get; } =
+        new Dictionary<string, (string, int)>(StringComparer.Ordinal)
+        {
+            ["light"] = ("Light", 0), ["light_to_moderate"] = ("Light to moderate", 1),
+            ["moderate"] = ("Moderate", 2), ["moderate_to_heavy"] = ("Moderate to heavy", 3),
+            ["heavy"] = ("Heavy", 4)
+        };
+
+    private static readonly string[] TyreCodes = ["ok", "worn", "damaged", "illegal"];
+    private static readonly string[] BeltCodes = ["ok", "locked", "deployed", "not_fitted"];
 
     private static readonly AssessmentFieldDefinition[] DefinitionList =
     [
@@ -79,16 +148,37 @@ public static class AssessmentVocabulary
             Codes: ["online_data", "owner", "repairer", "principal", "average", "tbc"]),
         new(VehicleCondition, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: ["poor", "below_average", "average", "good", "excellent"]),
+        new(VehicleVinChecked, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(VehicleTransmission, AssessmentFieldType.Enumerated, 20, IsFinding: false,
+            Codes: ["manual", "automatic", "semi_automatic", "cvt", "unknown"]),
+        new(VehicleColour, AssessmentFieldType.Text, 40, IsFinding: false),
+        new(VehicleBody, AssessmentFieldType.Text, 40, IsFinding: false),
+        new(VehicleTaxExpiry, AssessmentFieldType.Date, 10, IsFinding: false),
+        new(VehicleMotExpiry, AssessmentFieldType.Date, 10, IsFinding: false),
+        new(VehicleAirbagsDeployed, AssessmentFieldType.Text, 200, IsFinding: false),
+        new(VehicleFaultCodes, AssessmentFieldType.Text, 2000, IsFinding: false),
+        new(VehicleTemporaryRepairsPossible, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(VehicleTemporaryRepairMethod, AssessmentFieldType.Text, 2000, IsFinding: false),
+        new(VehicleTemporaryRepairCost, AssessmentFieldType.Money, 20, IsFinding: false),
         new(IncidentAssessed, AssessmentFieldType.Date, 10, IsFinding: false),
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20, IsFinding: false,
-            Codes: ["light", "light_to_moderate", "moderate", "moderate_to_heavy", "heavy"]),
+            Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20, IsFinding: false,
-            Codes:
-            [
-                "front", "left_front", "right_front", "left_side", "right_side", "rear",
-                "left_rear", "right_rear", "roof", "underside", "wheel", "interior",
-                "mechanical", "multiple"
-            ]),
+            Codes: [.. DamageZones.Values.Select(zone => zone.ImpactLocation).Distinct(StringComparer.Ordinal), "multiple"]),
+        new(DamageImpacts, AssessmentFieldType.Json, 4000, IsFinding: false),
+        new(DamageTyreRightFront, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: TyreCodes),
+        new(DamageTyreLeftFront, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: TyreCodes),
+        new(DamageTyreRightRear, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: TyreCodes),
+        new(DamageTyreLeftRear, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: TyreCodes),
+        new(DamageBeltRightFront, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: BeltCodes),
+        new(DamageBeltLeftFront, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: BeltCodes),
+        new(DamageBeltRightRear, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: BeltCodes),
+        new(DamageBeltLeftRear, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: BeltCodes),
+        new(DamageSpareTyre, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: ["ok", "repair_kit", "missing", "damaged"]),
+        new(DamageCentreBelt, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: ["ok", "locked", "not_fitted"]),
+        new(DamageUnrelated, AssessmentFieldType.Text, 2000, IsFinding: false),
+        new(DamageUnrelatedDeduction, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(DamageMaterialTransfer, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(NatureOfIncident, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(ValueRetail, AssessmentFieldType.Money, 20, IsFinding: true, MustBePositive: true),
         new(ValueTrade, AssessmentFieldType.Money, 20, IsFinding: true, MustBePositive: true),
@@ -116,11 +206,34 @@ public static class AssessmentVocabulary
         new(EngineerSignature, AssessmentFieldType.Text, 200, IsFinding: false),
         new(AgreedFee, AssessmentFieldType.Money, 20, IsFinding: false, MustBePositive: true),
         new(FeeDescriptionLines, AssessmentFieldType.Text, 2000, IsFinding: false),
-        new(StatementOfTruth, AssessmentFieldType.Text, 4000, IsFinding: false)
+        new(StatementOfTruth, AssessmentFieldType.Text, 4000, IsFinding: false),
+        new(SettlementExcess, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementBetterment, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementClaimantVatRegistered, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(SettlementReserve, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementRepairDelays, AssessmentFieldType.Text, 2000, IsFinding: false),
+        new(SettlementReportDelay, AssessmentFieldType.Text, 2000, IsFinding: false),
+        new(SettlementStoragePerDay, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementHireStart, AssessmentFieldType.Date, 10, IsFinding: false),
+        new(SettlementHireDailyCost, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementDiminution, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementSalvageAt, AssessmentFieldType.Text, 400, IsFinding: false),
+        new(SettlementSalvageAgent, AssessmentFieldType.Text, 200, IsFinding: false),
+        new(SettlementSalvageAgentReference, AssessmentFieldType.Text, 100, IsFinding: false),
+        new(SettlementSalvageMoved, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(SettlementSalvageOwnerRetains, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(SettlementSalvageValueAgreed, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(SettlementSalvageSettled, AssessmentFieldType.Date, 10, IsFinding: false)
     ];
 
     public static IReadOnlyDictionary<string, AssessmentFieldDefinition> Definitions { get; } =
         DefinitionList.ToDictionary(definition => definition.Path, StringComparer.Ordinal);
+
+    public static IReadOnlySet<string> DerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        ImpactLocation,
+        ImpactSeverity
+    };
 
     /// <summary>
     /// Paths the assessment surface displays but the accepted case record
