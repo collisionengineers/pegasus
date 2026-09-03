@@ -73,6 +73,8 @@ public sealed class AssessmentReportProjectionTests
         Assert.False(snapshot.Settlement.SalvageOwnerRetains);
         Assert.True(snapshot.Settlement.SalvageValueAgreed);
         Assert.Equal(new DateOnly(2026, 8, 20), snapshot.Settlement.SalvageSettled);
+        Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
+        Assert.Equal("ATA VDA AQP", snapshot.Signatory.Qualifications);
         Assert.Single(snapshot.Photos);
         Assert.Single(snapshot.Sources);
 
@@ -121,7 +123,10 @@ public sealed class AssessmentReportProjectionTests
             }
         };
 
-        var result = AssessmentReportProjection.Prepare(assessment, input.Costs);
+        var result = AssessmentReportProjection.Prepare(
+            assessment,
+            input.Costs,
+            signatory: input.Signatory);
 
         Assert.True(result.CanGenerate);
         Assert.Empty(result.Reasons);
@@ -143,14 +148,45 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void MismatchedEngineerSignatureIsNotReady()
+    public void MissingSignOffEngineerIsNotReady()
     {
-        var input = ReadyInput();
-        var mutatedFields = ReplaceField(input.Assessment.Fields, AssessmentVocabulary.EngineerQualifications, "Wrong");
-        var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = mutatedFields } });
+        var result = AssessmentReportProjection.Project(ReadyInput() with { Signatory = null });
 
-        AssertNotReady(result, "Accepted engineer signature");
+        AssertNotReady(result, "Sign-off Engineer");
+    }
+
+    [Theory]
+    [InlineData("", true, "image/png")]
+    [InlineData("Ed Mawdsley", false, "image/png")]
+    [InlineData("Ed Mawdsley", true, "image/gif")]
+    public void IncompleteSignOffEngineerIsNotReady(
+        string printedName,
+        bool hasSignature,
+        string contentType)
+    {
+        var result = AssessmentReportProjection.Project(ReadyInput() with
+        {
+            Signatory = new ReportSignatory(
+                printedName,
+                "ATA VDA AQP",
+                hasSignature ? [1, 2, 3] : [],
+                contentType),
+        });
+
+        AssertNotReady(result, "Sign-off Engineer");
+    }
+
+    [Fact]
+    public void BlankQualificationsAreRetainedAsAbsent()
+    {
+        var result = AssessmentReportProjection.Project(ReadyInput() with
+        {
+            Signatory = new ReportSignatory("Neil O'Reilly", " ", [1, 2, 3], "image/png"),
+        });
+
+        Assert.True(result.IsReady);
+        Assert.Equal("Neil O'Reilly", result.Snapshot!.Signatory.PrintedName);
+        Assert.Null(result.Snapshot.Signatory.Qualifications);
     }
 
     [Fact]
@@ -366,7 +402,8 @@ public sealed class AssessmentReportProjectionTests
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
             Sources: [source],
-            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true));
+            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true),
+            Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
     }
 
     private static AssessmentFieldValue[] ReplaceField(

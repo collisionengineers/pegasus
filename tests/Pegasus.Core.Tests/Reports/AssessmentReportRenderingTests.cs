@@ -72,15 +72,51 @@ public sealed class AssessmentReportRenderingTests
     }
 
     [Theory]
-    [InlineData("A Patterson", "Wrong", "andy_patterson")]
-    [InlineData("Neil O'Reilly", "", "neil_oreilly")]
-    [InlineData("Unknown", "Unknown", "unknown")]
-    public async Task EngineerTupleMismatchFailsBeforeAdapter(string name, string qualifications, string signature)
+    [InlineData("", true, "image/png")]
+    [InlineData("Ed Mawdsley", false, "image/png")]
+    [InlineData("Ed Mawdsley", true, "image/gif")]
+    public async Task IncompleteSignatoryFailsBeforeAdapter(
+        string printedName,
+        bool hasSignature,
+        string contentType)
     {
         var renderer = new FakeRenderer();
         var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
         {
-            Engineer = new ReportEngineer(name, qualifications, signature),
+            Signatory = new ReportSignatory(
+                printedName,
+                "ATA VDA AQP",
+                hasSignature ? [1, 2, 3] : [],
+                contentType),
+        };
+
+        await Assert.ThrowsAsync<ReportRenderRejectedException>(
+            () => new GenerateAssessmentReportDraft(renderer).ExecuteAsync(invalid));
+        Assert.Null(renderer.Received);
+    }
+
+    [Fact]
+    public async Task SignatoryWithoutQualificationsIsAccepted()
+    {
+        var renderer = new FakeRenderer();
+        var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with
+        {
+            Signatory = new ReportSignatory("Neil O'Reilly", null, [1, 2, 3], "image/png"),
+        };
+
+        await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(snapshot);
+
+        Assert.Equal("Neil O'Reilly", renderer.Received!.Signatory.PrintedName);
+        Assert.Null(renderer.Received.Signatory.Qualifications);
+    }
+
+    [Fact]
+    public async Task PreviousPayloadVersionFailsBeforeAdapter()
+    {
+        var renderer = new FakeRenderer();
+        var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
+        {
+            PayloadVersion = "rendererref1-v1",
         };
 
         await Assert.ThrowsAsync<ReportRenderRejectedException>(
@@ -106,7 +142,7 @@ public sealed class AssessmentReportRenderingTests
             NewParts: ["Front bumper"], Repairs: ["Bonnet"], Operations: ["Paint front panels"],
             Damage: Damage(), Settlement: Settlement(),
             HistoryCheck: "History clear", EngineerComments: null,
-            Engineer: new ReportEngineer("A Patterson", "M.Inst.IAEA", "andy_patterson"),
+            Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"),
             AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
             Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", image, Convert.ToHexStringLower(SHA256.HashData(image)))],
             Sources: [new AcceptedReportSource("assessment", "7", new string('a', 64))]);

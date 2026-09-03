@@ -50,8 +50,6 @@
       <Link>Reports\Assets\brand\logo.png</Link>
       <LogicalName>Pegasus.Infrastructure.Reports.Assets.brand.logo.png</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="..\..\docs\design\brand\signatures\andy_patterson.png"
-                      LogicalName="Pegasus.Infrastructure.Reports.Assets.brand.signatures.andy_patterson.png" />
   </ItemGroup>
 
   <ItemGroup>
