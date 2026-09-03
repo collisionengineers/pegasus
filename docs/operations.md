@@ -273,7 +273,12 @@ The Web exposes:
 
 Readiness requires the database and all committed migrations.
 
-Core contains local `ActivitySource` instrumentation. The deployed Worker registers and exports Application Insights telemetry (its live executions are observable in the production Application Insights resource), and the production budget/alert wiring is recorded under [production environment](#production-environment). The current Web host registers no in-process telemetry exporter, so correlated Web/Worker telemetry (OPS-07) remains open work; there is no live incident record or current recovery/deletion incident evidence, and historical predecessor incidents do not establish current Pegasus behavior.
+Core contains local `ActivitySource` instrumentation. Both deployed hosts
+register and export Application Insights telemetry, and the production
+budget/alert wiring is recorded under
+[production environment](#production-environment). Correlated retention for a
+full working day remains unproved; historical predecessor incidents do not
+establish current Pegasus behavior.
 
 Monitoring and diagnosis procedure is owned by the
 [runbook](runbook.md#monitoring-and-diagnosis).
@@ -351,6 +356,26 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Public-upload incident, diagnosed 2026-09-03.** Read-only Application
+    Insights and SQL checks confirmed that the observed public upload attempt
+    in release 38 failed before reaching Box. The Web exception was the
+    production `BoxDocumentContentStore` rejecting the legacy `StoreAsync`
+    call because it lacked the persisted occurrence, ordinal and revision
+    address. SQL work
+    before the failure succeeded, then rolled back: the estate held one revoked
+    link, zero accepted files and bytes, zero receipts, and zero
+    request-upload document occurrences. No migration or cleanup is required.
+    The PageModel rendered its generic error response as HTTP 200, so the
+    request success result did not mean the upload succeeded.
+
+    The same telemetry showed that Application Insights retained the bearer
+    token in the request URL. The token is not reproduced here and the observed
+    link is revoked. CASE-022 repairs both source defects by using the existing
+    managed Box custody address and by canonicalising public-upload telemetry
+    URLs. That branch is not deployed: release 38 remains the sole production
+    revision and public uploads remain known-broken until a later authorised
+    release and live verification.
 
   - **Release 38** (2026-09-02, source
     `0f0e90ae44ffda7339ca2a460310deeb98121afa`, image

@@ -1,5 +1,6 @@
 using Azure.Storage.Blobs;
 using Azure.Core;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
@@ -11,6 +12,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
 
@@ -117,6 +119,51 @@ public sealed class ProductionCompositionTests
 
         Assert.IsType<UnavailableDocumentRequestStore>(
             scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>());
+    }
+
+    [Fact]
+    public void ProductionProfileComposesRequestUploadsWhenLimitsAreAccepted()
+    {
+        var services = NewServices();
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            requestUploadLimitsFactory: _ => new RequestUploadLimits(
+                "accepted-v1",
+                TimeSpan.FromHours(1),
+                5,
+                1024,
+                5120,
+                ["text/plain"],
+                10,
+                TimeSpan.FromMinutes(1)),
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxOptions()));
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<EfDocumentRequestStore>(
+            scope.ServiceProvider.GetRequiredService<IUploadToRequest>());
+        Assert.IsType<BoxDocumentContentStore>(
+            scope.ServiceProvider.GetRequiredService<IDocumentContentStore>());
+    }
+
+    [Fact]
+    public void ProductionWebTelemetryIncludesPublicUploadUrlSanitization()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            });
+
+        Assert.Contains(
+            factory.Services.GetServices<ITelemetryInitializer>(),
+            initializer => initializer is PublicUploadTelemetryInitializer);
     }
 
     [Fact]
