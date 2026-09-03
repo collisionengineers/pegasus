@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Extend the case vehicle record with the DVLA/MOT fields, populated from the
   instruction first and DVLA/DVSA on intake
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-03T11:05:13.601Z'
 labels:
   - case
   - vehicle
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-09-03T10:53:00.314Z'
-updated: '2026-09-03T10:53:00.314Z'
+updated: '2026-09-03T11:05:13.601Z'
 ---
 
 ## What
