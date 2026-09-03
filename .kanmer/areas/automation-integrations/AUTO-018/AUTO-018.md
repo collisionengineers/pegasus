@@ -4,12 +4,22 @@ type: ticket
 title: >-
   AI market research job: external Cowork research completed through the
   Automation Actor into a valuation row and findings document
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: wf-build/auto-018
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:06:47.198Z'
+taken_at: '2026-09-03T13:49:10.474Z'
+branch: task/auto-018-market-research-job
+worktree: .worktrees/auto-018
+claim_expires_at: '2026-09-03T14:19:10.474Z'
+claim_controller: wf-build/auto-018
+lease_id: 271d34a0-7f79-4a7b-ab98-abeb2a6ea4e4
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\auto-018'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-03T13:49:10.474Z'
 labels:
   - ai
   - valuation
@@ -24,7 +34,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-02T22:07:52.239Z'
+updated: '2026-09-03T13:49:10.474Z'
 ---
 
 ## What
