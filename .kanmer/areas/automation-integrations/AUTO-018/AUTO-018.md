@@ -20,10 +20,11 @@ groups:
   - EPIC-011
 links:
   - TICK-083
-docs_todo: true
+refs:
+  - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-02T22:06:47.198Z'
+updated: '2026-09-02T22:07:52.239Z'
 ---
 
 ## What

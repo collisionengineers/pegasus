@@ -22,10 +22,10 @@ blocks:
   - ENG-029
 refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
-docs_todo: true
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-02T22:06:48.708Z'
+updated: '2026-09-02T22:07:49.540Z'
 ---
 
 ## What

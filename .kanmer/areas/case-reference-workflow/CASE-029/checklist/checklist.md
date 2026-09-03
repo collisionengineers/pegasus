@@ -1,0 +1,29 @@
+# Checklist — CASE-029 (2026-09-02, gpt-5.6-terra high)
+
+- [ ] Preconditions: `git merge-base --is-ancestor` shows [[CASE-038]] and [[ENG-035]] merged on `origin/dev` (AUTO-018 soft — see plan wrapper checks); lane refreshed with `git merge --no-edit origin/dev`
+- [ ] Step 1 — `VehicleWorkflow.cs`: keyed one-field suggestion acceptance replaces whole-observation accept/correct; no bulk-apply path
+- [ ] Step 1 — `EfVehicleLookupWorkStore.cs` projects completed combined lookup output into `CaseDataCodes.Suggestion` values; `EfVehicleWorkflowStore.cs` accepts one field and clears only its suggestion
+- [ ] Step 1 — `VehicleWorkflowTests.cs` proves stale lease/version rejection, one-field acceptance, retained siblings, cleared accepted suggestion
+- [ ] Step 2 — `Valuations.cs`, `AssessmentEntities.cs`, `AssessmentModelConfiguration.cs`, `EfValuationStore.cs` carry guide month; Engineer's Value authorization unchanged
+- [ ] Step 2 — `RequestUploadPolicy.cs`, `CustodyEntities.cs`, `CustodyModelConfiguration.cs`, `EfDocumentRequestStore.cs`, `EfCaseQueryStore.cs` carry Recipient and Reason with replay-safe creation
+- [ ] Step 2 — lock `Persistence/Migrations/**` taken; one migration `*_CaseValuationGuideMonthAndRequestUploadMetadata` + Designer + snapshot; timestamp sorts after the latest merged migration
+- [ ] Step 2 — `ValuationTests.cs` (guide month, source boundaries), `DocumentCustodyDurabilityTests.cs` (metadata durability/replay), `TypedCaseDataMigrationTests.cs` (migration pinned)
+- [ ] Step 3 — lock `Presentation/OperatorLabels.cs` taken; lookup, chip, valuation source, dialog labels added; Glass's valuation and Glass's estimate import stay separate entries
+- [ ] Step 3 — lock `Pages/Cases/Shared/*` taken; `_CaseVehicle.cshtml`: one `Look up DVLA & MOT` action, per-field chips, Experian `.gated` seam; checks panel, history table, whole-record forms removed
+- [ ] Step 3 — `_CaseValuation.cshtml` created: source cards + Add valuation dialog (Glass's, Cazana disabled `not connected`, Engineer's Value); no adjustments/rationale/history/remove
+- [ ] Step 3 — `_CaseDocuments.cshtml` upload-request dialog (Recipient, read-only policy values, Reason); `_CaseHistory.cshtml` Record chase dialog (Recipient, Channel, Content, Outcome, Reason)
+- [ ] Step 4 — `Vehicle.cshtml.cs` binds the single lookup and the field-level chip post through `CaseMutationPageModel`
+- [ ] Step 4 — `Valuation.cshtml` + `Valuation.cshtml.cs` created with `ISaveValuation`/`IListCaseValuations` and lease, expected-version, operation-key, authorization checks
+- [ ] Step 4 — `Custody.cshtml.cs` binds Recipient/Reason; `Tasks.cshtml.cs` maps Recipient → `TargetPartyOrAddress`, Content → `Note`, `AttemptedAtUtc` server-supplied
+- [ ] Step 4 — `CaseVehicleWebTests.cs` (single action, difference-only chips, absent legacy controls, Experian seam) and `CaseDetailsWebTests.cs` (cards, dialogs, exact labels, PRG/lease, Cazana has no handler)
+- [ ] Simplification pass recorded on the branch diff under a dated heading in the plan
+- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- [ ] `./scripts/Test-MigrationGrants.ps1`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `./scripts/Test-UiCatalogue.ps1`
+- [ ] Hand-off recorded: [[UIIMP-014]] to commit `docs/design/test-ui/**`; [[CASE-038]] to supply `Details.*` include, valuation projection and `site.css` card/chip rules
+- [ ] post-implementation report written
+- [ ] PR opened with Kanmer: CASE-029

@@ -1,0 +1,22 @@
+# Checklist — ENG-034 (2026-09-02)
+
+- [ ] Verify the merged CASE-038 handler-host, frame, lease, partial-model and heading-only shell contract (plan items 1–7).
+- [ ] Verify ENG-035 has cleared its dependency and reconcile only its merged public projection shape.
+- [ ] Take the required capacity-one leases for Assessment files, labels, and the one catalogue entry.
+- [ ] Add the ENG-034 operator-label group.
+- [ ] Replace the heading-only shells with the Damage, Estimate, Settlement, and Report partials.
+- [ ] Move the exact Estimate markup ranges and retain existing totals, import, rate-card, and Claude behaviour.
+- [ ] Remove excluded Glass's and Audatex launch controls rather than moving them.
+- [ ] Replace the Assessment GET with the permanent Case Estimate redirect and retarget Suggestions Back.
+- [ ] Reclassify the retired Assessment route and delete its stale Test UI snapshot.
+- [ ] Retarget the listed Assessment integration and browser tests to the Case handler host.
+- [ ] Add `CaseEngineerSectionsWebTests.cs` for all section IDs and Complete read-only rendering.
+- [ ] Run and record the simplification pass with dispositions.
+- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `./scripts/Test-UiCatalogue.ps1`
+- [ ] post-implementation report written
+- [ ] PR opened with Kanmer: ENG-034

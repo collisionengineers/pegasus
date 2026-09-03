@@ -2,10 +2,12 @@
 id: DOCS-018
 type: ticket
 title: Fee note preview on the Report section
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:32:57.970Z'
 labels:
   - reports
   - fee-note
@@ -16,10 +18,11 @@ groups:
 links: []
 blocks:
   - UIIMP-014
-docs_todo: true
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-09-02T20:31:38.940Z'
-updated: '2026-09-02T20:33:51.677Z'
+updated: '2026-09-02T22:32:57.970Z'
 ---
 
 ## What

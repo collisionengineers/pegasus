@@ -2,10 +2,12 @@
 id: CASE-039
 type: ticket
 title: 'Engineer notes: append-only staff notes to the Engineer as a Case section'
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:08:14.568Z'
 labels:
   - case
   - notes
@@ -19,10 +21,9 @@ blocks:
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-12-operator-experience.md
-docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.723Z'
-updated: '2026-09-02T22:06:44.821Z'
+updated: '2026-09-02T22:08:14.568Z'
 ---
 
 ## What

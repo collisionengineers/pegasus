@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Deliver the single-scroll Case workspace frame with sticky identity, action
   bar and section jump-nav
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:12:33.208Z'
 labels:
   - ui
   - case
@@ -27,10 +29,9 @@ blocks:
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
-docs_todo: true
 archived: false
 created: '2026-09-02T20:31:38.600Z'
-updated: '2026-09-02T22:06:33.612Z'
+updated: '2026-09-02T22:12:33.208Z'
 ---
 
 ## What

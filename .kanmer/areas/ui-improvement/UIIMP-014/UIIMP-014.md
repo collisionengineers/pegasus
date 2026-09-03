@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Snapshot states, catalogue entries and the browser walk for the single-scroll
   Case record
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-02T22:34:41.706Z'
 labels:
   - ui
   - test-ui
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.991Z'
-updated: '2026-09-02T20:34:02.696Z'
+updated: '2026-09-02T22:34:41.706Z'
 ---
 
 ## What

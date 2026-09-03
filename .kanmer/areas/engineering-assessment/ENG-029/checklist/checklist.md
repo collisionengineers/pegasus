@@ -1,0 +1,21 @@
+# Checklist — ENG-029 (2026-09-02)
+
+- [ ] Dependencies merged on `origin/dev`: [[ENG-035]] (vocabulary, migration, derived figures, projection), [[ENG-034]] (section shells, Generate/Preview on the Case host), [[PLAT-068]], [[CASE-040]], [[DOCS-017]]; the explicit whole-file hand-off of `Pages/Cases/Details.cshtml.cs` from [[CASE-038]]/[[CASE-040]] is recorded on this ticket.
+- [ ] `take_ticket` with worktree `.worktrees/ENG-029` and branch `ENG-029-settlement-report-editors`; lane refreshed with `git merge --no-edit origin/dev`.
+- [ ] Verify at execution time which ENG-035 vocabulary constants exist for each D41 field and which ENG-034 `CaseWorkspace.EngineerSections` keys exist; record the lists in scratch.
+- [ ] Step 1: acquire the serialized `OperatorLabels.cs` lock and add only the ENG-029 editor labels the plan names (none already added by ENG-034).
+- [ ] Step 2: inject `ISaveAssessment` into `DetailsModel` and add the single `OnPostSaveAssessmentAsync` handler reusing `NewOperationKey`, `ExecuteCaseCommandAsync` and `HandleLeaseFailure`, redirecting to `/Cases/{id}?section=settlement|report`.
+- [ ] Step 3a: replace the `_CaseSettlement.cshtml` shell body with the lease-aware Settlement form (four outcomes; total-loss category/salvage; D41 fields only where a constant exists; repair cost from `EstimateTotals.Compute`; equity/ratios only from Core values).
+- [ ] Step 3b: replace the `_CaseReport.cshtml` shell body with the lease-aware Report form (comments, history check, agreed fee, description lines; CASE-040 sign-off shown read-only; named readiness from `AssessmentReportProjection.Prepare`; ENG-034 Generate/Preview reused).
+- [ ] Both partials omit every mutation control when `AssessmentIsReadOnly` is true; no explanatory copy; no disabled placeholder.
+- [ ] Step 4: create `tests/Pegasus.IntegrationTests/CaseAssessmentEditorsWebTests.cs` proving the single `SaveAssessmentRequest` per post, version/operation-key/lease inputs, section PRG, saved values on preview, four outcomes and total-loss-only salvage controls, named readiness without a percentage, read-only omission, read-only sign-off display.
+- [ ] `git diff --name-only origin/dev` shows only owned paths (plus a regenerated existing `case-details--*` snapshot if `-Verify` required it); no Core, Infrastructure, migration, CSS/JS, catalogue, or other lane's file.
+- [ ] `dotnet restore ./Pegasus.slnx --locked-mode` passes.
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore` passes.
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"` passes.
+- [ ] `./scripts/Update-TestUiSnapshots.ps1` run; any changed existing `case-details--*` state committed in this PR; no new state added.
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` passes.
+- [ ] `./scripts/Test-UiCatalogue.ps1` passes.
+- [ ] Simplification pass run over the branch diff; findings and dispositions recorded under a dated heading in the plan.
+- [ ] post-implementation report written
+- [ ] PR opened with Kanmer: ENG-029

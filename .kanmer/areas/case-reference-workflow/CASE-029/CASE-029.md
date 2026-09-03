@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Case: Valuation section, DVLA & MOT lookup with per-field suggestion chips,
   upload-request dialog fields
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:22:26.445Z'
 labels:
   - ui
   - case
@@ -25,7 +27,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.142Z'
-updated: '2026-09-02T20:33:56.337Z'
+updated: '2026-09-02T22:22:26.445Z'
 ---
 
 ## What

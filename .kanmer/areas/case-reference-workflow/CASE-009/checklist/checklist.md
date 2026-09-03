@@ -1,0 +1,21 @@
+# Checklist — CASE-009 (2026-09-02)
+
+- [ ] Confirm the operator's answer to the classification-set question is ticked in `open-questions/`; stop if not
+- [ ] Step 1: add `CaseQueryEmail` and `CaseDetails.QueryEmails` (init, default `[]`) in `src/Pegasus.Core/Cases/CaseQueries.cs`; positional constructor unchanged
+- [ ] Step 2: project currently linked qualifying retained mail in `EfCaseQueryStore.GetAsync` (selected policy branch → `CurrentIntakeAssociations.ReadAsync` → retained row by `ExternalReceiptToken`), newest first; record the retained-row uniqueness check
+- [ ] Step 4 (persistence): add `CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst` in `RetainedMailPersistenceTests.cs` covering inclusion, other-case, non-Query, reversed-association exclusion and ordering
+- [ ] Confirm CASE-038 has merged and refresh with `git merge --no-edit origin/dev` before touching `Pages/Cases/Shared/*` or `OperatorLabels.cs`
+- [ ] Step 3: add column/link labels to `OperatorLabels.CaseWorkspace` (reuse identical existing constants first)
+- [ ] Step 3: create `_CaseCorrespondence.cshtml` (absent when empty; heading via `MailOperationalDestinationLabel(Queries)`; classification via `MailClassification`; `/Mail/Message` link; no form, button, disabled control or empty-state element)
+- [ ] Step 3: replace the "Correspondence is absent" comment in `_CaseFiles.cshtml` with the `_CaseCorrespondence` partial caller
+- [ ] Step 4 (web): add `CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls` and `CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists` in `CaseDetailsWebTests.cs`; `RecordingCaseDetailsStore` gains a settable `QueryEmails`
+- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `./scripts/Test-UiCatalogue.ps1`
+- [ ] Commit only generated `docs/design/test-ui/**` differences, if any
+- [ ] Simplification pass over the branch diff recorded in `plan/` under a dated "Simplification pass" heading
+- [ ] post-implementation report written
+- [ ] PR opened with Kanmer: CASE-009

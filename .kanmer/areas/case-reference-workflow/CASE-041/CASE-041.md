@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Inspect-at fast update from claimant, repairer, storage location and principal
   address history
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:09:37.240Z'
 labels:
   - case
   - inspection
@@ -20,10 +22,10 @@ blocks:
   - UIIMP-014
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
-docs_todo: true
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-02T22:04:12.795Z'
+updated: '2026-09-02T22:09:37.240Z'
 ---
 
 ## What

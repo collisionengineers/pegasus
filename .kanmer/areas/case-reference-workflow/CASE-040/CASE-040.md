@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Sign-off Engineer on the Case with the default rule, ribbon field and Send to
   EVA dialog (re-send from With Engineer)
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:11:20.520Z'
 labels:
   - case
   - sign-off
@@ -22,10 +24,10 @@ blocks:
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
-docs_todo: true
+  - docs/frd/frd-04-parties-accounts-and-access.md
 archived: false
 created: '2026-09-02T20:31:38.755Z'
-updated: '2026-09-02T22:06:47.407Z'
+updated: '2026-09-02T22:11:20.520Z'
 ---
 
 ## What

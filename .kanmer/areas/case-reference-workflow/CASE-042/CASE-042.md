@@ -2,10 +2,12 @@
 id: CASE-042
 type: ticket
 title: 'Awaiting instruction: image-initiated cases as a Pre-case queue on Cases'
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-02T22:20:38.061Z'
 labels:
   - cases
   - queues
@@ -17,10 +19,12 @@ groups:
 links: []
 blocks:
   - UIIMP-014
-docs_todo: true
+refs:
+  - docs/frd/frd-12-operator-experience.md
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-02T20:33:53.279Z'
+updated: '2026-09-02T22:20:38.061Z'
 ---
 
 ## What

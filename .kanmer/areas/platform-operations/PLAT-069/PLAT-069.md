@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Move Service health off Operations; Operations shows a partial-data notice
   linking to Administration
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-02T22:22:00.643Z'
 labels:
   - operations
   - ui
@@ -18,10 +20,11 @@ groups:
 links: []
 blocks:
   - UIIMP-014
-docs_todo: true
+refs:
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.879Z'
-updated: '2026-09-02T20:33:54.803Z'
+updated: '2026-09-02T22:22:00.643Z'
 ---
 
 ## What

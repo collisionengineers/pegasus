@@ -1,28 +1,41 @@
-# Files — CASE-009
+# Files — CASE-009 (2026-09-02, gpt-5.6-terra medium, wrapper-checked)
 
-## Where the change lands
+Supersedes the 2026-08-21 files document, which targeted `_CaseSummary.cshtml`
+and `Details.cshtml.cs`; both are now other lanes' files (N7 and N2).
 
-| Path | Why |
-| --- | --- |
-| `src/Pegasus.Core/Cases/CaseQueries.cs` | Add the Case Details read shape/port for linked email classified as Query. |
-| `src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs` | Populate the new Core read shape from retained-email association and classification data. |
-| `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Carry the read-only query-email data into Case Details. |
-| `src/Pegasus.Web/Pages/Cases/Shared/_CaseSummary.cshtml` | Rename the heading to Queries, remove the disabled manual control, and render the auto-attached list/empty state. |
-| `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | Verify linked Query emails render, non-Query emails do not, the empty state is truthful, and manual creation is absent. |
+## Proposed changes
 
-## Context files
+| Path | Action (create/change) | Why | Reuses |
+| --- | --- | --- | --- |
+| `src/Pegasus.Core/Cases/CaseQueries.cs` | change | Add the read-only query-email row/list to `CaseDetails`. | `CaseDetails`, existing projection records |
+| `src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs` | change | Project linked, qualifying retained messages for the current case. | `CurrentIntakeAssociations.ReadAsync`, retained-mail/receipt `ExternalReceiptToken` join, `EfEngineerActivityQueries` pattern, `MailOperationalDestinationPolicy` / `MailTaxonomy` |
+| `src/Pegasus.Web/Pages/Cases/Shared/_CaseFiles.cshtml` | change | Replace the "Correspondence is absent" comment with the production partial caller. | Existing Files-section caller from `Details.cshtml` (`?section=case-files`) |
+| `src/Pegasus.Web/Pages/Cases/Shared/_CaseCorrespondence.cshtml` | create | Render the read-only Queries table, empty state, and Open message links (`asp-page="/Mail/Message"`). | Razor partial conventions, `OperatorLabels` |
+| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | change, sequenced only (capacity-one lock, after N2 frame merges) | Add any new Queries table labels to the single operator-label owner. | `CaseWorkspace`, existing `MailOperationalDestination.Queries => "Queries"` |
+| `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | change | Prove qualifying display, exclusions, empty state, and absent mutation controls. | `RecordingCaseDetailsStore`, section tests |
+| `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` | change only if necessary | Supply an end-to-end persisted retained-mail/receipt/association fixture if the Case Details fake cannot prove the EF projection. | Existing `RetainedMailboxMessage` and `StoreClassifiedReceiptAsync` helpers |
 
-| Path | What it tells the implementer |
-| --- | --- |
-| `src/Pegasus.Web/Pages/Cases/Details.cshtml` | The shared Case Summary partial is rendered in the Case Details overview, so its markup is the actual page surface. |
-| `src/Pegasus.Core/Cases/CaseQueries.cs` | `CaseDetails` is the established Core-owned read model to extend rather than creating a second Web-specific query path. |
-| `docs/frd/frd-08-email-mailbox-and-background-processing.md` | Query classifications and their Queries destination are email-workspace rules; read selection must rely on the canonical classification and Case link. |
-| `docs/frd/frd-12-operator-experience.md` | Operator-facing state and detail journeys remain governed by the FRD and design authority. |
+No migration: the projection reads existing tables only.
 
-## Ripple effects
+## Files not to touch (other EPIC-012 / EPIC-011 lanes)
 
-The change crosses Core, Infrastructure, Web, and integration tests but remains read-only. It must reuse the existing retained-email association and classification records, without changing association policy, email classification, mailbox operations, or deployment documentation.
-
-## Out of scope
-
-Creating, replying to, resolving, or manually associating queries; mailbox mutation; and fabricated query data.
+- `src/Pegasus.Web/Pages/Cases/Details.cshtml` (N2 frame)
+- `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` (N2 frame)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseWorkspaceNav.cshtml` (N2)
+- `src/Pegasus.Web/wwwroot/css/site.css`, `src/Pegasus.Web/wwwroot/js/site.js` (N2)
+- `docs/design/README.md` (N2 / governing docs)
+- `src/Pegasus.Web/Pages/Cases/Assessment/**` (N3)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseDamage.cshtml`, `_CaseEstimate.cshtml`, `_CaseSettlement.cshtml`, `_CaseReport.cshtml` (N3)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseSummary.cshtml`, `src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml(.cs)` (N7)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseInspectionAddress.cshtml` (N9)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseVehicle.cshtml`, `_CaseValuation.cshtml`, `src/Pegasus.Web/Pages/Cases/Vehicle.cshtml.cs` (CASE-029)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseEngineerNotes.cshtml`, `src/Pegasus.Web/Pages/Cases/Tasks.cshtml.cs` (N6)
+- `src/Pegasus.Web/Pages/Cases/Index.cshtml(.cs)` (N12)
+- `src/Pegasus.Web/Pages/Operations/**` (N11)
+- `src/Pegasus.Web/Pages/Administration/Accounts/**` (N8)
+- `src/Pegasus.Web/wwwroot/js/damage-diagram.js` (N5)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseReportImages.cshtml`, `src/Pegasus.Web/wwwroot/js/cropper.js` (ENG-031)
+- `src/Pegasus.Web/Pages/Cases/Shared/_CaseFeeNote.cshtml` (N13)
+- `docs/design/test-ui/**` (N14)
+- `src/Pegasus.Infrastructure/Persistence/Migrations/**` (serialized; none needed)
+- `src/Pegasus.Web/Pages/Mail/**`, `src/Pegasus.Core/Mail/OutboundMail.cs` (MAIL-026)

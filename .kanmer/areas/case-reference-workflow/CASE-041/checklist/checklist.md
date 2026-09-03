@@ -1,0 +1,24 @@
+# Checklist — CASE-041 (2026-09-02)
+
+- [ ] Step 1: Wait for CASE-038, refresh with `git merge --no-edit origin/dev`, confirm the serialized migration head, and agree the `Details.cshtml.cs` ordering with CASE-039.
+- [ ] Step 2: Add the narrow inspection-address choices port and storage-location Core data contract.
+- [ ] Step 2: Normalize storage location with the existing Case data policy.
+- [ ] Step 3: Add `storage_location` to the Case-data field vocabulary and normal save/read mapping.
+- [ ] Step 3: Implement and register the same-principal address-history query.
+- [ ] Step 4: Generate exactly one additive migration after the preceding migration has merged.
+- [ ] Step 4: Include runtime-role validation and reassert unchanged Case and Case-data-field grants.
+- [ ] Step 5: Bind, retain, and hidden-post storage location through every full Case save (`Details.cshtml.cs`, `CaseMutationPageModel.cs`, `_CaseDataHiddenFields.cshtml` as serialized shared edits).
+- [ ] Step 5: Render the ordered D33 Inspect at flow and the Inspection-section storage input.
+- [ ] Step 5: Keep Repairer location disabled with ` · not recorded` in every current state.
+- [ ] Step 5: Make the serialized `OperatorLabels.cs` constants-only commit after CASE-038.
+- [ ] Step 6: Add Core, persistence, Details, and partial-flow coverage using existing Case test data where possible.
+- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category=Browser" -- xUnit.MaxParallelThreads=2`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `./scripts/Test-UiCatalogue.ps1`
+- [ ] `./scripts/Test-MigrationGrants.ps1`
+- [ ] post-implementation report written
+- [ ] PR opened with Kanmer: CASE-041
