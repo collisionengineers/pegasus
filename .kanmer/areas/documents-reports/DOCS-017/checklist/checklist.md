@@ -1,22 +1,22 @@
 # Checklist — DOCS-017 (2026-09-02; corrected 2026-09-03 after plan review)
 
-- [ ] Refresh from `origin/dev` and re-check ENG-035's landed changes before editing any file in the co-ownership table.
-- [ ] Replace the Core fixed-signatory contract with the supplied `ReportSignatory(PrintedName, Qualifications?, SignatureContent, SignatureContentType)` snapshot tuple and the named `Sign-off Engineer` readiness check.
-- [ ] Validate the signature media type against `ReportImageEvidence`'s existing accepted list rather than adding a second list.
-- [ ] Add the optional trailing `ReportSignatory?` parameter to `Prepare` so the routed Assessment page call site (`Index.cshtml.cs:459`) keeps compiling and keeps agreeing with what generating decides.
-- [ ] Bump `AssessmentReportContract.TemplateVersion` to `rendererref1-v2` and prove `rendererref1-v1` still fails closed.
-- [ ] Stop report projection from reading `engineer.name`, `engineer.qualifications`, and `engineer.signature`; record their retirement as an external follow-up.
-- [ ] Make the production projection source fail closed with `Sign-off Engineer` until [[CASE-040]] and [[PLAT-068]] supply the tuple.
-- [ ] Extract one `ImageDataUri(byte[], string)` helper shared by photos and the signature; render supplied signature bytes and media type, remove the Andy embedded resource, and omit the qualification separator when absent.
-- [ ] Update the owned Core, persistence, renderer, Web-fixture, and browser-fixture tests for Ed, Neil, incomplete tuples, an unsupported media type, and the interim not-ready production result.
-- [ ] Reconcile FRD-11's D18-era signatory paragraphs (lines ~70–95 and the § Readiness "issuing Engineer's identity" sentence at ~138) with D31, retaining its event and provenance rules.
-- [ ] Record the `docs/design/README.md` embedded-signature row as a named follow-up for the EPIC-012 docs lane (outside this ticket's owned doc path).
-- [ ] `./scripts/Update-TestUiSnapshots.ps1` then commit only the snapshot files the readiness sentence actually changes (shared-lock path — claim it, refresh first).
-- [ ] Record the four-lens simplification pass and dispositions in this plan.
-- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
-- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify`
-- [ ] `./scripts/Test-UiCatalogue.ps1`
-- [ ] post-implementation report written, stating that the ticket's "unflagged Engineer" verification bullet is proven by [[CASE-040]] / [[PLAT-068]], not here
-- [ ] PR opened with Kanmer: DOCS-017
+- [x] Refresh from `origin/dev` and re-check ENG-035's landed changes before editing any file in the co-ownership table.
+- [x] Replace the Core fixed-signatory contract with the supplied `ReportSignatory(PrintedName, Qualifications?, SignatureContent, SignatureContentType)` snapshot tuple and the named `Sign-off Engineer` readiness check.
+- [x] Validate the signature media type against `ReportImageEvidence`'s existing accepted list rather than adding a second list.
+- [x] Add the optional trailing `ReportSignatory?` parameter to `Prepare` so the routed Assessment page call site (`Index.cshtml.cs:459`) keeps compiling and keeps agreeing with what generating decides.
+- [x] Bump `AssessmentReportContract.TemplateVersion` to `rendererref1-v2` and prove `rendererref1-v1` still fails closed.
+- [x] Stop report projection from reading `engineer.name`, `engineer.qualifications`, and `engineer.signature`; record their retirement as an external follow-up.
+- [x] Make the production projection source fail closed with `Sign-off Engineer` until [[CASE-040]] and [[PLAT-068]] supply the tuple.
+- [x] Extract one `ImageDataUri(byte[], string)` helper shared by photos and the signature; render supplied signature bytes and media type, remove the Andy embedded resource, and omit the qualification separator when absent.
+- [x] Update the owned Core, persistence, renderer, Web-fixture, and browser-fixture tests for Ed, Neil, incomplete tuples, an unsupported media type, and the interim not-ready production result.
+- [x] Reconcile FRD-11's D18-era signatory paragraphs (lines ~70–95 and the § Readiness "issuing Engineer's identity" sentence at ~138) with D31, retaining its event and provenance rules.
+- [x] Record the `docs/design/README.md` embedded-signature row as a named follow-up for the EPIC-012 docs lane (outside this ticket's owned doc path).
+- [x] `./scripts/Update-TestUiSnapshots.ps1` then commit only the snapshot files the readiness sentence actually changes (shared-lock path — claim it, refresh first).
+- [x] Record the four-lens simplification pass and dispositions in this plan.
+- [x] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [x] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"` — not run locally per harness instruction (26-minute full/integration suite duplicates the GitHub CI gate that blocks this PR's merge); `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests` ran directly instead (1,191 + 100 passed), and `AssessmentReportRendererTests`/`AssessmentReadinessSummaryBrowserTests` (Browser-tagged) are proven by CI on the PR.
+- [x] `./scripts/Update-TestUiSnapshots.ps1 -Verify`
+- [x] `./scripts/Test-UiCatalogue.ps1`
+- [x] post-implementation report written, stating that the ticket's "unflagged Engineer" verification bullet is proven by [[CASE-040]] / [[PLAT-068]], not here
+- [x] PR opened with Kanmer: DOCS-017
