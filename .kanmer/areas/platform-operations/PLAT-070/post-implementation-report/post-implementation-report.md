@@ -2,7 +2,7 @@
 
 PR: https://github.com/collisionengineers/pegasus/pull/649
 Branch: `task/plat-070-remove-review-flags`
-Head SHA: `12423adc921e6c3015d3d365964419e71b1044b9`
+Head SHA: `8a749f53405535c234eda23206d24ae67ff5f891`
 
 ## Summary
 
@@ -134,8 +134,7 @@ blocked the merge on their own; findings 3-7 were in owned paths. Findings 8
 and 9 stay deferred to [[PLAT-072]] and finding 10 stays rejected — untouched
 by this pass.
 
-New head SHA: `8a749f5327e4c1c5c2d1c4e5b8f9e6a7d0c3b2a1` — see
-`git rev-parse HEAD` below for the authoritative value; commit `8a749f53`.
+New head SHA: `8a749f53405535c234eda23206d24ae67ff5f891` (commit `8a749f53`).
 
 Fixes applied via `codex exec -m gpt-5.6-sol -c model_reasoning_effort="medium"`
 against a written fix packet, then verified by re-running the full delivery
