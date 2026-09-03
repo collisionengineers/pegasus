@@ -1,20 +1,25 @@
-# Checklist — ENG-034 (2026-09-02)
+# Checklist — ENG-034 (2026-09-02; revised 2026-09-03 after plan review)
 
-- [ ] Verify the merged CASE-038 handler-host, frame, lease, partial-model and heading-only shell contract (plan items 1–7).
+- [ ] Confirm the open question on the handler host is resolved before starting (option A or B).
+- [ ] Verify the merged CASE-038 handler-host, frame, lease, partial-model and heading-only shell contract (plan items 1–8).
+- [ ] Verify PLAT-070 has removed the staff-review flags, controls and "not staff-reviewed" wording from the host (D44).
 - [ ] Verify ENG-035 has cleared its dependency and reconcile only its merged public projection shape.
 - [ ] Take the required capacity-one leases for Assessment files, labels, and the one catalogue entry.
 - [ ] Add the ENG-034 operator-label group.
+- [ ] Route every operator-visible and accessible-name literal in the moved ranges through `OperatorLabels`, at unchanged wording.
 - [ ] Replace the heading-only shells with the Damage, Estimate, Settlement, and Report partials.
-- [ ] Move the exact Estimate markup ranges and retain existing totals, import, rate-card, and Claude behaviour.
+- [ ] Move the exact Estimate markup ranges and retain existing totals, import control and dialog, rate-card, and Claude behaviour.
+- [ ] Confirm no damage type (D45) and no signatory tuple, image curation, crop entry or fee-note preview (D31/D42/D46) is rendered.
 - [ ] Remove excluded Glass's and Audatex launch controls rather than moving them.
-- [ ] Replace the Assessment GET with the permanent Case Estimate redirect and retarget Suggestions Back.
+- [ ] Replace the Assessment GET with the permanent Case Estimate redirect, remove the source handlers in the same PR as their new callers, and retarget Suggestions Back.
 - [ ] Reclassify the retired Assessment route and delete its stale Test UI snapshot.
-- [ ] Retarget the listed Assessment integration and browser tests to the Case handler host.
-- [ ] Add `CaseEngineerSectionsWebTests.cs` for all section IDs and Complete read-only rendering.
+- [ ] Retarget the listed Assessment integration and browser tests to the Case handler host with no weakened assertion.
+- [ ] Add `CaseEngineerSectionsWebTests.cs` for all section IDs, Complete read-only rendering, and no staff-review wording.
 - [ ] Run and record the simplification pass with dispositions.
 - [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
 - [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
 - [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- [ ] `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2`
 - [ ] `./scripts/Update-TestUiSnapshots.ps1`
 - [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
 - [ ] `./scripts/Test-UiCatalogue.ps1`
