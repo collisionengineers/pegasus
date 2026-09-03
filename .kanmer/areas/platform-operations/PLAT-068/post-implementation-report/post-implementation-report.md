@@ -138,3 +138,34 @@ It does not claim assessment-report renderer delivery — CASE-040 and
 DOCS-017 own the later selection, projection-source wiring, and renderer
 integration that discharge the ticket body's "Renderer reads the sign-off
 tuple" verification line.
+
+## Review fix (2026-09-03)
+
+PR review returned one required fix: append
+`"20260903135604_StaffAccountSignOff"` to the committed-migration list in
+`tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs`, after
+the existing tail entry
+`"20260829212237_GrantProviderSubmissionAcceptRecovery"` (line 117). All
+other cross-model findings were dispositioned without a code change — see
+"PR review" in `plan/plan.md`.
+
+Applied via `codex exec -m gpt-5.6-sol -c model_reasoning_effort="medium"`,
+scoped by a fix packet to that one file/one line; diff verified to touch
+only that line before committing.
+
+Delivery commands re-run in full afterward:
+
+- `dotnet restore ./Pegasus.slnx --locked-mode` — exit 0.
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit
+  0, 0 warnings, 0 errors.
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "Category!=Corpus&Category!=Browser"` — exit 0: Core.Tests 1188 passed;
+  ArchitectureTests 100 passed; IntegrationTests 1114 passed, 2 skipped, 0
+  failed (16m37s).
+
+Commit `a94fffd545d3f979e6d1a5bf9b82cbc9f013a894`
+("test(integration): add StaffAccountSignOff to committed migration list"),
+pushed to `task/plat-068-sign-off-account`
+(`a1f5b947..a94fffd5`). New PR head SHA:
+`a94fffd545d3f979e6d1a5bf9b82cbc9f013a894`. Ticket not merged; left in
+Review for the reviewer.
