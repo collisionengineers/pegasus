@@ -225,6 +225,7 @@ if (productionProfile)
             builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
     {
         builder.Services.AddApplicationInsightsTelemetry();
+        builder.Services.AddSingleton<ITelemetryInitializer, PublicUploadTelemetryInitializer>();
         builder.Services.Configure<TelemetryConfiguration>(
             telemetry => telemetry.SetAzureTokenCredential(credential));
     }
