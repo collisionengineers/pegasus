@@ -82,3 +82,10 @@ Adoption of PR #641. Expected repository diff: none. Plan: `plan`@`e289d8dd1ebe9
 - [ ] delete local branch (and merged remote branch)
 - [ ] prune stale worktree metadata
 - [ ] release ticket claim
+
+### Closeout completion — 2026-09-03
+
+- [x] Recorded implementation and verification worktrees removed cleanly.
+- [x] Local ticket branch deleted.
+- [x] Merged remote ticket branch deleted and remote refs pruned.
+- [x] Ticket claim released after Git cleanup.

@@ -11,17 +11,6 @@ stageEntered:
   review: '2026-09-02T02:59:45.144Z'
   verifying: '2026-09-02T03:11:32.847Z'
   done: '2026-09-02T13:00:52.931Z'
-taken_at: '2026-09-02T01:27:52.605Z'
-branch: task/mail-028-inbox-preview-pin
-worktree: ../pegasus-worktrees/mail-028-inbox-preview-pin
-claim_expires_at: '2026-09-02T01:57:52.605Z'
-claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
-lease_id: 9c2f8a19-84c3-4ede-bdf4-acd560bb73c6
-lease_revision: 1
-lease_workspace: >-
-  worktree:c:\users\pguser\documents\github\pegasus-worktrees\mail-028-inbox-preview-pin
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T01:27:52.605Z'
 labels: []
 groups:
   - EPIC-011
@@ -39,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-01T14:40:45.052Z'
-updated: '2026-09-03T08:46:32.669Z'
+updated: '2026-09-03T08:47:29.828Z'
 ---
 
 ## What

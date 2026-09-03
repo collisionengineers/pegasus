@@ -11,17 +11,6 @@ stageEntered:
   review: '2026-09-02T01:51:24.337Z'
   verifying: '2026-09-02T02:53:00.444Z'
   done: '2026-09-02T13:00:52.991Z'
-taken_at: '2026-09-02T01:27:50.829Z'
-branch: task/mail-029-graph-received-datetime
-worktree: ../pegasus-worktrees/mail-029-graph-received-datetime
-claim_expires_at: '2026-09-02T01:57:50.829Z'
-claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
-lease_id: 28ea0888-b3e4-4432-aeac-67ce12df01d6
-lease_revision: 1
-lease_workspace: >-
-  worktree:c:\users\pguser\documents\github\pegasus-worktrees\mail-029-graph-received-datetime
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T01:27:50.829Z'
 labels: []
 groups:
   - EPIC-011
@@ -37,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-01T14:40:45.067Z'
-updated: '2026-09-03T08:46:33.493Z'
+updated: '2026-09-03T08:47:30.401Z'
 ---
 
 ## What
