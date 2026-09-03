@@ -7,7 +7,8 @@ Inherits EPIC-011 `context.md` and `waves.md` in full. Source of record:
 section binds). Execution plan: `Downloads/Pegasus_UI_v2_implementation_plan.md`
 as adjusted on 3 September 2026 (model policy, D44–D46). Decisions D29–D43 are
 recorded in the governing documents (DELIV-041, PR #647); D44–D46 are recorded
-by PLAT-070's PR. They govern where they differ from EPIC-011 D1–D28.
+by PLAT-070's PR and D47 by CASE-040's. They govern where they differ from
+EPIC-011 D1–D28.
 
 ## Feature outcome
 
@@ -35,6 +36,8 @@ Staff (Users), Engineers, Administrators. No external surface changes.
   snapshot; the crop tool is reachable from Files and Report.
 - Awaiting instruction is a Pre-case queue; Operations carries no service
   health table; no staff review flag, checkbox or dialog exists.
+- The first Send to EVA moves the case from Review to With Engineer by either
+  route (D47).
 
 ## Non-goals
 
@@ -43,9 +46,12 @@ as a manual source, Vehicle data, valuation adjustments, rationale and
 revaluation history (stay with EXT-10, TICK-083, later); Cazana and Experian
 integrations (seams); AutoTrader scraping inside Pegasus; autonomous sending;
 task UI; a staff "review instructions/images" action (D44); a damage type
-(D45).
+(D45); creating a formal Case from an image-initiated record (D50); the
+vehicle-record extension beyond make, model and mileage (D49, CASE-043); a
+persisted repairer address (D48, INTK-058); the reverse "Add evidence" route
+(D50, CASE-044).
 
-## Shared decisions (D29–D43 confirmed 2026-09-02; D44–D46 confirmed 2026-09-03)
+## Shared decisions (D29–D43 confirmed 2026-09-02; D44–D50 confirmed 2026-09-03)
 
 | # | Decision |
 | --- | --- |
@@ -67,6 +73,10 @@ task UI; a staff "review instructions/images" action (D44); a damage type
 | D44 | "Review" is a stage, not an action; pressing Send to EVA is the implicit review. There is no staff act of reviewing instructions or images: no review flag, checkbox, dialog or history line. Not ready → Review is decided by completeness only. PLAT-070 removes the existing `RequireStaffImageReviewBeforeEngineerAssignment` / `ImagesReviewedByStaff` function and the Workflow configuration review panel. |
 | D45 | A damage zone records zone, severity and note only; there is no damage type field, label list or report column (every case is collision work). |
 | D46 | The crop tool behaves like any photo-editing cropper (drag the frame, resize by handles, rotate, aspect lock, reset, live preview) and is reachable from the Files section's image viewer and from the Report section's image cards without first pressing Edit Case; saving a crop starts the edit lease. One curation record per image. |
+| D47 | Send to EVA moves the case state. The first send from `Review`, by either route (Download ZIP or Send via API), performs the existing `StartCaseWork` transition to `With Engineer` atomically with the handoff record; a failure of either half leaves the case in `Review` with no partial handoff. A re-send from `With Engineer` changes no state. FRD-07's two statements that neither route changes the Case state or version are wrong and are corrected by CASE-040's PR. Operator, 2026-09-03. |
+| D48 | The repairer location is extracted from the instruction material by the existing extraction process, not entered by hand. Until INTK-058 delivers it, CASE-041 offers Repairer location disabled with its condition under D33; no repairer address is persisted by this programme. Operator, 2026-09-03. |
+| D49 | The case vehicle record is extended beyond registration, make, model and mileage by a separate ticket, CASE-043, not by CASE-029. Population order for those fields is extraction from the supplied instruction or data first, then an automatic DVLA/DVSA lookup on intake for what extraction did not fill. CASE-029 ships suggestion chips for make, model and mileage only. Operator, 2026-09-03. |
+| D50 | Create Case is dropped from the Awaiting instruction quick view: image-only material joins an instructed Case, it does not create one (FRD-02, `IntakeDecisionPolicy.CanBecomeCase`). The reverse route — an instructed case adding evidence by upload or by absorbing an image-initiated case, reachable from the case and the main rail — is CASE-044 and is outside this epic. Operator, 2026-09-03. |
 
 ## Constraints
 
@@ -98,7 +108,10 @@ Lazy sections versus unsaved edits and the lease; report template growth;
 D18 supersession; Codex lanes cannot reach the board (wrapper pattern);
 personal data in the repository under D43 (accepted by the operator);
 Kanmer MCP degraded mid-run (writes land, reads return nothing — wrappers
-read the board worktree files read-only).
+read the board worktree files read-only); `origin/main` carried two direct
+pushes on 2026-09-03 that `origin/dev` does not have (test material and a
+skills merge), so `dev` is behind `main` by two commits — reconciling that is
+an operator/administrator action, not a lane's.
 
 ## Dependency map
 
@@ -107,8 +120,11 @@ sign-off case field, inspect-at UI, CASE-029; vocabulary → sections move,
 damage map, ENG-029; sections move → damage map, ENG-031, ENG-029, fee note;
 DOCS-017 → sign-off case field and account setting; PLAT-068 → CASE-040;
 CASE-032 → Awaiting instruction queue; AUTO-011 and ENG-027 → market
-research; TICK-082 → Estimate card select. Exact ids: see each ticket's
-`blocks` and `blockedBy`.
+research; TICK-082 → Estimate card select; CASE-029 → CASE-043 (vehicle
+record extension, D49). ENG-034 runs serial in wave 3 after CASE-038 and
+CASE-039 because it takes the `Details.cshtml.cs` lease to move the
+Assessment handler surface. Exact ids: see each ticket's `blocks` and
+`blockedBy`.
 
 ## Rollout & rollback
 

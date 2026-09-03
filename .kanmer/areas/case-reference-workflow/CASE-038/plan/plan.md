@@ -615,3 +615,19 @@ reuse, simplification, efficiency, and altitude findings plus dispositions._
 All acceptance checks and commands pass, snapshots are committed, the
 post-implementation report is written, a PR targeting `dev` is open, and
 CASE-038 is in Review. Do not merge the PR or begin another ticket.
+
+## Resolution (2026-09-03) — the Assessment handler surface moves with ENG-034
+
+The [[ENG-034]] handler-host question was resolved as option B. CASE-038 does
+**not** add the Assessment POST handlers (`SaveEstimate`, `EditLine`,
+`DuplicateEstimate`, `DiscardEstimate`, `SetCurrentEstimate`,
+`ImportEstimate`, `SendToClaude`, `GenerateReportDraft`,
+`PreviewReportDraft`, lease claim/heartbeat/release) to
+`Pages/Cases/Details.cshtml.cs`. ENG-034 moves them itself, atomically with
+its section partials and the `/Assessment` 301, so nothing merges without a
+production caller.
+
+CASE-038's scope is unchanged otherwise: the frame, the sticky identity
+ribbon, the action bar, the jump-nav with scroll-spy, and heading-only
+section shells. Any plan step above that added a handler to
+`Details.cshtml.cs` is withdrawn.
