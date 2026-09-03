@@ -1,108 +1,79 @@
 # Review record — PLAT-068 (PR https://github.com/collisionengineers/pegasus/pull/655)
 
-- Reviewer family: Claude (Opus) wrapper + gpt-5.6-terra xhigh (the other
-  family; the PR was built by Codex).
-- Head SHA reviewed: `a1f5b947c85ceee6ceef14a0318eb4dcdd49ac19`
-  (branch `task/plat-068-sign-off-account`), detached review checkout at
-  `.worktrees/plat-068-review`.
-- Date: 2026-09-03.
-- **Verdict: REQUEST CHANGES — one blocker, from red CI.**
+- Reviewer family: Claude (Opus) with cross-model reader gpt-5.6-terra xhigh —
+  the other family from the implementer (Codex/gpt-5.6-sol).
+- Head SHA reviewed: `a94fffd545d3f979e6d1a5bf9b82cbc9f013a894`
+  (branch `task/plat-068-sign-off-account`).
+- Review checkout: detached `.worktrees/plat-068-review` at that SHA.
+- Verdict: **REQUEST CHANGES** — one merge blocker outside the code's quality
+  (the branch no longer merges into `dev`) plus two should-fix findings.
 
-## Blocker
+## What was read
 
-CI job `sql-integration (1)` (run 33806327632, job 100817759376) failed:
+Ticket body, `research/`, `files/`, `plan/plan.md` (including both
+"Simplification pass" sections and the "PR review" section),
+`checklist/checklist.md`, `open-questions/open-questions.md`,
+`post-implementation-report/post-implementation-report.md`, EPIC-012
+`context.md` (D29–D50), and the full 21-file diff `origin/dev...HEAD`.
 
-```
-Pegasus.IntegrationTests.IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema [FAIL]
-Assert.Equal() Failure: Collections differ
-Expected: [···, "20260829212237_GrantProviderSubmissionAcceptRecove"···]
-Actual:   [···, "20260829212237_GrantProviderSubmissionAcceptRecove"···, "20260903135604_StaffAccountSignOff"]
-                                                                          ↑ (pos 87)
-Failed! - Failed: 1, Passed: 383, Total: 384
-```
+## Findings and dispositions
 
-The PR adds migration `20260903135604_StaffAccountSignOff` but does not add it
-to the committed-migration inventory asserted by
-`tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` (the
-expected list ends at line 117,
-`"20260829212237_GrantProviderSubmissionAcceptRecovery"`). Fix: append
-`"20260903135604_StaffAccountSignOff"` to that list (comma after line 117).
-This file is a migration-inventory assertion that any migration-adding ticket
-must update; it belongs in this diff, not a separate ticket. It did not fail in
-any local run because the test is LocalDB/SQL-Server-gated and was outside the
-scoped filters run here.
+| # | Severity | Location | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs:117` and `src/Pegasus.Infrastructure/Persistence/Migrations/` | The PR is `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY`. `git merge-tree` confirms one real content conflict: `dev` gained PLAT-070's `20260903153134_RemoveStaffReviewFlags` (#649), which edits the same committed-migration list line as this branch's `20260903135604_StaffAccountSignOff`. This branch's migration also now sorts **before** the new `dev` tail, which the plan's Step 2 explicitly forbids ("regenerate this one migration after the new tail; never a second migration"). The model snapshot and `OperatorLabels.cs` auto-merge cleanly; only the migration ordering and the list are at issue. | **Return to the implementer.** `git merge --no-edit origin/dev` in `.worktrees/plat-068`, regenerate the single `StaffAccountSignOff` migration after `20260903153134_RemoveStaffReviewFlags`, reconcile `PegasusDbContextModelSnapshot.cs`, and set the committed-migration list to the two entries in ID order. Re-run `./scripts/Test-MigrationGrants.ps1` and the delivery commands. Reviewer fixes are not permitted in this lane. |
+| 2 | should-fix | `tests/Pegasus.Core.Tests/Identity/IdentityUseCaseTests.cs:132` | The oversized case is `new byte[SignOffSignaturePolicy.MaximumBytes + 1]` — all zeros, so it fails the PNG magic-byte check and would still be rejected with the 1 MiB limit deleted. The 1 MiB limit is therefore unproven, and checklist item 1d ("oversized signatures rejected") is not honestly discharged. Confirmed by reading `SignOffSignaturePolicy.Validate` (`StaffAccountAdministration.cs:481-498`), whose `||` chain short-circuits on the size test only for well-formed PNG prefixes. | **Fix (implementer).** Make the oversized fixture start with the PNG signature bytes so it exercises the size branch alone. One-line test change. |
+| 3 | should-fix | `src/Pegasus.Core/Identity/StaffAccountAdministration.cs:506-520` | The `bool hasSignature` overload of `SignOffEngineerEligibility.IsEligible` has **no** caller other than the `byte[]` overload that delegates to it (`grep` over `src/` and `tests/`: the four production call sites and all five test assertions pass `byte[]`). The plan's simplification-pass rejection of collapsing the overloads justifies itself with "would drop the roles-collection overload the Core eligibility tests call directly" — the tests call the byte-array overload, so the stated reason is factually wrong. This is a disposition-honesty issue (conduct rule 22) as well as an abstraction with no second concrete caller. | **Fix or re-disposition (implementer).** Either delete the `bool` overload (its body folds into the `byte[]` one) or record an accurate rejection reason. Behaviour is unaffected either way. |
+| 4 | nit — accepted | `docs/design/test-ui/pages/administration-accounts--default.html` | The regenerated snapshot's only account row is the non-Engineer offline administrator, so it shows the new column state `—` but not the Settings control or any sign-off state. The plan's Step 4 acceptance line ("the regenerated snapshot shows … the Settings control on Engineer rows only") is only half-visible. | **Accept risk.** The catalogue fixture is fixed and `catalogue.json` is correctly unchanged; the Settings-control presence/absence is proved directly by `StaffAccountsAndRolesWebTests` (`Assert.DoesNotContain`/`Assert.Contains` on `data-dialog-open="sign-off-{id}"`). No change requested. |
+| 5 | nit — accepted | `checklist/checklist.md` | All 24 checklist items are still unticked although the report and the diff show them done. | **Accept.** Board hygiene only; does not gate the move. |
 
-## Cross-model review findings and dispositions
+Reviewed and found sound (no finding raised): every drawn sign-off control has
+a named production handler (`OnPostSignOffAsync`, registered use case, no inert
+control and no inline script — `Assert.Empty(InlineScriptRegex().Matches(...))`
+proves the page carries none); no explanatory copy was added; every new
+operator word is a constant in `OperatorLabels.StaffAccounts`; the diff is
+confined to the ticket's owned paths and touches no D44–D50 lane; the
+eligibility rule exists exactly once, in Core, and is called by the EF
+mutation and both seam queries (`OperatorLabels.SignOffState` derives display
+state only); signature bytes never reach history, the page, a link or a served
+route — only the digest and a `HasSignature` boolean; the migration is single,
+additive, correctly typed, and its SQL Server filtered unique index matches the
+entity configuration and the model snapshot; the default transfer clears the
+previous holder inside the same serializable transaction and the digest is part
+of the replay-conflict check.
 
-Independent review by `gpt-5.6-terra` (`model_reasoning_effort=xhigh`) over the
-detached checkout; prompt and raw output in the session scratchpad
-(`build/PLAT-068/review-prompt.md`, `review-out.md`). Its verdict was REQUEST
-CHANGES with five findings. Every one was checked against the code by the
-reviewing wrapper.
+## Commands run in the review checkout (head `a94fffd5`)
 
-| # | Severity (as raised) | Finding | Disposition |
-| --- | --- | --- | --- |
-| 0 | blocker | (Wrapper, from CI) Migration inventory assertion not updated — see above. | **Send back for fix.** Red CI blocks the merge. |
-| 1 | blocker | `StaffAccountAdministration.cs:641` — an existing default holder cannot be unflagged while retaining the designation: `Normalize` rejects `IsDefault && !IsSignOffEngineer`, and the dialog pre-checks `isDefault`, so clearing the flag needs the Default box unchecked too. | **Rejected with reason.** The plan's "retains the designation" clause describes state changed by *other* handlers (disable, role removal), which do not touch `IsDefaultSignOffEngineer` and are proven retained by `SignOffUpdatesAreReplaySafeAndTransferTheSingleDefault` (the disabled `second` account is still the sole `IsDefaultSignOffEngineer` row at the end of the test). D31 says only flagged accounts carry sign-off; refusing an unflagged default is the safer invariant, is surfaced through `DefaultRequiresEligible`, and needs no new rule. |
-| 2 | blocker | `Index.cshtml:239` — no signature-removal control, so the "signature removed, designation retained" state is unreachable (`EfStaffAccountAdministration.cs:329` only writes a non-null signature). | **Rejected with reason — out of scope.** The ticket, plan Step 3 and checklist 3c specify exactly Upload/Replace; no removal control is in the brief. Scope is the brief; adding one would be a new capability. The unreachable lifecycle branch is a plan-prose artefact, not a defect in delivered behaviour. |
-| 3 | blocker | `OperatorLabels.cs:1258` — a de-roled default holder renders `—`, and `SignOffState` re-implements the enabled half of eligibility in Web. | **Rejected (display) / accepted risk (rule).** The plan's own first exact state is "non-Engineer `—`", which the code follows literally; `Yes · not eligible` remains reachable (disabled default with qualifications on file). The `IsEnabled` short-circuit is behaviour-equivalent to `SignOffEngineerEligibility.IsEligible` under the branches that precede it (role, flag and signature are already established) and carries a comment saying so; the rule itself still lives once in Core. Accepted as a presentation short-circuit, not a second policy owner. |
-| 4 | should-fix | `OperatorLabels.cs:1260` — the `—` placeholder is a literal, not a named constant. | **Rejected with reason.** The existing convention writes this placeholder as a bare literal directly in Razor (`Accounts/Index.cshtml:96`, `Administration/Automation/Activity.cshtml:57,59`); having it inside `OperatorLabels.cs` is already stricter than the codebase convention. It is a typographic placeholder, not an operator word. |
-| 5 | should-fix | `IdentityUseCaseTests.cs:132` — the oversized-signature sample is zero-filled, so it would still be rejected if the size rule were deleted; `BeforeJson` after a signature replacement is not asserted. | **Accepted risk (size isolation) / rejected (snapshot).** `SignOffSignaturePolicy.Validate` evaluates `Length > MaximumBytes` before the magic-byte check, so the size path *is* exercised — it is simply not isolated, and the Web handler enforces the same bound at `Index.cshtml.cs:236`. Not worth a lane round-trip for an administrator-only path. The snapshot half is rejected: `SignOffSnapshot` serialises `HasSignOffSignature` (bool) and `SignOffSignatureDigest` only — the byte array is structurally absent from both snapshots, so no assertion can be weakened into leaking it. |
+Scope rationale: the full solution suite is CI's job on this PR. Locally I ran
+the whole `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests` projects
+(the changed Core type and its eight fake implementations live there and both
+projects are fast), the two changed integration-test classes by filter, the
+migration-grant script because a migration was added, and the Test UI
+verification because `docs/design/test-ui/` changed.
 
-Codex additionally confirmed, and the wrapper independently confirmed by
-reading the diff: all 20 changed paths are owned by PLAT-068 (nothing under
-`Pages/Shared/*`, `Pages/Cases/*`, `Core/Reports/*`, `Infrastructure/Reports/*`,
-`site.js`, `site.css`, `docs/operator-notes.md` or `corpus/`); every drawn
-control has a named handler (`OnPostSignOffAsync`, `data-dialog` /
-`data-dialog-close` bound in the untouched `site.js`); the page contains no
-inline script (asserted by `InlineScriptRegex` in the integration test); no
-explanatory copy was added; nothing assumes D44 (review action), D45 (damage
-type) or D46 (crop) behaviour; the migration correctly adds no `GRANT` (it
-creates no table, and `Test-MigrationGrants.ps1` passes); and the plan's
-Simplification pass dispositions match the code (the removed defensive
-`ToArray()` at `EfStaffAccountAdministration.cs:330` and the simplified
-`SignOffState` default branch are both present as described).
+| Command | Exit |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` (0 warnings, 0 errors) |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | `CORE_EXIT=0` |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | `ARCH_EXIT=0` |
+| `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~StaffAccountsAndRolesWebTests\|FullyQualifiedName~IntakePersistenceIntegrationTests"` | `INTEG_EXIT=0` — 15 passed, 0 failed |
+| `./scripts/Test-MigrationGrants.ps1` | `GRANTS_EXIT=0` — 88 migration files checked |
+| `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` | `SNAP_EXIT=1` — no retained capture in a fresh checkout (environmental, not a failure of the change) |
+| `./scripts/Update-TestUiSnapshots.ps1 -Verify` (fresh capture) | `SNAP_VERIFY_EXIT=0` — capture 119 + 297 passed, snapshot verify 1 passed |
 
-## Independent verification — commands and exit codes
+CI status at review time: `gh pr checks 655` reports **no checks on the
+branch** — the merge is additionally blocked on green CI, which cannot run
+until the conflict in finding 1 is resolved and the branch is pushed again.
 
-Run in the detached review checkout at `a1f5b947`. The full solution filter was
-not re-run locally; CI runs it sharded on the PR (and is what caught the
-blocker). Scope rationale: the changed types are the Core sign-off contract
-(Core.Tests), the layering of the new Core→Infrastructure→Web wiring
-(ArchitectureTests), the EF store/query and the Accounts page handler
-(`StaffAccountsAndRolesWebTests`), the new migration (`Test-MigrationGrants`),
-and the regenerated routed-page snapshot (`Update-TestUiSnapshots -Verify`,
-which captures fresh and ran 119 browser + 297 non-browser integration tests on
-the way).
+## Cross-model reader
 
-```
-dotnet restore ./Pegasus.slnx --locked-mode                          RESTORE_EXIT=0
-dotnet build ./Pegasus.slnx --configuration Release --no-restore     BUILD_EXIT=0   (0 warnings, 0 errors)
-dotnet test ./tests/Pegasus.Core.Tests/... --no-build                CORETESTS_EXIT=0   (1188 passed)
-dotnet test ./tests/Pegasus.ArchitectureTests/... --no-build         ARCHTESTS_EXIT=0   (100 passed)
-dotnet test ./tests/Pegasus.IntegrationTests/... --no-build \
-  --filter "FullyQualifiedName~StaffAccountsAndRoles&Category!=Corpus&Category!=Browser"
-                                                                     INTTESTS_EXIT=0    (5 passed)
-./scripts/Test-MigrationGrants.ps1                                   GRANTS_EXIT=0      (88 migrations checked)
-./scripts/Update-TestUiSnapshots.ps1 -Verify                         SNAPVERIFY_EXIT=0  (fresh capture; 119 + 297 + 1 passed)
-./scripts/Test-UiCatalogue.ps1                                       CATALOGUE_EXIT=0   (54 routed sources, 58 prototypes, 0 broken refs)
-```
+`codex exec -m gpt-5.6-terra -c model_reasoning_effort="xhigh"` over the review
+checkout returned `Verdict: REQUEST CHANGES` with exactly two findings, both
+reproduced and confirmed against the code here as findings 2 and 3. It raised
+no correctness defect in the transaction, digest, null handling, limits,
+projections, state ordering, disposal or cancellation flow, and confirmed the
+two *applied* simplification fixes are genuinely present in the diff.
 
-`git status --porcelain` in the review checkout is empty after every run.
+## Outcome
 
-Note on the post-implementation report: its recorded
-`./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` exit 0 is not
-reproducible in a fresh checkout — `-SkipCapture` throws "No retained Test UI
-capture exists" when `artifacts/test-ui-capture` is absent. The verification was
-redone here with a real capture (`-Verify`, no `-SkipCapture`) and passed.
-
-## CI at the reviewed head
-
-Run 33806327632, conclusion **failure**:
-`changes`, `documentation`, `local-development-scripts`, `reference-data`,
-`unit`, `browser`, `sql-integration (2)`, `sql-integration (3)`,
-`sql-integration-coverage` — pass; `infrastructure` — skipped;
-**`sql-integration (1)` — fail** (the blocker above).
-
-Not merged. The ticket stays in Review pending the migration-inventory fix and
-a green re-run.
+Not merged. Ticket remains in Review pending findings 1–3.
