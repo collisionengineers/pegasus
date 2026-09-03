@@ -42,3 +42,25 @@ run focused unit filters locally; the orchestrator runs the integration gates.
 A local integration failure while several lanes are active is **inconclusive**
 until re-run in isolation — and per AGENTS.md rule 20, INCONCLUSIVE is not PASS
 and equally is not a defect report.
+
+## 2026-09-03 — ten-run trigger audit
+
+PR #612 merged as `b92cb9a7b8bf7727b452aa397d9df04084da1270` at
+2026-08-29 09:15:51 UTC. The first ten completed, non-cancelled
+`repository-check` workflows after that merge which ran `sql-integration` were:
+
+- [33245424905](https://github.com/collisionengineers/pegasus/actions/runs/33245424905) — all SQL shards passed.
+- [33246463997](https://github.com/collisionengineers/pegasus/actions/runs/33246463997) — all SQL shards passed.
+- [33246469257](https://github.com/collisionengineers/pegasus/actions/runs/33246469257) — one SQL shard failed an unrelated principal-credential assertion.
+- [33246576093](https://github.com/collisionengineers/pegasus/actions/runs/33246576093) — all SQL shards passed.
+- [33246943702](https://github.com/collisionengineers/pegasus/actions/runs/33246943702) — all SQL shards passed.
+- [33247078666](https://github.com/collisionengineers/pegasus/actions/runs/33247078666) — all SQL shards passed.
+- [33247156620](https://github.com/collisionengineers/pegasus/actions/runs/33247156620) — one SQL shard failed an unrelated expected-migration-list assertion.
+- [33247767486](https://github.com/collisionengineers/pegasus/actions/runs/33247767486) — all SQL shards passed.
+- [33248414281](https://github.com/collisionengineers/pegasus/actions/runs/33248414281) — one SQL shard failed unrelated HTTP 301 assertions.
+- [33254413602](https://github.com/collisionengineers/pegasus/actions/runs/33254413602) — all SQL shards passed.
+
+The failed-job logs contain no `Connection Timeout Expired`, pre-login, or
+post-login timeout signature. The earlier local error 19 is a different
+post-connect physical-connection failure observed while four local lanes shared
+one LocalDB instance; it does not satisfy this ticket's explicit trigger.

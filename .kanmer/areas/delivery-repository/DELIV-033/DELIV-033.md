@@ -16,9 +16,10 @@ groups:
   - EPIC-011
 links:
   - DELIV-031
-archived: false
+  - 'https://github.com/collisionengineers/pegasus/pull/612'
+archived: true
 created: '2026-08-29T08:33:03.130Z'
-updated: '2026-08-29T08:33:03.130Z'
+updated: '2026-09-03T14:14:43.202Z'
 ---
 
 ## What
@@ -68,3 +69,7 @@ DELIV-031 merges. If those ten runs are clean, close this as not needed.
       failure.
 - [ ] Full `Pegasus.IntegrationTests` suite green (no transaction/execution
       strategy regressions).
+
+## Outcome
+
+The trigger did not fire. In the first ten completed, non-cancelled `repository-check` workflows after PR #612 merged, no `sql-integration` failure contained the specified `Connection Timeout Expired` signature. Three SQL shards failed for unrelated assertion or route regressions, and the preserved local error 19 evidence is a different post-connect failure. The proposed execution-strategy retry is not required.
