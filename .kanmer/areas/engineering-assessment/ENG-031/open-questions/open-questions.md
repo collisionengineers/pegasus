@@ -1,20 +1,21 @@
 # Open questions — ENG-031 (2026-09-02)
 
-The plan (2026-09-02) adopts an ASSUMED default for each question so it can
-be executed once the operator confirms or overturns it; the conditional
-approval-linkage steps stay unbuilt until Q1 is answered or parked.
+- [x] Which durable event defines the report version that snapshots curation?
+  Resolved 2026-09-03 by the controller: report approval
+  (`CaseReportApprovals`) snapshots the curation; detected sent evidence is a
+  later fact about the same approved report.
+- [x] What durable disposition identifies an image with a person's
+  reflection? Resolved 2026-09-03 by the controller: the `Not used` role is
+  the disposition; no persisted reflection marker (no abstraction without a
+  second caller). FRD-06's "continues to exclude" is satisfied by the role.
 
-- [ ] Which durable event defines the report version that snapshots curation:
-  report-draft generation, report approval, detected sent evidence, or a
-  specified combination? The current `CaseReportApprovals` record and the
-  sent-evidence record are separate. Plan default (ASSUMED): report approval
-  — FRD-11 says draft generation saves nothing, so the approval record gains
-  an immutable curation-snapshot reference beside the artifact identity and
-  SHA-256.
-- [ ] What operator-controlled, durable disposition identifies an image with a
-  person's reflection? No such classification exists in code, yet
-  `docs/frd/frd-06-vehicle-and-engineering-evidence.md:129` says report-image
-  selection continues to exclude it. Is the "Not used" role sufficient, or must
-  ENG-031 add a persisted reflection marker? Plan default (ASSUMED): "Not
-  used" is sufficient; no reflection marker is added, and Core eligibility
-  excludes confirmed third-party evidence independently.
+Amendment (operator, 2026-09-03, D46): the crop tool must behave like any
+photo-editing cropper (drag the frame, resize by handles, rotate, aspect
+lock, reset, live preview) and be reachable from the Files section's image
+viewer as well as from the Report section's image cards, without first
+pressing Edit Case; saving a crop starts the edit lease. One curation record
+per image whichever entry point is used.
+
+## Parked (explicitly deferred)
+
+None.
