@@ -110,6 +110,57 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
             lastReviewAtUtc);
     }
 
+    public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+        CancellationToken cancellationToken)
+    {
+        var engineerRoleName = StaffRoleNames.Engineer.ToUpperInvariant();
+        var candidates = await (
+            from user in context.Users.AsNoTracking()
+            join userRole in context.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
+            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where user.IsSignOffEngineer && role.NormalizedName == engineerRoleName
+            orderby user.SignOffPrintedName, user.Id
+            select user)
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(user => SignOffEngineerEligibility.IsEligible(
+                user.IsEnabled,
+                [StaffRole.Engineer],
+                user.IsSignOffEngineer,
+                user.SignOffSignature))
+            .Select(Profile)
+            .ToArray();
+    }
+
+    public async Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        var user = await context.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        var roles = await (
+            from userRole in context.UserRoles.AsNoTracking()
+            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where userRole.UserId == staffId
+            select role.Name!)
+            .ToListAsync(cancellationToken);
+        var parsedRoles = roles.Select(ParseRole).ToArray();
+        return SignOffEngineerEligibility.IsEligible(
+            user.IsEnabled,
+            parsedRoles,
+            user.IsSignOffEngineer,
+            user.SignOffSignature)
+            ? Profile(user)
+            : null;
+    }
+
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
     internal static StaffAccountSummary Summary(
         PegasusIdentityUser user,
@@ -122,7 +173,26 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
             user.IsEnabled,
             user.MustChangePassword,
             roles.OrderBy(role => role).ToArray(),
-            lastAccessReviewAtUtc);
+            lastAccessReviewAtUtc)
+        {
+            SignOff = new(
+                user.IsSignOffEngineer,
+                user.SignOffPrintedName,
+                user.SignOffQualifications,
+                user.SignOffSignature is { Length: > 0 },
+                user.IsDefaultSignOffEngineer)
+        };
+
+    private static SignOffEngineerProfile Profile(PegasusIdentityUser user) =>
+        new(
+            user.Id,
+            user.SignOffPrintedName ?? throw new InvalidOperationException(
+                "An eligible sign-off Engineer has no printed name."),
+            user.SignOffQualifications,
+            user.SignOffSignature?.ToArray() ?? throw new InvalidOperationException(
+                "An eligible sign-off Engineer has no signature."),
+            SignOffSignaturePolicy.MediaType,
+            user.IsDefaultSignOffEngineer);
 
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
     internal static StaffRole ParseRole(string roleName) => roleName switch

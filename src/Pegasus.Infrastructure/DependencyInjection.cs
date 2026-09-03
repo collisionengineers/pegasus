@@ -176,6 +176,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IReviewStaffAccessStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IUpdateStaffAccountSignOffStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
@@ -185,6 +187,7 @@ public static class DependencyInjection
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IAssignStaffRoles, AssignStaffRoles>();
         services.AddScoped<IReviewStaffAccess, ReviewStaffAccess>();
+        services.AddScoped<IUpdateStaffAccountSignOff, UpdateStaffAccountSignOff>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
         services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
         services.AddScoped<EfOrganizationAdministration>();
