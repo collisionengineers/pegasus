@@ -31,6 +31,39 @@ public sealed class AdministrationPolicyPersistenceTests
     }
 
     [Fact]
+    public async Task WorkflowConfigurationUpdateIsVersionedAuditedAndReplaySafe()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var query = scope.ServiceProvider.GetRequiredService<GetWorkflowConfiguration>();
+        var command = scope.ServiceProvider.GetRequiredService<UpdateWorkflowConfiguration>();
+        var initial = await query.ExecuteAsync(actor, default);
+        var request = new UpdateWorkflowConfigurationRequest(
+            initial.PolicyVersion,
+            actor,
+            "Review the Engineer-assignment gates",
+            "workflow-policy-update-1");
+
+        var updated = await command.ExecuteAsync(request, default);
+        var replay = await command.ExecuteAsync(request, default);
+
+        Assert.Equal(initial.PolicyVersion + 1, updated.PolicyVersion);
+        Assert.Equal(updated, replay);
+        await Assert.ThrowsAsync<WorkflowConfigurationVersionConflictException>(
+            () => command.ExecuteAsync(
+                request with { OperationKey = "workflow-policy-stale-1" },
+                default));
+
+        await using var context = await database.CreateContextAsync();
+        Assert.Equal(
+            1,
+            await context.Database.SqlQuery<int>(
+                    $"SELECT COUNT(*) AS [Value] FROM [ActionHistory] WHERE [AggregateType] = 'workflow_configuration'")
+                .SingleAsync());
+    }
+
+    [Fact]
     public async Task ApprovedMailboxUpdateControlsOnlyItsVersionedReadRoutes()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
