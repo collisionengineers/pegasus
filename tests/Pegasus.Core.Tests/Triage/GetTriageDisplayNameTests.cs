@@ -171,5 +171,14 @@ public sealed class GetTriageDisplayNameTests
             Task.FromResult(id == staffId
                 ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.User], null)
                 : null);
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }
