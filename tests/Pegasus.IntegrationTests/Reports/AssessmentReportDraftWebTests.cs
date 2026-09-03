@@ -163,7 +163,8 @@ public sealed partial class AssessmentReportDraftWebTests
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
             Sources: [source],
-            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true));
+            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true),
+            Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
     }
 
     /// <summary>

@@ -357,8 +357,6 @@ public sealed class ProviderInspectionModeAcceptanceTests
     private sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {
         private static readonly CaseWorkflowConfiguration Configuration = new(
-            true,
-            true,
             "case-workflow",
             1);
 
