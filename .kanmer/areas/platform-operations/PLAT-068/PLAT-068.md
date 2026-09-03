@@ -4,20 +4,20 @@ type: ticket
 title: Sign-off Engineer account setting with qualifications and signature image
 status: implementing
 area: platform-operations
-assignee: wf-build/plat-068
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-09-02T20:53:21.795Z'
-taken_at: '2026-09-03T13:45:30.681Z'
+taken_at: '2026-09-03T19:41:32.473Z'
 branch: task/plat-068-sign-off-account
 worktree: .worktrees/plat-068
-claim_expires_at: '2026-09-03T14:15:30.681Z'
-claim_controller: wf-build/plat-068
-lease_id: 4dad6a97-d32d-4d50-bdde-457f3ea6dbf0
+claim_expires_at: '2026-09-03T20:11:32.473Z'
+claim_controller: claude-code
+lease_id: dad782e3-960c-4e06-bfa5-51f0c19d7354
 lease_revision: 1
 lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-068'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T13:45:30.681Z'
+lease_heartbeat_at: '2026-09-03T19:41:32.473Z'
 labels:
   - administration
   - accounts
@@ -35,7 +35,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-03T13:45:30.681Z'
+updated: '2026-09-03T19:41:32.473Z'
 ---
 
 ## What
