@@ -2,13 +2,14 @@
 id: CASE-022
 type: ticket
 title: Deliver public upload links (INT-31) to the operator's accepted limits
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: codex
 profile: feature
 stageEntered:
   preparing: '2026-09-03T14:35:23.555Z'
   review: '2026-09-03T16:22:55.937Z'
+  verifying: '2026-09-03T17:31:01.523Z'
 taken_at: '2026-09-03T15:39:27.322Z'
 branch: task/case-022-repair-public-upload
 worktree: .worktrees/case-022
@@ -35,7 +36,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-09-03T16:22:55.937Z'
+updated: '2026-09-03T17:31:01.523Z'
 ---
 
 ## What the operator saw
