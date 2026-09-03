@@ -16,7 +16,7 @@
   failure, zero-success census, healthy revision, and explicit undeployed state.
 - [x] [pre-review] Step 4 — Run focused integration tests and retain exit
   evidence without weakening assertions.
-- [ ] [pre-review] Step 4 — Run the independent simplification lenses, apply
+- [x] [pre-review] Step 4 — Run the independent simplification lenses, apply
   behaviour-preserving findings, and append every disposition to
   `plan/plan.md` under a dated `Simplification pass` heading.
 - [ ] [pre-review] Step 4 — Run locked restore, Release build, the full

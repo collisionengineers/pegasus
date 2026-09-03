@@ -257,3 +257,17 @@ Stop when the bounded branch is committed, its PR to `dev` is open with
 focused and canonical evidence, simplification findings are dispositioned, and
 it is ready for independent `kanmer-review`. Do not merge, deploy, change
 production, or start another ticket.
+
+## Simplification pass — 2026-09-03
+
+- **Reuse:** Passed. The request path uses the existing
+  `ManagedDocumentContentAddress`, `StoreVersionAsync`, persisted case-root
+  identity, Box flat naming, and disposition-aware rollback contract.
+- **Simplification:** Passed with no change. The ordinal query and telemetry
+  initializer are the smallest direct additions; extracting another helper
+  would add indirection without changing behaviour.
+- **Efficiency:** Passed. The repair adds one bounded SQL aggregate before the
+  external write and no extra Box round trip, cache, retry, or background work.
+- **Altitude:** Passed. Core still owns upload policy, Infrastructure owns
+  persistence/custody adaptation, and Web owns telemetry registration. No
+  finding was deferred or left unapplied.
