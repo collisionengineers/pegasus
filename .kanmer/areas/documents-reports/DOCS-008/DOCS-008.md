@@ -4,7 +4,7 @@ type: ticket
 title: Custody reports Failed although the evidence reached Box
 status: done
 area: documents-reports
-order: 1060
+order: 1100
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -21,7 +21,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T23:30:27.801Z'
-updated: '2026-09-01T14:44:32.659Z'
+updated: '2026-09-03T09:06:47.934Z'
 ---
 
 ## Why

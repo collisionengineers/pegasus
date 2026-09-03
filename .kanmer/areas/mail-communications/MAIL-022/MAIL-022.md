@@ -6,7 +6,7 @@ title: >-
   five-minute recovery schedule
 status: done
 area: mail-communications
-order: 2470
+order: 2500
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -30,7 +30,7 @@ prs:
   - '#578'
 archived: false
 created: '2026-08-27T17:06:22.245Z'
-updated: '2026-09-01T14:44:34.047Z'
+updated: '2026-09-03T09:06:57.040Z'
 ---
 
 ## Problem

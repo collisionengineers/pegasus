@@ -4,7 +4,7 @@ type: ticket
 title: Surface mailbox activation and Graph subscription health on the Mailboxes page
 status: done
 area: mail-communications
-order: 2430
+order: 2460
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/577'
 archived: false
 created: '2026-08-27T10:06:22.803Z'
-updated: '2026-09-01T14:44:34.005Z'
+updated: '2026-09-03T09:06:56.762Z'
 ---
 
 ## Problem

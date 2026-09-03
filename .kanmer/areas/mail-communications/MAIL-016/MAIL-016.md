@@ -4,7 +4,7 @@ type: ticket
 title: Correct the stale mailbox assertion left by MAIL-013
 status: done
 area: mail-communications
-order: 2410
+order: 2440
 assignee: claude-fable-5
 profile: fix
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-27T08:16:52.507Z'
-updated: '2026-09-01T14:44:33.988Z'
+updated: '2026-09-03T09:06:56.617Z'
 ---
 
 ## Problem

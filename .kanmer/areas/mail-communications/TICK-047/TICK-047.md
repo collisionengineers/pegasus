@@ -4,7 +4,7 @@ type: ticket
 title: MAIL-05 — Recommend the designated Outlook folder for a classified message
 status: done
 area: mail-communications
-order: 480
+order: 520
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -34,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.177Z'
-updated: '2026-09-01T14:44:32.093Z'
+updated: '2026-09-03T09:06:44.812Z'
 ---
 
 ## What

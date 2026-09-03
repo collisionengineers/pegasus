@@ -4,7 +4,7 @@ type: ticket
 title: Restore the design authority after the design-system removal
 status: done
 area: delivery-repository
-order: 2270
+order: 2300
 assignee: claude-fable-5
 profile: chore
 stageEntered:
@@ -27,7 +27,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-27T08:49:00.457Z'
-updated: '2026-09-01T14:44:33.869Z'
+updated: '2026-09-03T09:06:55.652Z'
 ---
 
 ## Why

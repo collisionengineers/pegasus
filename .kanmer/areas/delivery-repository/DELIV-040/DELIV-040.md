@@ -4,6 +4,7 @@ type: ticket
 title: Record the 2026-09-01 operator interface decisions in the governing documents
 status: done
 area: delivery-repository
+order: 2650
 assignee: codex/deliv-040-operator-remediation
 profile: chore
 stageEntered:
@@ -77,7 +78,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.752Z'
-updated: '2026-09-02T11:46:37.683Z'
+updated: '2026-09-03T09:06:58.129Z'
 ---
 
 ## What

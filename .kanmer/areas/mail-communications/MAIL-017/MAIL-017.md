@@ -6,7 +6,7 @@ title: >-
   migration
 status: done
 area: mail-communications
-order: 2420
+order: 2450
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -31,7 +31,7 @@ prs:
   - '571'
 archived: false
 created: '2026-08-27T10:06:22.772Z'
-updated: '2026-09-01T14:44:33.997Z'
+updated: '2026-09-03T09:06:56.687Z'
 ---
 
 ## Problem

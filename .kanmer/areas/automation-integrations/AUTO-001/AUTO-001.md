@@ -4,7 +4,7 @@ type: ticket
 title: Activate the Pegasus Automation MCP gate
 status: done
 area: automation-integrations
-order: 340
+order: 370
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T08:49:54.851Z'
-updated: '2026-09-01T14:44:31.967Z'
+updated: '2026-09-03T09:06:44.058Z'
 ---
 
 ## Why

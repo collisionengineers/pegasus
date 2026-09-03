@@ -2,15 +2,16 @@
 id: DOCS-015
 type: ticket
 title: Extract and normalize the complete EVA API PDF as Markdown
-status: verifying
+status: done
 area: documents-reports
-order: 160
+order: 215
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-28T14:47:11.297Z'
   review: '2026-08-28T14:58:12.530Z'
   verifying: '2026-08-29T20:55:39.489Z'
+  done: '2026-09-03T09:07:00.604Z'
 taken_at: '2026-08-28T14:48:51.601Z'
 branch: task/docs-015-eva-api-markdown
 worktree: ../pegasus-worktrees/docs-015-eva-api-markdown
@@ -30,7 +31,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-28T14:47:06.673Z'
-updated: '2026-09-01T14:44:16.426Z'
+updated: '2026-09-03T09:07:00.604Z'
 ---
 
 ## What

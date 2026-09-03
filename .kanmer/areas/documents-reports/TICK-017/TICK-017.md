@@ -4,7 +4,7 @@ type: ticket
 title: DOC-01 — Automatic Box case-folder creation using the Case/PO name
 status: done
 area: documents-reports
-order: 690
+order: 730
 assignee: ''
 profile: custom
 requires: {}
@@ -18,7 +18,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.105Z'
-updated: '2026-09-01T14:44:32.316Z'
+updated: '2026-09-03T09:06:45.936Z'
 ---
 
 ## What

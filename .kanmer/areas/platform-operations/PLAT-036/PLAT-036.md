@@ -4,7 +4,7 @@ type: ticket
 title: Raise or earn back the Application Insights daily ingestion quota
 status: done
 area: platform-operations
-order: 2110
+order: 2150
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -25,7 +25,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/550'
 archived: false
 created: '2026-08-22T06:02:29.302Z'
-updated: '2026-09-01T14:44:33.715Z'
+updated: '2026-09-03T09:06:54.645Z'
 ---
 
 ## Why

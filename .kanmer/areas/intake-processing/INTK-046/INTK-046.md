@@ -4,7 +4,7 @@ type: ticket
 title: 'Port Triage, Unidentified, Received and the image-record pages'
 status: done
 area: intake-processing
-order: 2370
+order: 2400
 assignee: zcode
 profile: feature
 stageEntered:
@@ -40,7 +40,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.884Z'
-updated: '2026-09-02T01:53:19.675Z'
+updated: '2026-09-03T09:06:56.333Z'
 ---
 
 ## What

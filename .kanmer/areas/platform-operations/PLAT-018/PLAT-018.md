@@ -4,7 +4,7 @@ type: ticket
 title: Correct two self-contradictory rules in the design authority
 status: done
 area: platform-operations
-order: 1590
+order: 1630
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -26,7 +26,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-21T08:25:11.433Z'
-updated: '2026-09-01T14:44:33.177Z'
+updated: '2026-09-03T09:06:51.118Z'
 ---
 
 ## What

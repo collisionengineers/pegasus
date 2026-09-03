@@ -4,7 +4,7 @@ type: ticket
 title: INT-15 — Automated MSG extraction
 status: done
 area: intake-processing
-order: 1840
+order: 1880
 assignee: ''
 profile: feature
 stageEntered:
@@ -26,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.590Z'
-updated: '2026-09-01T14:44:33.434Z'
+updated: '2026-09-03T09:06:52.774Z'
 ---
 
 ## What

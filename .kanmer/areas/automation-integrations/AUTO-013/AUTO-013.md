@@ -6,7 +6,7 @@ title: >-
   credential is refused only after the body is read
 status: done
 area: automation-integrations
-order: 70
+order: 80
 assignee: ''
 profile: fix
 stageEntered:
@@ -34,7 +34,7 @@ delivery_sha: 8b6d41345ee3afd1d7a1eb875ed3416516d50375
 delivery_recorded_at: '2026-09-02T16:09:59.592Z'
 archived: false
 created: '2026-08-29T08:35:46.076Z'
-updated: '2026-09-02T17:02:08.699Z'
+updated: '2026-09-03T09:06:42.456Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Strike the invented manifest from FRD-07 and the operator notes
 status: done
 area: documents-reports
-order: 1090
+order: 1130
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-24T08:19:34.397Z'
-updated: '2026-09-01T14:44:32.685Z'
+updated: '2026-09-03T09:06:48.095Z'
 ---
 
 ## What

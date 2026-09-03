@@ -4,7 +4,7 @@ type: ticket
 title: Port the Inbox list and message pages to the Integrated Operations Workspace
 status: done
 area: mail-communications
-order: 155
+order: 180
 assignee: zcode
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.835Z'
-updated: '2026-09-01T22:00:49.141Z'
+updated: '2026-09-03T09:06:43.058Z'
 ---
 
 ## What

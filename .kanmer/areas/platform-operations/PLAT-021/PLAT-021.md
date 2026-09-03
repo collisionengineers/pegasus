@@ -6,7 +6,7 @@ title: >-
   operations
 status: done
 area: platform-operations
-order: 1620
+order: 1660
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T09:57:55.118Z'
-updated: '2026-09-01T14:44:33.215Z'
+updated: '2026-09-03T09:06:51.322Z'
 ---
 
 ## Why

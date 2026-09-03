@@ -4,6 +4,7 @@ type: ticket
 title: Advance the Graph delta cursor when sparse messages omit receivedDateTime
 status: done
 area: mail-communications
+order: 2690
 assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: fix
 stageEntered:
@@ -26,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-01T14:40:45.067Z'
-updated: '2026-09-03T08:47:30.401Z'
+updated: '2026-09-03T09:06:58.416Z'
 ---
 
 ## What

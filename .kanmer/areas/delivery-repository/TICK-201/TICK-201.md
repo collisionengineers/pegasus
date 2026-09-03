@@ -4,7 +4,7 @@ type: ticket
 title: Correct canonical documentation claims against source evidence
 status: done
 area: delivery-repository
-order: 1980
+order: 2020
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -24,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.001Z'
-updated: '2026-09-01T14:44:33.587Z'
+updated: '2026-09-03T09:06:53.692Z'
 ---
 
 ## What

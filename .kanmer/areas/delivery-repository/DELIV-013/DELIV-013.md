@@ -6,7 +6,7 @@ title: >-
   docs, promote to main
 status: done
 area: delivery-repository
-order: 980
+order: 1020
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -27,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T11:07:36.848Z'
-updated: '2026-09-01T14:44:32.589Z'
+updated: '2026-09-03T09:06:47.465Z'
 ---
 
 ## Why

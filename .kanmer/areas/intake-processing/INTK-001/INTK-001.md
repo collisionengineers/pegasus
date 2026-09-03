@@ -6,7 +6,7 @@ title: >-
   receipts
 status: done
 area: intake-processing
-order: 2350
+order: 2380
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -40,7 +40,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/620'
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-09-01T14:44:33.936Z'
+updated: '2026-09-03T09:06:56.190Z'
 ---
 
 ## What

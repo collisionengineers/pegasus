@@ -4,7 +4,7 @@ type: ticket
 title: Give ImageIntake an Image-initiated Case lifecycle and merge closure
 status: done
 area: intake-processing
-order: 110
+order: 130
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -39,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-09-01T14:44:31.750Z'
+updated: '2026-09-03T09:06:42.756Z'
 ---
 
 ## What

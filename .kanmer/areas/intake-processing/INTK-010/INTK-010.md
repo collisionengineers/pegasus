@@ -6,7 +6,7 @@ title: >-
   offering attach-to-case or create-case
 status: done
 area: intake-processing
-order: 1210
+order: 1250
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -35,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:17:07.323Z'
-updated: '2026-09-01T14:44:32.801Z'
+updated: '2026-09-03T09:06:48.771Z'
 ---
 
 ## What

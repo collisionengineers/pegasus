@@ -4,7 +4,7 @@ type: ticket
 title: Claude Design UI implementation
 status: done
 area: platform-operations
-order: 560
+order: 600
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -41,7 +41,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-17T12:29:59.429Z'
-updated: '2026-09-01T14:44:32.165Z'
+updated: '2026-09-03T09:06:45.234Z'
 ---
 
 ## What

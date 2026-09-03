@@ -4,7 +4,7 @@ type: ticket
 title: Redesign the Operations workspace
 status: done
 area: platform-operations
-order: 2490
+order: 2520
 assignee: zcode
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.290Z'
-updated: '2026-09-02T01:53:24.672Z'
+updated: '2026-09-03T09:06:57.184Z'
 ---
 
 ## What

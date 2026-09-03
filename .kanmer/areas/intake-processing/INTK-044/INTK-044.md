@@ -6,7 +6,7 @@ title: >-
   f2ac0509) and staff have no recovery route
 status: done
 area: intake-processing
-order: 2360
+order: 2390
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -34,7 +34,7 @@ prs:
   - '#572'
 archived: false
 created: '2026-08-27T10:41:44.794Z'
-updated: '2026-09-01T14:44:33.946Z'
+updated: '2026-09-03T09:06:56.265Z'
 ---
 
 ## Problem

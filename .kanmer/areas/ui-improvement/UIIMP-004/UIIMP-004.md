@@ -4,7 +4,7 @@ type: ticket
 title: Generate Test UI snapshots from current Razor rendering
 status: done
 area: ui-improvement
-order: 2570
+order: 2600
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -44,7 +44,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-26T14:16:09.318Z'
-updated: '2026-09-01T14:44:34.150Z'
+updated: '2026-09-03T09:06:57.788Z'
 ---
 
 ## What

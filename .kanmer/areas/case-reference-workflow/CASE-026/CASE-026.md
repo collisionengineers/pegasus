@@ -6,7 +6,7 @@ title: >-
   pane
 status: done
 area: case-reference-workflow
-order: 2240
+order: 2270
 assignee: zcode
 profile: feature
 stageEntered:
@@ -38,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.906Z'
-updated: '2026-09-02T01:53:15.877Z'
+updated: '2026-09-03T09:06:55.453Z'
 ---
 
 ## What

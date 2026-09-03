@@ -4,7 +4,7 @@ type: ticket
 title: Retire .infisical.json or document its active owner
 status: done
 area: delivery-repository
-order: 1970
+order: 2010
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -24,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.949Z'
-updated: '2026-09-01T14:44:33.577Z'
+updated: '2026-09-03T09:06:53.629Z'
 ---
 
 ## What

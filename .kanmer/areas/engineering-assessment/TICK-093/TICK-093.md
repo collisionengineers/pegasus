@@ -6,7 +6,7 @@ title: >-
   Audatex PDF, or an approved AI proposal
 status: done
 area: engineering-assessment
-order: 220
+order: 250
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -44,7 +44,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-09-01T14:44:31.847Z'
+updated: '2026-09-03T09:06:43.428Z'
 ---
 
 ## Outcome

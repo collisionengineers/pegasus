@@ -6,6 +6,7 @@ title: >-
   documents
 status: done
 area: delivery-repository
+order: 2660
 assignee: claude-fable-5.1/c4ea9419/deliv-041
 profile: chore
 stageEntered:
@@ -55,7 +56,7 @@ prs:
   - '647'
 archived: false
 created: '2026-09-02T20:31:38.561Z'
-updated: '2026-09-02T22:06:23.255Z'
+updated: '2026-09-03T09:06:58.201Z'
 ---
 
 ## What

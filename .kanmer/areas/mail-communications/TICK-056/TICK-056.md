@@ -4,7 +4,7 @@ type: ticket
 title: UI-10 — Full email-management workspace
 status: done
 area: mail-communications
-order: 240
+order: 270
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-09-01T14:44:31.866Z'
+updated: '2026-09-03T09:06:43.542Z'
 ---
 
 ## What

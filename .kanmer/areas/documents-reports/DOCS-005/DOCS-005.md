@@ -6,7 +6,7 @@ title: >-
   files
 status: done
 area: documents-reports
-order: 1030
+order: 1070
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +24,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T19:33:29.208Z'
-updated: '2026-09-01T14:44:32.630Z'
+updated: '2026-09-03T09:06:47.751Z'
 ---
 
 ## Why

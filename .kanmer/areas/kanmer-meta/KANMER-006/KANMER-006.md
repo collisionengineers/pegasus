@@ -4,7 +4,7 @@ type: ticket
 title: Reconcile the current Kanmer setup drift
 status: done
 area: kanmer-meta
-order: 2390
+order: 2420
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-25T06:35:41.710Z'
-updated: '2026-09-01T22:00:47.933Z'
+updated: '2026-09-03T09:06:56.480Z'
 ---
 
 ## What

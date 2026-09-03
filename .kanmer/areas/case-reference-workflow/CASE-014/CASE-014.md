@@ -4,7 +4,7 @@ type: ticket
 title: 'An audit''s reference is the case reference, not a second identity'
 status: done
 area: case-reference-workflow
-order: 910
+order: 950
 assignee: ''
 profile: feature
 stageEntered:
@@ -22,7 +22,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T23:30:27.877Z'
-updated: '2026-09-01T14:44:32.531Z'
+updated: '2026-09-03T09:06:47.093Z'
 ---
 
 ## Why — operator direction (2026-08-22)

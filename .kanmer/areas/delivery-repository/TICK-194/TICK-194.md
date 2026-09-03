@@ -4,7 +4,7 @@ type: ticket
 title: Detect direct or non-merge pushes to main in CI
 status: done
 area: delivery-repository
-order: 730
+order: 770
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.783Z'
-updated: '2026-09-01T14:44:32.354Z'
+updated: '2026-09-03T09:06:46.143Z'
 ---
 
 ## What

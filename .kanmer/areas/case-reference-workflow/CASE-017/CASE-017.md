@@ -4,7 +4,7 @@ type: ticket
 title: 'Case History becomes Notes, and operators can add their own'
 status: done
 area: case-reference-workflow
-order: 940
+order: 980
 assignee: ''
 profile: feature
 stageEntered:
@@ -22,7 +22,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T23:30:28.020Z'
-updated: '2026-09-01T14:44:32.555Z'
+updated: '2026-09-03T09:06:47.253Z'
 ---
 
 ## Why — operator direction (2026-08-22)

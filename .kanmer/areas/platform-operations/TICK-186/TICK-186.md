@@ -4,7 +4,7 @@ type: ticket
 title: Assemble the extraction cohort and untouched holdout
 status: done
 area: platform-operations
-order: 1960
+order: 2000
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -22,7 +22,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.505Z'
-updated: '2026-09-01T14:44:33.565Z'
+updated: '2026-09-03T09:06:53.561Z'
 ---
 
 ## What

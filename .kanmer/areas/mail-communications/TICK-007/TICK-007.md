@@ -6,7 +6,7 @@ title: >-
   review once rules exist
 status: done
 area: mail-communications
-order: 1720
+order: 1760
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:03:52.910Z'
-updated: '2026-09-01T14:44:33.321Z'
+updated: '2026-09-03T09:06:51.974Z'
 ---
 
 ## What

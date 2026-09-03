@@ -6,7 +6,7 @@ title: >-
   phrase
 status: done
 area: mail-communications
-order: 1480
+order: 1520
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +24,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-23T12:49:17.222Z'
-updated: '2026-09-01T14:44:33.062Z'
+updated: '2026-09-03T09:06:50.400Z'
 ---
 
 ## QDOS sends triage requests in two templates; we recognise one

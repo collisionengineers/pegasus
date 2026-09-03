@@ -6,7 +6,7 @@ title: >-
   as the QDOS-alpha staff app
 status: done
 area: automation-integrations
-order: 1800
+order: 1840
 assignee: ''
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.286Z'
-updated: '2026-09-01T14:44:33.395Z'
+updated: '2026-09-03T09:06:52.505Z'
 ---
 
 ## What

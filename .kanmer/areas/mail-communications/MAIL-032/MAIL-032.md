@@ -4,6 +4,7 @@ type: ticket
 title: Keep the selected Inbox preview available after pointerleave or blur
 status: done
 area: mail-communications
+order: 2680
 assignee: claude-code/20260901T215000Z-claude-controller/implementer-a1
 profile: fix
 stageEntered:
@@ -28,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-01T14:40:45.052Z'
-updated: '2026-09-03T08:47:29.828Z'
+updated: '2026-09-03T09:06:58.345Z'
 ---
 
 ## What

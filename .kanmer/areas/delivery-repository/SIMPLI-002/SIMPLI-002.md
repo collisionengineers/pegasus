@@ -4,7 +4,7 @@ type: ticket
 title: Rewrite AGENTS.md
 status: done
 area: delivery-repository
-order: 250
+order: 280
 assignee: claude-code
 profile: custom
 requires: {}
@@ -16,7 +16,7 @@ blocks: []
 deployment: n/a
 archived: false
 created: '2026-08-13T12:00:32.076Z'
-updated: '2026-09-01T14:44:31.875Z'
+updated: '2026-09-03T09:06:43.611Z'
 ---
 
 ## What

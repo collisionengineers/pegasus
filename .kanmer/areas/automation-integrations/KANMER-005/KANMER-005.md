@@ -4,7 +4,7 @@ type: ticket
 title: Enforce exclusive editing leases between staff and Automation Actors
 status: done
 area: automation-integrations
-order: 2380
+order: 2410
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -35,7 +35,7 @@ prs:
   - '593'
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-09-01T14:44:33.964Z'
+updated: '2026-09-03T09:06:56.412Z'
 ---
 
 ## What

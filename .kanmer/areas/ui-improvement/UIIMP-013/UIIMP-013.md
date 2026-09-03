@@ -4,6 +4,7 @@ type: ticket
 title: Reduce the Test UI snapshot gate critical path without weakening coverage
 status: done
 area: ui-improvement
+order: 2710
 assignee: codex-root
 profile: chore
 stageEntered:
@@ -32,7 +33,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-30T12:51:09.415Z'
-updated: '2026-09-02T18:37:42.270Z'
+updated: '2026-09-03T09:06:58.589Z'
 ---
 
 ## What

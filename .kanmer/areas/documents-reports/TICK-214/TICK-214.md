@@ -4,7 +4,7 @@ type: ticket
 title: Decide the long-term MCPB host and distribution boundary
 status: done
 area: documents-reports
-order: 2170
+order: 2210
 assignee: ''
 profile: feature
 stageEntered:
@@ -27,7 +27,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.885Z'
-updated: '2026-09-01T14:44:33.782Z'
+updated: '2026-09-03T09:06:55.050Z'
 ---
 
 ## What

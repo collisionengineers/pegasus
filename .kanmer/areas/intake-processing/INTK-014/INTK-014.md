@@ -6,7 +6,7 @@ title: >-
   case's folder on merge
 status: done
 area: intake-processing
-order: 1250
+order: 1290
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -36,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.511Z'
-updated: '2026-09-01T14:44:32.838Z'
+updated: '2026-09-03T09:06:49.006Z'
 ---
 
 ## What

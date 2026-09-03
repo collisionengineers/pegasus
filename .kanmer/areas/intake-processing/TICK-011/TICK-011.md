@@ -4,7 +4,7 @@ type: ticket
 title: INT-17 — Automatic vehicle-registration reading from ordinary vehicle images
 status: done
 area: intake-processing
-order: 90
+order: 110
 assignee: ''
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ commits:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:52.988Z'
-updated: '2026-09-01T14:44:31.732Z'
+updated: '2026-09-03T09:06:42.647Z'
 ---
 
 ## What

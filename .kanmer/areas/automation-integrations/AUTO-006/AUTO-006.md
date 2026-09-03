@@ -4,7 +4,7 @@ type: ticket
 title: Redesign the Automation & AI administration area
 status: done
 area: automation-integrations
-order: 2210
+order: 2240
 assignee: claude-auto-006
 profile: feature
 stageEntered:
@@ -36,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T13:19:14.422Z'
-updated: '2026-09-02T01:53:12.174Z'
+updated: '2026-09-03T09:06:55.250Z'
 ---
 
 ## What

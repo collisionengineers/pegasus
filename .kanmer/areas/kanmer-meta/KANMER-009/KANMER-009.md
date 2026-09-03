@@ -4,7 +4,7 @@ type: ticket
 title: Organize the EPIC-011 work pack and reconcile its Kanmer map
 status: done
 area: kanmer-meta
-order: 2610
+order: 2640
 assignee: ''
 profile: chore
 stageEntered:
@@ -21,7 +21,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-09-01T14:38:51.627Z'
-updated: '2026-09-01T15:06:22.409Z'
+updated: '2026-09-03T09:06:58.060Z'
 ---
 
 ## What

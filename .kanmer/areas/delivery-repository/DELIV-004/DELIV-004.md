@@ -4,7 +4,7 @@ type: ticket
 title: Prohibit shipping features behind disabled gates
 status: done
 area: delivery-repository
-order: 420
+order: 460
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -25,7 +25,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T08:50:16.059Z'
-updated: '2026-09-01T14:44:32.043Z'
+updated: '2026-09-03T09:06:44.509Z'
 ---
 
 ## Why

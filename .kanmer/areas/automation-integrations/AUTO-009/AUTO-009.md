@@ -6,7 +6,7 @@ title: >-
   per-estimate VAT
 status: done
 area: automation-integrations
-order: 2220
+order: 2250
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -33,7 +33,7 @@ prs:
   - '585'
 archived: false
 created: '2026-08-28T08:05:30.128Z'
-updated: '2026-09-01T14:44:33.828Z'
+updated: '2026-09-03T09:06:55.315Z'
 ---
 
 ## What

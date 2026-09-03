@@ -4,7 +4,7 @@ type: ticket
 title: Record release 33 deployed state
 status: done
 area: delivery-repository
-order: 2250
+order: 2280
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-26T18:45:00.176Z'
-updated: '2026-09-01T14:44:33.852Z'
+updated: '2026-09-03T09:06:55.521Z'
 ---
 
 ## Purpose

@@ -4,7 +4,7 @@ type: ticket
 title: MAIL-07 — Move the confirmed message to the designated Outlook folder
 status: done
 area: mail-communications
-order: 580
+order: 620
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -39,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.217Z'
-updated: '2026-09-01T14:44:32.193Z'
+updated: '2026-09-03T09:06:45.353Z'
 ---
 
 ## What

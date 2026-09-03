@@ -4,7 +4,7 @@ type: ticket
 title: Port the Work Centre (/) to the Integrated Operations Workspace
 status: done
 area: ui-improvement
-order: 2600
+order: 2630
 assignee: zcode
 profile: feature
 stageEntered:
@@ -42,7 +42,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-09-01T14:44:34.202Z'
+updated: '2026-09-03T09:06:57.996Z'
 ---
 
 ## What

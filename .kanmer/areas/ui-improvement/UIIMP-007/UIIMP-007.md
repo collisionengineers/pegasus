@@ -6,7 +6,7 @@ title: >-
   capabilities
 status: done
 area: ui-improvement
-order: 2590
+order: 2620
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -35,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T08:05:30.058Z'
-updated: '2026-09-02T01:53:47.134Z'
+updated: '2026-09-03T09:06:57.927Z'
 ---
 
 ## What

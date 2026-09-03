@@ -4,6 +4,7 @@ type: ticket
 title: Sterilize intake data and deploy release 38
 status: done
 area: platform-operations
+order: 2700
 assignee: codex-root
 profile: chore
 stageEntered:
@@ -27,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-09-02T11:55:45.210Z'
-updated: '2026-09-02T13:37:34.385Z'
+updated: '2026-09-03T09:06:58.504Z'
 ---
 
 ## What

@@ -6,7 +6,7 @@ title: >-
   internal owner
 status: done
 area: platform-operations
-order: 2530
+order: 2560
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-28T10:58:39.368Z'
-updated: '2026-09-02T01:53:35.914Z'
+updated: '2026-09-03T09:06:57.486Z'
 ---
 
 ## What

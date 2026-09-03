@@ -4,7 +4,7 @@ type: ticket
 title: Consolidate intake state around the receipt-to-case link
 status: done
 area: intake-processing
-order: 320
+order: 350
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -25,7 +25,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.901Z'
-updated: '2026-09-01T14:44:31.945Z'
+updated: '2026-09-03T09:06:43.957Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   dependencies
 status: done
 area: delivery-repository
+order: 2670
 assignee: ''
 profile: chore
 stageEntered:
@@ -26,7 +27,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-02T20:31:39.027Z'
-updated: '2026-09-02T20:35:38.382Z'
+updated: '2026-09-03T09:06:58.275Z'
 ---
 
 ## What

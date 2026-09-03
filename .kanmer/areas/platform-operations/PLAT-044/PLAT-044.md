@@ -4,7 +4,7 @@ type: ticket
 title: Stop Assessment opening from repeating Review and content-store work
 status: done
 area: platform-operations
-order: 630
+order: 670
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -32,7 +32,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T08:46:50.919Z'
-updated: '2026-09-01T14:44:32.253Z'
+updated: '2026-09-03T09:06:45.620Z'
 ---
 
 ## What

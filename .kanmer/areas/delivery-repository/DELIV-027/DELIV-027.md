@@ -4,7 +4,7 @@ type: ticket
 title: 'Release 34: live Inbox recovery schedule and release record'
 status: done
 area: delivery-repository
-order: 2260
+order: 2290
 assignee: claude-fable-5
 profile: chore
 stageEntered:
@@ -27,7 +27,7 @@ commits:
 deployment: production
 archived: false
 created: '2026-08-27T08:17:00.253Z'
-updated: '2026-09-01T14:44:33.860Z'
+updated: '2026-09-03T09:06:55.588Z'
 ---
 
 ## Purpose

@@ -4,7 +4,7 @@ type: ticket
 title: Origin reads Approved inbox instead of E-mail
 status: done
 area: platform-operations
-order: 1650
+order: 1690
 assignee: ''
 profile: fix
 stageEntered:
@@ -23,7 +23,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T23:30:28.075Z'
-updated: '2026-09-01T14:44:33.244Z'
+updated: '2026-09-03T09:06:51.532Z'
 ---
 
 ## Why — operator direction (2026-08-22)

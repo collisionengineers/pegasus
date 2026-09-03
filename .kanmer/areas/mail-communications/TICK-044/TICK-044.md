@@ -6,7 +6,7 @@ title: >-
   destination or Needs sorting
 status: done
 area: mail-communications
-order: 1850
+order: 1890
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.669Z'
-updated: '2026-09-01T14:44:33.447Z'
+updated: '2026-09-03T09:06:52.839Z'
 ---
 
 ## What

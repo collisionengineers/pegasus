@@ -6,7 +6,7 @@ title: >-
   registrations, references)
 status: done
 area: intake-processing
-order: 1300
+order: 1340
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T14:55:06.997Z'
-updated: '2026-09-01T14:44:32.887Z'
+updated: '2026-09-03T09:06:49.304Z'
 ---
 
 ## Why

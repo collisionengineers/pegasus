@@ -6,7 +6,7 @@ title: >-
   rails
 status: done
 area: platform-operations
-order: 120
+order: 140
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -21,7 +21,7 @@ links: []
 deployment: n/a
 archived: false
 created: '2026-08-20T14:06:46.148Z'
-updated: '2026-09-01T14:44:31.760Z'
+updated: '2026-09-03T09:06:42.831Z'
 ---
 
 ## Why

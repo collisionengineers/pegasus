@@ -6,7 +6,7 @@ title: >-
   Timeout Expired" (pre-login/post-login) on the Windows runner
 status: done
 area: delivery-repository
-order: 2290
+order: 2320
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -33,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/612'
 archived: false
 created: '2026-08-28T11:16:52.307Z'
-updated: '2026-09-01T14:44:33.887Z'
+updated: '2026-09-03T09:06:55.787Z'
 ---
 
 ## What

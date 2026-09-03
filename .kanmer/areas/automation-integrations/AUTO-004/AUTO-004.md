@@ -4,7 +4,7 @@ type: ticket
 title: Restore Automation Actor parity for Unidentified and Triage
 status: done
 area: automation-integrations
-order: 820
+order: 860
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -34,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T09:27:47.730Z'
-updated: '2026-09-01T14:44:32.445Z'
+updated: '2026-09-03T09:06:46.615Z'
 ---
 
 ## Why

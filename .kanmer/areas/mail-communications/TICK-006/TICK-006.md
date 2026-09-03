@@ -6,7 +6,7 @@ title: >-
   appending the JSONL adjudication log records the human…
 status: done
 area: mail-communications
-order: 650
+order: 690
 assignee: ''
 profile: custom
 requires: {}
@@ -19,7 +19,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.892Z'
-updated: '2026-09-01T14:44:32.276Z'
+updated: '2026-09-03T09:06:45.728Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Add Live UI and Test UI local-development modes
 status: done
 area: ui-improvement
-order: 2190
+order: 2220
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -26,7 +26,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-26T12:09:14.790Z'
-updated: '2026-09-01T14:44:33.799Z'
+updated: '2026-09-03T09:06:55.117Z'
 ---
 
 ## What

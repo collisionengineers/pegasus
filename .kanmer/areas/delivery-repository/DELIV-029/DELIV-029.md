@@ -7,7 +7,7 @@ title: >-
   subscription health
 status: done
 area: delivery-repository
-order: 2280
+order: 2310
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -37,7 +37,7 @@ prs:
   - '#578'
 archived: false
 created: '2026-08-27T19:27:58.771Z'
-updated: '2026-09-01T14:44:33.879Z'
+updated: '2026-09-03T09:06:55.717Z'
 ---
 
 ## Purpose

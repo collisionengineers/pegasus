@@ -4,7 +4,7 @@ type: ticket
 title: 'Inbox: resolve allocated cases on mail tiles and tidy the outcome cell'
 status: done
 area: mail-communications
-order: 1410
+order: 1450
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -23,7 +23,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T19:04:50.916Z'
-updated: '2026-09-01T14:44:32.990Z'
+updated: '2026-09-03T09:06:49.970Z'
 ---
 
 ## Why

@@ -4,7 +4,7 @@ type: ticket
 title: Correct the invalid Inbox recovery NCRONTAB schedule
 status: done
 area: mail-communications
-order: 2400
+order: 2430
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -26,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-26T18:48:47.847Z'
-updated: '2026-09-01T14:44:33.980Z'
+updated: '2026-09-03T09:06:56.549Z'
 ---
 
 ## Problem

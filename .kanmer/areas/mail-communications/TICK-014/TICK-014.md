@@ -4,7 +4,7 @@ type: ticket
 title: MAIL-16 — Automatically match the exact report Sent item to its case
 status: done
 area: mail-communications
-order: 1740
+order: 1780
 assignee: ''
 profile: feature
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.047Z'
-updated: '2026-09-01T14:44:33.338Z'
+updated: '2026-09-03T09:06:52.097Z'
 ---
 
 ## What
