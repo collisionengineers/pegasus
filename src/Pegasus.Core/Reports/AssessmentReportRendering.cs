@@ -5,7 +5,7 @@ namespace Pegasus.Core.Reports;
 
 public static class AssessmentReportContract
 {
-    public const string TemplateVersion = "rendererref1-v1";
+    public const string TemplateVersion = "rendererref1-v2";
     public const string VatNumber = "262 0937 10";
     public const string AccountName = "Collision Engineers Ltd";
     public const string BankName = "Lloyds Bank";
@@ -57,10 +57,52 @@ public sealed record ReportVehicle(
     string VehicleType,
     string Condition,
     string MileageDescription,
-    string MileageSource = "tbc",
-    string? Vin = null,
-    string? Engine = null,
-    string? Fuel = null);
+    string MileageSource,
+    string? Vin,
+    string? Engine,
+    string? Fuel,
+    bool? VinChecked,
+    string? Transmission,
+    string? Colour,
+    string? Body,
+    DateOnly? TaxExpiry,
+    DateOnly? MotExpiry,
+    string? AirbagsDeployed,
+    string? FaultCodes,
+    bool? TemporaryRepairsPossible,
+    string? TemporaryRepairMethod,
+    decimal? TemporaryRepairCost);
+
+public sealed record ReportImpact(string Zone, string Severity, string Note);
+
+public sealed record ReportDamage(
+    IReadOnlyList<ReportImpact> Impacts,
+    string? RightFrontTyre, string? LeftFrontTyre, string? RightRearTyre, string? LeftRearTyre,
+    string? RightFrontBelt, string? LeftFrontBelt, string? RightRearBelt, string? LeftRearBelt,
+    string? SpareTyre, string? CentreBelt,
+    string? Unrelated, decimal? UnrelatedDeduction, string? MaterialTransfer);
+
+public sealed record ReportSettlement(
+    decimal? Excess,
+    decimal? Betterment,
+    bool? ClaimantVatRegistered,
+    decimal? Reserve,
+    decimal Equity,
+    int? RepairDays,
+    string? RepairDelays,
+    string? ReportDelay,
+    decimal? StoragePerDay,
+    decimal? Recovery,
+    DateOnly? HireStart,
+    decimal? HireDailyCost,
+    decimal? Diminution,
+    string? SalvageAt,
+    string? SalvageAgent,
+    string? SalvageAgentReference,
+    bool? SalvageMoved,
+    bool? SalvageOwnerRetains,
+    bool? SalvageValueAgreed,
+    DateOnly? SalvageSettled);
 
 public sealed record ReportImageEvidence(
     string CustodyReference,
@@ -68,10 +110,13 @@ public sealed record ReportImageEvidence(
     byte[] Content,
     string Sha256)
 {
+    public static bool IsAcceptedContentType(string? contentType) =>
+        contentType is "image/jpeg" or "image/png" or "image/webp";
+
     public void Validate()
     {
         AcceptedReportSource.Required(CustodyReference, nameof(CustodyReference));
-        if (ContentType is not ("image/jpeg" or "image/png" or "image/webp") || Content.Length == 0)
+        if (!IsAcceptedContentType(ContentType) || Content.Length == 0)
         {
             throw new ReportRenderRejectedException("Every report image requires accepted image bytes and content type.");
         }
@@ -109,10 +154,26 @@ public sealed record ReportRepairCosts(
     public decimal Total => Subtotal + Vat;
 }
 
-public sealed record ReportEngineer(
-    string Name,
-    string Qualifications,
-    string SignatureKey);
+public sealed record ReportSignatory(
+    string PrintedName,
+    string? Qualifications,
+    byte[] SignatureContent,
+    string SignatureContentType)
+{
+    public bool IsComplete =>
+        !string.IsNullOrWhiteSpace(PrintedName)
+        && SignatureContent is { Length: > 0 }
+        && ReportImageEvidence.IsAcceptedContentType(SignatureContentType);
+
+    public void Validate()
+    {
+        if (!IsComplete)
+        {
+            throw new ReportRenderRejectedException(
+                "The report signatory requires a printed name and accepted signature image.");
+        }
+    }
+}
 
 public sealed record AssessmentReportPresentation(
     string Title,
@@ -120,7 +181,30 @@ public sealed record AssessmentReportPresentation(
     string SettlementHeading,
     string SettlementLabel,
     string SettlementText,
-    decimal? RecommendedSettlement);
+    decimal? RecommendedSettlement)
+{
+    public static string DamageZone(string code) =>
+        Assessment.AssessmentVocabulary.DamageZones.TryGetValue(code, out var item)
+            ? item.Display
+            : throw new ReportRenderRejectedException($"Unsupported damage zone '{code}'.");
+
+    public static string DamageSeverity(string code) =>
+        Assessment.AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var display)
+            ? display.Display
+            : throw new ReportRenderRejectedException($"Unsupported damage severity '{code}'.");
+
+    public static string AssessmentCode(string? code) => code switch
+    {
+        null => "—",
+        "semi_automatic" => "Semi-automatic",
+        "cvt" => "CVT",
+        "ok" => "OK",
+        "repair_kit" => "Repair kit",
+        "not_fitted" => "Not fitted",
+        _ => CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(
+            code.Replace('_', ' ').ToLowerInvariant()),
+    };
+}
 
 public sealed record AssessmentReportSnapshot(
     string OurReference,
@@ -148,40 +232,17 @@ public sealed record AssessmentReportSnapshot(
     IReadOnlyList<string> NewParts,
     IReadOnlyList<string> Repairs,
     IReadOnlyList<string> Operations,
+    ReportDamage Damage,
+    ReportSettlement Settlement,
     string HistoryCheck,
     string? EngineerComments,
-    ReportEngineer Engineer,
+    ReportSignatory Signatory,
     decimal AgreedFee,
     IReadOnlyList<string> FeeDescriptionLines,
     IReadOnlyList<ReportImageEvidence> Photos,
     IReadOnlyList<AcceptedReportSource> Sources,
     string PayloadVersion = AssessmentReportContract.TemplateVersion)
 {
-    private static readonly Dictionary<string, (string Name, string Qualifications)> AcceptedEngineers =
-        new(StringComparer.Ordinal)
-        {
-            ["andy_patterson"] = ("A Patterson", "M.Inst.IAEA"),
-        };
-
-    /// <summary>
-    /// The single lookup against the accepted-signatory list, exposed so a
-    /// caller can report an unrecognized engineer signature as a named
-    /// readiness gap before attempting to build a snapshot, rather than
-    /// duplicating this table (one list per concept).
-    /// </summary>
-    public static bool TryResolveAcceptedEngineer(
-        string signatureKey, out string name, out string qualifications)
-    {
-        if (AcceptedEngineers.TryGetValue(signatureKey, out var accepted))
-        {
-            (name, qualifications) = accepted;
-            return true;
-        }
-        name = string.Empty;
-        qualifications = string.Empty;
-        return false;
-    }
-
     public void Validate()
     {
         AcceptedReportSource.Required(OurReference, nameof(OurReference));
@@ -189,8 +250,11 @@ public sealed record AssessmentReportSnapshot(
         AcceptedReportSource.Required(ClaimantName, nameof(ClaimantName));
         AcceptedReportSource.Required(Vehicle.Registration, nameof(Vehicle.Registration));
         AcceptedReportSource.Required(HistoryCheck, nameof(HistoryCheck));
-        AcceptedReportSource.Required(Engineer.Name, nameof(Engineer.Name));
-        AcceptedReportSource.Required(Engineer.Qualifications, nameof(Engineer.Qualifications));
+        if (Signatory is null)
+        {
+            throw new ReportRenderRejectedException("The report signatory is required.");
+        }
+        Signatory.Validate();
         AcceptedReportSource.Required(PayloadVersion, nameof(PayloadVersion));
         if (ReportFor.Count == 0 || Photos.Count == 0 || Sources.Count == 0)
         {
@@ -233,13 +297,6 @@ public sealed record AssessmentReportSnapshot(
         if (!PayloadVersion.Equals(AssessmentReportContract.TemplateVersion, StringComparison.Ordinal))
         {
             throw new ReportRenderRejectedException($"Unsupported payload version '{PayloadVersion}'.");
-        }
-        if (!AcceptedEngineers.TryGetValue(Engineer.SignatureKey, out var accepted) ||
-            !accepted.Name.Equals(Engineer.Name, StringComparison.Ordinal) ||
-            !accepted.Qualifications.Equals(Engineer.Qualifications, StringComparison.Ordinal))
-        {
-            throw new ReportRenderRejectedException(
-                "Engineer name, qualifications and signature do not match an accepted rendererref1 identity.");
         }
     }
 

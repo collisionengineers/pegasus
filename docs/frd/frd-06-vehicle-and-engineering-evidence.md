@@ -204,9 +204,10 @@ advice, Engineer approval, or product policy merely by existing.
 
 Damage is a list of zones (D39, 2026-09-02): front, left front, right front,
 left side, right side, left rear, right rear, rear, roof, the four wheels,
-underside, interior and mechanical. Each zone carries a severity, a type and
-a note. The record also carries tyres and seat belts per corner, the spare
-tyre, the centre belt, unrelated damage with its deduction, and paint or
+underside, interior and mechanical. Each zone carries a severity and a note;
+collision work has no separate damage type (D45, 2026-09-03). The record also
+carries tyres and seat belts per corner, the spare tyre, the centre belt,
+unrelated damage with its deduction, and paint or
 material transfer. `impact_location` and `impact_severity` are derived from
 the zone list by `Pegasus.Core`, never entered. The report prints the marked
 diagram

@@ -131,16 +131,6 @@ public sealed partial class DetailsModel(
                 data.Completeness.Values.ImagesComplete,
                 "Images incomplete",
                 why);
-            AddRequirement(
-                requirements,
-                data.Completeness.Values.InstructionConfirmedByStaff,
-                "Instructions not staff-reviewed",
-                why);
-            AddRequirement(
-                requirements,
-                data.Completeness.Values.ImagesConfirmedByStaff,
-                "Images not staff-reviewed",
-                why);
             return requirements;
         }
     }
@@ -594,10 +584,6 @@ public sealed partial class DetailsModel(
             "instructionComplete" or "instructionsComplete" =>
                 YesOrNo(data.Completeness.Values.InstructionComplete),
             "imagesComplete" => YesOrNo(data.Completeness.Values.ImagesComplete),
-            "instructionConfirmedByStaff" or "instructionsReviewedByStaff" =>
-                YesOrNo(data.Completeness.Values.InstructionConfirmedByStaff),
-            "imagesConfirmedByStaff" or "imagesReviewedByStaff" =>
-                YesOrNo(data.Completeness.Values.ImagesConfirmedByStaff),
             _ => null
         };
     }
@@ -627,9 +613,6 @@ public sealed partial class DetailsModel(
         // The completeness flags are labelled as the form the editor was looking at labelled them.
         "instructionComplete" or "instructionsComplete" => "Instructions complete",
         "imagesComplete" => "Images complete",
-        "instructionConfirmedByStaff" or "instructionsReviewedByStaff" =>
-            "Instructions staff-reviewed",
-        "imagesConfirmedByStaff" or "imagesReviewedByStaff" => "Images staff-reviewed",
         _ => Humanize(field)
     };
 

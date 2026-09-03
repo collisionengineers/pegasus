@@ -569,14 +569,7 @@ public static class CaseLifecycleRules
             throw new ArgumentOutOfRangeException(nameof(configuration), "The workflow policy version must be positive.");
         }
 
-        RequireText(evidence.EvidenceReference, "Readiness evidence is required.", 200, nameof(evidence));
-        if (!evidence.InstructionsComplete
-            || !evidence.ImagesComplete
-            || configuration.RequireStaffInstructionReviewBeforeEngineerAssignment && !evidence.InstructionsReviewedByStaff
-            || configuration.RequireStaffImageReviewBeforeEngineerAssignment && !evidence.ImagesReviewedByStaff)
-        {
-            throw new InvalidOperationException("The configured instruction/image readiness gates are not satisfied.");
-        }
+        ValidateReviewReadiness(evidence);
     }
 
     private static void ValidateCaseAndVersion(Guid caseId, long expectedVersion)

@@ -7,8 +7,6 @@ namespace Pegasus.Core.Tests.Cases;
 public sealed class CaseDataOperationsTests
 {
     private static readonly CaseWorkflowConfiguration Configuration = new(
-        true,
-        true,
         "test-case-workflow",
         7);
 
@@ -40,13 +38,13 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
-    public void CompletenessPolicyDoesNotTreatUnconfirmedValuesAsDefinitive()
+    public void CompletenessPolicyDependsOnlyOnCompleteInstructionsAndImages()
     {
         var evaluation = CaseCompletenessPolicy.Evaluate(
             new(true, true, false, false),
             Configuration);
 
-        Assert.False(evaluation.SatisfiesPolicy);
+        Assert.True(evaluation.SatisfiesPolicy);
         Assert.Equal("test-case-workflow", evaluation.PolicyKey);
         Assert.Equal(7, evaluation.PolicyVersion);
     }
