@@ -75,12 +75,7 @@ naming; and evidence readers stay unchanged.
 - `docs/frd/frd-02-intake-and-source-identity.md`
 - `docs/capabilities.md`
 - `docs/open-decisions.md`
-- `infra/**`
 - `src/Pegasus.Core/Documents/RequestUploadPolicy.cs`
-- `src/Pegasus.Web/Pages/Uploads/**`
-- `src/Pegasus.Web/Pages/Cases/**`
-- `docs/design/test-ui/**`
-- `corpus/**`
 
 ## Constraints
 
