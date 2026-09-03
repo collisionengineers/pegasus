@@ -51,7 +51,8 @@ public sealed record AssessmentReportProjectionInput(
     IReadOnlyList<ReportImageEvidence> Photos,
     IReadOnlyList<AcceptedReportSource> Sources,
     ReportRepairCosts? Costs,
-    RepairSpecificationVersion? CurrentEstimate = null);
+    RepairSpecificationVersion? CurrentEstimate = null,
+    ReportSignatory? Signatory = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -100,7 +101,8 @@ public static class AssessmentReportProjection
     public static AssessmentReportDraftPreparation Prepare(
         CaseAssessmentProjection assessment,
         ReportRepairCosts? costs,
-        RepairSpecificationVersion? currentEstimate = null)
+        RepairSpecificationVersion? currentEstimate = null,
+        ReportSignatory? signatory = null)
     {
         ArgumentNullException.ThrowIfNull(assessment);
         var reasons = new List<AssessmentReadinessItem>(
@@ -114,21 +116,11 @@ public static class AssessmentReportProjection
             }
         }
 
-        var engineerSignature = Field(assessment, AssessmentVocabulary.EngineerSignature);
-        var engineerName = Field(assessment, AssessmentVocabulary.EngineerName);
-        var engineerQualifications = Field(assessment, AssessmentVocabulary.EngineerQualifications);
-        if (engineerSignature is not null)
-        {
-            var accepted = AssessmentReportSnapshot.TryResolveAcceptedEngineer(
-                    engineerSignature, out var acceptedName, out var acceptedQualifications)
-                && string.Equals(acceptedName, engineerName, StringComparison.Ordinal)
-                && string.Equals(acceptedQualifications, engineerQualifications, StringComparison.Ordinal);
-            Require(
-                accepted,
-                "Accepted engineer signature", "Assessment record",
-                "The recorded engineer name, qualifications and signature do not match an accepted signatory.",
-                "Record the exact accepted engineer name, qualifications and signature.");
-        }
+        Require(
+            signatory?.IsComplete == true,
+            "Sign-off Engineer", "Case sign-off account",
+            "The Case has no complete sign-off Engineer tuple.",
+            "Select an eligible sign-off Engineer with a signature on file.");
 
         // The report's repair cost is the Current estimate's total (EXT-09,
         // FRD-11 § Estimate VAT on the rendered report). Costs handed in
@@ -151,7 +143,7 @@ public static class AssessmentReportProjection
     {
         ArgumentNullException.ThrowIfNull(input);
         var assessment = input.Assessment;
-        var preparation = Prepare(assessment, input.Costs, input.CurrentEstimate);
+        var preparation = Prepare(assessment, input.Costs, input.CurrentEstimate, input.Signatory);
         if (!preparation.CanGenerate)
         {
             return new(null, preparation.Reasons);
@@ -168,11 +160,7 @@ public static class AssessmentReportProjection
         var assessmentMethod = MapAssessmentMethod(assessment.CaseOwned.InspectionMode)
             ?? throw new InvalidDataException(
                 "A Review case is missing its accepted inspection method.");
-        var engineerSignature = Field(assessment, AssessmentVocabulary.EngineerSignature)!;
-        var engineerName = Field(assessment, AssessmentVocabulary.EngineerName)!;
-        var engineerQualifications = Field(
-            assessment,
-            AssessmentVocabulary.EngineerQualifications)!;
+        var signatory = input.Signatory!;
 
         var snapshot = new AssessmentReportSnapshot(
             OurReference: input.OurReference,
@@ -205,7 +193,11 @@ public static class AssessmentReportProjection
                 "specialist_fixed", "specialist_wu"),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
             EngineerComments: Field(assessment, AssessmentVocabulary.EngineersComments),
-            Engineer: new ReportEngineer(engineerName!, engineerQualifications!, engineerSignature!),
+            Signatory: new ReportSignatory(
+                signatory.PrintedName,
+                string.IsNullOrWhiteSpace(signatory.Qualifications) ? null : signatory.Qualifications,
+                signatory.SignatureContent.ToArray(),
+                signatory.SignatureContentType),
             AgreedFee: ParseMoney(Field(assessment, AssessmentVocabulary.AgreedFee)) ?? 0m,
             FeeDescriptionLines: SplitLines(Field(assessment, AssessmentVocabulary.FeeDescriptionLines)),
             Photos: input.Photos,
