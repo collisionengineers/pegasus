@@ -84,9 +84,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "attemptedAtUtc",
         "instructionComplete",
         "imagesComplete",
-        "instructionsComplete",
-        "instructionConfirmedByStaff",
-        "imagesConfirmedByStaff"
+        "instructionsComplete"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -97,9 +95,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     {
         "instructionComplete",
         "imagesComplete",
-        "instructionsComplete",
-        "instructionConfirmedByStaff",
-        "imagesConfirmedByStaff"
+        "instructionsComplete"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>The lease this browser holds on the case being rendered, if it holds one.</summary>

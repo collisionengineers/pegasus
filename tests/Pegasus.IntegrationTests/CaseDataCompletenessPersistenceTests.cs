@@ -23,8 +23,8 @@ public sealed class CaseDataCompletenessPersistenceTests
             CancellationToken.None);
 
         Assert.NotNull(projection);
-        Assert.Equal(CaseLifecycleState.NotReady, projection.State);
-        Assert.False(projection.Completeness.Evaluation.SatisfiesPolicy);
+        Assert.Equal(CaseLifecycleState.Review, projection.State);
+        Assert.True(projection.Completeness.Evaluation.SatisfiesPolicy);
         Assert.Equal(harness.ReceiptId, projection.Origin.IntakeReceiptId);
         Assert.Equal("mailbox-item-immutable-1", projection.Origin.ExternalReceiptToken);
         Assert.Equal(harness.SourceHash, projection.Origin.SourceHash);
@@ -100,7 +100,9 @@ public sealed class CaseDataCompletenessPersistenceTests
     [Fact]
     public async Task ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory()
     {
-        await using var harness = await CaseDataHarness.CreateAsync();
+        await using var harness = await CaseDataHarness.CreateAsync(
+            instructionConfirmedByStaff: true,
+            imagesConfirmedByStaff: true);
         var initial = await harness.GetRequiredDataAsync();
         Assert.Equal(0, initial.Version);
         Assert.Equal(41, await harness.HiddenCaseVersionAsync());
@@ -326,7 +328,9 @@ public sealed class CaseDataCompletenessPersistenceTests
         public static async Task<CaseDataHarness> CreateAsync(
             InspectionAddressStaffDecision addressDecision =
                 InspectionAddressStaffDecision.AcceptSuggestion,
-            string? correctedAddress = null)
+            string? correctedAddress = null,
+            bool instructionConfirmedByStaff = false,
+            bool imagesConfirmedByStaff = false)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             try
@@ -374,7 +378,11 @@ public sealed class CaseDataCompletenessPersistenceTests
                         "Accepted reviewed QDOS case data",
                         CaseType.Inspection,
                         "QDOS",
-                        new(true, true, false, false),
+                        new(
+                            true,
+                            true,
+                            instructionConfirmedByStaff,
+                            imagesConfirmedByStaff),
                         AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
                     CancellationToken.None);
                 await using (var divergenceContext = await factory.CreateDbContextAsync())

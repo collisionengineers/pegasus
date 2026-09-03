@@ -70,9 +70,7 @@ public static class CaseCompletenessPolicy
                 "The current case-workflow policy identity is invalid.");
         }
 
-        var satisfiesPolicy =
-            completeness.InstructionComplete
-            && completeness.ImagesComplete;
+        var satisfiesPolicy = completeness.IsReadyForReview(automaticallyDefinitive);
 
         return new(
             satisfiesPolicy,
