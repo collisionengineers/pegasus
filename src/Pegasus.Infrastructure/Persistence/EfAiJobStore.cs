@@ -22,7 +22,7 @@ public sealed class EfAiJobStore(
     TimeProvider timeProvider) : IAiJobStore, IAiJobQueries
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private const string AggregateType = "ai_job";
+    internal const string AggregateType = "ai_job";
 
     public async Task<AiJobRecord> CreateAsync(NewAiJob job, CancellationToken cancellationToken)
     {
