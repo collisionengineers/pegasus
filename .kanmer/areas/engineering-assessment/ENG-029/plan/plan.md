@@ -76,11 +76,37 @@ assumed from the board documents.
 
 Implementation waits for [[ENG-035]] to merge its vocabulary, migration, Core
 derived figures, and report projection; [[ENG-034]] to merge the Case-section
-shells and moved report entry points; [[PLAT-068]], [[CASE-040]], and
-[[DOCS-017]] to merge the sign-off account, Case field/default, and renderer
-tuple; and an explicit whole-file hand-off of
+shells and moved report entry points; [[PLAT-070]] to merge the D44 removal of
+`RequireStaffImageReviewBeforeEngineerAssignment` / `ImagesReviewedByStaff`
+(it changes `CaseCompleteness`, which
+`tests/Pegasus.IntegrationTests/AssessmentWorkspaceTestData.cs` constructs
+positionally, and the review form fields listed in
+`CaseMutationPageModel.RetainableFormFields`/`BooleanFormFields`);
+[[PLAT-068]], [[CASE-040]], and [[DOCS-017]] to merge the sign-off account,
+Case field/default, and renderer tuple; and an explicit whole-file hand-off of
 `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` from [[CASE-038]] and
 [[CASE-040]].
+
+Two preconditions are hard stops, checked at execution time rather than
+assumed (2026-09-03 review):
+
+- **Every D41 vocabulary constant must exist** on `origin/dev` before Step 3
+  runs: excess, settlement betterment, claimant VAT registered, reserve,
+  repair duration, repair delays, report delay, storage per day, recovery,
+  hire start, daily hire cost, diminution, and salvage logistics, plus the
+  Core-owned derived repair-cost, equity and ratio values. If any is missing
+  after [[ENG-035]] merges, stop and report it as an [[ENG-035]] gap; do not
+  ship a Settlement editor that silently omits operator fields.
+- **Writable states must match D30.** `AssessmentPolicy.IsWritableState`
+  (`AssessmentPolicy.cs:158`) currently allows `NotReady`, `Review` and
+  `ReportPreparation` only, while `AssessmentAccessPolicy.IsReadOnly`
+  (`AssessmentWorkspace.cs:56`) is true only at `PostReportComplete`.
+  Rendering the editor on that gate alone would draw a live form in
+  `PostReport` whose save `EfCaseAssessmentStore.cs:93` refuses.
+  `AssessmentPolicy.cs` is [[ENG-035]]'s file: it must add `PostReport` to
+  `IsWritableState` before ENG-029 starts. If it has not, stop and hand the
+  gap back rather than widening the gate in Web or drawing a form Core
+  refuses.
 
 ENG-029 changes only:
 
@@ -118,8 +144,10 @@ that contract confirms the semantic match.
 The D41 controls for excess, settlement betterment, claimant VAT registered,
 reserve, repair duration, repair delays, report delay, storage per day,
 recovery where newly defined, hire start, daily hire cost, diminution, and
-salvage logistics render only after their [[ENG-035]] vocabulary constants
-exist. No control is rendered as an inert or disabled placeholder.
+salvage logistics all ship in this ticket, bound to [[ENG-035]]'s merged
+vocabulary constants. Their presence is a precondition, not a per-field
+option: a missing constant stops the ticket (see Preconditions). No control is
+rendered as an inert or disabled placeholder.
 
 The existing outcome set already contains Total loss, Repairable, Cash in lieu,
 and Contract repair. Category and salvage value are shown for Total loss,
@@ -141,18 +169,49 @@ sole validation owner.
 
 2. After the explicit whole-file hand-off, inject `ISaveAssessment` into
    `DetailsModel` and add one
-   `OnPostSaveAssessmentAsync` handler. It accepts the Case ID, expected
-   version, operation key, reason, edit-lease token, validated section target,
-   and the posted scalar values; it builds exactly one `SaveAssessmentRequest`
+   `OnPostSaveAssessmentAsync` handler. It accepts the Case ID, operation key,
+   edit-lease token, validated section target, and the posted scalar values;
+   it reads the expected version from the loaded case
+   (`details.Workflow.Version`) and builds exactly one `SaveAssessmentRequest`
    with only the fields submitted by the Settlement or Report form.
 
-   Reuse `CaseMutationPageModel.NewOperationKey`,
-   `ExecuteCaseCommandAsync`, and `HandleLeaseFailure`. Preserve the existing
-   expected-version, actor, operation-key, and edit-lease protections. The
-   handler restores the submitted section after the command result, redirecting
-   to `/Cases/{id}?section=settlement` or `/Cases/{id}?section=report`.
-   A successful `EfCaseAssessmentStore` save clears the shared Case lease, so
-   the PRG reload has no stale token and normal edit-mode acquisition resumes.
+   **Reason is a fixed system string, not an operator control**
+   (2026-09-03 review). `CaseLifecycle.ValidateMutation`
+   (`CaseLifecycle.cs:415-426`) requires a non-empty reason, and the
+   predecessor handler at `36655f26^`
+   (`Pages/Cases/Assessment/Index.cshtml.cs:200`) supplied one constant
+   sentence per operation. ENG-029 does the same: one constant for the
+   Settlement save, one for the Report save. A "why did you change this" field
+   would be operator-facing explanation the design authority forbids, and is
+   not in the mockup.
+
+   **Handler shape.** Reuse the predecessor's explicit shape, not
+   `ExecuteCaseCommandAsync`: that helper always returns
+   `RedirectToDetails(id)` (`CaseMutationPageModel.cs:387,390`), which carries
+   no `section` route value and so cannot honour the section PRG. The handler
+   therefore runs its own `try`/`catch` around
+   `saveAssessment.ExecuteAsync`, reusing `CaseMutationPageModel.TryGetActor`,
+   `IsOperationKeyValid`, `NewOperationKey`, `ClearLeaseState` and
+   `HandleLeaseFailure`, and redirecting to `/Cases/{id}?section=settlement`
+   or `/Cases/{id}?section=report` on every path. The `section` token must be
+   one the Case frame's `DetailsModel.Section` switch accepts (today it maps
+   only overview, vehicle, valuations, inspection-address, case-files and
+   notes) — confirm [[CASE-038]]/[[ENG-034]] added `settlement` and `report`
+   to it before relying on the redirect. No new base-class abstraction is
+   added for one caller.
+
+   **Refused and stale saves surface; they are not silently retained.**
+   Because the handler does not call `ExecuteCaseCommandAsync`, it does not
+   call `RetainProposedValues`; the shared allowlists
+   `CaseMutationPageModel.RetainableFormFields`/`BooleanFormFields` are not
+   ENG-029's files and are not extended (a second copy of the settlement field
+   list there would also duplicate one list per concept). A refused, stale or
+   lease-lost save reports the Core message through the Case page's existing
+   error `TempData` and re-renders from persisted values — surfaced, never
+   swallowed. Preserve the existing expected-version, actor, operation-key and
+   edit-lease protections. A successful `EfCaseAssessmentStore` save clears
+   the shared Case lease, so the PRG reload has no stale token and normal
+   edit-mode acquisition resumes.
 
    Files: `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs`.
 
@@ -162,8 +221,8 @@ sole validation owner.
    by [[CASE-038]], `AssessmentVocabulary`, and `OperatorLabels`.
 
    Settlement shows the four Core outcome options, conditionally shows
-   total-loss category and salvage value, and binds only vocabulary constants
-   available after [[ENG-035]]. It displays repair cost from the Current
+   total-loss category and salvage value, and binds every D41 vocabulary
+   constant [[ENG-035]] merged. It displays repair cost from the Current
    estimate through Core's `EstimateTotals.Compute`; equity and financial
    ratios are displayed only from the Core-owned values exposed by [[ENG-035]].
    Razor and JavaScript perform no financial or readiness calculation.
@@ -176,6 +235,13 @@ sole validation owner.
    outstanding requirement by name, never a completeness percentage. It
    reuses ENG-034's Generate and Preview handlers; report-image readiness and
    the fee-note preview remain absent for [[ENG-031]] and [[DOCS-018]].
+
+   [[ENG-031]]'s `_CaseReportImages.cshtml` mount inside the Report section is
+   preserved exactly as ENG-034 places it, **outside** ENG-029's assessment
+   form, lease gate and `AssessmentIsReadOnly` gate: D46 requires the crop
+   entry point on every Report image card without first pressing Edit Case, so
+   wrapping that partial in this ticket's mutation gating would break it.
+   ENG-029 adds no crop control, curation field or image markup of its own.
 
    Both partials omit mutation forms when `AssessmentIsReadOnly` is true.
    They contain no explanatory copy; state labels continue to come from
@@ -196,9 +262,11 @@ sole validation owner.
    `SaveAssessmentRequest`, preserve version/operation-key/lease inputs,
    PRG to their respective section, and display the saved values through the
    Case-host preview path. Prove the four outcomes and total-loss-only salvage
-   controls, D41 controls only after their constants are available, named
-   readiness without a percentage, read-only omission of mutation forms, and
-   read-only Case sign-off display. Dependency tests, not this suite, prove
+   controls, every D41 control round-tripping, a save permitted in `PostReport`,
+   named readiness without a percentage, read-only omission of mutation forms
+   at `PostReportComplete`, and read-only Case sign-off display. Also prove the
+   exact fixed reason on each request and the success and failure `Location`
+   headers carrying `?section=`. Dependency tests, not this suite, prove
    account filtering and sign-off assignment.
 
    Files: `tests/Pegasus.IntegrationTests/CaseAssessmentEditorsWebTests.cs`.
@@ -213,9 +281,10 @@ sole validation owner.
 
 ## Acceptance checks
 
-- Every supported Settlement and Report field round-trips through
-  `ISaveAssessment` and reaches the Case-host report preview after its owning
-  dependency is merged.
+- Every Settlement and Report field named in D41 and the ticket body
+  round-trips through `ISaveAssessment` and reaches the Case-host report
+  preview; a field whose vocabulary constant is missing stops the ticket
+  rather than being dropped.
 - The report lists each outstanding readiness requirement by name and never
   renders a percentage.
 - Total-loss salvage requirements remain enforced by Core; all four established
@@ -226,18 +295,28 @@ sole validation owner.
 - Sign-off is read from the [[CASE-040]] Case field, with account eligibility
   supplied solely by [[PLAT-068]].
 - Complete cases render these sections read-only with no submitted mutation
-  controls.
+  controls, and a case in `PostReport` can still save (the D30 writable-state
+  reconciliation landed).
+- A refused or stale save surfaces Core's message on the Case page and returns
+  to the posting section; nothing is swallowed.
+- The Report section still offers [[ENG-031]]'s image cards, and their crop
+  entry point, without an edit lease.
 
 ## Commands
 
 ```powershell
 dotnet restore ./Pegasus.slnx --locked-mode
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ./scripts/Update-TestUiSnapshots.ps1
 ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture
 ./scripts/Test-UiCatalogue.ps1
 ```
+
+The delivery gate is the canonical solution command with `Category!=Corpus`
+(CLAUDE.md, Commands; `docs/runbook.md:313`); the Browser category is not
+excluded, because the report-renderer coverage it holds is relevant here.
+Narrower per-project filters may be used while iterating only.
 
 No migration is in scope, so `./scripts/Test-MigrationGrants.ps1` is not run;
 if a migration becomes necessary, stop and hand it to the serialized
@@ -265,10 +344,10 @@ stay with [[UIIMP-014]] — stop for its hand-off rather than adding them.
 - Labels live only in `Presentation/OperatorLabels.cs`; exact Case state
   wording comes from `OperatorLabels.CaseStage`; reuse ENG-034's
   `CaseWorkspace.EngineerSections` keys and add only what the editors need.
-- D7 / D21 and § Absent versus disabled: an excluded or not-yet-available
-  field (a D41 path whose vocabulary constant does not exist) is absent,
-  never drawn disabled; a control disabled by a state gate needs a real
-  handler and a non-empty `data-condition`.
+- D7 / D21 and § Absent versus disabled: an excluded field is absent, never
+  drawn disabled — a D41 path whose vocabulary constant does not exist stops
+  the ticket rather than being drawn inert; a control disabled by a state gate
+  needs a real handler and a non-empty `data-condition`.
 - `docs/engineering.md` § One Core owner: no repair-cost, equity, ratio or
   readiness calculation in Razor or JavaScript; `AssessmentPolicy` is the
   only validation owner.
@@ -279,6 +358,31 @@ stay with [[UIIMP-014]] — stop for its hand-off rather than adding them.
 Open the ENG-029 PR against `dev` with all owned-path tests and required
 verification passing, move the ticket to Review, and do not merge it, write
 proof, or start neighbouring-ticket work.
+
+## Plan review (2026-09-03, gpt-5.6-sol xhigh; dispositions Claude Opus)
+
+Verdict as received: REQUEST CHANGES (8 findings). Every finding was
+re-verified in the read-only `.worktrees/research` checkout at `897db953`
+before disposition; the checkout was clean afterwards.
+
+| # | Severity | Step | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | Preconditions, Vocabulary boundary, Steps 3-4 | The "render only where an ENG-035 constant exists" hedge and the "every *supported* field" acceptance would let a partial Settlement editor ship. | **Fixed** — every D41 constant is now a hard precondition, the hedge is deleted, and the acceptance check names D41 and the ticket body. A missing constant stops the ticket. |
+| 2 | blocker | Preconditions, Steps 3-4 | Verified: `AssessmentPolicy.IsWritableState` (`AssessmentPolicy.cs:158`) allows only `NotReady`/`Review`/`ReportPreparation`, `EfCaseAssessmentStore.cs:93` refuses on it, but `AssessmentAccessPolicy.IsReadOnly` (`AssessmentWorkspace.cs:56`) is true only at `PostReportComplete` — so D30 would draw a live editor in `PostReport` that Core refuses. | **Fixed** — added as a hard precondition owned by [[ENG-035]] (`AssessmentPolicy.cs` is its file); ENG-029 stops rather than widening the gate in Web. Acceptance check and checklist item added. |
+| 3 | blocker | Steps 2, 4 | `ExecuteCaseCommandAsync` calls `RetainProposedValues`, whose `RetainableFormFields` allowlist holds none of the settlement/report inputs, so a refused save would drop typed values. | **Fixed in part; suggestion rejected.** Verified the allowlist contents (`CaseMutationPageModel.cs:47-105`). The plan no longer uses `ExecuteCaseCommandAsync` (see finding 6), so `RetainProposedValues` is never reached. Extending the shared allowlist is rejected: `CaseMutationPageModel.cs` is not an ENG-029 file and a second copy of the settlement field list there duplicates one list per concept. Step 2 now states that a refused, stale or lease-lost save surfaces Core's message through the Case page's error `TempData` and re-renders from persisted values — surfaced, not swallowed (conduct rule 11). |
+| 4 | blocker | Steps 2-4 | Verified: `CaseLifecycle.ValidateMutation` (`CaseLifecycle.cs:420`) requires a non-empty reason, and the plan named a posted reason with no control. | **Fixed; suggestion rejected.** The predecessor handler (`36655f26^`, `Assessment/Index.cshtml.cs:200`) supplied a fixed system sentence. Step 2 now specifies one constant reason per save. Adding an operator-facing reason control is rejected: it is explanatory operator UI the design authority forbids and appears nowhere in the mockup. |
+| 5 | should-fix | Preconditions, Step 4 | [[PLAT-070]] (D44) was missing from the dependency list although it changes `CaseCompleteness`, which `AssessmentWorkspaceTestData.cs:26-28` constructs positionally, and the review fields in `RetainableFormFields`/`BooleanFormFields`. | **Fixed** — [[PLAT-070]] added to Preconditions with the exact reason; the checklist re-greps the post-D44 shapes before writing the new test file. No compatibility overload or fixture preserves the removed flags. |
+| 6 | should-fix | Step 2 | Verified: `ExecuteCaseCommandAsync` always returns `RedirectToDetails(id)` (`CaseMutationPageModel.cs:387,390`), which has no `section` route value, so the promised section PRG was not obtainable from the named helper, and `HandleLeaseFailure` would have been called twice. | **Fixed** — Step 2 now reuses the predecessor's explicit `try`/`catch` shape with `TryGetActor`, `IsOperationKeyValid`, `NewOperationKey`, `ClearLeaseState` and `HandleLeaseFailure`, redirecting with the section on every path, and adds no one-caller abstraction. It also requires confirming that the frame's `DetailsModel.Section` switch accepts `settlement` and `report`. |
+| 7 | should-fix | Step 3 | D46 puts a crop entry point on every Report image card without Edit Case; replacing the `_CaseReport.cshtml` body could remove [[ENG-031]]'s `_CaseReportImages.cshtml` mount or trap it inside this ticket's lease/read-only gate. | **Fixed** — Step 3 preserves the mount outside ENG-029's form, lease and `AssessmentIsReadOnly` gates; an acceptance check and a checklist item cover it. All crop and curation implementation stays with [[ENG-031]]. |
+| 8 | should-fix | Step 5 / Commands | The plan's `Category!=Corpus&Category!=Browser` filter narrowed the canonical delivery gate; CLAUDE.md and `docs/runbook.md:313` require `Category!=Corpus` on the solution. | **Fixed** — the canonical command is restored, with a note that narrower per-project filters are for iteration only. |
+
+Nothing in the plan assumed a staff review flag (D44) or a damage type (D45);
+the reviewer confirmed the file set is disjoint from [[ENG-036]], [[ENG-031]]
+and [[DOCS-018]], adds no package, and carries no ritual step. No finding
+required an operator decision, so no open question was raised. Findings 1, 2,
+5, 7 and 8 were independently confirmed by the wrapper; 3, 4 and 6 were
+confirmed as defects but their suggested remedies were replaced, with reasons,
+above.
 
 ## Simplification pass
 
