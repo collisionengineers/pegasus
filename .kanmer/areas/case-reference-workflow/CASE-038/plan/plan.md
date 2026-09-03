@@ -11,7 +11,10 @@ write. Wrapper-verified inputs fed to the prompt and confirmed in the plan:
 - DELIV-041 (#647) already added the five vocabulary rows (`case-sticky`,
   `section-nav`/`section-link`, `suggest-btn`, `outcome-option`, `derived`)
   at `docs/design/README.md` lines 808–816, so the README row in
-  `files/files.md` is obsolete: CASE-038 makes no governing-doc edit.
+  `files/files.md` is obsolete for those rows. (Plan review, 2026-09-03: one
+  narrow README edit survives — striking `case-section-nav` from the
+  vocabulary row and the 980px reflow row, whose last composer this ticket
+  removes. No governing decision text changes.)
 - The eleven `?section=` keys are fixed by the governing docs (README line
   743, FRD-12): `overview`, `engineer-notes`, `inspection`, `vehicle`,
   `damage`, `valuation`, `estimate`, `settlement`, `report`, `files`,
@@ -19,8 +22,10 @@ write. Wrapper-verified inputs fed to the prompt and confirmed in the plan:
   `inspection-address` and `case-files` keys are deleted, not aliased; the
   test callers are listed by file:line in Step 5.
 - Only `Details.cshtml` and `_CaseWorkspaceNav.cshtml` compose
-  `case-workspace`/`case-section-nav`/`case-context` (`rg -l`), so their CSS
-  is retired in Step 3 (the README's "until no page composes them" clause).
+  `case-workspace`/`case-section-nav`/`case-context` (`rg -l`). (Plan review,
+  2026-09-03: only `case-section-nav` is retired in Step 3 under the README's
+  "until no page composes them" clause; the `case-workspace` grid and the
+  `case-context` column are kept, as the mockup keeps them.)
 - `PageModel.Partial` is available on `net10.0`; `LayoutIntegrityTests` is
   `[Trait("Category", "Browser")]` (and `SqlServer`).
 - The ribbon labels are hard-coded strings today (`Details.cshtml` lines
@@ -114,11 +119,12 @@ decision does not block CASE-038; if the orchestrator overrides to A, the
 handler-transplant step kept in `scratch/notes.md` ("Option A
 contingency") is the step to reinstate.
 
-Diff estimate: 22 files changed: 11 owned frame, test, and snapshot files;
+Diff estimate: 23 files changed: 11 owned frame, test, and snapshot files
+plus the two narrow `docs/design/README.md` lines;
 four new heading-only shell partials (ENG-034 contract item 6); six exact
 mechanical test-consumer retargets and the one-line inspection form-id
-rename as the explicitly declared exceptions below; `catalogue.json` only
-if its Details branch wording changes. No Assessment handler moves (option
+rename as the explicitly declared exceptions below; `catalogue.json`
+unconditionally. No Assessment handler moves (option
 B above). No new project, package, Core port, adapter, registration,
 schema, or migration.
 
@@ -131,8 +137,9 @@ section rendering.
 
 Evidence is pinned to clean detached `897db953` (`git rev-parse HEAD; git
 log -1 --oneline; git status --short`). `rg -n` confirms DELIV-041 already
-added all five component-vocabulary rows, so this ticket makes no
-`docs/design/README.md` change.
+added all five component-vocabulary rows, so the only `docs/design/README.md`
+change this ticket makes is striking `case-section-nav` from two lines whose
+last composer it removes.
 
 ## Governing docs
 
@@ -146,8 +153,9 @@ added all five component-vocabulary rows, so this ticket makes no
   'case edit authority|edit authority and recovery|one edit|lease'
   docs/frd/frd-01-case-identity-and-lifecycle.md`.
 - **Design authority:** Reuse `case-sticky`, `section-nav`, and the eleven
-  fixed keys already recorded in `docs/design/README.md`; do not alter its
-  governing text or component vocabulary.
+  fixed keys already recorded in `docs/design/README.md`; alter no governing
+  text and no component-vocabulary row other than striking the retired
+  `case-section-nav` from row 810 and reflow row 436.
 
 ## Starting state and resolved decisions
 
@@ -157,9 +165,16 @@ added all five component-vocabulary rows, so this ticket makes no
   `report`, `files`, and `notes`; unknown and deleted old keys select
   Overview. There are no aliases.
 - The first GET renders Overview, Engineer notes, and Inspection, plus an
-  addressed later host. Thus `?section=estimate` has
+  addressed later host. **When the viewer holds the edit lease, every section
+  renders server-side and no lazy placeholder is emitted** — the mockup's own
+  rule (`20-case.js` line 48: `i < 3 || rendered || editing`). One condition
+  removes the entire lazy-mount-versus-unsaved-edit hazard for the only state
+  in which unsaved input can exist. Thus `?section=estimate` has
   `#section-estimate` and works over plain HTTP; client script only scrolls.
-- `OperatorLabels.CaseWorkspace` becomes the one ordered key/label source.
+- `OperatorLabels.CaseWorkspace` becomes the one ordered section descriptor
+  source, carrying `Key`, `Label` **and `Icon`** — the exact tuple
+  `_CaseWorkspaceNav.cshtml` lines 10–18 defines inline today — so the icon
+  mapping cannot survive as a second section list.
   `DetailsModel`, `_CaseWorkspaceNav`, Razor hosts, and script data attributes
   consume it; JavaScript keeps no duplicate section list.
 - Existing partials are reused directly: `_CaseWorkflow` and `_CaseSummary`
@@ -178,10 +193,17 @@ added all five component-vocabulary rows, so this ticket makes no
   `DetailsModel.OnGetSectionAsync` without restructuring the sticky frame,
   nav, or host identifiers.
 - `OnGetSectionAsync` is the first Razor fragment endpoint. It calls the same
-  authorized case-load and `RestoreLeaseState` path as `OnGetAsync`, loads
-  only the requested section projection, and returns
+  authorized case-load and `RestoreLeaseState` path as `OnGetAsync` and returns
   `PageModel.Partial(viewName, model)` for an implemented body. A heading-only
-  current seam returns no body. `PageModel.Partial` is present in the installed
+  current seam returns no body. **`IGetCase` is an eager aggregate** — it
+  composes case data, vehicle evidence, custody, chaser, tasks and staff names
+  (`CaseQueries.cs` 320–338) over a store that also loads documents, upload
+  links, report-sent evidence and history (`EfCaseQueryStore.cs` 156). What is
+  lazy here is body *rendering* plus the section-specific supplemental queries
+  the full GET already defers: today that is exactly `ImagesByIntake`, built
+  per intake through `IImageIntakeQueries.ListImagesAsync` beside
+  `ICaseEvidenceImageQueries` (`Details.cshtml.cs` 213–224). No new or widened
+  Core query contract is introduced to make the aggregate lazier. `PageModel.Partial` is present in the installed
   `Microsoft.AspNetCore.App.Ref` net10.0 reference pack; the Web project
   targets `net10.0`.
 - `CanOpenAssessment` and Open Assessment are removed from this page. Section
@@ -192,13 +214,22 @@ added all five component-vocabulary rows, so this ticket makes no
 - The sticky Save remains bound to the Overview
   `_CaseWorkflow` form, the sole `id="case-edit-form"` and
   `data-edit-save` form. The fragment initializer must register every
-  lease-carrying form with the dirty guard, while Ctrl+S submits the currently
-  dirty Case form rather than the document's first matching form. This retains
+  lease-carrying form with the dirty guard, while the existing Ctrl+S handler
+  (`site.js` 1447–1474: `event.ctrlKey || event.metaKey` →
+  `document.querySelector('[data-edit-save]')`) is narrowed to submit the
+  currently dirty Case form rather than the document's first matching form. This retains
   one edit mode and one lease without pretending independent posts are one
   HTML form.
-- The absent Sign-off value reuses the ribbon's ordinary `"Not recorded"`
-  value rendering; CASE-038 adds only the label and slot, not data or a
-  default.
+- The absent Sign-off value reuses the ribbon's ordinary absent-value
+  rendering; CASE-038 adds only the label and slot, not data or a default.
+  `"Not recorded"` is an inline literal in `Details.cshtml` today (two
+  occurrences), not an `OperatorLabels` member, so Step 2 adds one
+  absent-value member to `OperatorLabels.CaseWorkspace` and points the ribbon
+  values it touches at it. The frame labels that move to `OperatorLabels` are
+  exactly: the eleven section labels, the ribbon labels the frame itself
+  renders (Case/PO, Registration, Claimant, Principal, State, Engineer,
+  Sign-off) and that absent-value member. Labels inside a partial another lane
+  owns are not touched.
 
 ## Expected files
 
@@ -217,8 +248,15 @@ added all five component-vocabulary rows, so this ticket makes no
 - `tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs`
 - `docs/design/test-ui/pages/case-details--default.html`
 - `docs/design/test-ui/pages/case-details--conflict.html`
-- `docs/design/test-ui/catalogue.json`, only when the Details branch text
-  still describes the replaced side-nav/context frame.
+- `docs/design/test-ui/catalogue.json` — unconditional: the Details `default`
+  branch text reads "section nav, context column" (`catalogue.json` line 331)
+  and the side nav is gone.
+- `docs/design/README.md` — the narrow removal of `case-section-nav` from the
+  component-vocabulary row (line 810) and from the 980px reflow row (line
+  436), because CASE-038 removes its last composer. `case-context` keeps both
+  its row and its 1360px reflow row (line 432); no other README line, and no
+  governing decision text, changes. DELIV-041 (#647) has merged, so the
+  capacity-one governing-doc lock is free.
 - Explicit mechanical-consumer exception:
   `CaseVehicleWebTests.cs`, `CaseTasksWebTests.cs`,
   `CaseCustodyWebTests.cs`, `ImageIntakeWebTests.cs`,
@@ -227,12 +265,30 @@ added all five component-vocabulary rows, so this ticket makes no
   `src/Pegasus.Web/Pages/Cases/Shared/_CaseInspectionAddress.cshtml` — the
   form `id`/`data-edit-save` rename and its comment only.
 
-Do not modify `docs/design/README.md`, `AccessibilityTests.cs`, any
-`Pages/Cases/Assessment/**` file, any other line of
+Do not modify `AccessibilityTests.cs`, any `docs/design/README.md` line other
+than the two named above, any `Pages/Cases/Assessment/**` file, any other line of
 `_CaseInspectionAddress.cshtml`, Core, Infrastructure, migrations, or Test
 UI files other than the three listed paths.
 
 ## Dependencies on other lanes
+
+- **PLAT-070 — merged prerequisite (D44, D45).** PLAT-070 blocks CASE-038 and
+  merges first. It deletes the staff-review function
+  (`RequireStaffImageReviewBeforeEngineerAssignment`, `ImagesReviewedByStaff`,
+  the two `instructionConfirmedByStaff`/`imagesConfirmedByStaff` checkboxes at
+  `_CaseWorkflow.cshtml` lines 139–140, their hidden fields in
+  `_ReadinessHiddenFields.cshtml`, the `Details.cshtml.cs` handler parameters
+  (lines 334–353) and blocker labels (lines 597–632), and the Administration
+  review panel) and records D44 and D45 in FRD-01, FRD-06, FRD-12 and
+  `docs/design/README.md`. CASE-038 reuses the **post-PLAT-070**
+  `_CaseWorkflow` and `Details.cshtml.cs`; it neither performs nor
+  re-introduces that removal, and it reads D44 and D45 (a damage zone records
+  zone, severity and note only) from the reconciled governing documents rather
+  than the pre-PLAT-070 wording still at `frd-12-operator-experience.md` line
+  269. Before Step 1, confirm on the branch that `git grep -i
+  "ReviewedByStaff\|RequireStaffImageReview\|staff-reviewed"` returns
+  nothing; if it does not, PLAT-070 has not merged — stop and report rather
+  than absorbing its scope (rule 2).
 
 - **CASE-041 — inspection form identity (wrapper-settled, see the wrapper
   section above).** CASE-038 blocks CASE-041, so CASE-041 cannot deliver a
@@ -271,16 +327,29 @@ UI files other than the three listed paths.
   separate from Notes history and has no placeholder controls before its
   partial exists."
 
-- **CASE-029 — Valuation contract.**
+- **CASE-029 — Valuation and Vehicle contract.**
   "Render the Valuation body only into `#section-valuation`; retain its fixed
   host and D30 position. CASE-038 ships its heading only and creates no
-  valuation data, migration, or partial."
+  valuation data, migration, or partial. CASE-029 also owns D34
+  (`docs/capabilities.md` EXT-01): CASE-038 re-hosts today's `_CaseVehicle`
+  body — two lookup controls, checks panel and results table
+  (`_CaseVehicle.cshtml` 54 onward) — unchanged as a frame placement, not as
+  an endorsement; collapsing them to one 'Look up DVLA & MOT' action with
+  per-field `suggest-btn` chips and no checks panel or suggestion table is
+  CASE-029's."
 
-- **CASE-040 — Sign-off contract.**
-  "CASE-038 supplies only the Sign-off Engineer ribbon label and ordinary
-  absent-value slot. CASE-040 supplies Case data, eligible-account query,
-  default rule, and EVA dialog behaviour; it must not duplicate the frame
-  label or change CASE-038 action-bar scope."
+- **CASE-040 — Sign-off and Send to EVA contract.**
+  "CASE-038 supplies only the Sign-off Engineer ribbon label and the ordinary
+  absent-value slot, and re-hosts today's EVA action unchanged
+  (`Details.cshtml` 247–253: offered in Review only, relabelled 'Download EVA
+  package' after a first export). CASE-040 supplies the Case data,
+  eligible-account query and default rule, and owns D36
+  (`docs/capabilities.md` CASE-30): it **is** the lane that changes that
+  action — Send to EVA offered in Review and again in With Engineer as a
+  re-send, one fixed label, the dialog carrying Engineer, Sign-off Engineer
+  and Download ZIP / Send via API, and 'Download EVA package' retired. It must
+  not duplicate the frame's Sign-off ribbon label or restructure the sticky
+  frame."
 
 - **UIIMP-014 — Test UI contract.**
   "CASE-038 owns regenerated default and conflict snapshots for the frame,
@@ -299,8 +368,10 @@ UI files other than the three listed paths.
 - **Files:** `Details.cshtml.cs`, `OperatorLabels.cs`,
   `_CaseWorkspaceNav.cshtml`.
 - **Reuse:** `DetailsModel.OnGetAsync`, `CaseMutationPageModel` lease helpers,
-  `IGetCase`, `IGetAssessmentAccess` (already injected, `Details.cshtml.cs`
-  24), and the existing accessible nav markup; `IGetAssessmentWorkspace` is
+  `IGetCase` (the eager aggregate — see above), `IGetAssessmentAccess`
+  (already injected, `Details.cshtml.cs` 24), `IImageIntakeQueries` and
+  `ICaseEvidenceImageQueries` (the Files section's own supplemental loads,
+  `Details.cshtml.cs` 213–224), and the existing accessible nav markup; `IGetAssessmentWorkspace` is
   not added — the projection arrives with ENG-034 (option B).
 - **Change:** Replace `SectionFilter` alternatives with the eleven canonical
   keys from the single `OperatorLabels.CaseWorkspace` ordered definition.
@@ -308,8 +379,9 @@ UI files other than the three listed paths.
   `CanOpenAssessment` with `AssessmentIsReadOnly` (`= access.IsReadOnly`)
   on the existing `IGetAssessmentAccess` load and remove its visibility
   use. Add `OnGetSectionAsync`
-  using the common authorized load, lease restoration, and section-specific
-  projection loading; return only the requested partial body.
+  using the common authorized load, lease restoration, and the same
+  section-specific supplemental loads the full GET performs (Files:
+  `ImagesByIntake`); return only the requested partial body.
 - **Preserve:** Unknown keys select Overview; missing/unauthorized cases keep
   the full GET's NotFound/Forbid behaviour; fragment requests never replace
   the record frame or another section.
@@ -326,9 +398,17 @@ UI files other than the three listed paths.
   `_CaseWorkflow`, `_CaseSummary`, `_CaseInspectionAddress`, `_CaseVehicle`,
   `_CaseFiles`, and `_CaseHistory`; the `@model DetailsModel` partial
   convention of `_CaseVehicle.cshtml` for the four shells.
-- **Change:** Replace the workspace grid with `case-sticky` and `section-nav`;
-  render eleven ordered `section-<key>` hosts. Render the first three plus an
-  addressed later body server-side; make later bodies named lazy placeholders.
+- **Change:** Lift the identity ribbon, action bar, edit bar and jump-nav into
+  one `case-sticky` block and replace the `case-section-nav` side rail with the
+  horizontal `section-nav`; render eleven ordered `section-<key>` hosts inside
+  the existing `case-main`. **The `case-workspace` grid and the `case-context`
+  column are kept**: the mockup composes `case-workspace` → `case-main` +
+  `caseContext(c)` in the scroll layout too (`20-case.js` lines 61–63), the
+  Current position card is the only surface showing Version, Due and Edit
+  authority, and the catalogue's Details `default` branch names the context
+  column. Render the first three plus an addressed later body server-side and
+  make later bodies named lazy placeholders — except while the viewer holds
+  the edit lease, when every body renders and no placeholder is emitted.
   Keep heading-only host slots for unimplemented lane-owned bodies:
   compose `<partial name="Cases/Shared/_CaseDamage" model="Model" />` (and
   Estimate, Settlement, Report) from four new shells that render one
@@ -356,14 +436,28 @@ UI files other than the three listed paths.
   `section-nav`, host `scroll-margin-top`, and responsive behaviour at the
   existing 1580/1100/760 proof widths. Add a Case-only idempotent initializer
   that fetches one named fragment as it approaches the viewport, replaces only
-  its matching placeholder, restores enhancements and dirty-form binding, and
-  performs query-target scrolling and scroll-spy `aria-current` updates.
+  its matching placeholder, and performs query-target scrolling and scroll-spy
+  `aria-current` updates. "Restoring enhancements" is not automatic: the dialog
+  openers (`site.js` 981, `document.querySelectorAll('[data-dialog-open=…]')`),
+  the evidence-viewer triggers (`site.js` 1175, `[data-evidence-item]`) and the
+  CASE-007 dirty guard (`site.js` 568) each enumerate the document once at
+  load, so a lazily mounted `_CaseFiles` body would carry no working image
+  viewer. Make those three binders root-scoped and idempotent (`bind(root)`,
+  called with `document` at load and with each mounted fragment) rather than
+  adding a fourth copy of the binding logic. That is also the seam a later crop
+  tool needs — D46 puts crop in the Files viewer without pressing Edit Case;
+  ENG-031 owns the tool and the lease its save starts.
 - **Preserve:** Unsaved inputs, lease token, heartbeat, and dialogs in
   already-rendered sections. A failed fragment remains observable and
   retryable; no concurrent response is silently discarded.
-- **Retire:** `case-workspace`, `case-section-nav`, and `case-context`,
-  including their stale sticky offsets and breakpoint selectors. `rg` finds
-  they are composed only by the current Case page.
+- **Retire:** `case-section-nav` only — its rules, its `top: 61px` sticky
+  offset and its 980px horizontal-scroller selector. `case-workspace` and
+  `case-context` stay; the context column's sticky offset is re-based on the
+  measured `--sticky-h`, as `30-record.css` does. `rg -l
+  'case-workspace|case-context|case-section-nav'` finds only
+  `Details.cshtml`, `_CaseWorkspaceNav.cshtml` and `site.css`, so retiring
+  `case-section-nav` removes its last composer and makes its two
+  `docs/design/README.md` mentions stale — corrected in Step 6.
 - **Done when:** Scroll-spy follows all hosts, `?section=estimate` lands at
   its host, and mounting a lazy section does not replace an edited Overview
   form or its lease.
@@ -372,8 +466,13 @@ UI files other than the three listed paths.
 
 - **Files:** `CaseDetailsWebTests.cs`, `Browser/LayoutIntegrityTests.cs`.
 - **Reuse:** Existing Case stores, antiforgery and lease helpers,
-  `BrowserTestSupport`, `AllowedClipSelector`, three-width theory, and the
-  seeded Case pattern in `OperatorJourneyTests`.
+  `BrowserTestSupport`, `AllowedClipSelector` and the three-width theory.
+  `OperatorJourneyTests.SeedCustodyRecoveryCaseAsync` (line 315) is
+  `private static` and cannot be called from `LayoutIntegrityTests`, so the
+  scenario adds a minimal seeded-Case helper local to `LayoutIntegrityTests`,
+  modelled on it. `site.js` has no existing fragment or IntersectionObserver
+  helper, which is why Step 3 adds a small Case-only initializer instead of
+  extending one.
 - **Change:** Replace exclusive-panel and Open Assessment assertions with
   canonical-key, eleven-host, addressed-server-render, fragment-boundary, and
   lease-survival assertions. Add a dedicated seeded Case scenario at
@@ -406,13 +505,16 @@ UI files other than the three listed paths.
 
 ### Step 6 — Regenerate visual artifacts, simplify, and prepare review
 
-- **Files:** The two owned Case Details snapshots and conditionally
-  `catalogue.json`.
+- **Files:** The two owned Case Details snapshots, `catalogue.json`, and the
+  two narrow `docs/design/README.md` lines.
 - **Reuse:** `Update-TestUiSnapshots.ps1`, its browser cap, and the existing
   visual catalogue entry.
 - **Change:** Regenerate default and conflict. Confirm unavailable is
-  byte-identical. Update only the existing default/conflict Details branch
-  text if it still calls the replaced structure a side-nav/context layout.
+  byte-identical. Correct the Details `default` branch text (line 331) so it
+  names the sticky frame and jump-nav rather than a side nav, keeping the
+  context column it still describes. Drop `case-section-nav` from the README
+  vocabulary row (810) and the 980px reflow row (436); change nothing else
+  there.
 - **Done when:** Snapshot verification and catalogue validation pass; the
   executor records simplification findings and dispositions, opens the PR,
   and moves CASE-038 to Review.
@@ -435,11 +537,21 @@ The snapshot script uses the same browser cap.
 - `?section=estimate` renders Overview, Engineer notes, Inspection, and
   Estimate on the initial HTTP response, then scrolls to `#section-estimate`.
 - Lazy requests use the authorized Details path, retain the same valid lease,
-  load only their requested projection, and replace only their placeholder.
+  run the same eager `IGetCase` load plus only the requested section's
+  supplemental query, and replace only their placeholder.
 - Overview and Inspection never produce duplicate `case-edit-form` IDs.
 - The page has no Open Assessment action or `CanOpenAssessment` visibility
   condition; Complete is the Engineer-body read-only boundary.
-- Labels are defined only in `Presentation/OperatorLabels.cs`; exact state
+- No staff-review flag, checkbox, hidden field, blocker or history line
+  survives anywhere the frame renders (D44): `git grep -i
+  "ReviewedByStaff\|RequireStaffImageReview\|staff-reviewed"` is empty on the
+  branch, inherited from merged PLAT-070 and not re-introduced.
+- While the viewer holds the edit lease the response carries eleven rendered
+  bodies and no `data-lazy` placeholder; a lazily mounted Files body opens its
+  evidence viewer and its dialogs.
+- Labels the frame introduces or moves are defined only in
+  `Presentation/OperatorLabels.cs` — one ordered `Key`/`Label`/`Icon`
+  descriptor, no second section list in Razor, CSS or JavaScript; exact state
   labels, absent values, and existing disabled seams remain distinct.
 - No explanatory copy, layout switch, Core/Infrastructure change, migration,
   or corpus-derived test data is introduced.
@@ -470,6 +582,28 @@ path, a new port/schema/registration is needed, an unowned file is required
 beyond the declared exceptions, or any verification command fails. Do not
 add aliases, fallbacks, placeholder controls, or a parallel Assessment
 handler path to bypass a failure.
+
+## Plan review (2026-09-03, gpt-5.6-sol xhigh; dispositions Claude Opus)
+
+Read independently at clean detached `897db953`; the research worktree was
+`git status --porcelain`-clean afterwards. Verdict: REQUEST CHANGES, nine
+findings. One Claude finding (10) was added on the same read. Every
+disposition below was checked against the checkout, not argued.
+
+| # | Sev | Step | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | 1–2 | Reusing `_CaseWorkflow` preserves the D44 staff-review surface: checkboxes at `_CaseWorkflow.cshtml` 139–140, handler parameters `Details.cshtml.cs` 334–353, blocker labels 597–632, `_ReadinessHiddenFields.cshtml`, and `CaseDetailsWebTests.cs:838` still posting both flags. | **Fixed, by dependency, not by absorption.** Confirmed all five sites exist. PLAT-070 (wave 1, `blocks: CASE-038`) owns exactly this deletion plus the FRD-01/06/12 and README reconciliation; taking it here would breach rules 1–2. Added a PLAT-070 prerequisite entry with a pre-Step-1 `git grep` gate and stop-and-report rule, and a D44 acceptance check. |
+| 2 | blocker | 1 | "Loads only the requested section projection" is false: `IGetCase` is an eager aggregate (`CaseQueries.cs` 320–338, `EfCaseQueryStore.cs` 156); the real per-section loads are `IImageIntakeQueries`/`ICaseEvidenceImageQueries`, unnamed in the plan. | **Fixed.** Verified both. Reworded to lazy *body rendering* plus the supplemental loads the full GET already defers (today only `ImagesByIntake`); both ports named in Step 1's reuse list; the acceptance check rewritten. No Core contract widened. |
+| 3 | should-fix | contracts | D34 (Vehicle: one lookup, chips, no checks panel) and D36 (Send to EVA in Review and With Engineer, fixed label) are not honoured by the re-hosted markup, and the CASE-040 contract forbade changing the action bar although `capabilities.md` allocates D36 to CASE-040. | **Fixed.** Verified `_CaseVehicle.cshtml:54`, `Details.cshtml:247–253`, and the D34→CASE-029 / D36→CASE-040 allocations in `capabilities.md`. CASE-029's contract now carries D34; CASE-040's now explicitly *requires* the D36 action change and only forbids duplicating the ribbon label or restructuring the frame. |
+| 4 | should-fix | 3 | "Restores enhancements" is hand-waving: dialog openers (`site.js` 981) and evidence-viewer triggers (`site.js` 1175) enumerate the document once at load, so a lazily mounted Files body has no image viewer. | **Fixed.** Verified both. Step 3 now names the three binders (dialogs, evidence viewer, CASE-007 dirty guard) and requires one root-scoped idempotent `bind(root)` rather than a fourth copy, and records it as the D46 crop seam that ENG-031 later uses. Acceptance check added. |
+| 5 | should-fix | 3, 6 | Retiring the trio makes `docs/design/README.md` 432/436/810 stale, and the catalogue's Details `default` branch literally says "section nav, context column" (line 331), so the update is not conditional. | **Fixed, with a narrower cause.** Verified the README lines and `catalogue.json:331`; `rg -l` confirms only the Case page composes the trio. See finding 10: only `case-section-nav` is retired, so the README edit shrinks to two lines (810, 436) and `case-context` keeps row 432. The catalogue edit is now unconditional and the README is in Expected files. |
+| 6 | should-fix | governing docs | FRD-12 line 269 still requires damage "severity, type and note", contradicting D45. | **Rejected as CASE-038 scope; covered.** Verified line 269. PLAT-070's brief already lists FRD-01, FRD-06, FRD-12 and the design README for D44/D45. Recorded in the PLAT-070 dependency entry that CASE-038 reads the reconciled text. CASE-038 introduces no damage type: its Damage host is a heading-only shell. |
+| 7 | should-fix | 1–2 | The canonical descriptor named only key and label, leaving the icon (a third element of today's `_CaseWorkspaceNav` tuple) to become a second section list; and `"Not recorded"` is an inline literal, not an `OperatorLabels` member. | **Fixed.** Verified `_CaseWorkspaceNav.cshtml` 10–18 and the two `Details.cshtml` literals. The descriptor now carries `Key`/`Label`/`Icon`; an absent-value member is added to `OperatorLabels.CaseWorkspace`; the exact set of labels that move is enumerated so the claim is bounded. |
+| 8 | should-fix | 3–4 | (a) No Ctrl+S behaviour exists, so adding it is an unrequested feature. (b) `OperatorJourneyTests`' seeded-case helper is `private static` and not reusable. | **(a) Rejected — the claim is false.** `site.js` 1447–1474 already implements Ctrl+S over `[data-edit-save]`; the research recorded it. The plan narrows an existing handler, and now says so with the line reference. **(b) Fixed:** verified `OperatorJourneyTests.cs:315` is `private static`; Step 4 now adds a minimal local helper and states no fragment/observer helper exists to extend. |
+| 9 | should-fix | expected files | Several planned files sit outside the approximate owned-path list and "declared exceptions" inside the plan do not update ownership. | **Rejected, with one part accepted.** The ticket documents *are* the ownership record here: `files/files.md` and the plan already list every exception by path and line, and wave 2 has no other lane, so nothing collides. The `_CaseInspectionAddress` exception stays limited to the id, attribute and comment lines, as written. Escalating the roster is an orchestrator act, not a plan edit. |
+| 10 | should-fix (Claude) | 2–3 | The plan retired `case-workspace` and `case-context`, silently deleting the Current position card — the only surface showing Version, Due and Edit authority — although the mockup composes `case-workspace` → `case-main` + `caseContext(c)` in the scroll layout too (`20-case.js` 61–63) and the catalogue names the context column. The mockup also renders every section eagerly while editing (`20-case.js` 48). | **Fixed.** Both adopted: the grid and context column are kept (only `case-section-nav` retires, re-basing the context offset on `--sticky-h` as `30-record.css` does), and a held edit lease renders all eleven bodies with no placeholder — one condition that removes the lazy-mount-versus-unsaved-edit hazard outright. |
+
+No finding required an operator decision; the open-questions set stays empty.
 
 ## Simplification pass — dated by executor before PR
 
