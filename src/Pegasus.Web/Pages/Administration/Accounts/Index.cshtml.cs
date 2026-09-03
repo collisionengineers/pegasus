@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Mcp;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Accounts;
 
@@ -31,7 +32,8 @@ public sealed class IndexModel(
     ICreateStaffAccount createStaffAccount,
     IAssignStaffRoles assignStaffRoles,
     IDisableStaffAccount disableStaffAccount,
-    IReviewStaffAccess reviewStaffAccess) : AdministrationPageModel
+    IReviewStaffAccess reviewStaffAccess,
+    IUpdateStaffAccountSignOff updateStaffAccountSignOff) : AdministrationPageModel
 {
     /// <summary>One row per staff account, in the Core query's order.</summary>
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
@@ -65,6 +67,18 @@ public sealed class IndexModel(
 
     /// <summary>The reason submitted by the most recent disable or review post.</summary>
     public string AccountActionReason { get; private set; } = string.Empty;
+
+    public Guid SignOffPostStaffId { get; private set; }
+
+    public bool SignOffPostIsEnabled { get; private set; }
+
+    public string SignOffPostPrintedName { get; private set; } = string.Empty;
+
+    public string SignOffPostQualifications { get; private set; } = string.Empty;
+
+    public bool SignOffPostIsDefault { get; private set; }
+
+    public string SignOffPostReason { get; private set; } = string.Empty;
 
     public Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         RunAsync(_ => Task.FromResult<string?>(null), cancellationToken);
@@ -191,6 +205,80 @@ public sealed class IndexModel(
             cancellationToken);
     }
 
+    public Task<IActionResult> OnPostSignOffAsync(
+        Guid staffId,
+        bool isSignOffEngineer,
+        string? printedName,
+        string? qualifications,
+        bool isDefault,
+        IFormFile? signature,
+        string? reason,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        SignOffPostStaffId = staffId;
+        SignOffPostIsEnabled = isSignOffEngineer;
+        SignOffPostPrintedName = printedName ?? string.Empty;
+        SignOffPostQualifications = qualifications ?? string.Empty;
+        SignOffPostIsDefault = isDefault;
+        SignOffPostReason = reason ?? string.Empty;
+        return RunAsync(
+            async actor =>
+            {
+                var valid = Validate(operationKey, reason) & RequireStaffId(staffId);
+                if (isSignOffEngineer
+                    && !Require(
+                        printedName,
+                        OperatorLabels.StaffAccounts.PrintedNameRequired))
+                {
+                    valid = false;
+                }
+
+                byte[]? signatureBytes = null;
+                if (signature is not null)
+                {
+                    if (!string.Equals(
+                            signature.ContentType,
+                            SignOffSignaturePolicy.MediaType,
+                            StringComparison.OrdinalIgnoreCase)
+                        || signature.Length <= 0
+                        || signature.Length > SignOffSignaturePolicy.MaximumBytes)
+                    {
+                        ModelState.AddModelError(
+                            string.Empty,
+                            OperatorLabels.StaffAccounts.SignatureInvalid);
+                        valid = false;
+                    }
+                    else
+                    {
+                        await using var content = new MemoryStream((int)signature.Length);
+                        await signature.CopyToAsync(content, cancellationToken);
+                        signatureBytes = content.ToArray();
+                    }
+                }
+
+                if (!valid)
+                {
+                    return null;
+                }
+
+                await updateStaffAccountSignOff.ExecuteAsync(
+                    new(
+                        actor,
+                        staffId,
+                        isSignOffEngineer,
+                        printedName,
+                        qualifications,
+                        signatureBytes,
+                        isDefault,
+                        reason!,
+                        operationKey!),
+                    cancellationToken);
+                return OperatorLabels.StaffAccounts.SignOffUpdated;
+            },
+            cancellationToken);
+    }
+
     public bool IsRoleSelected(StaffAccountRow row, StaffRole role)
     {
         ArgumentNullException.ThrowIfNull(row);
@@ -296,6 +384,12 @@ public sealed class IndexModel(
             "An account cannot disable or review itself.",
         StaffAccountAdministrationError.OperationConflict =>
             "The form was already used for a different operation. Retry from the current page.",
+        StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole =>
+            OperatorLabels.StaffAccounts.EngineerRoleRequired,
+        StaffAccountAdministrationError.SignOffPrintedNameRequired =>
+            OperatorLabels.StaffAccounts.PrintedNameRequired,
+        StaffAccountAdministrationError.IneligibleSignOffEngineer =>
+            OperatorLabels.StaffAccounts.DefaultRequiresEligible,
         _ => "The change was not accepted."
     };
 

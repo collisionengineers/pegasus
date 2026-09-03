@@ -896,6 +896,15 @@ public sealed class RetainedMailTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 
     private sealed class FixedStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
@@ -910,5 +919,14 @@ public sealed class RetainedMailTests
             Task.FromResult(id == staffId
                 ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.User], null)
                 : null);
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid id,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }
