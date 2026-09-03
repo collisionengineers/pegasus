@@ -169,3 +169,19 @@ pushed to `task/plat-068-sign-off-account`
 (`a1f5b947..a94fffd5`). New PR head SHA:
 `a94fffd545d3f979e6d1a5bf9b82cbc9f013a894`. Ticket not merged; left in
 Review for the reviewer.
+
+## Merge-base note (2026-09-03, discovered while applying the review fix)
+
+`gh pr view 655` now reports `mergeable: CONFLICTING` /
+`mergeStateStatus: DIRTY` against `dev`. Root cause confirmed with a
+disposable detached worktree merge check (`git merge --no-commit --no-ff
+origin/dev`, aborted and removed, no branch/worktree state left behind):
+`dev` has since gained PLAT-070's own migration
+`20260903153134_RemoveStaffReviewFlags` (PR #649), which lands on the exact
+same line of the committed-migration list this fix just edited — a genuine
+content conflict, not a stale GitHub computation. This is the scenario the
+plan's Step 2 already anticipated ("If another migration lands first: `git
+merge --no-edit origin/dev`, regenerate this one migration after the new
+tail; never a second migration") but resolving it is outside this review
+fix's scope (append one migration-list entry only) and is left for the
+reviewer/next lane to action before merge.
