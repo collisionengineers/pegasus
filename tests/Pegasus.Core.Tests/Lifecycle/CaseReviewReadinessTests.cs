@@ -17,8 +17,6 @@ public sealed class CaseReviewReadinessTests
         var request = Request(new(
             instructionsComplete,
             imagesComplete,
-            InstructionsReviewedByStaff: true,
-            ImagesReviewedByStaff: true,
             "readiness-evidence"));
 
         var exception = Assert.Throws<InvalidOperationException>(
@@ -33,8 +31,6 @@ public sealed class CaseReviewReadinessTests
         CaseLifecycleRules.ValidateReturnToReview(Request(new(
             InstructionsComplete: true,
             ImagesComplete: true,
-            InstructionsReviewedByStaff: false,
-            ImagesReviewedByStaff: false,
             "readiness-evidence")));
     }
 

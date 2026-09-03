@@ -1002,10 +1002,10 @@ Report are read-only once Complete.
   ENG-001) (D34); "Vehicle History" textarea (`narrative.history_check`).
 - **Damage:** `damage-diagram` with a marker per zone — front, left/right
   front, left/right side, left/right rear, rear, roof, four wheels,
-  underside, interior, mechanical — each with Severity, Type, Note;
-  `tyre-card` per corner (tyre, seat belt), spare tyre, centre belt;
-  Unrelated damage with Deduction; Paint or material transfer; Impact
-  location and Impact severity as `derived` values (D39).
+  underside, interior, mechanical — each with Severity and Note, no damage
+  type (D39; D45); `tyre-card` per corner (tyre, seat belt), spare tyre,
+  centre belt; Unrelated damage with Deduction; Paint or material transfer;
+  Impact location and Impact severity as `derived` values (D39).
 - **Valuation:** `valuation-card` per entry (Source, Date, Time, Mileage,
   Guide month — CASE-029, Retail value, Trade value, Edit) and Add
   valuation; Source offers Glass's
@@ -1115,7 +1115,7 @@ Reports** | content panel (heading, area label, meta).
   key (danger → reason), Save.
 - **Workflow configuration:** Instruction completeness and Image completeness
   (required / not-required item rules with exact blockers, never a percentage
-  — D23), Review (two checkboxes), Due work (Chase interval: whole
+  — D23), no staff review panel (D44), Due work (Chase interval: whole
   calendar days, 1–365, default 7, Europe/London — D23), Labour-rate cards
   (Name, Non-paint hourly rate, State; Create card, Disable card — D17); Save
   configuration.

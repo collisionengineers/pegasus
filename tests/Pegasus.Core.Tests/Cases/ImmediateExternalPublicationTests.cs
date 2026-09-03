@@ -91,7 +91,7 @@ public sealed class ImmediateExternalPublicationTests
     private sealed class ConfigurationStore : ICaseWorkflowConfiguration
     {
         public Task<CaseWorkflowConfiguration> GetCurrentAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new CaseWorkflowConfiguration(false, false, "test", 1));
+            Task.FromResult(new CaseWorkflowConfiguration("test", 1));
     }
 
     private sealed class InspectionModeStore : IProviderInspectionModeStore

@@ -70,20 +70,7 @@ public static class CaseCompletenessPolicy
                 "The current case-workflow policy identity is invalid.");
         }
 
-        // CASE-013: the staff-review requirements are waived for an
-        // automatically definitive intake, exactly as
-        // CaseCompleteness.IsReadyForReview has always said they are. Without
-        // the waiver an automatically created case can never satisfy the
-        // policy — nobody is going to confirm evidence a staff member never
-        // touched — so every one of them was born Not ready and stayed there.
-        var satisfiesPolicy =
-            completeness.InstructionComplete
-            && completeness.ImagesComplete
-            && (automaticallyDefinitive
-                || ((!configuration.RequireStaffInstructionReviewBeforeEngineerAssignment
-                        || completeness.InstructionConfirmedByStaff)
-                    && (!configuration.RequireStaffImageReviewBeforeEngineerAssignment
-                        || completeness.ImagesConfirmedByStaff)));
+        var satisfiesPolicy = completeness.IsReadyForReview(automaticallyDefinitive);
 
         return new(
             satisfiesPolicy,

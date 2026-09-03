@@ -11,6 +11,26 @@ namespace Pegasus.IntegrationTests;
 public sealed class AdministrationPolicyPersistenceTests
 {
     [Fact]
+    public async Task WorkflowConfigurationStoresOnlyTheReadOnlyPolicyIdentity()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var query = scope.ServiceProvider.GetRequiredService<GetWorkflowConfiguration>();
+        var configuration = await query.ExecuteAsync(actor, default);
+
+        Assert.Equal("case-workflow", configuration.PolicyKey);
+        Assert.Equal(1, configuration.PolicyVersion);
+
+        await using var context = await database.CreateContextAsync();
+        Assert.Equal(
+            0,
+            await context.Database.SqlQuery<int>(
+                    $"SELECT COUNT(*) AS [Value] FROM [ActionHistory] WHERE [AggregateType] = 'workflow_configuration'")
+                .SingleAsync());
+    }
+
+    [Fact]
     public async Task WorkflowConfigurationUpdateIsVersionedAuditedAndReplaySafe()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -20,8 +40,6 @@ public sealed class AdministrationPolicyPersistenceTests
         var command = scope.ServiceProvider.GetRequiredService<UpdateWorkflowConfiguration>();
         var initial = await query.ExecuteAsync(actor, default);
         var request = new UpdateWorkflowConfigurationRequest(
-            false,
-            true,
             initial.PolicyVersion,
             actor,
             "Review the Engineer-assignment gates",
@@ -32,7 +50,6 @@ public sealed class AdministrationPolicyPersistenceTests
 
         Assert.Equal(initial.PolicyVersion + 1, updated.PolicyVersion);
         Assert.Equal(updated, replay);
-        Assert.False(updated.RequireStaffInstructionReviewBeforeEngineerAssignment);
         await Assert.ThrowsAsync<WorkflowConfigurationVersionConflictException>(
             () => command.ExecuteAsync(
                 request with { OperationKey = "workflow-policy-stale-1" },
