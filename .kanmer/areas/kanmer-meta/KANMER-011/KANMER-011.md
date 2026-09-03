@@ -2,13 +2,14 @@
 id: KANMER-011
 type: ticket
 title: Fix broken greenfield.md link in kanmer-setup SKILL.md
-status: implementing
+status: review
 area: kanmer-meta
 order: 590
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-09-03T19:24:12.022Z'
+  review: '2026-09-03T19:26:04.843Z'
 taken_at: '2026-09-03T19:24:13.971Z'
 branch: task/kanmer-011-skill-link
 worktree: ../pegasus-worktrees/kanmer-011-skill-link
@@ -26,9 +27,13 @@ labels:
   - review-follow-up
 links:
   - ENG-035
+commits:
+  - f89330698a1fb18b7d82031a8198e2f1b6b3ec33
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/652'
 archived: false
 created: '2026-09-03T15:15:14.652Z'
-updated: '2026-09-03T19:24:13.971Z'
+updated: '2026-09-03T19:26:04.843Z'
 ---
 
 ## What
