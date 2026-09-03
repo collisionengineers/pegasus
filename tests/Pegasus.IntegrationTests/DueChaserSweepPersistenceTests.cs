@@ -185,7 +185,7 @@ public sealed class DueChaserSweepPersistenceTests
                 "material-arrived-review",
                 "The requested images arrived",
                 reviewLease.Token,
-                new(true, true, true, true, "retained-material-occurrence")),
+                new(true, true, "retained-material-occurrence")),
             default);
 
         Assert.Equal(CaseLifecycleState.Review, review.State);

@@ -227,7 +227,7 @@ internal static class AutomationMcpTestSupport
                     Guid.NewGuid().ToString("N"),
                     "Integration fixture returned the case to Review.",
                     lease.LeaseToken,
-                    new(true, true, true, true, "mcp-ingress-review-readiness")),
+                    new(true, true, "mcp-ingress-review-readiness")),
                 CancellationToken.None);
     }
 
