@@ -423,3 +423,18 @@ is not yet ready to leave `preparing`.
 | 14 | should-fix (wrapper) | Step 3 | The attach and create actions both need the intake's `OriginReceiptId`, which is on `ImageIntakeSummary` but is not carried by `QueueRow`/`QuickDetail`; the plan never plumbed it. | **Fixed.** Step 3 names the plumbing explicitly. |
 | 15 | nit (wrapper) | Step 2 | After the move, `LoadNotReadyAsync`'s `listImages` gate and its doc comment about image rows are dead code. | **Fixed.** Their deletion is named in Step 2. |
 | 16 | nit (wrapper) | Step 4 | `Browser/AccessibilityTests` enumerates the tab URLs and would not cover the new one. | **Fixed.** Added to Step 4. |
+
+## Resolutions (2026-09-03) — Create Case dropped
+
+The operator answered the third open question with **option (a)**:
+
+1. **Create Case is dropped** from the Awaiting instruction quick view. The
+   tab ships with "Add to an existing case" only. Nothing is drawn inert
+   (D7/D21), and no Core creation route is added.
+2. **The ticket body's What and Verification lines are amended** to remove
+   Create Case.
+3. **The reverse direction is a separate ticket.** [[CASE-044]] "Add evidence
+   to a case" gives an instructed case an upload route and an absorb-an-
+   image-case route, reachable from the case action bar and the main rail.
+   It is out of CASE-042's scope and does not block it; CASE-042 must not
+   build any part of it.

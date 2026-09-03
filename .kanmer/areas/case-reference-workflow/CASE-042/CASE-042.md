@@ -25,12 +25,14 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-03T10:53:28.948Z'
+updated: '2026-09-03T10:54:49.132Z'
 ---
 
 ## What
 
-A Pre-case tab "Awaiting instruction" on `/Cases` listing image-initiated cases in AwaitingInstruction with reference, registration, vehicle, received, image count and source, with a quick view offering Add to an existing case and Create Case.
+A Pre-case tab "Awaiting instruction" on `/Cases` listing image-initiated cases in AwaitingInstruction with reference, registration, vehicle, received, image count and source, with a quick view offering **Add to an existing case** only.
+
+Create Case was dropped on 2026-09-03 by operator answer: there is no lawful route (`IntakeDecisionPolicy.CanBecomeCase` is false for image-initiated receipts) and FRD-02 says image-only material merges into an eligible instructed Case. Nothing is drawn inert. The reverse direction — an instructed case pulling image material in — is [[CASE-044]], not this ticket.
 
 ## Why
 
@@ -43,5 +45,6 @@ D38. Mockup source: `Pegasus_UI_v2_src/src/13-cases.js` (`awaiting`).
 ## Verification
 
 - [ ] Tab count equals rows; rail count includes it.
+- [ ] The quick view offers Add to an existing case and nothing else; no Create Case control exists, inert or otherwise.
 
 ## Outcome

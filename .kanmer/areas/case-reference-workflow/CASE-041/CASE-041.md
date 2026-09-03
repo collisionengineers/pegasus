@@ -26,7 +26,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-03T10:53:27.427Z'
+updated: '2026-09-03T10:54:53.361Z'
 ---
 
 ## What
@@ -43,7 +43,8 @@ D33. Mockup source: `Pegasus_UI_v2_src/src/21-case-sections.js` §inspection, `0
 
 ## Verification
 
-- [ ] Choosing Repairer fills the address; Manual keeps the input.
+- [ ] Choosing an option with a recorded value fills the address; Manual keeps the input.
+- [ ] Repairer location is offered disabled with its condition until a repairer address exists on the case (no repairer address is persisted anywhere today; [[INTK-058]] extracts one from the instruction material). Amended 2026-09-03 by operator answer.
 - [ ] History lists distinct previous addresses newest first.
 
 ## Outcome
