@@ -23,6 +23,35 @@ public sealed class AssessmentPersistenceIntegrationTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task DamageImpactsPersistAndClearTheirCoreDerivedHeadlineRows()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("assessment-damage-derivation");
+        var caseId = outcome.Identity.CaseId;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "damage-lease-1");
+        var saved = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, lease.Version, harness.AutomationActor, "damage-save-1", "Record damage.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.DamageImpacts] = "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Bonnet\"},{\"zone\":\"right_rear\",\"severity\":\"heavy\",\"note\":\"Quarter\"}]"
+            }), CancellationToken.None);
+
+        Assert.Equal("multiple", saved.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+        Assert.Equal("heavy", saved.Field(AssessmentVocabulary.ImpactSeverity)?.Value);
+        Assert.All(saved.Fields.Where(field => field.Path is AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactLocation or AssessmentVocabulary.ImpactSeverity),
+            field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
+
+        var clearLease = await harness.AcquireLeaseAsync(caseId, saved.CaseVersion, harness.AutomationActor, "damage-lease-2");
+        var cleared = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, clearLease.Version, harness.AutomationActor, "damage-save-2", "Clear damage.", clearLease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal) { [AssessmentVocabulary.DamageImpacts] = null }), CancellationToken.None);
+
+        Assert.Null(cleared.Field(AssessmentVocabulary.DamageImpacts));
+        Assert.Null(cleared.Field(AssessmentVocabulary.ImpactLocation));
+        Assert.Null(cleared.Field(AssessmentVocabulary.ImpactSeverity));
+    }
+
+    [Fact]
     public async Task AssessmentWorkspaceLoadsInExactlySixReaderCommands()
     {
         var counter = new ReaderCommandCounter();

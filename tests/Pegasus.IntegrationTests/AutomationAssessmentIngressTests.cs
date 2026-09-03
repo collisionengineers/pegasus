@@ -18,6 +18,34 @@ namespace Pegasus.IntegrationTests;
 public sealed class AutomationAssessmentIngressTests
 {
     [Fact]
+    public async Task AssessmentUpdateRejectsDirectWritesToDerivedImpactFields()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 40);
+
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(41,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:derived-impact-rejected",
+                reason = "Attempt a direct derived write.",
+                fields = new Dictionary<string, string?> { ["assessment.impact_location"] = "front" }
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await ReadJsonRpcAsync(response);
+        Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}'"));
+    }
+
+    [Fact]
     public async Task AssessmentToolsEnforceTheAssessmentScope()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
@@ -118,7 +146,9 @@ public sealed class AutomationAssessmentIngressTests
                         ["vehicle.condition"] = "good",
                         ["assessment.values.retail"] = "12000",
                         ["assessment.values.trade"] = "10500",
-                        ["assessment.values.engineer"] = "12000"
+                        ["assessment.values.engineer"] = "12000",
+                        ["vehicle.colour"] = "Blue",
+                        ["damage.impacts"] = "[{\"zone\":\"front\",\"severity\":\"heavy\",\"note\":\"Bonnet\"}]"
                     },
                     estimateLines = new[]
                     {
@@ -149,7 +179,7 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // Stored values carry the unconfirmed automation provenance.
-        Assert.Equal(4, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(8, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
@@ -194,7 +224,9 @@ public sealed class AutomationAssessmentIngressTests
                         ["vehicle.condition"] = "good",
                         ["assessment.values.retail"] = "12000",
                         ["assessment.values.trade"] = "10500",
-                        ["assessment.values.engineer"] = "12000"
+                        ["assessment.values.engineer"] = "12000",
+                        ["vehicle.colour"] = "Blue",
+                        ["damage.impacts"] = "[{\"zone\":\"front\",\"severity\":\"heavy\",\"note\":\"Bonnet\"}]"
                     },
                     estimateLines = new[]
                     {
