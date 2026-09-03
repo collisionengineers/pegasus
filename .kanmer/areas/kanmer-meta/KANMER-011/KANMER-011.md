@@ -2,11 +2,24 @@
 id: KANMER-011
 type: ticket
 title: Fix broken greenfield.md link in kanmer-setup SKILL.md
-status: backlog
+status: implementing
 area: kanmer-meta
 order: 590
-assignee: ''
+assignee: claude-code
 profile: fix
+stageEntered:
+  preparing: '2026-09-03T19:24:12.022Z'
+taken_at: '2026-09-03T19:24:13.971Z'
+branch: task/kanmer-011-skill-link
+worktree: ../pegasus-worktrees/kanmer-011-skill-link
+claim_expires_at: '2026-09-03T19:54:13.971Z'
+claim_controller: claude-code
+lease_id: 9a5af218-c9d3-4a92-ab82-cf94b11f4c5e
+lease_revision: 1
+lease_workspace: >-
+  worktree:c:\users\alex\documents\github\pegasus-worktrees\kanmer-011-skill-link
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-03T19:24:13.971Z'
 labels:
   - documentation
   - ci-red
@@ -15,7 +28,7 @@ links:
   - ENG-035
 archived: false
 created: '2026-09-03T15:15:14.652Z'
-updated: '2026-09-03T15:15:28.102Z'
+updated: '2026-09-03T19:24:13.971Z'
 ---
 
 ## What
