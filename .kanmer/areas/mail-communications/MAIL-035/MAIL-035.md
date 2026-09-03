@@ -4,6 +4,7 @@ type: ticket
 title: Ingest the notified Inbox message directly on a Graph change-notification wake
 status: backlog
 area: mail-communications
+order: 690
 assignee: ''
 profile: feature
 labels:
@@ -20,7 +21,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-09-02T14:56:37.210Z'
-updated: '2026-09-02T14:56:37.210Z'
+updated: '2026-09-03T15:15:28.290Z'
 ---
 
 ## What

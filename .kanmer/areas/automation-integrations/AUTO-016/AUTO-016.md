@@ -4,6 +4,7 @@ type: ticket
 title: Import a raw estimate artifact through MCP into the canonical Case importer
 status: backlog
 area: automation-integrations
+order: 40
 assignee: ''
 profile: feature
 labels:
@@ -22,7 +23,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T21:54:35.679Z'
-updated: '2026-09-01T21:54:35.679Z'
+updated: '2026-09-03T15:15:26.944Z'
 ---
 
 ## What

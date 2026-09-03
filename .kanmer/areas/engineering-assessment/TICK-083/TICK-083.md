@@ -6,6 +6,7 @@ title: >-
   acceptance/adjustments/rationale, and revaluation history
 status: backlog
 area: engineering-assessment
+order: 1120
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.199Z'
-updated: '2026-08-25T06:46:34.854Z'
+updated: '2026-09-03T15:15:29.247Z'
 ---
 
 ## What

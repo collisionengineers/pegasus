@@ -4,6 +4,7 @@ type: ticket
 title: EXT-05 — Replace EVA Engineer assignment
 status: backlog
 area: engineering-assessment
+order: 1080
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.076Z'
-updated: '2026-08-25T06:46:33.488Z'
+updated: '2026-09-03T15:15:29.171Z'
 ---
 
 ## What

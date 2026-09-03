@@ -6,6 +6,7 @@ title: >-
   actions
 status: backlog
 area: mail-communications
+order: 620
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.176Z'
-updated: '2026-08-28T08:35:24.176Z'
+updated: '2026-09-03T15:15:28.159Z'
 ---
 
 ## What

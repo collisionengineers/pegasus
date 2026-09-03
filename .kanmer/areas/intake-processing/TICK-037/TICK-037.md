@@ -4,6 +4,7 @@ type: ticket
 title: INT-06 — Automatic ingestion from engineers@collisionengineers.co.uk
 status: backlog
 area: intake-processing
+order: 930
 assignee: ''
 profile: feature
 labels:
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.533Z'
-updated: '2026-08-25T06:46:27.183Z'
+updated: '2026-09-03T15:15:28.816Z'
 ---
 
 ## What

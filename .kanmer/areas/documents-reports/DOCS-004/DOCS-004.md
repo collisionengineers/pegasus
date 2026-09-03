@@ -6,6 +6,7 @@ title: >-
   supplied
 status: backlog
 area: documents-reports
+order: 260
 assignee: ''
 profile: feature
 labels:
@@ -25,7 +26,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T10:53:54.911Z'
-updated: '2026-08-25T06:46:23.843Z'
+updated: '2026-09-03T15:15:27.429Z'
 ---
 
 ## What

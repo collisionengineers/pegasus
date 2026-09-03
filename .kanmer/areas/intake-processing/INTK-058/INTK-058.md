@@ -6,6 +6,7 @@ title: >-
   per-case repairer record
 status: backlog
 area: intake-processing
+order: 570
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-09-03T10:53:09.881Z'
-updated: '2026-09-03T10:53:09.881Z'
+updated: '2026-09-03T15:15:28.061Z'
 ---
 
 ## What

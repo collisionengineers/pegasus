@@ -4,6 +4,7 @@ type: ticket
 title: A swallowed intake bookkeeping conflict is logged nowhere
 status: backlog
 area: intake-processing
+order: 520
 assignee: ''
 profile: fix
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-30T00:10:57.940Z'
-updated: '2026-08-30T20:15:15.442Z'
+updated: '2026-09-03T15:15:27.961Z'
 ---
 
 ## What

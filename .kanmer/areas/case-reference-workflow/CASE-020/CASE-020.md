@@ -4,6 +4,7 @@ type: ticket
 title: 'Read the case header and list from the case, not the intake draft'
 status: backlog
 area: case-reference-workflow
+order: 80
 assignee: ''
 profile: fix
 labels:
@@ -15,7 +16,7 @@ links:
 deployment: not-deployed
 archived: false
 created: '2026-08-22T21:58:43.680Z'
-updated: '2026-08-25T06:38:46.290Z'
+updated: '2026-09-03T15:15:27.053Z'
 ---
 
 ## The defect

@@ -4,6 +4,7 @@ type: ticket
 title: EXT-16 — Collision Engineers guided mobile image capture
 status: backlog
 area: automation-integrations
+order: 1170
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.496Z'
-updated: '2026-08-25T06:46:36.228Z'
+updated: '2026-09-03T15:15:29.359Z'
 ---
 
 ## What

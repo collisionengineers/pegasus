@@ -4,6 +4,7 @@ type: ticket
 title: Run each CI job only for relevant changed paths
 status: backlog
 area: delivery-repository
+order: 220
 assignee: ''
 profile: fix
 labels:
@@ -15,7 +16,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-08-26T17:34:29.481Z'
-updated: '2026-08-26T17:34:29.481Z'
+updated: '2026-09-03T15:15:27.348Z'
 ---
 
 ## What

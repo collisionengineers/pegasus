@@ -6,6 +6,7 @@ title: >-
   replaced them with one submission-level decision card
 status: backlog
 area: intake-processing
+order: 500
 assignee: ''
 profile: chore
 labels:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T17:45:41.473Z'
-updated: '2026-08-29T17:45:41.473Z'
+updated: '2026-09-03T15:15:27.920Z'
 ---
 
 ## What

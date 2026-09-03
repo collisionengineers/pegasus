@@ -4,6 +4,7 @@ type: ticket
 title: Administer staff-initiated outbound delivery policy and activity
 status: backlog
 area: mail-communications
+order: 660
 assignee: ''
 profile: feature
 labels: []
@@ -21,7 +22,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.000Z'
-updated: '2026-09-01T14:40:45.000Z'
+updated: '2026-09-03T15:15:28.233Z'
 ---
 
 ## What

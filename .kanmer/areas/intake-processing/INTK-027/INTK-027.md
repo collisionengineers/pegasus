@@ -4,6 +4,7 @@ type: ticket
 title: Make policy re-evaluation work after transient staging cleanup
 status: backlog
 area: intake-processing
+order: 430
 assignee: ''
 profile: fix
 labels:
@@ -16,7 +17,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-21T15:04:57.139Z'
-updated: '2026-08-21T15:04:57.139Z'
+updated: '2026-09-03T15:15:27.788Z'
 ---
 
 # Why

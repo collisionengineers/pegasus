@@ -4,6 +4,7 @@ type: ticket
 title: Normalize kilometre case mileage to canonical miles
 status: backlog
 area: intake-processing
+order: 420
 assignee: ''
 profile: feature
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-21T12:56:00.000Z'
-updated: '2026-08-21T12:56:06.379Z'
+updated: '2026-09-03T15:15:27.767Z'
 ---
 
 ## Why

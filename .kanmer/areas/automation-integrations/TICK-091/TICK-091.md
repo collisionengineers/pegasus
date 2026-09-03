@@ -4,6 +4,7 @@ type: ticket
 title: EXT-19 — Collision Engineers custom application domain
 status: backlog
 area: automation-integrations
+order: 1190
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:06:02.533Z'
-updated: '2026-08-25T06:46:36.766Z'
+updated: '2026-09-03T15:15:29.398Z'
 ---
 
 ## What

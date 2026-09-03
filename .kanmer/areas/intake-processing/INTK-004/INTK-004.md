@@ -4,6 +4,7 @@ type: ticket
 title: Unify intake decision codes and labels and project Operations case links
 status: backlog
 area: intake-processing
+order: 400
 assignee: ''
 profile: chore
 labels: []
@@ -13,7 +14,7 @@ links:
   - SIMPLI-010
 archived: false
 created: '2026-08-17T12:08:10.314Z'
-updated: '2026-08-25T06:40:23.576Z'
+updated: '2026-09-03T15:15:27.722Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   2 GB
 status: backlog
 area: intake-processing
+order: 510
 assignee: ''
 profile: feature
 labels:
@@ -20,7 +21,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-29T21:29:16.028Z'
-updated: '2026-08-30T20:15:11.785Z'
+updated: '2026-09-03T15:15:27.938Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   per Work Centre load and are rendered nowhere
 status: backlog
 area: platform-operations
+order: 840
 assignee: ''
 profile: fix
 labels:
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T17:34:50.641Z'
-updated: '2026-08-29T17:34:50.641Z'
+updated: '2026-09-03T15:15:28.601Z'
 ---
 
 ## What

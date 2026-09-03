@@ -6,6 +6,7 @@ title: >-
   Workspace
 status: backlog
 area: ui-improvement
+order: 1280
 assignee: ''
 profile: chore
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.255Z'
-updated: '2026-08-28T08:35:24.255Z'
+updated: '2026-09-03T15:15:29.574Z'
 ---
 
 ## What

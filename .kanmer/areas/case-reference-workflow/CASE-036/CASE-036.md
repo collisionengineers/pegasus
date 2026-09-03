@@ -6,6 +6,7 @@ title: >-
   task/case-012-case-workspace-parallel
 status: backlog
 area: case-reference-workflow
+order: 160
 assignee: ''
 profile: fix
 labels:
@@ -22,7 +23,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-30T20:32:56.589Z'
-updated: '2026-08-30T20:32:56.589Z'
+updated: '2026-09-03T15:15:27.226Z'
 ---
 
 ## What

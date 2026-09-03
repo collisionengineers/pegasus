@@ -6,6 +6,7 @@ title: >-
   selection is nondeterministic
 status: backlog
 area: mail-communications
+order: 610
 assignee: ''
 profile: fix
 labels:
@@ -15,7 +16,7 @@ links:
   - MAIL-018
 archived: false
 created: '2026-08-27T17:34:40.284Z'
-updated: '2026-08-27T17:34:40.284Z'
+updated: '2026-09-03T15:15:28.140Z'
 ---
 
 ## Problem

@@ -4,6 +4,7 @@ type: ticket
 title: Stop a workflow event from consuming the version slot the next note needs
 status: backlog
 area: case-reference-workflow
+order: 90
 assignee: ''
 profile: fix
 labels:
@@ -13,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-24T14:15:05.282Z'
-updated: '2026-08-25T06:38:46.217Z'
+updated: '2026-09-03T15:15:27.074Z'
 ---
 
 ## The defect

@@ -4,6 +4,7 @@ type: ticket
 title: Replace Triage “Assign to me” with Engineer selection
 status: backlog
 area: intake-processing
+order: 410
 assignee: ''
 profile: feature
 labels:
@@ -20,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T10:30:55.359Z'
-updated: '2026-08-20T10:31:58.511Z'
+updated: '2026-09-03T15:15:27.745Z'
 ---
 
 ## What

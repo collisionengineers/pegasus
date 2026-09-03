@@ -4,6 +4,7 @@ type: ticket
 title: Prepare consent-gated Cazana provider activation
 status: backlog
 area: platform-operations
+order: 700
 assignee: ''
 profile: feature
 labels:
@@ -17,7 +18,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-21T12:55:59.971Z'
-updated: '2026-08-21T12:56:06.361Z'
+updated: '2026-09-03T15:15:28.310Z'
 ---
 
 ## Why

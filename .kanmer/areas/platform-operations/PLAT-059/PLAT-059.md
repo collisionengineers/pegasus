@@ -4,6 +4,7 @@ type: ticket
 title: Settle the "Create Case" entry point so one label has one destination
 status: backlog
 area: platform-operations
+order: 800
 assignee: ''
 profile: feature
 labels:
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T08:06:53.293Z'
-updated: '2026-09-02T01:10:21.029Z'
+updated: '2026-09-03T15:15:28.520Z'
 ---
 
 ## What

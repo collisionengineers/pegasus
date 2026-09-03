@@ -6,6 +6,7 @@ title: >-
   Intake/Details
 status: backlog
 area: case-reference-workflow
+order: 60
 assignee: ''
 profile: chore
 labels:
@@ -16,7 +17,7 @@ links:
   - SIMPLI-011
 archived: false
 created: '2026-08-17T14:37:29.159Z'
-updated: '2026-08-25T06:38:46.361Z'
+updated: '2026-09-03T15:15:27.010Z'
 ---
 
 ## Why

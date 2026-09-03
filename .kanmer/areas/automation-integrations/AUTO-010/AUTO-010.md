@@ -4,6 +4,7 @@ type: ticket
 title: 'Administration: Automation & AI settings with job counts and kill switch'
 status: backlog
 area: automation-integrations
+order: 20
 assignee: ''
 profile: feature
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-28T08:35:24.084Z'
-updated: '2026-08-28T08:35:24.084Z'
+updated: '2026-09-03T15:15:26.904Z'
 ---
 
 ## What

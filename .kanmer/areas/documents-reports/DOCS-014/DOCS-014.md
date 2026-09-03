@@ -4,6 +4,7 @@ type: ticket
 title: 'Record a preview as a view, not as a completed download'
 status: backlog
 area: documents-reports
+order: 270
 assignee: ''
 profile: fix
 labels:
@@ -13,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-24T14:26:21.572Z'
-updated: '2026-08-25T06:38:46.200Z'
+updated: '2026-09-03T15:15:27.457Z'
 ---
 
 ## Why

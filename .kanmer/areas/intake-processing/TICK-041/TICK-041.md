@@ -4,6 +4,7 @@ type: ticket
 title: INT-16 — Azure OCR for scan-like and unusable-text-map PDF pages
 status: backlog
 area: intake-processing
+order: 950
 assignee: ''
 profile: feature
 labels:
@@ -31,7 +32,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-01T21:59:50.900Z'
+updated: '2026-09-03T15:15:28.867Z'
 ---
 
 ## What

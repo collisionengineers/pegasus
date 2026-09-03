@@ -4,6 +4,7 @@ type: ticket
 title: Take the instruction date only from instruction-letter evidence
 status: backlog
 area: intake-processing
+order: 460
 assignee: ''
 profile: fix
 labels:
@@ -13,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-24T14:38:31.049Z'
-updated: '2026-08-25T06:38:46.182Z'
+updated: '2026-09-03T15:15:27.846Z'
 ---
 
 ## Why

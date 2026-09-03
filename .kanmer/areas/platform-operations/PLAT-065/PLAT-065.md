@@ -4,6 +4,7 @@ type: ticket
 title: Provision and activate Azure Document Intelligence PDF OCR
 status: backlog
 area: platform-operations
+order: 860
 assignee: ''
 profile: feature
 labels:
@@ -23,7 +24,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-01T21:59:49.338Z'
+updated: '2026-09-03T15:15:28.643Z'
 ---
 
 ## What

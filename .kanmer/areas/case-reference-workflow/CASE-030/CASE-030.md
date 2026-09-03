@@ -4,6 +4,7 @@ type: ticket
 title: 'Case: Report-sent evidence confirmation and Return to Engineer actions'
 status: backlog
 area: case-reference-workflow
+order: 110
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:24.192Z'
-updated: '2026-08-29T13:10:37.796Z'
+updated: '2026-09-03T15:15:27.113Z'
 ---
 
 ## What

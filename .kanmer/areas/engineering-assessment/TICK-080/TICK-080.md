@@ -6,6 +6,7 @@ title: >-
   source evidence and explicit Engineer selection
 status: backlog
 area: engineering-assessment
+order: 1100
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.121Z'
-updated: '2026-08-25T06:46:34.016Z'
+updated: '2026-09-03T15:15:29.208Z'
 ---
 
 ## What

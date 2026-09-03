@@ -6,6 +6,7 @@ title: >-
   snapshot state covers the section
 status: backlog
 area: case-reference-workflow
+order: 150
 assignee: ''
 profile: fix
 labels:
@@ -24,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-30T20:20:03.370Z'
-updated: '2026-08-30T20:20:03.370Z'
+updated: '2026-09-03T15:15:27.206Z'
 ---
 
 ## What

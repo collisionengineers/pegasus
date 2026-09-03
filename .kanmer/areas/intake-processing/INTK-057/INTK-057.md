@@ -4,6 +4,7 @@ type: ticket
 title: Do not emit case_created when the mail classification carries no case type
 status: backlog
 area: intake-processing
+order: 560
 assignee: ''
 profile: fix
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T14:57:21.701Z'
-updated: '2026-09-02T14:57:21.701Z'
+updated: '2026-09-03T15:15:28.044Z'
 ---
 
 ## What

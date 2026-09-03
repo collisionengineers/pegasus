@@ -4,6 +4,7 @@ type: ticket
 title: AI-01 — In-app staff AI assistant
 status: backlog
 area: automation-integrations
+order: 1010
 assignee: ''
 profile: feature
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:39.874Z'
-updated: '2026-09-03T08:46:46.376Z'
+updated: '2026-09-03T15:15:29.005Z'
 ---
 
 ## What

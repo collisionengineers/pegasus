@@ -4,6 +4,7 @@ type: ticket
 title: Record QDOS production acceptance and management approval
 status: backlog
 area: platform-operations
+order: 890
 assignee: ''
 profile: chore
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/adr/0014-local-to-production-deployment.md
 archived: false
 created: '2026-08-12T15:03:52.764Z'
-updated: '2026-08-25T06:41:26.480Z'
+updated: '2026-09-03T15:15:28.719Z'
 ---
 
 ## What

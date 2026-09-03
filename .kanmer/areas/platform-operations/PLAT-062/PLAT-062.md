@@ -6,6 +6,7 @@ title: >-
   chase-interval settings
 status: backlog
 area: platform-operations
+order: 830
 assignee: ''
 profile: feature
 labels:
@@ -23,7 +24,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-29T10:23:02.768Z'
-updated: '2026-09-01T14:43:23.549Z'
+updated: '2026-09-03T15:15:28.579Z'
 ---
 
 ## What

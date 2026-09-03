@@ -4,6 +4,7 @@ type: ticket
 title: CASE-06 — Commercial cases
 status: backlog
 area: case-reference-workflow
+order: 1000
 assignee: ''
 profile: feature
 labels:
@@ -15,7 +16,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-12T15:05:39.829Z'
-updated: '2026-08-25T06:46:30.659Z'
+updated: '2026-09-03T15:15:28.965Z'
 ---
 
 ## What

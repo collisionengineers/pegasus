@@ -4,6 +4,7 @@ type: ticket
 title: Reset mailbox poll state when a disabled mailbox is reactivated
 status: backlog
 area: mail-communications
+order: 600
 assignee: ''
 profile: fix
 labels:
@@ -20,7 +21,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-26T18:09:46.409Z'
-updated: '2026-08-26T18:09:46.409Z'
+updated: '2026-09-03T15:15:28.121Z'
 ---
 
 ## Problem

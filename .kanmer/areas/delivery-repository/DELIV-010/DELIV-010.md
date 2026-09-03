@@ -4,6 +4,7 @@ type: ticket
 title: Stop full-history CI checkouts timing out on the 700 MB repository
 status: backlog
 area: delivery-repository
+order: 190
 assignee: ''
 profile: fix
 labels:
@@ -12,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-18T14:46:22.005Z'
-updated: '2026-08-25T06:38:46.344Z'
+updated: '2026-09-03T15:15:27.286Z'
 ---
 
 ## Why

@@ -4,6 +4,7 @@ type: ticket
 title: 'Remove superseded surfaces, the legacy CSS block and dead selectors'
 status: backlog
 area: ui-improvement
+order: 1270
 assignee: ''
 profile: fix
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.210Z'
-updated: '2026-09-02T01:10:31.886Z'
+updated: '2026-09-03T15:15:29.555Z'
 ---
 
 ## What

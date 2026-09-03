@@ -4,6 +4,7 @@ type: ticket
 title: Replace raw Triage identifiers with business-readable identities
 status: backlog
 area: intake-processing
+order: 470
 assignee: ''
 profile: fix
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-25T06:39:54.660Z'
-updated: '2026-08-25T06:39:54.660Z'
+updated: '2026-09-03T15:15:27.864Z'
 ---
 
 ## What

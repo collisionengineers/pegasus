@@ -4,6 +4,7 @@ type: ticket
 title: Reconcile inconsistent Done evidence and checklist state
 status: backlog
 area: kanmer-meta
+order: 580
 assignee: ''
 profile: chore
 labels:
@@ -13,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-25T06:35:41.737Z'
-updated: '2026-08-25T06:48:58.547Z'
+updated: '2026-09-03T15:15:28.084Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   literal in the document
 status: backlog
 area: intake-processing
+order: 550
 assignee: ''
 profile: fix
 labels:
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T14:57:02.151Z'
-updated: '2026-09-02T14:57:02.151Z'
+updated: '2026-09-03T15:15:28.022Z'
 ---
 
 ## What

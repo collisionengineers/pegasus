@@ -4,6 +4,7 @@ type: ticket
 title: 'Authorize Triage mutations at the Core boundary, not only at the page'
 status: backlog
 area: platform-operations
+order: 740
 assignee: ''
 profile: fix
 labels:
@@ -13,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-24T14:11:07.721Z'
-updated: '2026-08-25T06:38:46.235Z'
+updated: '2026-09-03T15:15:28.391Z'
 ---
 
 ## Why

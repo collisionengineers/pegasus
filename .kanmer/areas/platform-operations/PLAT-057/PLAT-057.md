@@ -6,6 +6,7 @@ title: >-
   paths are unexercised
 status: backlog
 area: platform-operations
+order: 780
 assignee: ''
 profile: chore
 labels:
@@ -17,7 +18,7 @@ links:
   - PLAT-053
 archived: false
 created: '2026-08-29T08:03:36.063Z'
-updated: '2026-08-29T08:03:36.063Z'
+updated: '2026-09-03T15:15:28.476Z'
 ---
 
 ## What

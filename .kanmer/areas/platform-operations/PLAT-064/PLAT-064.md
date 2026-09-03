@@ -4,6 +4,7 @@ type: ticket
 title: Add administrator-initiated staff password reset
 status: backlog
 area: platform-operations
+order: 850
 assignee: ''
 profile: feature
 labels: []
@@ -17,7 +18,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:44.973Z'
-updated: '2026-09-01T14:40:44.973Z'
+updated: '2026-09-03T15:15:28.620Z'
 ---
 
 ## What

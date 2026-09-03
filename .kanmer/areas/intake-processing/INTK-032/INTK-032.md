@@ -4,6 +4,7 @@ type: ticket
 title: Fall back safely when a third-party report format cannot be read
 status: backlog
 area: intake-processing
+order: 450
 assignee: ''
 profile: feature
 labels:
@@ -20,7 +21,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.932Z'
-updated: '2026-09-02T20:34:07.216Z'
+updated: '2026-09-03T15:15:27.828Z'
 ---
 
 ## Why — operator direction (2026-08-22)

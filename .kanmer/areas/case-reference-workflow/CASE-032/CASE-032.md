@@ -4,6 +4,7 @@ type: ticket
 title: 'Queue-row projections: image-intake custody and Triage reference/provider'
 status: backlog
 area: case-reference-workflow
+order: 120
 assignee: ''
 profile: feature
 labels:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-29T13:04:56.182Z'
-updated: '2026-09-02T20:33:37.483Z'
+updated: '2026-09-03T15:15:27.133Z'
 ---
 
 ## What

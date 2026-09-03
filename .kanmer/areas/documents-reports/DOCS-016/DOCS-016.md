@@ -4,6 +4,7 @@ type: ticket
 title: 'Pin the EVA export''s Work Provider reporting with an assertion, not a trace'
 status: backlog
 area: documents-reports
+order: 280
 assignee: ''
 profile: chore
 labels:
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-29T22:16:36.958Z'
-updated: '2026-08-29T22:16:36.958Z'
+updated: '2026-09-03T15:15:27.483Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: Add the shared image viewer to Triage
 status: backlog
 area: intake-processing
+order: 70
 assignee: ''
 profile: feature
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T13:19:14.240Z'
-updated: '2026-08-25T06:40:46.784Z'
+updated: '2026-09-03T15:15:27.033Z'
 ---
 
 ## What

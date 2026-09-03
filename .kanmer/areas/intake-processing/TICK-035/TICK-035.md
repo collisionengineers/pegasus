@@ -6,6 +6,7 @@ title: >-
   using separately accepted provider evidence and r…
 status: backlog
 area: intake-processing
+order: 910
 assignee: ''
 profile: feature
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-08-25T06:46:26.645Z'
+updated: '2026-09-03T15:15:28.763Z'
 ---
 
 ## What

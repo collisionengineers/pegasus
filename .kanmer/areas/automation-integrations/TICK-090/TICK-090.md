@@ -4,6 +4,7 @@ type: ticket
 title: EXT-17 — Tractable or Ravin guided-capture integration
 status: backlog
 area: automation-integrations
+order: 1180
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.515Z'
-updated: '2026-09-03T08:57:57.465Z'
+updated: '2026-09-03T15:15:29.380Z'
 ---
 
 ## What

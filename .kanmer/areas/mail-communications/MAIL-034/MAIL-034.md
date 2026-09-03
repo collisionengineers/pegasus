@@ -4,6 +4,7 @@ type: ticket
 title: Scope or remove the Inbox selected-row CSS rules that reach the Cases list
 status: backlog
 area: mail-communications
+order: 680
 assignee: ''
 profile: fix
 labels:
@@ -20,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T03:15:02.953Z'
-updated: '2026-09-02T03:15:02.953Z'
+updated: '2026-09-03T15:15:28.269Z'
 ---
 
 ## What

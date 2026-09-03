@@ -6,6 +6,7 @@ title: >-
   unreachable from Case page)
 status: backlog
 area: ui-improvement
+order: 1260
 assignee: ''
 profile: fix
 labels:
@@ -20,7 +21,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-08-28T15:36:16.887Z'
-updated: '2026-08-30T20:41:00.363Z'
+updated: '2026-09-03T15:15:29.535Z'
 ---
 
 ## What

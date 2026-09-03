@@ -6,6 +6,7 @@ title: >-
   earlier-timestamped migrations
 status: backlog
 area: delivery-repository
+order: 230
 assignee: ''
 profile: fix
 labels:
@@ -18,7 +19,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-28T19:40:03.260Z'
-updated: '2026-08-28T19:40:03.260Z'
+updated: '2026-09-03T15:15:27.367Z'
 ---
 
 ## What

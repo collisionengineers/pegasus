@@ -6,6 +6,7 @@ title: >-
   detection
 status: backlog
 area: mail-communications
+order: 630
 assignee: ''
 profile: feature
 labels:
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-28T08:35:47.116Z'
-updated: '2026-09-01T14:46:06.706Z'
+updated: '2026-09-03T15:15:28.176Z'
 ---
 
 ## What

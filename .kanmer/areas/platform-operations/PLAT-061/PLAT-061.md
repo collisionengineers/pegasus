@@ -4,6 +4,7 @@ type: ticket
 title: '.gated::after paints an empty tooltip pill when data-condition is absent'
 status: backlog
 area: platform-operations
+order: 820
 assignee: ''
 profile: fix
 labels:
@@ -18,7 +19,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-29T08:30:06.977Z'
-updated: '2026-08-29T08:30:06.977Z'
+updated: '2026-09-03T15:15:28.558Z'
 ---
 
 ## What

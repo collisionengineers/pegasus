@@ -4,6 +4,7 @@ type: ticket
 title: UI-15 — Residual future Engineer workbench capabilities
 status: backlog
 area: engineering-assessment
+order: 1200
 assignee: ''
 profile: feature
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-12T15:06:02.616Z'
-updated: '2026-09-01T14:43:23.525Z'
+updated: '2026-09-03T15:15:29.416Z'
 ---
 
 ## What

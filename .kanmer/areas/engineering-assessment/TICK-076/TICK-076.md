@@ -4,6 +4,7 @@ type: ticket
 title: CASE-22 — Replace EVA inspection and report-preparation work inside Pegasus
 status: backlog
 area: engineering-assessment
+order: 1070
 assignee: ''
 profile: feature
 labels:
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:40.018Z'
-updated: '2026-08-25T06:46:32.957Z'
+updated: '2026-09-03T15:15:29.151Z'
 ---
 
 ## What

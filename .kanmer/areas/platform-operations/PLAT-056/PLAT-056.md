@@ -6,6 +6,7 @@ title: >-
   onto ExternalWorkStatePersistence
 status: backlog
 area: platform-operations
+order: 770
 assignee: ''
 profile: fix
 labels:
@@ -17,7 +18,7 @@ links:
   - PLAT-053
 archived: false
 created: '2026-08-29T08:03:26.586Z'
-updated: '2026-08-29T08:03:26.586Z'
+updated: '2026-09-03T15:15:28.456Z'
 ---
 
 ## What

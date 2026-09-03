@@ -4,6 +4,7 @@ type: ticket
 title: Name intake adapter faults and assert the Web composition boundary
 status: backlog
 area: intake-processing
+order: 390
 assignee: ''
 profile: chore
 labels: []
@@ -14,7 +15,7 @@ links:
   - SIMPLI-010
 archived: false
 created: '2026-08-17T11:10:37.292Z'
-updated: '2026-08-25T06:40:23.157Z'
+updated: '2026-09-03T15:15:27.703Z'
 ---
 
 ## What

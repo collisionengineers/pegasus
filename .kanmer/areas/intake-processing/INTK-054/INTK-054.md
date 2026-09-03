@@ -4,6 +4,7 @@ type: ticket
 title: Add append-only staff notes to the Triage History
 status: backlog
 area: intake-processing
+order: 530
 assignee: ''
 profile: feature
 labels:
@@ -22,7 +23,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T21:54:35.701Z'
-updated: '2026-09-02T01:10:23.391Z'
+updated: '2026-09-03T15:15:27.980Z'
 ---
 
 ## What

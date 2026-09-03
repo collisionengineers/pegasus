@@ -4,6 +4,7 @@ type: ticket
 title: Complete Glass's repair-estimate import from a representative export
 status: backlog
 area: engineering-assessment
+order: 1140
 assignee: ''
 profile: feature
 labels:
@@ -26,7 +27,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-01T14:43:23.430Z'
+updated: '2026-09-03T15:15:29.297Z'
 ---
 
 ## What

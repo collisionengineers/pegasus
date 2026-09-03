@@ -4,6 +4,7 @@ type: ticket
 title: Activate the production retained-mail folder mover (MAIL-07)
 status: backlog
 area: mail-communications
+order: 640
 assignee: ''
 profile: feature
 labels:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-29T13:05:48.271Z'
-updated: '2026-09-01T14:46:06.728Z'
+updated: '2026-09-03T15:15:28.195Z'
 ---
 
 ## What

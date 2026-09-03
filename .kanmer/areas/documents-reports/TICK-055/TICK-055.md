@@ -6,6 +6,7 @@ title: >-
   retained report/reply-chain evidence and an explicit lifec…
 status: backlog
 area: documents-reports
+order: 960
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:19.337Z'
-updated: '2026-08-25T06:46:28.489Z'
+updated: '2026-09-03T15:15:28.887Z'
 ---
 
 ## What

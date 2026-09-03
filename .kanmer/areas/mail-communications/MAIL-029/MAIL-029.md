@@ -6,6 +6,7 @@ title: >-
   columns (§1.3)
 status: backlog
 area: mail-communications
+order: 650
 assignee: ''
 profile: fix
 labels:
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-29T14:01:00.717Z'
-updated: '2026-08-29T14:01:00.717Z'
+updated: '2026-09-03T15:15:28.214Z'
 ---
 
 ## What

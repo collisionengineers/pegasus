@@ -4,6 +4,7 @@ type: ticket
 title: MAIL-19 — Automatically send chasers or other outbound messages
 status: backlog
 area: mail-communications
+order: 980
 assignee: ''
 profile: feature
 labels:
@@ -16,7 +17,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.598Z'
-updated: '2026-08-25T06:46:30.101Z'
+updated: '2026-09-03T15:15:28.929Z'
 ---
 
 ## What

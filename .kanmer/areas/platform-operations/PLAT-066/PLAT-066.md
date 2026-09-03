@@ -4,6 +4,7 @@ type: ticket
 title: 'Establish the approved 2,000-case capacity cohort and measured peak burst'
 status: backlog
 area: platform-operations
+order: 870
 assignee: ''
 profile: spike
 labels:
@@ -19,7 +20,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-09-01T21:54:35.732Z'
-updated: '2026-09-01T21:54:35.732Z'
+updated: '2026-09-03T15:15:28.681Z'
 ---
 
 ## What

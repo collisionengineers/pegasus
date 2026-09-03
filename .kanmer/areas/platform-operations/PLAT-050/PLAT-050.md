@@ -4,6 +4,7 @@ type: ticket
 title: 'Principal settings dialog: EVA API toggles and the Provider API credential'
 status: backlog
 area: platform-operations
+order: 750
 assignee: ''
 profile: feature
 labels:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-28T08:35:24.106Z'
-updated: '2026-08-28T08:35:24.106Z'
+updated: '2026-09-03T15:15:28.410Z'
 ---
 
 ## What

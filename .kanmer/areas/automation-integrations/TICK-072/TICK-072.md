@@ -4,6 +4,7 @@ type: ticket
 title: AI-03 — AI-assisted suggested email actions
 status: backlog
 area: automation-integrations
+order: 1030
 assignee: ''
 profile: feature
 labels:
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:39.917Z'
-updated: '2026-08-25T06:46:31.876Z'
+updated: '2026-09-03T15:15:29.071Z'
 ---
 
 ## What

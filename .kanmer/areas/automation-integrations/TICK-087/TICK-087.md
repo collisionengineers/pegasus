@@ -6,6 +6,7 @@ title: >-
   assignment workflow; it owns no button, queue, m…
 status: backlog
 area: automation-integrations
+order: 1160
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.458Z'
-updated: '2026-08-25T06:46:35.649Z'
+updated: '2026-09-03T15:15:29.339Z'
 ---
 
 ## What

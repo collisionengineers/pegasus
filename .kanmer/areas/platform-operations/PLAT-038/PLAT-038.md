@@ -4,6 +4,7 @@ type: ticket
 title: Serve intake-retained document content in the local profile
 status: backlog
 area: platform-operations
+order: 730
 assignee: ''
 profile: fix
 labels:
@@ -15,7 +16,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-08-22T23:56:16.433Z'
-updated: '2026-08-25T06:38:46.270Z'
+updated: '2026-09-03T15:15:28.372Z'
 ---
 
 ## The gap

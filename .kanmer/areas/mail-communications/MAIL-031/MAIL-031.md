@@ -4,6 +4,7 @@ type: ticket
 title: Administer mailbox synchronisation and message-state policy
 status: backlog
 area: mail-communications
+order: 670
 assignee: ''
 profile: feature
 labels: []
@@ -19,7 +20,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.018Z'
-updated: '2026-09-01T14:40:45.018Z'
+updated: '2026-09-03T15:15:28.252Z'
 ---
 
 ## What

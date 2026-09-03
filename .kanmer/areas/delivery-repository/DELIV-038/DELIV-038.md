@@ -4,6 +4,7 @@ type: ticket
 title: Four documentation gaps release 37 exposed but did not close
 status: backlog
 area: delivery-repository
+order: 240
 assignee: ''
 profile: chore
 labels:
@@ -17,7 +18,7 @@ refs:
   - docs/open-decisions.md
 archived: false
 created: '2026-08-30T17:03:24.178Z'
-updated: '2026-08-30T20:15:08.247Z'
+updated: '2026-09-03T15:15:27.389Z'
 ---
 
 ## What

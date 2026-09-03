@@ -6,6 +6,7 @@ title: >-
   cards, and per-version VAT
 status: backlog
 area: engineering-assessment
+order: 1110
 assignee: ''
 profile: feature
 labels:
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:40.173Z'
-updated: '2026-09-02T01:10:22.209Z'
+updated: '2026-09-03T15:15:29.228Z'
 ---
 
 ## What

@@ -4,6 +4,7 @@ type: ticket
 title: 'Cases queues: the Principal filter must apply to every queue (FRD-12)'
 status: backlog
 area: case-reference-workflow
+order: 140
 assignee: ''
 profile: fix
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-29T14:01:10.973Z'
-updated: '2026-08-29T14:01:10.973Z'
+updated: '2026-09-03T15:15:27.186Z'
 ---
 
 ## What

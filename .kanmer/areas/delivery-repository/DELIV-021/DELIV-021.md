@@ -4,6 +4,7 @@ type: ticket
 title: 'Prove near-real-time intake latency, recovery, telemetry, and seven-day cost'
 status: backlog
 area: delivery-repository
+order: 210
 assignee: ''
 profile: chore
 labels: []
@@ -20,7 +21,7 @@ refs:
   - docs/adr/0033-warm-unified-work-queue-for-five-second-intake.md
 archived: false
 created: '2026-08-25T15:18:41.009Z'
-updated: '2026-09-03T14:15:14.546Z'
+updated: '2026-09-03T15:15:27.327Z'
 ---
 
 ## What

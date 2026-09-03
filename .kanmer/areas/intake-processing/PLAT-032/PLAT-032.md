@@ -4,6 +4,7 @@ type: ticket
 title: Unify EML and MSG inline-image classification
 status: backlog
 area: intake-processing
+order: 710
 assignee: ''
 profile: chore
 labels:
@@ -17,7 +18,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-08-21T18:17:19.735Z'
-updated: '2026-08-25T06:47:12.129Z'
+updated: '2026-09-03T15:15:28.330Z'
 ---
 
 ## What

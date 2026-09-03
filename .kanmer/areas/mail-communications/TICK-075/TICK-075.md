@@ -6,6 +6,7 @@ title: >-
   provider API using principal CC/delivery/standing-not…
 status: backlog
 area: mail-communications
+order: 1060
 assignee: ''
 profile: feature
 labels:
@@ -25,7 +26,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-12T15:05:39.996Z'
-updated: '2026-09-01T14:43:23.624Z'
+updated: '2026-09-03T15:15:29.133Z'
 ---
 
 ## What

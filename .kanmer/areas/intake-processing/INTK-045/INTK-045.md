@@ -6,6 +6,7 @@ title: >-
   across the six stores that still unwrap only DbUpdateException
 status: backlog
 area: intake-processing
+order: 490
 assignee: ''
 profile: fix
 labels:
@@ -18,7 +19,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-27T16:55:16.185Z'
-updated: '2026-08-27T16:55:16.185Z'
+updated: '2026-09-03T15:15:27.901Z'
 ---
 
 ## Problem

@@ -6,6 +6,7 @@ title: >-
   inline block
 status: backlog
 area: case-reference-workflow
+order: 170
 assignee: ''
 profile: fix
 labels:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T01:50:58.282Z'
-updated: '2026-09-02T01:50:58.282Z'
+updated: '2026-09-03T15:15:27.248Z'
 ---
 
 ## What

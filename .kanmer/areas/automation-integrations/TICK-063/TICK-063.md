@@ -6,6 +6,7 @@ title: >-
   image set
 status: backlog
 area: automation-integrations
+order: 970
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:19.531Z'
-updated: '2026-08-25T06:46:29.823Z'
+updated: '2026-09-03T15:15:28.909Z'
 ---
 
 ## What

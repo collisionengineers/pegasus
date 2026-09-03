@@ -6,6 +6,7 @@ title: >-
   case, reachable from the case and the rail
 status: backlog
 area: case-reference-workflow
+order: 180
 assignee: ''
 profile: feature
 labels:
@@ -22,7 +23,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-09-03T10:53:18.687Z'
-updated: '2026-09-03T10:53:18.687Z'
+updated: '2026-09-03T15:15:27.266Z'
 ---
 
 ## What

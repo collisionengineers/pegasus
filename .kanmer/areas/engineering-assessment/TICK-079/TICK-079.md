@@ -6,6 +6,7 @@ title: >-
   out of Pegasus Core
 status: backlog
 area: engineering-assessment
+order: 1090
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:40.097Z'
-updated: '2026-08-25T06:46:33.747Z'
+updated: '2026-09-03T15:15:29.189Z'
 ---
 
 ## What

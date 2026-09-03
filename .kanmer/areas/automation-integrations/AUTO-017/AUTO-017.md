@@ -4,6 +4,7 @@ type: ticket
 title: Support Provider API updates to an existing Case
 status: backlog
 area: automation-integrations
+order: 50
 assignee: ''
 profile: feature
 labels:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-09-02T18:34:39.767Z'
-updated: '2026-09-02T18:34:39.767Z'
+updated: '2026-09-03T15:15:26.964Z'
 ---
 
 ## What

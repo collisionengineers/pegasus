@@ -4,6 +4,7 @@ type: ticket
 title: AI-04 — AI-assisted document extraction and operator review
 status: backlog
 area: automation-integrations
+order: 1040
 assignee: ''
 profile: feature
 labels:
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:39.940Z'
-updated: '2026-08-25T06:46:32.140Z'
+updated: '2026-09-03T15:15:29.095Z'
 ---
 
 ## What

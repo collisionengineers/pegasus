@@ -4,6 +4,7 @@ type: ticket
 title: Correct the capability inventory summary arithmetic
 status: backlog
 area: delivery-repository
+order: 200
 assignee: ''
 profile: chore
 labels:
@@ -12,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-25T06:35:41.656Z'
-updated: '2026-08-25T06:35:41.656Z'
+updated: '2026-09-03T15:15:27.306Z'
 ---
 
 ## What

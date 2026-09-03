@@ -6,6 +6,7 @@ title: >-
   rail counts
 status: backlog
 area: case-reference-workflow
+order: 100
 assignee: ''
 profile: feature
 labels:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.030Z'
-updated: '2026-08-28T08:35:24.030Z'
+updated: '2026-09-03T15:15:27.095Z'
 ---
 
 ## What

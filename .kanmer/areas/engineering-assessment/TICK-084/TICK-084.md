@@ -6,6 +6,7 @@ title: >-
   status, and role-restricted visibility
 status: backlog
 area: engineering-assessment
+order: 1130
 assignee: ''
 profile: feature
 labels:
@@ -21,7 +22,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:40.224Z'
-updated: '2026-08-25T06:46:35.114Z'
+updated: '2026-09-03T15:15:29.279Z'
 ---
 
 ## What
