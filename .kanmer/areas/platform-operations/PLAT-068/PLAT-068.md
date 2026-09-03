@@ -2,12 +2,22 @@
 id: PLAT-068
 type: ticket
 title: Sign-off Engineer account setting with qualifications and signature image
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: wf-build/plat-068
 profile: feature
 stageEntered:
   preparing: '2026-09-02T20:53:21.795Z'
+taken_at: '2026-09-03T13:45:30.681Z'
+branch: task/plat-068-sign-off-account
+worktree: .worktrees/plat-068
+claim_expires_at: '2026-09-03T14:15:30.681Z'
+claim_controller: wf-build/plat-068
+lease_id: 4dad6a97-d32d-4d50-bdde-457f3ea6dbf0
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-068'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-03T13:45:30.681Z'
 labels:
   - administration
   - accounts
@@ -25,7 +35,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-02T22:07:49.540Z'
+updated: '2026-09-03T13:45:30.681Z'
 ---
 
 ## What
