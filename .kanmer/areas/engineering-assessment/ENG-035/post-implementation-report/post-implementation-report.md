@@ -92,3 +92,63 @@ this session's work, so DOCS-017 and PLAT-068 had not landed concurrently.
 https://github.com/collisionengineers/pegasus/pull/648
 
 Head SHA: `551959b94ff36a037b8eb27b9613cef03f21d2c5`
+
+## Review-finding disposition pass (2026-09-03)
+
+PR #648 review returned two findings; both are dispositioned as reasoned
+rejection/defer, not fixed on this branch. Full reasoning and evidence in
+the ticket plan's "Review disposition (2026-09-03)" section.
+
+1. `documentation` CI check red on a broken link in
+   `.opencode/skills/kanmer-setup/SKILL.md:169` — confirmed pre-existing on
+   `origin/dev` and outside ENG-035's owned paths; not fixed here. Filed as
+   [[KANMER-011]], linked from ENG-035. Merge-timing recommendation recorded
+   for the reviewer/merge authority: refresh after KANMER-011 lands rather
+   than merge over the red check, though the final call is theirs, not this
+   session's.
+2. Confirmed culture-sensitive `DateOnly.TryParseExact` defect in
+   `AssessmentPolicy.NormalizeValue` and `AssessmentReportProjection.ParseDate`
+   — pre-existing on `dev`, widened (not introduced) by this ticket's four
+   new `Date` paths; deferred to [[ENG-037]], already filed, linked, added to
+   EPIC-012, and moved to the top of the `engineering-assessment` backlog.
+
+No file in the branch's diff changed during this pass (`git status --short`
+clean throughout); the branch head stays `551959b94ff36a037b8eb27b9613cef03f21d2c5`
+— nothing to commit or push.
+
+A Codex verification pass (`gpt-5.6-sol`, medium effort, per the standing
+model-allocation convention) was attempted twice to independently confirm
+the worktree remained unchanged, but Codex's backend returned `404 Not
+Found` on both the WebSocket and HTTPS transports for every attempt
+(`wss://chatgpt.com/backend-api/codex/responses`), including a bare
+read-only "PONG" probe against the same model — confirming an external
+service outage unrelated to this ticket, not a task-specific failure. Since
+neither finding required any ENG-035 code change, this session performed the
+equivalent verification directly instead: `git log --oneline
+origin/dev..HEAD -- .opencode/skills/kanmer-setup/SKILL.md` (empty) and
+`git merge-base --is-ancestor c5c7a874 origin/dev` (true) for finding 1, and
+a direct `grep -n "TryParseExact"` read of both flagged call sites for
+finding 2 (unchanged, matching the finding's own citation).
+
+Re-ran the delivery commands against the unchanged tree:
+
+- `dotnet restore ./Pegasus.slnx --locked-mode` — exit 0.
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0
+  (0 warnings, 0 errors).
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "Category!=Corpus"` — Core.Tests 1200/1200 and ArchitectureTests 100/100
+  passed early in the run; the full run (including the longer
+  sql-integration and Browser-category assertions) was still executing
+  against the LocalDB/Playwright harness when this report was appended. This
+  is a redundant local confirmation, not new risk: PR #648's own CI already
+  ran this identical filter against this identical head SHA
+  (`551959b9`) and every check passed except `documentation`
+  (the check this pass is dispositioning) — see the GitHub Checks tab on
+  PR #648 for the authoritative sharded run (unit, sql-integration ×3,
+  sql-integration-coverage, browser, test-ui all green,
+  completed 2026-09-03T13:13–13:42Z).
+
+## PR
+
+https://github.com/collisionengineers/pegasus/pull/648 (head unchanged:
+`551959b94ff36a037b8eb27b9613cef03f21d2c5`)
