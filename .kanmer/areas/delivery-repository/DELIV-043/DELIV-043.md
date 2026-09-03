@@ -14,14 +14,14 @@ stageEntered:
 taken_at: '2026-09-03T19:24:36.901Z'
 branch: task/deliv-043-ci-concurrency-preflight
 worktree: ../pegasus-worktrees/deliv-043-ci-concurrency-preflight
-claim_expires_at: '2026-09-03T23:44:41.520Z'
+claim_expires_at: '2026-09-03T23:48:00.258Z'
 claim_controller: claude-code
 lease_id: 2d972783-71c8-42b5-be3f-816ebb51a211
-lease_revision: 6
+lease_revision: 7
 lease_workspace: >-
   worktree:c:\users\alex\documents\github\pegasus-worktrees\deliv-043-ci-concurrency-preflight
 lease_phase: review
-lease_heartbeat_at: '2026-09-03T23:14:41.520Z'
+lease_heartbeat_at: '2026-09-03T23:18:00.258Z'
 labels:
   - ci
 links:
@@ -33,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/653'
 archived: false
 created: '2026-09-03T19:23:48.496Z'
-updated: '2026-09-03T23:14:41.520Z'
+updated: '2026-09-03T23:18:00.258Z'
 ---
 
 ## What
