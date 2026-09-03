@@ -849,6 +849,90 @@ public sealed class AssessmentPersistenceIntegrationTests
             scope.ServiceProvider.GetRequiredService<IEditValuation>());
         Assert.IsType<ListCaseValuations>(
             scope.ServiceProvider.GetRequiredService<IListCaseValuations>());
+        Assert.IsType<EfMarketResearchAiJobCompletionStore>(
+            scope.ServiceProvider.GetRequiredService<IMarketResearchAiJobCompletionStore>());
+        Assert.IsType<CompleteMarketResearchAiJob>(
+            scope.ServiceProvider.GetRequiredService<ICompleteMarketResearchAiJob>());
+    }
+
+    [Fact]
+    public async Task MarketResearchCompletionAtomicallyRetainsEvidenceValuationAndDraftReadyJob()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("market-research-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        await SetReportPreparationAsync(harness.Factory, caseId);
+        var automation = harness.AutomationActor;
+        var aiJobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var created = await aiJobs.CreateAsync(
+            new(
+                AiJobKind.MarketResearch,
+                AiJobSubjectKind.Case,
+                caseId,
+                outcome.Identity.Reference,
+                "Research comparable vehicles.",
+                null,
+                null,
+                harness.EngineerActor,
+                "market-research-create",
+                AiJobPolicy.DefaultExpiry),
+            CancellationToken.None);
+        var taken = await aiJobs.TransitionAsync(
+            new(
+                created.JobId,
+                created.Version,
+                AiJobState.Taken,
+                automation,
+                "market-research-take",
+                LeaseExpiresAtUtc: harness.Clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        var lease = await harness.AcquireLeaseAsync(
+            caseId,
+            0,
+            automation,
+            "market-research-case-lease");
+        var content = new MarketResearchDocumentContentStore();
+        var complete = new CompleteMarketResearchAiJob(
+            new EfMarketResearchAiJobCompletionStore(harness.Factory, content, harness.Clock));
+        var command = new CompleteMarketResearchAiJobCommand(
+            taken.JobId,
+            taken.Version,
+            caseId,
+            lease.Version,
+            lease.Token,
+            automation,
+            "market-research-complete",
+            "market-research.pdf",
+            "application/pdf",
+            new byte[] { 1, 2, 3 },
+            new DateOnly(2031, 5, 6),
+            new TimeOnly(10, 30),
+            42000,
+            12000m,
+            10000m);
+
+        var completed = await complete.ExecuteAsync(command, CancellationToken.None);
+        var replay = await complete.ExecuteAsync(command, CancellationToken.None);
+
+        Assert.Equal(AiJobState.DraftReady, completed.Job.State);
+        Assert.Equal(AiJobResultKind.MarketResearch, completed.Job.ResultKind);
+        Assert.Equal(ValuationSource.AiMarketResearch, completed.Valuation.Details.Source);
+        Assert.Equal(completed.Document.Occurrence.Id, replay.Document.Occurrence.Id);
+        Assert.Equal(completed.Valuation.ValuationId, replay.Valuation.ValuationId);
+        Assert.True(replay.IsReplay);
+        Assert.Equal(1, content.StoreCount);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            complete.ExecuteAsync(command with { RetailValue = 12001m }, CancellationToken.None));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
+        Assert.Null(await ReadEngineersValueAsync(harness, caseId));
+        Assert.Equal(ActorKind.Automation.ToString(), await context.ActionHistory
+            .Where(item => item.AggregateType == "ai_job" && item.AggregateId == taken.JobId.ToString("D"))
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .Select(item => item.ActorKind)
+            .FirstAsync());
     }
 
     private static async Task<AssessmentFieldValue?> ReadEngineersValueAsync(
@@ -1243,6 +1327,37 @@ public sealed class AssessmentPersistenceIntegrationTests
         public Task DeleteAsync(
             Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class MarketResearchDocumentContentStore : IDocumentContentStore
+    {
+        public int StoreCount { get; private set; }
+
+        public Task StoreAsync(
+            Guid caseId,
+            string caseReference,
+            Guid versionId,
+            ReadOnlyMemory<byte> content,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            StoreCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task<Stream> OpenReadAsync(
+            Guid caseId,
+            string caseReference,
+            Guid versionId,
+            string expectedSha256,
+            long expectedLength,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task DeleteAsync(
+            Guid caseId,
+            string caseReference,
+            Guid versionId,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class ReaderCommandCounter : DbCommandInterceptor
