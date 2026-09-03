@@ -382,3 +382,16 @@ zone as "each with Severity, Type, Note" (a D45 residue in the design
 authority) and ENG-035's `files/files.md` still says "zone/type structures".
 ENG-036 owns neither file; the README correction is raised in
 `open-questions`, and hand-off 1 already refuses a non-D45 contract.
+
+## Resolutions (2026-09-03)
+
+1. **Snapshots.** ENG-036 regenerates the Test UI snapshots its own page
+   change affects and commits `docs/design/test-ui/` with the change:
+   `./scripts/Update-TestUiSnapshots.ps1`, then
+   `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` and
+   `./scripts/Test-UiCatalogue.ps1`. It is serial in wave 4 and holds the
+   capacity-one lock while it runs. [[UIIMP-014]] adds new states, catalogue
+   entries and the browser walk in wave 5. Step 1 no longer stops here.
+2. **Design authority.** [[PLAT-070]] removes the damage `Type` from
+   `docs/design/README.md` in wave 1; ENG-036 edits no governing document and
+   builds against the corrected authority.

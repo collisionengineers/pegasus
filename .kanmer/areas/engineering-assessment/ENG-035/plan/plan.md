@@ -357,3 +357,15 @@ ENG-035 is in Review. Do not merge or begin another ticket.
 D44, D45 and D46 were confirmed clean by both readers: no review flag,
 checkbox, dialog or history line; no damage `type` in the vocabulary,
 projection or report; no crop or image-curation change.
+
+## Coordination note (2026-09-03) — do not strand an edit route
+
+[[CASE-043]] (wave 4) owns the extended case vehicle record and its editable
+surface. If any step of this plan retires a field from the Assessment
+vocabulary and re-homes it on the case vehicle record, this PR must keep that
+field editable and persisted until CASE-043 ships its replacement route. A
+field that loses its only production edit route on `dev` is a regression, not
+a migration, and the reviewer is asked to check this specifically.
+
+No damage `type` may appear in any contract, projection or fixture (D45);
+`files/files.md` still says "zone/type structures" and is stale on that point.

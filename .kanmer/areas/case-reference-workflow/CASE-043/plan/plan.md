@@ -313,3 +313,21 @@ dispositioning pass and fixed.
 Files the reviewer confirmed real: every named helper, store, test file and
 migration precedent; the automatic reconciliation caller; the 87-migration
 count. No package is added and no unnecessary service is introduced.
+
+## Resolutions (2026-09-03)
+
+1. **Not completeness inputs.** The ten fields are ordinary optional Case
+   fields. No completeness rule, no new fail-closed gate. A field with no
+   value is drawn absent.
+2. **Lookup fills only what the approved adapter returns.** No new package,
+   endpoint or provider. The plan states per field which source can supply
+   it, verified against the adapter's real response, and never synthesises a
+   value.
+3. **The editable path ships here.** CASE-043 expands `CaseEditableData` and
+   every production save caller under the capacity-one
+   `Pages/Cases/Shared/*` lock (it is serial in wave 4). The save path must
+   distinguish "not submitted" from "cleared" because
+   `EfCaseDataStore.SetConfirmed` deletes a confirmed value on null, and a
+   test must prove a value survives an unrelated save.
+4. **No edit route is removed before its replacement exists** — see the note
+   appended to [[ENG-035]]'s plan.
