@@ -232,7 +232,8 @@ The action bar offers only actions the Core use cases permit for the current
 state: Edit Case / Finish editing / Renew editing, or the holder and expiry
 when another account holds the lease ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery));
 Place on Hold / Release Hold; Create upload link; **Send to EVA** in Review
-and again in With Engineer as a re-send (D36) — the dialog holds Engineer,
+as the implicit review action, moving the Case to With Engineer, and again in
+With Engineer as a re-send (D36, D44) — the dialog holds Engineer,
 Sign-off Engineer and Download ZIP / Send via API, with Send via API disabled
 unless the Principal enables it ([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
 there is no separate Download EVA package action;
@@ -266,7 +267,7 @@ non-destructive conflict.
   panel and no suggestion table; Run Experian check stays the disabled seam
   (D34) — and the vehicle-history narrative
   ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
-- Damage: the zone list with severity, type and note per zone; tyres and
+- Damage: the zone list with severity and note per zone; tyres and
   seat belts per corner, spare tyre and centre belt; unrelated damage with
   its deduction; paint or material transfer; impact location and severity
   shown as derived values (D39,
@@ -383,7 +384,9 @@ emailed or shown again (D28,
 image-completeness rules as required/not-required items with exact blockers,
 and the chase interval as one global whole-calendar-day value (1 to 365,
 default 7, Europe/London), where `Held` preserves the remaining time (D23).
-It also holds labour-rate-card administration: the
+It has no staff instruction-review or image-review settings; where only the
+workflow policy identity applies, the page shows its current version read-only
+(D44, 2026-09-03). It also holds labour-rate-card administration: the
 global versioned cards (name, non-paint hourly rate, enabled state) that every
 estimate version selects from, with disabling blocking future selection
 without changing history (D17). It stays inside that area; no ninth area is
