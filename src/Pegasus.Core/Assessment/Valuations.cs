@@ -10,6 +10,7 @@ public enum ValuationSource
     Glasses,
     Cazana,
     EngineersValue,
+    AiMarketResearch,
 }
 
 /// <summary>
@@ -115,6 +116,18 @@ public static class ValuationPolicy
         return details;
     }
 
+    public static ValuationDetails ValidateAutomationMarketResearch(ValuationDetails details)
+    {
+        details = ValidateDetails(details);
+        if (details.Source != ValuationSource.AiMarketResearch)
+        {
+            throw new InvalidOperationException(
+                "Automation may record only an AI market research valuation.");
+        }
+
+        return details;
+    }
+
     /// <summary>
     /// Recording or correcting a valuation is ordinary casework. An
     /// Engineer's Value row is not: it carries the confirmed
@@ -125,6 +138,11 @@ public static class ValuationPolicy
     {
         ArgumentNullException.ThrowIfNull(details);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (actor.Kind != ActorKind.Staff)
+        {
+            throw new InvalidOperationException(
+                "Valuations entered through the staff save and edit actions require a staff actor.");
+        }
         if (details.Source == ValuationSource.EngineersValue)
         {
             AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
