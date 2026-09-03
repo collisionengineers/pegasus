@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -20,7 +22,7 @@ public static class AssessmentPolicy
 {
     public const string PolicyKey = "case-assessment-edit";
     public const int PolicyVersion = 1;
-    public const int MaximumFieldsPerSave = 60;
+    public const int MaximumFieldsPerSave = 80;
     public const int MaximumEstimateLines = 200;
 
     public static SaveAssessmentRequest ValidateAndNormalize(SaveAssessmentRequest request)
@@ -55,6 +57,10 @@ public static class AssessmentPolicy
         var touchesFinding = false;
         foreach (var (path, rawValue) in request.Fields)
         {
+            if (AssessmentVocabulary.DerivedPaths.Contains(path))
+            {
+                throw new InvalidOperationException($"The field '{path}' is derived from damage.impacts and cannot be written directly.");
+            }
             if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
             {
                 throw new InvalidOperationException(
@@ -118,6 +124,33 @@ public static class AssessmentPolicy
         }
 
         return NormalizeValue(definition, rawValue);
+    }
+
+    public static IReadOnlyList<AssessmentImpact> ParseImpacts(string? value)
+    {
+        if (value is null)
+        {
+            return [];
+        }
+
+        using var document = JsonDocument.Parse(value);
+        return ReadImpacts(document.RootElement);
+    }
+
+    public static (string? Location, string? Severity) DeriveImpactValues(string? value)
+    {
+        var impacts = ParseImpacts(value);
+        if (impacts.Count == 0)
+        {
+            return (null, null);
+        }
+
+        var location = impacts.Count > 1
+            ? "multiple"
+            : AssessmentVocabulary.DamageZones[impacts[0].Zone].ImpactLocation;
+        var severity = impacts.MaxBy(
+            impact => AssessmentVocabulary.DamageSeverities[impact.Severity].Rank)!.Severity;
+        return (location, severity);
     }
 
     /// <summary>
@@ -433,10 +466,87 @@ public static class AssessmentPolicy
                 }
                 return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
+            case AssessmentFieldType.Json:
+                return NormalizeImpacts(value);
+
             default:
                 throw new InvalidOperationException(
                     $"The field type for '{definition.Path}' is not supported.");
         }
+    }
+
+    private static string NormalizeImpacts(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            var impacts = ReadImpacts(document.RootElement);
+            using var stream = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartArray();
+                foreach (var impact in impacts)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("zone", impact.Zone);
+                    writer.WriteString("severity", impact.Severity);
+                    writer.WriteString("note", impact.Note);
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
+            var normalized = Encoding.UTF8.GetString(stream.ToArray());
+            if (normalized.Length > AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageImpacts].MaximumLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "The canonical damage impacts cannot exceed 4000 characters.");
+            }
+            return normalized;
+        }
+        catch (JsonException exception)
+        {
+            throw new ArgumentException("The damage impacts must be a valid JSON array.", nameof(value), exception);
+        }
+    }
+
+    private static List<AssessmentImpact> ReadImpacts(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Array)
+        {
+            throw new ArgumentException("The damage impacts must be a JSON array.", nameof(root));
+        }
+        var result = new List<AssessmentImpact>();
+        var zones = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var element in root.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.Object
+                || element.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(["note", "severity", "zone"]) is false
+                || !element.TryGetProperty("zone", out var zoneElement)
+                || !element.TryGetProperty("severity", out var severityElement)
+                || !element.TryGetProperty("note", out var noteElement)
+                || zoneElement.ValueKind != JsonValueKind.String
+                || severityElement.ValueKind != JsonValueKind.String
+                || noteElement.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException("Each damage impact must contain exactly string zone, severity, and note members.", nameof(root));
+            }
+            var zone = zoneElement.GetString()!;
+            var severity = severityElement.GetString()!;
+            var note = noteElement.GetString()!.Trim();
+            if (!AssessmentVocabulary.DamageZones.ContainsKey(zone) || !zones.Add(zone))
+            {
+                throw new ArgumentException("Damage impact zones must be accepted and unique.", nameof(root));
+            }
+            if (!AssessmentVocabulary.DamageSeverities.ContainsKey(severity))
+            {
+                throw new ArgumentException("A damage impact severity is not accepted.", nameof(root));
+            }
+            if (note.Length > 200 || note.Any(char.IsControl))
+            {
+                throw new ArgumentException("A damage impact note cannot exceed 200 characters or contain control characters.", nameof(root));
+            }
+            result.Add(new(zone, severity, note));
+        }
+        return result;
     }
 
     private static List<EstimateLineInput> NormalizeLines(
