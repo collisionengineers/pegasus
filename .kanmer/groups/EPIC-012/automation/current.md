@@ -28,6 +28,30 @@ capacity-one shared-lock path. gpt-5.6-sol medium implements under Sonnet
 wrappers; gpt-5.6-terra xhigh reviews each PR, Opus dispositions and merges
 to `dev`.
 
+## Verification change, operator-agreed 2026-09-03 (wave 2 onward)
+
+Waves 2–5 run `case-workspace-v2-build-2.js`, which verifies **once per wave**
+instead of once per ticket. Wave 1 finishes on the original script.
+
+- Lanes stay serial where they share a capacity-one path. That serialisation
+  is about write conflicts — the operator label file, the linear EF migration
+  chain, the case detail page — not about test cost, and it does not change.
+- After a wave's merges, one detached checkout at the head of `origin/dev`
+  runs the full delivery commands and the union of the wave's plan-named
+  acceptance commands once. Every ticket's merge SHA is first proved an
+  ancestor of that wave SHA; a ticket whose SHA is not reachable stops the
+  run. Each ticket's `proof.md` cites the wave SHA, that ancestry check and
+  the shared command log.
+- A single non-zero exit fails the whole wave: every ticket gets a FAIL proof
+  and stays in Verifying. No ticket reaches Done on a red run, and a later
+  pass does not erase the failure.
+- The pre-merge review run is scoped to the diff (restore, build, then the
+  tests covering the changed types), with the snapshot verify and the
+  migration-grants script still run unscoped whenever those files change. The
+  reviewer records the scope and why it covers the change; a red result
+  blocks the merge exactly as before. The implementer's own full run is
+  unchanged.
+
 Remaining: wave 2 CASE-038; wave 3 CASE-039, CASE-040, CASE-041, CASE-029,
 CASE-042 (blocked by CASE-032), PLAT-069, CASE-009, then ENG-034 serial last;
 wave 4 ENG-036, ENG-031, ENG-029, DOCS-018, CASE-043 serial; wave 5
