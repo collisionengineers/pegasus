@@ -64,10 +64,6 @@ public sealed class EfWorkflowConfigurationStore(
         }
 
         var before = Snapshot(entity);
-        entity.RequireStaffInstructionReviewBeforeEngineerAssignment =
-            request.RequireStaffInstructionReviewBeforeEngineerAssignment;
-        entity.RequireStaffImageReviewBeforeEngineerAssignment =
-            request.RequireStaffImageReviewBeforeEngineerAssignment;
         entity.Version = checked(entity.Version + 1);
         var after = Snapshot(entity);
 
@@ -111,11 +107,7 @@ public sealed class EfWorkflowConfigurationStore(
 
         var snapshot = JsonSerializer.Deserialize<WorkflowConfigurationSnapshot>(history.AfterJson)
             ?? throw new WorkflowConfigurationOperationConflictException();
-        if (snapshot.PolicyVersion != checked(request.ExpectedVersion + 1)
-            || snapshot.RequireStaffInstructionReviewBeforeEngineerAssignment
-                != request.RequireStaffInstructionReviewBeforeEngineerAssignment
-            || snapshot.RequireStaffImageReviewBeforeEngineerAssignment
-                != request.RequireStaffImageReviewBeforeEngineerAssignment)
+        if (snapshot.PolicyVersion != checked(request.ExpectedVersion + 1))
         {
             throw new WorkflowConfigurationOperationConflictException();
         }
@@ -124,8 +116,6 @@ public sealed class EfWorkflowConfigurationStore(
     }
 
     private static WorkflowConfigurationSnapshot Snapshot(WorkflowConfigurationEntity entity) => new(
-        entity.RequireStaffInstructionReviewBeforeEngineerAssignment,
-        entity.RequireStaffImageReviewBeforeEngineerAssignment,
         entity.Id,
         entity.Version);
 
@@ -133,14 +123,10 @@ public sealed class EfWorkflowConfigurationStore(
         Map(Snapshot(entity));
 
     private static CaseWorkflowConfiguration Map(WorkflowConfigurationSnapshot snapshot) => new(
-        snapshot.RequireStaffInstructionReviewBeforeEngineerAssignment,
-        snapshot.RequireStaffImageReviewBeforeEngineerAssignment,
         snapshot.PolicyKey,
         snapshot.PolicyVersion);
 
     private sealed record WorkflowConfigurationSnapshot(
-        bool RequireStaffInstructionReviewBeforeEngineerAssignment,
-        bool RequireStaffImageReviewBeforeEngineerAssignment,
         string PolicyKey,
         int PolicyVersion);
 }

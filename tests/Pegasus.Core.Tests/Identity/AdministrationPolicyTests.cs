@@ -27,8 +27,6 @@ public sealed class AdministrationPolicyTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
             new(
-                false,
-                true,
                 1,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
                 "Attempted gate change",
@@ -46,14 +44,14 @@ public sealed class AdministrationPolicyTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
         var updated = await command.ExecuteAsync(
-            new(false, true, 1, actor, "  Reviewed gates  ", "  workflow-op  "),
+            new(1, actor, "  Reviewed policy  ", "  workflow-op  "),
             default);
 
         Assert.Equal(2, updated.PolicyVersion);
         var request = Assert.IsType<UpdateWorkflowConfigurationRequest>(store.UpdateRequest);
         Assert.Same(actor, request.Actor);
         Assert.Equal(1, request.ExpectedVersion);
-        Assert.Equal("Reviewed gates", request.Reason);
+        Assert.Equal("Reviewed policy", request.Reason);
         Assert.Equal("workflow-op", request.OperationKey);
     }
 
@@ -332,7 +330,7 @@ public sealed class AdministrationPolicyTests
         }
 
         private static CaseWorkflowConfiguration Current(int version) =>
-            new(true, true, "case-workflow", version);
+            new("case-workflow", version);
     }
 
     private sealed class MailboxStore : IApprovedMailboxStore

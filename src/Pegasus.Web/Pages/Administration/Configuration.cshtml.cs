@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,9 +8,7 @@ using Pegasus.Web.Mcp;
 namespace Pegasus.Web.Pages.Administration;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class ConfigurationModel(
-    GetWorkflowConfiguration getWorkflowConfiguration,
-    UpdateWorkflowConfiguration updateWorkflowConfiguration)
+public sealed class ConfigurationModel(GetWorkflowConfiguration getWorkflowConfiguration)
     : AdministrationPageModel
 {
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
@@ -23,23 +20,6 @@ public sealed class ConfigurationModel(
     /// </summary>
     public bool AutomationComposed { get; private set; }
 
-    [BindProperty]
-    public bool RequireStaffInstructionReviewBeforeEngineerAssignment { get; set; }
-
-    [BindProperty]
-    public bool RequireStaffImageReviewBeforeEngineerAssignment { get; set; }
-
-    [BindProperty]
-    [Range(1, int.MaxValue)]
-    public int ExpectedVersion { get; set; }
-
-    [BindProperty]
-    [Required, StringLength(1000, MinimumLength = 1)]
-    public string Reason { get; set; } = string.Empty;
-
-    [BindProperty]
-    public string OperationKey { get; set; } = NewOperationKey();
-
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -48,80 +28,16 @@ public sealed class ConfigurationModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageWorkflowConfiguration);
-        await LoadAsync(actor, populateForm: true, cancellationToken);
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageWorkflowConfiguration);
-        if (!IsOperationKeyValid(OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                var updated = await updateWorkflowConfiguration.ExecuteAsync(
-                    new(
-                        RequireStaffInstructionReviewBeforeEngineerAssignment,
-                        RequireStaffImageReviewBeforeEngineerAssignment,
-                        ExpectedVersion,
-                        actor,
-                        Reason,
-                        OperationKey),
-                    cancellationToken);
-                TempData["AdministrationStatus"] =
-                    $"Workflow configuration version {updated.PolicyVersion} was recorded.";
-                return RedirectToPage();
-            }
-            catch (WorkflowConfigurationVersionConflictException)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "The workflow configuration changed after this form was loaded. " +
-                    "Your change was not applied; review the current values and retry.");
-            }
-            catch (WorkflowConfigurationOperationConflictException)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "This form was already used for another change. Review the current values and retry.");
-            }
-        }
-
-        await LoadAsync(actor, populateForm: false, cancellationToken);
-        ExpectedVersion = Configuration.PolicyVersion;
-        OperationKey = NewOperationKey();
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
     private async Task LoadAsync(
         ActionActor actor,
-        bool populateForm,
         CancellationToken cancellationToken)
     {
         AutomationComposed =
             HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
-        if (!populateForm)
-        {
-            return;
-        }
-
-        RequireStaffInstructionReviewBeforeEngineerAssignment =
-            Configuration.RequireStaffInstructionReviewBeforeEngineerAssignment;
-        RequireStaffImageReviewBeforeEngineerAssignment =
-            Configuration.RequireStaffImageReviewBeforeEngineerAssignment;
-        ExpectedVersion = Configuration.PolicyVersion;
-        Reason = string.Empty;
-        OperationKey = NewOperationKey();
     }
 }

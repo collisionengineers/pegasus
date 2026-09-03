@@ -6278,12 +6278,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<bool>("RequireStaffImageReviewBeforeEngineerAssignment")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("RequireStaffInstructionReviewBeforeEngineerAssignment")
-                        .HasColumnType("bit");
-
                     b.Property<int>("Version")
                         .HasColumnType("int");
 
@@ -6295,8 +6289,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = "case-workflow",
-                            RequireStaffImageReviewBeforeEngineerAssignment = true,
-                            RequireStaffInstructionReviewBeforeEngineerAssignment = true,
                             Version = 1
                         });
                 });

@@ -30,8 +30,6 @@ public sealed partial class CaseDetailsWebTests
                 ("destination", "Review"),
                 ("instructionsComplete", "true"),
                 ("imagesComplete", "false"),
-                ("instructionsReviewedByStaff", "true"),
-                ("imagesReviewedByStaff", "false"),
                 ("evidenceReference", "reopen-evidence-1")));
         using var reopenedToNotReady = await workspace.PostAsync(
             "Closure?handler=Reopen",
@@ -53,7 +51,7 @@ public sealed partial class CaseDetailsWebTests
         var toReview = store.Reopenings[0];
         AssertLeasedMutation(workspace, toReview, "reopen-review", "Provider reinstated the instruction");
         Assert.Equal(CaseReopenDestination.Review, toReview.Destination);
-        Assert.Equal(new CaseReadinessEvidence(true, false, true, false, "reopen-evidence-1"), toReview.Readiness);
+        Assert.Equal(new CaseReadinessEvidence(true, false, "reopen-evidence-1"), toReview.Readiness);
         var toNotReady = store.Reopenings[1];
         Assert.Equal("reopen-not-ready", toNotReady.OperationKey);
         Assert.Equal(CaseReopenDestination.NotReady, toNotReady.Destination);

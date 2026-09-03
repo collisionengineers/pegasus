@@ -69,8 +69,6 @@ public sealed class WorkflowModel(
         string editLeaseToken,
         bool instructionsComplete,
         bool imagesComplete,
-        bool instructionsReviewedByStaff,
-        bool imagesReviewedByStaff,
         string evidenceReference,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
@@ -89,8 +87,6 @@ public sealed class WorkflowModel(
                     Readiness(
                         instructionsComplete,
                         imagesComplete,
-                        instructionsReviewedByStaff,
-                        imagesReviewedByStaff,
                         evidenceReference)),
                 cancellationToken),
             "The case returned to Review.");
@@ -104,8 +100,6 @@ public sealed class WorkflowModel(
         Guid engineerId,
         bool instructionsComplete,
         bool imagesComplete,
-        bool instructionsReviewedByStaff,
-        bool imagesReviewedByStaff,
         string evidenceReference,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
@@ -124,8 +118,6 @@ public sealed class WorkflowModel(
                     Readiness(
                         instructionsComplete,
                         imagesComplete,
-                        instructionsReviewedByStaff,
-                        imagesReviewedByStaff,
                         evidenceReference)),
                 cancellationToken),
             "The Engineer was assigned.");
