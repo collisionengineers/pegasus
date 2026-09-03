@@ -1,14 +1,15 @@
 # Open questions — AUTO-018
 
-- [ ] Does a successful MarketResearch completion become `Completed`
+- [x] Does a successful MarketResearch completion become `Completed`
   immediately after retaining its findings document and valuation row, or stay
-  `DraftReady` until a named staff review action? D35 says "proposal only";
-  today `Completed` is reserved for a staff confirmation
-  (`AiJobOperations.cs:151-172`). Evidence added 2026-09-02 by the plan: the
-  FRD-11 MarketResearch row (DELIV-041, `frd-11:270`) gives staff confirmation
-  "None on the job — the entry is a proposal on the Case", while the states
-  section (`frd-11:275-285`) lists only Query response and Unidentified-queue
-  pass as hand-completed kinds. The plan's default is `DraftReady` (existing
-  actor rules untouched), which leaves the job without a closure surface in
-  AUTO-018's owned paths; the alternative narrows the Completed-is-staff rule
-  for `MarketResearch` alone. Either is one Core line.
+  `DraftReady` until a named staff review action? Resolved 2026-09-03 by the
+  controller from D35 ("proposal only, never accepted automatically"): the
+  job lands in the existing review state (`DraftReady`) and becomes
+  `Completed` through the existing staff confirmation on the AI Job List;
+  no new closure surface and no narrowing of the Completed-is-staff rule.
+  The FRD-11 MarketResearch row's "None on the job" wording is corrected by
+  PLAT-070's docs lines to "the existing staff confirmation".
+
+## Parked (explicitly deferred)
+
+None.

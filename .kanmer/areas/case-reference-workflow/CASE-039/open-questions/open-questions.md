@@ -1,4 +1,8 @@
 # Open questions — CASE-039 (2026-09-02)
 
-- [ ] Should adding an Engineer note also record a one-line event in the case Notes history ("Note for the Engineer added", as the mockup does), or must nothing about an Engineer note appear in the Notes history (D32, ticket verification "They do not appear in the Notes history")? The plan ships the safe default (nothing in Notes history); a "yes" is one bounded follow-up step (a new history event type plus `HistoryEvent` label), not planned in CASE-039.
-- [x] Should Add note be refused for every terminal lifecycle state (Complete, Provider cancelled, Rejected, Created in error, Source email unlinked), or only once the case is Complete (D30)? Settled by the governing docs and recorded in the plan (2026-09-02): Add note is offered in editing only, with no additional lifecycle-state gate — the design README's read-only-once-Complete list (Damage, Valuation, Estimate, Settlement, Report) excludes Engineer notes, FRD-01 §Engineer notes states no state rule, and the edit lease is claimable on a terminal case today (`Details.cshtml` lines 227-238). The store uses `CaseMutationGuard.RequireLease`, not `Require` (which adds a terminal gate).
+- [x] Should adding an Engineer note also record a one-line event in the case Notes history? Operator answer 2026-09-03: no — nothing about an Engineer note appears in the Notes history; Engineer notes stay entirely in their own section (D32).
+- [x] Should Add note be refused for every terminal lifecycle state, or only once the case is Complete (D30)? Settled by the governing docs and recorded in the plan (2026-09-02): Add note is offered in editing only, with no additional lifecycle-state gate — the design README's read-only-once-Complete list (Damage, Valuation, Estimate, Settlement, Report) excludes Engineer notes, FRD-01 §Engineer notes states no state rule, and the edit lease is claimable on a terminal case today (`Details.cshtml` lines 227-238). The store uses `CaseMutationGuard.RequireLease`, not `Require` (which adds a terminal gate).
+
+## Parked (explicitly deferred)
+
+None.
