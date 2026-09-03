@@ -2,9 +2,8 @@
 kind: proof-record
 merged_sha: "fbf8ee40983ee30030b296d9e61274b238c80b04"
 environment: "Detached verification worktree C:\\Users\\PGUSER\\Documents\\github\\pegasus-worktrees\\verify-kanmer-010-fbf8ee40983ee30030b296d9e61274b238c80b04 at the exact PR #642 mergeCommit.oid, Windows 11 / PowerShell 7 + Git Bash, Kanmer 0.4.0 plugin bundle; Part 2 reachability run against the primary checkout C:\\Users\\PGUSER\\documents\\github\\pegasus"
-verified_at: "2026-09-02T04:15:00Z"
-result: INCONCLUSIVE
-failure_class: inconclusive
+verified_at: "2026-09-03T09:10:09Z"
+result: PASS
 attempts:
   - attempted_at: "2026-09-02T04:03:36Z"
     command: "gh pr view 642 --json state,mergeCommit,url"
@@ -84,6 +83,31 @@ attempts:
     exit_code: null
     result: NOT_APPLICABLE
     summary: "scripts/Invoke-ProductionSmoke.ps1 exists in the repo but this ticket's deployment field is 'n/a' (a repository-tooling chore: AGENTS.md managed block, Kanmer skill-tree refresh, .kanmer-skills-version stamps — no product code, no deployed artefact, no UI surface). No production canary is named in the ticket's post-implementation-report, and none is owed: per the dispatch's explicit carve-out, a deployment: n/a chore's Part 2 release evidence is reachability from the promoted main only, which the two INCONCLUSIVE reachability attempts above already cover. No operator UI acceptance is owed either — this is not a UI ticket."
+  - attempted_at: "2026-09-03T09:10:09Z"
+    command: "gh pr view 642 --json state,mergedAt,mergeCommit,url,headRefName,baseRefName"
+    cwd: "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
+    exit_code: 0
+    result: PASS
+    summary: "PR #642 remains MERGED into dev; mergeCommit.oid is fbf8ee40983ee30030b296d9e61274b238c80b04; mergedAt 2026-09-02T02:56:50Z; URL https://github.com/collisionengineers/pegasus/pull/642."
+  - attempted_at: "2026-09-03T09:10:09Z"
+    command: "git fetch origin main dev --prune"
+    cwd: "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
+    exit_code: 0
+    result: PASS
+    summary: "Fetched current origin/main and origin/dev before the ancestry decision; origin/main resolved to 1b705bd01d88109b21affddd014fbaa06c82b1ce and origin/dev to 897db9530a45063e8f684f2800685afbfdced006."
+  - attempted_at: "2026-09-03T09:10:09Z"
+    command: "git merge-base --is-ancestor fbf8ee40983ee30030b296d9e61274b238c80b04 origin/dev"
+    cwd: "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
+    exit_code: 0
+    result: PASS
+    summary: "The exact PR merge SHA remains reachable from the integration branch."
+  - attempted_at: "2026-09-03T09:10:09Z"
+    command: "git merge-base --is-ancestor fbf8ee40983ee30030b296d9e61274b238c80b04 origin/main"
+    cwd: "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
+    exit_code: 0
+    result: PASS
+    summary: "The exact PR merge SHA is now reachable from origin/main at 1b705bd01d88109b21affddd014fbaa06c82b1ce. This resolves the earlier expected pre-promotion INCONCLUSIVE attempt without changing the verified merge artefact."
+
 ---
 
 # Proof — KANMER-010
@@ -152,3 +176,15 @@ ticket's post-implementation report).
 - `dotnet build`/test lanes — genuinely not applicable: this PR touches no
   `src/` code (CI's own path-skip on the six build/test lanes corroborates
   this).
+
+
+## Part 2 resolution — 2026-09-03
+
+PR #642 remains merged at exact commit
+`fbf8ee40983ee30030b296d9e61274b238c80b04` on 2026-09-02T02:56:50Z
+(https://github.com/collisionengineers/pegasus/pull/642). After a fresh fetch,
+that commit is an ancestor of both `origin/dev` and `origin/main`; the latter
+resolved to `1b705bd01d88109b21affddd014fbaa06c82b1ce`. This supplies the only
+evidence unavailable in the original attempt. The earlier exact-SHA checks
+remain recorded above and unchanged; no product deployment or canary is owed
+for this `deployment: n/a` repository-tooling chore.
