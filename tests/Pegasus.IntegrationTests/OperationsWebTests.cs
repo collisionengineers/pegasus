@@ -173,9 +173,10 @@ public sealed partial class OperationsWebTests
         // Three non-terminal jobs, the job explicitly completed today and the
         // queued job that effectively expired today; the job cancelled a week
         // ago is not on the list (FRD-11).
-        Assert.Contains("5 jobs", html, StringComparison.Ordinal);
+        Assert.Contains("6 jobs", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified resolution", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified-queue pass", html, StringComparison.Ordinal);
+        Assert.Contains("Market research", html, StringComparison.Ordinal);
         Assert.Contains(RecordingAiWorkStore.UnidentifiedReference, html, StringComparison.Ordinal);
         Assert.Contains(RecordingAiWorkStore.CompletedInstruction, html, StringComparison.Ordinal);
         var expiredRow = RowContaining(html, RecordingAiWorkStore.ExpiredInstruction);
@@ -239,6 +240,11 @@ public sealed partial class OperationsWebTests
         var queuePassRow = RowContaining(html, "Unidentified queue");
         Assert.Contains("Complete job", queuePassRow, StringComparison.Ordinal);
         Assert.DoesNotContain("Review estimate", queuePassRow, StringComparison.Ordinal);
+
+        var marketResearchRow = RowContaining(html, RecordingAiWorkStore.MarketResearchInstruction);
+        Assert.Contains("Market research", marketResearchRow, StringComparison.Ordinal);
+        Assert.Contains("Complete job", marketResearchRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Review estimate", marketResearchRow, StringComparison.Ordinal);
 
         // Every non-terminal job may be cancelled with a reason.
         Assert.Contains("CancelAiJob", estimateRow, StringComparison.Ordinal);
@@ -370,6 +376,31 @@ public sealed partial class OperationsWebTests
         var command = Assert.IsType<ConfirmAiJobCommand>(aiWork.Confirmed);
         Assert.Equal(aiWork.QueuePassDraftJobId, command.JobId);
         Assert.Equal(RecordingAiWorkStore.QueuePassVersion, command.ExpectedVersion);
+        Assert.Equal(ActorKind.Staff, command.Actor.Kind);
+    }
+
+    [Fact]
+    public async Task MarketResearchDraftCompletesOnlyThroughTheExistingStaffAction()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        var aiWork = new RecordingAiWorkStore();
+        using var factory = Configure(baseFactory, store, aiWork: aiWork);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        using var response = await client.PostAsync(
+            "/Operations?handler=CompleteAiJob",
+            Form(
+                AntiforgeryValue(html),
+                ("jobId", aiWork.MarketResearchDraftJobId.ToString("D")),
+                ("expectedVersion", RecordingAiWorkStore.MarketResearchVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", OperationKeyValue(html))));
+
+        AssertPrg(response, "/Operations");
+        var command = Assert.IsType<ConfirmAiJobCommand>(aiWork.Confirmed);
+        Assert.Equal(aiWork.MarketResearchDraftJobId, command.JobId);
+        Assert.Equal(RecordingAiWorkStore.MarketResearchVersion, command.ExpectedVersion);
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
     }
 
@@ -794,12 +825,15 @@ public sealed partial class OperationsWebTests
         public const string CompletedInstruction = "Draft the estimate that was already accepted.";
         public const string ExpiredInstruction = "A queued job expired without being claimed.";
         public const string LastWeekInstruction = "A job cancelled a week ago.";
+        public const string MarketResearchInstruction = "Research comparable vehicles.";
         public const long QueuePassVersion = 2;
         public const long QueuedResolutionVersion = 1;
+        public const long MarketResearchVersion = 4;
 
         public Guid EstimateDraftJobId { get; } = Guid.NewGuid();
         public Guid QueuedResolutionJobId { get; } = Guid.NewGuid();
         public Guid QueuePassDraftJobId { get; } = Guid.NewGuid();
+        public Guid MarketResearchDraftJobId { get; } = Guid.NewGuid();
         public Guid CompletedTodayJobId { get; } = Guid.NewGuid();
         public Guid ExpiredTodayJobId { get; } = Guid.NewGuid();
         public Guid CancelledLastWeekJobId { get; } = Guid.NewGuid();
@@ -854,6 +888,16 @@ public sealed partial class OperationsWebTests
                 QueuePassVersion,
                 createdByKind: ActorKind.Automation,
                 createdBy: "overnight-pass"),
+            Job(
+                MarketResearchDraftJobId,
+                AiJobKind.MarketResearch,
+                AiJobSubjectKind.Case,
+                SubjectCaseId,
+                CaseReference,
+                MarketResearchInstruction,
+                AiJobState.DraftReady,
+                FixedUtcNow.AddMinutes(-45),
+                MarketResearchVersion),
             Job(
                 CompletedTodayJobId,
                 AiJobKind.Estimate,

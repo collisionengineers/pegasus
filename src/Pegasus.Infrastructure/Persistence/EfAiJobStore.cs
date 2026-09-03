@@ -299,7 +299,7 @@ public sealed class EfAiJobStore(
                 || item.State == nameof(AiJobState.Taken)
                 || item.State == nameof(AiJobState.DraftReady));
 
-    private static void AddHistory(
+    internal static void AddHistory(
         PegasusDbContext context,
         AiJobEntity entity,
         string eventKind,
