@@ -21,13 +21,14 @@ links: []
 blocks:
   - CASE-012
   - UIIMP-014
+  - CASE-043
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.142Z'
-updated: '2026-09-02T22:22:26.445Z'
+updated: '2026-09-03T10:53:26.026Z'
 ---
 
 ## What

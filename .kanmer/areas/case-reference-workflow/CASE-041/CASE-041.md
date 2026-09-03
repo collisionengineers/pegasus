@@ -17,7 +17,8 @@ labels:
 groups:
   - EPIC-012
   - EPIC-011
-links: []
+links:
+  - INTK-058
 blocks:
   - UIIMP-014
 refs:
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-02T22:09:37.240Z'
+updated: '2026-09-03T10:53:27.427Z'
 ---
 
 ## What

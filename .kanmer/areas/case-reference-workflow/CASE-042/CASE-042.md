@@ -16,7 +16,8 @@ labels:
 groups:
   - EPIC-012
   - EPIC-011
-links: []
+links:
+  - CASE-044
 blocks:
   - UIIMP-014
 refs:
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-02T22:20:38.061Z'
+updated: '2026-09-03T10:53:28.948Z'
 ---
 
 ## What
