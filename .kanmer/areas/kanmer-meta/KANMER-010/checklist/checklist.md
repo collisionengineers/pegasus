@@ -111,11 +111,11 @@ Resumed at the point of the stop, in the same recorded location, nothing else re
 
 ## Closeout — KANMER-010
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date appended)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; recorded worktree absence confirmed / stale registration pruned
-- [ ] `git branch -d task/kanmer-010-setup-drift` (local branch already absent)
-- [ ] `git fetch --prune` + `git worktree prune`; merged remote branch removed
-- [ ] `take_ticket action: "release"`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] cd out of worktree; recorded worktree absence confirmed / stale registration pruned
+- [x] `git branch -d task/kanmer-010-setup-drift` (local branch already absent)
+- [x] `git fetch --prune` + `git worktree prune`; merged remote branch removed
+- [ ] `take_ticket action: "release"` — final closeout operation

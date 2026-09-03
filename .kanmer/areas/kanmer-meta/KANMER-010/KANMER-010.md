@@ -11,17 +11,6 @@ stageEntered:
   review: '2026-09-02T02:46:52.551Z'
   verifying: '2026-09-02T02:57:11.390Z'
   done: '2026-09-03T09:11:04.225Z'
-taken_at: '2026-09-02T01:19:02.163Z'
-branch: task/kanmer-010-setup-drift
-worktree: ../pegasus-worktrees/kanmer-010-setup-drift
-claim_expires_at: '2026-09-02T01:49:02.163Z'
-claim_controller: claude-code/20260901T215000Z-claude-controller/implementer-a1
-lease_id: 3d30ceda-1ff5-4b95-8ad2-dbc47bd603d0
-lease_revision: 1
-lease_workspace: >-
-  worktree:c:\users\pguser\documents\github\pegasus-worktrees\kanmer-010-setup-drift
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-02T01:19:02.163Z'
 labels:
   - kanmer
   - setup
@@ -37,7 +26,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-01T14:40:45.085Z'
-updated: '2026-09-03T09:12:03.536Z'
+updated: '2026-09-03T09:13:02.563Z'
 ---
 
 ## What
