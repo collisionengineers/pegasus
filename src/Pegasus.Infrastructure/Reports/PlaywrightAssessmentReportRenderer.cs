@@ -53,9 +53,13 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
             assessment["worklists"] = Worklists(snapshot);
             assessment["photos"] = Photos(snapshot.Photos);
             assessment["statement_of_truth"] = StatementOfTruth();
-            assessment["signature"] = ResourceDataUri($"brand.signatures.{snapshot.Engineer.SignatureKey}.png", "image/png");
-            assessment["engineer"] = Encode(snapshot.Engineer.Name);
-            assessment["qualifications"] = Encode(snapshot.Engineer.Qualifications);
+            assessment["signature"] = ImageDataUri(
+                snapshot.Signatory.SignatureContent,
+                snapshot.Signatory.SignatureContentType);
+            assessment["engineer"] = Encode(snapshot.Signatory.PrintedName);
+            assessment["qualifications"] = string.IsNullOrWhiteSpace(snapshot.Signatory.Qualifications)
+                ? null
+                : Encode(snapshot.Signatory.Qualifications);
             var fee = CommonContext(snapshot);
             fee["registration"] = Encode(snapshot.Vehicle.Registration);
             fee["fee_rows"] = FeeRows(snapshot);
@@ -247,7 +251,10 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
 
     private static string Photos(IReadOnlyList<ReportImageEvidence> photos) => string.Join(
         string.Empty,
-        photos.Select(photo => $"<img class=\"vehicle-photo\" src=\"data:{photo.ContentType};base64,{Convert.ToBase64String(photo.Content)}\" alt=\"Vehicle image\">"));
+        photos.Select(photo => $"<img class=\"vehicle-photo\" src=\"{ImageDataUri(photo.Content, photo.ContentType)}\" alt=\"Vehicle image\">"));
+
+    private static string ImageDataUri(byte[] content, string contentType) =>
+        $"data:{contentType};base64,{Convert.ToBase64String(content)}";
 
     private static string StatementOfTruth() => string.Join(string.Empty, new[]
     {
