@@ -133,3 +133,62 @@ run.
 ## PR
 
 https://github.com/collisionengineers/pegasus/pull/651
+
+## PR review response (2026-09-03)
+
+Full reasoning and evidence in `plan.md` § "PR review response". Summary:
+
+- **`documentation` CI lane (red):** rejected as out of scope for DOCS-017.
+  `.opencode/skills/kanmer-setup/SKILL.md` (the sole reported broken link,
+  `../../../../docs/manual/greenfield.md`) is byte-identical between
+  `origin/dev` and this branch's head, introduced on `dev` by operator
+  commit `c5c7a874`, and outside every `files/files.md` owned/supporting
+  path. Root cause: `scripts/Test-DocumentationLinks.ps1` excludes
+  `.agents`/`.codex`/`.grok`/`.kanmer` (vendored Kanmer skill trees) but was
+  never extended to also exclude the newer `.opencode` tree, which carries
+  the same long-standing unresolved link. Filed [[PR-071]] (fix profile) to
+  add that one exclusion. **Recommendation: merge PR #651 (option a)** —
+  the failure is pre-existing on `dev`, unrelated to and unworsened by this
+  PR, and DOCS-017 `blocks` CASE-040/PLAT-068 so holding it (option b) also
+  holds them. (Correction: the reviewer's supporting citation, dev run
+  `9eec6dc2`, predates `c5c7a874` by a week and is not evidence about
+  current `dev`; the finding itself was independently reconfirmed instead
+  from PR #651's own `documentation` job log and a fresh
+  `Test-DocumentationLinks.ps1` run.)
+- **Finding 1 / [[ENG-038]]:** confirmed already filed and correctly linked;
+  no DOCS-017 action needed.
+
+No file was changed by this response (`.opencode/**` is out of scope, and no
+other in-scope broken link was found by Codex `gpt-5.6-sol` medium's
+independent read-only + allowed-fix pass). `git status --porcelain` is clean
+throughout; head remains `ddf739fbc210be1df08eaa0cf62580edb37f6c46` (no new
+commit, nothing to push).
+
+Re-verification on that same head, run directly in the worktree:
+
+| Command | Exit |
+| --- | ---: |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 |
+| `dotnet test ./tests/Pegasus.Core.Tests/... --configuration Release --no-build` (via full-solution run) | 0 (1,191 passed) |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/... --configuration Release --no-build` (via full-solution run) | 0 (100 passed) |
+| `pwsh -File scripts/Test-DocumentationLinks.ps1` (Codex, in-worktree) | 1 — exactly the one pre-existing `.opencode/**` link named above, nothing else |
+
+The full-solution `dotnet test ... --filter "Category!=Corpus&Category!=Browser"`
+run was started (restore/build passed; `Pegasus.Core.Tests` and
+`Pegasus.ArchitectureTests` had already passed within it) and then
+deliberately stopped before `Pegasus.IntegrationTests` (SQL-backed,
+unsharded locally) completed: no file in this response changed, PR #651's
+own CI already ran that exact suite sharded and green on this identical
+head SHA (`sql-integration (1)/(2)/(3)` all SUCCESS, run 33791263169), and
+this ticket's own post-implementation report already established not
+duplicating that CI-sharded run locally as standing practice. Running it
+again to completion for a response with zero code changes would not have
+added evidence beyond what CI already proved for this SHA. No Test UI
+snapshot regeneration applies — no `*.cshtml` changed by this response.
+
+No migration in this ticket, so `Test-MigrationGrants.ps1` does not apply.
+
+## PR
+
+https://github.com/collisionengineers/pegasus/pull/651
