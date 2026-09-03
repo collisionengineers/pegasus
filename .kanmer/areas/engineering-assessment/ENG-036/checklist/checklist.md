@@ -1,0 +1,15 @@
+- [ ] Step 1: verify ENG-034, ENG-035, ENG-029, CASE-038, renderer, and UIIMP-014 hand-offs.
+- [ ] Step 2: add and embed/link the single shared SVG geometry asset.
+- [ ] Step 3: add the keyboard-operable `damage-diagram.js` initializer.
+- [ ] Step 4: compose the lease-bound, type-free Damage section and responsive styles.
+- [ ] Step 5: after renderer ownership transfer, print and test the marked shared SVG in the PDF.
+- [ ] Step 6: supply UIIMP-014's click, Enter, read-only, and three-width assertions.
+- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportRendererTests"`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `./scripts/Test-UiCatalogue.ps1`
+- [ ] post-implementation report written
+- [ ] PR opened with Kanmer: ENG-036
