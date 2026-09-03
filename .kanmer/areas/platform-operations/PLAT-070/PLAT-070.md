@@ -13,13 +13,14 @@ stageEntered:
 taken_at: '2026-09-03T13:04:09.384Z'
 branch: task/plat-070-remove-review-flags
 worktree: .worktrees/plat-070
-claim_expires_at: '2026-09-03T13:34:09.384Z'
+claim_expires_at: '2026-09-03T14:06:05.560Z'
 claim_controller: wf-build/plat-070
-lease_id: 45c7dc0c-88a8-4300-b70e-a2aaecac6c09
-lease_revision: 1
+lease_id: af2ab423-2c36-4ae3-9b3f-346435e968f3
+lease_revision: 2
 lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-070'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T13:04:09.384Z'
+lease_heartbeat_at: '2026-09-03T13:36:05.560Z'
+lease_reclaimed_from: wf-build/plat-070
 labels:
   - case-workspace-v2
   - d44
@@ -37,7 +38,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-09-03T07:47:48.081Z'
-updated: '2026-09-03T13:04:09.384Z'
+updated: '2026-09-03T13:36:05.560Z'
 ---
 
 ## What
