@@ -29,7 +29,8 @@ labels:
 groups:
   - EPIC-012
   - EPIC-011
-links: []
+links:
+  - PLAT-072
 blocks:
   - CASE-038
 refs:
@@ -41,7 +42,7 @@ prs:
   - '649'
 archived: false
 created: '2026-09-03T07:47:48.081Z'
-updated: '2026-09-03T16:17:56.104Z'
+updated: '2026-09-03T16:29:10.832Z'
 ---
 
 ## What
