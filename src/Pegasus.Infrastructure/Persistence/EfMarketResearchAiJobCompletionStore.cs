@@ -52,7 +52,13 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             item => item.JobId == command.JobId,
             cancellationToken)
             ?? throw new KeyNotFoundException("The AI job was not found.");
-        if (string.Equals(job.LastOperationKey, command.OperationKey, StringComparison.Ordinal))
+        var isReplay = await context.ActionHistory.AsNoTracking().AnyAsync(
+            item => item.AggregateType == EfAiJobStore.AggregateType
+                && item.AggregateId == job.JobId.ToString("D")
+                && item.EventKind == "ai_job_draft_ready"
+                && item.CorrelationId == command.OperationKey.Trim(),
+            cancellationToken);
+        if (isReplay)
         {
             if (!string.Equals(job.MarketResearchCompletionHash, completionHash, StringComparison.Ordinal))
             {
@@ -63,7 +69,8 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             return await ReplayAsync(context, job, cancellationToken);
         }
 
-        RequireTakenJob(job, command);
+        var now = Now();
+        RequireTakenJob(job, command, now);
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == command.CaseId, cancellationToken)
@@ -73,8 +80,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.Actor,
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
-            Now());
-        var now = Now();
+            now);
         var pending = await EfDocumentCustodyStore.PrepareAddAsync(
             context,
             contentStore,
@@ -151,16 +157,44 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         }
         catch (Exception exception)
         {
-            await transaction.RollbackAsync(CancellationToken.None);
-            if (pending.ContentWrite.Disposition == DocumentContentWriteDisposition.Created)
+            Exception? rollbackFailure = null;
+            try
             {
-                await DocumentContentRollback.RemoveOrphanAsync(
-                    contextFactory,
-                    contentStore,
-                    command.CaseId,
-                    workflow.Case.Reference,
-                    pending.Version.Id,
-                    exception);
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception caught)
+            {
+                rollbackFailure = caught;
+            }
+
+            try
+            {
+                if (pending.ContentWrite.Disposition == DocumentContentWriteDisposition.Created)
+                {
+                    await DocumentContentRollback.RemoveOrphanAsync(
+                        contextFactory,
+                        contentStore,
+                        command.CaseId,
+                        workflow.Case.Reference,
+                        pending.Version.Id,
+                        exception);
+                }
+            }
+            catch (Exception cleanupFailure) when (rollbackFailure is not null)
+            {
+                throw new AggregateException(
+                    "The document database write failed, its rollback could not be confirmed, and custody cleanup did not complete.",
+                    exception,
+                    rollbackFailure,
+                    cleanupFailure);
+            }
+
+            if (rollbackFailure is not null)
+            {
+                throw new AggregateException(
+                    "The document database transaction failed and its rollback could not be confirmed.",
+                    exception,
+                    rollbackFailure);
             }
 
             throw;
@@ -195,7 +229,10 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             true);
     }
 
-    private void RequireTakenJob(AiJobEntity job, CompleteMarketResearchAiJobCommand command)
+    private static void RequireTakenJob(
+        AiJobEntity job,
+        CompleteMarketResearchAiJobCommand command,
+        DateTimeOffset now)
     {
         if (!string.Equals(job.Kind, nameof(AiJobKind.MarketResearch), StringComparison.Ordinal)
             || !string.Equals(job.SubjectKind, nameof(AiJobSubjectKind.Case), StringComparison.Ordinal)
@@ -204,13 +241,16 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             throw new InvalidOperationException(
                 "The AI job is not market research for the supplied case.");
         }
-        if (!string.Equals(job.State, nameof(AiJobState.Taken), StringComparison.Ordinal))
+        var persisted = Enum.Parse<AiJobState>(job.State);
+        var current = AiJobPolicy.EffectiveState(
+            persisted,
+            job.ExpiresAtUtc,
+            job.LeaseExpiresAtUtc,
+            now);
+        if (!AiJobPolicy.IsLegalTransition(current, AiJobState.DraftReady))
         {
-            throw new InvalidOperationException("The market research job is not taken.");
-        }
-        if (job.LeaseExpiresAtUtc is null || job.LeaseExpiresAtUtc <= Now())
-        {
-            throw new InvalidOperationException("The market research job lease has expired.");
+            throw new InvalidOperationException(
+                $"An AI job cannot move from {current} to {AiJobState.DraftReady}.");
         }
         if (!string.Equals(job.TakenBy, command.Actor.SubjectId, StringComparison.Ordinal))
         {

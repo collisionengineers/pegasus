@@ -355,8 +355,6 @@ public static class DependencyInjection
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<ICreateAiJob, CreateAiJob>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
-        services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
-        services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
@@ -471,6 +469,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICaseDocumentStateQueries>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
+            services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
         }
         if (composesDocumentSurface
             && requestUploadLimitsFactory is not null)
