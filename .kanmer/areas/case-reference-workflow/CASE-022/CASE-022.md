@@ -2,24 +2,25 @@
 id: CASE-022
 type: ticket
 title: Deliver public upload links (INT-31) to the operator's accepted limits
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: codex
 profile: feature
 stageEntered:
   preparing: '2026-09-03T14:35:23.555Z'
+  review: '2026-09-03T16:22:55.937Z'
 taken_at: '2026-09-03T15:39:27.322Z'
 branch: task/case-022-repair-public-upload
 worktree: .worktrees/case-022
-claim_expires_at: '2026-09-03T17:49:47.200Z'
+claim_expires_at: '2026-09-03T16:52:55.121Z'
 claim_controller: codex
 lease_id: 74234747-49f8-4ab4-8510-0fa356f9ee06
-lease_revision: 3
+lease_revision: 4
 lease_worker_run: case-022-execute-20260903
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\case-022'
 lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-03T15:49:47.200Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-03T16:22:55.121Z'
 labels:
   - found-during-qa
   - ui
@@ -34,7 +35,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-09-03T16:22:18.768Z'
+updated: '2026-09-03T16:22:55.937Z'
 ---
 
 ## What the operator saw

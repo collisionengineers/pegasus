@@ -25,7 +25,7 @@
 - [x] [pre-review] Step 4 — Confirm the final diff contains only declared files,
   no token/secret, no dependency or lock change, no schema/IaC change, and no
   Test UI snapshot churn.
-- [ ] [pre-review] Step 4 — Commit the bounded branch, open its PR to `dev`,
+- [x] [pre-review] Step 4 — Commit the bounded branch, open its PR to `dev`,
   and stop for independent `kanmer-review` without merging or deploying.
 - [ ] [post-merge] Step 4 — After separately authorised release/deployment,
   verify a disposable permitted upload reaches Box and SQL exactly once,
