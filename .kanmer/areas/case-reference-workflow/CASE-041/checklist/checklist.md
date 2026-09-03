@@ -1,17 +1,22 @@
-# Checklist — CASE-041 (2026-09-02)
+# Checklist — CASE-041 (2026-09-02; revised 2026-09-03 after plan review)
 
-- [ ] Step 1: Wait for CASE-038, refresh with `git merge --no-edit origin/dev`, confirm the serialized migration head, and agree the `Details.cshtml.cs` ordering with CASE-039.
+- [ ] Step 1: Wait for PLAT-070 and CASE-038, refresh with `git merge --no-edit origin/dev`, and confirm the serialized migration head.
+- [ ] Step 1: Record a written single-owner ordering with CASE-039, CASE-040 and CASE-029 for `Details.cshtml.cs`, `DependencyInjection.cs` and `CaseDetailsWebTests.cs` before editing any of them.
+- [ ] Step 1: Confirm the merged frame routes `?section=inspection` and the form id `case-inspection-address-form`.
 - [ ] Step 2: Add the narrow inspection-address choices port and storage-location Core data contract.
 - [ ] Step 2: Normalize storage location with the existing Case data policy.
-- [ ] Step 3: Add `storage_location` to the Case-data field vocabulary and normal save/read mapping.
+- [ ] Step 3: Add `storage_location` to the single `CaseDataFieldNames.All` list and to save/read mapping (no `CaseDataSnapshotFactory.cs` change, no `Cases` column).
 - [ ] Step 3: Implement and register the same-principal address-history query.
-- [ ] Step 4: Generate exactly one additive migration after the preceding migration has merged.
-- [ ] Step 4: Include runtime-role validation and reassert unchanged Case and Case-data-field grants.
-- [ ] Step 5: Bind, retain, and hidden-post storage location through every full Case save (`Details.cshtml.cs`, `CaseMutationPageModel.cs`, `_CaseDataHiddenFields.cshtml` as serialized shared edits).
-- [ ] Step 5: Render the ordered D33 Inspect at flow and the Inspection-section storage input.
+- [ ] Step 4: Generate exactly one additive migration after the preceding migration has merged — constraint drop/re-add only, no grant SQL and no permission delta.
+- [ ] Step 5: Carry storage location through all three full-save callers: `_CaseDataHiddenFields.cshtml`, `_CaseWorkflow.cshtml` (its own hidden list), and `Mcp/AssessmentMcpTools.cs`.
+- [ ] Step 5: Bind and retain `storageLocation` in `Details.cshtml.cs` and `CaseMutationPageModel.RetainableFormFields` (serialized shared edits).
+- [ ] Step 5: Render the ordered D33 Inspect at select and the Inspection-section storage input.
+- [ ] Step 5: Add the serialized `site.js` selection binder through CASE-038's root-scoped idempotent `bind(root)`; confirm the section still works with JavaScript disabled.
 - [ ] Step 5: Keep Repairer location disabled with ` · not recorded` in every current state.
 - [ ] Step 5: Make the serialized `OperatorLabels.cs` constants-only commit after CASE-038.
-- [ ] Step 6: Add Core, persistence, Details, and partial-flow coverage using existing Case test data where possible.
+- [ ] Step 6: Add Core, persistence, Details and partial-flow coverage using existing Case test data where possible (`LocalDbTemplateDatabase`; update `AssessmentWorkspaceTestData.cs`).
+- [ ] Step 6: Prove storage location survives an Inspection save, an Overview save and an Automation MCP details update.
+- [ ] Step 6: Add the Browser-category test for the selection interaction (recorded choice, Image Based Assessment, Manual entry).
 - [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
 - [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
 - [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
@@ -20,5 +25,6 @@
 - [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
 - [ ] `./scripts/Test-UiCatalogue.ps1`
 - [ ] `./scripts/Test-MigrationGrants.ps1`
+- [ ] Commit the regenerated `docs/design/test-ui/` Case-details snapshots with the page change (capacity-one lease).
 - [ ] post-implementation report written
 - [ ] PR opened with Kanmer: CASE-041
