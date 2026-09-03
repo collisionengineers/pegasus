@@ -228,6 +228,13 @@ internal sealed class EfDocumentRequestStore(
             return Unavailable();
         }
         var caseReference = workflow.Case.Reference;
+        var caseRootRemoteId = workflow.Case.CustodyRootRemoteId;
+
+        var lastOrdinal = await context.Set<CaseDocumentEntity>()
+            .Where(value => value.CaseId == entity.CaseId)
+            .Select(value => (int?)value.Ordinal)
+            .MaxAsync(cancellationToken) ?? 1;
+        var ordinal = checked(lastOrdinal + 1);
 
         var receiptId = Guid.NewGuid();
         var documentId = Guid.NewGuid();
@@ -239,6 +246,7 @@ internal sealed class EfDocumentRequestStore(
         {
             Id = documentId,
             CaseId = entity.CaseId,
+            Ordinal = ordinal,
             SourceOccurrenceIdentity = sourceIdentity
         };
         var version = new DocumentVersionEntity
@@ -261,6 +269,7 @@ internal sealed class EfDocumentRequestStore(
             CaseId = entity.CaseId,
             DocumentId = documentId,
             VersionId = versionId,
+            Ordinal = ordinal,
             SemanticRole = DocumentSemanticRole.Other,
             Source = DocumentSource.RequestUpload,
             SourceOccurrenceIdentity = sourceIdentity,
@@ -278,10 +287,20 @@ internal sealed class EfDocumentRequestStore(
             ReceivedAtUtc = now
         };
 
-        await contentStore.StoreAsync(
+        var contentAddress = new ManagedDocumentContentAddress(
             entity.CaseId,
             caseReference,
-            versionId,
+            caseRootRemoteId,
+            occurrence.Id,
+            occurrence.Ordinal,
+            occurrence.DocumentId,
+            version.Id,
+            version.Version,
+            occurrence.SemanticRole,
+            version.FileName,
+            version.MediaType);
+        var contentWrite = await contentStore.StoreVersionAsync(
+            contentAddress,
             command.File.Content,
             authorization.ContentHash!,
             cancellationToken);
@@ -316,13 +335,16 @@ internal sealed class EfDocumentRequestStore(
 
             try
             {
-                await DocumentContentRollback.RemoveOrphanAsync(
-                    dbContextFactory,
-                    contentStore,
-                    entity.CaseId,
-                    caseReference,
-                    versionId,
-                    exception);
+                if (contentWrite.Disposition == DocumentContentWriteDisposition.Created)
+                {
+                    await DocumentContentRollback.RemoveOrphanAsync(
+                        dbContextFactory,
+                        contentStore,
+                        entity.CaseId,
+                        caseReference,
+                        versionId,
+                        exception);
+                }
             }
             catch (Exception cleanupFailure) when (rollbackFailure is not null)
             {

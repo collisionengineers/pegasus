@@ -327,9 +327,11 @@ public sealed class DocumentCustodyDurabilityTests
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
+            var contentStore = new ManagedOnlyDocumentContentStore(
+                new LocalDocumentContentStore(Path.Combine(root, "custody")));
             IUploadToRequest upload = new EfDocumentRequestStore(
                 contextFactory,
-                scope.ServiceProvider.GetRequiredService<LocalDocumentContentStore>(),
+                contentStore,
                 new RequestUploadPolicy(limits, timeProvider),
                 limits,
                 timeProvider);
@@ -376,12 +378,27 @@ public sealed class DocumentCustodyDurabilityTests
             var result = await upload.ExecuteAsync(command, CancellationToken.None);
 
             Assert.Equal(RequestUploadDecision.Accepted, result.Decision);
+            Assert.Equal(2, contentStore.Addresses.Count);
+            Assert.All(contentStore.Addresses, address =>
+            {
+                Assert.Equal(caseId, address.CaseId);
+                Assert.Equal("QDOS001", address.CaseReference);
+                Assert.Equal("case-root-id", address.CaseRootRemoteId);
+                Assert.Equal(2, address.OccurrenceOrdinal);
+                Assert.Equal(DocumentSemanticRole.Other, address.SemanticRole);
+                Assert.Equal("evidence.txt", address.FileName);
+                Assert.Equal("text/plain", address.MediaType);
+            });
             Assert.Single(Directory.EnumerateFiles(
                 managedDirectory,
                 "content",
                 SearchOption.AllDirectories));
             await using (var context = await database.CreateContextAsync())
             {
+                var document = await context.Set<CaseDocumentEntity>().SingleAsync();
+                var occurrence = await context.Set<DocumentOccurrenceEntity>().SingleAsync();
+                Assert.Equal(2, document.Ordinal);
+                Assert.Equal(document.Ordinal, occurrence.Ordinal);
                 Assert.Equal(
                     1,
                     await context.CaseWorkflows
@@ -463,6 +480,7 @@ public sealed class DocumentCustodyDurabilityTests
                 // "Confirmed" and nothing noticed, because no test in this file
                 // had ever read the case back through GetCase (DOCS-012).
                 CustodyState = "confirmed",
+                CustodyRootRemoteId = "case-root-id",
                 OriginIntakeReceiptId = receiptId,
                 CreatedAtUtc = occurredAtUtc,
                 Version = 3,
@@ -558,5 +576,56 @@ public sealed class DocumentCustodyDurabilityTests
 
             return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
+    }
+
+    private sealed class ManagedOnlyDocumentContentStore(IDocumentContentStore inner)
+        : IDocumentContentStore
+    {
+        public List<ManagedDocumentContentAddress> Addresses { get; } = [];
+
+        public Task StoreAsync(
+            Guid caseId,
+            string caseReference,
+            Guid versionId,
+            ReadOnlyMemory<byte> content,
+            string expectedSha256,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Managed custody addressing is required.");
+
+        public async Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            ReadOnlyMemory<byte> content,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            Addresses.Add(address);
+            return await inner.StoreVersionAsync(
+                address,
+                content,
+                expectedSha256,
+                cancellationToken);
+        }
+
+        public Task<Stream> OpenReadAsync(
+            Guid caseId,
+            string caseReference,
+            Guid versionId,
+            string expectedSha256,
+            long expectedLength,
+            CancellationToken cancellationToken) =>
+            inner.OpenReadAsync(
+                caseId,
+                caseReference,
+                versionId,
+                expectedSha256,
+                expectedLength,
+                cancellationToken);
+
+        public Task DeleteAsync(
+            Guid caseId,
+            string caseReference,
+            Guid versionId,
+            CancellationToken cancellationToken) =>
+            inner.DeleteAsync(caseId, caseReference, versionId, cancellationToken);
     }
 }
