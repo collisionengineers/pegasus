@@ -2,10 +2,12 @@
 id: CASE-022
 type: ticket
 title: Deliver public upload links (INT-31) to the operator's accepted limits
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-03T14:35:23.555Z'
 labels:
   - found-during-qa
   - ui
@@ -15,7 +17,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-08-24T09:46:04.201Z'
+updated: '2026-09-03T14:35:23.555Z'
 ---
 
 ## What the operator saw
