@@ -43,6 +43,7 @@ Case state when a package is exported or an API submission is sent.
 | --- | --- |
 | [[PLAT-068]] | The `SignOffEngineerProfile`, `ListSignOffEngineersAsync`, eligibility rule, account migration, and an Administrator-maintained default designation exposed on the profile. CASE-040 must not hard-code A Patterson, a username, or an ID. |
 | [[CASE-038]] | The merged Case workspace frame, Sign-off ribbon/current-position slot, and release of the narrow action-bar/dialog regions in `Details.cshtml(.cs)`. CASE-040 then owns only the `canSendToEva` condition, retired action label, shared partial host, and corresponding view-model values. |
+| [[PLAT-070]] | D44's deletion of the staff review function. `CaseWorkflowContracts.cs` (`InstructionsReviewedByStaff` / `ImagesReviewedByStaff`), `CaseLifecycle`'s configured review clause in `ValidateReadiness`, and `Workflow.cshtml.cs:98`'s four review parameters are PLAT-070's to remove; CASE-040 changes the same three files and must build on the post-PLAT-070 shapes. Moving the Engineer form into the shared partial before PLAT-070 lands would carry the retired review inputs forward, against D44. |
 | [[DOCS-017]] | The report-signatory seam that consumes a Case-selected account tuple rather than the fixed report tuple. CASE-040 persists only the account identity and does not modify report projection, renderer, template, or FRD-11 files. |
 
 The implementation starts only after those dependencies have landed, the
@@ -69,7 +70,21 @@ from `origin/dev`.
   lease-backed workflow action in Review and With Engineer.
 - Export and API submission are not bundled with the Sign-off mutation. Once
   the selection is persisted, each route remains a no-state/no-version handoff
-  action. This preserves FRD-07's state rule.
+  action. This preserves FRD-07's state rule. The Review to With Engineer
+  transition stays the separate `StartCaseWork` action unless the operator
+  answers the open question below the other way.
+- The precondition "this case has an eligible resolved Sign-off Engineer" is a
+  Core rule, held once in the EVA handoff/submission policy and consumed by
+  `EvaHandoffStore` and `EvaSubmissionStore` beside their existing state and
+  image gates. The pages present that decision; they never are it. A direct
+  POST to the export or submit handler on a case with no eligible sign-off is
+  refused in the store, not merely hidden in the view.
+- The EVA routes stop throwing `CaseNotInReviewException`
+  (`src/Pegasus.Core/Documents/DocumentContracts.cs:238`, whose message states
+  the Review-only rule and which ordinary document export also throws). The
+  centralized EVA state policy returns its own accurate refusal for a case
+  outside the permitted handoff states; the document-export use of the existing
+  exception is left exactly as it is.
 - Each route snapshots the assigned and Sign-off Engineer IDs in its existing
   action-history payload. `eva_bundle_exported` remains one history row per
   successful export, and `eva_api_submitted` remains one row and one
@@ -88,20 +103,21 @@ from `origin/dev`.
 | Files | Action |
 | --- | --- |
 | `src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs`<br>`src/Pegasus.Core/Lifecycle/CaseLifecycle.cs` | Change Case workflow contracts, store port, assignment defaulting, and explicit Sign-off mutation. |
-| `src/Pegasus.Core/Eva/EvaBundleSchema.cs`<br>`src/Pegasus.Core/Eva/EvaSubmissionPolicy.cs`<br>`src/Pegasus.Core/Eva/EvaApiContracts.cs`<br>`src/Pegasus.Core/Eva/EvaSubmissionWorkItem.cs` | Centralize manual versus automatic state gates and remove the superseded one-delivery exception path. |
+| `src/Pegasus.Core/Eva/EvaBundleSchema.cs`<br>`src/Pegasus.Core/Eva/EvaSubmissionPolicy.cs`<br>`src/Pegasus.Core/Eva/EvaApiContracts.cs`<br>`src/Pegasus.Core/Eva/EvaSubmissionWorkItem.cs` | Centralize manual versus automatic state gates and the resolved-sign-off precondition; add the EVA state refusal that replaces `CaseNotInReviewException` on these two routes; remove the superseded one-delivery exception path. |
 | `src/Pegasus.Infrastructure/DependencyInjection.cs` | Register the new Core Sign-off action as a production caller. |
 | `src/Pegasus.Infrastructure/Persistence/CaseWorkflowEntities.cs`<br>`src/Pegasus.Infrastructure/Persistence/EfCaseWorkflowStore.cs`<br>`src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs` | Persist, project, replay-protect, and history-record `SignOffEngineerId`. |
 | `src/Pegasus.Infrastructure/Persistence/EvaHandoffStore.cs`<br>`src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs`<br>`src/Pegasus.Infrastructure/Persistence/EvaSubmissionModelConfiguration.cs` | Permit manual With Engineer handoffs, snapshot identities in route history, and remove the delivered-row uniqueness rule. |
 | `src/Pegasus.Infrastructure/Persistence/Migrations/<timestamp>_CaseSignOffEngineer.cs`<br>`src/Pegasus.Infrastructure/Persistence/Migrations/<timestamp>_CaseSignOffEngineer.Designer.cs`<br>`src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs` | Add nullable `CaseWorkflows.SignOffEngineerId` and drop `UX_EvaSubmissions_CaseDelivered` in the single CASE-040 migration. |
-| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add only missing Case workspace and EVA handoff labels, including the exact `Unassigned` no-value label. |
+| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add only missing labels, all in `OperatorLabels.CaseWorkspace`, including the exact `Unassigned` no-value label; delete `EvaSubmissionPolicy.NotEnabledReason`'s duplicate wording home. |
 | `src/Pegasus.Web/Pages/Cases/Workflow.cshtml.cs` | Bind the reasoned Sign-off selection handler. |
 | `src/Pegasus.Web/Pages/Cases/Shared/_CaseSummary.cshtml` | Render Sign-off Engineer beside Engineer in Overview. |
 | `src/Pegasus.Web/Pages/Cases/Shared/EvaHandoffViewModel.cs`<br>`src/Pegasus.Web/Pages/Cases/Shared/_EvaHandoff.cshtml` | Create the two-caller view model and shared handoff partial. |
 | `src/Pegasus.Web/Pages/Cases/Details.cshtml`<br>`src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | After CASE-038, host the partial, supply resolved values/options, offer both permitted states, and retire the Download EVA package switch. |
 | `src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml`<br>`src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml.cs` | Render the same partial for script-off use and admit Review/With Engineer. |
 | `tests/Pegasus.Core.Tests/Lifecycle/AssignCaseEngineerTests.cs`<br>`tests/Pegasus.Core.Tests/Qdos/EvaSubmissionPolicyTests.cs` | Test Core default/selection and manual-versus-automatic EVA state policy. |
-| `tests/Pegasus.IntegrationTests/CaseWorkflowPersistenceTests.cs`<br>`tests/Pegasus.IntegrationTests/EvaSubmissionPersistenceTests.cs`<br>`tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | Test persisted identity/history, distinct delivered re-send rows, and rendered routes/controls. |
-| `tests/Pegasus.IntegrationTests/CaseTaskArchivePersistenceTests.cs`<br>`tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs` | Add the new workflow-store member to existing test fakes only; retain their assertions. |
+| `tests/Pegasus.IntegrationTests/CaseWorkflowPersistenceTests.cs`<br>`tests/Pegasus.IntegrationTests/EvaSubmissionPersistenceTests.cs`<br>`tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | Test persisted identity/history, distinct delivered re-send rows driven through `ISubmitCaseToEva` itself, and rendered routes/controls. |
+| `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` | The bundle-export state, locked-state race, replay, first-send proxy and history assertions live here (lines 795, 1277 and 1436 assert `CaseNotInReviewException`). Prove With Engineer export through `IExportCaseBundle` and move those three refusal assertions to the new EVA state refusal. |
+| `tests/Pegasus.IntegrationTests/CaseWorkflowWebTests.cs` | Bind and prove the new reasoned Sign-off handler on the Workflow page. |
 | `docs/design/test-ui/pages/case-eva-send--default.html`<br>`docs/design/test-ui/pages/case-details--default.html` | Regenerated only by the required snapshot capture after the shared partial and Details host change. `catalogue.json` remains unchanged. |
 
 ## Must not modify
@@ -121,12 +137,25 @@ from `origin/dev`.
 - **Files:** none.
 - **Reuse:** Kanmer dependency records, the migration serialization rule, and
   `git merge --no-edit origin/dev`.
-- Confirm PLAT-068's profile/default contract, CASE-038's transferred dialog
-  boundary, DOCS-017's report seam, and the available migration/shared-file
-  locks before taking implementation work.
+- Confirm PLAT-068's profile/default contract, PLAT-070's completed deletion,
+  CASE-038's transferred dialog boundary, DOCS-017's report seam, and the
+  available migration/shared-file locks before taking implementation work.
+- Record the CASE-038 transfer in writing on the ticket before the first
+  commit: the exact `Details.cshtml` / `Details.cshtml.cs` regions CASE-040
+  owns (the action-bar `canSendToEva` branch and the `eva-handoff-dialog`
+  block), and that every other region of those two files stays CASE-038's.
+  Without that written grant the Details work does not start.
+- Serialize the migration behind the other lanes holding the
+  `Persistence/Migrations/**` shared lock — PLAT-068, PLAT-070, [[CASE-039]]
+  and [[CASE-041]] each carry one — and take the `OperatorLabels.cs`,
+  `Pages/Cases/Shared/*` and `docs/design/test-ui/**` locks one at a time.
+- After the refresh, confirm
+  `git grep -i "ReviewedByStaff\|RequireStaffImageReview"` returns nothing, so
+  no retired review input is carried into the assignment contract, the Workflow
+  handler, or the shared handoff partial (D44).
 - Stop and report if the profile lacks a durable default designation, if
-  CASE-038 has not released the narrow Details region, or if another unmerged
-  migration occupies the lane.
+  PLAT-070 has not landed, if CASE-038 has not released the narrow Details
+  region in writing, or if another unmerged migration occupies the lane.
 
 ### Step 2 — Add the Case Sign-off Engineer Core action
 
@@ -166,9 +195,17 @@ from `origin/dev`.
 - Add nullable `SignOffEngineerId` to the workflow entity and both workflow
   projections. Include it in before/after workflow history and exact replay.
 - Make the Core EVA policy distinguish manual handoffs allowed in Review and
-  With Engineer from automatic submission allowed only in Review. Both
-  persistence stores consume that policy rather than retaining duplicate
-  Review-only checks.
+  With Engineer from automatic submission allowed only in Review, and hold the
+  "eligible resolved Sign-off Engineer" precondition in the same one place.
+  Both persistence stores consume that policy — at the pre-flight check and
+  again inside the serializable locked-state section of
+  `EvaHandoffStore.RecordExportAsync` — rather than retaining duplicate
+  Review-only checks or leaving the sign-off rule to the page.
+- Stop throwing `CaseNotInReviewException` from `EvaHandoffStore.cs:73`,
+  `EvaHandoffStore.cs:146` and `EvaSubmissionStore.cs:70`; return the new EVA
+  state refusal instead. Leave `EfDocumentCustodyStore.cs:327` and the
+  exception itself untouched, and widen the `EvaSubmissionWorkItem.cs:168`
+  catch to the new type.
 - Keep `EvaFirstHandoffProxies` as the once-only first-export proxy, while
   retaining the existing per-export history row. Add assigned/sign-off IDs to
   the existing export and submission history payloads so every route records
@@ -192,9 +229,16 @@ from `origin/dev`.
 - **Reuse:** `IStaffAccountQueries.GetAsync`,
   `ListSignOffEngineersAsync`, the existing `AssignEngineer` handler,
   `CaseMutationPageModel`, the existing Export and Submit route handlers, and
-  `OperatorLabels.CaseWorkspace` / `OperatorLabels.EvaHandoffs`.
-- Add only missing labels to `OperatorLabels`; render no newly introduced
-  literal label, raw state, account ID, or explanatory sentence.
+  `OperatorLabels.CaseWorkspace`.
+- Add only missing labels to `OperatorLabels`, all of them in
+  `OperatorLabels.CaseWorkspace`: `OperatorLabels.EvaHandoffs` is documented as
+  the Operations panel's list (PLAT-049), not the Case dialog's vocabulary.
+  Render no newly introduced literal label, raw state, account ID, or
+  explanatory sentence.
+- When the API-disabled condition wording moves to `OperatorLabels`, delete
+  `EvaSubmissionPolicy.NotEnabledReason` and point its only caller
+  (`Send.cshtml.cs:158`) at the label. One wording, one home; do not leave a
+  Core copy beside a label copy.
 - Resolve the stored/default Sign-off Engineer display value in the Details
   model. Supply it to CASE-038's ribbon/current-position slot and render it
   beside Engineer in `_CaseSummary.cshtml`.
@@ -210,7 +254,8 @@ from `origin/dev`.
   conditional and action text.
 - Render Send via API disabled only for a composed transport whose Principal
   setting forbids manual submission. Omit it when the API is not composed.
-  Require an eligible resolved Sign-off Engineer before either route proceeds.
+  Present the Core precondition that an eligible resolved Sign-off Engineer
+  exists; the refusal itself lives in the stores (Step 3), never only here.
 - The script-off route uses the same partial and routes, admits Review and
   With Engineer, and does not invent a parallel selection or lifecycle action.
 
@@ -234,9 +279,9 @@ from `origin/dev`.
   `tests/Pegasus.Core.Tests/Qdos/EvaSubmissionPolicyTests.cs`,
   `tests/Pegasus.IntegrationTests/CaseWorkflowPersistenceTests.cs`,
   `tests/Pegasus.IntegrationTests/EvaSubmissionPersistenceTests.cs`,
-  `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs`,
-  `tests/Pegasus.IntegrationTests/CaseTaskArchivePersistenceTests.cs`,
-  `tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs`.
+  `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs`,
+  `tests/Pegasus.IntegrationTests/CaseWorkflowWebTests.cs`,
+  `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs`.
 - **Reuse:** existing workflow harnesses, assignment eligibility fake, EVA
   persistence database fixture, `RecordingCaseDetailsStore`, and existing
   submission stubs.
@@ -252,8 +297,16 @@ from `origin/dev`.
 - Update Web tests so Send to EVA appears in Review and With Engineer, the
   retired label is absent, the Sign-off field/options render correctly, and
   the route choices obey composition and Principal-setting rules.
-- Update only workflow-store test fakes required by the added store member;
-  do not alter their unrelated behaviours or assertions.
+- Prove the Core precondition at the port, not the page: a direct
+  `IExportCaseBundle` or `ISubmitCaseToEva` call on a case with no eligible
+  resolved Sign-off Engineer is refused. `EvaSubmissionPersistenceTests`
+  manipulates entities directly today, so the re-send case must be driven
+  through `ISubmitCaseToEva` to prove the real path and an unchanged workflow
+  state and version.
+- `CaseTaskArchivePersistenceTests.cs` and `UploadConfirmationWebTests.cs`
+  resolve the production `ICaseWorkflowStore` and implement no fake, so they
+  are not in the expected diff. Touch them only if the compiler proves
+  otherwise.
 
 ### Step 7 — Capture UI evidence and complete delivery checks
 
@@ -296,13 +349,18 @@ from `origin/dev`.
   grant script passes.
 - The shared partial has exactly the Details dialog and `Eva/Send` page as
   callers, with no duplicate handoff field/control list.
+- No retired staff-review flag, field, parameter or history value survives in
+  any file CASE-040 touches (D44).
+- A direct POST to the export or submit handler is refused by the store when
+  the case has no eligible resolved Sign-off Engineer.
 
 ## Commands
 
 ```powershell
 dotnet restore ./Pegasus.slnx --locked-mode
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
 ./scripts/Test-MigrationGrants.ps1
 ./scripts/Update-TestUiSnapshots.ps1
 ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture
@@ -334,7 +392,8 @@ policy-file path was wrong); the Review gates the plan opens are
 is `eva_api_submitted` (`EvaSubmissionStore.cs:226`);
 `tests/Pegasus.Core.Tests/Qdos/EvaSubmissionPolicyTests.cs`,
 `CaseTaskArchivePersistenceTests.cs` and `UploadConfirmationWebTests.cs`
-exist and the latter two carry `ICaseWorkflowStore` fakes;
+exist, but the claim that the latter two carry `ICaseWorkflowStore` fakes was
+wrong and is corrected by finding 6 below;
 `IAssignCaseEngineer` is registered at `DependencyInjection.cs:392`;
 `AssignCaseEngineer` refuses assignment outside Review
 (`CaseLifecycle.cs:83-86`). DELIV-041 (#647 = 897db953) has already
@@ -368,3 +427,34 @@ resolver and the PLAT-068 dependency line.
   the Administrator-set "Default sign-off Engineer" designation on
   PLAT-068's `SignOffEngineerProfile`; the Core resolver reads it. No
   reserved username. Open question ticked.
+
+## Plan review (2026-09-03, gpt-5.6-sol xhigh; dispositions Claude Opus)
+
+gpt-5.6-sol read the plan independently at `897db953` in the detached research
+checkout (read-only; clean before and after). Verdict: REQUEST CHANGES, six
+findings. Four further findings came from the wrapper's own read. Every line
+cited below was re-checked by the wrapper in the same checkout.
+
+| # | Severity | Step | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker (sol) | 1-7 | The planned diff reaches beyond the dispatch brief's owned paths: `Core/Workflow`, `Core/Lifecycle`, `Core/Eva`, non-migration Infrastructure persistence, `DependencyInjection.cs`, `OperatorLabels.cs`, `Workflow.cshtml.cs`, the new shared partial and the `Details.cshtml(.cs)` regions. Migrations and shared UI paths need serialized locks. | Fixed in part; remedy rejected in part. The brief's owned-path list is explicitly approximate, and every file the plan names was checked against the actual file lists of CASE-038, CASE-039, CASE-041, CASE-029, CASE-042, PLAT-069, CASE-009, PLAT-068 and DOCS-017 — none is claimed twice, and `AssignedEngineerId` already lives in `Core/Workflow` and `Core/Lifecycle`, so the sign-off field cannot sit in `Core/Cases` without a second owner of one concept. Splitting into prerequisite tickets is therefore rejected. Step 1 now requires the CASE-038 transfer in writing before the first commit and names PLAT-068, PLAT-070, CASE-039 and CASE-041 as the migration-lane peers to serialize behind. |
+| 2 | blocker (sol) | 1, 2, 4 | PLAT-070 is not a dependency, yet it deletes the staff-review members of the very contracts CASE-040 extends. Verified: `CaseWorkflowContracts.cs` carries `InstructionsReviewedByStaff`/`ImagesReviewedByStaff`, `Workflow.cshtml.cs:98` takes four review parameters, and `CaseLifecycle.ValidateReadiness` still applies the configured flags. Moving that form into the shared partial first would carry retired inputs forward, against D44. | Fixed. PLAT-070 added to the dependency table; Step 1 makes it a must-land prerequisite and adds the `ReviewedByStaff` / `RequireStaffImageReview` grep after the refresh. A matching checklist line was added. |
+| 3 | blocker (sol) | 3, 4 | The "eligible resolved Sign-off Engineer" precondition was stated only as a presentation rule, while the export and submit handlers accept direct POSTs and the stores gate only state, settings and images — Core would not own the policy. | Fixed. The precondition now lives once in the Core EVA policy and is consumed by `EvaHandoffStore` (pre-flight and inside the serializable locked-state section) and `EvaSubmissionStore`; the pages present it only. Port-level refusal tests added to Step 6 and to the acceptance conditions. |
+| 4 | should-fix (sol) | 6 | The test map omitted the seams the change actually moves: `CustodyOutboxIntegrationTests.cs` holds the export state, locked-state race, replay, proxy and history assertions, and `CaseWorkflowWebTests.cs` is where a new Workflow handler binds. `EvaSubmissionPersistenceTests` manipulates entities directly and never calls `ISubmitCaseToEva`, so changing its index assertions proves nothing about the real re-send path. | Fixed. Both files added to Step 6 and the expected-files table; the re-send case is now driven through `ISubmitCaseToEva`, and unchanged workflow state and version are asserted there. |
+| 5 | should-fix (sol) | 3 | Opening the routes to With Engineer leaves `CaseNotInReviewException` (`DocumentContracts.cs:238`, message "A case can only be exported while it is in Review.") false. It is shared with ordinary document export (`EfDocumentCustodyStore.cs:327`), so redefining it would widen unrelated behaviour. | Fixed. Step 3 stops using it on the two EVA routes (`EvaHandoffStore.cs:73`, `:146`, `EvaSubmissionStore.cs:70`), returns the new EVA state refusal, leaves the document-export use and the exception itself alone, and widens the `EvaSubmissionWorkItem.cs:168` catch. The three `CustodyOutboxIntegrationTests` assertions move with it. |
+| 6 | should-fix (sol) | 6 | `CaseTaskArchivePersistenceTests.cs:761` and `UploadConfirmationWebTests.cs:275` resolve the production `ICaseWorkflowStore`; neither implements a fake, so the planned "test fake" edits have no subject. The earlier wrapper check that said they carry fakes was wrong. | Fixed. Both removed from the expected diff; Step 6 now says to touch them only if the compiler proves otherwise. |
+| 7 | blocker (wrapper) | 3, 4 | Does the first Send to EVA move the case from Review to With Engineer? FRD-07 says twice that neither route changes the Case state or version (lines 63 and 131, reconciled by DELIV-041 after D36), and the plan follows it. But D44 as recorded on PLAT-070 says "Review to With Engineer happens through Send to EVA", and the mockup does exactly that (`20-case.js:190` sets the case state to `with_engineer` on save). The two cannot both hold, and the answer changes CASE-040's Core action. | Operator question. Added to `open-questions/` unticked. The plan keeps the FRD-07 reading (`StartCaseWork` remains the only transition) and now says so explicitly, so the ticket is implementable the moment the answer lands either way. |
+| 8 | should-fix (wrapper) | Commands | The plan and checklist ran the solution suite as `Category!=Corpus&Category!=Browser`, which drops the whole Browser lane with nothing run in its place. CLAUDE.md's delivery gate is `Category!=Corpus`, and the runbook's complementary lanes are lines 324-325. CASE-040 changes routed Razor pages, which is what the Browser lane covers. | Fixed. The canonical solution filter is restored and the Browser integration lane added, in both the plan's Commands block and the checklist. |
+| 9 | nit (wrapper) | 4 | The plan offered `OperatorLabels.EvaHandoffs` as an alternative home for the dialog's route words. That class is documented as the Operations panel's list (PLAT-049); putting Case dialog vocabulary in it makes one list serve two concepts. | Fixed. Step 4 now names `OperatorLabels.CaseWorkspace` as the single home. |
+| 10 | should-fix (wrapper) | 4 | The wrapper addition moved the API-disabled wording into `OperatorLabels` but left `EvaSubmissionPolicy.NotEnabledReason` in place — two copies of one sentence. Its only caller is `Send.cshtml.cs:158`. | Fixed. Step 4 now deletes the Core constant and points that caller at the label. |
+
+Not found, checked and clear: no step assumes a damage type (D45) and none
+enters crop-tool scope (D46); no new package is proposed; the shared partial is
+justified by its two concrete callers; every other reuse the steps name was
+grepped and exists (`MutateAsync`, `HistoryValue`, `EvaFirstHandoffProxies`,
+`EvaHandoffPolicy` at `EvaBundleSchema.cs:101`, `IStaffAccountQueries`,
+`CaseMutationPageModel`, the `.gated` / `data-condition` convention at
+`_CaseVehicle.cshtml:90-103`, `IAssignCaseEngineer` at
+`DependencyInjection.cs:392`). PLAT-068's plan does define
+`SignOffEngineerProfile`, `ListSignOffEngineersAsync` and `IsDefault`, so this
+plan's dependency naming is accurate.
