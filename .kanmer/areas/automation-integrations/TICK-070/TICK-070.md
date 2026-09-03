@@ -10,6 +10,7 @@ labels:
   - capability
   - AI-01
   - later
+  - blocked
 groups:
   - EPIC-005
 links: []
@@ -17,7 +18,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:39.874Z'
-updated: '2026-08-25T06:46:31.268Z'
+updated: '2026-09-03T08:46:46.376Z'
 ---
 
 ## What
@@ -41,3 +42,5 @@ This is allocated to **Later / 0.6.0** in `docs/capabilities.md`. It is **not de
 ## Notes
 
 - Source: `docs/capabilities.md` — AI-01.
+
+Operator Note 03/09/2026 - deferred until further notice and confirmation
