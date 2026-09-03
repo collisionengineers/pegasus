@@ -40,8 +40,6 @@ public enum CaseReopenDestination
 }
 
 public sealed record CaseWorkflowConfiguration(
-    bool RequireStaffInstructionReviewBeforeEngineerAssignment,
-    bool RequireStaffImageReviewBeforeEngineerAssignment,
     string PolicyKey,
     int PolicyVersion);
 
@@ -53,8 +51,6 @@ public interface ICaseWorkflowConfiguration
 public sealed record CaseReadinessEvidence(
     bool InstructionsComplete,
     bool ImagesComplete,
-    bool InstructionsReviewedByStaff,
-    bool ImagesReviewedByStaff,
     string EvidenceReference);
 
 /// <summary>
