@@ -117,6 +117,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260829212237_GrantProviderSubmissionAcceptRecovery",
                 "20260903110926_ExtendAssessmentVocabulary",
                 "20260903153134_RemoveStaffReviewFlags",
+                "20260903225331_StaffAccountSignOff",
                 "20260903195515_MarketResearchAiJob"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
