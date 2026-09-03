@@ -125,20 +125,21 @@ expanding this one.
      — delete the two seeded values.
    - `src/Pegasus.Infrastructure/Persistence/EfWorkflowConfigurationStore.cs`
      — delete the two flags from every mapping/replay/audit-snapshot member.
-   - `src/Pegasus.Infrastructure/Persistence/Migrations/<timestamp>_RemoveWorkflowConfigurationStaffReviewFlags.cs`
-     (create) + matching `.Designer.cs` — drop only
+   - `src/Pegasus.Infrastructure/Persistence/Migrations/20260903153134_RemoveStaffReviewFlags.cs`
+     + matching `.Designer.cs` — drop only
      `WorkflowConfigurations.RequireStaffInstructionReviewBeforeEngineerAssignment`
-     and `.RequireStaffImageReviewBeforeEngineerAssignment`. Do not touch the
-     `Cases` table. Do not edit any historical migration. The migration's
-     `Down` must re-add both columns as `bool NOT NULL DEFAULT 1` (their
+     and `.RequireStaffImageReviewBeforeEngineerAssignment`. Does not touch
+     the `Cases` table. No historical migration edited. The migration's
+     `Down` re-adds both columns as `bool NOT NULL DEFAULT 1` (their
      current shape in `20260729180000_AdministrationPolicies.cs`), because
      EPIC-012's rollout rule reverts a failed wave PR-by-PR and a code-only
      revert against a dropped column would leave the store broken.
    - `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs`
-     — match the post-migration model.
-   - Reuse `scripts/Test-MigrationGrants.ps1`; no grant change expected — the
+     — matches the post-migration model.
+   - Reused `scripts/Test-MigrationGrants.ps1`; no grant change needed — the
      migration only drops columns on a table the Worker role already has
-     access to.
+     access to (verified: `88 migration files checked, every created table
+     is granted or exempted`).
 
 3. **Web — Case pages.** Reuse the shared `Readiness` helper in
    `CaseMutationPageModel` and the existing `_ReadinessHiddenFields.cshtml`
@@ -160,10 +161,10 @@ expanding this one.
      record, so posting `false` would silently rewrite the intake-time
      confirmation `Create.cshtml` recorded — a persisted-data change this
      ticket does not authorise. D44 is satisfied by the absent control; the
-     value is no longer operator-editable. Remove the
+     value is no longer operator-editable. Removed the
      `instructionsReviewedByStaff`/`imagesReviewedByStaff` entries from the
      "Return to Review" dialog's posted-data dictionary (lines 308-309).
-   - `src/Pegasus.Web/Pages/Cases/Details.cshtml` — remove only the retired
+   - `src/Pegasus.Web/Pages/Cases/Details.cshtml` — removed only the retired
      review-field UI; the frame itself is CASE-038's to redesign.
    - `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` — the readiness-evidence
      construction drops the two `ConfirmedByStaff` args (3-arg
@@ -177,15 +178,12 @@ expanding this one.
      its 4-arg `new CaseCompleteness(...)` — they are now fed by the hidden
      pass-through inputs above, not by an operator control, so no stored
      value changes.
-   - `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` — **also delete the two
+   - `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` — **also deleted the two
      `AddRequirement(..., data.Completeness.Values.InstructionConfirmedByStaff,
      "Instructions not staff-reviewed", why)` /
-     `... ImagesConfirmedByStaff, "Images not staff-reviewed", ...` calls
-     (lines ~135-143 of the `CaseRequirement` builder)**. This is the readiness
-     surface D44 names ("no review flag ... anywhere"): it drives both the
-     Case page's outstanding-requirements list and the "Next action" notice
-     (visible in `case-details--conflict.html`). Keep the two
-     "Instructions incomplete"/"Images incomplete" requirements. Reuse the
+     `... ImagesConfirmedByStaff, "Images not staff-reviewed", ...` calls**
+     (the readiness surface D44 names). Kept the two
+     "Instructions incomplete"/"Images incomplete" requirements. Reused the
      existing `AddRequirement` helper and `CaseRequirement` record unchanged.
    - `src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs` — the shared
      `Readiness` factory drops its `instructionsReviewedByStaff`/
@@ -201,90 +199,117 @@ expanding this one.
 4. **Web — Administration.** Reuse the existing
    `GetWorkflowConfiguration`/`UpdateWorkflowConfiguration` commands and
    authorization/versioning path; no new configuration route.
-   - `src/Pegasus.Web/Pages/Administration/Configuration.cshtml` — remove the
-     `workflow-review-title` panel (`@OperatorLabels.WorkflowConfiguration.Review`
-     heading and its two checkboxes, lines 37-51) entirely. **Also remove the
+   - `src/Pegasus.Web/Pages/Administration/Configuration.cshtml` — removed
+     the `workflow-review-title` panel entirely, the
      `<span class="muted">@OperatorLabels.WorkflowConfiguration.Description</span>`
-     subtitle (line 17)** — its text is literally "Staff review requirements",
-     the name of the function being deleted, and a descriptive subtitle under
-     an already-labelled `<h2>` is explanatory copy the design authority
-     bars. What remains of the form is the `ExpectedVersion`/`OperationKey`
-     hidden inputs, the Reason field and Save — see open question 1 before
-     implementing this step.
-   - `src/Pegasus.Web/Pages/Administration/Configuration.cshtml.cs` — remove
-     the two bound properties, their two assignments in `LoadAsync`, and the
-     two constructor args passed into `UpdateWorkflowConfigurationRequest`.
-   - `src/Pegasus.Web/Presentation/OperatorLabels.cs` — delete
-     `WorkflowConfiguration.Description` (= "Staff review requirements"),
-     `.Review`, `.InstructionReviewRequired` and `.ImageReviewRequired`
-     (verified member names, lines 1073-1076; `.Reason`, `.Save` and
-     `.Meta(...)` stay). Do not add replacement copy.
+     subtitle, and (per the resolved open question, option (b)) the Reason
+     field, the Save button and the form itself; the page now renders the
+     current policy version read-only.
+   - `src/Pegasus.Web/Pages/Administration/Configuration.cshtml.cs` —
+     removed the two bound properties, their `LoadAsync` assignments, the
+     `OnPostAsync` handler and its `UpdateWorkflowConfigurationRequest` call
+     entirely (option (b) — no operator-editable setting ships until
+     PLAT-062).
+   - `src/Pegasus.Web/Presentation/OperatorLabels.cs` — deleted
+     `WorkflowConfiguration.Description`, `.Review`,
+     `.InstructionReviewRequired`, `.ImageReviewRequired`; the simplification
+     pass additionally deleted `.Reason` and `.Save` once the Reason
+     field/Save button were removed (see Simplification pass below). `.Meta`
+     stays. No replacement copy added.
 
-5. **Tests — update, don't weaken.** Reuse existing fixtures/harnesses.
+5. **Tests — update, don't weaken.** Reused existing fixtures/harnesses.
    - `tests/Pegasus.Core.Tests/Lifecycle/CaseReviewReadinessTests.cs`,
      `AssignCaseEngineerTests.cs` — prove a case with complete instruction
      and images reaches Review/is assignable with no review evidence/flag.
    - `tests/Pegasus.Core.Tests/Cases/AutomaticCaseReadinessTests.cs`,
-     `CaseDataOperationsTests.cs` — replace the retired
-     staff-confirmation-gated scenarios with completeness-only assertions
-     (the `automaticallyDefinitive` distinction these tests currently exist
-     to prove becomes moot — replace, don't just delete, so completeness-only
-     behaviour stays covered).
+     `CaseDataOperationsTests.cs` — replaced the retired
+     staff-confirmation-gated scenarios with completeness-only assertions.
    - `tests/Pegasus.Core.Tests/Cases/ImmediateExternalPublicationTests.cs` —
-     trim `new CaseWorkflowConfiguration(false, false, "test", 1)` to the
-     2-arg form.
+     trimmed to the 2-arg `CaseWorkflowConfiguration` form.
    - `tests/Pegasus.Core.Tests/Identity/AdministrationPolicyTests.cs` —
-     update `UpdateWorkflowConfigurationRequest` construction.
+     updated `UpdateWorkflowConfigurationRequest` construction.
    - `tests/Pegasus.IntegrationTests/WorkflowConfigurationWebTests.cs` —
-     assert no review panel/checkboxes render; preserve the route's other
-     access/behaviour assertions.
+     replaced the retired save/replay test with
+     `AdministratorSeesReadOnlyPolicyVersionWithoutReviewControls`, asserting
+     no review panel, no Reason field, no Save button and (after the
+     simplification pass fix) no `<form method="post"
+     action="/Administration/Configuration">` anywhere on the page —
+     narrowed from a blanket "no `<form`" check, which false-failed on the
+     shared layout's unrelated `<form class="utility-search">`.
    - `tests/Pegasus.IntegrationTests/AdministrationPolicyPersistenceTests.cs`
-     — replace the retired update/replay assertions.
+     — replaced the retired update/replay assertion with
+     `WorkflowConfigurationStoresOnlyTheReadOnlyPolicyIdentity`, proving the
+     stored policy identity and zero `ActionHistory` rows for the aggregate.
    - `tests/Pegasus.IntegrationTests/CaseWorkflowWebTests.cs`,
-     `CaseClosureWebTests.cs` — trim the 5-arg `new CaseReadinessEvidence(...)`
-     calls to 3 args; remove posted review form values.
+     `CaseClosureWebTests.cs` — trimmed the 5-arg `new CaseReadinessEvidence(...)`
+     calls to 3 args; removed posted review form values.
    - `tests/Pegasus.IntegrationTests/CaseWorkflowPersistenceTests.cs`,
      `CaseDataCompletenessPersistenceTests.cs`, `CaseMatchIntegrationTests.cs`,
      `AssessmentPersistenceIntegrationTests.cs`,
      `ProviderInspectionModeAcceptanceTests.cs`,
-     `ProviderApiCaseDataSnapshotPersistenceTests.cs` — each has a
+     `ProviderApiCaseDataSnapshotPersistenceTests.cs` — each trimmed its
      `FixedConfiguration.Configuration = new CaseWorkflowConfiguration(...)`
-     (verified present in all six); trim each to the 2-arg form. No other
-     change expected in these six; confirm with `dotnet build`.
-   - Add or extend one assertion proving that confirming completeness leaves
-     the stored `InstructionConfirmedByStaff`/`ImagesConfirmedByStaff` values
-     unchanged (`CaseDataCompletenessPersistenceTests.cs` is the natural
-     home) — this is the only behaviour the hidden pass-through protects and
-     nothing else covers it.
+     to the 2-arg form.
+   - `tests/Pegasus.Core.Tests/Cases/AutomaticCaseReadinessTests.cs` —
+     `MissingEvidenceIsNotReady` originally set `InstructionConfirmedByStaff`/
+     `ImagesConfirmedByStaff` to a literal `true` regardless of the
+     completeness flags under test, which violates
+     `CaseDataPolicy.ValidateCompleteness`'s pre-existing (unchanged by this
+     ticket) "confirmed implies complete" invariant and threw
+     `InvalidOperationException` for the incomplete cases. Fixed by deriving
+     the confirmed values from the completeness flags being tested
+     (`instructionComplete`/`imagesComplete`) instead of a constant.
+   - `CaseDataCompletenessPersistenceTests.cs` — added the assertion proving
+     that confirming completeness leaves the stored
+     `InstructionConfirmedByStaff`/`ImagesConfirmedByStaff` values unchanged
+     (the only behaviour the hidden pass-through protects).
+   - **Dependency found during implementation, outside the plan's step-5
+     list**: `tests/Pegasus.IntegrationTests/AutomationMcpTestSupport.cs` and
+     `tests/Pegasus.IntegrationTests/DueChaserSweepPersistenceTests.cs` each
+     construct `CaseReadinessEvidence` positionally with 5 args
+     (`new(true, true, true, true, "...")`); the plan's caller-verification
+     for `CaseReadinessEvidence` ("no external caller outside owned files")
+     missed these two. Both are outside the ticket's originally-listed test
+     files but are direct, mechanical breakage from the owned
+     `CaseWorkflowContracts.cs` change (a changed Core record's positional
+     arity), not a policy or scope decision — trimmed both to the 3-arg
+     form, identical to the treatment already prescribed for six sibling
+     files. `CaseWorkflowPersistenceTests.cs` (already owned, already named
+     in step 5 for its `FixedConfiguration` trim) had two more 5-arg
+     `CaseReadinessEvidence` constructions the plan did not call out
+     individually; trimmed those too.
 
-6. **Governing documents and the Test UI snapshots.** Reuse
-   `Update-TestUiSnapshots.ps1` and `Test-UiCatalogue.ps1`; accept only the
-   three owned snapshot diffs named below.
-   - Regenerate **three** snapshots, not one — verified by
-     `git grep -i "staff-reviewed\|RequireStaff" docs/design/test-ui`:
-     `docs/design/test-ui/pages/administration-configuration--default.html`
-     (the review panel and its two hidden inputs disappear),
-     `docs/design/test-ui/pages/case-details--default.html` and
-     `docs/design/test-ui/pages/case-details--conflict.html` (the
+6. **Governing documents and the Test UI snapshots.** Reused
+   `Update-TestUiSnapshots.ps1` and `Test-UiCatalogue.ps1`; verified only the
+   three owned snapshot diffs named below (`git diff --stat --
+   docs/design/test-ui/` after the full capture+update+verify cycle showed
+   exactly these three files with real content changes — every other
+   `docs/design/test-ui/**` path that `git status` reported modified was a
+   CRLF/LF normalization no-op, confirmed empty by `git diff` per file).
+   - `docs/design/test-ui/pages/administration-configuration--default.html`
+     (the review panel, its hidden inputs, the Reason field and Save button
+     all disappear), `docs/design/test-ui/pages/case-details--default.html`
+     and `docs/design/test-ui/pages/case-details--conflict.html` (the
      "Instructions/Images not staff-reviewed" requirement rows and the
-     "Next action" notice change). Accept only these three diffs; any fourth
-     changed snapshot is a stop condition.
-   - `docs/frd/frd-01-case-identity-and-lifecycle.md` — replace the
+     "Next action" notice change).
+   - `docs/frd/frd-01-case-identity-and-lifecycle.md` — replaced the
      staff-review gate language with D44's completeness-only rule.
-   - `docs/frd/frd-06-vehicle-and-engineering-evidence.md` — amend D39's
+   - `docs/frd/frd-06-vehicle-and-engineering-evidence.md` — amended D39's
      damage-zone fields to severity/note only (D45; no zone `type`).
-   - `docs/frd/frd-12-operator-experience.md` — record D44 (Workflow
+   - `docs/frd/frd-12-operator-experience.md` — recorded D44 (Workflow
      configuration, Case record readiness).
-   - `docs/design/README.md` — remove "Review (two checkboxes)" from the
-     Workflow configuration panel list (line ~1060); remove the damage
-     "type" from the damage-diagram wording.
-   - `.kanmer/groups/EPIC-012/context.md` — D44/D45 already appear verbatim;
-     confirm no further edit needed (read it during implementation before
-     assuming a change is required).
-   - `.kanmer/groups/EPIC-011/context.md` — add an explicit cross-reference
-     that D44–D46 supersede any older EPIC-011 review/damage-type wording
-     where they differ (EPIC-012's context.md already states this at the
-     epic level; EPIC-011's own file does not yet say so).
+   - `docs/design/README.md` — removed "Review (two checkboxes)" from the
+     Workflow configuration panel list; removed the damage "type" from the
+     damage-diagram wording; added `(D44)`/`(D45)` citations to both edited
+     lines for grep traceability, consistent with the file's existing
+     per-item D-number citation convention.
+   - `.kanmer/groups/EPIC-012/context.md` — read; D44/D45 already state the
+     exact PLAT-070 scope verbatim (confirmed at plan time, no edit needed).
+   - `.kanmer/groups/EPIC-011/context.md` — added an explicit 2026-09-03
+     cross-reference paragraph: D44-D50 are recorded in full by EPIC-012
+     `context.md` and supersede this document's §1.8/§1.9/§1.12 and D1-D43
+     wherever they differ, naming D44 (retiring §1.12's "Review (2
+     checkboxes)" line and D39's "type" field) and D45 (amends D39) by name.
 
 ## Must not touch
 
@@ -398,3 +423,67 @@ Checks that passed with no finding:
 ## Resolutions (2026-09-03)
 
 - Finding 7 resolved by the controller as option (b): keep `/Administration/Configuration` and its nav entry; render the policy version read-only; remove the Reason field, Save button and the page's `UpdateWorkflowConfiguration` call; keep the Core command and store for PLAT-062; update `WorkflowConfigurationWebTests.cs` to prove the form is absent. Add these steps to the checklist before the snapshot regeneration step.
+
+## Resumed execution (2026-09-03, gpt-5.6-terra high run + Sonnet wrapper completion)
+
+The gpt-5.6-terra implementation run was interrupted mid-way (its
+`impl-summary.md` records a deliberate stop at a scope boundary before fixing
+`AutomationMcpTestSupport.cs`/`DueChaserSweepPersistenceTests.cs`). Resuming
+in the same recorded worktree/branch, the wrapper found the tree already
+carried most of the plan's steps 1-6 uncommitted and complete, verified each
+against the plan and checklist, then finished the remainder:
+
+- Scaffolded the migration (`dotnet ef migrations add`, then renamed to
+  `RemoveStaffReviewFlags` and corrected `Down`'s `defaultValue` to `true`
+  per step 2) — this had not yet been generated.
+- Fixed the two out-of-owned-scope `CaseReadinessEvidence` 5-arg call sites
+  (`AutomationMcpTestSupport.cs`, `DueChaserSweepPersistenceTests.cs`) and
+  two more in the already-owned `CaseWorkflowPersistenceTests.cs` — see the
+  step-5 dependency note above for the scope reasoning.
+- Fixed `AutomaticCaseReadinessTests.MissingEvidenceIsNotReady` (see step 5)
+  — a pre-existing-invariant violation in the inherited test edit, not a
+  regression this ticket's Core change introduced.
+- Ran the full Test UI snapshot capture/update/verify cycle and
+  `Test-UiCatalogue.ps1`; both passed with exactly the three owned snapshot
+  diffs.
+- Ran `Test-MigrationGrants.ps1` (pass, no grant change needed) and
+  `Test-DocumentationLinks.ps1` (one pre-existing broken link,
+  `.opencode/skills/kanmer-setup/SKILL.md` → `docs/manual/greenfield.md`,
+  confirmed identical and already broken on `origin/dev`; unrelated to this
+  ticket and outside its owned paths, not fixed here).
+- Added the D44/D45 cross-reference paragraph to `EPIC-011/context.md` (step
+  6) and D44/D45 citations to the two edited `docs/design/README.md` lines.
+- One flaky, pre-existing, unrelated test observed once during a full-suite
+  run (`QdosInstructionExtractionPolicyTests.MultipleDistinctUnlabelledRegistrationsStayAbsent`,
+  a `RegexMatchTimeoutException` under parallel load in
+  `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs`, a file this
+  ticket never touches) — passed in isolation and on every other full run;
+  not caused by this ticket.
+
+## Simplification pass (2026-09-03)
+
+Ran `codex exec -m gpt-5.6-sol -c model_reasoning_effort="low"` over
+`git diff origin/dev...HEAD` for reuse/simplification/efficiency/altitude
+findings only (behaviour-preserving; no correctness changes, no test
+assertions weakened). Findings and dispositions:
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `OperatorLabels.WorkflowConfiguration.Reason` and `.Save` (line 1071) became unreferenced once the resolved open question removed the Reason field and Save button from `Configuration.cshtml`/`.cshtml.cs`; only `.Meta` is still used. | fixed — both constants deleted; `.Meta` retained |
+| 2 | Removing the Configuration page's POST-form test (`WorkflowConfigurationWebTests.cs`) left three private parsing helpers (`InputValue`, `InputTag`, `HasAttribute`) and three `GeneratedRegex` members (`ConfigurationFormRegex` retained — reused below — but `CheckboxRegex`, `InputTagRegex`, `ValueAttributeRegex` orphaned) unused. | fixed — dead helpers and regexes deleted; no assertion weakened |
+| 3 | Every `automaticallyDefinitive` parameter left on `CaseCompleteness.IsReadyForReview`/`CaseCompletenessPolicy.Evaluate` after the config-gated branch's removal is now unused internally. | not applied — removing it requires editing `src/Pegasus.Core/Intake/AcceptIntake.cs`, an unowned caller outside this ticket's file list; flagged as a follow-up simplification, not this ticket's scope (already noted in step 1 above) |
+
+Applying finding 1 also surfaced a pre-existing test bug (not introduced by
+the simplification pass, but found while re-running the fast suite after
+it): `WorkflowConfigurationWebTests.AdministratorSeesReadOnlyPolicyVersionWithoutReviewControls`'s
+blanket `Assert.DoesNotContain("<form", html)` false-failed against the
+shared `_Layout.cshtml`'s unrelated `<form class="utility-search">` global
+search form. Narrowed to `Assert.DoesNotMatch(ConfigurationFormRegex(), html)`
+— the same regex the file already defined for the retired POST form
+specifically — so the assertion tests what it actually claims to test
+(scope-fix, not a weakening: the retired form's absence is still proven,
+just precisely instead of over-broadly).
+
+Post-pass verification: `dotnet build` (0 errors), `Pegasus.Core.Tests`
+(1182/1182), `Pegasus.ArchitectureTests` (100/100) all green on the rebuilt
+tree.
