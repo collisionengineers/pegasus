@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Cancel superseded repository-check runs and gate the heavy lanes behind the
   cheap invariant jobs
-status: verifying
+status: done
 area: delivery-repository
 assignee: claude-code
 profile: fix
@@ -12,17 +12,7 @@ stageEntered:
   preparing: '2026-09-03T19:24:35.091Z'
   review: '2026-09-03T19:30:31.553Z'
   verifying: '2026-09-03T23:51:19.996Z'
-taken_at: '2026-09-03T19:24:36.901Z'
-branch: task/deliv-043-ci-concurrency-preflight
-worktree: ../pegasus-worktrees/deliv-043-ci-concurrency-preflight
-claim_expires_at: '2026-09-04T00:16:02.199Z'
-claim_controller: claude-code
-lease_id: 2d972783-71c8-42b5-be3f-816ebb51a211
-lease_revision: 10
-lease_workspace: >-
-  worktree:c:\users\alex\documents\github\pegasus-worktrees\deliv-043-ci-concurrency-preflight
-lease_phase: review
-lease_heartbeat_at: '2026-09-03T23:46:02.199Z'
+  done: '2026-09-03T23:52:31.641Z'
 labels:
   - ci
 links:
@@ -34,7 +24,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/653'
 archived: false
 created: '2026-09-03T19:23:48.496Z'
-updated: '2026-09-03T23:51:19.996Z'
+updated: '2026-09-03T23:52:39.271Z'
 ---
 
 ## What
@@ -59,3 +49,5 @@ Cancel superseded CI runs of the same pull request and make every heavy `.NET` l
 - [ ] A green PR shows the same job set as before with every heavy lane `success`.
 
 ## Outcome
+
+Shipped in PR #653, merged into dev at f479a948 on 2026-09-03. Proof PASS: heavy lanes started only after the three cheap jobs; all lanes green (test-ui needed one re-run after a 35-minute step-budget timeout unrelated to the diff). Follow-ups filed as one chore ticket (push: dev CI decision, duplicate Azure-plan invocation, coverage job !cancelled(), engineering.md wording).
