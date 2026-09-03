@@ -230,8 +230,11 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         // An estimate draft is reviewed on the Assessment page, and is closed
-        // there by Use estimate — never by hand from this table.
-        var estimateRow = RowContaining(html, RecordingAiWorkStore.CaseReference);
+        // there by Use estimate — never by hand from this table. The Case
+        // reference alone is ambiguous (the MarketResearch fixture shares it
+        // and renders newer, hence first), so the row is found by the
+        // estimate job's own instruction text instead.
+        var estimateRow = RowContaining(html, RecordingAiWorkStore.EstimateInstruction);
         Assert.Contains("Review estimate", estimateRow, StringComparison.Ordinal);
         Assert.Contains($"/Cases/{aiWork.SubjectCaseId:D}/Assessment", estimateRow, StringComparison.Ordinal);
         Assert.DoesNotContain("Complete job", estimateRow, StringComparison.Ordinal);
@@ -822,6 +825,7 @@ public sealed partial class OperationsWebTests
     {
         public const string CaseReference = "QD31002";
         public const string UnidentifiedReference = "U412";
+        public const string EstimateInstruction = "Draft an estimate to the recorded target.";
         public const string CompletedInstruction = "Draft the estimate that was already accepted.";
         public const string ExpiredInstruction = "A queued job expired without being claimed.";
         public const string LastWeekInstruction = "A job cancelled a week ago.";
@@ -862,7 +866,7 @@ public sealed partial class OperationsWebTests
                 AiJobSubjectKind.Case,
                 SubjectCaseId,
                 CaseReference,
-                "Draft an estimate to the recorded target.",
+                EstimateInstruction,
                 AiJobState.DraftReady,
                 FixedUtcNow.AddHours(-3),
                 version: 3),
