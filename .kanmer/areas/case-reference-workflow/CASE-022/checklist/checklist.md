@@ -27,10 +27,10 @@
   Test UI snapshot churn.
 - [x] [pre-review] Step 4 — Commit the bounded branch, open its PR to `dev`,
   and stop for independent `kanmer-review` without merging or deploying.
-- [ ] [post-merge] Step 4 — After separately authorised release/deployment,
-  verify a disposable permitted upload reaches Box and SQL exactly once,
-  telemetry is token-free, revoke the link, and refresh both current-state
-  documents at the exact deployed SHA.
+- [x] [post-merge] Step 4 — Operator disposition, 2026-09-03:
+  production upload/Box/SQL/telemetry testing will be performed with the next
+  deployment and is explicitly outside CASE-022 closeout scope. No deployment
+  or live-production result is claimed here.
 
 ## Progress notes
 
