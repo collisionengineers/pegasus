@@ -3,8 +3,6 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Workflow;
 
 public sealed record UpdateWorkflowConfigurationRequest(
-    bool RequireStaffInstructionReviewBeforeEngineerAssignment,
-    bool RequireStaffImageReviewBeforeEngineerAssignment,
     int ExpectedVersion,
     ActionActor Actor,
     string Reason,
