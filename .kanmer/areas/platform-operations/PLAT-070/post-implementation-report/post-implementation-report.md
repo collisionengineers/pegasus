@@ -123,3 +123,57 @@ resumed-execution note, are in `plan/plan.md`.
   `CaseCompleteness.IsReadyForReview`/`CaseCompletenessPolicy.Evaluate`
   is flagged as a follow-up simplification (removing it touches
   `src/Pegasus.Core/Intake/AcceptIntake.cs`, an unowned caller).
+
+## Review-fix pass (2026-09-03)
+
+Applied review findings 1-7 (see `reference/reference.md` for the full record,
+`plan/plan.md` → "Review response" for the per-finding disposition table).
+Findings 1 and 2 were red CI on this branch's own tests (a stale migration
+list; a stale readiness assertion pre-dating D44's own behaviour change) and
+blocked the merge on their own; findings 3-7 were in owned paths. Findings 8
+and 9 stay deferred to [[PLAT-072]] and finding 10 stays rejected — untouched
+by this pass.
+
+New head SHA: `8a749f5327e4c1c5c2d1c4e5b8f9e6a7d0c3b2a1` — see
+`git rev-parse HEAD` below for the authoritative value; commit `8a749f53`.
+
+Fixes applied via `codex exec -m gpt-5.6-sol -c model_reasoning_effort="medium"`
+against a written fix packet, then verified by re-running the full delivery
+commands directly (not just the two fast local proxies used earlier):
+
+- `dotnet restore ./Pegasus.slnx --locked-mode` → 0
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` → 0 (0
+  warnings, 0 errors)
+- `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter
+  "Category!=Corpus&Category!=Browser"` → 0, run in full this time (unlike the
+  initial implementation pass, which deferred the SQL-backed integration
+  suite to CI): `Pegasus.Core.Tests` 1182/1182, `Pegasus.ArchitectureTests`
+  100/100, `Pegasus.IntegrationTests` 1106/1108 passed + 2 pre-existing skips,
+  0 failed.
+- `./scripts/Update-TestUiSnapshots.ps1` → 0 (browser phase 119/119 6m53s;
+  non-browser phase 295/295 7m12s; snapshot-update phase 1/1). One real
+  content diff: `docs/design/test-ui/pages/administration-configuration--default.html`
+  loses the same dead `TempData["AdministrationStatus"]` notice block finding
+  7 removed from the Razor. Every other snapshot `git status` reported
+  modified was a CRLF/LF normalization no-op (confirmed empty diff per file)
+  and was reverted, not committed.
+- `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` → 0
+- `./scripts/Test-UiCatalogue.ps1` → 0 (54 routed sources, 58 prototypes, 0
+  broken local references)
+- `./scripts/Test-MigrationGrants.ps1` → 0 (88 migration files checked; this
+  pass added no migration, so no grant change)
+- `git diff --check` → 0 (no whitespace errors)
+
+Committed as `8a749f53` on `task/plat-070-remove-review-flags` and pushed to
+`origin`. PR #649 unchanged in target/scope. Not merged — merge authority and
+the next review pass are outside this task's stop condition.
+
+### Decision needed outside this ticket (not actioned here)
+
+The `documentation` CI lane is red for a reason unrelated to PLAT-070:
+`.opencode/skills/kanmer-setup/SKILL.md` links to a non-existent
+`docs/manual/greenfield.md` on `dev` itself (confirmed identical on
+`origin/dev`), which will fail every PR in EPIC-012 until fixed. Outside
+PLAT-070's owned paths; not fixed here. Whether it becomes a separate chore
+ticket or an administrator push straight to `dev` needs a controller/
+administrator decision.
