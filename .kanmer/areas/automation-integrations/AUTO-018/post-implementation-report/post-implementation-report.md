@@ -126,3 +126,127 @@ no scope drift.
 ## PR
 
 https://github.com/collisionengineers/pegasus/pull/654
+
+## Review round fixes (2026-09-04)
+
+Applied the review record's findings (`reference/reference.md`, PR #654 head
+`265a09277`) in the ticket worktree `.worktrees/auto-018`, branch
+`task/auto-018-market-research-job`. R7 was accepted risk and R8 was already
+rejected in the review itself; neither required a code change.
+
+- **R1 (blocker — unbalanced check constraint).** Fixed at its source,
+  `src/Pegasus.Infrastructure/Persistence/AssessmentModelConfiguration.cs`:
+  the second branch of `CK_AiJobs_MarketResearchResult` is now wrapped in its
+  own parenthesis —
+  `(([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') AND … IS NULL)`
+  — giving the whole expression 3 opening and 3 closing parentheses (verified
+  by direct count). The migration and Designer were deleted and regenerated
+  with `dotnet ef migrations add MarketResearchAiJob` against the corrected
+  model rather than hand-edited, so the fix flows through automatically; see
+  R9 below for the final migration id.
+- **R6 (nit — NULL satisfies `>= 0`).** Fixed in the same constraint, same
+  file: each `[MarketResearchMileage/RetailValue/TradeValue] >= 0` now has a
+  preceding `IS NOT NULL` guard, matching the sibling GUID/date columns.
+- **R2 (should-fix — replay breaks after staff confirmation).**
+  `EfMarketResearchAiJobCompletionStore.CompleteAsync` now detects a replay
+  by querying the job's own `ai_job_draft_ready` `ActionHistory` entry
+  (matched on `AggregateType`/`AggregateId`/`EventKind`/`CorrelationId` ==
+  the presented operation key) instead of the mutable `LastOperationKey`
+  column, which the staff confirmation overwrites. Added
+  `MarketResearchCompletionReplaySurvivesStaffConfirmation` (already present
+  uncommitted from the prior session) proving a retry after
+  `IConfirmAiJob.ExecuteAsync` still replays the original document/valuation.
+- **R3 (should-fix — reimplemented taken/lease rules).** `RequireTakenJob`
+  now resolves the job's effective state through `AiJobPolicy.EffectiveState`
+  and checks the transition with `AiJobPolicy.IsLegalTransition`, matching
+  `EfAiJobStore.TransitionAsync`'s own precondition handling, instead of raw
+  `nameof`/lease-timestamp comparisons. `EfAiJobStore.AggregateType` was made
+  `internal` so the completion store's replay check (R2) can reuse it.
+- **R4 (should-fix — copied, incomplete rollback path).** The completion
+  transaction's catch block now mirrors
+  `EfDocumentCustodyStore.AddAsync`/`EfDocumentRequestStore`'s established
+  pattern exactly: a failed `RollbackAsync` and a failed orphan cleanup are
+  each captured and surfaced as an `AggregateException` rather than the
+  cleanup being skipped when rollback itself throws.
+- **R5 (should-fix — missing refusal/compensation tests).** Added the tests
+  Step 6's acceptance list required and the review found missing, each
+  asserting document/valuation row counts are unchanged on refusal:
+  - `AutomationAiJobIngressTests.MarketResearchCompletionEnforcesTheJobsScope`
+    (missing `automation.jobs` scope) — already present uncommitted.
+  - `AutomationAiJobIngressTests.MarketResearchCompletionRefusesAMissingCaseLeaseWithoutChangingTheJob`
+    — already present uncommitted.
+  - `AssessmentPersistenceIntegrationTests.MarketResearchCompletionRefusesAnExpiredCaseLeaseWithoutChangingTheJob`
+    (new) — acquires a real case edit lease, advances the clock past its
+    5-minute duration, and asserts `CaseEditLeaseExpiredException`.
+  - `AssessmentPersistenceIntegrationTests.MarketResearchCompletionWithAStaleCaseVersionWritesNothing`
+    — already present uncommitted.
+  - `AssessmentPersistenceIntegrationTests.MarketResearchCompletionWithAStaleJobVersionWritesNothing`
+    (new) — presents a stale `ExpectedJobVersion` and asserts "The AI job
+    changed concurrently; reload and retry."
+  - `AutomationAiJobIngressTests.MarketResearchCompletionSucceedsWhileAutomationIsSwitchedOff`
+    (new) — proves finishing a claimed MarketResearch job is not gated by
+    the Administrator switch (only new claims/progress are, matching
+    `TheAdministratorSwitchRefusesClaimsAndProgressButNotFinishing`).
+  - `AssessmentPersistenceIntegrationTests.MarketResearchCompletionCompensatesAFailedContentWriteByRemovingTheOrphan`
+    (new) — a `ThrowingCommandInterceptor` forces the `CaseValuations` insert
+    to fail after the document content is already stored; asserts the
+    transaction rolls back, the orphaned content is deleted
+    (`DeleteCount == 1`), and no rows are left in `CaseValuations` /
+    `DocumentOccurrences`.
+  - Replay and changed-payload refusal were already covered by
+    `MarketResearchCompletesOverHttpWithCaseLeaseDocumentValuationAndActorHistory`
+    and its sibling tests.
+- **R9 (fix — migration ordering vs a moving `origin/dev`).** `origin/dev`
+  moved twice during this round: first to ENG-035/PLAT-070 (already merged
+  onto this branch before the round started), then to PLAT-068's
+  `20260903225331_StaffAccountSignOff` mid-session. Ran `git fetch origin` +
+  `git merge --no-edit origin/dev` (one conflict, in the migration census —
+  resolved by keeping both entries in chronological order), deleted the
+  hand-edited `20260903195515_MarketResearchAiJob` migration and Designer,
+  restored `PegasusDbContextModelSnapshot.cs` to `origin/dev`'s tip
+  (`3f0cb45ed`), and regenerated with
+  `dotnet ef migrations add MarketResearchAiJob --project
+  ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project
+  ./src/Pegasus.Web/Pegasus.Web.csproj`. The new migration is
+  **`20260903233954_MarketResearchAiJob`**, sorting after
+  `20260903225331_StaffAccountSignOff`. `IntakePersistenceIntegrationTests.cs`'s
+  applied-migration census now lists every migration in chronological order
+  ending with it. No grant SQL was needed (no new table). A final
+  `git fetch origin` confirmed `origin/dev` stayed at `3f0cb45ed` for the
+  rest of the round.
+
+### Commands and exit codes (worktree `.worktrees/auto-018`, head `582796b04`)
+
+| Command | Exit |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 — 0 warnings, 0 errors |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 — 1,219 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 — 100 passed, 0 failed |
+| `./scripts/Test-MigrationGrants.ps1` | 0 — "91 migration files checked, every created table is granted or exempted" |
+
+No routed Razor page or partial changed by this round (Operations'
+`CanCompleteByHand` remains a page-model predicate only), so
+`Update-TestUiSnapshots.ps1` / `Test-UiCatalogue.ps1` were not run, consistent
+with the original plan. `Pegasus.IntegrationTests` was not run locally by
+design; GitHub CI runs it sharded on the PR, which is the gate the reviewer
+blocks on — the new/changed integration tests above compile cleanly in the
+Release build.
+
+### Head SHA and push
+
+New branch head: `582796b04` (pushed to
+`origin/task/auto-018-market-research-job`). PR #654 is unchanged (still
+targets `dev`); the ticket was not moved and the PR was not merged, per the
+stop condition.
+
+### Unresolved / for the reviewer
+
+None from this round's own scope. Two process notes: (1) the worktree already
+carried substantial uncommitted work addressing R1–R6 when this round began —
+consistent with a prior session's run that reached the fix but did not
+finish committing/pushing before being cut off; it was reviewed line-by-line
+against each finding rather than redone. (2) `origin/dev` moved a second time
+mid-round (PLAT-068); the coordinator flagged it and the migration was
+regenerated again on the new tail. No other lane reported moving `dev` after
+that.
