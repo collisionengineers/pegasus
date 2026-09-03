@@ -147,4 +147,12 @@ Undefined icons `activity/spark/reply/flag/sort` (use Lucide activity/sparkles/r
 
 2026-09-02: D29–D43 recorded by DELIV-041; D18 superseded by D31; §1.8/§1.9 superseded for the Case record by EPIC-012 context.md.
 
+2026-09-03: D44–D50 are recorded in full by EPIC-012 `context.md` and supersede
+this document's §1.8/§1.9/§1.12 and D1–D43 wherever they differ — in
+particular D44 (no staff act of reviewing instructions or images: this
+document's §1.12 "Review (2 checkboxes)" line and D39's "type" field are
+retired) and D45 (a damage zone records zone, severity and note only, no
+damage type; amends D39). PLAT-070 carries D44/D45 into `frd-01`, `frd-06`,
+`frd-12` and `docs/design/README.md`.
+
 Routine calls: EVA note dropped; "No EVA" policy dropped; the dialog exposes the two ADR-0034 toggles rather than a three-value select (PLAT-047 review, 2026-08-28); route e-mail addresses read-only; account dialog "Session started" via an `auth_time` claim; wave-1 `site.css` carries a delimited legacy block for not-yet-ported page classes, deleted in wave 5; `main` is promoted only after wave 5. Programme rules recorded 2026-09-01: production acceptance needs merged-main proof, deployment/activation, live caller evidence and operator visual signoff; one final production release after all dev PRs (one deployment, two promotions); Done debt is audited only and functional gaps create new linked tickets; green independently reviewed ticket PRs merge to `dev` under the standing delegation, `dev` → `main` still needs `MERGE AUTH GRANTED`; PR #640/#641 are adopted only after independent audits and PR #639 starts at the escalated tier; no raw Azure OCR response is retained and the OCR threshold is measured then operator-approved. The full text of D15–D28 as confirmed is in `decisions/2026-09-01-work-pack.md`; the execution runbook is `pegasus-work-pack/orchestration/claude/orchestration-plan.md`.
