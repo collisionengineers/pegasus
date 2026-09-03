@@ -1,141 +1,150 @@
 # Review record — PLAT-070 (PR https://github.com/collisionengineers/pegasus/pull/649)
 
 Reviewer family: Claude (Opus) dispositioning, over an independent
-`gpt-5.6-terra` xhigh whole-diff read — the other family from the
-`gpt-5.6-terra`/`sol` pair that built the branch, per EPIC-012's model
-allocation.
+`gpt-5.6-terra` xhigh whole-diff read in a detached read-only checkout — the
+other family from the `gpt-5.6-terra`/`sol` pair that built the branch, per
+EPIC-012's model allocation.
 
-Head SHA reviewed: `12423adc921e6c3015d3d365964419e71b1044b9`
+Head SHA reviewed: `8a749f53405535c234eda23206d24ae67ff5f891`
 Branch: `task/plat-070-remove-review-flags`
 Base: `origin/dev`
 Review checkout: `.worktrees/plat-070-review` (detached, read-only)
 Date: 2026-09-03
+Round: 2 (round 1 reviewed `12423adc` and requested changes; commit
+`8a749f53` applied findings 1-7)
 
 ## Verdict
 
-**REQUEST CHANGES.** The ticket's substance is delivered — D44's readiness
-gate, evidence values, configuration flags, persisted columns, Case-page
-controls and the Administration review panel are genuinely gone, D45 is
-recorded, and the tests were updated honestly rather than weakened. But CI is
-red on two of this branch's own test failures, and five further findings
-remain, four of them inside PLAT-070's owned paths, one of which puts the
-retired concept back in front of an operator.
+**APPROVED on substance — merge held on a repository-level CI failure that is
+not this PR's.**
 
-The post-implementation report's decision not to run the full filtered suite
-locally — relying on CI instead — is what let both CI failures through. That
-was a permitted trade, but it means the checklist's last unticked line is
-genuinely unmet, not merely deferred.
+All seven round-1 findings are correctly applied, nothing was weakened to make
+them pass, and no new defect was introduced. Local verification is green
+(exit codes below), and every CI lane at this SHA passes except
+`documentation`, which fails on a broken link in `.opencode/skills/kanmer-setup/SKILL.md`
+that is already on `origin/dev` and is outside PLAT-070's owned paths. That
+lane is the only thing between this PR and merge; the decision to merge over
+it, or to land the link fix on `dev` first, is a controller/administrator call
+(see "Blocking item outside this ticket").
 
-## What the branch gets right
+## Verification of the round-1 fixes
 
-- The readiness rule is narrowed in `Pegasus.Core` alone; nothing is
-  re-implemented in Web or Infrastructure. `ValidateReadiness` now delegates to
-  the pre-existing `ValidateReviewReadiness`
-  (`src/Pegasus.Core/Lifecycle/CaseLifecycle.cs:551-573`) — reuse, not a second
-  copy — and `EvidenceReference` is still required.
-- The two `CaseWorkflowConfiguration` flags and the two
-  `CaseReadinessEvidence` values are deleted outright, so "no code path reads
-  them" is a compile-time guarantee rather than an assertion.
+| # | Fix | Verified at `8a749f53` |
+| --- | --- | --- |
+| 1 | Migration list | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs:117-118` now ends `…GrantProviderSubmissionAcceptRecovery", "20260903153134_RemoveStaffReviewFlags"`. CI `sql-integration` shards all pass. |
+| 2 | Stale readiness assertion | `CaseDataCompletenessPersistenceTests.cs:26-27` asserts `CaseLifecycleState.Review` and `SatisfiesPolicy = true` — the ticket's own acceptance condition, asserted deliberately rather than relaxed. |
+| 3 | Retained review-shaped rows | `CaseMutationPageModel.cs:84-98`: `instructionConfirmedByStaff`/`imagesConfirmedByStaff` are gone from both `RetainableFormFields` and `BooleanFormFields`; the hidden pass-through inputs in `_CaseWorkflow.cshtml:139-140` are untouched, so `OnPostConfirmCompletenessAsync` still receives the case's current values and cannot rewrite them. No `Humanize` fallback label is reachable for a field the operator never proposed. |
+| 4 | Duplicate predicate | `CaseDataOperations.cs:73` is now `var satisfiesPolicy = completeness.IsReadyForReview(automaticallyDefinitive);` — one Core owner (`CaseContracts.cs:132-133`), no second copy. |
+| 5 | Lost store coverage | `AdministrationPolicyPersistenceTests.cs:33-65` restores `WorkflowConfigurationUpdateIsVersionedAuditedAndReplaySafe` against the reduced 4-arg `UpdateWorkflowConfigurationRequest`: version bump, idempotent replay (`Assert.Equal(updated, replay)`), stale-version conflict, and exactly one `workflow_configuration` `ActionHistory` row. The new read-only identity test is kept alongside. |
+| 6 | Vacuous preservation assertion | `CaseDataHarness.CreateAsync` gained optional `instructionConfirmedByStaff`/`imagesConfirmedByStaff` (default `false`, every other call site unaffected); `ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory` now seeds both `true`, so the unchanged preservation assertions can actually fail if a stored `true` were reset. |
+| 7 | Dead status markup | The `TempData["AdministrationStatus"]` block is gone from `Pages/Administration/Configuration.cshtml`; `grep -c AdministrationStatus` on that file returns 0, and the regenerated `administration-configuration--default.html` snapshot matches. |
+
+Findings 8 and 9 remain deferred to [[PLAT-072]] and finding 10 remains
+rejected, exactly as round 1 recorded — this pass changed neither.
+
+## What the branch gets right (re-checked at this SHA)
+
+- `CaseLifecycleRules.ValidateReadiness` delegates to the pre-existing
+  `ValidateReviewReadiness` (`CaseLifecycle.cs:551-573`); `EvidenceReference`
+  is still required and completeness is still enforced. Policy stays in Core.
+- The two configuration flags and the two evidence values are deleted, so
+  "no code path reads them" is a compile-time guarantee.
 - Migration `20260903153134_RemoveStaffReviewFlags` drops exactly the two
-  `WorkflowConfigurations` columns, edits no historical migration, does not
-  touch `Cases`, and its `Down` re-adds both as `bit NOT NULL DEFAULT 1` with
-  the seed row restored — the PR-by-PR revert EPIC-012's rollout rule needs.
-  No grant change is required.
-- The hidden pass-through in `_CaseWorkflow.cshtml:139-140` is correct: the
-  names bind to `OnPostConfirmCompletenessAsync`'s parameters and carry the
-  case's current values, so confirming completeness cannot silently rewrite the
-  intake-time confirmation. Every other changed form
-  (`_ReadinessHiddenFields.cshtml`, `Workflow.cshtml.cs`, `Closure.cshtml.cs`,
-  the "Return to Review" dialog) rebuilds only `CaseReadinessEvidence`, never
-  `CaseCompleteness`, so none carries the same hazard.
-- Tests were updated, not weakened. Retired behaviour's tests were deleted with
-  the behaviour they covered and replaced by absence proofs; no surviving
-  assertion was loosened. The narrowed
-  `Assert.DoesNotMatch(ConfigurationFormRegex(), html)` is a scope correction,
-  not a weakening — the shared layout's unrelated `<form class="utility-search">`
-  is on every page, and the retired POST form's absence is still proven.
-- The three regenerated Test UI snapshots match the changed Razor exactly.
-- No new operator-visible string is hard-coded; `OperatorLabels.cs` loses six
-  now-dead constants and keeps `.Meta`. No explanatory copy is added.
-- Every changed file is an owned path or declared mechanical compile-breakage
-  from the owned Core contract change.
-- `git grep -i "ReviewedByStaff|RequireStaffImageReview|RequireStaffInstructionReview|staff-reviewed"`
-  returns only historical migrations (correctly untouched) and the negative
-  test assertions.
+  `WorkflowConfigurations` columns, edits no historical migration, leaves
+  `Cases` alone, and its `Down` re-adds both as `bit NOT NULL DEFAULT 1` with
+  the seed row restored. `Test-MigrationGrants.ps1` passes; a column-only drop
+  on an existing table needs no grant change.
+- `WorkflowConfigurationSnapshot` losing two fields is safe against historical
+  `ActionHistory.AfterJson`: `System.Text.Json` ignores the extra properties on
+  replay, and the replay guard still checks `PolicyVersion`.
+- `OperatorLabels.WorkflowConfiguration` loses six dead constants and keeps
+  `.Meta`; no operator-visible string is hard-coded and no explanatory copy is
+  added anywhere in the diff.
+- `git grep -i "ReviewedByStaff\|RequireStaffImageReview\|RequireStaffInstructionReview\|staff-reviewed"`
+  outside `Persistence/Migrations` returns only the two negative assertions in
+  `WorkflowConfigurationWebTests.cs` — the ticket's own verification line.
+- D44/D45 are recorded in `frd-01`, `frd-06`, `frd-12`, `docs/design/README.md`
+  and both group `context.md` documents.
 
-## Findings and dispositions
+## Findings and dispositions (round 2)
 
 | # | Severity | Finding | File | Disposition |
 | --- | --- | --- | --- | --- |
-| 1 | **Blocker** | The new migration was never added to the committed-migration list, so `IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema` fails on CI shard 2: `Assert.Equal() Failure: Collections differ … Actual: [… , "20260903153134_RemoveStaffReviewFlags"]`. Every migration-adding PR must extend this list; it currently ends at `20260829212237_GrantProviderSubmissionAcceptRecovery`. | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs:117` | **fix** — append `"20260903153134_RemoveStaffReviewFlags"` after line 117. Mechanical, required, the same class of unowned-test breakage the report already declares handling twice. |
-| 2 | **Blocker** | `CaseDataCompletenessPersistenceTests.AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues` fails on CI shard 3: `Expected: NotReady / Actual: Review`. This is D44's intended behaviour change reaching an assertion nobody updated — the harness case has complete instruction and images and, without the staff-confirmation gate, now correctly satisfies the policy and sits in Review. The PR edits this very file for other reasons and missed it. | `tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs:26-27` | **fix** — assert `CaseLifecycleState.Review` and `Assert.True(projection.Completeness.Evaluation.SatisfiesPolicy)` deliberately. Do not weaken it away: updated this way it becomes the ticket's own checklist proof that "a case with complete instruction and images reaches Review with no review flag". |
-| 3 | Major | A refused case mutation puts the retired concept back on screen. `instructionConfirmedByStaff` / `imagesConfirmedByStaff` remain in `RetainableFormFields` and `BooleanFormFields`, so `RetainProposedValues` still retains the pass-through hidden values — but `FieldLabel`'s and `CurrentValue`'s cases for them were deleted. The "Your change was not applied" table (`_CaseWorkflow.cshtml:63-77`) therefore renders two rows the operator never proposed, labelled by the `Humanize` fallback as "Instruction confirmed by staff" / "Images confirmed by staff", with an em-dash in "The case now holds". That is an operator-visible label outside `OperatorLabels` and a review-shaped row D44 bars. No test catches it: `CaseDetailsWebTests.cs:838` posts both fields but asserts only that no raw `>true<`/`>false<` appears. | `src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs:88,99` | **fix** — remove the two names from both frozen sets; they are no longer operator-proposed, so there is nothing to retain or compare. Keep the hidden pass-through inputs. Found independently by both reviewers. |
-| 4 | Major | The completeness predicate now exists twice. `CaseCompleteness.IsReadyForReview` returns `InstructionComplete && ImagesComplete`, and `CaseCompletenessPolicy.EvaluateAcceptanceCommand` independently computes the same expression. The test that used to assert the two agree (`TheReadinessRuleAndTheAcceptancePolicyAgreeOnTheWaiver`) was deleted by this PR, so nothing holds them together. One list per concept / one Core owner. | `src/Pegasus.Core/Cases/CaseDataOperations.cs:73-75` vs `src/Pegasus.Core/Cases/CaseContracts.cs:132-133` | **fix** — `var satisfiesPolicy = completeness.IsReadyForReview(automaticallyDefinitive);` after the policy-identity validation. One line, behaviour-preserving, and it retires the simplification pass's unapplied finding 3 without touching the unowned `AcceptIntake.cs`. |
-| 5 | Major | Retained production behaviour lost all its integration coverage. `WorkflowConfigurationUpdateIsVersionedAuditedAndReplaySafe` was replaced by a read-only GET assertion, but `EfWorkflowConfigurationStore.UpdateAsync`/`ReplayAsync` still implement versioning, idempotent replay, conflict handling and audit persistence, and `UpdateWorkflowConfiguration` is still registered (`src/Pegasus.Infrastructure/DependencyInjection.cs:278`) and deliberately retained for PLAT-062. The surviving `Pegasus.Core.Tests` test uses a fake store and covers authorization and trimming only. | `tests/Pegasus.IntegrationTests/AdministrationPolicyPersistenceTests.cs:12-30` | **fix** — keep the new read-only identity test and restore focused update / version / replay / conflict / audit coverage against the reduced 4-arg `UpdateWorkflowConfigurationRequest`. Deleting a store's only proof while keeping the store is not the same as retiring behaviour. |
-| 6 | Minor | The new preservation assertion cannot detect the regression it exists for. The harness seeds both `*ConfirmedByStaff` values `false` (proved by the sibling `Assert.False(...)` at line 167) and the confirmation posts those same seeded values, so `Assert.Equal(false, false)` passes whether or not a stored `true` is preserved. | `tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs:112-135` | **fix** — seed at least one stored confirmation `true`, confirm completeness, then assert both persisted values are unchanged. It is the only proof the plan claims for the hidden pass-through. |
-| 7 | Minor | Dead markup with no producer. The `TempData["AdministrationStatus"]` success notice survived the removal of the page's only POST handler and its `RedirectToPage`; no Configuration handler can set it now, leaving `panel-body stack` holding nothing but an unreachable block. Rule 21 — delete a gate that gates nothing. | `src/Pegasus.Web/Pages/Administration/Configuration.cshtml:23-29` | **fix** — remove the block. Found independently by both reviewers. |
-| 8 | Major (deferred) | D44's "no review checkbox anywhere" is not literally met: `Create.cshtml` still renders "I have confirmed the instruction evidence" / "I have confirmed the image evidence", writing `CaseCompleteness.*ConfirmedByStaff` values that after this PR gate nothing. | `src/Pegasus.Web/Pages/Cases/Create.cshtml:242,250` | **defer to [[PLAT-072]]** (created and linked at review). `Create.cshtml(.cs)` is outside PLAT-070's owned paths, is not named in the ticket, and roughly fifteen unowned test files — including raw-SQL `INSERT INTO Cases` fixtures — name the two columns, a runtime blast radius no `dotnet build` catches. Rule 2: link it, do not absorb it. The plan and the report both declared this openly instead of claiming completion, which is the right conduct. |
-| 9 | Nit | The CASE-013 comment still describes a staff-confirmation waiver `IsReadyForReview` no longer has; its counterpart in `CaseDataOperations.cs` was correctly deleted with the clause it explained. | `src/Pegasus.Infrastructure/Persistence/EfQueuedCustodyProcessor.cs:582-587` | **defer to [[PLAT-072]]** — outside PLAT-070's owned paths, and PLAT-072 already carries it. |
-| 10 | Nit | `docs/design/README.md:1115` still ends the Workflow configuration entry with "Save configuration" though the shipped page now has none. | `docs/design/README.md:1115` | **reject** — that line describes the designed target page, which PLAT-062 / D23 refills with the completeness rules, chase interval and labour-rate cards; the Save it names belongs to that page, not to the interim read-only one. |
+| 1 | Minor | FRD-01 and FRD-12 now state that Send to EVA "moves the Case to With Engineer", which is D47's transition — implemented by [[CASE-040]], not by this PR. | `docs/frd/frd-01-case-identity-and-lifecycle.md:66-72`, `docs/frd/frd-12-operator-experience.md:235` | **reject** — PLAT-070's own ticket body states the rule ("Not ready → Review is decided by completeness only; Review → With Engineer happens through Send to EVA"), and an FRD states required behaviour, not as-built state (as-built lives in `docs/current-architecture.md`), so this is not a delivery claim. CASE-040 still owns FRD-07's correction and the code. Accepted risk: a small textual overlap with CASE-040's PR. |
+| 2 | Minor | Removing the dead notice leaves an empty `<div class="panel-body stack"></div>`, i.e. 15px of blank panel body under the head (`site.css:214`). | `src/Pegasus.Web/Pages/Administration/Configuration.cshtml:22-23` | **defer to [[PLAT-062]]** — that ticket refills this exact panel body with the completeness rules and chase interval (D23, and the resolved open question's option (b)). The element renders no control, no copy and no operator-visible state, so a third remediation round for one empty wrapper is disproportionate. |
 
-## Simplification pass assessment
+No blocker or major finding survived verification.
 
-Honest. All three dispositions check out against the diff: `.Reason`/`.Save`
-are gone from `OperatorLabels.cs`; the three private helpers and three orphaned
-`GeneratedRegex` members are gone from `WorkflowConfigurationWebTests.cs`, with
-`ConfigurationFormRegex` correctly retained and reused; and the unapplied
-`automaticallyDefinitive` finding names its real reason (the unowned
-`AcceptIntake.cs` caller) rather than being silenced.
+### Note on the independent read
 
-Finding 4 supersedes that third disposition — reusing `IsReadyForReview` inside
-the policy makes the parameter live again without touching any unowned file.
-The pass missed two pieces of the dead weight it was looking for: finding 3's
-orphaned frozen-set entries and finding 7's unreachable status block.
+The `gpt-5.6-terra` xhigh pass produced the two findings above. An earlier
+output file from the round-1 run was present in the scratch directory and was
+**not** used; it restated round-1 findings 3-8 that this SHA has already fixed,
+and each of those was checked against the file contents at `8a749f53` before
+being discarded (`Configuration.cshtml` has no `AdministrationStatus`;
+`CaseMutationPageModel.cs` has no `*ConfirmedByStaff` entries;
+`CaseDataOperations.cs:73` calls `IsReadyForReview`;
+`CaseDataCompletenessPersistenceTests.cs:104` seeds `true`).
+
+## Simplification pass and review-response honesty
+
+The plan's "Review response" table matches the diff finding by finding — every
+"fixed" claim is verifiable in `git diff 12423adc..HEAD`, which touches exactly
+the seven files those fixes require and nothing else. The post-implementation
+report states its deviations openly (resumed run, two extra mechanical test
+fixes, the corrected `Down` default, the narrowed form regex) and does not
+claim the deferred `Create.cshtml` residue as done. The one remaining unapplied
+simplification — the now-unused `automaticallyDefinitive` parameter on
+`CaseCompleteness.IsReadyForReview` — names its real reason (the unowned
+`Intake/AcceptIntake.cs` caller) and is carried by [[PLAT-072]]. Honest.
 
 ## Commands run in the review checkout, with exit codes
 
 Scope rationale: the full filtered suite is not re-run locally — GitHub CI runs
 it sharded on this PR and the merge is blocked on it. Locally I ran the two
-suites that cover the changed types without a SQL Server dependency, plus every
-script gate this diff touches.
+suites owning every changed Core type, plus the eight integration classes the
+round-1 fixes live in (which is where findings 1, 2, 5 and 6 land), plus the
+migration gate this diff needs.
 
 | Command | Exit | Why this scope covers the change |
 | --- | --- | --- |
 | `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` | Locks unchanged; no package added. |
-| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` | 0 warnings, 0 errors. Proves every positional caller of the two reduced Core records compiles at the reviewed SHA. |
-| `dotnet test tests/Pegasus.Core.Tests --configuration Release --no-build` | `CORETESTS_EXIT=0` | Owns every changed Core type — `CaseContracts`, `CaseDataOperations`, `CaseLifecycle`, `CaseWorkflowContracts`, `DefaultCaseWorkflowConfiguration`, `WorkflowConfigurationAdministration` — via `AutomaticCaseReadinessTests`, `CaseDataOperationsTests`, `CaseReviewReadinessTests`, `AssignCaseEngineerTests`, `ImmediateExternalPublicationTests`, `AdministrationPolicyTests`. |
-| `dotnet test tests/Pegasus.ArchitectureTests --configuration Release --no-build` | `ARCHTESTS_EXIT=0` | Proves the dependency direction still holds after the Core contract narrowing and the Web page-model deletions. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` | 0 warnings, 0 errors — every positional caller of the two reduced Core records compiles at this SHA. |
+| `dotnet test tests/Pegasus.Core.Tests --configuration Release --no-build` | `CORETESTS_EXIT=0` | 1182/1182. Owns `CaseContracts`, `CaseDataOperations`, `CaseLifecycle`, `CaseWorkflowContracts`, `DefaultCaseWorkflowConfiguration`, `WorkflowConfigurationAdministration`. |
+| `dotnet test tests/Pegasus.ArchitectureTests --configuration Release --no-build` | `ARCHTESTS_EXIT=0` | 100/100. Dependency direction after the Core narrowing and the Web deletions. |
+| `dotnet test tests/Pegasus.IntegrationTests … --filter` (AdministrationPolicyPersistence, CaseDataCompletenessPersistence, IntakePersistence, WorkflowConfigurationWeb, CaseWorkflowWeb, CaseClosureWeb, CaseWorkflowPersistence, CaseDetailsWeb) | `INTEGRATION_SUBSET_EXIT=0` | 111/111 against LocalDB — the direct proof of fixes 1, 2, 5 and 6, and of the removed panel/evidence fields. |
 | `./scripts/Test-MigrationGrants.ps1` | `GRANTS_EXIT=0` | The PR adds a migration; this is its grant gate. |
-| `./scripts/Update-TestUiSnapshots.ps1 -Verify` | `SNAPVERIFY_EXIT=0` | Fresh capture (browser 119/119, non-browser capture, then verify) — `docs/design/test-ui/` changed and three routed pages changed. The review checkout is clean afterwards, so the committed snapshots are exactly what the branch renders. |
-| `./scripts/Test-UiCatalogue.ps1` | `CATALOGUE_EXIT=0` | 54 routed sources, 58 prototypes, 0 broken local references. CI's `documentation` lane skips this step after its earlier failure, so it is only proven here. |
-| `./scripts/Test-DocumentationLinks.ps1` | `DOCLINKS_EXIT=1` | See the CI note below — pre-existing, not this PR's. |
 
-## CI at the reviewed SHA (run 33777706918)
+`Update-TestUiSnapshots.ps1 -Verify` was not re-run locally this round: the
+only snapshot change since the round-1 verified capture is the removal of one
+blank line in `administration-configuration--default.html`, and CI's `test-ui`
+lane passes at this SHA (25m47s), as does `browser`.
 
-`changes`, `local-development-scripts`, `reference-data`, `unit`,
-`sql-integration (1)` and `browser` pass; `infrastructure` skips.
+## CI at the reviewed SHA (run 33784992066)
 
-**`sql-integration (2)` and `sql-integration (3)` fail** on exactly two tests,
-both this branch's own — findings 1 and 2 above. Evidence read from the
-retained shard artifacts (`test-shard-2`, `test-shard-3`): shard 2 is
-361 passed / 1 failed of 364, shard 3 is 359 passed / 1 failed of 360.
-Everything else the shards enumerated passes, so both fixes are narrow.
+First attempt: `sql-integration (1)` was cancelled at the 20-minute job limit
+("The job has exceeded the maximum execution time of 20m0s") — an
+infrastructure timeout, not a test failure; shards 2 and 3 passed. Re-run with
+`gh run rerun --failed`: **`sql-integration (1)` passed in 16m38s**, and
+`unit`, `sql-integration (2)`, `sql-integration (3)`, `sql-integration-coverage`,
+`test-ui`, `browser`, `changes`, `local-development-scripts` and
+`reference-data` all pass; `infrastructure` skips.
 
-**`documentation` fails, and it is not this PR's defect.** Its only broken link
-is `.opencode/skills/kanmer-setup/SKILL.md → ../../../../docs/manual/greenfield.md`,
-in a file this PR does not touch (`git diff origin/dev...HEAD -- .opencode/`
-is empty) that is already on `origin/dev` at `c5c7a874`, pointing at a
-`docs/manual/greenfield.md` that does not exist on `dev` either. PR #648 fails
-the same lane identically. It is a repository-level breakage that will block
-every PR in this epic until that link is fixed, and it suppresses the lane's
-`Test UI catalogue` step — which is why that check was run locally here. It is
-outside PLAT-070's owned paths and outside a reviewer's allowed operations, so
-it is reported for an administrator/controller decision rather than fixed here.
+### Blocking item outside this ticket
+
+`documentation` fails, and it is not this PR's defect. Its only error is
+`BROKEN .opencode/skills/kanmer-setup/SKILL.md: ../../../../docs/manual/greenfield.md`
+— a file this PR does not touch (`git diff origin/dev...HEAD -- .opencode/` is
+empty) pointing at a `docs/manual/` directory that does not exist on `dev`
+either. It failed identically in round 1 and on PR #648, so it will fail every
+PR in EPIC-012 until it is fixed. It is outside PLAT-070's owned paths and
+outside a reviewer's allowed operations. It also suppresses the lane's Test UI
+catalogue step, which round 1 therefore ran locally (`CATALOGUE_EXIT=0`).
 
 ## Stop condition
 
-Not merged. PLAT-070 stays in Review. Findings 1-7 go back to the implementer
-(1 and 2 are merge blockers on their own); findings 8 and 9 are carried by the
-newly created and linked [[PLAT-072]]; finding 10 is rejected with its reason.
-The `documentation` CI lane needs a repository-level fix that is not
-PLAT-070's to make.
+Not merged. PLAT-070 stays in Review with a clean review: no blocker, no major,
+two minor findings dispositioned (one rejected, one deferred to [[PLAT-062]]).
+The merge needs a controller/administrator decision on the pre-existing
+`documentation` lane — either merge over it explicitly, or land the
+`.opencode/skills/kanmer-setup/SKILL.md` link fix on `dev` first and re-run.
