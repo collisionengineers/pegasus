@@ -435,3 +435,22 @@ warnings, 0 errors); `dotnet test
 --configuration Release --no-build` exit 0, 100 passed. No routed page or
 partial was touched by the pass, so the Test UI snapshot/catalogue scripts
 were not re-run.
+
+## PR review (2026-09-03, cross-model)
+
+One required fix. `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs`'s
+committed-migration list (the exact-set assertion against
+`GetAppliedMigrationsAsync`) had not been updated for this ticket's own
+migration: `20260903135604_StaffAccountSignOff` was missing after
+`20260829212237_GrantProviderSubmissionAcceptRecovery` (line 117), so the
+test would fail once the migration applied in CI/environments. Fixed by
+appending the entry via `codex exec -m gpt-5.6-sol
+-c model_reasoning_effort="medium"`, scoped to that one file, one line. No
+other file touched by the fix.
+
+All other cross-model review findings for this round were dispositioned
+without a code change — no further action required per the review's own
+verdict. Post-fix local verification (see post-implementation report):
+restore, build, and the full non-Corpus/non-Browser test filter all exit 0
+(Core 1188 passed, Architecture 100 passed, Integration 1114 passed / 2
+skipped, 0 failed).
