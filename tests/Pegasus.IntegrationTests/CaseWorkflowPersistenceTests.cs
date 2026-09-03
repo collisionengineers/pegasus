@@ -754,7 +754,7 @@ public sealed class CaseWorkflowPersistenceTests
                     "Attempt to assign ineligible staff",
                     lease.Token,
                     engineerId,
-                    new(true, true, true, true, "accepted-readiness")),
+                    new(true, true, "accepted-readiness")),
                 default));
 
         Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
@@ -784,7 +784,7 @@ public sealed class CaseWorkflowPersistenceTests
             "Assign enabled Engineer",
             lease.Token,
             engineerId,
-            new(true, true, true, true, "accepted-readiness"));
+            new(true, true, "accepted-readiness"));
         var sut = new AssignCaseEngineer(
             harness.Store,
             new DefaultCaseWorkflowConfiguration(),

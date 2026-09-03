@@ -112,7 +112,11 @@ public sealed class CaseDataCompletenessPersistenceTests
             "confirm-completeness-1",
             "Confirmed instruction and image evidence",
             lease.Token,
-            new(true, true, true, true));
+            new(
+                true,
+                true,
+                initial.Completeness.Values.InstructionConfirmedByStaff,
+                initial.Completeness.Values.ImagesConfirmedByStaff));
 
         var confirmed = await harness.ConfirmCompleteness.ExecuteAsync(
             confirmation,
@@ -123,6 +127,12 @@ public sealed class CaseDataCompletenessPersistenceTests
 
         Assert.Equal(CaseLifecycleState.Review, confirmed.State);
         Assert.Equal(1, confirmed.Version);
+        Assert.Equal(
+            initial.Completeness.Values.InstructionConfirmedByStaff,
+            confirmed.Completeness.Values.InstructionConfirmedByStaff);
+        Assert.Equal(
+            initial.Completeness.Values.ImagesConfirmedByStaff,
+            confirmed.Completeness.Values.ImagesConfirmedByStaff);
         Assert.Equal(confirmed, replayedConfirmation);
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             harness.ConfirmCompleteness.ExecuteAsync(
@@ -457,8 +467,6 @@ public sealed class CaseDataCompletenessPersistenceTests
     private sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {
         private static readonly CaseWorkflowConfiguration Configuration = new(
-            true,
-            true,
             "case-workflow",
             1);
 
