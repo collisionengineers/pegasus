@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# One live run per pull request: a newer head cancels the superseded run
+# instead of letting both finish (two ~15-minute runs started 2m15s apart on
+# task/eng-028-multi-estimate-editor both ran to completion). A push to main is
+# never cancelled — its run is the release-route evidence. DELIV-043.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     # Path detection only: no application code runs here, so this job is not
@@ -118,7 +126,11 @@ jobs:
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.
     # It does not authenticate, read Azure state, run azd or deploy anything.
-    needs: changes
+    # The cheap invariant jobs gate every heavy lane (DELIV-043): a broken link
+    # or catalogue used to buy ~85 runner-minutes of tests whose verdict could
+    # not change the outcome. A lane skipped because a cheap job failed is not
+    # green (docs/engineering.md "Branches and delivery").
+    needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.infrastructure == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
@@ -134,7 +146,7 @@ jobs:
   unit:
     # Both projects run whole and unfiltered: neither declares a single test
     # trait, so no filter can drop one of their tests.
-    needs: changes
+    needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
@@ -158,7 +170,7 @@ jobs:
     # tests/Pegasus.IntegrationTests/xunit.runner.json, and the shards divide
     # whole classes across runners. Measured: the whole lane parallel on one
     # runner is 11m55s of tests, against ~4 minutes per shard.
-    needs: changes
+    needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
@@ -192,8 +204,9 @@ jobs:
     # assigned tests would otherwise pass.
     needs: [changes, sql-integration]
     # `always()` so a failing shard still gets its coverage reported, but never
-    # when the lane was path-skipped.
-    if: always() && needs.changes.outputs.build == 'true'
+    # when the lane was path-skipped or skipped because a cheap invariant job
+    # failed upstream (there are no artifacts to verify then).
+    if: always() && needs.changes.outputs.build == 'true' && needs.sql-integration.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -208,7 +221,7 @@ jobs:
         run: ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 3
 
   browser:
-    needs: changes
+    needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
     timeout-minutes: 25
@@ -242,7 +255,7 @@ jobs:
     # is a stale catalogue. One capture run (the same suite
     # Update-TestUiSnapshots.ps1 captures locally), then a verify against the
     # committed files and an offline Chromium render of every page.
-    needs: changes
+    needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
     # The historical 40m23s capture (run 33310451221) and recent 24-27 minute
