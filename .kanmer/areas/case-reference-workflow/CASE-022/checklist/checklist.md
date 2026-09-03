@@ -19,10 +19,10 @@
 - [x] [pre-review] Step 4 — Run the independent simplification lenses, apply
   behaviour-preserving findings, and append every disposition to
   `plan/plan.md` under a dated `Simplification pass` heading.
-- [ ] [pre-review] Step 4 — Run locked restore, Release build, the full
+- [x] [pre-review] Step 4 — Run locked restore, Release build, the full
   non-Corpus solution tests, `git diff --check`, and final status/scope
   inspection with exit evidence.
-- [ ] [pre-review] Step 4 — Confirm the final diff contains only declared files,
+- [x] [pre-review] Step 4 — Confirm the final diff contains only declared files,
   no token/secret, no dependency or lock change, no schema/IaC change, and no
   Test UI snapshot churn.
 - [ ] [pre-review] Step 4 — Commit the bounded branch, open its PR to `dev`,
