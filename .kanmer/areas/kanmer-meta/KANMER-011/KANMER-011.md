@@ -12,17 +12,6 @@ stageEntered:
   review: '2026-09-03T19:26:04.843Z'
   verifying: '2026-09-03T19:28:10.765Z'
   done: '2026-09-03T19:31:13.441Z'
-taken_at: '2026-09-03T19:24:13.971Z'
-branch: task/kanmer-011-skill-link
-worktree: ../pegasus-worktrees/kanmer-011-skill-link
-claim_expires_at: '2026-09-03T19:56:47.471Z'
-claim_controller: claude-code
-lease_id: 9a5af218-c9d3-4a92-ab82-cf94b11f4c5e
-lease_revision: 2
-lease_workspace: >-
-  worktree:c:\users\alex\documents\github\pegasus-worktrees\kanmer-011-skill-link
-lease_phase: review
-lease_heartbeat_at: '2026-09-03T19:26:47.471Z'
 labels:
   - documentation
   - ci-red
@@ -35,7 +24,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/652'
 archived: false
 created: '2026-09-03T15:15:14.652Z'
-updated: '2026-09-03T19:31:13.441Z'
+updated: '2026-09-03T19:33:04.814Z'
 ---
 
 ## What
@@ -65,3 +54,7 @@ should be quick to land on `dev` directly.
 - [ ] The `documentation` CI check passes on a branch carrying only this fix.
 - [ ] The corrected link resolves to a real file (or the dead reference is
       removed).
+
+## Outcome
+
+Shipped in PR #652, merged into dev at 659cec77 on 2026-09-03; proof PASS (documentation links resolve, 125 files). Three committed copies fixed (.opencode, .agents, .grok). Upstream fix: collisionengineers/kanmer#314 (CORE-139).
