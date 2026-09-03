@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903110926_ExtendAssessmentVocabulary")]
+    partial class ExtendAssessmentVocabulary
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -6278,6 +6281,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("RequireStaffImageReviewBeforeEngineerAssignment")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireStaffInstructionReviewBeforeEngineerAssignment")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Version")
                         .HasColumnType("int");
 
@@ -6289,6 +6298,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = "case-workflow",
+                            RequireStaffImageReviewBeforeEngineerAssignment = true,
+                            RequireStaffInstructionReviewBeforeEngineerAssignment = true,
                             Version = 1
                         });
                 });
