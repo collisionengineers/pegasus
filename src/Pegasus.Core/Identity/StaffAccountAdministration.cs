@@ -6,7 +6,30 @@ public sealed record StaffAccountSummary(
     bool IsEnabled,
     bool MustChangePassword,
     IReadOnlyList<StaffRole> Roles,
-    DateTimeOffset? LastAccessReviewAtUtc);
+    DateTimeOffset? LastAccessReviewAtUtc)
+{
+    public StaffAccountSignOffState SignOff { get; init; } =
+        StaffAccountSignOffState.NotConfigured;
+}
+
+public sealed record StaffAccountSignOffState(
+    bool IsSignOffEngineer,
+    string? PrintedName,
+    string? Qualifications,
+    bool HasSignature,
+    bool IsDefault)
+{
+    public static StaffAccountSignOffState NotConfigured { get; } =
+        new(false, null, null, false, false);
+}
+
+public sealed record SignOffEngineerProfile(
+    Guid StaffId,
+    string PrintedName,
+    string? Qualifications,
+    byte[] Signature,
+    string SignatureContentType,
+    bool IsDefault);
 
 public sealed record ListStaffAccountsRequest(
     ActionActor Actor,
@@ -103,6 +126,21 @@ public sealed record ReviewStaffAccessResult(
     DateTimeOffset ReviewedAtUtc,
     bool WasReplay);
 
+public sealed record UpdateStaffAccountSignOffRequest(
+    ActionActor Actor,
+    Guid StaffId,
+    bool IsSignOffEngineer,
+    string? PrintedName,
+    string? Qualifications,
+    byte[]? Signature,
+    bool IsDefault,
+    string Reason,
+    string OperationKey);
+
+public sealed record UpdateStaffAccountSignOffResult(
+    StaffAccountSummary Account,
+    bool WasReplay);
+
 public sealed record StaffAccountQuerySlice(
     IReadOnlyList<StaffAccountSummary> Accounts,
     bool HasMoreAccounts);
@@ -115,6 +153,13 @@ public interface IStaffAccountQueries
         CancellationToken cancellationToken);
 
     Task<StaffAccountSummary?> GetAsync(
+        Guid staffId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+        CancellationToken cancellationToken);
+
+    Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
         Guid staffId,
         CancellationToken cancellationToken);
 }
@@ -144,6 +189,13 @@ public interface IReviewStaffAccessStore
 {
     Task<ReviewStaffAccessResult> ReviewAsync(
         ReviewStaffAccessRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IUpdateStaffAccountSignOffStore
+{
+    Task<UpdateStaffAccountSignOffResult> UpdateAsync(
+        UpdateStaffAccountSignOffRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -200,6 +252,13 @@ public interface IReviewStaffAccess
 {
     Task<ReviewStaffAccessResult> ExecuteAsync(
         ReviewStaffAccessRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IUpdateStaffAccountSignOff
+{
+    Task<UpdateStaffAccountSignOffResult> ExecuteAsync(
+        UpdateStaffAccountSignOffRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -401,6 +460,68 @@ public sealed class ReviewStaffAccess(IReviewStaffAccessStore store)
             cancellationToken);
 }
 
+public sealed class UpdateStaffAccountSignOff(IUpdateStaffAccountSignOffStore store)
+    : IUpdateStaffAccountSignOff
+{
+    private readonly IUpdateStaffAccountSignOffStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<UpdateStaffAccountSignOffResult> ExecuteAsync(
+        UpdateStaffAccountSignOffRequest request,
+        CancellationToken cancellationToken) =>
+        _store.UpdateAsync(
+            StaffAccountAdministrationPolicy.Normalize(request),
+            cancellationToken);
+}
+
+public static class SignOffSignaturePolicy
+{
+    public const string MediaType = "image/png";
+    public const int MaximumBytes = 1024 * 1024;
+
+    private static ReadOnlySpan<byte> PngSignature =>
+        [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+    public static byte[]? Validate(byte[]? signature, string parameterName)
+    {
+        if (signature is null)
+        {
+            return null;
+        }
+
+        if (signature.Length == 0
+            || signature.Length > MaximumBytes
+            || !signature.AsSpan().StartsWith(PngSignature))
+        {
+            throw new ArgumentException(
+                "The signature must be a non-empty PNG image no larger than 1 MiB.",
+                parameterName);
+        }
+
+        return signature.ToArray();
+    }
+}
+
+public static class SignOffEngineerEligibility
+{
+    public static bool IsEligible(
+        bool isEnabled,
+        IReadOnlyCollection<StaffRole> roles,
+        bool isSignOffEngineer,
+        byte[]? signature) =>
+        IsEligible(isEnabled, roles, isSignOffEngineer, signature is { Length: > 0 });
+
+    public static bool IsEligible(
+        bool isEnabled,
+        IReadOnlyCollection<StaffRole> roles,
+        bool isSignOffEngineer,
+        bool hasSignature) =>
+        isEnabled
+        && roles.Contains(StaffRole.Engineer)
+        && isSignOffEngineer
+        && hasSignature;
+}
+
 public static class StaffAccountAdministrationPolicy
 {
     public const int MaximumUserNameLength = 256;
@@ -408,6 +529,8 @@ public static class StaffAccountAdministrationPolicy
     public const int MinimumPasswordLength = 8;
     public const int MaximumReasonLength = 1000;
     public const int MaximumOperationKeyLength = 100;
+    public const int MaximumSignOffPrintedNameLength = 256;
+    public const int MaximumSignOffQualificationsLength = 500;
 
     public static CreateStaffAccountRequest Normalize(CreateStaffAccountRequest request)
     {
@@ -498,6 +621,51 @@ public static class StaffAccountAdministrationPolicy
         };
     }
 
+    public static UpdateStaffAccountSignOffRequest Normalize(
+        UpdateStaffAccountSignOffRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        RequireStaffId(request.StaffId);
+
+        var printedName = NormalizeOptionalText(
+            request.PrintedName,
+            MaximumSignOffPrintedNameLength,
+            nameof(request.PrintedName));
+        if (request.IsSignOffEngineer && printedName is null)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.SignOffPrintedNameRequired);
+        }
+
+        if (request.IsDefault && !request.IsSignOffEngineer)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.IneligibleSignOffEngineer);
+        }
+
+        var signature = SignOffSignaturePolicy.Validate(
+            request.Signature,
+            nameof(request.Signature));
+        return request with
+        {
+            PrintedName = printedName,
+            Qualifications = NormalizeOptionalText(
+                request.Qualifications,
+                MaximumSignOffQualificationsLength,
+                nameof(request.Qualifications)),
+            Signature = signature,
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason)),
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey))
+        };
+    }
+
     internal static void ValidateTemporaryPassword(string value, string parameterName)
     {
         ArgumentNullException.ThrowIfNull(value, parameterName);
@@ -550,6 +718,27 @@ public static class StaffAccountAdministrationPolicy
         return normalized;
     }
 
+    internal static string? NormalizeOptionalText(
+        string? value,
+        int maximumLength,
+        string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > maximumLength)
+        {
+            throw new ArgumentException(
+                $"The value cannot exceed {maximumLength} characters.",
+                parameterName);
+        }
+
+        return normalized;
+    }
+
     private static void RequireAdministrator(ActionActor actor, StaffAccessRight accessRight)
     {
         ArgumentNullException.ThrowIfNull(actor);
@@ -564,7 +753,10 @@ public enum StaffAccountAdministrationError
     StaffAccountNotFound,
     LastAdministrator,
     SelfAction,
-    OperationConflict
+    OperationConflict,
+    SignOffEngineerRequiresEngineerRole,
+    SignOffPrintedNameRequired,
+    IneligibleSignOffEngineer
 }
 
 public sealed class StaffAccountAdministrationException(
