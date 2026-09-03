@@ -575,13 +575,25 @@
         return;
     }
     var dirtyForm = null;
-    document.querySelectorAll('form').forEach(function (form) {
-        if (form === toggle || !form.querySelector('input[name="editLeaseToken"]')) {
-            return;
-        }
-        form.addEventListener('input', function () { dirtyForm = form; });
-        form.addEventListener('submit', function () { dirtyForm = null; });
-    });
+    // Root-scoped and idempotent so a lazily mounted Case section's
+    // lease-carrying forms join the guard instead of escaping it.
+    function bind(root) {
+        root.querySelectorAll('form').forEach(function (form) {
+            if (form === toggle
+                || form.dataset.dirtyGuardBound === 'true'
+                || !form.querySelector('input[name="editLeaseToken"]')) {
+                return;
+            }
+            form.dataset.dirtyGuardBound = 'true';
+            form.addEventListener('input', function () { dirtyForm = form; });
+            form.addEventListener('submit', function () { dirtyForm = null; });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+    // Ctrl+S submits the Case form that changed, not the document's first
+    // [data-edit-save] form.
+    window.pegasusDirtyEditForm = function () { return dirtyForm; };
     var allowed = false;
     toggle.addEventListener('submit', function (event) {
         if (allowed || !dirtyForm) {
@@ -893,6 +905,8 @@
         };
     }
 
+    var dialogOpeners = {};
+
     document.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
         if (dialog.dataset.dialogBound === 'true') {
             return;
@@ -978,12 +992,26 @@
             }
         });
 
-        document.querySelectorAll('[data-dialog-open="' + dialogId + '"]').forEach(function (control) {
-            control.addEventListener('click', function () {
-                open(control);
-            });
-        });
+        dialogOpeners[dialogId] = open;
     });
+
+    // The openers are bound by root rather than once over the document, so a
+    // lazily mounted Case section's controls open their dialog too.
+    function bindDialogOpeners(root) {
+        root.querySelectorAll('[data-dialog-open]').forEach(function (control) {
+            if (control.dataset.dialogOpenBound === 'true') {
+                return;
+            }
+            var open = dialogOpeners[control.getAttribute('data-dialog-open')];
+            if (!open) {
+                return;
+            }
+            control.dataset.dialogOpenBound = 'true';
+            control.addEventListener('click', function () { open(control); });
+        });
+    }
+    bindDialogOpeners(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindDialogOpeners);
 
     // Evidence viewer ([data-evidence-viewer], DOCS-011): preview an evidence
     // image or PDF over the page instead of navigating away from the case.
@@ -1172,15 +1200,25 @@
             }
         });
 
-        document.querySelectorAll('[data-evidence-item]').forEach(function (trigger) {
-            trigger.addEventListener('click', function (event) {
-                if (!previewKind(trigger.getAttribute('data-media-type'))) {
+        // Root-scoped for the same reason as the dialog openers: a Files body
+        // mounted as the reader reaches it must open its own viewer.
+        function bindEvidenceItems(root) {
+            root.querySelectorAll('[data-evidence-item]').forEach(function (trigger) {
+                if (trigger.dataset.evidenceItemBound === 'true') {
                     return;
                 }
-                event.preventDefault();
-                open(trigger);
+                trigger.dataset.evidenceItemBound = 'true';
+                trigger.addEventListener('click', function (event) {
+                    if (!previewKind(trigger.getAttribute('data-media-type'))) {
+                        return;
+                    }
+                    event.preventDefault();
+                    open(trigger);
+                });
             });
-        });
+        }
+        bindEvidenceItems(document);
+        (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEvidenceItems);
     })();
 
     // The Other classification name and reasoning fields exist only while an
@@ -1442,6 +1480,168 @@
     render(tabs);
 })();
 
+// --- Case record: sticky geometry, section jump, lazy bodies, scroll-spy ----
+// CASE-038 (D29): /Cases/{id} is one scrolling record. Without script every
+// section that has a body is already on the page or is one ordinary fragment
+// link away; script measures the sticky block, fetches the bodies below the
+// fold as the reader approaches them, jumps to `?section=` and moves
+// `aria-current` along the jump-nav as the page scrolls.
+(function () {
+    'use strict';
+    var sticky = document.querySelector('[data-case-sticky]');
+    var main = document.getElementById('case-main');
+    if (!sticky || !main) {
+        return;
+    }
+
+    var links = document.querySelectorAll('[data-section-link]');
+    var fragmentPath = window.location.pathname;
+
+    // The measured height is written on the record itself, not the document
+    // element: every consumer (`.case-section`, `.case-context`) is inside it,
+    // and one element carrying one custom property is the whole inline-style
+    // footprint the record adds.
+    var record = sticky.parentElement;
+
+    function measure() {
+        record.style.setProperty('--case-sticky-h', sticky.offsetHeight + 'px');
+    }
+
+    // The sticky block's own bottom edge is the reading line, so the offset is
+    // never written down twice.
+    function readingLine() {
+        return sticky.getBoundingClientRect().bottom;
+    }
+
+    function bindMounted(root) {
+        (window.pegasusMountBinders || []).forEach(function (bind) { bind(root); });
+    }
+
+    function mount(placeholder, then) {
+        var key = placeholder.getAttribute('data-lazy');
+        var attempted = Number(placeholder.dataset.lazyAttemptedAt || 0);
+        if (!key || placeholder.dataset.lazyState === 'loading') {
+            return;
+        }
+        // A failed fetch leaves the placeholder in place and says so, and is
+        // tried again rather than being dropped: no response is discarded
+        // silently and no failure retries in a tight loop.
+        if (placeholder.dataset.lazyState === 'failed' && Date.now() - attempted < 5000) {
+            return;
+        }
+        placeholder.dataset.lazyState = 'loading';
+        placeholder.dataset.lazyAttemptedAt = String(Date.now());
+        fetch(fragmentPath + '?handler=Section&section=' + encodeURIComponent(key), {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error('section ' + key + ': ' + response.status);
+            }
+            return response.text();
+        }).then(function (html) {
+            if (!placeholder.isConnected) {
+                return;
+            }
+            var host = document.createElement('section');
+            host.className = 'case-section';
+            host.id = 'section-' + key;
+            host.setAttribute('data-section', key);
+            host.innerHTML = html;
+            placeholder.replaceWith(host);
+            bindMounted(host);
+            measure();
+            spy();
+            if (then) {
+                then(host);
+            }
+        }).catch(function () {
+            placeholder.dataset.lazyState = 'failed';
+        });
+    }
+
+    function jumpTo(key, focus) {
+        var target = document.getElementById('section-' + key);
+        if (!target) {
+            return;
+        }
+        if (target.hasAttribute('data-lazy')) {
+            mount(target, function (host) { host.scrollIntoView({ block: 'start' }); });
+            return;
+        }
+        target.scrollIntoView({ block: 'start' });
+        if (focus) {
+            var heading = target.querySelector('h2');
+            if (heading) {
+                heading.setAttribute('tabindex', '-1');
+                heading.focus();
+            }
+        }
+    }
+
+    function spy() {
+        var hosts = main.querySelectorAll('.case-section');
+        if (!hosts.length) {
+            return;
+        }
+        var line = readingLine() + 8;
+        var current = hosts[0].getAttribute('data-section');
+        for (var index = 0; index < hosts.length; index += 1) {
+            if (hosts[index].getBoundingClientRect().top <= line) {
+                current = hosts[index].getAttribute('data-section');
+            }
+        }
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40) {
+            current = hosts[hosts.length - 1].getAttribute('data-section');
+        }
+        links.forEach(function (link) {
+            link.setAttribute(
+                'aria-current',
+                link.getAttribute('data-section-link') === current ? 'true' : 'false');
+        });
+    }
+
+    function mountApproaching() {
+        var limit = window.innerHeight * 2.5;
+        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
+            if (placeholder.getBoundingClientRect().top < limit) {
+                mount(placeholder);
+            }
+        });
+    }
+
+    links.forEach(function (link) {
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+            jumpTo(link.getAttribute('data-section-link'), true);
+        });
+    });
+
+    var ticking = false;
+    function onScroll() {
+        if (ticking) {
+            return;
+        }
+        ticking = true;
+        window.setTimeout(function () {
+            ticking = false;
+            mountApproaching();
+            spy();
+        }, 80);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', function () { measure(); spy(); });
+
+    measure();
+    mountApproaching();
+    spy();
+
+    var addressed = new URLSearchParams(window.location.search).get('section');
+    if (addressed) {
+        jumpTo(addressed.trim().toLowerCase(), false);
+    }
+})();
+
 // --- Keyboard shortcuts ----------------------------------------------------
 // Ctrl K palette, Ctrl U upload, Ctrl N new case, Ctrl S submits the page's
 // [data-edit-save] form when one exists, F5 submits [data-refresh-form] so a
@@ -1471,7 +1671,8 @@
             event.preventDefault();
             window.location.assign('/Cases/Create');
         } else if (control && key === 's') {
-            var save = document.querySelector('[data-edit-save]');
+            var dirty = window.pegasusDirtyEditForm && window.pegasusDirtyEditForm();
+            var save = dirty || document.querySelector('[data-edit-save]');
             if (save) {
                 event.preventDefault();
                 (save.tagName === 'FORM' ? save : save.closest('form')).requestSubmit();
