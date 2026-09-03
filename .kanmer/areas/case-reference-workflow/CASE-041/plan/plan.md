@@ -374,3 +374,22 @@ Browser test and the two Test UI snapshot rows added; `PegasusDbContext.cs`
 The reviewer confirmed no new package, no speculative abstraction, no
 explanatory copy, no duplicated label list, and no remaining assumption of a
 D44 staff-review flag or a D45 damage type.
+
+## Resolutions (2026-09-03) — Repairer location
+
+The operator answered the open question: the repairer location is in general
+extractable from the instruction document, and that extraction is filed as
+[[INTK-058]]. For CASE-041:
+
+1. **Ship the Repairer location option disabled** with its condition
+   (` · not recorded`) under D33, exactly as the plan's working default
+   assumed. No repairer field is added by this ticket.
+2. **The ticket's Verification line is amended** so that "Choosing Repairer
+   fills the address" is not an acceptance condition of this ticket; the
+   accepted behaviour is that Repairer location is offered disabled until a
+   repairer address exists on the case.
+3. **No code change is needed when INTK-058 lands.** The option's
+   enabled/disabled state is derived from whether the case carries the value,
+   so CASE-041's resolver must read the repairer address through the case
+   data contract rather than hard-coding the option as unavailable.
+4. CASE-041 is not blocked by INTK-058 and does not wait for it.

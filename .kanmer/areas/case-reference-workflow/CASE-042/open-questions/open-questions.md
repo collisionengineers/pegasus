@@ -7,25 +7,21 @@
 - [x] Vehicle column with no recorded vehicle for an image-initiated case?
       Resolved 2026-09-03 by the controller: the column is absent until a
       vehicle is recorded (D21 absent, not drawn); no data-model ticket.
-- [ ] **Create Case on an image-initiated record — keep it, or drop it?** The
-      ticket body asks the quick view to offer Create Case, but there is no
-      lawful route for it today and FRD-02 says the opposite. Evidence:
-      `IntakeDecisionPolicy.CanBecomeCase` returns `false` for
-      `IntakeDecision.ImageIntakeRegistered`
-      (`src/Pegasus.Core/Intake/IntakeDecisionPolicy.cs:30-40`), so
-      `/Cases/Create?receiptId=…` renders a refusal
-      (`src/Pegasus.Web/Pages/Cases/Create.cshtml.cs:584-600`); there is no
-      blank Create route (`OnGetAsync` returns `NotFound` for an empty
-      `receiptId`, `Create.cshtml.cs:210-220`); and FRD-02 states image-only
+- [x] **Create Case on an image-initiated record — keep it, or drop it?**
+      **Operator answer 2026-09-03: option (a) — drop Create Case.** The tab
+      ships with "Add to an existing case" only, and the ticket body's
+      Verification line is amended to match. Reason: there is no lawful route
+      today (`IntakeDecisionPolicy.CanBecomeCase` is false for
+      `IntakeDecision.ImageIntakeRegistered`) and FRD-02 states image-only
       material merges into an eligible instructed Case rather than creating a
-      formal Case/PO
-      (`docs/frd/frd-02-intake-and-source-identity.md:172-174`). D7/D21 forbid
-      drawing the control inert. The three answers: (a) drop Create Case from
-      CASE-042 — the tab ships with Add to an existing case only; (b) keep it
-      and open a separate ticket for the Core-owned creation flow that first
-      establishes instruction and identity evidence, with CASE-042 blocked on
-      it; or (c) something else the operator intends. CASE-042 assumes (a)
-      until answered and cannot leave `preparing` on this question.
+      formal Case/PO. Nothing is drawn inert (D7/D21).
+
+      The operator additionally asked for the reverse direction to exist: an
+      instructed case should be able to pull image material in, with "Add
+      evidence" made generally available (case action bar and the main rail),
+      offering either an upload or the absorption of an existing
+      image-initiated case. Filed as [[CASE-044]] (Backlog, EPIC-011); it is
+      not in CASE-042's scope and does not block it.
 
 ## Parked (explicitly deferred)
 

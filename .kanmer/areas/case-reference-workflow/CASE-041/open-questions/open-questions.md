@@ -1,19 +1,18 @@
 # Open questions — CASE-041
 
-- [ ] **Repairer location has no recorded value anywhere, so "Choosing Repairer
-  fills the address" cannot be met.** Verified: the only repairer concept in
-  production is the Assessment flag `costs.repairer_vat_registered`; no
-  repairer name or address is persisted in Core, Infrastructure or Web, and no
-  EPIC-012 ticket adds one — repairer reference data is TICK-034 (backlog,
-  post-alpha, not designated). Under D33's "options without a value are
-  disabled", Repairer location is therefore permanently disabled
-  (` · not recorded`), which contradicts this ticket's own Verification line.
-  Which does the operator want?
-  1. Amend the ticket Verification line so Repairer location is accepted as
-     disabled in this programme (the plan's recorded working default), or
-  2. Add a persisted per-Case repairer address in a new ticket, which CASE-041
-     would then consume.
-  Raised by the 2026-09-03 cross-model plan review; a plan cannot amend its own
-  acceptance line.
+- [x] **Repairer location has no recorded value anywhere.** Operator answer
+  2026-09-03: the repairer location is in general extractable from the
+  instruction document (see the QDOS instruction e-mails and bodyshop reports
+  used as reference material), so it becomes part of the extraction process
+  rather than manual entry. A ticket has been filed for that work:
+  [[INTK-058]] "Extract the repairer name and location from instruction
+  material into a per-case repairer record" (Backlog, EPIC-011, refs frd-05 /
+  frd-02 / frd-06).
+
+  For CASE-041 itself this is **option 1**: the ticket's Verification line is
+  amended so the Repairer location option is accepted as disabled
+  (` · not recorded`) under D33 until INTK-058 ships a value. CASE-041 needs
+  no change when it does — the option enables itself once the case carries a
+  repairer address. CASE-041 is not blocked by INTK-058.
 
 ## Parked (explicitly deferred)

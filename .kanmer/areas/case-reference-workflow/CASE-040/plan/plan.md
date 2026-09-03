@@ -458,3 +458,30 @@ grepped and exists (`MutateAsync`, `HistoryValue`, `EvaFirstHandoffProxies`,
 `DependencyInjection.cs:392`). PLAT-068's plan does define
 `SignOffEngineerProfile`, `ListSignOffEngineersAsync` and `IsDefault`, so this
 plan's dependency naming is accurate.
+
+## Resolutions (2026-09-03) — D47, Send to EVA moves the case state
+
+The operator answered the second open question: **Send to EVA moves the case
+state, by either route, and FRD-07 is wrong.** Recorded as D47. These
+amendments bind and take precedence over the plan above where they differ.
+
+1. **Core action.** The Send to EVA command, from `Review`, performs the
+   existing `StartCaseWork` transition to `With Engineer` in the same unit of
+   work as the handoff record, whichever route is chosen (Download ZIP or
+   Send via API). The transition is not a second, separate operator action.
+2. **Atomicity.** If either half fails the whole command fails: the case
+   stays in `Review`, no partial handoff is recorded, and the failure
+   surfaces. No catch-all suppression.
+3. **Re-send.** A send from `With Engineer` records the handoff and changes
+   no state, as before.
+4. **Governing document.** This PR amends
+   `docs/frd/frd-07-eva-and-external-engineering-handoff.md`, replacing both
+   statements that neither route changes the Case state or version (around
+   lines 63 and 131) with the D47 rule, and cites D44 ("Send to EVA is the
+   implicit review"). [[PLAT-070]] carries only the D44/D45 lines; the FRD-07
+   correction belongs to the ticket that owns the action. Add the D47 line to
+   the checklist's document step.
+5. **Tests.** A Core test asserts the state change on a first send by each
+   route, and that a failed handoff leaves the case in `Review`. No existing
+   assertion that the state is unchanged survives — it is corrected, not
+   deleted, and the correction is named in the post-implementation report.

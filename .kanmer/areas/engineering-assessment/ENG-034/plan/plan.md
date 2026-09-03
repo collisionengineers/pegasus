@@ -474,3 +474,28 @@ re-verified in that checkout before disposition.
 | 5 | should-fix | The label group does not cover the literals in the moved markup. | **Fixed.** Verified: range 346–552 alone carries Estimates, No estimates recorded, New estimate, Delete estimate, Duplicate, Use estimate, Save estimate, Add line, Estimate name, Source, Repair days, Labour rate, Paint labour rate, Paint h, Labour h, Paint materials, Other costs, VAT, VAT %, Estimate notes, Parts and operations, Operation, Description, Part number, Qty, Action and Notes, none of them in `OperatorLabels.cs`. Step 2 now requires every moved operator-visible and accessible-name literal to be routed through the group at unchanged wording, with a checklist item and an acceptance condition. |
 | 6 | should-fix | The command set never runs the changed browser test. | **Fixed.** Verified `Category!=Browser` excludes it and the snapshot scripts do not run xUnit. Added the runbook's complementary browser profile (`docs/runbook.md` line 325) to Commands and the checklist. |
 | 7 | nit | The D43 authority basis is stale. | **Fixed.** D43 records operator sign-off on 2026-09-03; the plan now says the fixture values are permitted and simply not needed, keeping the no-fixture choice as proportionality rather than a restriction. |
+
+## Resolutions (2026-09-03) — handler host, option B
+
+The open question on who moves the Assessment POST handlers is resolved as
+**option B**. The plan above was written for option A; these amendments bind
+and take precedence where they differ.
+
+1. **ENG-034 owns the handler move.** Contract items 3 and 4 and the step-3
+   handler removal move out of [[CASE-038]] and into this ticket. In a single
+   PR, ENG-034 adds its section partials, moves `SaveEstimate`, `EditLine`,
+   `DuplicateEstimate`, `DiscardEstimate`, `SetCurrentEstimate`,
+   `ImportEstimate`, `SendToClaude`, `GenerateReportDraft`,
+   `PreviewReportDraft` and the lease claim/heartbeat/release handlers from
+   `Pages/Cases/Assessment/Index.cshtml.cs` to `Pages/Cases/Details.cshtml.cs`,
+   deletes them from the old page model, and lands the `/Assessment` 301.
+   Nothing is duplicated and nothing is registered without a caller.
+2. **Owned paths gain** `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs`
+   (handler surface) and `src/Pegasus.Web/Pages/Cases/Details.cshtml`
+   (section include points), under the capacity-one shared lock.
+3. **Sequencing.** ENG-034 runs serial in wave 3, after CASE-038 and
+   [[CASE-039]] have merged and released the `Details.cshtml.cs` lease. The
+   lane refreshes with `git merge --no-edit origin/dev` before implementing.
+4. **CASE-038 is unchanged in substance**: its section shells stay
+   heading-only and its PR carries no Assessment handler, so it merges with
+   no unreachable code.

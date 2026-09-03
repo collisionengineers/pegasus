@@ -402,3 +402,20 @@ recorded in `open-questions/`.
 Open the CASE-029 PR targeting `dev`, move the ticket to Review, and stop.
 Do not merge it. CASE-029 is not declared wired or Done until [[CASE-038]] has
 supplied the production `Details.*` caller.
+
+## Resolutions (2026-09-03) — vehicle fields stay narrow
+
+The operator answered the open question: a separate ticket owns the vehicle
+record extension. For CASE-029 the plan's narrow answer stands and is now
+binding:
+
+1. **Chips for make, model and mileage only** — the fields `CaseVehicleData`
+   already owns. No Core contract change, no `CaseDataFieldNames` allow-list
+   change, no check-constraint change, no migration in this ticket.
+2. **The lookup port is designed for reuse.** [[CASE-043]] consumes the same
+   DVLA/MOT port from intake, so the port returns the full looked-up record
+   and this ticket simply renders chips for the subset the case can persist.
+   No second client and no second field list.
+3. **[[CASE-043]]** "Extend the case vehicle record with the DVLA/MOT fields,
+   populated from the instruction first and DVLA/DVSA on intake" is filed
+   (EPIC-012 + EPIC-011, Backlog) and is blocked by CASE-029.
