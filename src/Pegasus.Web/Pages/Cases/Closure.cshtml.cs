@@ -75,8 +75,6 @@ public sealed class ClosureModel(
         CaseReopenDestination destination,
         bool instructionsComplete,
         bool imagesComplete,
-        bool instructionsReviewedByStaff,
-        bool imagesReviewedByStaff,
         string? evidenceReference,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
@@ -96,8 +94,6 @@ public sealed class ClosureModel(
                         ? Readiness(
                             instructionsComplete,
                             imagesComplete,
-                            instructionsReviewedByStaff,
-                            imagesReviewedByStaff,
                             evidenceReference ?? string.Empty)
                         : null),
                 cancellationToken),

@@ -25,8 +25,6 @@ public sealed partial class CaseDetailsWebTests
         [
             ("instructionsComplete", "true"),
             ("imagesComplete", "true"),
-            ("instructionsReviewedByStaff", "true"),
-            ("imagesReviewedByStaff", "false"),
             ("evidenceReference", "review-evidence-1")
         ];
 
@@ -47,7 +45,7 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(assigned, store.CaseId);
         AssertPrg(found, store.CaseId);
         AssertPrg(replaced, store.CaseId);
-        var expectedReadiness = new CaseReadinessEvidence(true, true, true, false, "review-evidence-1");
+        var expectedReadiness = new CaseReadinessEvidence(true, true, "review-evidence-1");
 
         var transition = Assert.Single(store.Transitions);
         AssertLeasedMutation(workspace, transition, "return-to-review", "Images arrived");
