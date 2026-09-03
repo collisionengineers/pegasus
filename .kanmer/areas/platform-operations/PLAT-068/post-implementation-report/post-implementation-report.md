@@ -185,3 +185,115 @@ merge --no-edit origin/dev`, regenerate this one migration after the new
 tail; never a second migration") but resolving it is outside this review
 fix's scope (append one migration-list entry only) and is left for the
 reviewer/next lane to action before merge.
+
+## Review round 2 fixes (2026-09-03)
+
+Applied the three findings recorded in `reference/reference.md`'s round-2
+review (verdict REQUEST CHANGES, head `a94fffd5`). Worked directly in
+`.worktrees/plat-068` on `task/plat-068-sign-off-account`; no Codex delegate.
+
+### Finding 1 (blocker) — merge conflict / migration ordering
+
+`git fetch origin && git merge --no-edit origin/dev` pulled in PLAT-070's
+`20260903153134_RemoveStaffReviewFlags`, ENG-035's
+`20260903110926_ExtendAssessmentVocabulary`, and DOCS-017 (#651). One real
+conflict, in `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs`'s
+committed-migration list (both sides edited the same line); resolved by
+listing all three tail entries in chronological order
+(`ExtendAssessmentVocabulary`, `RemoveStaffReviewFlags`, then this ticket's
+migration). `PegasusDbContextModelSnapshot.cs` and `OperatorLabels.cs`
+auto-merged cleanly, as the round-2 review had already found.
+
+Regenerated the migration so it lands after `dev`'s new tail:
+
+- Deleted `20260903135604_StaffAccountSignOff.cs`/`.Designer.cs`.
+- A first `dotnet ef migrations add StaffAccountSignOff` (project
+  `src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj`, startup
+  `src/Pegasus.Web/Pegasus.Web.csproj`, `--output-dir Persistence/Migrations`)
+  produced an **empty** migration, because the post-merge model snapshot
+  already carried this ticket's `AspNetUsers` sign-off columns (the
+  merge's clean auto-merge of the snapshot had already unioned both
+  branches' model changes) — EF saw no diff between the current model and
+  the snapshot once the old migration file was gone.
+- Reset `PegasusDbContextModelSnapshot.cs` to `origin/dev`'s tip (the
+  pre-this-ticket baseline: PLAT-070 + ENG-035 applied, this ticket's
+  columns not yet applied) and reran the same `dotnet ef migrations add`
+  command. This produced the correct migration —
+  **`20260903225331_StaffAccountSignOff`** — with the identical `Up`/`Down`
+  operations as the original (six `AddColumn` calls plus the filtered
+  unique `IX_AspNetUsers_IsDefaultSignOffEngineer` index, same types/lengths).
+  The regenerated `PegasusDbContextModelSnapshot.cs` came back byte-identical
+  (`git diff` empty) to the merge-resolved snapshot, confirming the merge's
+  auto-resolution had been correct.
+- Updated the committed-migration list's last entry to
+  `"20260903225331_StaffAccountSignOff"`.
+- `./scripts/Test-MigrationGrants.ps1` — exit 0, 90 migration files checked,
+  every created table granted or exempted; this migration carries no `GRANT`
+  (adds columns only, no new table), unchanged from the original.
+
+New migration id/position: **`20260903225331_StaffAccountSignOff`**, last in
+the chronological list, immediately after
+`20260903153134_RemoveStaffReviewFlags`.
+
+### Finding 2 (should-fix) — oversized-signature test fixture
+
+`tests/Pegasus.Core.Tests/Identity/IdentityUseCaseTests.cs`: the oversized
+case in `SignOffSignaturePolicyRejectsInvalidUploads` was
+`new byte[SignOffSignaturePolicy.MaximumBytes + 1]` — all zeros, so it was
+rejected on the PNG magic-byte check alone and never proved the 1 MiB limit.
+Added `OversizedPngSignature()` (copies the existing `Png()` header onto an
+oversized zero-filled array) and used it in place of the raw array, so the
+case now exercises the size branch specifically.
+
+### Finding 3 (should-fix) — unused `IsEligible` overload
+
+`src/Pegasus.Core/Identity/StaffAccountAdministration.cs`:
+`SignOffEngineerEligibility` had a `bool hasSignature` overload with no
+caller besides the `byte[]` overload's own delegation to it — confirmed by
+grep: all four production call sites (`EfStaffAccountQueries.cs:127,155`,
+`EfStaffAccountAdministration.cs:336`) and all five test assertions in
+`IdentityUseCaseTests.cs` pass `byte[]?`. The plan's earlier simplification-pass
+rejection had claimed collapsing the overloads "would drop the roles-collection
+overload the Core eligibility tests call directly," which was factually wrong
+(the tests call the `byte[]` overload). Folded the bool overload's body into
+the `byte[]` overload and removed the bool overload; behaviour unchanged.
+
+### Verification (exit codes)
+
+- `dotnet restore ./Pegasus.slnx --locked-mode` — exit 0.
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0,
+  0 warnings, 0 errors.
+- `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj
+  --configuration Release --no-build` — exit 0.
+- `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj
+  --configuration Release --no-build` — exit 0.
+- `./scripts/Test-MigrationGrants.ps1` — exit 0, 90 migration files checked.
+- The merge touched routed Razor pages from `dev` (`Administration/Configuration.cshtml`,
+  `Cases/Details.cshtml`, `Cases/Shared/_CaseWorkflow.cshtml`,
+  `Cases/Shared/_ReadinessHiddenFields.cshtml`) though none of them are
+  PLAT-068's own files, so ran the Test UI chain per the instruction:
+  `./scripts/Update-TestUiSnapshots.ps1` — exit 0 (browser capture 120
+  passed, non-browser capture 296 passed); resulting snapshot tree was
+  byte-identical to what was already committed (`git diff` empty; the
+  `git status` "M" markers were a `core.autocrlf` line-ending artifact only,
+  discarded with `git checkout --`, nothing to commit).
+  `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` — exit 0.
+  `./scripts/Test-UiCatalogue.ps1` — exit 0.
+- Integration suite intentionally not run locally per instruction; GitHub CI
+  runs it sharded on the PR.
+
+### Commits and push
+
+- `5de84095` fix(migrations): regenerate StaffAccountSignOff after PLAT-070's tail
+- `0d642673` fix(tests): make the oversized signature fixture start with PNG bytes
+- `7a1efab7` refactor(core): drop the unused bool overload of IsEligible
+
+Pushed `task/plat-068-sign-off-account` (`a94fffd5..7a1efab7`, via merge
+commit `be764751`). New head SHA: **`7a1efab7`**. Ticket left in Review;
+not merged, per instruction.
+
+### Unresolved
+
+None. All three round-2 findings are fixed; findings 4 and 5 from the round-2
+review were already dispositioned (accept risk / accept) and needed no code
+change.
