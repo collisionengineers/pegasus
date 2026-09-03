@@ -14,17 +14,40 @@
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
+            // Exactly one pending timer at a time: a page can be sent to the
+            // background and brought back any number of times, and every one
+            // of those returns re-arms the same timer rather than adding
+            // another reload to the pile.
+            var timer = 0;
+            var schedule = function () {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(reload, delay);
+            };
             // A page can still be moving while an operator has a form open
             // that a reload would wipe; any element opting in with
             // data-refresh-hold pauses the reload while it is open.
             var reload = function () {
+                timer = 0;
                 if (document.querySelector('[data-refresh-hold][open]')) {
-                    window.setTimeout(reload, delay);
+                    schedule();
                     return;
                 }
                 window.location.reload();
             };
-            window.setTimeout(reload, delay);
+            // A hidden tab does not poll. Returning to it reloads immediately
+            // instead of showing content that can be a full delay out of date.
+            var trackVisibility = function () {
+                if (document.hidden) {
+                    window.clearTimeout(timer);
+                    timer = 0;
+                } else {
+                    reload();
+                }
+            };
+            document.addEventListener('visibilitychange', trackVisibility);
+            if (!document.hidden) {
+                schedule();
+            }
         }
     }
 
@@ -152,7 +175,12 @@
     document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
         var input = zone.querySelector('input[type="file"]');
         var browse = zone.querySelector('[data-dropzone-browse]');
-        var readout = zone.querySelector('[data-dropzone-file]');
+        // §1.10 draws the file list under the dashed area rather than inside
+        // it, so the readout is looked up in the enclosing form when the zone
+        // does not carry it itself.
+        var form = zone.closest('form');
+        var readout = zone.querySelector('[data-dropzone-file]')
+            || (form && form.querySelector('[data-dropzone-file]'));
         if (!input || !browse || !readout) {
             return;
         }
@@ -163,11 +191,24 @@
                 : Math.max(1, Math.round(bytes / 1024)) + ' KB';
         };
 
-        // One row per file — not the crammed single line this replaced. Each
-        // row carries its own state placeholder, populated only once a
-        // submission is under way (see the upload-progress block below);
-        // until then it stays empty, so a page whose form has no progress
-        // enhancement (Uploads/Request) renders identically to before.
+        var glyph = function (iconId) {
+            var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'icon');
+            svg.setAttribute('aria-hidden', 'true');
+            var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttribute('href', iconId);
+            svg.appendChild(use);
+            return svg;
+        };
+
+        // One .file-row per file (§1.10): glyph, name and size, the drawn
+        // progress bar, and the row's own state placeholder. The progress
+        // element is indeterminate on purpose — one POST stores the whole
+        // batch, so there is no per-file fraction to report and inventing one
+        // would be a state this page cannot know. It stays hidden, and the
+        // state placeholder stays empty, until a submission is actually under
+        // way (see the upload-progress block below), so a page whose form has
+        // no progress enhancement (Uploads/Request) renders as it always did.
         var describe = function () {
             var files = input.files ? Array.from(input.files) : [];
             zone.classList.toggle('has-file', files.length > 0);
@@ -179,18 +220,29 @@
             }
 
             var rows = files.map(function (file) {
-                var row = document.createElement('span');
-                row.className = 'dropzone__file-row';
-                var name = document.createElement('span');
-                name.className = 'dropzone__file-row__name';
+                var row = document.createElement('div');
+                row.className = 'file-row';
+
+                var mark = document.createElement('span');
+                mark.append(glyph('#icon-file'));
+
+                var detail = document.createElement('span');
+                var name = document.createElement('strong');
                 name.textContent = file.name;
-                var size = document.createElement('span');
-                size.className = 'dropzone__file-row__size';
+                var size = document.createElement('small');
                 size.textContent = formatSize(file.size);
+                // The adjacent chip already names the state in words, so the
+                // bar is the visual echo and is not announced twice.
+                var progress = document.createElement('progress');
+                progress.className = 'progress';
+                progress.setAttribute('aria-hidden', 'true');
+                progress.hidden = true;
+                detail.append(name, size, progress);
+
                 var status = document.createElement('span');
-                status.className = 'dropzone__file-row__status';
                 status.setAttribute('data-file-row-status', '');
-                row.append(name, size, status);
+
+                row.append(mark, detail, status);
                 return row;
             });
             readout.replaceChildren.apply(readout, rows);
@@ -254,29 +306,48 @@
 
         describe();
 
+        // Clear is a native <button type="reset">: the browser empties the
+        // input on its own, and the rows are re-rendered from the emptied
+        // input once the reset has actually been applied.
+        if (form) {
+            form.addEventListener('reset', function () {
+                window.setTimeout(describe, 0);
+            });
+        }
+
         // Per-file upload progress: opt-in via data-upload-progress on the
         // form, so this only changes behaviour on the one form that owns the
         // contract below (Upload.cshtml) and never touches the document
         // request form, which keeps its plain native submit.
-        var form = zone.closest('form');
         if (form
             && form.hasAttribute('data-upload-progress')
             && typeof fetch === 'function'
             && typeof FormData === 'function') {
             var setRowStatus = function (state, text) {
                 readout.classList.toggle('is-refreshing', state === 'uploading');
-                readout.querySelectorAll('[data-file-row-status]').forEach(function (status) {
-                    var iconId = state === 'stored' ? '#icon-check-circle' : '#icon-refresh-cw';
-                    var glyph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    glyph.setAttribute('class', state === 'uploading' ? 'icon icon--spin' : 'icon');
-                    glyph.setAttribute('aria-hidden', 'true');
-                    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                    use.setAttribute('href', iconId);
-                    glyph.appendChild(use);
-                    var label = document.createElement('span');
-                    label.textContent = text;
+                readout.querySelectorAll('.file-row').forEach(function (row) {
+                    var progress = row.querySelector('progress.progress');
+                    if (progress) {
+                        progress.hidden = state !== 'uploading';
+                    }
+                    var mark = row.querySelector('svg.icon use');
+                    if (mark) {
+                        mark.setAttribute(
+                            'href', state === 'stored' ? '#icon-check-circle' : '#icon-file');
+                    }
+                    var status = row.querySelector('[data-file-row-status]');
+                    if (!status) {
+                        return;
+                    }
+                    // The chip carries its own word and its own dot, so no
+                    // state is conveyed by colour alone.
+                    var chip = document.createElement('span');
+                    chip.className = state === 'stored'
+                        ? 'status status--green'
+                        : 'status status--navy';
+                    chip.textContent = text;
                     status.setAttribute('data-state', state);
-                    status.replaceChildren(glyph, label);
+                    status.replaceChildren(chip);
                 });
             };
 
@@ -535,6 +606,72 @@
     });
 })();
 
+// CASE-024: an open editor keeps its own lease alive, so a real editing session
+// is never timed out mid-edit. The beat posts the rendered form, whose
+// antiforgery token rides in the FormData exactly as the upload enhancement
+// above does. With script the manual "Renew editing" button is redundant, so it
+// is hidden here; without script it stays and is the only way to keep editing.
+(function () {
+    var form = document.querySelector('[data-edit-heartbeat]');
+    if (!form) {
+        return;
+    }
+
+    var renew = document.querySelector('[data-edit-renew]');
+    if (renew) {
+        renew.hidden = true;
+    }
+
+    var seconds = parseInt(form.getAttribute('data-heartbeat-seconds'), 10);
+    if (!(seconds > 0)) {
+        // The interval is a server value; without it, leave the Renew button
+        // showing rather than beat on a guessed one.
+        if (renew) {
+            renew.hidden = false;
+        }
+        return;
+    }
+
+    // A live timer is what "still beating" means; visibilitychange checks it too,
+    // because it calls beat() directly rather than through the interval.
+    var timer = null;
+    var stop = function () {
+        window.clearInterval(timer);
+        timer = null;
+    };
+
+    var beat = function () {
+        if (timer === null) {
+            return;
+        }
+
+        fetch(form.getAttribute('action') || window.location.href, {
+            method: 'POST',
+            body: new FormData(form)
+        }).then(function (response) {
+            // 204 is the only answer that means the lease is still ours. A
+            // refusal is final - the lease was released, expired, or is now
+            // someone else's - and the page the operator lands on next already
+            // shows the case's real edit state, so nothing is said here.
+            if (response.status !== 204) {
+                stop();
+            }
+        }).catch(function () {
+            // A single failed beat is not a lost lease: there are several more
+            // before the lease could lapse, so keep beating.
+        });
+    };
+
+    timer = window.setInterval(beat, seconds * 1000);
+    // A hidden tab has its timers throttled, so the phase on return is
+    // unknowable; one beat on becoming visible again settles it.
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            beat();
+        }
+    });
+})();
+
 // INTK-022: a filter form marked data-auto-submit submits itself when any of
 // its selects change; the noscript Apply button covers the rest.
 (function () {
@@ -550,6 +687,8 @@
 // UI-10: evidence-only mail preview. A subject remains an ordinary full-detail
 // link; this enhancement selects its row on pointer/keyboard intent and reads
 // the same authorized exact-message projection without moving focus or state.
+// When that intent moves on, the pane restores the server-selected message
+// instead of hiding: the pane is a fixture of the page, not a tooltip.
 (function () {
     document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
         var panel = workspace.querySelector('[data-mail-preview]');
@@ -564,26 +703,42 @@
         var request = null;
         var cache = new Map();
 
+        // The pane renders only beside a list that has a server-selected row
+        // (the page model resolves one whenever it renders the pane at all),
+        // and that row's trigger is the pane's fallback wherever intent goes.
+        var selectedRow = rows.filter(function (row) {
+            var trigger = row.querySelector('[data-mail-preview-trigger]');
+            return trigger && trigger.getAttribute('aria-current') === 'true';
+        })[0] || null;
+        if (!selectedRow) {
+            return;
+        }
+        var actions = facts.querySelector('[data-mail-preview-actions]');
+        activeRow = selectedRow;
+
         var field = function (name) {
             return facts.querySelector('[data-mail-preview-' + name + ']');
         };
 
-        var resetSelection = function () {
-            if (request) {
-                request.abort();
-                request = null;
-            }
-            rows.forEach(function (row) {
-                row.classList.remove('is-preview-selected');
-                var trigger = row.querySelector('[data-mail-preview-trigger]');
-                if (trigger) {
-                    trigger.setAttribute('aria-expanded', 'false');
-                }
+        // The pane already shows the selected message; seeding the cache from
+        // its rendered fields means restoring that message never waits on the
+        // network and never leaves its actions hidden behind a failed fetch.
+        cache.set(
+            selectedRow
+                .querySelector('[data-mail-preview-trigger]')
+                .getAttribute('data-mail-preview-url'),
+            {
+                sender: field('sender').textContent,
+                subject: field('subject').textContent,
+                received: field('received').textContent,
+                receivedAtUtc: field('received').getAttribute('datetime'),
+                excerpt: field('excerpt').textContent,
+                classification: field('classification').textContent,
+                association: field('association').textContent,
+                attachments: Array.prototype.map.call(
+                    field('attachments').querySelectorAll('li'),
+                    function (item) { return item.textContent; })
             });
-            activeRow = null;
-            panel.hidden = true;
-            panel.removeAttribute('aria-busy');
-        };
 
         var render = function (data) {
             field('sender').textContent = data.sender;
@@ -619,7 +774,6 @@
                 request.abort();
             }
             rows.forEach(function (candidate) {
-                candidate.classList.toggle('is-preview-selected', candidate === row);
                 var candidateTrigger = candidate.querySelector('[data-mail-preview-trigger]');
                 if (candidateTrigger) {
                     candidateTrigger.setAttribute(
@@ -628,6 +782,11 @@
                 }
             });
             activeRow = row;
+            if (actions) {
+                // The pane's actions belong to the selected message; while a
+                // transient preview shows a different row, they are not its.
+                actions.hidden = row !== selectedRow;
+            }
             panel.hidden = false;
             status.hidden = false;
             status.textContent = 'Loading quick preview…';
@@ -669,12 +828,27 @@
             });
         };
 
+        // Leaving the rows ends the transient preview, not the pane: it falls
+        // back to the server-selected message, whose actions must stay
+        // reachable. select() no-ops when that row is already active, so
+        // leaving the selected row itself leaves the pane untouched.
+        var restoreSelection = function () {
+            select(selectedRow);
+        };
+
         rows.forEach(function (row) {
             var trigger = row.querySelector('[data-mail-preview-trigger]');
             row.addEventListener('pointerenter', function () { select(row); });
-            row.addEventListener('pointerleave', function () {
-                if (activeRow === row && !row.contains(document.activeElement)) {
-                    resetSelection();
+            row.addEventListener('pointerleave', function (event) {
+                if (activeRow !== row || row.contains(document.activeElement)) {
+                    return;
+                }
+                // Moving between rows is not leaving them: the next row's
+                // pointerenter supersedes this event, and restoring between
+                // every pair of rows would repaint the pane down the list.
+                var entered = event.relatedTarget;
+                if (!entered || !entered.closest('[data-mail-preview-row]')) {
+                    restoreSelection();
                 }
             });
             if (!trigger) {
@@ -684,49 +858,90 @@
             trigger.addEventListener('blur', function () {
                 setTimeout(function () {
                     if (activeRow === row && !row.contains(document.activeElement)) {
-                        resetSelection();
+                        restoreSelection();
                     }
                 }, 0);
             });
         });
     });
 
-    // Reason dialogs built as div backdrops ([data-reason-dialog]): open from
-    // any [data-dialog-open="<id>"] control, close on Cancel, Escape, or a
-    // backdrop click, contain focus while open, and return focus to the
-    // invoking control. This lives here rather than beside the markup because
-    // the deployed Content-Security-Policy discards inline scripts.
-    document.querySelectorAll('[data-reason-dialog]').forEach(function (dialog) {
+    // Dialogs built as div backdrops ([data-dialog="<id>"]; [data-reason-dialog]
+    // is the older alias and still works): open from any
+    // [data-dialog-open="<id>"] control, close on [data-dialog-close] (or the
+    // older [data-dialog-dismiss]), Escape, or a backdrop click, contain focus
+    // while open, set `inert` on the application shell so nothing behind the
+    // dialog is reachable, and return focus to the invoking control. This
+    // lives here rather than beside the markup because the deployed
+    // Content-Security-Policy discards inline scripts.
+    // While a dialog is open everything outside it is inert. A dialog may be
+    // rendered anywhere in the page (a Case page's reason dialogs live inside
+    // the shell), so inert is set on the siblings of each of its ancestors up
+    // to body - never on an ancestor - and exactly those elements are
+    // released on close.
+    function inertOutside(dialog) {
+        var made = [];
+        for (var node = dialog; node && node !== document.body; node = node.parentElement) {
+            Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
+                if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT') {
+                    sibling.setAttribute('inert', '');
+                    made.push(sibling);
+                }
+            });
+        }
+        return function release() {
+            made.forEach(function (element) { element.removeAttribute('inert'); });
+        };
+    }
+
+    document.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
         if (dialog.dataset.dialogBound === 'true') {
             return;
         }
         dialog.dataset.dialogBound = 'true';
 
+        var dialogId = dialog.getAttribute('data-dialog') || dialog.id;
+        var release = null;
         var invoker = null;
 
+        // A hidden input (the antiforgery token) matches the selector but
+        // cannot take focus; focusing it leaves focus on the invoking control,
+        // which is about to become inert and lose it to body.
         function focusable() {
             return Array.prototype.filter.call(
                 dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                function (element) { return !element.disabled && !element.hidden; });
+                function (element) {
+                    return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
+                });
         }
 
         function open(source) {
             invoker = source;
             dialog.hidden = false;
+            release = inertOutside(dialog);
             document.addEventListener('keydown', onKeydown, true);
             var items = focusable();
-            if (items.length > 0) {
-                items[0].focus();
+            var initial = dialog.querySelector('[data-dialog-initial-focus]')
+                || items.find(function (element) { return element.matches('input, select, textarea'); })
+                || items[0];
+            if (initial) {
+                initial.focus();
             }
+            dialog.dispatchEvent(new CustomEvent('pegasus:dialog-open', { bubbles: true }));
         }
 
         function close() {
             dialog.hidden = true;
+            if (release) {
+                release();
+                release = null;
+            }
             document.removeEventListener('keydown', onKeydown, true);
             if (invoker) {
                 invoker.focus();
             }
         }
+
+        dialog.pegasusClose = close;
 
         function onKeydown(event) {
             if (event.key === 'Escape') {
@@ -753,7 +968,7 @@
             }
         }
 
-        dialog.querySelectorAll('[data-dialog-dismiss]').forEach(function (control) {
+        dialog.querySelectorAll('[data-dialog-dismiss], [data-dialog-close]').forEach(function (control) {
             control.addEventListener('click', close);
         });
 
@@ -763,7 +978,7 @@
             }
         });
 
-        document.querySelectorAll('[data-dialog-open="' + dialog.id + '"]').forEach(function (control) {
+        document.querySelectorAll('[data-dialog-open="' + dialogId + '"]').forEach(function (control) {
             control.addEventListener('click', function () {
                 open(control);
             });
@@ -857,6 +1072,8 @@
             following.disabled = index === items.length - 1;
         }
 
+        var release = null;
+
         function open(trigger) {
             var set = trigger.closest('[data-evidence-set]');
             // Only previewable siblings join the paging set. A document table
@@ -871,6 +1088,7 @@
             var start = items.indexOf(trigger);
             invoker = trigger;
             viewer.hidden = false;
+            release = inertOutside(viewer);
             document.addEventListener('keydown', onKeydown, true);
             show(start < 0 ? 0 : start);
             var controls = focusable();
@@ -881,11 +1099,16 @@
 
         function close() {
             viewer.hidden = true;
+            if (release) {
+                release();
+                release = null;
+            }
             document.removeEventListener('keydown', onKeydown, true);
             // Drop the source so a large preview stops loading once it is off
             // screen; the next open sets it again.
             image.removeAttribute('src');
             frame.removeAttribute('src');
+            stage.classList.remove('rot-90', 'rot-180', 'rot-270');
             settle();
             if (invoker) {
                 invoker.focus();
@@ -972,5 +1195,496 @@
         }
         select.addEventListener('change', sync);
         sync();
+    });
+})();
+
+// ===========================================================================
+// PLAT-029 — Integrated Operations Workspace shell modules. Each section is
+// self-contained and progressive: without script the markup it enhances is a
+// working link, form or list. New sections go below; nothing above is
+// reordered.
+// ===========================================================================
+
+// --- Toasts ----------------------------------------------------------------
+// A transient status line in the fixed [data-toast-region]. A page-rendered
+// confirmation ([data-confirmation]) is also announced this way so an action
+// taken elsewhere is noticed without hunting for the notice.
+(function () {
+    'use strict';
+    var region = document.querySelector('[data-toast-region]');
+    if (!region) {
+        return;
+    }
+
+    function toast(title, tone) {
+        var element = document.createElement('div');
+        element.className = 'toast' + (tone ? ' toast--' + tone : '');
+        element.setAttribute('role', 'status');
+        var strong = document.createElement('strong');
+        strong.textContent = title;
+        element.appendChild(strong);
+        region.appendChild(element);
+        window.setTimeout(function () { element.remove(); }, 4200);
+    }
+
+    window.pegasusToast = toast;
+
+    var confirmation = document.querySelector('[data-confirmation]');
+    if (confirmation) {
+        toast(confirmation.textContent.trim());
+    }
+})();
+
+// --- Command palette --------------------------------------------------------
+// The command dialog is pre-rendered with one [data-route] result per route
+// the operator may reach plus a "Search Cases for ..." fallback. Typing
+// filters by text; ArrowUp/Down move the selection; Enter follows it. Ctrl K
+// anywhere, or Enter in the utility bar's [data-command-input], opens it.
+(function () {
+    'use strict';
+    var dialog = document.querySelector('[data-dialog="command-dialog"]');
+    if (!dialog) {
+        return;
+    }
+    var input = dialog.querySelector('[data-command-palette-input]');
+    var results = Array.prototype.slice.call(dialog.querySelectorAll('.command-result'));
+    var fallback = dialog.querySelector('[data-command-fallback]');
+    var fallbackTerm = dialog.querySelector('[data-command-fallback-term]');
+    var globalInput = document.querySelector('[data-command-input]');
+    if (!input || results.length === 0) {
+        return;
+    }
+
+    var index = 0;
+
+    function visible() {
+        return results.filter(function (result) { return !result.hidden; });
+    }
+
+    function select(at) {
+        var items = visible();
+        if (items.length === 0) {
+            return;
+        }
+        index = (at + items.length) % items.length;
+        items.forEach(function (item, position) {
+            item.setAttribute('aria-selected', position === index ? 'true' : 'false');
+        });
+        items[index].scrollIntoView({ block: 'nearest' });
+    }
+
+    function filter() {
+        var term = input.value.trim().toLowerCase();
+        results.forEach(function (result) {
+            if (result === fallback) {
+                return;
+            }
+            result.hidden = term !== '' && result.textContent.toLowerCase().indexOf(term) < 0;
+        });
+        if (fallback) {
+            fallback.hidden = term === '';
+            if (fallbackTerm) {
+                fallbackTerm.textContent = input.value.trim();
+            }
+        }
+        select(0);
+    }
+
+    function searchUrl() {
+        return '/Search?query=' + encodeURIComponent(input.value.trim());
+    }
+
+    function go(result) {
+        window.location.assign(result === fallback ? searchUrl() : (result.getAttribute('data-route') || '/'));
+    }
+
+    function open(seed) {
+        // Open through the shell's own dialog binding so focus, inert and
+        // Escape behave exactly as for every other dialog.
+        var trigger = document.querySelector('[data-dialog-open="command-dialog"]');
+        if (trigger) {
+            trigger.click();
+        }
+        input.value = seed || '';
+        filter();
+        input.focus();
+    }
+
+    window.pegasusOpenCommandPalette = open;
+
+    input.addEventListener('input', filter);
+    input.addEventListener('keydown', function (event) {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            select(index + 1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            select(index - 1);
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            var items = visible();
+            if (items[index]) {
+                go(items[index]);
+            } else {
+                window.location.assign(searchUrl());
+            }
+        }
+    });
+    results.forEach(function (result) {
+        result.addEventListener('click', function () { go(result); });
+    });
+    if (globalInput) {
+        globalInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                open(globalInput.value);
+            }
+        });
+    }
+    filter();
+})();
+
+// --- Workspace tabs -----------------------------------------------------------
+// One closable tab per record opened, remembered per browser in
+// localStorage "pegasus.workspaceTabs" as [{href,label,at}], at most four,
+// least recently used first out. A page announces itself as a record with
+// main[data-workspace-record][data-workspace-href][data-workspace-label].
+(function () {
+    'use strict';
+    var strip = document.querySelector('[data-workspace-tabs]');
+    if (!strip) {
+        return;
+    }
+    var KEY = 'pegasus.workspaceTabs';
+    var MAX = 4;
+    var opener = strip.querySelector('[data-workspace-open]');
+
+    function read() {
+        try {
+            var stored = JSON.parse(window.localStorage.getItem(KEY) || '[]');
+            return Array.isArray(stored) ? stored.filter(function (tab) {
+                return tab && typeof tab.href === 'string' && typeof tab.label === 'string';
+            }) : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function write(tabs) {
+        try {
+            window.localStorage.setItem(KEY, JSON.stringify(tabs));
+        } catch (error) {
+            // Storage refused (private mode, quota): the strip still renders
+            // this page's own record for the session.
+        }
+    }
+
+    function icon(name) {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'icon');
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#icon-' + name);
+        svg.appendChild(use);
+        return svg;
+    }
+
+    function render(tabs) {
+        strip.querySelectorAll('.workspace-tab--record').forEach(function (tab) { tab.remove(); });
+        var current = window.location.pathname.toLowerCase();
+        tabs.forEach(function (tab) {
+            var isActive = current === tab.href.split('?')[0].toLowerCase();
+            var wrapper = document.createElement('div');
+            wrapper.className = 'workspace-tab workspace-tab--record' + (isActive ? ' is-active' : '');
+            var link = document.createElement('a');
+            link.className = 'workspace-tab-link';
+            link.href = tab.href;
+            if (isActive) {
+                link.setAttribute('aria-current', 'page');
+            }
+            link.appendChild(icon('folder-open'));
+            var label = document.createElement('span');
+            label.textContent = tab.label;
+            link.appendChild(label);
+            var close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'workspace-tab-close';
+            close.setAttribute('aria-label', 'Close ' + tab.label);
+            close.appendChild(icon('x'));
+            close.addEventListener('click', function () {
+                var remaining = read().filter(function (candidate) { return candidate.href !== tab.href; });
+                write(remaining);
+                if (isActive) {
+                    window.location.assign('/');
+                    return;
+                }
+                render(remaining);
+            });
+            wrapper.append(link, close);
+            strip.insertBefore(wrapper, opener);
+        });
+    }
+
+    var tabs = read();
+    var main = document.querySelector('main[data-workspace-record]');
+    if (main) {
+        var href = main.getAttribute('data-workspace-href');
+        var label = main.getAttribute('data-workspace-label');
+        if (href && label) {
+            tabs = tabs.filter(function (tab) { return tab.href !== href; });
+            tabs.push({ href: href, label: label, at: Date.now() });
+            while (tabs.length > MAX) {
+                tabs.shift();
+            }
+            write(tabs);
+        }
+    }
+    render(tabs);
+})();
+
+// --- Keyboard shortcuts ----------------------------------------------------
+// Ctrl K palette, Ctrl U upload, Ctrl N new case, Ctrl S submits the page's
+// [data-edit-save] form when one exists, F5 submits [data-refresh-form] so a
+// refresh re-queries rather than reloads. Inside an input only Ctrl K acts.
+(function () {
+    'use strict';
+    document.addEventListener('keydown', function (event) {
+        var target = event.target;
+        var inField = target && target.closest && target.closest('input, select, textarea, [contenteditable="true"]');
+        var control = event.ctrlKey || event.metaKey;
+        var key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+
+        if (control && key === 'k') {
+            event.preventDefault();
+            if (window.pegasusOpenCommandPalette) {
+                window.pegasusOpenCommandPalette('');
+            }
+            return;
+        }
+        if (inField) {
+            return;
+        }
+        if (control && key === 'u' && document.querySelector('[data-route="/Upload"]')) {
+            event.preventDefault();
+            window.location.assign('/Upload');
+        } else if (control && key === 'n') {
+            event.preventDefault();
+            window.location.assign('/Cases/Create');
+        } else if (control && key === 's') {
+            var save = document.querySelector('[data-edit-save]');
+            if (save) {
+                event.preventDefault();
+                (save.tagName === 'FORM' ? save : save.closest('form')).requestSubmit();
+            }
+        } else if (event.key === 'F5' && !control) {
+            var refresh = document.querySelector('[data-refresh-form]');
+            if (refresh) {
+                event.preventDefault();
+                refresh.requestSubmit();
+            }
+        }
+    });
+})();
+
+// --- Row lists: ArrowUp/Down roving focus -------------------------------------
+(function () {
+    'use strict';
+    var ROW = '.row-button, .work-item, .scope-button, tr[data-action], tr[data-select-href]';
+    document.querySelectorAll('[data-row-list]').forEach(function (list) {
+        list.addEventListener('keydown', function (event) {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+                return;
+            }
+            var rows = Array.prototype.filter.call(
+                list.querySelectorAll(ROW),
+                function (row) { return !row.hidden; });
+            if (rows.length === 0) {
+                return;
+            }
+            var at = rows.indexOf(document.activeElement.closest(ROW));
+            event.preventDefault();
+            var next = event.key === 'ArrowDown' ? Math.min(at + 1, rows.length - 1) : Math.max(at - 1, 0);
+            var row = rows[next];
+            if (row.tagName === 'TR' && !row.hasAttribute('tabindex')) {
+                row.setAttribute('tabindex', '-1');
+            }
+            row.focus();
+        });
+    });
+})();
+
+// --- Sort toggles ------------------------------------------------------------
+// The server sorts; the toggle is a link or a form button whose arrow glyph
+// swaps on activation so the direction reads before the page returns.
+(function () {
+    'use strict';
+    document.querySelectorAll('[data-sort-toggle]').forEach(function (toggle) {
+        toggle.addEventListener('click', function () {
+            var label = toggle.querySelector('[data-sort-arrow]') || toggle;
+            label.textContent = label.textContent.indexOf('↓') >= 0
+                ? label.textContent.replace('↓', '↑')
+                : label.textContent.replace('↑', '↓');
+        });
+    });
+})();
+
+// --- Row-selection preview -----------------------------------------------------
+// A row carrying [data-select-href] is a link to its full record; with script
+// a click, Enter or focus swaps the sibling <template> content into the
+// page's [data-preview-target] and rewrites the address, so the operator
+// reads the record beside the list. Without script the link navigates.
+(function () {
+    'use strict';
+    var target = document.querySelector('[data-preview-target]');
+    if (!target) {
+        return;
+    }
+    var rows = Array.prototype.slice.call(document.querySelectorAll('[data-select-href]'));
+    if (rows.length === 0) {
+        return;
+    }
+
+    function select(row, moveFocus) {
+        var template = row.querySelector('template')
+            || document.getElementById(row.getAttribute('data-preview-template') || '');
+        if (!template || !('content' in template)) {
+            return;
+        }
+        rows.forEach(function (candidate) {
+            candidate.setAttribute('aria-selected', candidate === row ? 'true' : 'false');
+        });
+        target.replaceChildren(template.content.cloneNode(true));
+        var url = new URL(window.location.href);
+        url.searchParams.set('selected', row.getAttribute('data-select-id') || row.getAttribute('data-select-href'));
+        window.history.replaceState(null, '', url.toString());
+        if (moveFocus) {
+            row.focus();
+        }
+    }
+
+    rows.forEach(function (row) {
+        if (!row.hasAttribute('tabindex')) {
+            row.setAttribute('tabindex', '0');
+        }
+        row.addEventListener('click', function (event) {
+            if (event.target.closest('a, button')) {
+                return;
+            }
+            event.preventDefault();
+            select(row, false);
+        });
+        row.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.target.closest('a, button')) {
+                event.preventDefault();
+                select(row, true);
+            }
+        });
+        row.addEventListener('focus', function () { select(row, false); });
+    });
+
+    var initial = rows.find(function (row) { return row.getAttribute('aria-selected') === 'true'; });
+    if (initial) {
+        select(initial, false);
+    }
+})();
+
+// --- Estimate tabs: roving tabindex ---------------------------------------------
+(function () {
+    'use strict';
+    document.querySelectorAll('[role="tablist"]').forEach(function (list) {
+        var tabs = Array.prototype.slice.call(list.querySelectorAll('[role="tab"]'));
+        if (tabs.length === 0) {
+            return;
+        }
+        function sync(active) {
+            tabs.forEach(function (tab) {
+                tab.setAttribute('tabindex', tab === active ? '0' : '-1');
+            });
+        }
+        sync(tabs.find(function (tab) { return tab.getAttribute('aria-selected') === 'true'; }) || tabs[0]);
+        list.addEventListener('keydown', function (event) {
+            var at = tabs.indexOf(document.activeElement);
+            if (at < 0) {
+                return;
+            }
+            var next = null;
+            if (event.key === 'ArrowRight') { next = tabs[(at + 1) % tabs.length]; }
+            else if (event.key === 'ArrowLeft') { next = tabs[(at - 1 + tabs.length) % tabs.length]; }
+            else if (event.key === 'Home') { next = tabs[0]; }
+            else if (event.key === 'End') { next = tabs[tabs.length - 1]; }
+            if (next) {
+                event.preventDefault();
+                sync(next);
+                next.focus();
+            }
+        });
+    });
+})();
+
+// --- Range output ----------------------------------------------------------------
+// input[type=range][data-range-output="<output id>"] writes its percentage
+// and, when [data-range-base] carries an amount and
+// [data-range-amount-output] names a second output, that amount x percentage.
+(function () {
+    'use strict';
+    document.querySelectorAll('input[type="range"][data-range-output]').forEach(function (range) {
+        var output = document.getElementById(range.getAttribute('data-range-output'));
+        if (!output) {
+            return;
+        }
+        var amountOutput = range.hasAttribute('data-range-amount-output')
+            ? document.getElementById(range.getAttribute('data-range-amount-output'))
+            : null;
+        function render() {
+            var percent = Number(range.value);
+            output.textContent = percent + '%';
+            var base = Number(range.getAttribute('data-range-base'));
+            if (amountOutput && Number.isFinite(base)) {
+                amountOutput.textContent = (base * percent / 100).toLocaleString('en-GB', {
+                    style: 'currency', currency: 'GBP', maximumFractionDigits: 0
+                });
+            }
+        }
+        range.addEventListener('input', render);
+        render();
+    });
+})();
+
+// --- Assessment evidence rail collapse ----------------------------------------------
+(function () {
+    'use strict';
+    document.querySelectorAll('[data-rail-toggle]').forEach(function (toggle) {
+        var layout = toggle.closest('.assessment-v3');
+        if (!layout) {
+            return;
+        }
+        toggle.addEventListener('click', function () {
+            var collapsed = layout.classList.toggle('assessment-v3-evidence-collapsed');
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        });
+    });
+})();
+
+// --- Image rotate ----------------------------------------------------------------
+// [data-rotate] cycles the .rot-* classes on the nearest [data-rotate-target]
+// (the viewer stage, a gallery item), a pure view transform the CSP-safe
+// classes carry.
+(function () {
+    'use strict';
+    var steps = ['', 'rot-90', 'rot-180', 'rot-270'];
+    document.querySelectorAll('[data-rotate]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var scope = button.closest('.dialog, .panel, .gallery-item') || document;
+            var target = scope.querySelector('[data-rotate-target]');
+            if (!target) {
+                return;
+            }
+            var current = steps.findIndex(function (step) { return step && target.classList.contains(step); });
+            steps.forEach(function (step) { if (step) { target.classList.remove(step); } });
+            var next = steps[(current + 1) % steps.length];
+            if (next) {
+                target.classList.add(next);
+            }
+        });
     });
 })();

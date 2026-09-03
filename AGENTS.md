@@ -80,6 +80,69 @@ local removal must confirm the alias is stopped before deleting its metadata.
 24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
 <!-- kanmer:instructions:end -->
 
+## Kanmer conventions for this repository
+
+The board branch convention is the repository variable `KANMER_BOARD_BRANCH`,
+falling back to `kanmer-board` when it is unset. A branch rename is an
+administrator handoff: retarget branch protection and required checks, update
+the repository variable, and only then reconcile the board worktree and remove
+old refs. Agents must not mutate protected refs, branch protection, or repository
+variables; stop and report when the observed branch and configured convention
+disagree.
+
+A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
+
+The local MCP convention is `KANMER_BOARD_BRANCH` in each project-scoped
+provider registration or exported local runtime, falling back to the default
+board branch when unset. GUI Connect writes the saved board-branch setting into local
+registrations. Hosted Actions should mirror the same value in the repository
+variable, but Actions variables are not inherited by local processes.
+When a native runtime supervisor launches Kanmer through an operator-private
+wrapper, that wrapper must export both `KANMER_PROVIDER_CWD` and
+`KANMER_BOARD_BRANCH` before invoking the stable launcher. Native
+The GUI's OpenAI tunnel controls manage the same long-lived native runtime
+alias through `tunnel-client runtimes connect/status/stop/rm`. Application quit
+does not stop that runtime; readiness requires structured non-stale status, and
+local removal must confirm the alias is stopped before deleting its metadata.
+
+## Agent conduct
+
+**Scope**
+
+1. **Scope is the brief.** “While I’m here” changes are follow-up tickets, not commits.
+2. **Never absorb another ticket’s scope.** Link it and let it be worked on its own record.
+3. **Release and remediation work ships no new features.**
+4. **The ticket precedes the branch.** No board record, no PR.
+5. **Stop at the stop condition.** Never merge your own PR or start the next ticket; report deviations instead of redesigning.
+
+**Build**
+
+6. **Greenfield has no legacy.** Unless the brief names users or data, add no fallback, compatibility, or deprecation path; delete what you replace.
+7. **Reuse before build.** Name the helper, port, or route you extend; report a genuinely unfit one instead of silently building a parallel copy.
+8. **One list per concept.** A second copy in another layer is duplication, even when it is “just strings”.
+9. **Paths are relative.** Use repo-root-relative or injected configuration, never machine-specific paths.
+10. **Dependencies are approvals.** Add no package unless the brief lists it.
+11. **Concurrency results are never discarded.** Retry, defer, or surface them; a swallowed conflict is data loss.
+12. **Errors surface.** No catch-all suppression or empty catch.
+13. **No fabricated domain data.** Fixtures use the documented estate.
+
+**Prove**
+
+14. **Done means wired.** New code needs a named production caller; registered-but-unreachable or test-only code is not done.
+15. **Runtime dependencies ship in the artifact.** Prove the deployed image carries every required browser, font, or package.
+16. **A schema change and its permissions ride the same diff.** Include migration, grants, and bootstrap census together.
+17. **Recorded commits must be reachable.** Ticket SHAs must exist on the merge target.
+18. **Stubs are not done.** Do not present TODOs, placeholders, or mocks as implementation.
+19. **Tests prove the claim.** Never weaken or delete an assertion to pass; a failing test stops and is reported.
+20. **Verify with exit codes.** Run stated commands and record outputs; INCONCLUSIVE is not PASS, and a later pass does not erase a failure. Done requires PASS; an explicitly disposed terminal non-PASS stays Verifying, is archived, and is released.
+21. **No speculative CI or tests.** Delete a gate that gates nothing.
+
+**Conduct**
+
+22. **Review findings get dispositions.** Fix, reject with reason, accept risk, or defer to a ticket; never silence them.
+23. **Secrets never appear in code, tickets, or proofs.**
+24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
+
 # Pegasus repository instructions
 
 Pegasus is Collision Engineers' clean-room case-management and reporting
@@ -101,6 +164,13 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 Identical on Windows and Linux (`pwsh` either way). Focused per-project forms
 and the two complementary integration-test filters are in
 [the runbook](docs/runbook.md#locked-restore-build-and-test).
+
+After changing a routed Razor page, regenerate the Test UI snapshots with
+`./scripts/Update-TestUiSnapshots.ps1`, then prove them with
+`./scripts/Update-TestUiSnapshots.ps1 -Verify` (a fresh capture; add
+`-SkipCapture` to reuse the last one) and `./scripts/Test-UiCatalogue.ps1`.
+Commit `docs/design/test-ui/` with the page change: CI runs the same verify
+in the build lane and the catalogue check on every change set.
 
 ## Architecture map
 
@@ -150,6 +220,9 @@ and the two complementary integration-test filters are in
 - A closed composition or feature gate is a disabled flag, not a partially
   shipped feature — never claim or document it as delivered before it has a
   real caller and activation evidence.
+- That rule applies to implemented backend behaviour shipped dark. A named,
+  ticketed frontend preview may appear disabled and inert before its backend
+  exists; it has no production handler and makes no delivery claim.
 - Never delete a case; wrong-principal work closes as `Created in error` with
   a linked replacement instead, and neither reference is reused.
 - `docs/operator-notes.md` is protected — stop for user resolution before

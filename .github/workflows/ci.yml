@@ -85,6 +85,9 @@ jobs:
       - name: Documentation links
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
+      - name: Test UI catalogue
+        shell: pwsh
+        run: ./scripts/Test-UiCatalogue.ps1
 
   local-development-scripts:
     # This parser contract is Windows-specific and must be called independently
@@ -232,3 +235,40 @@ jobs:
           dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
           --configuration Release --no-build --filter "Category=Browser&Category!=Corpus"
           -- xUnit.MaxParallelThreads=2
+
+  test-ui:
+    # The committed Test UI snapshots are regenerated from the Razor pages, so
+    # a page change without a regenerated snapshot, or a hand-edited snapshot,
+    # is a stale catalogue. One capture run (the same suite
+    # Update-TestUiSnapshots.ps1 captures locally), then a verify against the
+    # committed files and an offline Chromium render of every page.
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-latest
+    # The historical 40m23s capture (run 33310451221) and recent 24-27 minute
+    # snapshot steps both ran the whole selection at two threads. UIIMP-013
+    # keeps that cap for browser tests and lets non-browser tests inherit the
+    # project's four-thread cap. Verify is one fact over the retained capture,
+    # not a second pass through the capture suite.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Cache the pinned Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('tests/Pegasus.IntegrationTests/packages.lock.json') }}
+      - name: Install pinned Playwright Chromium
+        shell: pwsh
+        run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
+      - name: Capture and verify the Test UI snapshots
+        timeout-minutes: 35
+        shell: pwsh
+        run: ./scripts/Update-TestUiSnapshots.ps1 -Verify
+      - name: Explain an incomplete Test UI result
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "The Test UI gate failed or exceeded its 35-minute step budget."
+          Write-Host "This is not itself a stale-catalogue verdict. Snapshot drift is reported explicitly by TestUiSnapshotTests with the stale or ungenerated file."

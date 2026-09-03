@@ -1,0 +1,40 @@
+@page "{operation}/{staffId:guid}"
+@model Pegasus.Web.Pages.Administration.Accounts.ConfirmModel
+@using Pegasus.Core.Identity
+@{
+    ViewData["Title"] = Model.Heading;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+}
+
+<partial name="Shared/_PageHeader" />
+
+<section class="panel" aria-labelledby="account-action-title">
+    <div class="panel-head">
+        <h2 id="account-action-title">@Model.Heading</h2>
+    </div>
+    <div class="panel-body">
+        @if (Model.IsDisable)
+        {
+            <div class="notice notice--warning">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>@OperatorLabels.StaffAccounts.DisableConsequence</span>
+            </div>
+        }
+        <form method="post" asp-page="/Administration/Accounts/Index"
+              asp-page-handler="@Model.HandlerName" class="stack">
+            <input type="hidden" name="staffId" value="@Model.StaffId" />
+            <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+            <div class="field field--narrow">
+                <label class="req" for="confirm-reason">@OperatorLabels.StaffAccounts.Reason</label>
+                <textarea id="confirm-reason" name="reason" rows="3" required
+                          maxlength="@StaffAccountAdministrationPolicy.MaximumReasonLength"></textarea>
+            </div>
+            <div>
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>@OperatorLabels.StaffAccounts.Confirm</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</section>

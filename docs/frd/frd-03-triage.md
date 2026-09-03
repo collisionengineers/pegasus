@@ -17,7 +17,7 @@ Unidentified with its canonical reason.
 
 ### Normal workflow and completion evidence
 
-Triage begins when the exact accepted route policy classifies a provider request as an assessment request or an authorised staff member manually classifies safely retained, attributable material as Triage. Manual classification records the source, available route evidence, actor, time, reason, and policy version; it neither invents Principal identity nor creates a Case. Material whose route or category remains unaccepted stays `Needs sorting` and never becomes Triage or a Case by fallback. A Triage request stays separate pre-Case work: without a VRM it remains `Needs sorting`; with a VRM it opens as `Open`, may move to `Awaiting information`, records an accepted finding as `Finding recorded`, and reaches `Completed` only after the required response evidence is confirmed. An acknowledgement, request for information, Draft, queue action, or other correspondence may be retained but is not itself a finding or completion evidence.
+Triage begins when the exact accepted route policy classifies a provider request as an assessment request, when an authenticated Principal declares one over the Provider API, or when an authorised staff member manually classifies safely retained, attributable material as Triage. Classification is how a Triage usually arrives, not the only way it may: a declared Triage carries the Principal's own declaration as its accepted match evidence, stamped with that policy's key and version, and opens exactly as a classified one does (operator decision, 2026-08-28). It allocates no Case/PO. Manual classification records the source, available route evidence, actor, time, reason, and policy version; it neither invents Principal identity nor creates a Case. Material whose route or category remains unaccepted stays `Needs sorting` and never becomes Triage or a Case by fallback. A Triage request stays separate pre-Case work: without a VRM it remains `Needs sorting`; with a VRM it opens as `Open`, may move to `Awaiting information`, records an accepted finding as `Finding recorded`, and reaches `Completed` only after the required response evidence is confirmed. An acknowledgement, request for information, Draft, queue action, or other correspondence may be retained but is not itself a finding or completion evidence.
 
 Automatic creation from intake follows exactly that rule and adds nothing to it.
 When the accepted route classification records a received message as a Triage request,
@@ -28,6 +28,16 @@ key and version stamped on the record. A known vehicle registration opens the Tr
 `Open`; no known registration registers the material as Unidentified with its canonical
 reason and opens no Triage, until a registration is known. A message whose classification
 is the recorded Ambiguous outcome is neither: it opens no Triage and reaches staff.
+
+`History` merges the record's durable events and its staff notes in one
+chronological order (D25, 2026-09-01). Notes are append-only and attributable:
+each carries its author, time and text. A correction is a new note; note
+editing and note deletion do not exist, on any surface or through any caller.
+
+`Files` lists the retained request sources and their attachments together with
+the vehicle images linked to the record, each with view and download. Triage
+adds no arbitrary file store and no upload action: material reaches a Triage
+record through the accepted intake routes only.
 
 Triage records have the states `Open`, `Awaiting information`, `Finding recorded`, `Completed`, and `Cancelled`.
 

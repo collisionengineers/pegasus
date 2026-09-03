@@ -1,6 +1,7 @@
-# Genuine local evaluation corpus. Never commit operational emails or case files.
+# Genuine local evaluation corpus. Kept out of Git to avoid large files slowing Git operations.
 /corpus/
 **/emailevallocal/
+/tests/Pegasus-Test-Logs/
 # Local secrets and environment state
 .env
 .env.*
@@ -22,6 +23,7 @@ appsettings.*.local.json
 # Tool and editor working state
 /.codex/config.toml
 /.mcp.json
+/opencode.json
 /.claude/
 /.vs/
 /.obsidian/workspace.json

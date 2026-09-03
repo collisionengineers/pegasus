@@ -1269,7 +1269,7 @@ public sealed class IntakeAllocationConsumerTests
                 DateTimeOffset.MinValue,
                 DateTimeOffset.MinValue,
                 CancellationToken.None);
-            Assert.Equal(new(0, 0, 0), stages);
+            Assert.Equal(new(0, 0, 0, 0), stages);
             Assert.Equal(0, activity.NewCasesToday);
         }
 

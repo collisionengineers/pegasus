@@ -1,17 +1,21 @@
 # Principal rules and mappings
 
-One document per work provider (principal), explaining in one place how that
-provider's inbound email is identified, classified, typed, associated, and
-mapped into Pegasus: the exact criteria in force, the policy versions that
-implement them, and pointers to the exact files that own each rule.
+The reviewed cross-provider evidence and criteria are held in the versioned
+[principal-identification corpus](../../reference/workproviders-and-repairers/principal-identification-corpus.v1.json).
+It contains one structured Received-and-Sent dossier for every operational
+principal, historical-row dispositions, typed supporting identities, source
+hashes, evidence groups, review states, and explicit gaps. It is review data,
+not a runtime rule engine.
 
 These documents are **descriptive companions**, not behaviour owners. The
 binding behaviour stays with the owning FRDs, ADRs, and Core policy code they
 cite; if a document here disagrees with the cited owner, the owner wins and
-the document is corrected. Update the provider's document in the same task
-whenever a cited policy version or criterion changes.
+the document is corrected. A companion document is added only when a
+principal has an operator-accepted runtime policy; the structured corpus avoids
+48 speculative Markdown dossiers. Update an existing companion in the same
+task whenever a cited policy version or accepted criterion changes.
 
-Each document covers, for its provider:
+Each runtime-policy companion covers, for its provider:
 
 - **Route identification** — how an email is proved to belong to the provider
   (accepted domains, staff-forward unwrapping, effective sender).
@@ -32,3 +36,7 @@ Each document covers, for its provider:
 | Provider | Document |
 | --- | --- |
 | QDOS (Qdos Assist / Qdos Law) | [qdos.md](qdos.md) |
+
+All other principals remain review-only in corpus version 1. Their absent or
+unproved Received, Sent, route, classification, association, and extraction
+criteria are recorded as gaps rather than inferred rules.

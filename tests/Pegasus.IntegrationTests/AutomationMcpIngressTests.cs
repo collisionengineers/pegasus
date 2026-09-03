@@ -28,6 +28,8 @@ public sealed class AutomationMcpIngressTests
         "pegasus_document_add",
         "pegasus_document_download",
         "pegasus_document_export",
+        "pegasus_estimate_list",
+        "pegasus_estimate_save",
         "pegasus_assessment_get",
         "pegasus_assessment_update",
         "pegasus_mail_list",
@@ -49,7 +51,14 @@ public sealed class AutomationMcpIngressTests
         "pegasus_triage_cancel",
         "pegasus_triage_reopen",
         "pegasus_triage_case_link",
-        "pegasus_triage_case_unlink"
+        "pegasus_triage_case_unlink",
+        "pegasus_ai_job_list",
+        "pegasus_ai_job_create",
+        "pegasus_ai_job_take",
+        "pegasus_ai_job_progress",
+        "pegasus_ai_job_complete",
+        "pegasus_ai_job_fail",
+        "pegasus_ai_job_release"
     ];
 
     [Fact]

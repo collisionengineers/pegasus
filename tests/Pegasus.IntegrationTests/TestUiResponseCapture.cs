@@ -66,20 +66,46 @@ internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
         byte[] content,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(captureDirectory);
         var request = $"{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request))).ToLowerInvariant();
-        var itemDirectory = Path.Combine(captureDirectory, "assets", hash);
-        Directory.CreateDirectory(itemDirectory);
         var metadata = new CapturedAsset(
             context.Request.PathBase + context.Request.Path,
             context.Request.QueryString.Value ?? string.Empty,
             context.Response.ContentType!);
-        await File.WriteAllTextAsync(
-            Path.Combine(itemDirectory, "asset.json"),
-            JsonSerializer.Serialize(metadata, JsonOptions),
-            cancellationToken);
-        await File.WriteAllBytesAsync(Path.Combine(itemDirectory, "response.bin"), content, cancellationToken);
+        await WriteOnceAsync(Path.Combine(captureDirectory, "assets", hash), async itemDirectory =>
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(itemDirectory, "asset.json"),
+                JsonSerializer.Serialize(metadata, JsonOptions),
+                cancellationToken);
+            await File.WriteAllBytesAsync(Path.Combine(itemDirectory, "response.bin"), content, cancellationToken);
+        });
+    }
+
+    /// <summary>
+    /// Writes one capture into a private staging directory and moves it into
+    /// place. Two test classes rendering an identical response hash to the
+    /// same directory; the second arrival is the same bytes, so it is dropped
+    /// instead of racing the first on the same file names.
+    /// </summary>
+    private static async Task WriteOnceAsync(string itemDirectory, Func<string, Task> write)
+    {
+        if (Directory.Exists(itemDirectory))
+        {
+            return;
+        }
+
+        var staging = $"{itemDirectory}.{Guid.NewGuid():N}";
+        Directory.CreateDirectory(staging);
+        await write(staging);
+        try
+        {
+            Directory.Move(staging, itemDirectory);
+        }
+        catch (IOException) when (Directory.Exists(itemDirectory))
+        {
+            Directory.Delete(staging, recursive: true);
+        }
     }
 
     private static async Task CaptureAsync(
@@ -88,24 +114,24 @@ internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
         string html,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(captureDirectory);
         var request = $"{context.Request.Method} {context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request + "\n" + html))).ToLowerInvariant();
-        var itemDirectory = Path.Combine(captureDirectory, hash);
-        Directory.CreateDirectory(itemDirectory);
         var metadata = new CapturedResponse(
             context.Request.Method,
             context.Request.PathBase + context.Request.Path,
             context.Request.QueryString.Value ?? string.Empty);
-        await File.WriteAllTextAsync(
-            Path.Combine(itemDirectory, "response.json"),
-            JsonSerializer.Serialize(metadata, JsonOptions),
-            cancellationToken);
-        await File.WriteAllTextAsync(
-            Path.Combine(itemDirectory, "response.html"),
-            html,
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            cancellationToken);
+        await WriteOnceAsync(Path.Combine(captureDirectory, hash), async itemDirectory =>
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(itemDirectory, "response.json"),
+                JsonSerializer.Serialize(metadata, JsonOptions),
+                cancellationToken);
+            await File.WriteAllTextAsync(
+                Path.Combine(itemDirectory, "response.html"),
+                html,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                cancellationToken);
+        });
     }
 
     private sealed record CapturedResponse(string Method, string Path, string Query);

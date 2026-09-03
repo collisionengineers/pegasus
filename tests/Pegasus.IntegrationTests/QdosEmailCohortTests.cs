@@ -108,6 +108,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
         var matchPolicy = new QdosCaseMatchPolicy();
         var routeCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var familyCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var matchedPredicateCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var claimTokens = 0;
         var acceptedRoute = 0;
         var unreadable = 0;
@@ -138,6 +139,10 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
 
             acceptedRoute++;
             var classification = classificationPolicy.Classify(readResult);
+            foreach (var predicate in classification.Predicates.Where(item => item.Matched))
+            {
+                Count(matchedPredicateCounts, predicate.Key);
+            }
             Count(
                 familyCounts,
                 classification.Outcome == MailClassificationOutcome.Classified
@@ -163,6 +168,8 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
             $"routes: {string.Join("; ", routeCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
         output.WriteLine(
             $"accepted-route families: {string.Join("; ", familyCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
+        output.WriteLine(
+            $"matched classification predicates: {string.Join("; ", matchedPredicateCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
         output.WriteLine($"claim-token coverage: {claimTokens}/{acceptedRoute} accepted-route emails");
         Assert.True(processed > 0, "The volume corpus yielded no emails.");
     }

@@ -43,6 +43,14 @@ history; the always-image-based autofill records its provider-setting
 provenance and a permanent Case-history event. Neither the mode default nor
 any address is inferred from a corpus row or domain match.
 
+Inspect at is a fast-update choice on the Case record's Inspection section
+(D33, 2026-09-02): `Image Based Assessment`, Claimant address, Repairer
+location, Storage location, the previous addresses used for this Principal,
+and Manual entry. An option whose value is not recorded on the Case is
+disabled, never offered empty. A Case records a storage location as its own
+field. Choosing an option records the chosen value with the provenance and
+reason rules above; the choice never invents an address.
+
 When `DATA-02` activates, its separately approved reference-data pipeline
 accepts only reviewed full addresses, retaining each complete display address
 with a normalized postcode. It preserves operator-maintained confirmed rows
@@ -122,6 +130,8 @@ The assessment may run before market valuation and neither creates nor returns a
 
 Image-readiness advice never selects, excludes, orders, or otherwise decides report images. Report-image selection is a human Engineering decision in the report-generation section, not an opposing-toggle control on the Case evidence surface.
 
+Report-image preparation is non-destructive (D19, 2026-09-01): the retained source bytes and their hashes never change, and every crop or ordering act produces normalized output beside the source rather than replacing it. A report requires two distinct images, one designated `Close-up` first and one `Overview` second; optional supporting images follow in the explicit order the operator set. The crop and ordering data are a normalized, versioned, attributable record protected by the same expected-version and edit-lease rules as other Case mutations. An issued report retains the exact curation snapshot and the source hashes it used, so a later Case-image or curation change never alters an issued report.
+
 This allocation creates no AI caller. Its activation still requires accepted model/transport, data, cost, evaluation, failure/recovery, real-caller, and approval evidence. Broader image or damage analysis and AI-generated repair specifications remain separate capabilities.
 
 ### Vehicle data and MOT enrichment
@@ -143,6 +153,12 @@ value, or higher-tier mileage. Acceptance, rejection, or linking of an
 external fact enters permanent business history. Routine calls, retries, and
 polling remain content-safe telemetry.
 
+The Case record offers one **Look up DVLA & MOT** action (D34, 2026-09-02).
+Looked-up values are suggestions: each appears as a chip beside its field and
+fills the field only when chosen, with the accepted value recorded as above.
+There is no checks panel and no suggestion table. Experian stays a disabled
+seam (D7, `ENG-001`).
+
 **Source limitation:** no allowed source selects the live DVLA/DVSA provider,
 API, licence, exact response fields, credentials, rate/limit behavior, error
 contract, target, or caller proof. Those items remain activation gates.
@@ -163,6 +179,11 @@ destination gates must occur before the correction; `Created in error` remains
 non-reopenable. Current views may recompute from the superseding version, but
 historical reports, events, and counts keep their original provenance.
 
+Betterment figures and estimate `guide` codes recorded on a source or an
+estimate version are retained evidence only (D17, 2026-09-01). No finding,
+figure, outcome, deduction, or settlement semantics are derived from either;
+they are shown and retained as they were recorded.
+
 Triage findings and their corrections have no case, report, Audit-reference,
 fee, or invoice effect. Invoicing is separately deferred: a professional
 finding correction must not silently create, alter, credit, or void an invoice.
@@ -179,6 +200,45 @@ A skill, prompt, model, workspace, external schema, or imported reference never
 becomes current OEM instruction, repair policy, valuation authority, legal
 advice, Engineer approval, or product policy merely by existing.
 
+### Damage record
+
+Damage is a list of zones (D39, 2026-09-02): front, left front, right front,
+left side, right side, left rear, right rear, rear, roof, the four wheels,
+underside, interior and mechanical. Each zone carries a severity, a type and
+a note. The record also carries tyres and seat belts per corner, the spare
+tyre, the centre belt, unrelated damage with its deduction, and paint or
+material transfer. `impact_location` and `impact_severity` are derived from
+the zone list by `Pegasus.Core`, never entered. The report prints the marked
+diagram
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+
+### Valuation sources
+
+The valuation sources in this programme are Glass's (valuation), Cazana (a
+disabled seam under D7), Engineer's Value and AI market research (D40,
+2026-09-02). Every entry keeps its date, time, mileage, retail and trade
+values; guide month is an additional per-entry field owned by `CASE-029`
+(EPIC-012 context). Glass's
+valuation and Glass's repair estimating are two systems and both are used:
+the valuation source and the estimate import source keep separate label
+entries and are never merged. An AI market research entry is the proposal
+recorded by the `MarketResearch` job
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list));
+it never becomes the Engineer's Value by itself. Valuation adjustments,
+rationale and revaluation history stay with `EXT-10` (later).
+
+### Settlement
+
+The settlement fields are outcome, category, salvage value, excess,
+betterment, claimant VAT registered, reserve, equity (derived), repair
+duration and delays, report delay, storage per day, recovery, hire start and
+daily cost, diminution, and salvage logistics (D41, 2026-09-02). Equity is
+derived, never entered. Financial ratio lines are permitted, not required;
+the "no percentage" rule
+([FRD-01](frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence))
+applies only to completeness. Outcome semantics are owned by
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
+
 ### Canonical repair specifications
 
 Every accepted repair specification is an immutable, versioned Core aggregate.
@@ -187,13 +247,21 @@ Case's report projections.
 
 Each version retains its stable identity, ordered technical
 lines, source route, source artifact identity/version/hash, mapping evidence,
-raw calculation basis and totals, creating actor/time, and—when accepted—the
+raw calculation basis and totals, the selected labour-rate card version where
+one was selected, creating actor/time, and—when accepted—the
 named Engineer and acceptance time. Glass's, Audatex PDF, an approved AI
 proposal, and manual entry are provenance routes, never authorities: imported
 or automated material remains a draft until an authorised Engineer accepts the
 exact source, mapping, ordered lines, and calculation basis. Legacy lines with
 no such evidence remain explicit `LegacyUnresolved` drafts and cannot satisfy
 report readiness.
+
+A raw artifact imported through either caller of the shared import command is
+keyed by Case plus source hash (D16, 2026-09-01): the same Case with the same
+hash is an idempotent replay that returns the existing Draft, while a different
+artifact creates the next immutable Draft. The provider and parser are
+auto-detected from the registered types and an ambiguous artifact is refused,
+never guessed.
 
 Corrections create a new reasoned version which retains and supersedes the
 earlier accepted version; accepted rows and their evidence are never edited in

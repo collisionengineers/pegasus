@@ -1,0 +1,52 @@
+@model Pegasus.Web.Pages.Search.IndexModel.ResultRow
+@using Pegasus.Web.Presentation
+@{
+    var circumstances = string.IsNullOrWhiteSpace(Model.Item.AccidentCircumstances)
+        ? "Not recorded"
+        : Model.Item.AccidentCircumstances!;
+}
+
+@* The Selected Case preview, drawn once for the server-selected row and
+   once per results row as that row's swap-in template. Open Case travels
+   with the preview — an anchor stays live after the script swaps it in;
+   Copy Case/PO is rendered by the page outside the swapped region, where
+   the shell's load-time copy binding can reach it. *@
+<div class="detail-canvas">
+    <p class="eyebrow">@OperatorLabels.CaseTypeName(Model.Item.CaseType)</p>
+    <h2>@Model.Heading</h2>
+    <p class="muted">@Model.Muted</p>
+    <partial name="Shared/_StatusChip" model="@Model.Chip" />
+    <section class="section-gap">
+        <h3 class="section-label">Accident circumstances</h3>
+        <p>@circumstances</p>
+    </section>
+    <div class="fact-grid">
+        <dl class="fact"><dt>Provider reference</dt><dd>@Model.ProviderReference</dd></dl>
+        <dl class="fact"><dt>Engineer</dt><dd>@Model.Engineer</dd></dl>
+        <dl class="fact"><dt>Due</dt><dd>@Model.Due</dd></dl>
+        <dl class="fact"><dt>Next action</dt><dd>@Model.NextAction</dd></dl>
+    </div>
+    @* Outstanding requirements are the case's recorded completeness facts:
+       the requirement and the action that resolves it, nothing else. *@
+    @if (Model.Outstanding.Count > 0)
+    {
+        <section class="section-gap">
+            <h3 class="section-label">Outstanding (@Model.Outstanding.Count)</h3>
+            <ul class="blocker-list">
+                @foreach (var requirement in Model.Outstanding)
+                {
+                    <li class="blocker">
+                        <strong>@requirement.Requirement</strong>
+                        <small>@requirement.Resolve</small>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+    <div class="button-row section-gap">
+        <a class="btn btn--dark" href="@Model.DetailHref">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Open Case</span>
+        </a>
+    </div>
+</div>

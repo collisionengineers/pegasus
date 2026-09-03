@@ -11,19 +11,20 @@ public sealed class AccessibilityTests
     // authenticates automatically and redirects it, so it cannot return 200
     // through this harness. It shares the auth-card markup with
     // /Account/PasswordChange, which is covered here.
-    public static TheoryData<string> AuthenticatedRoutes => new()
-    {
+    public static readonly string[] AuthenticatedRouteList =
+    [
         "/",
         "/Inbox",
         "/Operations",
-        "/VehicleImages",
-        "/Triage",
+        // The Cases workflow tabs (EPIC-011 §1.4; the old /Triage queues).
+        "/Cases",
+        "/Cases?tab=triage",
         // The Unidentified tab is a distinct rendered shape from the default
         // Not-ready view (INTK-009 folded the standalone /Unidentified page
         // in here as a tab, so it earns its own accessibility pass).
-        "/Triage?queue=unidentified",
-        "/Cases",
-        // "/Search" is absent: it is a redirect into Cases now, not a screen.
+        "/Cases?tab=unidentified",
+        // The case search (EPIC-011 §1.7; the old /Cases).
+        "/Search",
         "/Administration",
         "/Administration/Accounts",
         "/Administration/Roles",
@@ -42,7 +43,21 @@ public sealed class AccessibilityTests
         // record URL and a dead public upload link both rendered the browser's
         // own error page, which is on no design system at all.
         "/status/404"
-    };
+    ];
+
+    public static TheoryData<string> AuthenticatedRoutes
+    {
+        get
+        {
+            var data = new TheoryData<string>();
+            foreach (var route in AuthenticatedRouteList)
+            {
+                data.Add(route);
+            }
+
+            return data;
+        }
+    }
 
     [Theory]
     [MemberData(nameof(AuthenticatedRoutes))]
@@ -77,21 +92,18 @@ public sealed class AccessibilityTests
             "none",
             await support.Page.EvaluateAsync<string>(
                 "getComputedStyle(document.querySelector('svg.sprite-sheet')).display"));
-        // The blank-band guard. On an application screen the navigation is the
-        // first thing rendered and belongs at the very top; the auth/error
-        // family is deliberately navless and deliberately centres its card, so
-        // the same assertion there would be asserting the opposite of the
-        // design. What must hold on both is that nothing renders a tall empty
-        // band above the content, which the sprite assertion above already
-        // covers, plus: the content is inside the viewport without scrolling.
-        //
-        // Two navigations satisfy it: the authenticated shell's left rail, and
-        // the brand-only top bar the external upload screen keeps. Either must
-        // start at the top of the viewport.
+        // The blank-band guard. On an application screen the rail (a header
+        // inside .app-shell) is the first thing rendered and belongs at the
+        // very top; the external frame is deliberately navless and centres
+        // its card, so the same assertion there would be asserting the
+        // opposite of the design. What must hold on both is that nothing
+        // renders a tall empty band above the content, which the sprite
+        // assertion above already covers, plus: the content is inside the
+        // viewport without scrolling.
         Assert.True(await support.Page.EvaluateAsync<bool>(
             "(() => {"
-            + "  const nav = document.querySelector('.app-rail, .app-nav');"
-            + "  if (nav) { return nav.getBoundingClientRect().top < 10; }"
+            + "  const rail = document.querySelector('.app-shell > .app-rail');"
+            + "  if (rail) { return rail.getBoundingClientRect().top < 10; }"
             + "  const card = document.querySelector('.auth-card');"
             + "  return card !== null && card.getBoundingClientRect().top < window.innerHeight;"
             + "})()"));
@@ -110,8 +122,11 @@ public sealed class AccessibilityTests
         Assert.False(await HasHorizontalOverflowAsync(support.Page));
         Assert.True(await support.Page.GetByRole(
             AriaRole.Heading,
-            new PageGetByRoleOptions { Name = "Dashboard", Exact = true }).IsVisibleAsync());
-        Assert.True(await support.Page.Locator(".metric .metric__value").First.IsVisibleAsync());
+            new PageGetByRoleOptions { Name = "Work Centre", Exact = true }).IsVisibleAsync());
+        // The Work Centre port (wave 2) retired the legacy metric__value
+        // class from the page body, so the ported vocabulary is the only
+        // spelling this page may carry.
+        Assert.True(await support.Page.Locator(".metric .metric-value").First.IsVisibleAsync());
     }
 
     [Fact]

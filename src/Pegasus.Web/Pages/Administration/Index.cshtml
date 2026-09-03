@@ -1,78 +1,49 @@
 @page
 @model Pegasus.Web.Pages.Administration.IndexModel
 @{
-    ViewData["Title"] = "Administration";
+    ViewData["Title"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
 
-@* No lede. It listed the eight cards immediately below it, in longer words. *@
-<header class="page-heading">
-    <h1>Administration</h1>
-</header>
+<partial name="Shared/_PageHeader" />
 
-<div class="admin-workspaces">
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/accounts.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Accounts/Index">Staff accounts</a></h2>
-        </div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" /></span>
-        <div><h2><a asp-page="/Administration/MailCategories">Outlook categories</a></h2><p>Approved display names for message actions.</p></div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/roles.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Roles/Index">Staff roles</a></h2>
-            <p>The final Administrator cannot be removed.</p>
-        </div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/access.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Access/Index">Access review</a></h2>
-        </div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/organisations.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Organizations/Index">Organisations</a></h2>
-            <p>Work Provider and Instruction Intermediary roles.</p>
-        </div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/principals.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Principals/Index">Principals</a></h2>
-        </div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/configuration.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Configuration">Workflow configuration</a></h2>
-            <p>Completeness and staff-review gates before Engineer assignment.</p>
-        </div>
-    </section>
-    <section class="admin-card">
-        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" /></span>
-        <div>
-            <h2><a asp-page="/Administration/Mailboxes">Approved mailboxes</a></h2>
-            @* "Intake" is forbidden in the interface; the route the operator
-               knows is the Inbox. *@
-            <p>Addresses for the Inbox and Sent-evidence routes.</p>
-        </div>
-    </section>
-    @* A capability a deployment has not composed is absent. The Automation
-       ingress gate is set in no shipped configuration, so this card led to a
-       page that could only ever say "not composed in this deployment". *@
-    @if (Model.AutomationComposed)
-    {
-        <section class="admin-card">
-            <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/automation.png" asp-append-version="true" alt="" /></span>
-            <div>
-                <h2><a asp-page="/Administration/Automation/Index">Automation</a></h2>
-                <p>The Automation actor, its on/off switch, and its permanent activity record.</p>
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <section class="panel" aria-labelledby="admin-areas-title">
+        <div class="panel-head"><h2 id="admin-areas-title">Areas</h2></div>
+        <div class="panel-body">
+            <div class="admin-grid">
+                <a class="admin-card" asp-page="/Administration/Accounts/Index">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                    <h3>@OperatorLabels.Admin.Accounts</h3>
+                </a>
+                <a class="admin-card" asp-page="/Administration/Principals/Index">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                    <h3>@OperatorLabels.Admin.Principals</h3>
+                </a>
+                <a class="admin-card" asp-page="/Administration/Configuration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                    <h3>@OperatorLabels.Admin.Configuration</h3>
+                </a>
+                <a class="admin-card" asp-page="/Administration/Mailboxes">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                    <h3>@OperatorLabels.Admin.Mail</h3>
+                </a>
+                @* Organisations stays reachable from the landing until PLAT-028
+                   folds it into Principals (D2); it is not in the area rail. *@
+                <a class="admin-card" asp-page="/Administration/Organizations/Index">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                    <h3>Organisations</h3>
+                </a>
+                @* A capability a deployment has not composed is absent. *@
+                @if (Model.AutomationComposed)
+                {
+                    <a class="admin-card" asp-page="/Administration/Automation/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <h3>@OperatorLabels.Admin.Automation</h3>
+                    </a>
+                }
             </div>
-        </section>
-    }
+        </div>
+    </section>
 </div>

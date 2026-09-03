@@ -1,126 +1,344 @@
 @page "/Operations"
+@using Pegasus.Core.AiWork
 @using Pegasus.Core.Operations
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Operations.IndexModel
 @{
     ViewData["Title"] = "Operations";
+    var aiJobs = Model.AiJobs;
     var uploadLinks = Model.Operations.Items
         .Where(item => item.Kind == RequestOperationKind.PegasusUploadLink)
         .ToArray();
     var externalWork = Model.Operations.Items
         .Where(item => item.Kind == RequestOperationKind.ExternalWork && item.CanRetry)
         .ToArray();
+    var serviceHealth = Model.ServiceHealth;
+    var evaActivity = Model.EvaActivity;
+    var evaFailures = Model.EvaFailures;
+    var hasEvaHandoffs = evaActivity.PendingWorkCount > 0
+        || evaActivity.LatestSubmittedAtUtc is not null
+        || evaFailures.Count > 0;
 }
 
-@* The rail is the way back, so the heading's right-hand slot carries the thing
+@* The rail is the way back, so the header's action slot carries the thing
    only this screen can say: when its work list was last read. *@
-<header class="page-heading">
-    <h1>Operations</h1>
-    <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
+<header class="page-header">
+    <div class="page-title">
+        <h1>Operations</h1>
+    </div>
+    <div class="page-actions">
+        <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
+    </div>
 </header>
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
 {
-    <div class="status-card" role="status">@Model.StatusMessage</div>
+    <div class="notice mb-2" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+        <span>@Model.StatusMessage</span>
+    </div>
 }
-
-<section aria-labelledby="attention-title">
-    <h2 id="attention-title" class="section-label">Attention required</h2>
-    @if (externalWork.Length == 0)
-    {
-        <p class="empty-state">No retryable external work is waiting for attention.</p>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <caption class="sr-only">Retryable external work</caption>
-                <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
-                <tbody>
-                @foreach (var item in externalWork)
-                {
-                    <tr>
-                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
-                        <td>@OperatorLabels.Humanise(item.ExternalKind)</td>
-                        <td class="tabular">@item.AttemptCount</td>
-                        <td>@item.FailureReason</td>
-                        <td>
-                            <form method="post" asp-page-handler="RetryExternal">
-                                <input type="hidden" name="workItemId" value="@item.Id" />
-                                <input type="hidden" name="expectedAttemptCount" value="@item.AttemptCount" />
-                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                <button class="btn btn--dark" type="submit">Retry this work</button>
-                            </form>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-</section>
-
-<section class="section-gap" aria-labelledby="upload-links-title">
-    <h2 id="upload-links-title" class="section-label">Active upload links</h2>
-    @if (uploadLinks.Length == 0)
-    {
-        <p class="empty-state">No active upload links are currently available.</p>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <caption class="sr-only">Active Pegasus upload links</caption>
-                <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">Action</th></tr></thead>
-                <tbody>
-                @foreach (var item in uploadLinks)
-                {
-                    <tr>
-                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
-                        <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
-                        <td>
-                            @if (item.MaximumByteCount is { } maximumBytes)
-                            {
-                                <span>@OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
-                            }
-                            @if (item.MaximumFileCount is { } maximumFiles)
-                            {
-                                <span> · @item.AcceptedFileCount of @maximumFiles files</span>
-                            }
-                        </td>
-                        <td>@if (item.ExpiresAtUtc is { } expiry) { <time datetime="@expiry.ToString("O")">@OperatorLabels.OfficeTime(expiry)</time> }</td>
-                        <td>
-                            @if (item.CanRevoke)
-                            {
-                                <details>
-                                    <summary class="btn">Withdraw link</summary>
-                                    <form method="post" asp-page-handler="RevokeLink" class="row-confirm">
-                                        <input type="hidden" name="requestId" value="@item.Id" />
-                                        <input type="hidden" name="caseId" value="@item.CaseId" />
-                                        <input type="hidden" name="expectedVersion" value="@item.Version" />
-                                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                        <label for="withdraw-reason-@item.Id">Reason</label>
-                                        <input id="withdraw-reason-@item.Id" name="reason" maxlength="500" required value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
-                                        <button class="btn btn--dark" type="submit">Withdraw link</button>
-                                    </form>
-                                </details>
-                            }
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-</section>
-
-<section class="section-gap" aria-labelledby="ai-title">
-    <h2 id="ai-title" class="section-label">AI operations</h2>
-    <p>Requesting an AI job and viewing live AI work are planned and unavailable here.</p>
-</section>
 
 @if (Model.Operations.LimitReached)
 {
-    <p class="empty-state section-gap">Showing recent operational results; refresh for the latest activity.</p>
+    <div class="notice notice--warning" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span><strong>Partial data</strong> — Showing recent operational results; refresh for the latest activity.</span>
+    </div>
 }
+
+<div class="stack section-gap">
+    <section class="panel" aria-labelledby="ai-jobs-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="ai-jobs-title">@OperatorLabels.AiJobs.PanelTitle</h2>
+                <span class="muted">@OperatorLabels.AiJobs.Count(aiJobs.Count)</span>
+            </div>
+            <details>
+                <summary class="btn btn--dark">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <span>@OperatorLabels.AiJobs.SendUnidentified</span>
+                </summary>
+                <form method="post" asp-page-handler="SendUnidentifiedToAi" class="row-confirm">
+                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                    <label for="send-unidentified-reference">Unidentified reference</label>
+                    <input id="send-unidentified-reference"
+                           name="unidentifiedReference"
+                           maxlength="20"
+                           required />
+                    <button class="btn btn--dark" type="submit">@OperatorLabels.AiJobs.SendUnidentified</button>
+                </form>
+            </details>
+        </div>
+        @if (aiJobs.Count > 0)
+        {
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">@OperatorLabels.AiJobs.PanelTitle</caption>
+                    <thead><tr><th scope="col">Job</th><th scope="col">Record</th><th scope="col">Started by</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var job in aiJobs)
+                    {
+                        var recordPage = IndexModel.RecordPage(job);
+                        var review = IndexModel.ReviewAction(job);
+                        var canComplete = IndexModel.CanCompleteByHand(job);
+                        var canCancel = !AiJobStates.IsTerminal(job.State);
+                        <tr>
+                            <td>
+                                <strong>@OperatorLabels.AiJobs.Kind(job.Kind)</strong>
+                                <span class="muted">@job.Instruction</span>
+                            </td>
+                            <td>
+                                @if (recordPage is { } recordRoute && job.SubjectId is { } subjectId)
+                                {
+                                    <a asp-page="@recordRoute" asp-route-id="@subjectId">@job.SubjectReference</a>
+                                }
+                                else
+                                {
+                                    <span>@OperatorLabels.AiJobs.QueueRecord</span>
+                                }
+                            </td>
+                            <td>@job.CreatedBy</td>
+                            <td><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
+                            <td>
+                                <partial name="Shared/_StatusChip"
+                                         model="@OperatorLabels.AiJobs.State(job.State)"
+                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
+                            </td>
+                            <td>
+                                @if (review is { } action && job.SubjectId is { } reviewSubjectId)
+                                {
+                                    <a class="btn btn--small" asp-page="@action.Page" asp-route-id="@reviewSubjectId">@action.Label</a>
+                                }
+                                @if (canComplete)
+                                {
+                                    <form method="post" asp-page-handler="CompleteAiJob">
+                                        <input type="hidden" name="jobId" value="@job.JobId" />
+                                        <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <button class="btn btn--small btn--dark" type="submit">@OperatorLabels.AiJobs.CompleteJob</button>
+                                    </form>
+                                }
+                                @if (canCancel)
+                                {
+                                    <details>
+                                        <summary class="btn btn--small btn--danger">@OperatorLabels.AiJobs.Cancel</summary>
+                                        <form method="post" asp-page-handler="CancelAiJob" class="row-confirm">
+                                            <input type="hidden" name="jobId" value="@job.JobId" />
+                                            <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                            <label for="cancel-job-reason-@job.JobId">Reason</label>
+                                            <input id="cancel-job-reason-@job.JobId" name="reason" maxlength="500" required />
+                                            <button class="btn btn--dark" type="submit">@OperatorLabels.AiJobs.Cancel</button>
+                                        </form>
+                                    </details>
+                                }
+                                @if (review is null && !canComplete && !canCancel)
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @* The snapshot exists only where this deployment composes the query; an
+       uncomposed capability is absent, never an empty panel. *@
+    @if (serviceHealth is not null)
+    {
+        <section class="panel" aria-labelledby="service-health-title">
+            <div class="panel-head">
+                <div>
+                    <h2 id="service-health-title">Service health</h2>
+                    <span class="muted">@OperatorLabels.OfficeClock(serviceHealth.AsOfUtc)</span>
+                </div>
+            </div>
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">Service health</caption>
+                    <thead><tr><th scope="col">Area</th><th scope="col">Service</th><th scope="col">State</th><th scope="col">Latest evidence</th><th scope="col">Dependency</th></tr></thead>
+                    <tbody>
+                    @foreach (var row in serviceHealth.Rows)
+                    {
+                        <tr>
+                            <td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td>
+                            <td>@OperatorLabels.ServiceHealthServiceName(row.Service)</td>
+                            <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ServiceHealthStateName(row.State)" /></td>
+                            <td>
+                                @if (row.LatestEvidenceAtUtc is { } evidence)
+                                {
+                                    <time datetime="@evidence.ToString("O")">@OperatorLabels.OfficeTime(evidence)</time>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                            <td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+    @if (hasEvaHandoffs)
+    {
+        <section class="panel" aria-labelledby="eva-handoffs-title">
+            <div class="panel-head">
+                <h2 id="eva-handoffs-title">@OperatorLabels.EvaHandoffs.PanelTitle</h2>
+            </div>
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">@OperatorLabels.EvaHandoffs.PanelTitle</caption>
+                    <thead><tr><th scope="col">@OperatorLabels.EvaHandoffs.PendingWork</th><th scope="col">@OperatorLabels.EvaHandoffs.LatestActivity</th><th scope="col">@OperatorLabels.EvaHandoffs.Failures</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="tabular">@evaActivity.PendingWorkCount</td>
+                            <td>
+                                @if (evaActivity.LatestSubmittedAtUtc is { } activity)
+                                {
+                                    <time datetime="@activity.ToString("O")">@OperatorLabels.OfficeTime(activity)</time>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                            <td class="tabular">@evaFailures.Count</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            @if (evaFailures.Count > 0)
+            {
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">@OperatorLabels.EvaHandoffs.Failures</caption>
+                        <thead><tr><th scope="col">@OperatorLabels.EvaHandoffs.Failure</th><th scope="col">@OperatorLabels.EvaHandoffs.Submitted</th></tr></thead>
+                        <tbody>
+                        @foreach (var failure in evaFailures)
+                        {
+                            <tr>
+                                <td>@OperatorLabels.EvaHandoffs.Failed</td>
+                                <td><time datetime="@failure.SubmittedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(failure.SubmittedAtUtc)</time></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+
+    <section class="panel" aria-labelledby="attention-title">
+        <div class="panel-head">
+            <h2 id="attention-title">Attention required</h2>
+        </div>
+        @if (externalWork.Length == 0)
+        {
+            <div class="empty">
+                <h2>No retryable external work</h2>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">Retryable external work</caption>
+                    <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in externalWork)
+                    {
+                        <tr>
+                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
+                            <td>@OperatorLabels.Humanise(item.ExternalKind)</td>
+                            <td class="tabular">@item.AttemptCount</td>
+                            <td>@item.FailureReason</td>
+                            <td>
+                                <form method="post" asp-page-handler="RetryExternal">
+                                    <input type="hidden" name="workItemId" value="@item.Id" />
+                                    <input type="hidden" name="expectedAttemptCount" value="@item.AttemptCount" />
+                                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                    <button class="btn btn--dark" type="submit">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                        <span>Retry this work</span>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="panel" aria-labelledby="upload-links-title">
+        <div class="panel-head">
+            <h2 id="upload-links-title">Active upload links</h2>
+        </div>
+        @if (uploadLinks.Length == 0)
+        {
+            <div class="empty">
+                <h2>No active upload links</h2>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap no-border">
+                <table>
+                    <caption class="sr-only">Active Pegasus upload links</caption>
+                    <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in uploadLinks)
+                    {
+                        <tr>
+                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
+                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
+                            <td>
+                                @if (item.MaximumByteCount is { } maximumBytes)
+                                {
+                                    <span>@OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
+                                }
+                                @if (item.MaximumFileCount is { } maximumFiles)
+                                {
+                                    <span> · @item.AcceptedFileCount of @maximumFiles files</span>
+                                }
+                            </td>
+                            <td>@if (item.ExpiresAtUtc is { } expiry) { <time datetime="@expiry.ToString("O")">@OperatorLabels.OfficeTime(expiry)</time> }</td>
+                            <td><partial name="Shared/_StatusChip" model="@IndexModel.StateLabel(item.State)" /></td>
+                            <td>
+                                @if (item.CanRevoke)
+                                {
+                                    <details>
+                                        <summary class="btn btn--danger">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                            <span>Withdraw link</span>
+                                        </summary>
+                                        <form method="post" asp-page-handler="RevokeLink" class="row-confirm">
+                                            <input type="hidden" name="requestId" value="@item.Id" />
+                                            <input type="hidden" name="caseId" value="@item.CaseId" />
+                                            <input type="hidden" name="expectedVersion" value="@item.Version" />
+                                            <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
+                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                            <label for="withdraw-reason-@item.Id">Reason</label>
+                                            <input id="withdraw-reason-@item.Id" name="reason" maxlength="500" required value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
+                                            <button class="btn btn--dark" type="submit">Withdraw link</button>
+                                        </form>
+                                    </details>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

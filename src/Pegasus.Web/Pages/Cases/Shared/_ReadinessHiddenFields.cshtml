@@ -1,0 +1,15 @@
+@*
+    The readiness envelope every Review-gated transition posts: the case's
+    current completeness values, unchanged, plus the projection reference the
+    gates read. One spelling, because the reopen, return and assignment forms
+    must never drift apart.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var values = Model.Case?.Data?.Completeness.Values;
+}
+<input type="hidden" name="instructionsComplete" value="@(values?.InstructionComplete.ToString() ?? false.ToString())" />
+<input type="hidden" name="imagesComplete" value="@(values?.ImagesComplete.ToString() ?? false.ToString())" />
+<input type="hidden" name="instructionsReviewedByStaff" value="@(values?.InstructionConfirmedByStaff.ToString() ?? false.ToString())" />
+<input type="hidden" name="imagesReviewedByStaff" value="@(values?.ImagesConfirmedByStaff.ToString() ?? false.ToString())" />
+<input type="hidden" name="evidenceReference" value="case-completeness-projection" />

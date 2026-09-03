@@ -195,7 +195,7 @@ exact-message action. The catalogue stores no Graph identifier or colour,
 performs no Outlook master-category synchronization, and supplies no search,
 Case-linking, or generic mailbox-rule behaviour.
 
-At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and dismisses when focus moves away. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
+At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and restores the selected message when that intent moves away; the pane stays visible with its navigation links rather than dismissing to blank. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
 The workspace does not include `View in Outlook`: operator review accepted that
 the in-app full message, attachment and thread view provides the needed value.
 It therefore creates no Outlook-navigation integration, action, or external
@@ -204,7 +204,10 @@ access requirement.
 The default workspace view is the incoming Inbox across all approved mailboxes;
 folder-specific, mailbox-specific, queue and search views are explicit
 refinements. Sent mail and read-only Deleted Items search remain separate
-folder scopes. General mailbox search includes retained message bodies,
+folder scopes. There is no historical backfill (D22, 2026-09-01): the
+workspace shows retained mail from the genuine retention-start boundary of
+each approved mailbox onwards, names that boundary, and states that mail
+before it is absent. Nothing earlier is reconstructed or implied. General mailbox search includes retained message bodies,
 attachment filenames and searchable attachment content. An unsupported or
 unsearchable attachment remains visibly so; it is not silently omitted.
 Search remains within the current mailbox/folder scope unless the operator
@@ -223,7 +226,9 @@ On a fresh visit, the workspace resets to the default all-Inboxes view rather
 than retaining a cross-session user preference.
 The workspace provides an explicit manual refresh, last successful update time,
 and distinct stale and unavailable states rather than silently presenting old
-data. It does not refresh automatically while an operator is reading or acting.
+data. The stale threshold is a fixed 15 minutes since the last successful
+update (D22, 2026-09-01); it is not configurable and is not derived from load.
+It does not refresh automatically while an operator is reading or acting.
 Refresh preserves the active mailbox, folder, queue, search filters,
 page and open-message context when that message remains available.
 If it no longer remains in that scope, its detail stays visible with an
@@ -374,3 +379,61 @@ Confirmation proves only that the exact item existed in the approved Sent scope 
 Triage completion uses its separate exact reply-chain evidence contract and has no subject, VRM, manual-item-selection, or manual “sent” fallback.
 
 The local alpha must not mutate a mailbox. A Worker project, queue registration, or timer configuration is not caller proof.
+
+### Outbound correspondence
+
+Staff-initiated Reply, Forward and Compose exist on the Inbox message and the
+Case correspondence surfaces, and are the technical decision of
+[ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md). They are
+present only when the outbound capability is composed; when it is not, the
+surfaces carry no send, Flag or Delete control and no composer.
+
+- **Who may send.** A signed-in staff member with the casework right. There is
+  no autonomous, scheduled, or Automation Actor send.
+- **From which mailbox.** Reply and Forward send as the approved mailbox the
+  retained message belongs to; Compose sends as the default approved mailbox.
+  The sending identity is never a staff member's own address or any mailbox
+  outside the approved allowlist, and the composer shows it read-only.
+- **What the composer carries.** To, Subject, Message, Case, and From
+  (read-only). Reply and Forward preserve the retained message's reply-chain
+  and conversation identity; Case defaults to the message's current
+  association and may be changed before sending.
+- **What is retained.** The immutable Sent item Graph writes for the send is
+  the evidence, retained by the existing Sent-evidence poll under
+  [Outbound correspondence evidence](#outbound-correspondence-evidence) and
+  auto-linked to the Case named at send time. The draft text is not evidence
+  until that Sent item exists; a send that Graph refuses leaves no evidence
+  and is visible as a failure on the composer, not recorded as sent.
+- **Flag.** A mailbox mutation through the same seam as the confirmed folder
+  move, recorded in the message's history with actor and time; it changes no
+  classification, association, or Case state.
+- **Delete.** Requires a reason, moves the exact item to Deleted Items — never
+  a hard delete — and is recorded in the message's history. The retained
+  message, its evidence, and its associations remain; the item stays reachable
+  through the existing read-only Deleted Items search. Permanent deletion is
+  absent: no surface, action or tool removes a mailbox item irrecoverably
+  (D22, 2026-09-01).
+
+Local alpha and every test profile use the unavailable implementation of the
+seam and never mutate a mailbox. Production activation is a separately
+approved live write, and requires the Sent-evidence poll to be enabled for
+the sending mailbox so that every send has its evidence.
+
+### EVA-sent report detection
+
+A report sent through EVA rather than from Pegasus is detected, not asserted
+(EPIC-011 D10). The Sent-evidence poll recognises a report mail in the
+approved mailbox when the exact Sent item matches a Case reference and
+carries a PDF attachment classified as a report. On that match Pegasus
+attaches the PDF to the Case as the report document, links the Sent item as
+`Report sent` evidence under
+[Outbound correspondence evidence](#outbound-correspondence-evidence), and
+records the report-sent event that moves the Case into post-report work; the
+Case's own closure outcome remains a separate reasoned step.
+
+A Sent item with no Case-reference match, with several candidate Cases, with
+a Case already holding report-sent evidence, or with no attachment classified
+as a report is retained unlinked and surfaces on the Case for staff
+confirmation through the existing reasoned link; it never completes
+automatically. There is no manual "report sent" assertion without the Sent
+item.

@@ -11,14 +11,19 @@ namespace Pegasus.Web.Pages.Cases.Eva;
 /// <summary>
 /// EXT-04: the one place a case leaves for EVA.
 ///
-/// The case page used to carry an Export button that produced the archive
-/// directly. There are two routes now — the archive an operator drags into
-/// EVA, and the API submission — and putting both on the case bar would make
-/// the busiest surface in the product carry a choice most operators make once
-/// per case. So the bar carries one control and the choice lives here.
+/// There are two routes — the archive an operator drags into EVA, and the API
+/// submission — and putting both on the case bar would make the busiest
+/// surface in the product carry a choice most operators make once per case.
+/// So the workspace bar carries one control ("Send to EVA") and the choice
+/// itself is the EVA handoff.
 ///
-/// The page itself records nothing. Both routes are POSTs from here: the
-/// export to its own unchanged handler, the submission to the one below.
+/// The handoff has two surfaces and one set of routes. The workspace draws it
+/// as a dialog (EPIC-011 §1.8), which needs script; this page is the same
+/// handoff as a route, and is the one that still works with script off. The
+/// submission handler below is the POST target of both.
+///
+/// The page itself records nothing. Both routes are POSTs: the export to its
+/// own unchanged handler, the submission to the one below.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -185,11 +190,6 @@ public sealed partial class SendModel(
             $"EVA refused the case. {submission.FailureDetail}".TrimEnd(),
         _ => $"EVA could not be reached. {submission.FailureDetail}".TrimEnd()
     };
-
-    private static string RequireOperationKey(string value) =>
-        Guid.TryParseExact(value, "N", out var operationId)
-            ? operationId.ToString("N")
-            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     [LoggerMessage(
         Level = LogLevel.Warning,

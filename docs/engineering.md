@@ -82,7 +82,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
 8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
 9. **Security/observability** — role matrix, secure cookies, transient authentication throttling, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
-10. **Performance/concurrency** — eight concurrent operators, 2,000 cases per month, 2–20+ files per case, the one-file 10 MiB limit and 10 MiB-plus-64-KiB multipart envelope, burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
+10. **Performance/concurrency** — eight concurrent operators, 2–20+ files per case, the 2,000-cases-per-month cohort and soak tier (**not run by this programme and never represented as passing** — D27, 2026-09-01; its evidence spike `PLAT-066` sits outside EPIC-011, while per-ticket concurrency tests still run), the current 10 MiB manual-upload bound and future intake bounds only after `INTK-052` research and operator decision (the Provider API envelope stays 30 MB and is owned by [FRD-09](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)), burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
 11. **Migration/recovery** — every supported prior schema, idempotent migration scripts, previous-artifact compatibility, restore into a new database, and reconciliation by stable Outlook/Box identities.
 12. **Integrated workflow** — authenticated source receipt through Core, SQL/outbox, actual Worker trigger, adapter outcome, persisted operator view, telemetry, and safe replay. Registration or mock-only paths do not satisfy this tier.
 
@@ -197,6 +197,15 @@ One fake per concept, in the shared driver, `internal`; one helper for each
 composition fact tests must repeat ("Web does not register the processor" →
 `IntakeWebDriver.CreateProcessor`); one drain loop. A fake or helper copied
 into a second test file is the third-copy rule applied to tests.
+
+### Case Workspace v2 fixture values (D43)
+
+Test fixtures and snapshot states may use the Case Workspace v2 mockup's
+corpus-derived fixture values (`Pegasus_UI_v2_src/src/04-fixtures.js`).
+These values include real claimant names and telephone numbers. D43
+(2026-09-02) supersedes the EPIC-011 rule that the prototype's fixture data
+is not domain data for this fixture set only. `corpus/` stays local, ignored
+and immutable, and no corpus file is committed, renamed or modified.
 
 ### Plan sizing
 

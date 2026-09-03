@@ -350,6 +350,57 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|G|$permission|EvaSubmissions")
         }
     }
+    # 20260828084644_GrantAiJobs: AUTO-011 added the pull-based AI job ledger
+    # (ADR-0035). Only Web touches it — staff create, cancel and confirm from
+    # the application and external AI clients claim and finish jobs through
+    # the /mcp ingress that Web hosts; the Worker runs no AI timer. Rows are
+    # created once and then move through their states in place, so Web holds
+    # SELECT, INSERT and UPDATE. A job is a permanent record: no DELETE is
+    # granted, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
+    }
+    # 20260828104139_GrantPrincipalApiCredentials: TICK-061 added one Provider
+    # API credential per Principal (API-04). Only Web touches it —
+    # Administrators issue, reset, pause, resume and revoke from the
+    # application and the Provider API verifies a presented secret in the
+    # same process; the Worker never authenticates a provider. A row is
+    # created once and then rotated or moved through its states in place, so
+    # Web holds SELECT, INSERT and UPDATE. A revoked credential stays as the
+    # record of what was revoked: no DELETE, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
+    }
+    # 20260828111732_GrantProviderSubmissions: TICK-058 added the Provider API
+    # submission record (API-01). Web hosts the API: it inserts one row per
+    # accepted submission and reads rows back for idempotent replay and the
+    # provider's own result lookup. The Worker processes the staged files and
+    # reads the row to bind each one to the Principal whose credential
+    # submitted it; it never writes one. The row is created when the
+    # submission is received and completed in place once the request has been
+    # durably retained — the staged receipt id the result lookup reads back —
+    # so Web also holds UPDATE. A submission is never removed: no DELETE for
+    # either role.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
+    # 20260829212237_GrantProviderSubmissionAcceptRecovery: AUTO-012 made the
+    # accept path recoverable. Web writes the four accept records in four
+    # separate transactions, so a process loss between them used to leave a
+    # submission whose staged receipt id was never written back — the result
+    # lookup then answered Received forever, and the Accepted history row was
+    # never appended. A Worker reconciliation pass now completes those records
+    # in place, which is why the Worker holds UPDATE here and no longer only
+    # SELECT. It still never inserts a submission and never removes one.
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|ProviderSubmissions')
+    # 20260829095336_CaseValuations: the Web Case workspace creates and edits
+    # valuation rows, and the Assessment workspace reads the current Engineer
+    # value in the same process. Worker has no caller and no grant. Valuations
+    # remain Case records, so DELETE is deliberately absent.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseValuations")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
