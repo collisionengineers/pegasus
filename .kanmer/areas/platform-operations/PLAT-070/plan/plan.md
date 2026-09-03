@@ -50,8 +50,8 @@ remain on `CaseCompleteness`, still populated once at intake by (out-of-scope)
 2. Their role as an **editable checkbox** on the Case page's "Confirm
    completeness" form (`_CaseWorkflow.cshtml` — the "Instructions
    staff-reviewed" / "Images staff-reviewed" checkboxes named verbatim in the
-   ticket) and the corresponding posted-parameter handling in
-   `Details.cshtml.cs`.
+   ticket) and as the two "not staff-reviewed" outstanding-requirement rows
+   in `Details.cshtml.cs`.
 3. The entirely separate `CaseReadinessEvidence.InstructionsReviewedByStaff`
    / `ImagesReviewedByStaff` values and `CaseWorkflowConfiguration`'s two
    `RequireStaff...BeforeEngineerAssignment` flags — deleted outright (no
@@ -60,10 +60,11 @@ remain on `CaseCompleteness`, still populated once at intake by (out-of-scope)
 
 Net effect: after this ticket, `CaseCompleteness.InstructionConfirmedByStaff`
 / `ImagesConfirmedByStaff` exist only as intake-time data Create.cshtml still
-captures; they no longer gate anything and are no longer staff-editable
-post-creation. This is a real residual gap against D44's literal "no
-checkbox... anywhere" — record it as a follow-up ticket for Create.cshtml
-(out of PLAT-070's owned paths) rather than silently expanding this one.
+captures; they no longer gate anything, are no longer staff-editable
+post-creation, and are no longer displayed. This is a real residual gap
+against D44's literal "no checkbox... anywhere" — record it as a follow-up
+ticket for Create.cshtml (out of PLAT-070's owned paths) rather than silently
+expanding this one.
 
 ## Steps
 
@@ -102,9 +103,10 @@ checkbox... anywhere" — record it as a follow-up ticket for Create.cshtml
      `CaseCompletenessPolicy.Evaluate`'s `satisfiesPolicy` formula drops the
      `configuration.RequireStaff...` / `completeness...ConfirmedByStaff`
      gated clause entirely, becoming `completeness.InstructionComplete &&
-     completeness.ImagesComplete`. `CaseDataPolicy.ValidateCompleteness`
-     (the "confirmed implies complete" guard) is untouched — it still guards
-     data the intake page writes.
+     completeness.ImagesComplete`. The CASE-013 comment above it, which
+     explains the waiver that clause needed, goes with it.
+     `CaseDataPolicy.ValidateCompleteness` (the "confirmed implies complete"
+     guard) is untouched — it still guards data the intake page writes.
 
 2. **Infrastructure — persisted workflow configuration only.** Reuse the
    existing `AdministrationPolicyModelConfiguration`/
@@ -156,26 +158,25 @@ checkbox... anywhere" — record it as a follow-up ticket for Create.cshtml
      `false` the retired trailing hidden inputs carried): the
      `ConfirmCompleteness` handler replaces the whole `CaseCompleteness`
      record, so posting `false` would silently rewrite the intake-time
-     confirmation `Create.cshtml` recorded — a data change this ticket does
-     not authorise. D44 is satisfied by the absent control; the value is no
-     longer operator-editable. Remove the `instructionsReviewedByStaff`/
-     `imagesReviewedByStaff` entries from the "Return to Review" dialog's
-     posted-data dictionary (lines 308-309).
+     confirmation `Create.cshtml` recorded — a persisted-data change this
+     ticket does not authorise. D44 is satisfied by the absent control; the
+     value is no longer operator-editable. Remove the
+     `instructionsReviewedByStaff`/`imagesReviewedByStaff` entries from the
+     "Return to Review" dialog's posted-data dictionary (lines 308-309).
    - `src/Pegasus.Web/Pages/Cases/Details.cshtml` — remove only the retired
      review-field UI; the frame itself is CASE-038's to redesign.
-   - `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` — the `ConfirmCompleteness`
-     handler stops accepting `instructionConfirmedByStaff`/
-     `imagesConfirmedByStaff` as posted mutation inputs (keeps
-     `instructionComplete`/`imagesComplete`); the readiness-evidence
+   - `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` — the readiness-evidence
      construction drops the two `ConfirmedByStaff` args (3-arg
-     `CaseReadinessEvidence` now); the field-name → label lookup helper
-     drops its `"instructionConfirmedByStaff" or "instructionsReviewedByStaff"`
-     / `"imagesConfirmedByStaff" or "imagesReviewedByStaff"` cases (both the
-     label switch at lines 630-632 and the value switch at lines 597-600).
-     `OnPostConfirmCompletenessAsync` keeps its
+     `CaseReadinessEvidence` now); the field-name → label and field-name →
+     value lookups drop their
+     `"instructionConfirmedByStaff" or "instructionsReviewedByStaff"` /
+     `"imagesConfirmedByStaff" or "imagesReviewedByStaff"` cases (the value
+     switch at lines 597-600 and the label switch at lines 630-632).
+     `OnPostConfirmCompletenessAsync` **keeps** its
      `instructionConfirmedByStaff`/`imagesConfirmedByStaff` parameters and
      its 4-arg `new CaseCompleteness(...)` — they are now fed by the hidden
-     pass-through inputs above, not by an operator control.
+     pass-through inputs above, not by an operator control, so no stored
+     value changes.
    - `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` — **also delete the two
      `AddRequirement(..., data.Completeness.Values.InstructionConfirmedByStaff,
      "Instructions not staff-reviewed", why)` /
@@ -207,11 +208,12 @@ checkbox... anywhere" — record it as a follow-up ticket for Create.cshtml
      subtitle (line 17)** — its text is literally "Staff review requirements",
      the name of the function being deleted, and a descriptive subtitle under
      an already-labelled `<h2>` is explanatory copy the design authority
-     bars. What remains of the form is `ExpectedVersion`/`OperationKey`
-     hidden inputs, the Reason field and Save (see the open question).
+     bars. What remains of the form is the `ExpectedVersion`/`OperationKey`
+     hidden inputs, the Reason field and Save — see open question 1 before
+     implementing this step.
    - `src/Pegasus.Web/Pages/Administration/Configuration.cshtml.cs` — remove
-     the two bound properties and the two constructor args passed into
-     `UpdateWorkflowConfigurationRequest`.
+     the two bound properties, their two assignments in `LoadAsync`, and the
+     two constructor args passed into `UpdateWorkflowConfigurationRequest`.
    - `src/Pegasus.Web/Presentation/OperatorLabels.cs` — delete
      `WorkflowConfiguration.Description` (= "Staff review requirements"),
      `.Review`, `.InstructionReviewRequired` and `.ImageReviewRequired`
@@ -249,10 +251,15 @@ checkbox... anywhere" — record it as a follow-up ticket for Create.cshtml
      `FixedConfiguration.Configuration = new CaseWorkflowConfiguration(...)`
      (verified present in all six); trim each to the 2-arg form. No other
      change expected in these six; confirm with `dotnet build`.
+   - Add or extend one assertion proving that confirming completeness leaves
+     the stored `InstructionConfirmedByStaff`/`ImagesConfirmedByStaff` values
+     unchanged (`CaseDataCompletenessPersistenceTests.cs` is the natural
+     home) — this is the only behaviour the hidden pass-through protects and
+     nothing else covers it.
 
-6. **Governing documents and the Administration snapshot.** Reuse
+6. **Governing documents and the Test UI snapshots.** Reuse
    `Update-TestUiSnapshots.ps1` and `Test-UiCatalogue.ps1`; accept only the
-   one owned snapshot's diff.
+   three owned snapshot diffs named below.
    - Regenerate **three** snapshots, not one — verified by
      `git grep -i "staff-reviewed\|RequireStaff" docs/design/test-ui`:
      `docs/design/test-ui/pages/administration-configuration--default.html`
@@ -268,8 +275,9 @@ checkbox... anywhere" — record it as a follow-up ticket for Create.cshtml
      damage-zone fields to severity/note only (D45; no zone `type`).
    - `docs/frd/frd-12-operator-experience.md` — record D44 (Workflow
      configuration, Case record readiness).
-   - `docs/design/README.md` — remove the review panel from the Workflow
-     configuration panel list; remove "Type" from the damage-diagram row.
+   - `docs/design/README.md` — remove "Review (two checkboxes)" from the
+     Workflow configuration panel list (line ~1060); remove the damage
+     "type" from the damage-diagram wording.
    - `.kanmer/groups/EPIC-012/context.md` — D44/D45 already appear verbatim;
      confirm no further edit needed (read it during implementation before
      assuming a change is required).
@@ -320,15 +328,16 @@ migration files (which are never edited) — it must NOT be run against
   `CaseReadinessEvidence...ReviewedByStaff` (both deleted, so this is a
   compile-time guarantee).
   `CaseCompleteness.InstructionConfirmedByStaff`/`ImagesConfirmedByStaff`
-  still exist and are still set by `Create.cshtml` at intake — unchanged,
-  out of scope.
+  still exist, are still set by `Create.cshtml` at intake, and are unchanged
+  by a completeness confirmation — proved by a test.
 - `/Administration/Configuration` renders no "Staff review requirements"
-  panel; the regenerated Test UI snapshot and `Test-UiCatalogue.ps1` confirm
-  it; the rest of the configuration form still saves through the existing
-  route.
+  panel and no subtitle naming it; the regenerated Test UI snapshot and
+  `Test-UiCatalogue.ps1` confirm it; whatever open question 1 resolves to,
+  the route still returns 200 for an administrator and 403 otherwise.
 - The Case page's "Confirm completeness" form offers only "Instructions
-  complete"/"Images complete" + Reason; no "staff-reviewed" checkbox renders
-  anywhere in the Case workspace.
+  complete"/"Images complete" + Reason; no "staff-reviewed" checkbox, label,
+  requirement row or "Next action" notice renders anywhere in the Case
+  workspace.
 - D44 and D45 are present, in the stated terms, in frd-01, frd-06, frd-12,
   `docs/design/README.md`, and both group `context.md` files.
 - `dotnet restore --locked-mode`, `dotnet build --configuration Release`,
@@ -355,13 +364,13 @@ are from `dev` at review time.
 
 | # | Finding | Disposition |
 | --- | --- | --- |
-| 1 | `Details.cshtml.cs` builds two `CaseRequirement` rows — "Instructions not staff-reviewed" / "Images not staff-reviewed" — from `Completeness.Values.*ConfirmedByStaff` (lines ~135-143). They render as outstanding-requirement rows and as the Case page's "Next action" notice (`case-details--conflict.html:378`). D44 bars exactly this surface, and the plan named only the label switch and the posted parameters. | fixed — added to step 3 and the checklist |
+| 1 | `Details.cshtml.cs` builds two `CaseRequirement` rows — "Instructions not staff-reviewed" / "Images not staff-reviewed" — from `Completeness.Values.*ConfirmedByStaff` (lines ~135-143). They render as outstanding-requirement rows and as the Case page's "Next action" notice (`case-details--conflict.html:378`). D44 bars exactly this surface, and the plan named only the label switch and the posted parameters. | fixed — added to step 3, the acceptance conditions and the checklist |
 | 2 | Step 6 named one Test UI snapshot and said "accept only the one owned snapshot's diff". `git grep -i "staff-reviewed" docs/design/test-ui` returns three files: `administration-configuration--default.html`, `case-details--default.html`, `case-details--conflict.html`. Regenerating one and verifying would have failed `Update-TestUiSnapshots.ps1 -Verify`. | fixed — all three named; a fourth is a stop condition |
-| 3 | `OperatorLabels.WorkflowConfiguration.Description` (line 1073) is the string "Staff review requirements" and is the Configuration page's subtitle (`Configuration.cshtml:17`). The plan deleted `.Review`/`.InstructionReviewRequired`/`.ImageReviewRequired` but left `Description`, which would leave the page titled after the deleted function. | fixed — `Description` and its `<span class="muted">` added to step 4 |
-| 4 | `OnPostConfirmCompletenessAsync` replaces the **whole** `CaseCompleteness` record (`new(instructionComplete, imagesComplete, instructionConfirmedByStaff, imagesConfirmedByStaff)`, lines 349-353). The plan removed the two checkboxes *and* their hidden inputs but never said what the constructor then receives; the natural reading (`false, false`) silently rewrites the intake-time confirmation `Create.cshtml` recorded — a persisted-data change no step authorises and no test would catch. | fixed — step 3 now requires one hidden pass-through input per value carrying the case's current value, handler signature unchanged |
+| 3 | `OperatorLabels.WorkflowConfiguration.Description` (line 1073) is the string "Staff review requirements" and is the Configuration page's subtitle (`Configuration.cshtml:17`). The plan deleted `.Review`/`.InstructionReviewRequired`/`.ImageReviewRequired` but left `Description`, which would leave the page subtitled with the name of the deleted function. | fixed — `Description` and its `<span class="muted">` added to step 4 |
+| 4 | `OnPostConfirmCompletenessAsync` replaces the **whole** `CaseCompleteness` record (`new(instructionComplete, imagesComplete, instructionConfirmedByStaff, imagesConfirmedByStaff)`, lines 349-353). The plan removed the two checkboxes *and* their hidden inputs but never said what the constructor then receives; the natural reading (`false, false`) silently rewrites the intake-time confirmation `Create.cshtml` recorded — a persisted-data change no step authorises and no existing test would catch. | fixed — step 3 now requires one hidden pass-through input per value carrying the case's current value, handler signature unchanged, plus a new assertion in step 5 |
 | 5 | The migration drops two columns, but EPIC-012 `context.md` states "migrations additive; a failed wave is reverted PR-by-PR on `dev`". A code-only revert against a dropped column breaks `EfWorkflowConfigurationStore`. | fixed — step 2 now requires the migration's `Down` to re-add both columns as `bool NOT NULL DEFAULT 1`, matching `20260729180000_AdministrationPolicies.cs`; the epic's additive rule is not otherwise overridden, since the ticket and D44 explicitly authorise this one drop |
 | 6 | CI runs `./scripts/Test-DocumentationLinks.ps1` (`ci.yml:87`) and this PR edits four governing documents; the plan's command list omitted it. | fixed — added to Commands and to the acceptance conditions |
-| 7 | After the review panel is deleted, `/Administration/Configuration` has **no** operator-editable setting left: the two review checkboxes were its entire form (verified — `Configuration.cshtml.cs` binds only them plus `ExpectedVersion`, `OperationKey`, `Reason`). What ships is a Save button that writes a Reason and bumps `PolicyVersion` while configuring nothing — the shape rule 21 ("delete a gate that gates nothing") and the design authority's "a retired control is absent" both speak to. `docs/design/README.md:1060` shows the designed page eventually carrying completeness rules, Due work and Labour-rate cards, so the page is not permanently empty — but none of those is shipped or scheduled in wave 1, and neither D44 nor the ticket says what the page shows in the interim. | **operator question** — recorded in `open-questions/` |
+| 7 | After the review panel is deleted, `/Administration/Configuration` has **no** operator-editable setting left: the two review checkboxes were its entire form (verified — `Configuration.cshtml.cs` binds only them plus `ExpectedVersion`, `OperationKey`, `Reason`). What ships is a Save button that writes a Reason and bumps `PolicyVersion` while configuring nothing — which conduct rule 21 ("delete a gate that gates nothing") and the design authority's "a retired control is absent" both speak to. `docs/design/README.md:1060` shows the designed page eventually carrying completeness rules, Due work and Labour-rate cards, so the page is not permanently empty — but none of those is shipped or scheduled in wave 1, and neither D44 nor the ticket says what the page shows in the interim. | **operator question** — recorded in `open-questions/` as question 1, with the three candidate resolutions and this review's recommendation |
 | 8 | files.md's recommendation to delete `CaseCompleteness.InstructionConfirmedByStaff`/`ImagesConfirmedByStaff` and the eight Infrastructure files that follow from it. | rejected (already rejected by the plan's "Verified scope correction", independently re-verified here): the ticket body enumerates what D44 removes and never names `CaseCompleteness`; `Create.cshtml(.cs)` and the raw-SQL `Cases` fixtures are unowned. The plan's follow-up-ticket note is the right disposition. |
 
 Checks that passed with no finding:
@@ -382,6 +391,6 @@ Checks that passed with no finding:
   rather than moved into `OperatorLabels`; no package is added; the migration and
   `Test-MigrationGrants.ps1` ride the same diff; no explanatory copy is added
   (finding 3 removes some).
-- Proportionality: 306 lines of plan for a ~45-file deletion is defensible; the
-  "Verified scope correction" section is load-bearing, not ritual. No speculative
-  abstraction is introduced.
+- Proportionality: the plan is long for a `fix` profile, but the diff is ~45
+  files and the "Verified scope correction" section is load-bearing, not ritual.
+  No speculative abstraction is introduced.
