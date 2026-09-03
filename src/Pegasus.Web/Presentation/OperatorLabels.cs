@@ -1020,6 +1020,7 @@ public static class OperatorLabels
             Pegasus.Core.AiWork.AiJobKind.UnidentifiedResolution => "Unidentified resolution",
             Pegasus.Core.AiWork.AiJobKind.QueryResponse => "Query response",
             Pegasus.Core.AiWork.AiJobKind.UnidentifiedQueuePass => "Unidentified-queue pass",
+            Pegasus.Core.AiWork.AiJobKind.MarketResearch => "Market research",
             _ => Humanise(kind.ToString())
         };
 

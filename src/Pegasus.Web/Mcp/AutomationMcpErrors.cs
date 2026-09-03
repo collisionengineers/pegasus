@@ -16,6 +16,8 @@ namespace Pegasus.Web.Mcp;
 /// </summary>
 internal static class AutomationMcpErrors
 {
+    public const int MaximumDocumentBytes = 10 * 1024 * 1024;
+
     public static async Task<TResult> ExecuteAsync<TResult>(
         Func<Task<TResult>> action)
     {
