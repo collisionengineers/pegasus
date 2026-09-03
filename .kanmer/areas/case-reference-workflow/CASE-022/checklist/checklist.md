@@ -44,7 +44,7 @@ Append execution evidence; do not rewrite completed history.
 - [x] proof.md finalised (PR URL + merge date appended)
 - [x] Moved to final stage
 - [x] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/<id>`
-- [ ] `git branch -d <branch>` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] Removed the CASE-022 implementation and verification worktrees
+- [x] Deleted the merged local and remote task branch
+- [x] Ran `git fetch --prune` and `git worktree prune`
+- [x] `take_ticket action: "release"` issued as the final closeout action
