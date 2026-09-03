@@ -14,7 +14,6 @@
         <div class="panel-head">
             <div>
                 <h2 id="workflow-configuration-title">@OperatorLabels.Admin.Configuration</h2>
-                <span class="muted">@OperatorLabels.WorkflowConfiguration.Description</span>
                 <div class="panel-title-meta">
                     @OperatorLabels.WorkflowConfiguration.Meta(Model.Configuration.PolicyVersion)
                 </div>
@@ -29,40 +28,6 @@
                 </div>
             }
 
-            <form method="post" asp-page="/Administration/Configuration" class="stack">
-                <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
-                <input asp-for="ExpectedVersion" type="hidden" />
-                <input asp-for="OperationKey" type="hidden" />
-
-                <section class="panel" aria-labelledby="workflow-review-title">
-                    <div class="panel-head">
-                        <h3 id="workflow-review-title">@OperatorLabels.WorkflowConfiguration.Review</h3>
-                    </div>
-                    <div class="panel-body stack" role="group" aria-labelledby="workflow-review-title">
-                        <label class="cluster">
-                            <input asp-for="RequireStaffInstructionReviewBeforeEngineerAssignment" />
-                            <span>@OperatorLabels.WorkflowConfiguration.InstructionReviewRequired</span>
-                        </label>
-                        <label class="cluster">
-                            <input asp-for="RequireStaffImageReviewBeforeEngineerAssignment" />
-                            <span>@OperatorLabels.WorkflowConfiguration.ImageReviewRequired</span>
-                        </label>
-                    </div>
-                </section>
-
-                <div class="field">
-                    <label class="req" asp-for="Reason">@OperatorLabels.WorkflowConfiguration.Reason</label>
-                    <textarea asp-for="Reason" required aria-required="true" maxlength="1000" rows="3"></textarea>
-                    <span asp-validation-for="Reason" class="field-error"></span>
-                </div>
-
-                <div class="button-row">
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                        <span>@OperatorLabels.WorkflowConfiguration.Save</span>
-                    </button>
-                </div>
-            </form>
         </div>
     </section>
 </div>

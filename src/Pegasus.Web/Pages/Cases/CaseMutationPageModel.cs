@@ -86,9 +86,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "imagesComplete",
         "instructionsComplete",
         "instructionConfirmedByStaff",
-        "imagesConfirmedByStaff",
-        "instructionsReviewedByStaff",
-        "imagesReviewedByStaff"
+        "imagesConfirmedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -101,9 +99,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "imagesComplete",
         "instructionsComplete",
         "instructionConfirmedByStaff",
-        "imagesConfirmedByStaff",
-        "instructionsReviewedByStaff",
-        "imagesReviewedByStaff"
+        "imagesConfirmedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>The lease this browser holds on the case being rendered, if it holds one.</summary>
@@ -568,14 +564,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     protected static CaseReadinessEvidence Readiness(
         bool instructionsComplete,
         bool imagesComplete,
-        bool instructionsReviewedByStaff,
-        bool imagesReviewedByStaff,
         string evidenceReference) =>
         new(
             instructionsComplete,
             imagesComplete,
-            instructionsReviewedByStaff,
-            imagesReviewedByStaff,
             evidenceReference);
 
     [LoggerMessage(
