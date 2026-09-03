@@ -1,17 +1,17 @@
 # Checklist — CASE-038 (2026-09-02; revised 2026-09-03 after plan review)
 
-- [ ] Step 0: confirm merged PLAT-070 — `git grep -i "ReviewedByStaff\|RequireStaffImageReview\|staff-reviewed"` returns nothing on the branch; stop and report if it does not.
-- [ ] Step 1: replace the section contract with the one canonical ordered `Key`/`Label`/`Icon` descriptor in `OperatorLabels.CaseWorkspace`, and add the authorized `OnGetSectionAsync` fragment handler reusing the eager `IGetCase` load plus only the section's supplemental query (`IImageIntakeQueries`/`ICaseEvidenceImageQueries` for Files).
-- [ ] Step 2: render the sticky eleven-host Case frame inside the retained `case-workspace`/`case-context` grid, with the server-side addressed host, Engineer and Sign-off ribbon slots (using the new `OperatorLabels` absent-value member), the horizontal jump-nav, and the four heading-only shells `_CaseDamage`/`_CaseEstimate`/`_CaseSettlement`/`_CaseReport` composed with `model="Model"`.
-- [ ] Step 2a: rename the inspection form to `case-inspection-address-form` without `data-edit-save` in `_CaseInspectionAddress.cshtml` (declared `Pages/Cases/Shared/*` lock exception; id, attribute and comment lines only).
-- [ ] Step 2b: render every section server-side with no `data-lazy` placeholder while the viewer holds the edit lease.
-- [ ] Step 3: add measured sticky geometry, retire `case-section-nav` only, add lazy fragment mounting, make the dialog-open, evidence-viewer and dirty-guard binders one root-scoped idempotent `bind(root)`, narrow the existing Ctrl+S handler to the dirty Case form, and add query jump and scroll-spy.
-- [ ] Step 4: update Case Details proof and add the seeded three-width Browser scenario with its own local seed helper; assert a lazily mounted Files body opens its evidence viewer and dialogs, and that no staff-review control renders.
-- [ ] Step 5: apply only the declared mechanical query-key retargets in the six direct test consumers.
-- [ ] Step 6: regenerate default/conflict snapshots, preserve unavailable byte-identical, correct the Details `default` catalogue branch text, and drop `case-section-nav` from `docs/design/README.md` lines 810 and 436 (nothing else there).
+- [x] Step 0: confirm merged PLAT-070 — `git grep -i "ReviewedByStaff\|RequireStaffImageReview\|staff-reviewed"` returns nothing on the branch; stop and report if it does not.
+- [x] Step 1: replace the section contract with the one canonical ordered `Key`/`Label`/`Icon` descriptor in `OperatorLabels.CaseWorkspace`, and add the authorized `OnGetSectionAsync` fragment handler reusing the eager `IGetCase` load plus only the section's supplemental query (`IImageIntakeQueries`/`ICaseEvidenceImageQueries` for Files).
+- [x] Step 2: render the sticky eleven-host Case frame inside the retained `case-workspace`/`case-context` grid, with the server-side addressed host, Engineer and Sign-off ribbon slots (using the new `OperatorLabels` absent-value member), the horizontal jump-nav, and the four heading-only shells `_CaseDamage`/`_CaseEstimate`/`_CaseSettlement`/`_CaseReport` composed with `model="Model"`.
+- [x] Step 2a: rename the inspection form to `case-inspection-address-form` without `data-edit-save` in `_CaseInspectionAddress.cshtml` (declared `Pages/Cases/Shared/*` lock exception; id, attribute and comment lines only).
+- [x] Step 2b: render every section server-side with no `data-lazy` placeholder while the viewer holds the edit lease.
+- [x] Step 3: add measured sticky geometry, retire `case-section-nav` only, add lazy fragment mounting, make the dialog-open, evidence-viewer and dirty-guard binders one root-scoped idempotent `bind(root)`, narrow the existing Ctrl+S handler to the dirty Case form, and add query jump and scroll-spy.
+- [x] Step 4: update Case Details proof and add the seeded three-width Browser scenario with its own local seed helper; assert a lazily mounted Files body opens its evidence viewer and dialogs, and that no staff-review control renders.
+- [x] Step 5: apply only the declared mechanical query-key retargets in the six direct test consumers.
+- [x] Step 6: regenerate default/conflict snapshots, preserve unavailable byte-identical, correct the Details `default` catalogue branch text, and drop `case-section-nav` from `docs/design/README.md` lines 810 and 436 (nothing else there).
 - [ ] Complete the dated Simplification pass with findings and dispositions.
-- [ ] Run `dotnet restore ./Pegasus.slnx --locked-mode`.
-- [ ] Run `dotnet build ./Pegasus.slnx --configuration Release --no-restore`.
+- [x] Run `dotnet restore ./Pegasus.slnx --locked-mode`.
+- [x] Run `dotnet build ./Pegasus.slnx --configuration Release --no-restore`.
 - [ ] Run `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`.
 - [ ] Run `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2`.
 - [ ] Run `./scripts/Update-TestUiSnapshots.ps1`.
