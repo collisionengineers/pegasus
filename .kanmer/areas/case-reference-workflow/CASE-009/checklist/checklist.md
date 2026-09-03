@@ -1,21 +1,21 @@
-# Checklist — CASE-009 (2026-09-02)
+# Checklist — CASE-009 (2026-09-02; revised 2026-09-03 after plan review)
 
-- [ ] Confirm the operator's answer to the classification-set question is ticked in `open-questions/`; stop if not
-- [ ] Step 1: add `CaseQueryEmail` and `CaseDetails.QueryEmails` (init, default `[]`) in `src/Pegasus.Core/Cases/CaseQueries.cs`; positional constructor unchanged
-- [ ] Step 2: project currently linked qualifying retained mail in `EfCaseQueryStore.GetAsync` (selected policy branch → `CurrentIntakeAssociations.ReadAsync` → retained row by `ExternalReceiptToken`), newest first; record the retained-row uniqueness check
-- [ ] Step 4 (persistence): add `CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst` in `RetainedMailPersistenceTests.cs` covering inclusion, other-case, non-Query, reversed-association exclusion and ordering
+- [ ] Step 1: add `CaseQueryEmail` (with `EffectiveSenderAddress`) and `CaseDetails.QueryEmails` (init, default `[]`) in `src/Pegasus.Core/Cases/CaseQueries.cs`; positional constructor unchanged
+- [ ] Confirm CASE-029 and CASE-040 are not in flight on `EfCaseQueryStore.cs`, then refresh with `git merge --no-edit origin/dev`
+- [ ] Step 2: project currently linked Queries-destination mail in `EfCaseQueryStore.GetAsync` (`MailOperationalDestinationPolicy.Query(Queries)` translated as `ApplyClassificationFilter` does → `CurrentIntakeAssociations.ReadAsync` with `TryGetValue`, never the indexer → retained rows by `ExternalReceiptToken`, one row per retained row because that index is not unique), newest first
+- [ ] Step 4 (persistence): add `CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst` in `RetainedMailPersistenceTests.cs` covering inclusion, `Billing/billing-query` inclusion, other-case, non-Query and reversed-association exclusion, a qualifying receipt with no association at all, two retained rows sharing one token, and ordering — with a local case/association fixture (the `EngineerActivityReportPersistenceTests` helpers are private)
 - [ ] Confirm CASE-038 has merged and refresh with `git merge --no-edit origin/dev` before touching `Pages/Cases/Shared/*` or `OperatorLabels.cs`
-- [ ] Step 3: add column/link labels to `OperatorLabels.CaseWorkspace` (reuse identical existing constants first)
-- [ ] Step 3: create `_CaseCorrespondence.cshtml` (absent when empty; heading via `MailOperationalDestinationLabel(Queries)`; classification via `MailClassification`; `/Mail/Message` link; no form, button, disabled control or empty-state element)
+- [ ] Step 3: add column/link labels to `OperatorLabels.CaseWorkspace` (reuse identical existing constants first); do not add a missing-sender label
+- [ ] Step 3: create `_CaseCorrespondence.cshtml` (absent when empty; heading via `MailOperationalDestinationLabel(Queries)`; classification via `MailClassification`; sender via `EffectiveSenderAddress ?? SenderDisplayName ?? SenderAddress` with an empty cell when all three are null; `/Mail/Message` link; no form, button, disabled control or empty-state element)
 - [ ] Step 3: replace the "Correspondence is absent" comment in `_CaseFiles.cshtml` with the `_CaseCorrespondence` partial caller
-- [ ] Step 4 (web): add `CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls` and `CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists` in `CaseDetailsWebTests.cs`; `RecordingCaseDetailsStore` gains a settable `QueryEmails`
+- [ ] Confirm CASE-038, CASE-029 and CASE-040 are not in flight on `CaseDetailsWebTests.cs`
+- [ ] Step 4 (web): add `CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls` (including a staff-forward row and a row with no sender recorded) and `CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists` in `CaseDetailsWebTests.cs`; `RecordingCaseDetailsStore` gains a settable `QueryEmails`
 - [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
 - [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
+- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify` — must report no diff; stop and report a UIIMP-014 handoff if it does not
 - [ ] `./scripts/Test-UiCatalogue.ps1`
-- [ ] Commit only generated `docs/design/test-ui/**` differences, if any
+- [ ] Confirm the diff contains no `docs/design/test-ui/**`, migration, DI or `Details.cshtml` change
 - [ ] Simplification pass over the branch diff recorded in `plan/` under a dated "Simplification pass" heading
 - [ ] post-implementation report written
 - [ ] PR opened with Kanmer: CASE-009
