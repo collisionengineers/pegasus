@@ -152,12 +152,30 @@ public sealed class EfCaseAssessmentStore(
             }
         }
 
+        var fieldsToWrite = new Dictionary<string, string?>(request.Fields, StringComparer.Ordinal);
+        if (request.Fields.TryGetValue(AssessmentVocabulary.DamageImpacts, out var impacts))
+        {
+            var derived = AssessmentPolicy.DeriveImpactValues(impacts);
+            fieldsToWrite[AssessmentVocabulary.ImpactLocation] = derived.Location;
+            fieldsToWrite[AssessmentVocabulary.ImpactSeverity] = derived.Severity;
+            if (derived.Location is null)
+            {
+                merged.Remove(AssessmentVocabulary.ImpactLocation);
+                merged.Remove(AssessmentVocabulary.ImpactSeverity);
+            }
+            else
+            {
+                merged[AssessmentVocabulary.ImpactLocation] = derived.Location;
+                merged[AssessmentVocabulary.ImpactSeverity] = derived.Severity!;
+            }
+        }
+
         AssessmentPolicy.ValidateMergedState(request.Fields, merged);
 
         var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
         var beforeFields = new Dictionary<string, object?>(StringComparer.Ordinal);
         var afterFields = new Dictionary<string, object?>(StringComparer.Ordinal);
-        foreach (var (path, value) in request.Fields)
+        foreach (var (path, value) in fieldsToWrite)
         {
             var existing = fields.SingleOrDefault(item => item.FieldPath == path);
             beforeFields[path] = existing is null

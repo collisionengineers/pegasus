@@ -192,50 +192,12 @@
         <div class="panel-head">
             <div>
                 <h2 id="workflow-configuration-title">Workflow configuration</h2>
-                <span class="muted">Staff review requirements</span>
                 <div class="panel-title-meta">
                     Version 1
                 </div>
             </div>
         </div>
         <div class="panel-body stack">
-
-            <form method="post" class="stack" action="administration-configuration--default.html">
-                <div class="validation-summary validation-summary-valid" role="alert" data-valmsg-summary="true"><ul><li style="display:none"></li>
-</ul></div>
-                <input type="hidden" data-val="true" data-val-range="The field ExpectedVersion must be between 1 and 2147483647." data-val-range-max="2147483647" data-val-range-min="1" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="1" />
-                <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-
-                <section class="panel" aria-labelledby="workflow-review-title">
-                    <div class="panel-head">
-                        <h3 id="workflow-review-title">Review</h3>
-                    </div>
-                    <div class="panel-body stack" role="group" aria-labelledby="workflow-review-title">
-                        <label class="cluster">
-                            <input type="checkbox" checked="checked" data-val="true" data-val-required="The RequireStaffInstructionReviewBeforeEngineerAssignment field is required." id="RequireStaffInstructionReviewBeforeEngineerAssignment" name="RequireStaffInstructionReviewBeforeEngineerAssignment" value="true" />
-                            <span>Instruction review required</span>
-                        </label>
-                        <label class="cluster">
-                            <input type="checkbox" checked="checked" data-val="true" data-val-required="The RequireStaffImageReviewBeforeEngineerAssignment field is required." id="RequireStaffImageReviewBeforeEngineerAssignment" name="RequireStaffImageReviewBeforeEngineerAssignment" value="true" />
-                            <span>Image review required</span>
-                        </label>
-                    </div>
-                </section>
-
-                <div class="field">
-                    <label class="req" for="Reason">Reason</label>
-                    <textarea required aria-required="true" maxlength="1000" rows="3" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 1000." data-val-length-max="1000" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" name="Reason">
-</textarea>
-                    <span class="field-error field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
-                </div>
-
-                <div class="button-row">
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                        <span>Save configuration</span>
-                    </button>
-                </div>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="RequireStaffInstructionReviewBeforeEngineerAssignment" type="hidden" value="false" /><input name="RequireStaffImageReviewBeforeEngineerAssignment" type="hidden" value="false" /></form>
         </div>
     </section>
 </div>

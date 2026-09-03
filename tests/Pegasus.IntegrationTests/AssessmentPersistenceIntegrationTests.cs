@@ -23,6 +23,35 @@ public sealed class AssessmentPersistenceIntegrationTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task DamageImpactsPersistAndClearTheirCoreDerivedHeadlineRows()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("assessment-damage-derivation");
+        var caseId = outcome.Identity.CaseId;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "damage-lease-1");
+        var saved = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, lease.Version, harness.AutomationActor, "damage-save-1", "Record damage.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.DamageImpacts] = "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Bonnet\"},{\"zone\":\"right_rear\",\"severity\":\"heavy\",\"note\":\"Quarter\"}]"
+            }), CancellationToken.None);
+
+        Assert.Equal("multiple", saved.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+        Assert.Equal("heavy", saved.Field(AssessmentVocabulary.ImpactSeverity)?.Value);
+        Assert.All(saved.Fields.Where(field => field.Path is AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactLocation or AssessmentVocabulary.ImpactSeverity),
+            field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
+
+        var clearLease = await harness.AcquireLeaseAsync(caseId, saved.CaseVersion, harness.AutomationActor, "damage-lease-2");
+        var cleared = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, clearLease.Version, harness.AutomationActor, "damage-save-2", "Clear damage.", clearLease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal) { [AssessmentVocabulary.DamageImpacts] = null }), CancellationToken.None);
+
+        Assert.Null(cleared.Field(AssessmentVocabulary.DamageImpacts));
+        Assert.Null(cleared.Field(AssessmentVocabulary.ImpactLocation));
+        Assert.Null(cleared.Field(AssessmentVocabulary.ImpactSeverity));
+    }
+
+    [Fact]
     public async Task AssessmentWorkspaceLoadsInExactlySixReaderCommands()
     {
         var counter = new ReaderCommandCounter();
@@ -40,7 +69,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task ReportProjectionReadsAllPhotographsThroughOneOrderedBatch()
+    public async Task ReportProjectionReadsPhotographsAndFailsClosedWithoutSignatory()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
@@ -59,10 +88,14 @@ public sealed class AssessmentPersistenceIntegrationTests
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
 
         Assert.NotNull(input);
+        Assert.Null(input.Signatory);
         Assert.Equal(2, input.Photos.Count);
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
+        var projected = AssessmentReportProjection.Project(input);
+        Assert.False(projected.IsReady);
+        Assert.Contains(projected.Reasons, reason => reason.Requirement == "Sign-off Engineer");
     }
 
     [Fact]
@@ -1107,8 +1140,6 @@ public sealed class AssessmentPersistenceIntegrationTests
     private sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {
         private static readonly CaseWorkflowConfiguration Configuration = new(
-            true,
-            true,
             "case-workflow",
             1);
 

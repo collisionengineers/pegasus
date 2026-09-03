@@ -67,29 +67,22 @@ The first active renderer surface is closed to the `rendererref1` assessment
 and its fee note. Audit, diminution, addendum, valuation-evidence, generic
 letter, and every other former workspace catalogue family are unavailable;
 there is no caller-selectable template or density setting. Core accepts an
-immutable, source-labelled snapshot, validates readiness and the selected
-engineer identity, computes the figures once, and selects one of the four
+immutable, source-labelled snapshot, validates readiness and the supplied
+sign-off tuple, computes the figures once, and selects one of the four
 outcomes. Infrastructure renders only that selection with the governed
-template, stylesheet, logo, and signature resource.
+template, stylesheet, logo, and supplied signature image.
 
-The supplied assessment wording and named engineer/signature evidence are
-accepted only as exact matching tuples. A report renders the Case's sign-off
-tuple — name, qualifications and signature image — read from the Sign-off
-Engineer account setting (D31, 2026-09-02;
+The report snapshot receives the Case's sign-off tuple — printed name,
+qualifications and signature image — read from the Sign-off Engineer account
+setting (D31, 2026-09-02;
 [FRD-01](frd-01-case-identity-and-lifecycle.md#sign-off-engineer),
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)). D31
 supersedes D18: typed Engineer identity alone is no longer the rendered
-signatory. A tuple is complete when the name and the signature image are
-present; the qualification line is optional (D31). The initial Sign-off
-Engineer accounts are A Patterson, N O'Reilly and E Mawdsley
-([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)); the
-currently supplied tuple with a qualification is
-`A Patterson | M.Inst.IAEA | andy_patterson`, and Neil O'Reilly's
-qualifications are recorded later by an Administrator — until then his
-reports print the name without a qualification line. A missing name or
-signature image, and an unknown, mismatched or substituted name,
-qualification, key, asset, source version, custody reference or required
-value, fail closed. No custom
+signatory. The printed name and signature image are required; qualifications
+are optional, and a report with none prints the name alone. Selection of the
+Case sign-off Engineer is governed by FRD-01, while the account tuple and its
+eligibility are governed by FRD-04. Missing or unsupported required signatory
+content, source version, custody reference or required value fails closed. No custom
 signature path, arbitrary local attachment path, placeholder, or wording absent
 from the accepted evidence is permitted. The sign-off tuple on every report is
 allocated to `DOCS-017`.
@@ -135,7 +128,7 @@ It is a preview of the fee-note artifact the renderer emits; sending stays
 **Readiness.** A single readiness rail decides whether the control is enabled:
 `AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
 post-Review list) plus only requirements first introduced after the case
-entered `Review`: the issuing Engineer's identity and the accepted estimate
+entered `Review`: the Case's sign-off Engineer tuple and the accepted estimate
 figures (below). Requirements already enforced by the transition into `Review` are not
 recalculated as report readiness. The saved case identity, instruction,
 inspection and custody facts are consumed when the draft is generated; if one
