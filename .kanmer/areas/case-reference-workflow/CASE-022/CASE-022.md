@@ -11,18 +11,6 @@ stageEntered:
   review: '2026-09-03T16:22:55.937Z'
   verifying: '2026-09-03T17:31:01.523Z'
   done: '2026-09-03T18:06:57.739Z'
-taken_at: '2026-09-03T15:39:27.322Z'
-branch: task/case-022-repair-public-upload
-worktree: .worktrees/case-022
-claim_expires_at: '2026-09-03T19:52:26.882Z'
-claim_controller: codex
-lease_id: 74234747-49f8-4ab4-8510-0fa356f9ee06
-lease_revision: 5
-lease_worker_run: case-022-execute-20260903
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\case-022'
-lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-03T17:52:26.882Z'
 labels:
   - found-during-qa
   - ui
@@ -37,7 +25,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-09-03T18:07:19.649Z'
+updated: '2026-09-03T18:10:40.787Z'
 ---
 
 ## What the operator saw
