@@ -1,1 +1,3 @@
 2026-09-02 — kanmer-research started (Claude wrapper around gpt-5.6-terra xhigh). Board reads done from the board worktree; Codex researching origin/dev in `.worktrees/research`.
+
+2026-09-03 — cross-model plan review: gpt-5.6-sol xhigh read the plan read-only at origin/dev 07ac7f1b in .worktrees/research (clean afterwards); verdict REQUEST CHANGES, nine findings. Claude Opus dispositioned all nine — seven fixed in plan/checklist/files, one fixed-in-part plus escalated, plus two further D45 doc residues found during disposition. Two unticked operator/coordination questions now block leaving Preparing. Ticket not moved.
