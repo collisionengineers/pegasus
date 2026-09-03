@@ -361,3 +361,10 @@ Open on the ticket: the fallback A Patterson identity. The plan's default
 exposed on PLAT-068's `SignOffEngineerProfile`) keeps the rule in one Core
 resolver and hard-codes nothing; the operator's answer changes only that
 resolver and the PLAT-068 dependency line.
+
+## Resolutions (2026-09-03)
+
+- Operator: the default Sign-off Engineer is the one flagged account carrying
+  the Administrator-set "Default sign-off Engineer" designation on
+  PLAT-068's `SignOffEngineerProfile`; the Core resolver reads it. No
+  reserved username. Open question ticked.
