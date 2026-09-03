@@ -69,7 +69,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task ReportProjectionReadsAllPhotographsThroughOneOrderedBatch()
+    public async Task ReportProjectionReadsPhotographsAndFailsClosedWithoutSignatory()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
@@ -88,10 +88,14 @@ public sealed class AssessmentPersistenceIntegrationTests
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
 
         Assert.NotNull(input);
+        Assert.Null(input.Signatory);
         Assert.Equal(2, input.Photos.Count);
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
+        var projected = AssessmentReportProjection.Project(input);
+        Assert.False(projected.IsReady);
+        Assert.Contains(projected.Reasons, reason => reason.Requirement == "Sign-off Engineer");
     }
 
     [Fact]

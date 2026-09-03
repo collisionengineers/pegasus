@@ -11,5 +11,5 @@
 <div class="page-break"></div>{{ worklists }}
 <div class="page-break"></div><section class="section"><h2>Vehicle Images</h2><div class="photo-grid">{{ photos }}</div></section>
 <div class="page-break"></div><section class="section"><h2>Statement of Truth</h2>{{ statement_of_truth }}</section>
-<section class="sig-block"><p class="sig-closing">Yours faithfully,</p><img class="sig-img" src="{{ signature }}" alt="Signature"><p class="sig-name">{{ engineer }} — {{ qualifications }}</p><p class="sig-role">Independent Automotive Engineer, Collision Engineers Ltd</p><p>Engineers@CollisionEngineers.co.uk</p></section>
+<section class="sig-block"><p class="sig-closing">Yours faithfully,</p><img class="sig-img" src="{{ signature }}" alt="Signature"><p class="sig-name">{{ engineer }}{{ if qualifications }} — {{ qualifications }}{{ end }}</p><p class="sig-role">Independent Automotive Engineer, Collision Engineers Ltd</p><p>Engineers@CollisionEngineers.co.uk</p></section>
 </body></html>

@@ -110,10 +110,13 @@ public sealed record ReportImageEvidence(
     byte[] Content,
     string Sha256)
 {
+    public static bool IsAcceptedContentType(string? contentType) =>
+        contentType is "image/jpeg" or "image/png" or "image/webp";
+
     public void Validate()
     {
         AcceptedReportSource.Required(CustodyReference, nameof(CustodyReference));
-        if (ContentType is not ("image/jpeg" or "image/png" or "image/webp") || Content.Length == 0)
+        if (!IsAcceptedContentType(ContentType) || Content.Length == 0)
         {
             throw new ReportRenderRejectedException("Every report image requires accepted image bytes and content type.");
         }
@@ -151,10 +154,26 @@ public sealed record ReportRepairCosts(
     public decimal Total => Subtotal + Vat;
 }
 
-public sealed record ReportEngineer(
-    string Name,
-    string Qualifications,
-    string SignatureKey);
+public sealed record ReportSignatory(
+    string PrintedName,
+    string? Qualifications,
+    byte[] SignatureContent,
+    string SignatureContentType)
+{
+    public bool IsComplete =>
+        !string.IsNullOrWhiteSpace(PrintedName)
+        && SignatureContent is { Length: > 0 }
+        && ReportImageEvidence.IsAcceptedContentType(SignatureContentType);
+
+    public void Validate()
+    {
+        if (!IsComplete)
+        {
+            throw new ReportRenderRejectedException(
+                "The report signatory requires a printed name and accepted signature image.");
+        }
+    }
+}
 
 public sealed record AssessmentReportPresentation(
     string Title,
@@ -217,38 +236,13 @@ public sealed record AssessmentReportSnapshot(
     ReportSettlement Settlement,
     string HistoryCheck,
     string? EngineerComments,
-    ReportEngineer Engineer,
+    ReportSignatory Signatory,
     decimal AgreedFee,
     IReadOnlyList<string> FeeDescriptionLines,
     IReadOnlyList<ReportImageEvidence> Photos,
     IReadOnlyList<AcceptedReportSource> Sources,
     string PayloadVersion = AssessmentReportContract.TemplateVersion)
 {
-    private static readonly Dictionary<string, (string Name, string Qualifications)> AcceptedEngineers =
-        new(StringComparer.Ordinal)
-        {
-            ["andy_patterson"] = ("A Patterson", "M.Inst.IAEA"),
-        };
-
-    /// <summary>
-    /// The single lookup against the accepted-signatory list, exposed so a
-    /// caller can report an unrecognized engineer signature as a named
-    /// readiness gap before attempting to build a snapshot, rather than
-    /// duplicating this table (one list per concept).
-    /// </summary>
-    public static bool TryResolveAcceptedEngineer(
-        string signatureKey, out string name, out string qualifications)
-    {
-        if (AcceptedEngineers.TryGetValue(signatureKey, out var accepted))
-        {
-            (name, qualifications) = accepted;
-            return true;
-        }
-        name = string.Empty;
-        qualifications = string.Empty;
-        return false;
-    }
-
     public void Validate()
     {
         AcceptedReportSource.Required(OurReference, nameof(OurReference));
@@ -256,8 +250,11 @@ public sealed record AssessmentReportSnapshot(
         AcceptedReportSource.Required(ClaimantName, nameof(ClaimantName));
         AcceptedReportSource.Required(Vehicle.Registration, nameof(Vehicle.Registration));
         AcceptedReportSource.Required(HistoryCheck, nameof(HistoryCheck));
-        AcceptedReportSource.Required(Engineer.Name, nameof(Engineer.Name));
-        AcceptedReportSource.Required(Engineer.Qualifications, nameof(Engineer.Qualifications));
+        if (Signatory is null)
+        {
+            throw new ReportRenderRejectedException("The report signatory is required.");
+        }
+        Signatory.Validate();
         AcceptedReportSource.Required(PayloadVersion, nameof(PayloadVersion));
         if (ReportFor.Count == 0 || Photos.Count == 0 || Sources.Count == 0)
         {
@@ -300,13 +297,6 @@ public sealed record AssessmentReportSnapshot(
         if (!PayloadVersion.Equals(AssessmentReportContract.TemplateVersion, StringComparison.Ordinal))
         {
             throw new ReportRenderRejectedException($"Unsupported payload version '{PayloadVersion}'.");
-        }
-        if (!AcceptedEngineers.TryGetValue(Engineer.SignatureKey, out var accepted) ||
-            !accepted.Name.Equals(Engineer.Name, StringComparison.Ordinal) ||
-            !accepted.Qualifications.Equals(Engineer.Qualifications, StringComparison.Ordinal))
-        {
-            throw new ReportRenderRejectedException(
-                "Engineer name, qualifications and signature do not match an accepted rendererref1 identity.");
         }
     }
 
