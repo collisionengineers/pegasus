@@ -4,12 +4,22 @@ type: ticket
 title: >-
   Deliver the single-scroll Case workspace frame with sticky identity, action
   bar and section jump-nav
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-038
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:12:33.208Z'
+taken_at: '2026-09-03T23:23:31.044Z'
+branch: task/case-038-case-workspace-frame
+worktree: .worktrees/case-038
+claim_expires_at: '2026-09-03T23:53:31.044Z'
+claim_controller: wf-build/case-038
+lease_id: d4031852-5ffd-4163-94a0-d1dae7656446
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-038'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-03T23:23:31.044Z'
 labels:
   - ui
   - case
@@ -31,7 +41,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-09-02T20:31:38.600Z'
-updated: '2026-09-02T22:12:33.208Z'
+updated: '2026-09-03T23:23:31.044Z'
 ---
 
 ## What
