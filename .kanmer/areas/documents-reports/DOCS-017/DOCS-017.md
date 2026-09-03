@@ -2,12 +2,22 @@
 id: DOCS-017
 type: ticket
 title: 'Report signatory policy: sign-off Engineer tuple on every report'
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: wf-build/docs-017
 profile: feature
 stageEntered:
   preparing: '2026-09-02T20:51:35.667Z'
+taken_at: '2026-09-03T13:41:19.684Z'
+branch: task/docs-017-report-signatory
+worktree: .worktrees/docs-017
+claim_expires_at: '2026-09-03T14:11:19.684Z'
+claim_controller: wf-build/docs-017
+lease_id: e4695a60-ac41-4cd1-a6a9-282451887479
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\docs-017'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-03T13:41:19.684Z'
 labels:
   - sign-off
   - renderer
@@ -30,7 +40,7 @@ refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 archived: false
 created: '2026-09-02T11:20:50.869Z'
-updated: '2026-09-02T20:51:35.667Z'
+updated: '2026-09-03T13:41:19.684Z'
 ---
 
 ## What
