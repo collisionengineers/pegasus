@@ -1217,6 +1217,67 @@ public static class OperatorLabels
         public const string Confirm = "Confirm";
         public const string DisableConsequence =
             "Disabling revokes existing browser sessions; the account is retained permanently.";
+        public const string SignOffEngineer = "Sign-off Engineer";
+        public const string Yes = "Yes";
+        public const string No = "No";
+        public const string PrintedName = "Printed name";
+        public const string Qualifications = "Qualifications";
+        public const string SignatureImage = "Signature image";
+        public const string OnFile = "On file";
+        public const string NotOnFile = "Not on file";
+        public const string UploadSignature = "Upload signature";
+        public const string ReplaceSignature = "Replace signature";
+        public const string DefaultSignOffEngineer = "Default sign-off Engineer";
+        public const string Settings = "Settings";
+        public const string Save = "Save";
+        public const string Cancel = "Cancel";
+        public const string CloseDialog = "Close dialog";
+        public const string SignatureMissing = "Signature missing";
+        public const string QualificationsMissing = "Yes · qualifications missing";
+        public const string Default = "Yes · default";
+        public const string NotEligible = "Yes · not eligible";
+        public const string PrintedNameRequired =
+            "Enter the printed name for the Sign-off Engineer.";
+        public const string SignatureInvalid =
+            "Select a PNG signature image no larger than 1 MiB.";
+        public const string EngineerRoleRequired =
+            "Only an Engineer account can be a Sign-off Engineer.";
+        public const string DefaultRequiresEligible =
+            "The default Sign-off Engineer must be eligible to sign off.";
+        public const string SignOffUpdated = "Sign-off Engineer settings updated.";
+
+        public static string SignOffState(StaffAccountSummary account)
+        {
+            if (!account.Roles.Contains(Pegasus.Core.Identity.StaffRole.Engineer))
+            {
+                return "—";
+            }
+
+            if (!account.SignOff.IsSignOffEngineer)
+            {
+                return No;
+            }
+
+            if (!account.SignOff.HasSignature)
+            {
+                return SignatureMissing;
+            }
+
+            if (account.SignOff.Qualifications is null)
+            {
+                return QualificationsMissing;
+            }
+
+            if (account.SignOff.IsDefault)
+            {
+                // Role, sign-off flag, and signature presence are already
+                // confirmed by the earlier branches; only enabled state
+                // remains to determine eligibility here.
+                return account.IsEnabled ? Default : NotEligible;
+            }
+
+            return Yes;
+        }
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -186,6 +187,16 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         {
             entity.Property(item => item.IsEnabled).HasDefaultValue(true);
             entity.Property(item => item.MustChangePassword).HasDefaultValue(true);
+            entity.Property(item => item.IsSignOffEngineer).HasDefaultValue(false);
+            entity.Property(item => item.SignOffPrintedName)
+                .HasMaxLength(StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength);
+            entity.Property(item => item.SignOffQualifications)
+                .HasMaxLength(StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength);
+            entity.Property(item => item.SignOffSignatureDigest).HasMaxLength(64);
+            entity.Property(item => item.IsDefaultSignOffEngineer).HasDefaultValue(false);
+            entity.HasIndex(item => item.IsDefaultSignOffEngineer)
+                .IsUnique()
+                .HasFilter("[IsDefaultSignOffEngineer] = 1");
         });
 
         builder.Entity<IntakeReceiptEntity>(entity =>
@@ -1024,6 +1035,18 @@ public sealed class PegasusIdentityUser : IdentityUser<Guid>
     public bool IsEnabled { get; set; } = true;
 
     public bool MustChangePassword { get; set; } = true;
+
+    public bool IsSignOffEngineer { get; set; }
+
+    public string? SignOffPrintedName { get; set; }
+
+    public string? SignOffQualifications { get; set; }
+
+    public byte[]? SignOffSignature { get; set; }
+
+    public string? SignOffSignatureDigest { get; set; }
+
+    public bool IsDefaultSignOffEngineer { get; set; }
 }
 
 internal sealed class OrganizationEntity

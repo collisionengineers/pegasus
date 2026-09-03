@@ -96,5 +96,14 @@ public sealed class ActorDisplayNamesTests
                 ? new StaffAccountSummary(staffId, knownUserName, true, false, [StaffRole.User], null)
                 : null);
         }
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }
