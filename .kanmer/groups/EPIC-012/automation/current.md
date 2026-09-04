@@ -1,76 +1,69 @@
 # Current auto run — EPIC-012
 
 Run record: `automation/runs/20260902T203000Z-claude-fable.md`. Status:
-**running autonomously to completion** (operator goal, 2026-09-04: finish
-waves 1–5, every ticket Done on `dev`).
+**paused for handoff on 2026-09-04** at the operator's request.
 
-Handoff: `C:\Users\PC\Downloads\Pegasus_EPIC-012_handoff.md`. Script:
+Handoff (rewritten 2026-09-04, authoritative):
+`C:\Users\PC\Downloads\Pegasus_EPIC-012_handoff.md`. Scripts:
 `C:\Users\PC\Downloads\Pegasus_EPIC-012_workflows\case-workspace-v2-build-2.js`.
 
-## Wave 1 — COMPLETE (all five Done and closed out)
+## Wave 1 — COMPLETE
 
-Verified together at wave SHA `80f0ca262b0fe2ca354a5dfb18933dc3f105b917`,
-each ticket's merge SHA proved an ancestor first; one shared command log.
+All five Done and closed out, verified together at wave SHA
+`80f0ca262b0fe2ca354a5dfb18933dc3f105b917` with each ticket's merge SHA proved
+an ancestor first: PLAT-070 `60fc84dc` (#649), DOCS-017 `86ce276d` (#651),
+ENG-035 `ce027748` (#648), PLAT-068 `3f0cb45e` (#655), AUTO-018 `80f0ca26`
+(#654). Worktrees and branches removed, tickets released, Outcomes filled.
 
-| Ticket | PR | Merge SHA |
-| --- | --- | --- |
-| PLAT-070 | #649 | `60fc84dc` |
-| DOCS-017 | #651 | `86ce276d` |
-| ENG-035 | #648 | `ce027748` |
-| PLAT-068 | #655 | `3f0cb45e` |
-| AUTO-018 | #654 | `80f0ca26` |
+## Wave 2 — CASE-038 in Review, NOT merged
 
-Worktrees removed, branches deleted locally and on `origin`, tickets
-released, Outcome sections filled.
+PR #656, branch head `1ed9da3a9`, worktree `.worktrees/case-038`.
 
-Note for future verification runs: `scripts/Test-MarkdownPlacement.ps1` takes
-mandatory `-Base`/`-Head` and fails with a parameter-binding error when called
-bare; the gate CI actually wires is `Test-TestMarkdownPlacement.ps1`
-(`.github/workflows/ci.yml:90-92`).
+An independent cross-model review returned REQUEST CHANGES with five
+blockers. Two of them were changes the controller had authorised on a
+mistaken premise — a snapshot placeholder rewrite that existed only to green
+a wrong artifact, and a CI timeout raise whose stated evidence was
+contradicted by the run it cited. Both are now reverted.
 
-## Wave 2 — CASE-038 in review, CI running
+The fix round closed four of five blockers plus every minor finding: the
+section fragment moved to `/Cases/{id}/Section`, the placeholder rewrite and
+the CI caps reverted to `origin/dev`, the record reduced to exactly one
+editor (proved by a test asserting one form, one save action and one
+occurrence of each of the twenty editable names), and the report, checklist
+and scratch notes corrected to match the diff.
 
-PR #656, head `c9a7bb7b`. Two blockers were found and fixed in-lane, both
-recorded as named dependencies in its PR because each is a one-place fix that
-would otherwise serialise the wave:
+**Outstanding: finding 1's artifact.** The ~30-minute snapshot capture did not
+complete, so `docs/design/test-ui/pages/case-details--default.html` still
+holds the 3,437-byte Files fragment and `catalogue.json` still describes a
+frame it does not contain. CI on this head will be red on the `test-ui` lane.
 
-1. The Test UI snapshot normalizer rewrote every non-catalogued URL to `#`,
-   including `<img src>`, so the offline verify could never load a case
-   document image. It now rewrites a non-catalogued **image** source to an
-   inline placeholder pixel and leaves everything else as `#`.
-2. The `test-ui` CI step timed out at 35 minutes (capture passed 123 tests in
-   19m13s, then verify hit the cap). The single-scroll Case record renders
-   every section on one page, so the capture legitimately grew; the step cap
-   is now 55 minutes and the job 65.
+Next action, in `.worktrees/case-038`: run
+`pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1`, then
+`-Verify -SkipCapture`, then `Test-UiCatalogue.ps1`; **open the regenerated
+default snapshot and confirm by eye** (doctype, `case-sticky`, eleven
+`id="section-*"` hosts, tens of kilobytes not 3.4 KB); correct
+`catalogue.json`; commit, push, wait for CI, then obtain a **fresh
+independent review** before merging. If a genuine full-record page still
+yields an unloadable offline image, that is a separate finding to fix at its
+cause — do not reinstate the placeholder rewrite.
 
-## Remaining
+## Waves 3–5 — Prepared, not started
 
-Wave 3 (after CASE-038 merges): CASE-039, CASE-040, CASE-041, CASE-029,
-CASE-042 (blocked by CASE-032 — skip and log if still blocked), PLAT-069,
-CASE-009, then **ENG-034 serial last** on the `Details.cshtml.cs` lease.
-Wave 4: ENG-036, ENG-031, ENG-029, DOCS-018, plus **CASE-043 serial**
-(migration). Wave 5: UIIMP-014 then DELIV-030, then the adversarial claims.
+Wave 3: CASE-039, CASE-040, CASE-041, CASE-029, CASE-042 (blocked by
+CASE-032), PLAT-069, CASE-009, then ENG-034 serial last. Wave 4: ENG-036,
+ENG-031, ENG-029, DOCS-018, CASE-043 serial. Wave 5: UIIMP-014 → DELIV-030,
+then the adversarial claims.
 
 ## Carried forward
 
-1. **Report generation is blocked on `dev`** until [[CASE-040]] wires the
-   sign-off Engineer into `EfAssessmentReportProjectionSource`. DOCS-017's
-   declared and approved accepted risk; CASE-040's proof must show a draft
-   generating end to end from the production path. No release to `main`
-   before then, and release needs explicit `MERGE AUTH GRANTED`.
+1. **Report generation is blocked on `dev`** until CASE-040 wires the sign-off
+   Engineer into `EfAssessmentReportProjectionSource`; its proof must show a
+   draft generating end to end from the production path. No promotion to
+   `main` before then, and release needs explicit `MERGE AUTH GRANTED`.
 2. **Migration ordering**: a lane whose migration predates a since-merged one
    must regenerate it after `dev`'s tail and reconcile the model snapshot and
-   the applied-migrations assertion. PLAT-068 and AUTO-018 both hit this.
+   the applied-migrations assertion.
 3. `origin/main` `32f8679d` is two commits ahead of `dev` through direct
    pushes; reconciling that is an administrator action.
-
-## Operating notes
-
-Lanes run restore, Release build and the Core + Architecture projects only;
-GitHub CI is the pre-merge full-suite gate; reviews are diff-scoped; one full
-local run per wave at the merge commit for proof. Gate merges on the run
-conclusion (`gh run list --branch <b> --limit 1`), never `gh pr checks`.
-PowerShell gates must be invoked as `pwsh -NoProfile -File ./scripts/<x>.ps1`.
-Subagents repeatedly end their turn while their own background command runs —
-for short fix rounds have the agent do the work directly rather than shelling
-out to a long Codex run, and resume a stalled agent with a message.
+4. **Verify the artifact, not the gate.** A gate turning green is not evidence
+   that the thing it guards is correct — that is how the wrong snapshot passed.
