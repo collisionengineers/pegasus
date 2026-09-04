@@ -19,6 +19,7 @@ public sealed class WorkflowModel(
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
+    ISetCaseSignOffEngineer setSignOffEngineer,
     IRecordEngineerFinding recordEngineerFinding,
     ICreateLinkedReplacement createLinkedReplacement,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
@@ -121,6 +122,30 @@ public sealed class WorkflowModel(
                         evidenceReference)),
                 cancellationToken),
             "The Engineer was assigned.");
+
+    public Task<IActionResult> OnPostSetSignOffEngineerAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        Guid signOffEngineerId,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "set_sign_off_engineer",
+            actor => setSignOffEngineer.ExecuteAsync(
+                new(
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    reason,
+                    editLeaseToken,
+                    signOffEngineerId),
+                cancellationToken),
+            "The Sign-off Engineer was set.");
 
     public Task<IActionResult> OnPostStartWorkAsync(
         Guid id,

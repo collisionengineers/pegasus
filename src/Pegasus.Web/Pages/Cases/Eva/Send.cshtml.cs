@@ -4,7 +4,10 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Pages.Cases;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases.Eva;
 
@@ -30,6 +33,8 @@ namespace Pegasus.Web.Pages.Cases.Eva;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class SendModel(
     ICaseDataQueries caseDataQueries,
+    ICaseWorkflowQueries workflowQueries,
+    IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore modeStore,
     IEvaSubmissionQueries submissionQueries,
     ILogger<SendModel> logger,
@@ -46,10 +51,7 @@ public sealed partial class SendModel(
     /// the export alone — which is the honest shape, because an uncomposed or
     /// unenabled route is not a route.
     /// </summary>
-    public bool CanSubmitToApi { get; private set; }
-
-    public string ExportOperationKey { get; } = NewOperationKey();
-    public string SubmitOperationKey { get; } = NewOperationKey();
+    public EvaHandoffViewModel? Handoff { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -64,9 +66,9 @@ public sealed partial class SendModel(
             return NotFound();
         }
 
-        // Sending is a Review act, both ways. A case that has left Review goes
-        // back to its own page rather than being shown a choice it cannot make.
-        if (caseData.State != CaseLifecycleState.Review)
+        if (caseData.State is not (CaseLifecycleState.Review
+            or CaseLifecycleState.ReportPreparation
+            or CaseLifecycleState.PostReport))
         {
             return RedirectToDetails(caseId);
         }
@@ -75,16 +77,40 @@ public sealed partial class SendModel(
         Reference = caseData.Identity.Reference;
         LastSubmission = await submissionQueries.GetLatestAsync(caseId, cancellationToken);
 
+        var workflow = await workflowQueries.GetAsync(caseId, cancellationToken);
+        if (workflow is null)
+        {
+            return NotFound();
+        }
+        var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+        var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            profiles);
+        var engineer = workflow.AssignedEngineerId is { } engineerId
+            ? await staffAccountQueries.GetAsync(engineerId, cancellationToken)
+            : null;
         var modes = submitCaseToEva is null
             ? EvaSubmissionModes.Disabled
             : await modeStore.GetForPrincipalAsync(
                 caseData.Identity.PrincipalCode,
                 cancellationToken);
-        // Delivered, not merely succeeded: an instruction EVA accepted without
-        // returning an identifier still created a claim, and offering the
-        // button again would create a second one that no API call can withdraw.
-        CanSubmitToApi = EvaSubmissionPolicy.AllowsManualSubmission(modes)
-            && LastSubmission is not { IsDelivered: true };
+        Handoff = new(
+            caseId,
+            workflow.Version,
+            workflow.State,
+            EditLeaseToken: null,
+            engineer?.UserName ?? OperatorLabels.CaseWorkspace.Unassigned,
+            EngineerOptions: [],
+            signOffEngineer?.PrintedName ?? OperatorLabels.CaseWorkspace.Unassigned,
+            signOffEngineer?.StaffId,
+            SignOffEngineerOptions: [],
+            caseData.Completeness.Values.InstructionComplete,
+            caseData.Completeness.Values.ImagesComplete,
+            submitCaseToEva is not null,
+            EvaSubmissionPolicy.AllowsManualSubmission(modes),
+            NewOperationKey(),
+            NewOperationKey());
         return Page();
     }
 
@@ -146,16 +172,9 @@ public sealed partial class SendModel(
         {
             return Forbid();
         }
-        catch (EvaAlreadySubmittedException exception)
-        {
-            TempData["CaseError"] = exception.FileReference is { } reference
-                ? $"{EvaSubmissionPolicy.AlreadySubmittedReason} File reference {reference}."
-                : EvaSubmissionPolicy.AlreadySubmittedReason;
-            return RedirectToDetails(caseId);
-        }
         catch (EvaSubmissionNotEnabledException)
         {
-            TempData["CaseError"] = EvaSubmissionPolicy.NotEnabledReason;
+            TempData["CaseError"] = OperatorLabels.CaseWorkspace.EvaApiNotEnabled;
             return RedirectToDetails(caseId);
         }
         // A submission reads every photograph out of Box before it reaches
