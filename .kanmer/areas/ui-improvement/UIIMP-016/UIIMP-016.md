@@ -2,7 +2,7 @@
 id: UIIMP-016
 type: ticket
 title: Replace Windows accessibility evidence with Chromium automation
-status: verifying
+status: done
 area: ui-improvement
 assignee: codex
 profile: feature
@@ -11,6 +11,7 @@ stageEntered:
   review: '2026-09-04T18:28:42.592Z'
   implementing: '2026-09-04T18:32:08.372Z'
   verifying: '2026-09-04T18:36:05.116Z'
+  done: '2026-09-04T18:49:53.491Z'
 taken_at: '2026-09-04T18:14:27.477Z'
 branch: UIIMP-016-chromium-accessibility
 worktree: .worktrees/uiimp-016
@@ -36,11 +37,17 @@ refs:
 commits:
   - 54f62baa35db508727b538ddcfa181a85e2f7cb2
   - 6d8fa1e48dc3b3650e0c190024fd492047814e51
+  - 90a7591846883dcf23ce8aef6d76bec66bb6edb4
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/662'
+deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 90a7591846883dcf23ce8aef6d76bec66bb6edb4
+delivery_recorded_at: '2026-09-04T18:50:31.078Z'
 archived: false
 created: '2026-09-04T11:58:34.790Z'
-updated: '2026-09-04T18:36:05.116Z'
+updated: '2026-09-04T18:50:31.078Z'
 ---
 
 ## What
@@ -56,3 +63,5 @@ The operator selected automation-only evidence to eliminate the Windows accessib
 - [ ] The governing documents and automated browser suite agree, while explicitly recording that screen-reader coverage is no longer claimed.
 
 ## Outcome
+
+PR #662 merged to `dev` at `90a7591846883dcf23ce8aef6d76bec66bb6edb4`. Chromium automation is now the selected accessibility release evidence, with screen-reader interoperability and the other documented limitations explicitly excluded. Follow-up: [[DELIV-047]] may proceed with Linux release equivalence.
