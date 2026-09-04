@@ -540,6 +540,13 @@ if ($Profile -eq 'Cloud') {
             Repair = (Get-PegasusRepairHint -Id 'bicep')
         },
         [pscustomobject]@{
+            Name = 'ORAS CLI'
+            Command = 'oras'
+            Arguments = @('version')
+            Pattern = '(?m)^Version:\s+1\.3\.4$'
+            Repair = (Get-PegasusRepairHint -Id 'oras')
+        },
+        [pscustomobject]@{
             Name = 'GitHub CLI'
             Command = 'gh'
             Arguments = @('--version')

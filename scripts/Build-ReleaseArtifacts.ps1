@@ -1,16 +1,22 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+-alpha\.\d+$')][string] $Version,
-    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string] $SourceRevision,
-    # The migration bundle is applied from the authorised release terminal,
-    # which ADR-0007 fixes as Windows. Web and Worker packages are linux-x64 on
-    # every platform; only this bundle follows the terminal.
-    [ValidatePattern('^(win|linux|osx)-(x64|arm64)$')][string] $MigrationRuntimeIdentifier = 'win-x64'
+    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string] $SourceRevision
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
+$platform = Get-PegasusPlatform
+if (-not $platform.IsLinux -or
+    [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne
+        [Runtime.InteropServices.Architecture]::X64) {
+    throw 'Release artifacts must be built on the authorised Linux x64 terminal.'
+}
+$migrationRuntimeIdentifier = 'linux-x64'
+$migrationBundleName = 'efbundle'
+
 Push-Location $repositoryRoot
 try {
     $head = (git rev-parse HEAD).Trim()
@@ -66,8 +72,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Web OCI image publish failed.' }
     & dotnet publish ./src/Pegasus.Worker/Pegasus.Worker.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $workerPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Worker publish failed.' }
-    $migrationBundleName = if ($MigrationRuntimeIdentifier.StartsWith('win-')) { 'efbundle.exe' } else { 'efbundle' }
-    & dotnet ef migrations bundle --self-contained -r $MigrationRuntimeIdentifier --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release -o (Join-Path $releaseRoot $migrationBundleName) --force
+    & dotnet ef migrations bundle --self-contained -r $migrationRuntimeIdentifier --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release -o (Join-Path $releaseRoot $migrationBundleName) --force
     if ($LASTEXITCODE -ne 0) { throw 'EF migration bundle creation failed.' }
 
     Compress-Archive -Path (Join-Path $webPublish '*') -DestinationPath (Join-Path $releaseRoot 'web.zip') -CompressionLevel Optimal
@@ -102,7 +107,7 @@ try {
     $azVersion = (az version | ConvertFrom-Json).'azure-cli'
     $azdVersion = ((azd version) -split ' ')[2]
     $manifest = [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         releaseVersion = $Version
         sourceRevision = $SourceRevision
         sourceStatus = 'clean'
@@ -117,7 +122,7 @@ try {
             platform = "$($imageConfig.os)/$($imageConfig.architecture)"
             archive = 'web-image.tar.gz'
         }
-        migrationRuntimeIdentifier = $MigrationRuntimeIdentifier
+        migrationRuntimeIdentifier = $migrationRuntimeIdentifier
         migrationBundleName = $migrationBundleName
         artifacts = $artifacts
     }
