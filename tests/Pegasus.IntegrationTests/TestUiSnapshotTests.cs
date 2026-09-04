@@ -29,7 +29,9 @@ public sealed partial class TestUiSnapshotTests
             ["administration-principal-eva-submission--default"] = new(
                 "EVA API submission for WEBP", "We could not complete that request"),
             ["case-details--default"] = new(
-                "You are editing this case.", AlsoRequired: "case-overview-panel"),
+                "You are editing this case.",
+                AlsoRequired: "case-overview-panel",
+                AlsoRequired2: "status status--navy\">Review<"),
             ["case-details--unavailable"] = new("<h1>Case unavailable</h1>"),
             ["case-details--conflict"] = new("case changed", "Case unavailable"),
             ["cases--empty"] = new("No cases match these filters."),
@@ -312,9 +314,11 @@ public sealed partial class TestUiSnapshotTests
             return null;
         }
 
-        return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var scope = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        Assert.True(scope.Length > 0, $"Test UI scope contains no usable prefixes: '{value}'");
+        return scope;
     }
 
     private static bool MatchesScopePrefix(string file, string prefix) =>
@@ -398,11 +402,16 @@ public sealed partial class TestUiSnapshotTests
 
     private static string NormalizeNewLines(string value) => value.Replace("\r\n", "\n", StringComparison.Ordinal);
 
-    private sealed record StateMatch(string Required, string? Excluded = null, string? AlsoRequired = null)
+    private sealed record StateMatch(
+        string Required,
+        string? Excluded = null,
+        string? AlsoRequired = null,
+        string? AlsoRequired2 = null)
     {
         public bool Matches(string html) =>
             html.Contains(Required, StringComparison.OrdinalIgnoreCase)
             && (AlsoRequired is null || html.Contains(AlsoRequired, StringComparison.OrdinalIgnoreCase))
+            && (AlsoRequired2 is null || html.Contains(AlsoRequired2, StringComparison.OrdinalIgnoreCase))
             && (Excluded is null || !html.Contains(Excluded, StringComparison.OrdinalIgnoreCase));
     }
 
