@@ -43,7 +43,17 @@
 {
     <div class="notice notice--warning" role="status">
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span><strong>Partial data</strong> — Showing recent operational results; refresh for the latest activity.</span>
+        <span><strong>@OperatorLabels.OperationsNotices.PartialData</strong></span>
+    </div>
+}
+
+@if (serviceHealth is not null
+    && ServiceHealthPolicy.HasPartialData(serviceHealth)
+    && User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
+{
+    <div class="notice notice--warning" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span><strong>@OperatorLabels.OperationsNotices.ServiceHealth</strong></span>
     </div>
 }
 
@@ -145,47 +155,6 @@
             </div>
         }
     </section>
-
-    @* The snapshot exists only where this deployment composes the query; an
-       uncomposed capability is absent, never an empty panel. *@
-    @if (serviceHealth is not null)
-    {
-        <section class="panel" aria-labelledby="service-health-title">
-            <div class="panel-head">
-                <div>
-                    <h2 id="service-health-title">Service health</h2>
-                    <span class="muted">@OperatorLabels.OfficeClock(serviceHealth.AsOfUtc)</span>
-                </div>
-            </div>
-            <div class="table-wrap no-border">
-                <table>
-                    <caption class="sr-only">Service health</caption>
-                    <thead><tr><th scope="col">Area</th><th scope="col">Service</th><th scope="col">State</th><th scope="col">Latest evidence</th><th scope="col">Dependency</th></tr></thead>
-                    <tbody>
-                    @foreach (var row in serviceHealth.Rows)
-                    {
-                        <tr>
-                            <td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td>
-                            <td>@OperatorLabels.ServiceHealthServiceName(row.Service)</td>
-                            <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ServiceHealthStateName(row.State)" /></td>
-                            <td>
-                                @if (row.LatestEvidenceAtUtc is { } evidence)
-                                {
-                                    <time datetime="@evidence.ToString("O")">@OperatorLabels.OfficeTime(evidence)</time>
-                                }
-                                else
-                                {
-                                    <span class="muted">—</span>
-                                }
-                            </td>
-                            <td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    }
 
     @if (hasEvaHandoffs)
     {

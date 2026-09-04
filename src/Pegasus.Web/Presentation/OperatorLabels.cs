@@ -1065,6 +1065,13 @@ public static class OperatorLabels
             : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
     }
 
+    // PLAT-069: Operations partial-data notices.
+    public static class OperationsNotices
+    {
+        public const string ServiceHealth = "Service health";
+        public const string PartialData = "Partial data";
+    }
+
     /// <summary>
     /// The recorded EVA facts available to the Operations panel (PLAT-049).
     /// </summary>
