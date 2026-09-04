@@ -220,6 +220,92 @@ public sealed partial class CaseDetailsWebTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls()
+    {
+        var forwardedId = Guid.NewGuid();
+        var senderlessId = Guid.NewGuid();
+        var receivedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 15, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
+        {
+            QueryEmails =
+            [
+                new(
+                    forwardedId,
+                    receivedAtUtc,
+                    "original@qdosassist.co.uk",
+                    "Forwarding Desk",
+                    "desk@collisionengineers.co.uk",
+                    "Repair query",
+                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query")),
+                new(
+                    senderlessId,
+                    receivedAtUtc.AddMinutes(-1),
+                    null,
+                    null,
+                    null,
+                    "Sender unavailable",
+                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "dispute"))
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+        var queries = Section(html, "case-queries-title");
+        var visible = WebUtility.HtmlDecode(VisibleText(queries));
+
+        Assert.Contains("Queries", visible, StringComparison.Ordinal);
+        foreach (var heading in new[] { "Received", "Sender", "Subject", "Classification" })
+        {
+            Assert.Contains(heading, visible, StringComparison.Ordinal);
+        }
+        Assert.Contains("06 May 2031 10:15", visible, StringComparison.Ordinal);
+        Assert.Contains("original@qdosassist.co.uk", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("Forwarding Desk", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("desk@collisionengineers.co.uk", visible, StringComparison.Ordinal);
+        Assert.Contains("Repair query", visible, StringComparison.Ordinal);
+        Assert.Contains("Post-report · Query", visible, StringComparison.Ordinal);
+        Assert.Contains("Sender unavailable", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"href=\"/Inbox/{senderlessId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<form", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("disabled", queries, StringComparison.OrdinalIgnoreCase);
+        var pageText = WebUtility.HtmlDecode(VisibleText(html));
+        foreach (var control in new[] { "Raise a query", "Reply", "Resolve", "Mark resolved" })
+        {
+            Assert.DoesNotContain(control, pageText, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+
+        Assert.DoesNotContain("case-queries-title", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Queries<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Raise a query", html, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// The frame's fragment handler answers with one section body and nothing
     /// of the record around it, so a mounted section cannot replace the frame
@@ -1730,6 +1816,8 @@ public sealed partial class CaseDetailsWebTests
 
         public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
 
+        public IReadOnlyList<CaseQueryEmail> QueryEmails { get; init; } = [];
+
         public string LeaseToken { get; } = "opaque-live-case-lease";
 
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
@@ -1785,6 +1873,7 @@ public sealed partial class CaseDetailsWebTests
             {
                 Data = CreateData(),
                 VehicleEvidence = VehicleLookupEvidence,
+                QueryEmails = QueryEmails,
                 Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
                     : []

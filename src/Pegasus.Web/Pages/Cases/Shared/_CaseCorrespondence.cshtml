@@ -1,0 +1,35 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Intake
+@using Pegasus.Web.Presentation
+@* Called only when Model.Case.QueryEmails is non-empty (see _CaseFiles.cshtml);
+   this partial always renders the section. *@
+<section class="section-gap" aria-labelledby="case-queries-title">
+    <div class="blockhead">
+        <h2 id="case-queries-title">@OperatorLabels.MailOperationalDestinationLabel(MailOperationalDestination.Queries)</h2>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>@OperatorLabels.CaseWorkspace.Received</th>
+                    <th>@OperatorLabels.CaseWorkspace.Sender</th>
+                    <th>@OperatorLabels.CaseWorkspace.Subject</th>
+                    <th>@OperatorLabels.CaseWorkspace.Classification</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Case!.QueryEmails)
+                {
+                    <tr>
+                        <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
+                        <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
+                        <td>@row.Subject</td>
+                        <td>@OperatorLabels.MailClassification(row.Classification)</td>
+                        <td><a asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
