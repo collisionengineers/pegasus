@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -299,7 +300,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(1, Occurrences(html, $"/Cases/{store.CaseId:D}?handler=Save"));
         Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
         Assert.Equal(1, Occurrences(html, "data-edit-save"));
-        // Each of the twenty values SaveCase writes appears once across the
+        // Each editable value SaveCase writes appears once across the
         // record, so no control is shadowed by a stale copy of itself.
         foreach (var field in new[]
         {
@@ -322,7 +323,8 @@ public sealed partial class CaseDetailsWebTests
             "inspectionDate",
             "inspectionDeadline",
             "inspectionAddress",
-            "inspectionMode"
+            "inspectionMode",
+            "storageLocation"
         })
         {
             Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
@@ -852,7 +854,7 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// SaveCase writes every one of <c>CaseEditableData</c>'s twenty members, so
+    /// SaveCase writes every member of <c>CaseEditableData</c>, so
     /// a value the handler does not bind is written as null and clears the
     /// confirmed field. The claimant's own contact number and address were
     /// omitted from both the form and the handler, so every Overview save
@@ -895,12 +897,17 @@ public sealed partial class CaseDetailsWebTests
                 ("reason", "Corrected the registration"),
                 ("claimantName", "Rebecca Claimant"),
                 ("claimantContactNumber", "07700 900123"),
-                ("claimantAddress", "12 Example Street, Leeds, LS1 1AA")));
+                ("claimantAddress", "12 Example Street, Leeds, LS1 1AA"),
+                ("inspectionAddress", "7 No Script Road"),
+                ("storageLocation", "14 Storage Lane")));
         AssertPrg(saveResponse, store.CaseId);
 
         var saved = Assert.Single(store.Saves);
         Assert.Equal("07700 900123", saved.Data.ClaimantContactNumber);
         Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Data.ClaimantAddress);
+        Assert.Equal("14 Storage Lane", saved.Data.StorageLocation);
+        Assert.Equal("7 No Script Road", saved.Data.InspectionAddress);
+        Assert.Equal(CaseInspectionMode.PhysicalAddress, saved.Data.InspectionMode);
 
         // The values the operator did not touch still travel, because SaveCase
         // nulls anything absent — the same defect one field over.
@@ -1674,6 +1681,7 @@ public sealed partial class CaseDetailsWebTests
     private sealed partial class RecordingCaseDetailsStore :
         IGetCase,
         ICaseDataQueries,
+        IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
         IRecordManualCaseChase,
         IHoldCase,
@@ -1752,6 +1760,12 @@ public sealed partial class CaseDetailsWebTests
         public List<CaseMutationRequest> Releases { get; } = [];
         public List<TransitionCaseRequest> Transitions { get; } = [];
 
+        public InspectionAddressChoicesData InspectionChoices { get; init; } = new(
+            "8 Claimant Street",
+            RepairerAddress: null,
+            "14 Storage Lane",
+            ["2 Previous Street", "1 Older Avenue"]);
+
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
             var workflow = CreateWorkflow();
@@ -1798,6 +1812,12 @@ public sealed partial class CaseDetailsWebTests
         /// </summary>
         public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? CreateData() : null);
+
+        Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<InspectionAddressChoicesData?>(
+                caseId == CaseId ? InspectionChoices : null);
 
         Task<CaseDataProjection> IConfirmCompleteness.ExecuteAsync(
             ConfirmCompletenessRequest request,
@@ -1853,7 +1873,9 @@ public sealed partial class CaseDetailsWebTests
                     Empty<DateOnly>(),
                     Empty<DateOnly>(),
                     Confirmed("1 Depot Road"),
-                    Confirmed(CaseInspectionMode.PhysicalAddress)));
+                    Confirmed(CaseInspectionMode.PhysicalAddress),
+                    Confirmed("14 Storage Lane"),
+                    Empty<string>()));
 
         private static readonly CaseDataSource StaffCorrection =
             new(CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);
