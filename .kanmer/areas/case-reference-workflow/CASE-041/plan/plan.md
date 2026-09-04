@@ -393,3 +393,23 @@ extractable from the instruction document, and that extraction is filed as
    so CASE-041's resolver must read the repairer address through the case
    data contract rather than hard-coding the option as unavailable.
 4. CASE-041 is not blocked by INTK-058 and does not wait for it.
+
+## Simplification pass (2026-09-04)
+
+Ran gpt-5.6-sol (effort low) over the working-tree diff against `origin/dev`
+(the four lenses: reuse, simplification, efficiency, altitude). Four findings
+returned, all in `InspectionAddressChoicesQueries.cs`:
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Reuse | `CurrentText` duplicated the existing `CaseField.Current` precedence (`Confirmed ?? Fact ?? Suggestion`) already produced by `EfCaseDataStore.Map`. | **Fixed.** Removed `CurrentText`; claimant address and storage location are now read from the same `projection` (`projection.Claimant.Address.Current?.Value`, `projection.Inspection.StorageLocation?.Current?.Value`) used for the repairer field, instead of a second hand-rolled precedence implementation. |
+| 2 | Simplification | Building the whole `CaseDataProjection` solely to read `RepairerAddress` (which is always null — no repairer-address source exists in Core or Infrastructure) was unnecessary ceremony. | **Fixed as a consequence of #1.** The projection is no longer built "solely" for `RepairerAddress` — it now also supplies claimant address and storage location, replacing the duplicated `CurrentText` logic, so building it is no longer ceremony. |
+| 3 | Efficiency | The `CaseWorkflows` query needed only to call `EfCaseDataStore.Map` was avoidable if `RepairerAddress` were read directly instead. | **Accepted risk, not applied as originally proposed.** Removing the query would require either duplicating the `Confirmed ?? Fact ?? Suggestion` precedence a second time (reintroducing finding #1) or extracting a new partial-mapper abstraction from `EfCaseDataStore` with only one caller — both rejected under the "no abstraction without a second caller" and "one list per concept" rails. The query is now justified: it backs three projected fields (claimant, storage, repairer), not one always-null one. |
+| 4 | Altitude | No finding. | Choice policy stays in Core, persistence lookup in Infrastructure, labels/rendering in Web. |
+
+Re-ran after the fix: `dotnet build ./Pegasus.slnx --configuration Release
+--no-restore` (exit 0, 0 warnings), `Pegasus.Core.Tests` (1,231 passed),
+`Pegasus.ArchitectureTests` (100 passed), and the same scoped integration
+filter (`InspectionAddressChoicesPersistenceTests|CaseDetailsWebTests|CaseTasksWebTests|InspectionAddressChoiceBrowserTests`,
+71 passed) — all green, no behaviour change (tests unmodified, all still
+pass unchanged).
