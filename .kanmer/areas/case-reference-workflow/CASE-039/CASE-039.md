@@ -2,13 +2,14 @@
 id: CASE-039
 type: ticket
 title: 'Engineer notes: append-only staff notes to the Engineer as a Case section'
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: wf-build/case-039
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:08:14.568Z'
   review: '2026-09-04T21:58:15.845Z'
+  verifying: '2026-09-04T23:27:02.452Z'
 taken_at: '2026-09-04T20:53:49.421Z'
 branch: task/case-039-engineer-notes
 worktree: .worktrees/case-039
@@ -36,7 +37,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/669'
 archived: false
 created: '2026-09-02T20:31:38.723Z'
-updated: '2026-09-04T21:58:15.845Z'
+updated: '2026-09-04T23:27:02.452Z'
 ---
 
 ## What
