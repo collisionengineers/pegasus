@@ -346,3 +346,82 @@ confirming the case-document gallery concern from the earlier report's
 Committed as `b5f5ccda9` ("Regenerate the Case snapshots from the real
 record (CASE-038)") and pushed to
 `task/case-038-case-workspace-frame`.
+
+## Review round fixes (2026-09-04)
+
+Head before this pass: `b5f5ccda9`. Worktree `.worktrees/case-038`, branch
+`task/case-038-case-workspace-frame`. Findings from the latest review
+round on PR #656:
+
+1. **Finding 1 (BLOCKER, fixed).** The round-1 finding-3 fix (one editor
+   for the whole record) traded one silent-data-loss path for a narrower
+   one: `_CaseInspectionAddress.cshtml:77`'s `#inspection-address` input
+   carries `form="case-edit-form"` but renders outside that form's own DOM
+   subtree. The CASE-007 dirty guard in `site.js` bound its `input`
+   listener directly on each lease-carrying form (`form.addEventListener
+   ('input', ...)`), and a native `input` event bubbles the DOM tree, not
+   the `form=` association — so typing only the inspection address left
+   `dirtyForm` null, and clicking Finish editing (`Details.cshtml:168`)
+   released the lease with no confirmation, silently discarding the typed
+   address. Ctrl+S was unaffected (its own fallback path).
+
+   Fixed in `src/Pegasus.Web/wwwroot/js/site.js`: one delegated
+   `document`-level `input` listener now resolves the owning form through
+   the control's `form` IDL property (`event.target.form`, with
+   `closest('form')` as a fallback), which does honour `form=` regardless
+   of DOM position — replacing the per-form `input` listener. The per-form
+   `submit` listener, the lazy-mount binder, and
+   `window.pegasusDirtyEditForm`'s contract are unchanged.
+
+   Added `InspectionAddressOutsideEditFormIsGuardedAndSaved` to
+   `tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs`: seeds
+   a case whose provider is set to `physical_address` mode (QDOS defaults
+   to Image Based Assessment, whose address Core refuses as free text —
+   `SetPrincipalInspectionModeAsync`, reusing the same intake/accept flow
+   via a new optional parameter on `SeedAcceptedCaseAsync`), enters edit
+   mode, types a new address into `#inspection-address`, clicks Finish
+   editing, asserts `#edit-finish-confirm` becomes visible (the actual
+   regression check — before the fix no dialog appears), clicks Save
+   changes, asserts the `Save` POST returned 302 (not a re-rendered error
+   page), and reloads the case to assert the persisted "Recorded value"
+   equals the typed address. No existing test covered this: the
+   `CaseDetailsWebTests.cs` POST tests build form data directly via
+   `HttpClient` and never exercise the browser's DOM `input`-event/`form=`
+   association at all.
+
+2. **Finding 2 (SHOULD-FIX, record-only).** `src/Pegasus.Web/Program.cs`
+   (+28) and `docs/design/test-ui/index.html` were already in the diff but
+   named in neither `plan.md`'s Expected files nor `files.md`. Both are
+   ACCEPTED on their merits (the route selector is matching-only with
+   `SuppressLinkGeneration = true`, so `/Cases/{id}` and every `?handler=`
+   link generate exactly as before, and it fixes round-1 finding 1 at its
+   cause; `index.html` is the harness's own regeneration of catalogue text
+   this ticket already owns). No code change — `plan.md` and `files.md`
+   are amended in the same pass to name both paths with this reason.
+
+Rejected findings, no action: the `site.js` literal `'This section could
+not be loaded.'` (existing convention, matches `site.js:834`'s "Quick
+preview unavailable…" — state text, not explanatory copy, and it replaced
+a swallowed failure); the missing Open Assessment action (D30 + ENG-034
+option B, deliberate); `catalogue.json`'s "edit lease held" text
+(pre-existing on `origin/dev`, not introduced by this ticket); the
+`OperatorLabels` block not carrying a CASE-038 comment delimiter (accepted
+as-is).
+
+No routed Razor page, partial it composes, or `catalogue.json` changed
+this round — `site.js` and a test file only — so the snapshot procedure
+was not run.
+
+### Commands (Windows, PowerShell 7), this round
+
+| Command | Exit |
+| --- | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 (0 warnings) |
+| `dotnet test ./tests/Pegasus.Core.Tests/... --no-build` | 0 — 1219 passed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/... --no-build` | 0 — 100 passed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/... --filter "FullyQualifiedName~InspectionAddressOutsideEditFormIsGuardedAndSaved"` | 0 — 1 passed (after the fix landed; the same test failed pre-fix by design, proving the regression it targets) |
+| `dotnet test ./tests/Pegasus.IntegrationTests/... --filter "FullyQualifiedName~LayoutIntegrityTests"` | 0 — 70 passed (6m54s), no regressions in the other 69 |
+
+Committed as `edee9987f` ("Fix CASE-007 dirty guard for form= associated
+controls (CASE-038 review)") and pushed to
+`task/case-038-case-workspace-frame`.
