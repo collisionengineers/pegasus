@@ -569,8 +569,10 @@ Two results are routed rather than stopped on:
   is `kanmer-execute` on the **same** branch, worktree and PR (its re-entry
   lane), followed by the reviewer's delta review. Read `review_round` and
   `remediation_budget` from the item before dispatching: a
-  `REMEDIATION_BUDGET_EXHAUSTED` refusal is an operator-only question, quoted
-  verbatim, never a retry.
+  `REMEDIATION_BUDGET_EXHAUSTED` refusal forbids another remediation round. If
+  the delta review identifies the implementation approach itself as the root
+  cause, route the ticket through the one controlled replan below; otherwise
+  quote the refusal and stop that lane for the operator.
 - A **non-PASS verification** with a `failure_class`. Route by
   `kanmer-verify`'s table — `transient` reruns in Verifying, `inconclusive`
   waits with the missing check named, `implementation` returns the ticket to
@@ -682,29 +684,25 @@ A ticket gets one consolidated review, one in-scope remediation batch, and one
 delta review. `kanmer-review` owns those rules and this skill does not restate
 them; what the controller owns is the route out when they are spent.
 
-- The delta review still blocks, and the blocking finding is a **plan** defect —
-  the implementation does what the plan said and the plan is what is wrong. The
-  controller may take **one automatic replan** for that ticket, and only while
-  the remediation budget is **still available before it is spent**. That
-  precondition is checked first, from the live item, and never satisfied by the
-  controller's own reading of the finding: read `review_round` and
-  `remediation_budget`, and a ticket whose `review_round` has already reached
-  its `remediation_budget` gets **no** automatic replan at all — that lane
-  belongs to the operator under the next bullet, and classifying its finding as
-  a plan defect does not change that. Classification decides *whether* a replan
-  is the right route; the budget decides whether one is available at all. When
-  the precondition holds: one `move_item` to `preparing` with a reason quoting
+- The delta review still blocks, and the blocking finding identifies the
+  **implementation approach itself** as the root cause — the implementation
+  follows the plan, but the planned mechanism is wrong. The controller may take
+  **one automatic replan** for that ticket even when the remediation budget is
+  exhausted, because this changes the approved approach rather than buying
+  another remediation round. Require that exact root-cause classification from
+  the independent delta review and confirm the ledger has no prior replan for
+  the ticket. Then make one `move_item` to `preparing` with a reason quoting
   the finding ids, one fresh planning subagent, one plan revision, then
   re-execute on the same ticket. Record it once in the ledger's replan column.
   It does not raise `remediation_budget`, and it neither resets nor increments
   `review_round`, so no number of replans can buy a fresh remediation round.
 - `move_item` refuses `REMEDIATION_BUDGET_EXHAUSTED`. The budget is genuinely
-  spent. That lane goes `blocked` with the refusal quoted verbatim while the run
-  continues other safe lanes. The controller **never** routes `review` →
-  `preparing` to get around that refusal — the store guards one boundary and
-  routing around it through another is the same bypass. Only an operator
-  re-opens the loop, with a reason beginning `operator:`, which also raises the
-  budget.
+  spent, so the controller never retries Review → Implementing or raises the
+  budget. The one approach-level replan above is the sole controlled route to
+  Preparing and creates no new remediation allowance. Without its exact
+  independent classification, or after that replan is spent, the lane goes
+  `blocked` with the refusal quoted verbatim; only an operator may re-open the
+  remediation loop with a reason beginning `operator:`.
 - The replan is bounded too. A ticket that still fails materially after its one
   replan stops as an explicit `blocked` outcome carrying the exact evidence. It
   is not retried again, and the same work does not reappear as a fresh ticket.
@@ -721,8 +719,14 @@ ticket in **Verifying** must have a confirmed merged PR, an exact merge SHA, an
 active or immediately queued verification attempt, and a known proof state.
 
 Anything else is an unexplained state, and it is reconciled before the run
-reports anything: a merged PR still sitting in Review is moved on through its
-own gates, and a PASS proof still sitting in Verifying is moved and closed out.
+reports anything. The controller's first act is the reconciliation pair, not a
+manual audit: on any resumed or suspicious Review/Verifying ticket, call
+`reconcile_ticket id: <ID>` as a dry run first and, only when it returns a
+recommendation, apply that recommendation with `apply_reconciliation id: <ID>,
+expected_revision: <the recommendation's revision>` before re-reading anything
+by hand. A merged PR still sitting in
+Review is then moved on through its own gates, and a PASS proof still sitting in
+Verifying is moved and closed out.
 For a merged batch PR, re-read the active manifest and resume
 `kanmer-review`'s immutable-roster handoff instead of reconciling only the
 current member: Review advances exactly to Verifying, already-Verifying is the

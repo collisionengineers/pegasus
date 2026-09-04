@@ -176,9 +176,10 @@ public sealed class WorkerActivationReleaseContractTests
             }
             var standardOutput = await standardOutputTask;
             var standardError = await standardErrorTask;
-            var diagnostic = $"Exit code: {process.ExitCode}{Environment.NewLine}" +
+            var diagnostic = NormalizeDiagnosticWhitespace(
+                $"Exit code: {process.ExitCode}{Environment.NewLine}" +
                 $"Standard output:{Environment.NewLine}{standardOutput}{Environment.NewLine}" +
-                $"Standard error:{Environment.NewLine}{standardError}";
+                $"Standard error:{Environment.NewLine}{standardError}");
 
             Assert.NotEqual(0, process.ExitCode);
             Assert.True(
@@ -339,7 +340,8 @@ public sealed class WorkerActivationReleaseContractTests
         settings[index] = settings[index] with { Value = "false" };
 
         var result = RunWorkerSmoke(settings, "disabled");
-        var output = result.StandardOutput + result.StandardError;
+        var output = NormalizeDiagnosticWhitespace(
+            result.StandardOutput + result.StandardError);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains(
@@ -355,7 +357,8 @@ public sealed class WorkerActivationReleaseContractTests
         string protectedSettingName)
     {
         var result = RunWorkerSmoke(settings, "disabled");
-        var output = result.StandardOutput + result.StandardError;
+        var output = NormalizeDiagnosticWhitespace(
+            result.StandardOutput + result.StandardError);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains(
@@ -369,6 +372,13 @@ public sealed class WorkerActivationReleaseContractTests
         ExpectedSettingNames
             .Select(name => new WorkerSetting(name, value))
             .ToList();
+
+    private static string NormalizeDiagnosticWhitespace(string value) =>
+        Regex.Replace(
+            Regex.Replace(value, @"\s*\|\s*", " ", RegexOptions.CultureInvariant),
+            @"\s+",
+            " ",
+            RegexOptions.CultureInvariant);
 
     private static SmokeResult RunWorkerSmoke(
         IReadOnlyCollection<WorkerSetting> settings,
