@@ -499,3 +499,55 @@ and take precedence where they differ.
 4. **CASE-038 is unchanged in substance**: its section shells stay
    heading-only and its PR carries no Assessment handler, so it merges with
    no unreachable code.
+
+## Simplification pass (2026-09-04)
+
+Run by gpt-5.6-sol (low) over `git diff origin/dev` (plus the new
+`CaseEngineerSectionsWebTests.cs`) after implementation, then re-verified by
+Claude (build + Core + Architecture + the changed integration/browser
+classes + the scoped Test UI capture/verify/catalogue, all rerun green after
+applying the findings below).
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Reuse | Damage, Settlement and Report partials each repeated the same assessment-field lookup and absent-value label. | **Fixed.** Added one `DetailsModel.AssessmentValue` presentation helper, reused `CaseWorkspace.AbsentValue`, removed the duplicate `EngineerSections.NotRecorded` label. |
+| 2 | Simplification | No dead code, redundant branch, or removable over-complication found in the changed route/page-model/partial/test shapes. | Not applicable. |
+| 3 | Efficiency | `ReadEditorPost` re-materialized six posted line-field collections to arrays on every loop iteration. | **Fixed.** Materialized each collection once before the loop and reused the arrays. |
+| 4 | Altitude | Diff stays within Web composition/presentation, integration tests and generated Test UI snapshots; nothing moved into Core, persistence, CSS/JS or another ticket's owned files. | Not applicable. |
+| 5 | Behavioural bugs | None identified during this quality-only pass. | Not applicable. |
+
+## Deviations recorded during implementation (2026-09-04)
+
+1. **Test UI generated index (`docs/design/test-ui/index.html`).** Files.md
+   scopes new Case-record snapshot *states* to UIIMP-014, but does not
+   anticipate that reclassifying the retired Assessment entry to `redirect`
+   and deleting its snapshot leaves a broken local link in the checked-in,
+   mechanically-generated `index.html` — `Test-UiCatalogue.ps1` fails without
+   fixing it. Precedent: PLAT-029 committed the equivalent 1-line `index.html`
+   update in the same commit as its own catalogue/route changes. Applied the
+   minimal mechanical fix (moved the one `/Cases/{id:guid}/Assessment` row
+   from the visual list to the non-visual table, matching the already-owned
+   `catalogue.json` entry) rather than leaving the catalogue gate red or
+   absorbing UIIMP-014's actual scope (new snapshot states).
+2. **Section fragment URL.** The controller's briefing named
+   `/Cases/{id}/Section?section=<key>` as "the CASE-038 contract as corrected
+   2026-09-04" for lazy fragments; the binding jump/redirect target
+   throughout the plan, tests and this implementation is
+   `/Cases/{id}?section=<key>` (confirmed against the merged CASE-038 host
+   actually on `origin/dev`). The 301 and all Case-page redirects use
+   `/Cases/{id}?section=estimate` as the plan specifies; no separate
+   `/Section` fragment endpoint exists to call.
+3. **CASE-039 not yet merged at implementation time.** Per this
+   repository's parallel-build policy, "serialized" plan text sets merge
+   order, not build order: implementation proceeded now, in this ticket's own
+   worktree, against `origin/dev` as of `90a759184` (CASE-038 merged, CASE-039
+   still in progress). The `Details.cshtml.cs`/`Details.cshtml` capacity-one
+   lease and merge ordering behind CASE-039 remain the reviewing controller's
+   to sequence at merge time.
+4. Pre-existing host naming (`instructionConfirmedByStaff` /
+   `imagesConfirmedByStaff` parameter names on the completeness call) was left
+   unchanged: no staff-review control or wording is rendered anywhere in
+   ENG-034's sections (proved by the new test), and renaming those pre-existing
+   parameters is CASE-038/PLAT-070 scope, not this ticket's.
+5. `Details.cshtml` needed no edit: CASE-038 had already landed all four
+   section include points.
