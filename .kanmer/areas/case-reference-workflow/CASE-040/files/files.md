@@ -80,3 +80,12 @@ before it starts.
   decisions, and other governing documentation: [[DELIV-041]] owns
   reconciliation (FRD-07 lines 8-20, 79-102, 118-120 conflict with D36 and
   were outside DELIV-041's file list; a docs follow-up is needed).
+
+## Correction (2026-09-04, controller)
+
+| Path | Action | Why | Reuses |
+| --- | --- | --- | --- |
+| `src/Pegasus.Infrastructure/Persistence/EfAssessmentReportProjectionSource.cs` | change — **owned by CASE-040**, moved out of the DOCS-017 must-not-touch list above | Resolve the Case sign-off Engineer through the Core resolver and pass the complete `ReportSignatory` to `Prepare`, closing the interim state in which every draft returns the Sign-off readiness item. See the plan's "Resolutions (2026-09-04)". | Step-2 resolver, PLAT-068 `ListSignOffEngineersAsync` / profile, existing `Prepare` call site |
+
+The renderer, the Scriban template, `AssessmentReportRendering.cs` and
+`AssessmentReportProjection.cs` remain untouched.

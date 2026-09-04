@@ -485,3 +485,38 @@ amendments bind and take precedence over the plan above where they differ.
    route, and that a failed handoff leaves the case in `Review`. No existing
    assertion that the state is unchanged survives — it is corrected, not
    deleted, and the correction is named in the post-implementation report.
+
+## Resolutions (2026-09-04) — report generation wiring is CASE-040's
+
+Controller correction, from the scratch note of 2026-09-03: [[DOCS-017]]
+merged at `86ce276d` leaving the one production input source,
+`EfAssessmentReportProjectionSource.cs`, passing `Signatory: null`, so no
+report draft can be generated on `dev` until the case's sign-off Engineer is
+wired through it. This section overrides the "Must not modify — DOCS-017-owned
+report projection" line above and the files document's must-not-touch row for
+that one file. It binds.
+
+- **Owned path added:**
+  `src/Pegasus.Infrastructure/Persistence/EfAssessmentReportProjectionSource.cs`.
+  Still not owned: `PlaywrightAssessmentReportRenderer.cs`, the Scriban
+  template, `AssessmentReportRendering.cs`, `AssessmentReportProjection.cs`
+  (DOCS-017's shapes stand; `Prepare` already requires a complete signatory).
+- **Step 3a (new, after Step 3):** the production projection source resolves
+  the case's Sign-off Engineer through the Step-2 Core resolver (persisted
+  selection → eligible assigned Engineer → the default designation) and, when
+  one resolves, passes a complete `ReportSignatory` (printed name,
+  qualifications, signature image from [[PLAT-068]]'s profile query) to
+  `AssessmentReportProjection.Prepare`; when none resolves it keeps passing
+  null so readiness reports the Sign-off item. No second resolver: the source
+  calls the Core rule, it does not restate it.
+- **Acceptance (added):** an integration test that composes the real
+  `EfAssessmentReportProjectionSource` (in
+  `tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs` or
+  the persistence test that already exercises the production source)
+  generates a draft end to end for a case whose sign-off resolves, and asserts
+  the Sign-off readiness item for one that does not. The post-implementation
+  report and the proof name that test. Nothing is promoted to `main` until it
+  passes at the verified SHA.
+- Build policy for this ticket follows EPIC-012 `context.md` §Build policy
+  (2026-09-04): build concurrently, merge in queue order after [[CASE-041]],
+  regenerate the migration if `dev`'s tail moved.
