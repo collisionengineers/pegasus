@@ -115,7 +115,9 @@ public sealed record ImageIntakeSummary(
     DateTimeOffset RegisteredAtUtc,
     ImageCustodyState? Custody,
     ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
-    string? ClosureReason = null);
+    string? ClosureReason = null,
+    int ImageCount = 0,
+    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,
