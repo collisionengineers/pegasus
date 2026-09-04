@@ -350,3 +350,28 @@ exist. No finding was silenced and none needed an operator question.
 
 - Operator: no event in the case Notes history when an Engineer note is
   added. This is the binding rule for the implementation, not a default.
+
+## Simplification pass (2026-09-04)
+
+Independent review (Codex gpt-5.6-sol, low effort) of the full CASE-039
+working-tree diff against `origin/dev` for reuse, duplication, unnecessary
+abstraction, and dead code.
+
+Findings and dispositions:
+
+1. `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` —
+   `EngineerNoteDisplay.Id` was populated from `note.Id` but never consumed
+   by `_CaseEngineerNotes.cshtml` or any other touched code (no edit/delete
+   affordance renders it). **Fixed** — removed the `Id` record member and the
+   corresponding `note.Id` mapping argument.
+2. `tests/Pegasus.Core.Tests/Cases/EngineerNotesTests.cs` —
+   `QueryContractNamesNewestFirstOrdering` used reflection only to assert
+   that `IEngineerNoteQueries.ListNewestFirstAsync` has the return type the
+   compiler already enforces; it proved no ordering behaviour. **Fixed** —
+   deleted the test. Newest-first ordering is already proven by
+   `EngineerNotePersistenceTests.AppendIsAttributedReplaySafeOrderedAndSeparateFromCaseHistory`.
+
+No other findings. Re-ran build (0 warnings/errors), Core tests (1,234
+passed), Architecture tests (100 passed), and the changed integration classes
+(`EngineerNotePersistenceTests`, `CaseDetailsWebTests`,
+`AzureSqlRuntimeRoleMigrationTests`, 94 passed) after applying both fixes.
