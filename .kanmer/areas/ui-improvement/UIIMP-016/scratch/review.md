@@ -1,13 +1,13 @@
 ---
 kind: review-attestation
 pr: "662"
-head_sha: "54f62baa35db508727b538ddcfa181a85e2f7cb2"
-verdict: needs-changes
+head_sha: "6d8fa1e48dc3b3650e0c190024fd492047814e51"
+verdict: pass
 reviewer: "review_uiimp_016"
 independent: true
 plan_hash: "7baafbad7f2cf061"
-ticket_updated: "2026-09-04T18:28:42.592Z"
-board_sha: "aa9c3dccf71534312a6655d9d95facf372757999"
+ticket_updated: "2026-09-04T18:33:44.531Z"
+board_sha: "bf4fdfd0a5c27c300c13023a0374f8c2cdfadd45"
 expected_reviewers:
   - "review_uiimp_016"
 threads_snapshot: []
@@ -15,28 +15,26 @@ findings:
   - id: F-001
     severity: major
     summary: "The design authority still requires recorded screen-reader evidence."
-    disposition: open
+    disposition: fixed
 ---
 
-# Independent review — UIIMP-016
+# Independent delta review — UIIMP-016, round 1
 
-## Changes reviewed
+## Delta reviewed
 
-Reviewed the complete docs-only PR #662 diff at exact head `54f62baa35db508727b538ddcfa181a85e2f7cb2` against the ticket packet, plan, post-implementation report, EPIC-013 context, the linked product PRD, and the affected FRD, design, engineering, runbook and operations authorities. No application, test, script, dependency, infrastructure, protected operator-notes or corpus file changed. The existing Browser implementation supports the documented Chromium, axe, authenticated-route, semantic, keyboard, focus, constrained-width, forced-colour and reduced-motion claims, and the recorded 120/120 local Browser result is aligned with that executable lane.
+Reviewed only original finding F-001, commit `6d8fa1e48dc3b3650e0c190024fd492047814e51`, its changed lines in `docs/design/README.md`, the direct accessibility-evidence contract, and the relevant checks. No unrelated file or contract changed in the remediation delta.
+
+## Finding disposition
+
+### F-001 — major — fixed
+
+The later normative `Accessibility and acceptance` list now says the package-pinned Chromium Browser lane records keyboard, focus/error, forced-colour, reduced-motion and three-width evidence. It separately preserves screen-reader-compatible semantics as required behavior and explicitly says screen-reader interoperability is not part of the selected evidence. This resolves the contradiction without weakening the desired accessible behavior or claiming that Chromium simulates assistive technology.
 
 ## Acceptance checks
 
-PASS: exact docs-only scope; clean diff; documentation, local-development-script and reference-data CI; no review comments or threads; and explicit limitations against screen-reader interoperability, complete WCAG conformance, subjective usability and operator acceptance in each changed passage.
+PASS: targeted terminology search finds only required-behavior or explicit non-claim references; documentation links pass over 125 files; Markdown placement passes with `origin/dev` and `HEAD`; delta and full PR diff checks pass; PR changes, documentation, local-development-scripts and reference-data checks pass. Code, SQL, Browser and Test UI jobs are correctly skipped for the docs-only delta; the unchanged local Browser evidence remains 120 passed, 0 failed on the implementation head lineage.
 
-NOT PASS: the design authority is internally inconsistent and the acceptance condition that no screen-reader evidence requirement remains is unmet.
-
-## Findings and dispositions
-
-### F-001 — major — open
-
-`docs/design/README.md` has a second normative `Accessibility and acceptance` section whose `When implemented` list still requires “keyboard, screen-reader, focus/error, forced-colours, reduced-motion and the three widths” to be recorded. That is an evidence obligation, not merely the desired screen-reader-compatible behavior preserved elsewhere. It contradicts the new automation-only evidence contract and retains the assistive-technology handoff this ticket is required to remove.
-
-Return the same PR for one bounded docs-only correction in that existing section: preserve screen-reader-compatible behavior, but make its evidence wording agree with the selected Chromium lane and the explicit non-claim of screen-reader interoperability. Re-run the targeted terminology and documentation checks. No code or test change is required.
+The remediation report truthfully retains the first malformed Markdown-placement invocation and the corrected pass.
 
 ## External review evidence
 
@@ -44,4 +42,4 @@ GitHub has no reviews, comments or review threads on this head; there are no ext
 
 ## Residual risk
 
-Automation-only evidence materially reduces assistive-technology coverage. The ticket correctly intends to record that accepted trade-off rather than calling Chromium a Narrator substitute, but the remaining contradictory requirement must be removed before merge.
+The accepted automation-only policy still does not prove screen-reader interoperability, complete WCAG conformance, subjective usability or operator acceptance. All six governing and operating documents now state that limitation consistently. No open blocker or major finding remains.
