@@ -308,7 +308,9 @@ public sealed class DashboardBoundaryTests
         AssigneeId: null,
         LinkedCaseId: null,
         CreatedAtUtc: NowUtc,
-        Version: 1);
+        Version: 1,
+        Reference: null,
+        Provider: null);
 
     private static UnidentifiedQueueRow NewUnidentified(Guid id, string reference) => new(
         id,

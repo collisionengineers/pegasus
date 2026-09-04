@@ -138,8 +138,16 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         harness.Receipts.Receipts[receipt.Id] = receipt;
         var item = harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
         var triageId = Guid.NewGuid();
-        harness.Triages.SummariesByOriginReceipt[receipt.Id] =
-            new(triageId, "VO75DFJ", TriageState.Open, null, null, Now, 0);
+        harness.Triages.SummariesByOriginReceipt[receipt.Id] = new(
+            triageId,
+            "VO75DFJ",
+            TriageState.Open,
+            AssigneeId: null,
+            LinkedCaseId: null,
+            Now,
+            Version: 0,
+            Reference: null,
+            Provider: null);
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 

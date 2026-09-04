@@ -37,6 +37,14 @@ public enum ImageInitiatedCaseState
     StaffClosed
 }
 
+public enum ImageCustodyState
+{
+    Pending,
+    Confirmed,
+    Merged,
+    Failed
+}
+
 /// <summary>
 /// Formats the registration-based identity `{normalised VRM}-{sequence}` with a
 /// two-digit minimum sequence that expands past `-99` without reuse.
@@ -105,6 +113,7 @@ public sealed record ImageIntakeSummary(
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
     DateTimeOffset RegisteredAtUtc,
+    ImageCustodyState? Custody,
     ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
     string? ClosureReason = null);
 
@@ -133,7 +142,8 @@ public sealed record ImageIntakeDetail(
     ImageIntakeRecord Record,
     DateTimeOffset RegisteredAtUtc,
     Guid? AssociatedCaseId,
-    string? AssociatedCaseReference)
+    string? AssociatedCaseReference,
+    ImageCustodyState? Custody = null)
 {
     public ImageInitiatedCaseState State => Record.State;
 
