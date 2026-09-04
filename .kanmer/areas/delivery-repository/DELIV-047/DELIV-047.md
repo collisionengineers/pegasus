@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-04T18:56:09.501Z'
 branch: DELIV-047-linux-release
 worktree: .worktrees/deliv-047
-claim_expires_at: '2026-09-04T19:26:09.501Z'
+claim_expires_at: '2026-09-04T20:02:11.146Z'
 claim_controller: codex
 lease_id: f9770d71-438d-4241-a126-a41b0880b5c4
-lease_revision: 1
+lease_revision: 2
 lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/deliv-047'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-04T18:56:09.501Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-04T19:02:11.146Z'
 labels:
   - release
   - linux
@@ -31,7 +31,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-09-04T11:58:34.797Z'
-updated: '2026-09-04T18:56:09.501Z'
+updated: '2026-09-04T19:02:11.146Z'
 ---
 
 ## What
