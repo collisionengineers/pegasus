@@ -21,35 +21,31 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-04T10:21:48.548Z'
-updated: '2026-09-04T10:21:48.548Z'
+updated: '2026-09-04T13:11:42.687Z'
 ---
 
 ## What
 
-Show the principal on an image-initiated case when it is known. The field is
-optional because a principal is not always known when image material is
-received.
+Give an image-initiated record an optional principal and show it wherever the record is drawn: the Awaiting instruction row and quick view on `/Cases` ([[CASE-042]]) and the image-initiated detail page. A principal will often not be known when image material arrives; when none is recorded the field shows the exact label `Not known` (D51 — an operator-directed exception to the absent-not-drawn rule, for this field only).
 
-Do not require a principal to create or retain an image-initiated case, and
-do not infer or fabricate one solely to populate the field.
+Do not require a principal to create or retain an image-initiated case, and never infer or fabricate one (no sender-address or registration matching).
 
 ## Why
 
-An operator should be able to see a known principal while preserving the
-valid image-first intake path where no principal has yet been identified.
+Operator answer of 2026-09-04 (D51): there must be the possibility of knowing which principal an image-initiated record belongs to, it will not always be known, and it must be displayed either way so the operator can see the state.
 
 ## Approach
 
-Extend the existing image-initiated queue/detail projection owned by
-[[CASE-042]] and its row projection work in [[CASE-032]]. Reuse the canonical
-principal relationship and omit the value when none is recorded.
+- One nullable `PrincipalId` on the image-initiated record (`ImageIntakeEntity`), with its migration, grants and bootstrap census in the same diff; projected through `ImageIntakeSummary` inside the existing queue reads (no N+1) and the detail projection.
+- Writers: staff set it on the image-initiated detail page from the active principals list (default `Not known`); an intake route that already knows the principal because it is principal-authenticated records it at registration if such a route exists today (research says which; none is built).
+- Extend the shapes [[CASE-032]] (row projection, PR #659) and [[CASE-042]] (Awaiting tab and quick view) land; this ticket merges after both and is written as a delta on them. Labels in `OperatorLabels` only.
 
 ## Verification
 
-- [ ] An image-initiated case with a recorded principal displays it in the
-      relevant image-initiated case view.
-- [ ] An image-initiated case without a principal remains valid and does not
-      show a fabricated value.
+- [ ] An image-initiated record with a recorded principal shows it on the Awaiting row, the quick view and the detail page.
+- [ ] A record without one remains valid and shows `Not known` in the same places; nothing is inferred.
+- [ ] Staff can set the principal on the detail page; the queue read count is unchanged.
+- [ ] Migration, grants and census ship together; `Test-MigrationGrants.ps1` passes.
 - [ ] No new principal-matching or case-creation rule is introduced.
 
 ## Outcome

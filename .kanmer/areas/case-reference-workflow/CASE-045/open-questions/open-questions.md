@@ -2,52 +2,33 @@
 
 ## Open
 
-- [ ] **Which recorded relationship supplies the principal on an
-      *unassociated* image-initiated case?** CASE-045's ticket body says
-      "reuse the canonical principal relationship and omit the value when
-      none is recorded", but no such relationship exists for the records the
-      Awaiting instruction queue shows. Verified read-only in
-      `.worktrees/research` at `origin/dev` 80f0ca26 on 2026-09-04 (Claude
-      Opus, confirming the same finding from the gpt-5.6-terra research run):
+- [x] **Which recorded relationship supplies the principal on an
+      *unassociated* image-initiated case?** Answered by the operator on
+      2026-09-04 and recorded as **D51** in EPIC-012 `context.md`: there must
+      be the *possibility* of knowing the principal for an image-initiated
+      record, it will often not be known, and the field is **displayed
+      either way** — the exact label `Not known` when none is recorded. So
+      option 2 applies: a nullable `PrincipalId` on `ImageIntakeEntity`
+      (migration, grants and bootstrap census in one diff), shown on the
+      Awaiting instruction row, the quick view and `Pages/ImageIntake/Details`.
+      Writers (controller resolution derived from the answer, operator may
+      veto in review): (a) staff set it on the image-initiated detail page
+      from the active principals list (default `Not known`); (b) an intake
+      route that already knows the principal because it is
+      principal-authenticated records it at registration — the research must
+      say whether such a route exists today and no new route is built. Never
+      inferred from a sender address or a registration match; association
+      with a Case does not rewrite the record's own value.
 
-      - `ImageIntakeSummary`
-        (`src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs:100-109`)
-        carries Id, OriginReceiptId, ImageIntakeReference,
-        NormalizedVehicleRegistration, AssociatedCaseId/Reference,
-        RegisteredAtUtc, State, ClosureReason — no principal.
-      - `grep -rn "Principal" src/Pegasus.Core/ImageIntake/` returns **no
-        hits**; `ImageIntakeEntity`
-        (`src/Pegasus.Infrastructure/Persistence/ImageIntakeEntities.cs:8-48`)
-        has no principal column either.
-      - The only canonical path is
-        `ImageIntake.OriginReceiptId` → active association → `Case` →
-        `Case.PrincipalId` → `Principal.Code`. That path exists **only once
-        the image record has joined a Case**, and D38's Awaiting instruction
-        queue is by definition the *unmerged* image-initiated records
-        (`IImageIntakeQueries.ListAsync(associated: false, …)`,
-        `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs:372-414`).
-
-      So the answer decides the whole shape of the ticket. Options:
-
-      1. **No new storage.** The principal is shown only where an
-         association already exists — i.e. on the standalone
-         `Pages/ImageIntake/Details` page for an associated record, projected
-         through the existing Case → Principal join. The Awaiting queue row
-         and quick view then never show a principal, because a record in
-         that queue has none recorded. This needs no migration.
-      2. **A stored principal on the image record.** Showing a principal on
-         an *unassociated* Awaiting row requires a new nullable
-         `PrincipalId` on `ImageIntakeEntity`, plus a migration, its grants
-         and a bootstrap census in the same diff — and a separate answer to
-         *who writes it*, since no intake path records one today and the
-         ticket forbids inferring one.
-
-      Option 2 adds a stored field, which the controller instruction for this
-      run requires be raised as an operator question rather than added
-      silently. Planning cannot proceed until the operator picks 1 or 2.
-
+      Original finding (2026-09-04, Claude Opus confirming the gpt-5.6-terra
+      research): `ImageIntakeSummary`
+      (`src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs:100-109`) and
+      `ImageIntakeEntity` (`ImageIntakeEntities.cs:8-48`) carry no principal;
+      the only path is `OriginReceiptId` → association → `Case.PrincipalId`,
+      which the Awaiting queue (`IImageIntakeQueries.ListAsync(associated:
+      false)`, `Pages/Cases/Index.cshtml.cs:372-414`) by definition lacks.
       Candidate-matching by registration on
-      `Pages/ImageIntake/Details.cshtml.cs:26-45` must **not** be repurposed
-      as an answer: the ticket body forbids inference or fabrication.
+      `Pages/ImageIntake/Details.cshtml.cs:26-45` must not be repurposed as
+      the source.
 
 ## Parked (explicitly deferred)
