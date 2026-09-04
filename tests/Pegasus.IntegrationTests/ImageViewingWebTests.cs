@@ -149,7 +149,7 @@ public sealed class ImageViewingWebTests
 
         var casePage = await IntakeWebDriver.GetHtmlAsync(
             client,
-            $"/Cases/{caseId:D}?section=case-files");
+            $"/Cases/{caseId:D}?section=files");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
         Assert.Contains("data-evidence-viewer", casePage, StringComparison.Ordinal);
