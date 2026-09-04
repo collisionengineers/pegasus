@@ -197,3 +197,111 @@ filter.
 Nothing was merged. The ticket stays in Review. Findings 1-4 above keep their
 dispositions and need no further action; only finding 5 must be applied,
 after which CI must go green on the new head and this record is amended.
+
+---
+
+# Review record — CASE-039 (PR https://github.com/collisionengineers/pegasus/pull/669) — re-review
+
+## Scope
+
+| Field | Value |
+| --- | --- |
+| Branch | `task/case-039-engineer-notes` |
+| Reviewed head | `ae38f570e3b854863c4a1961f655644f08e4a7af` (confirmed by `git rev-parse HEAD` in `.worktrees/case-039-review`) |
+| Previous reviewed head | `cc2920bf86ecfc301a9972df0c9d3d4d844349de` (blocked on finding 5) |
+| Built by | Codex gpt-5.6-sol |
+| Independent read | Codex gpt-5.6-terra, `model_reasoning_effort=xhigh`, read-only detached checkout |
+| Dispositions, gate, merge | Claude Opus |
+| Date | 2026-09-05 |
+
+The delta from the previously reviewed head is exactly one commit,
+`ae38f570e`, whose diff touches one file
+(`tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs`,
+2 insertions / 1 deletion). No production file, migration, snapshot or
+script changed in this round.
+
+## Verdict
+
+**APPROVE.** Finding 5 (the only blocker) is closed. The independent read
+returned APPROVE with no findings. CI is green on the exact reviewed head.
+Findings 1–4 of the first record keep their dispositions and need no
+further action.
+
+## Findings and dispositions
+
+| # | Severity | Location | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 5 | blocker (carried) | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs:122` | The exhaustive applied-migrations list omitted `20260904210022_EngineerNotes`, failing `sql-integration (1)`. | **Closed — fix confirmed.** `ae38f570e` appends `"20260904210022_EngineerNotes"` as the last entry, after `"20260903233954_MarketResearchAiJob"`. Reviewer check: the 92 non-designer, non-snapshot migration files in `src/Pegasus.Infrastructure/Persistence/Migrations/` and the 92 asserted names are identical sets (`diff` clean), and the asserted sequence is already sorted, so it is in chronological order. No entry was removed, renamed or relaxed — the assertion stays exhaustive. `CommittedMigrationCreatesTheSqlServerSchema` now passes locally and on CI. |
+| 6 | — | — | Regression search over the fix commit. | **None found.** `git show --stat ae38f570e` lists one file; `git diff origin/dev...HEAD --name-only` still lists exactly the 21 owned paths of the first review; the two snapshot artifacts are byte-identical to the previously verified ones. |
+| 1–4 | should-fix / nit (carried) | post-implementation report accuracy; `AzureSqlRuntimeRoleMigrationTests` convention | See the first record. | **Unchanged.** 1 accepted (evidence re-established below at this head), 2 rejected with reason, 3 and 4 accepted as documentation nits. The report's line-9 head SHA still reads `7a00b2873…`; the round section at lines 165–186 correctly records `ae38f570e` and its exit codes. Documentation-accuracy only; no code consequence. |
+
+No finding was silenced. Nothing was deferred to another ticket.
+
+## Independent read
+
+Codex gpt-5.6-terra at `model_reasoning_effort=xhigh`, read-only in the
+detached `.worktrees/case-039-review` at `ae38f570e`:
+
+> **Verdict: APPROVE. No findings.** Finding 5 is closed: `ae38f570e`
+> changes only `IntakePersistenceIntegrationTests.cs`, appending
+> `20260904210022_EngineerNotes` after `20260903233954_MarketResearchAiJob`
+> at lines 121–122. The assertion matches all 92 migration files exactly —
+> no missing, extra, duplicate, or out-of-order entries. The whole diff
+> remains within the 21 owned paths; handler wiring, labels, Core policy,
+> append-only grants/census, tests, report/checklist, and simplification
+> dispositions remain consistent. No regression was introduced.
+
+## Review questions at this head
+
+- **Every drawn control has a named production handler.** Unchanged from the
+  first record: the single add form posts `AddEngineerNote` to
+  `OnPostAddEngineerNoteAsync` via `ExecuteCaseCommandAsync`.
+- **No explanatory copy; labels only in `OperatorLabels.cs`; Core owns
+  policy; migration ships with grants and census.** Unchanged — no
+  production file moved in this round.
+- **Owned paths only.** The one changed file this round,
+  `IntakePersistenceIntegrationTests.cs`, is named explicitly by EPIC-012
+  §Build policy as in-ticket merge prep. It is not tooling.
+- **Tests prove the claim and none was weakened.** The change adds an
+  expected entry to an exhaustive list so it matches the schema the ticket
+  ships; nothing was removed or loosened. Verified by re-running the class.
+- **Report and checklist match the diff.** The report's review-round section
+  names the same single file and the same commit. The one unticked checklist
+  item (the optional browser-journey assertion) remains honestly deferred to
+  UIIMP-014.
+- **Snapshot artifacts re-verified at this head.**
+  `docs/design/test-ui/pages/case-details--default.html` — 66,577 bytes on
+  disk, begins `<!DOCTYPE html>`, one `class="case-sticky"`, eleven distinct
+  `id="section-*"` hosts, zero `<img src="#">`, `section-engineer-notes`
+  present. `case-details--conflict.html` — 40,674 bytes, same markers.
+- **D44–D50 untouched.** No new package.
+
+## Commands and exit codes (reviewer, `.worktrees/case-039-review` at `ae38f570e`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git rev-parse HEAD` | 0 | `ae38f570e3b854863c4a1961f655644f08e4a7af` |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 | restored |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --configuration Release --no-build` | 0 | 1,234 passed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --configuration Release --no-build` | 0 | 100 passed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "FullyQualifiedName~EngineerNotePersistenceTests\|FullyQualifiedName~CaseDetailsWebTests\|FullyQualifiedName~AzureSqlRuntimeRoleMigrationTests\|FullyQualifiedName~IntakePersistenceIntegrationTests" -- xUnit.MaxParallelThreads=2` | 0 | 104 passed, 6 m 5 s |
+| `pwsh -NoProfile -File ./scripts/Test-MigrationGrants.ps1` | 0 | 92 migration files checked, every created table granted or exempted |
+
+The integration filter adds `IntakePersistenceIntegrationTests` to the first
+round's three classes — the class the fix touches, and the one whose absence
+from the earlier local filter let finding 5 reach CI.
+
+## CI gate — GREEN
+
+`gh run list --branch task/case-039-engineer-notes --limit 1` →
+run `33927559491`, `headSha`
+`ae38f570e3b854863c4a1961f655644f08e4a7af` (equals the reviewed head),
+`status: completed`, **`conclusion: success`**.
+
+All twelve jobs succeeded: `changes`, `local-development-scripts`,
+`reference-data`, `documentation`, `test-ui`, `infrastructure`, `browser`,
+`unit`, `sql-integration (1)`, `sql-integration (2)`, `sql-integration (3)`,
+`sql-integration-coverage`. No rerun was needed.
+
+Merged to `dev` by the reviewer after this record was written.
