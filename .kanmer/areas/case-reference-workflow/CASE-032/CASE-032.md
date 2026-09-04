@@ -2,13 +2,24 @@
 id: CASE-032
 type: ticket
 title: 'Queue-row projections: image-intake custody and Triage reference/provider'
-status: preparing
+status: implementing
 area: case-reference-workflow
 order: 120
-assignee: ''
+assignee: wf-build/case-032
 profile: feature
 stageEntered:
   preparing: '2026-09-04T10:09:09.196Z'
+taken_at: '2026-09-04T10:36:52.655Z'
+branch: task/case-032-queue-row-projections
+worktree: .worktrees/case-032
+claim_expires_at: '2026-09-04T11:06:52.655Z'
+claim_controller: wf-build/case-032
+lease_id: bc65b0fd-35ae-4092-987e-6948f7dc1853
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-032'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T10:36:52.655Z'
 labels:
   - backend
   - queues
@@ -26,7 +37,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-29T13:04:56.182Z'
-updated: '2026-09-04T10:09:09.196Z'
+updated: '2026-09-04T10:36:52.655Z'
 ---
 
 ## What
