@@ -180,7 +180,11 @@
                     <input type="hidden" name="vatStatus" value="@data.Instruction.VatStatus.Confirmed?.Value" />
                     <input type="hidden" name="inspectionDate" value="@data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
                     <input type="hidden" name="inspectionDeadline" value="@data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="inspectionAddress" value="@data.Inspection.Address.Confirmed?.Value" />
+                    @* CASE-038: `inspectionAddress` is not hidden here. The
+                       Inspection section renders the one visible control for it
+                       and associates it with this form, so the record has a
+                       single editor and a save cannot overwrite an unsaved
+                       address with the stored one. *@
                     <input type="hidden" name="inspectionMode" value="@data.Inspection.Mode.Confirmed?.Value" />
                     <div class="grid grid-2">
                         <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="@data.Claimant.Name.Confirmed?.Value" /></div>
