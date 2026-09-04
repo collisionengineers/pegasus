@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Case: Valuation section, DVLA & MOT lookup with per-field suggestion chips,
   upload-request dialog fields
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: wf-build/case-029
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:22:26.445Z'
+  review: '2026-09-04T23:24:40.870Z'
 taken_at: '2026-09-04T19:13:23.957Z'
 branch: task/case-029-valuation-lookup-chips
 worktree: .worktrees/case-029
@@ -37,9 +38,11 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/670'
 archived: false
 created: '2026-08-28T08:35:24.142Z'
-updated: '2026-09-04T19:13:23.957Z'
+updated: '2026-09-04T23:24:40.870Z'
 ---
 
 ## What
