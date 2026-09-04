@@ -544,6 +544,12 @@
         "file": "pages/operations--empty.html",
         "branch": "External work and upload-link collections are both empty.",
         "scenario": "operations--empty"
+      },
+      {
+        "state": "partial data",
+        "file": "pages/operations--partial-data.html",
+        "branch": "Administrator view when a service health row is partial or failed.",
+        "scenario": "operations--partial-data"
       }
     ]
   },
