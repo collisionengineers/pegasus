@@ -66,7 +66,7 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
-    public async Task ComposedServiceHealthRenamesInternalVocabularyAndRetriesThroughTheCanonicalCommand()
+    public async Task ComposedServiceHealthRendersTheAdministratorNoticeAndRetriesThroughTheCanonicalCommand()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingOperationsStore();
@@ -76,17 +76,17 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         Assert.Contains("Service health", html, StringComparison.Ordinal);
-        Assert.Contains("Receiving dispatch", html, StringComparison.Ordinal);
-        Assert.Contains("Automation clients", html, StringComparison.Ordinal);
-        // The Core service names carry internal vocabulary; the operator
-        // never reads it.
+        Assert.DoesNotContain("service-health-title", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Area</th>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Latest evidence</th>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Dependency</th>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Receiving dispatch", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Automation clients", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Intake dispatch", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Automation ingress", html, StringComparison.Ordinal);
-        // Service health has no view target, so it has no action column. The
-        // retryable custody failure is actionable from Attention required.
         Assert.Contains("Vehicle lookup", html, StringComparison.Ordinal);
         Assert.Contains("Retry this work", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<span class=\"sr-only\">Action</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(" href=\"\"", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             "/Operations?handler=RetryExternal",
@@ -101,6 +101,43 @@ public sealed partial class OperationsWebTests
         Assert.Equal(store.ExternalWorkId, command.WorkItemId);
         Assert.Equal(store.ExternalAttemptCount, command.ExpectedAttemptCount);
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
+    }
+
+    [Theory]
+    [InlineData("Engineer")]
+    [InlineData("User")]
+    public async Task ComposedServiceHealthDoesNotRenderTheNoticeForNonAdministrators(string role)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var store = new RecordingOperationsStore();
+        using var factory = Configure(baseFactory, store, withServiceHealth: true);
+        using var client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Test-Roles", role);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.DoesNotContain("Service health", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(" href=\"\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LimitAndHealthNoticesRenderSeparatelyWithoutExplanatoryCopy()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore { LimitReached = true };
+        using var factory = Configure(baseFactory, store, withServiceHealth: true);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Equal(2, Regex.Count(html, "notice notice--warning"));
+        Assert.Contains("Partial data", html, StringComparison.Ordinal);
+        Assert.Contains("Service health", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Showing recent operational results; refresh for the latest activity.",
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(" href=\"\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -644,6 +681,7 @@ public sealed partial class OperationsWebTests
         public string MailboxFailureCode { get; } = "source_unavailable";
         public DateTimeOffset MailboxFailureDueAtUtc { get; } = FixedUtcNow.AddMinutes(5);
         public int ExternalAttemptCount { get; } = 5;
+        public bool LimitReached { get; init; }
         public RetryMailboxProcessingCommand? MailboxRetry { get; private set; }
         public RetryExternalWorkCommand? ExternalRetry { get; private set; }
         public RevokeRequestUploadLinkCommand? PegasusRevoke { get; private set; }
@@ -680,7 +718,7 @@ public sealed partial class OperationsWebTests
                     Request(ExternalWorkId, RequestOperationKind.ExternalWork, RequestOperationState.Failed, canRetry: true, attemptCount: ExternalAttemptCount),
                     Request(Guid.NewGuid(), RequestOperationKind.ExternalWork, RequestOperationState.Pending),
                     Request(Guid.NewGuid(), RequestOperationKind.ExternalWork, RequestOperationState.UnknownExternal)),
-                LimitReached: false));
+                LimitReached));
 
         public Task<OperationsRetryResult> RetryAsync(
             RetryMailboxProcessingCommand command,

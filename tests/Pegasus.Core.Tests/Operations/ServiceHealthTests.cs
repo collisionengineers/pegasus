@@ -16,6 +16,26 @@ public sealed class ServiceHealthTests
     private const string Mailbox = "instructions@collisionengineers.co.uk";
 
     [Theory]
+    [InlineData(ServiceHealthState.Partial, false, true)]
+    [InlineData(ServiceHealthState.Partial, true, true)]
+    [InlineData(ServiceHealthState.Failed, false, true)]
+    [InlineData(ServiceHealthState.Running, false, false)]
+    [InlineData(ServiceHealthState.Configured, true, false)]
+    [InlineData(ServiceHealthState.ReviewRequired, false, false)]
+    public void PartialDataNoticeDependsOnlyOnPartialOrFailedRows(
+        ServiceHealthState state,
+        bool externalWorkLimitReached,
+        bool expected)
+    {
+        var snapshot = new ServiceHealthSnapshot(
+            FixedUtcNow,
+            [new(ServiceHealthArea.Mail, Mailbox, state, null, ServiceHealthDependency.MicrosoftGraph)],
+            externalWorkLimitReached);
+
+        Assert.Equal(expected, ServiceHealthPolicy.HasPartialData(snapshot));
+    }
+
+    [Theory]
     [InlineData(null, null, ServiceHealthState.Configured)]
     [InlineData(-5, null, ServiceHealthState.Current)]
     [InlineData(-15, null, ServiceHealthState.Current)]
