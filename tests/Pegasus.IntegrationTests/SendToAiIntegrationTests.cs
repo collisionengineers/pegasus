@@ -264,7 +264,7 @@ public sealed partial class SendToAiIntegrationTests
         using var factory = Compose(caseId, controlEnabled: false);
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
         // The condition is read off the Send to Claude control itself: the
         // record bar carries several gated seams, so the first
@@ -287,11 +287,11 @@ public sealed partial class SendToAiIntegrationTests
         using var factory = Compose(caseId);
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-range-base=\"9000\"", html, StringComparison.Ordinal);
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
+            $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
             Form(
                 AntiforgeryValue(html),
                 ("operationKey", InputValue(html, "operationKey")),
@@ -306,7 +306,7 @@ public sealed partial class SendToAiIntegrationTests
         Assert.Equal("Target the repair, not the paint.", command.Instruction);
         Assert.Equal(80, command.TargetPercentOfEngineerValue);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains("Sent to Claude", afterHtml, StringComparison.Ordinal);
     }
 
@@ -317,9 +317,9 @@ public sealed partial class SendToAiIntegrationTests
         using var factory = Compose(caseId);
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
+            $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
             Form(
                 AntiforgeryValue(html),
                 ("operationKey", InputValue(html, "operationKey")),
@@ -345,9 +345,9 @@ public sealed partial class SendToAiIntegrationTests
             refusal: "An estimate job needs a confirmed Engineer's Value on the case.");
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
+            $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
             Form(
                 AntiforgeryValue(html),
                 ("operationKey", InputValue(html, "operationKey")),
@@ -357,7 +357,7 @@ public sealed partial class SendToAiIntegrationTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         // Decoded first: Razor encodes the apostrophe in "Engineer's", and
         // the claim is that Core's sentence reaches the operator unrewritten.
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains(
             "An estimate job needs a confirmed Engineer's Value on the case.",
             WebUtility.HtmlDecode(afterHtml),
