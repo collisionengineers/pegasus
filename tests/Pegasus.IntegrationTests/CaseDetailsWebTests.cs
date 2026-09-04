@@ -169,6 +169,13 @@ public sealed partial class CaseDetailsWebTests
 
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
+
+        // The three sections that have a body below the fold are served as
+        // fragments; every other host, including the four Engineer shells,
+        // renders with the page.
+        Assert.Equal(
+            ["vehicle", "files", "notes"],
+            DeferredSections(html));
     }
 
     /// <summary>
@@ -1410,6 +1417,10 @@ public sealed partial class CaseDetailsWebTests
         [.. Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections
             .Select(section => section.Key)];
 
+    /// <summary>The hosts the first response leaves for the frame to fetch.</summary>
+    private static string[] DeferredSections(string html) =>
+        [.. DeferredSectionRegex().Matches(html).Select(match => match.Groups[1].Value)];
+
     /// <summary>The record's section hosts, in the order they render.</summary>
     private static string[] HostOrder(string html) =>
         [.. SectionHostRegex().Matches(html).Select(match => match.Groups[1].Value)];
@@ -1450,6 +1461,11 @@ public sealed partial class CaseDetailsWebTests
         "data-section-link=\"([a-z-]+)\"",
         RegexOptions.CultureInvariant)]
     private static partial Regex JumpLinkRegex();
+
+    [GeneratedRegex(
+        "data-lazy=\"([a-z-]+)\"",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex DeferredSectionRegex();
 
     [GeneratedRegex(
         "data-section-link=\"([a-z-]+)\"\\s+aria-current=\"true\"",
