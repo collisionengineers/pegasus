@@ -1,21 +1,21 @@
 # Checklist — CASE-009 (2026-09-02; revised 2026-09-03 after plan review)
 
-- [ ] Step 1: add `CaseQueryEmail` (with `EffectiveSenderAddress`) and `CaseDetails.QueryEmails` (init, default `[]`) in `src/Pegasus.Core/Cases/CaseQueries.cs`; positional constructor unchanged
-- [ ] Confirm CASE-029 and CASE-040 are not in flight on `EfCaseQueryStore.cs`, then refresh with `git merge --no-edit origin/dev`
-- [ ] Step 2: project currently linked Queries-destination mail in `EfCaseQueryStore.GetAsync` (`MailOperationalDestinationPolicy.Query(Queries)` translated as `ApplyClassificationFilter` does → `CurrentIntakeAssociations.ReadAsync` with `TryGetValue`, never the indexer → retained rows by `ExternalReceiptToken`, one row per retained row because that index is not unique), newest first
-- [ ] Step 4 (persistence): add `CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst` in `RetainedMailPersistenceTests.cs` covering inclusion, `Billing/billing-query` inclusion, other-case, non-Query and reversed-association exclusion, a qualifying receipt with no association at all, two retained rows sharing one token, and ordering — with a local case/association fixture (the `EngineerActivityReportPersistenceTests` helpers are private)
-- [ ] Confirm CASE-038 has merged and refresh with `git merge --no-edit origin/dev` before touching `Pages/Cases/Shared/*` or `OperatorLabels.cs`
-- [ ] Step 3: add column/link labels to `OperatorLabels.CaseWorkspace` (reuse identical existing constants first); do not add a missing-sender label
-- [ ] Step 3: create `_CaseCorrespondence.cshtml` (absent when empty; heading via `MailOperationalDestinationLabel(Queries)`; classification via `MailClassification`; sender via `EffectiveSenderAddress ?? SenderDisplayName ?? SenderAddress` with an empty cell when all three are null; `/Mail/Message` link; no form, button, disabled control or empty-state element)
-- [ ] Step 3: replace the "Correspondence is absent" comment in `_CaseFiles.cshtml` with the `_CaseCorrespondence` partial caller
-- [ ] Confirm CASE-038, CASE-029 and CASE-040 are not in flight on `CaseDetailsWebTests.cs`
-- [ ] Step 4 (web): add `CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls` (including a staff-forward row and a row with no sender recorded) and `CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists` in `CaseDetailsWebTests.cs`; `RecordingCaseDetailsStore` gains a settable `QueryEmails`
-- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
-- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify` — must report no diff; stop and report a UIIMP-014 handoff if it does not
-- [ ] `./scripts/Test-UiCatalogue.ps1`
-- [ ] Confirm the diff contains no `docs/design/test-ui/**`, migration, DI or `Details.cshtml` change
-- [ ] Simplification pass over the branch diff recorded in `plan/` under a dated "Simplification pass" heading
-- [ ] post-implementation report written
-- [ ] PR opened with Kanmer: CASE-009
+- [x] Step 1: add `CaseQueryEmail` (with `EffectiveSenderAddress`) and `CaseDetails.QueryEmails` (init, default `[]`) in `src/Pegasus.Core/Cases/CaseQueries.cs`; positional constructor unchanged
+- [x] Confirm CASE-029 and CASE-040 are not in flight on `EfCaseQueryStore.cs`, then refresh with `git merge --no-edit origin/dev`
+- [x] Step 2: project currently linked Queries-destination mail in `EfCaseQueryStore.GetAsync` (`MailOperationalDestinationPolicy.Query(Queries)` translated as `ApplyClassificationFilter` does → `CurrentIntakeAssociations.ReadAsync` with `TryGetValue`, never the indexer → retained rows by `ExternalReceiptToken`, one row per retained row because that index is not unique), newest first
+- [x] Step 4 (persistence): add `CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst` in `RetainedMailPersistenceTests.cs` covering inclusion, `Billing/billing-query` inclusion, other-case, non-Query and reversed-association exclusion, a qualifying receipt with no association at all, two retained rows sharing one token, and ordering — with a local case/association fixture (the `EngineerActivityReportPersistenceTests` helpers are private)
+- [x] Confirm CASE-038 has merged and refresh with `git merge --no-edit origin/dev` before touching `Pages/Cases/Shared/*` or `OperatorLabels.cs`
+- [x] Step 3: add column/link labels to `OperatorLabels.CaseWorkspace` (reuse identical existing constants first); do not add a missing-sender label
+- [x] Step 3: create `_CaseCorrespondence.cshtml` (absent when empty; heading via `MailOperationalDestinationLabel(Queries)`; classification via `MailClassification`; sender via `EffectiveSenderAddress ?? SenderDisplayName ?? SenderAddress` with an empty cell when all three are null; `/Mail/Message` link; no form, button, disabled control or empty-state element)
+- [x] Step 3: replace the "Correspondence is absent" comment in `_CaseFiles.cshtml` with the `_CaseCorrespondence` partial caller
+- [x] Confirm CASE-038, CASE-029 and CASE-040 are not in flight on `CaseDetailsWebTests.cs`
+- [x] Step 4 (web): add `CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls` (including a staff-forward row and a row with no sender recorded) and `CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists` in `CaseDetailsWebTests.cs`; `RecordingCaseDetailsStore` gains a settable `QueryEmails`
+- [x] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [x] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [x] Solution-wide test gate: ran as `Pegasus.Core.Tests` + `Pegasus.ArchitectureTests` + the two changed `Pegasus.IntegrationTests` classes (`FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~RetainedMailPersistenceTests`), per the orchestrator's standing local-checks policy (never the unfiltered solution-wide `dotnet test`, since GitHub CI runs that on the PR) — all green (1225 + 100 + 100 passed)
+- [x] `./scripts/Update-TestUiSnapshots.ps1 -Verify` (scoped: `-Scope case-details -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~TestUiFocusedRenderTests"`) — no diff (a real one-line whitespace defect was found and fixed at its cause in `_CaseFiles.cshtml`/`_CaseCorrespondence.cshtml`; see Simplification pass note)
+- [x] `./scripts/Test-UiCatalogue.ps1` — 54 routed sources, 59 prototypes, 0 broken references
+- [x] Confirm the diff contains no `docs/design/test-ui/**`, migration, DI or `Details.cshtml` change
+- [x] Simplification pass over the branch diff recorded in `plan/` under a dated "Simplification pass" heading
+- [x] post-implementation report written
+- [x] PR opened with Kanmer: CASE-009
