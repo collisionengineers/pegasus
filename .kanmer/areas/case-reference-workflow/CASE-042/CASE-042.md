@@ -35,9 +35,19 @@ blocks:
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - 075daec19
+  - c6d63ac89
+  - 53641939f
+  - a6f91dc94
+  - b9fefcb92
+  - 110b1b5f0
+  - 353f3da1b
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/663'
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-04T17:58:44.553Z'
+updated: '2026-09-04T19:10:54.599Z'
 ---
 
 ## What
