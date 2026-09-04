@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Move Service health off Operations; Operations shows a partial-data notice
   linking to Administration
-status: implementing
+status: review
 area: platform-operations
 assignee: wf-build/plat-069
 profile: fix
 stageEntered:
   preparing: '2026-09-02T22:22:00.643Z'
+  review: '2026-09-04T10:47:44.885Z'
 taken_at: '2026-09-04T10:04:55.966Z'
 branch: task/plat-069-operations-notice
 worktree: .worktrees/plat-069
@@ -33,9 +34,11 @@ blocks:
   - UIIMP-014
 refs:
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '657'
 archived: false
 created: '2026-09-02T20:31:38.879Z'
-updated: '2026-09-04T10:04:55.966Z'
+updated: '2026-09-04T10:47:44.885Z'
 ---
 
 ## What
