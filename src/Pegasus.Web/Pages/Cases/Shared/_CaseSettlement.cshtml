@@ -1,0 +1,13 @@
+@*
+    The Settlement section's body. CASE-038 renders the heading host only; ENG-034
+    owns this file's content from its first PR. No control, prose or
+    placeholder renders for a capability that is not built yet.
+*@
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var heading = OperatorLabels.CaseWorkspace.Sections.Single(entry => entry.Key == "settlement");
+}
+<section class="panel">
+    <div class="panel-head"><h2 id="section-settlement-title">@heading.Label</h2></div>
+</section>

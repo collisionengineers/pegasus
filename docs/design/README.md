@@ -432,7 +432,7 @@ prototype's effective media queries:
 | 1360px | Work Centre panes narrow; `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
-| 980px | The rail lies down into a horizontal bar; `case-section-nav` and `admin-nav` become horizontal scrollers; `--content-max` is released |
+| 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
 | 900px | Workflow stepper stacks; estimate form two columns; `checks-grid` one column |
 | 760px | Single column everywhere: panes stack with a top border, ribbons and fact grids one column, page actions full width, `--page-pad` 12px, dialogs pad 10px |
 
@@ -807,7 +807,7 @@ deleted in wave 5.
 | `edit-bar` | Sticky edit bar: lease text, Unsaved chip, Discard, Save |
 | `case-sticky` | The Case record's sticky block: identity ribbon, action bar and section jump-nav (D29) |
 | `section-nav`, `section-link` | Section jump-nav and its links; the link for the section in view carries `aria-current` (D29) |
-| `case-workspace`, `case-section-nav`, `case-context` | Case side nav, main, context column — superseded on the Case record by `case-sticky` and `section-nav` (D29); retained for records other than the Case record until no page composes them |
+| `case-workspace`, `case-context` | Case record grid and its context column; the side nav they carried is superseded by `case-sticky` and `section-nav` (D29) |
 | `suggest-btn` | Per-field suggestion chip that fills its field when chosen (D34) |
 | `damage-diagram`, `impact` | The clickable damage diagram and its zone markers; `impact` marks a zone with recorded damage (D39) |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt (D39) |
@@ -1308,10 +1308,11 @@ Required behavior:
 - permanent consequences visible without hover;
 - server authorisation regardless of route visibility.
 
-When a planned surface has a real caller, record:
+When a planned surface has a real caller, the package-pinned Playwright
+Chromium Browser lane records:
 
 1. keyboard-only traversal;
-2. screen-reader and semantic inspection;
+2. semantic structure and accessible-name inspection;
 3. focus and error behavior;
 4. 1280px-and-wider desktop review;
 5. 1024–1279px constrained-desktop review;
@@ -1321,7 +1322,12 @@ When a planned surface has a real caller, record:
 9. contrast review;
 10. automated accessibility scanning through the real caller.
 
-Each visible capability/state also needs authenticated Web-caller and named Core-owner evidence. Generated imagery or synthetic operational material cannot prove acceptance. Operator review uses approved, genuine, local immutable material only.
+These checks are the selected release accessibility evidence. They do not
+simulate Narrator or another screen reader and do not establish screen-reader
+interoperability, complete WCAG conformance, subjective usability, or operator
+acceptance. Each visible capability/state also needs authenticated Web-caller
+and named Core-owner evidence. Generated imagery or synthetic operational
+material cannot prove acceptance.
 
 ## Source and runtime map
 
@@ -1597,8 +1603,10 @@ When implemented:
 
 - each visible row and state needs authenticated Web-caller and named
   Core-owner evidence;
-- keyboard, screen-reader, focus/error, forced-colours, reduced-motion and
-  the three widths must be recorded;
+- the package-pinned Chromium Browser lane records keyboard, focus/error,
+  forced-colours, reduced-motion and the three widths; screen-reader-compatible
+  semantics remain required behavior, but screen-reader interoperability is
+  not part of the selected evidence;
 - operator review uses approved genuine local immutable material only;
   generated imagery or synthetic operational material cannot prove
   acceptance; and

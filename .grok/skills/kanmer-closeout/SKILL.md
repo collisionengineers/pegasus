@@ -21,6 +21,14 @@ progress live.
 
 ## 0. Gate: is the PR actually merged?
 
+On any resumed or suspicious Review/Verifying ticket, call
+`reconcile_ticket id: <ID>` as a dry run first and, only when it returns a
+recommendation, apply that recommendation with `apply_reconciliation id: <ID>,
+expected_revision: <the recommendation's revision>` before re-reading anything
+by hand; the inspector never mutates, and
+its typed evidence is the cheapest account of why the ticket is not already
+where it belongs.
+
 ```sh
 gh pr view <branch> --json state,mergedAt,url
 ```

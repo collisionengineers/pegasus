@@ -125,7 +125,7 @@ public sealed class OperatorJourneyTests
         // The recovered custody is confirmed where the case carries its
         // files: the Box folder link replaces the preparing state (the old
         // custody row went with the panel that showed it).
-        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?section=case-files");
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?section=files");
         var filesText = await support.Page.Locator("main").InnerTextAsync();
         Assert.Contains("Open Box case folder", filesText, StringComparison.Ordinal);
         Assert.DoesNotContain("preparing", filesText, StringComparison.OrdinalIgnoreCase);
@@ -298,7 +298,7 @@ public sealed class OperatorJourneyTests
         // CASE-012: the documents live on the case-files section of the
         // workspace; the remove-document dialog is the page-rendered reason
         // dialog this journey exercises.
-        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?section=case-files");
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?section=files");
 
         var removeTrigger = support.Page.Locator("[data-dialog-open^='remove-doc-']").First;
         await removeTrigger.ClickAsync();

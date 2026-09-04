@@ -46,7 +46,12 @@ Required qualities:
 - structured diagnostics without source-content leakage;
 - a 15-minute database recovery-point objective and four-hour restoration objective, proved through the operator-run [production recovery procedure](../runbook.md#production-recovery) (OPS-09 — deferred; gates no release);
 - reasoned recovery, restore, and replay proof without duplicate case/reference allocation;
-- local development on a supported platform, and supported-browser accessibility proof on Windows with Microsoft Edge Stable and Narrator;
+- local development on a supported platform, with package-pinned Playwright
+  Chromium automation as the release accessibility evidence for authenticated
+  routes, keyboard and focus behavior, responsive reflow, forced colours,
+  reduced motion, semantics, and axe rules; this evidence does not claim
+  screen-reader interoperability, complete WCAG conformance, subjective
+  usability, or operator acceptance;
 - independently buildable source workspaces with no application reference, dynamic load, dependency hoist, or deployment inclusion;
 - explicit test/evidence scope and limits rather than evergreen counts.
 

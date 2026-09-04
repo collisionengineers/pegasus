@@ -48,6 +48,13 @@ The selected alpha direction is Operations-first. The UI must provide:
   reduced-motion support;
 - responsive use without hiding required evidence or actions.
 
+Package-pinned Playwright Chromium automation is the release evidence for the
+named semantic, keyboard, focus, reflow, forced-colour, reduced-motion and axe
+checks that the Browser lane executes. Screen-reader-compatible semantics
+remain required behavior, but the current evidence does not claim
+interoperability with Narrator or any other screen reader, complete WCAG
+conformance, subjective usability, or operator acceptance.
+
 Every actionable search result or queue row is a full-row keyboard-focusable
 link or button with visible action affordance. At constrained desktop width,
 a long Case/PO, Image Intake Reference, or U-reference moves to a labelled

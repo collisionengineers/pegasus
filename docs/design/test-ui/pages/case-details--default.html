@@ -181,6 +181,7 @@
 
 
 <article class="record">
+    <div class="case-sticky" data-case-sticky>
     <div class="record-ribbon" aria-label="Case identity">
         <div class="ribbon-item ribbon-ref">
             <div class="ribbon-label">Case/PO</div>
@@ -197,6 +198,14 @@
         <div class="ribbon-item">
             <div class="ribbon-label">Principal</div>
             <div class="ribbon-value">QDOS</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Engineer</div>
+            <div class="ribbon-value">Not recorded</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Sign-off</div>
+            <div class="ribbon-value">Not recorded</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">State</div>
@@ -256,11 +265,6 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                 <span>Send to EVA</span>
             </button>
-        <span class="record-bar-end">
-                <span class="gated" data-condition="Available after the current Review export">
-                    <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
-                </span>
-        </span>
     </div>
 
         <div class="edit-bar">
@@ -276,36 +280,69 @@
             </button>
         </div>
 
-    <div class="record-body">
-        <div class="case-workspace">
-            <div class="case-section-nav">
-        <a aria-current="page" href="case-details--default.html">
+    <nav class="section-nav" aria-label="Case sections" data-section-nav>
+        <a class="section-link" href="#section-overview" data-section-link="overview"
+           aria-current="true">
             <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-            <span>Case Overview</span>
+            <span>Overview</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-engineer-notes" data-section-link="engineer-notes"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Engineer notes</span>
+        </a>
+        <a class="section-link" href="#section-inspection" data-section-link="inspection"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
+            <span>Inspection</span>
+        </a>
+        <a class="section-link" href="#section-vehicle" data-section-link="vehicle"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
             <span>Vehicle</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-damage" data-section-link="damage"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+            <span>Damage</span>
+        </a>
+        <a class="section-link" href="#section-valuation" data-section-link="valuation"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-            <span>Valuations</span>
+            <span>Valuation</span>
         </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
-            <span>Inspection address</span>
+        <a class="section-link" href="#section-estimate" data-section-link="estimate"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+            <span>Estimate</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-settlement" data-section-link="settlement"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+            <span>Settlement</span>
+        </a>
+        <a class="section-link" href="#section-report" data-section-link="report"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+            <span>Report</span>
+        </a>
+        <a class="section-link" href="#section-files" data-section-link="files"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-            <span>Case Files</span>
+            <span>Files</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-notes" data-section-link="notes"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
             <span>Notes</span>
         </a>
-</div>
+</nav>
 
-            <section class="case-main">
+    </div>
+
+    <div class="case-workspace">
+        <div class="case-main" id="case-main">
+                <section class="case-section" id="section-overview" data-section="overview">
 
 <div class="stack">
 
@@ -357,7 +394,6 @@
                     <input type="hidden" name="vatStatus" value="Standard" />
                     <input type="hidden" name="inspectionDate" />
                     <input type="hidden" name="inspectionDeadline" />
-                    <input type="hidden" name="inspectionAddress" value="1 Depot Road" />
                     <input type="hidden" name="inspectionMode" value="PhysicalAddress" />
                     <div class="grid grid-2">
                         <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="Case claimant" /></div>
@@ -465,27 +501,255 @@
     </div>
 </section>
 
-            </section>
-
-            <aside class="case-context stack" aria-label="Case context">
-                <section class="context-card">
-                    <div class="panel-head"><h2>Current position</h2></div>
-                    <div class="panel-body">
-                        <div class="decision-row"><span>State</span><strong><span class="status status--navy">Review</span>
-</strong></div>
-                        <div class="decision-row"><span>Version</span><strong>7</strong></div>
-                        <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
-                        <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
-                        <div class="decision-row">
-                            <span>Edit authority</span>
-                            <strong>
-                                    You
-                            </strong>
-                        </div>
-                    </div>
                 </section>
-            </aside>
+                <section class="case-section" id="section-engineer-notes" data-section="engineer-notes">
+                        <section class="panel">
+                            <div class="panel-head"><h2 id="section-engineer-notes-title">Engineer notes</h2></div>
+                        </section>
+                </section>
+                <section class="case-section" id="section-inspection" data-section="inspection">
+
+<div class="stack">
+    <section class="panel" aria-labelledby="case-inspection-address-title">
+        <div class="panel-head">
+            <h2 id="case-inspection-address-title">Inspection address</h2>
         </div>
+        <div class="panel-body">
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Recorded value</dt>
+                    <dd>
+                        1 Depot Road
+                            <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+</span>
+
+                    </dd>
+                </dl>
+                    <dl class="definition">
+                        <dt>Inspection</dt>
+                        <dd>
+                            Physical address
+                            <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+</span>
+
+                        </dd>
+                    </dl>
+            </div>
+        </div>
+    </section>
+
+        <section class="panel" aria-labelledby="case-inspection-address-edit-title">
+            <div class="panel-head">
+                <h2 id="case-inspection-address-edit-title">Edit inspection address</h2>
+            </div>
+            <div class="panel-body">
+                <div class="field">
+                    <label for="inspection-address">Inspection address</label>
+                    <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
+                           maxlength="500" value="1 Depot Road" />
+                </div>
+            </div>
+        </section>
+</div>
+
+                </section>
+                <section class="case-section" id="section-vehicle" data-section="vehicle">
+
+<div class="stack">
+    <section class="panel" aria-labelledby="case-vehicle-title">
+        <div class="panel-head"><h2 id="case-vehicle-title">Vehicle</h2></div>
+        <div class="panel-body">
+            <div class="overview-facts">
+                <dl><dt>Registration</dt><dd>AB12CDE</dd></dl>
+                <dl><dt>Make</dt><dd>Ford</dd></dl>
+                <dl><dt>Model</dt><dd>Transit</dd></dl>
+                <dl><dt>Year</dt><dd>Not recorded</dd></dl>
+                <dl><dt>Mileage</dt><dd>42,000 miles</dd></dl>
+                <dl><dt>Mileage source</dt><dd>Staff</dd></dl>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" aria-labelledby="case-vehicle-checks-title">
+        <div class="panel-head"><h2 id="case-vehicle-checks-title">Vehicle checks</h2></div>
+        <div class="panel-body stack">
+            <div class="button-row">
+                        <form method="post" action="#">
+                            <input type="hidden" name="id" value="test-ui-guid-1" />
+                            <input type="hidden" name="expectedVersion" value="7" />
+                            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                            <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                            <input type="hidden" name="registration" value="AB12CDE" />
+                                <button type="submit" class="btn">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                    <span>Refresh DVLA</span>
+                                </button>
+                        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                        <form method="post" action="#">
+                            <input type="hidden" name="id" value="test-ui-guid-1" />
+                            <input type="hidden" name="expectedVersion" value="7" />
+                            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                            <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                            <input type="hidden" name="registration" value="AB12CDE" />
+                                <button type="submit" class="btn">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                    <span>Refresh DVSA/MOT</span>
+                                </button>
+                        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <span class="gated" data-condition="Experian is not connected">
+                    <button type="button" class="btn" disabled aria-disabled="true">
+                        Run Experian check
+                    </button>
+                </span>
+            </div>
+
+
+        </div>
+    </section>
+</div>
+
+                </section>
+                <section class="case-section" id="section-damage" data-section="damage">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-damage-title">Damage</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-valuation" data-section="valuation">
+                        <section class="panel">
+                            <div class="panel-head"><h2 id="section-valuation-title">Valuation</h2></div>
+                        </section>
+                </section>
+                <section class="case-section" id="section-estimate" data-section="estimate">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-estimate-title">Estimate</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-settlement" data-section="settlement">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-settlement-title">Settlement</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-report" data-section="report">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-report-title">Report</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-files" data-section="files">
+
+<div class="stack">
+
+<section class="panel" aria-labelledby="case-documents-title">
+    <div class="panel-head">
+        <h2 id="case-documents-title">Files</h2>
+        <span class="cluster">
+            <a class="btn" href="upload--default.html">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <span>Add evidence</span>
+            </a>
+                <span class="status status--neutral">Box case folder: preparing</span>
+
+            <a class="btn" href="">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Open Operations</span>
+            </a>
+        </span>
+    </div>
+</section>
+
+    <section class="panel" aria-labelledby="case-upload-requests-title">
+        <div class="panel-head">
+            <h2 id="case-upload-requests-title">Public upload requests</h2>
+                <form method="post" action="#">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                        <span>Create upload request</span>
+                    </button>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
+    </section>
+
+
+
+</div>
+
+                </section>
+                <section class="case-section" id="section-notes" data-section="notes">
+
+<section class="panel" aria-labelledby="case-notes-title">
+    <div class="panel-head"><h2 id="case-notes-title">Notes</h2></div>
+    <div class="panel-body stack">
+            <div class="empty">
+                <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                <h3>No notes</h3>
+            </div>
+
+        <form method="post" class="stack" action="#">
+            <input type="hidden" name="id" value="test-ui-guid-1" />
+            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+            <div class="field">
+                <label class="req" for="case-note">Case note</label>
+                <textarea id="case-note" name="note" rows="3" required
+                          maxlength="2000"></textarea>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="btn btn--primary">Add Case note</button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+
+            <form method="post" class="stack section-gap" action="#">
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="7" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                <input type="hidden" name="attemptedAtUtc" value="2031-05-06T10:30:00.0000000&#x2B;00:00" />
+                <div class="grid grid-2">
+                    <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" name="channel" required maxlength="100" /></div>
+                    <div class="field"><label class="req" for="chase-target">Target party or address</label><input id="chase-target" name="targetPartyOrAddress" required maxlength="500" /></div>
+                    <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" name="outcome" required maxlength="500" /></div>
+                    <div class="field"><label for="chase-note">Note</label><input id="chase-note" name="note" maxlength="1000" /></div>
+                    <div class="field"><label class="req" for="chase-reason">Reason</label><input id="chase-reason" name="reason" required maxlength="500" /></div>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>Record chase</span>
+                    </button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
+</section>
+
+                </section>
+        </div>
+
+        <aside class="case-context stack" aria-label="Case context">
+            <section class="context-card">
+                <div class="panel-head"><h2>Current position</h2></div>
+                <div class="panel-body">
+                    <div class="decision-row"><span>State</span><strong><span class="status status--navy">Review</span>
+</strong></div>
+                    <div class="decision-row"><span>Version</span><strong>7</strong></div>
+                    <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
+                    <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
+                    <div class="decision-row">
+                        <span>Edit authority</span>
+                        <strong>
+                                You
+                        </strong>
+                    </div>
+                </div>
+            </section>
+        </aside>
     </div>
 </article>
 

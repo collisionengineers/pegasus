@@ -564,7 +564,7 @@ if ($Profile -eq 'Cloud') {
             Name = 'Microsoft Go sqlcmd'
             Command = 'sqlcmd'
             Arguments = @('--version')
-            Pattern = '\b1\.10\.0\b'
+            Pattern = '\bv?1\.10\.0\b'
             Repair = (Get-PegasusRepairHint -Id 'sqlcmd')
         }
     )
