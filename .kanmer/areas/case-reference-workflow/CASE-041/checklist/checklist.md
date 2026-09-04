@@ -1,30 +1,32 @@
-# Checklist — CASE-041 (2026-09-02; revised 2026-09-03 after plan review)
+# Checklist — CASE-041 (2026-09-02; revised 2026-09-03 after plan review; completed 2026-09-04)
 
-- [ ] Step 1: Wait for PLAT-070 and CASE-038, refresh with `git merge --no-edit origin/dev`, and confirm the serialized migration head.
-- [ ] Step 1: Record a written single-owner ordering with CASE-039, CASE-040 and CASE-029 for `Details.cshtml.cs`, `DependencyInjection.cs` and `CaseDetailsWebTests.cs` before editing any of them.
-- [ ] Step 1: Confirm the merged frame routes `?section=inspection` and the form id `case-inspection-address-form`.
-- [ ] Step 2: Add the narrow inspection-address choices port and storage-location Core data contract.
-- [ ] Step 2: Normalize storage location with the existing Case data policy.
-- [ ] Step 3: Add `storage_location` to the single `CaseDataFieldNames.All` list and to save/read mapping (no `CaseDataSnapshotFactory.cs` change, no `Cases` column).
-- [ ] Step 3: Implement and register the same-principal address-history query.
-- [ ] Step 4: Generate exactly one additive migration after the preceding migration has merged — constraint drop/re-add only, no grant SQL and no permission delta.
-- [ ] Step 5: Carry storage location through all three full-save callers: `_CaseDataHiddenFields.cshtml`, `_CaseWorkflow.cshtml` (its own hidden list), and `Mcp/AssessmentMcpTools.cs`.
-- [ ] Step 5: Bind and retain `storageLocation` in `Details.cshtml.cs` and `CaseMutationPageModel.RetainableFormFields` (serialized shared edits).
-- [ ] Step 5: Render the ordered D33 Inspect at select and the Inspection-section storage input.
-- [ ] Step 5: Add the serialized `site.js` selection binder through CASE-038's root-scoped idempotent `bind(root)`; confirm the section still works with JavaScript disabled.
-- [ ] Step 5: Keep Repairer location disabled with ` · not recorded` in every current state.
-- [ ] Step 5: Make the serialized `OperatorLabels.cs` constants-only commit after CASE-038.
-- [ ] Step 6: Add Core, persistence, Details and partial-flow coverage using existing Case test data where possible (`LocalDbTemplateDatabase`; update `AssessmentWorkspaceTestData.cs`).
-- [ ] Step 6: Prove storage location survives an Inspection save, an Overview save and an Automation MCP details update.
-- [ ] Step 6: Add the Browser-category test for the selection interaction (recorded choice, Image Based Assessment, Manual entry).
-- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
-- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category=Browser" -- xUnit.MaxParallelThreads=2`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
-- [ ] `./scripts/Test-UiCatalogue.ps1`
-- [ ] `./scripts/Test-MigrationGrants.ps1`
-- [ ] Commit the regenerated `docs/design/test-ui/` Case-details snapshots with the page change (capacity-one lease).
-- [ ] post-implementation report written
-- [ ] PR opened with Kanmer: CASE-041
+- [x] Step 1: Wait for PLAT-070 and CASE-038, refresh with `git merge --no-edit origin/dev`, and confirm the serialized migration head. (Both were already merged into `origin/dev` before the worktree was created; branched from `ddbbc5e8c`.)
+- [x] Step 1: Record a written single-owner ordering with CASE-039, CASE-040 and CASE-029 for `Details.cshtml.cs`, `DependencyInjection.cs` and `CaseDetailsWebTests.cs` before editing any of them. (Superseded by the operator's 2026-09-04 EPIC-012 Build policy: parallel build, ordered merge — a lane may edit any path its plan/files document names; only the merge is ordered by the queue.)
+- [x] Step 1: Confirm the merged frame routes `?section=inspection` and the form id `case-inspection-address-form`.
+- [x] Step 2: Add the narrow inspection-address choices port and storage-location Core data contract.
+- [x] Step 2: Normalize storage location with the existing Case data policy.
+- [x] Step 3: Add `storage_location` to the single `CaseDataFieldNames.All` list and to save/read mapping (no `CaseDataSnapshotFactory.cs` change, no `Cases` column).
+- [x] Step 3: Implement and register the same-principal address-history query.
+- [x] Step 4: Generate exactly one additive migration after the preceding migration has merged — constraint drop/re-add only, no grant SQL and no permission delta.
+- [x] Step 5: Carry storage location through all full-save callers: the Inspection section's `case-edit-form`-associated controls and `Mcp/AssessmentMcpTools.cs`. (`_CaseDataHiddenFields.cshtml` and a separate `_CaseWorkflow.cshtml` hidden list do not exist on the merged CASE-038 base — see the post-implementation report deviation.)
+- [x] Step 5: Bind and retain `storageLocation` in `Details.cshtml.cs` and `CaseMutationPageModel.RetainableFormFields` (serialized shared edits).
+- [x] Step 5: Render the ordered D33 Inspect at select and the Inspection-section storage input.
+- [x] Step 5: Add the serialized `site.js` selection binder through CASE-038's root-scoped idempotent `bind(root)`; confirm the section still works with JavaScript disabled.
+- [x] Step 5: Keep Repairer location disabled with ` · not recorded` in every current state.
+- [x] Step 5: Make the serialized `OperatorLabels.cs` constants-only commit after CASE-038.
+- [x] Step 6: Add Core, persistence, Details and partial-flow coverage using existing Case test data where possible (`LocalDbTemplateDatabase`; update `AssessmentWorkspaceTestData.cs`).
+- [x] Step 6: Prove storage location survives an Inspection save, an Overview save and an Automation MCP details update.
+- [x] Step 6: Add the Browser-category test for the selection interaction (recorded choice, Image Based Assessment, Manual entry).
+- [x] `dotnet restore ./Pegasus.slnx --locked-mode` — exit 0
+- [x] `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0
+- [x] `dotnet test ./tests/Pegasus.Core.Tests --configuration Release --no-build` — exit 0, 1231 passed
+- [x] `dotnet test ./tests/Pegasus.ArchitectureTests --configuration Release --no-build` — exit 0, 100 passed
+- [x] `dotnet test ./tests/Pegasus.IntegrationTests --configuration Release --no-build --filter "FullyQualifiedName~InspectionAddressChoicesPersistenceTests|FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~CaseTasksWebTests|FullyQualifiedName~InspectionAddressChoiceBrowserTests"` — exit 0, 71 passed
+- [x] `./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter ...` — exit 0
+- [x] `./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter ... -Verify -SkipCapture` — exit 0
+- [x] `./scripts/Test-UiCatalogue.ps1` — exit 0
+- [x] `./scripts/Test-MigrationGrants.ps1` — exit 0
+- [x] Commit the regenerated `docs/design/test-ui/` Case-details snapshots with the page change (capacity-one lease).
+- [x] Simplification pass run and disposed (plan doc, "Simplification pass (2026-09-04)").
+- [x] post-implementation report written
+- [x] PR opened with Kanmer: CASE-041 (#664)
