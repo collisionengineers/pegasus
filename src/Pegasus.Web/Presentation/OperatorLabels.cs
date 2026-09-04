@@ -1369,6 +1369,13 @@ public static class OperatorLabels
     /// </summary>
     public static class CaseWorkspace
     {
+        // CASE-009: read-only query correspondence table.
+        public const string Received = "Received";
+        public const string Sender = "Sender";
+        public const string Subject = "Subject";
+        public const string Classification = "Classification";
+        public const string OpenMessage = "Open message";
+
         public const string VehicleFactsPanel = "Vehicle";
         public const string VehicleChecksPanel = "Vehicle checks";
         public const string RefreshDvla = "Refresh DVLA";
