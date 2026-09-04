@@ -2,121 +2,135 @@
 
 ## Question
 
-How should Pegasus resolve an `O` / `0` ambiguity in a vehicle
-registration produced by ordinary-image recognition or document OCR, using
-the existing DVLA/DVSA lookup path without changing trusted registrations?
+How should Pegasus resolve supported letter/digit ambiguity in a UK vehicle
+registration produced by ordinary-image recognition or document OCR, using the
+existing DVLA/DVSA route without weakening trusted-registration behavior?
+
+## Conclusion
+
+Add one Core-owned, UK-only candidate and resolution policy around the existing
+`IVehicleLookupAdapter`. The evidence-led confusion map contains only
+`O` ↔ `0` and `I` ↔ `1`. Candidate generation filters the permutations
+through the supported GB and Northern Ireland structures, has a proven maximum
+of eight candidates, and resolves only after every candidate is conclusive.
+
+Do not change `VrmRegistrationMatching`. Its exact, one-character-missing and
+inserted-fifth-position-`1` rules compare image reads with an already confirmed
+Case registration and are distinct from provider-backed correction.
 
 ## Findings
 
-### The ambiguity policy belongs in Core
+### The policy belongs in Core
 
 `VehicleLookupRequest` in
-`src/Pegasus.Core/Vehicle/LookupContracts.cs` validates one already-normalised
-uppercase registration. It has no candidate-generation or ambiguity policy.
-`VrmRegistrationMatching` in
-`src/Pegasus.Core/ImageIntake/VrmRecognition.cs` already owns the accepted
-image-read comparison rules, but deliberately rejects substitutions; it only
-allows exact, one-character-missing, and one specific inserted-`1` match.
-Changing that match helper to accept `O` / `0` substitutions would silently
-weaken case association before provider evidence exists.
-
-Implication: add one bounded Core policy in the vehicle boundary that derives
-distinct `O` / `0` candidates and resolves provider outcomes. Do not make
-`VrmRegistrationMatching` treat the characters as equivalent.
-
-### The production adapter already supplies the evidence shape
-
-`DvlaDvsaProductionAdapter` performs both provider calls for one
-`VehicleLookupRequest`. It returns the existing typed outcomes
+`src/Pegasus.Core/Vehicle/LookupContracts.cs` validates one normalized
+uppercase registration. `DvlaDvsaProductionAdapter` already performs the
+approved DVLA and DVSA calls for that one value and returns
 `Current`, `Stale`, `Partial`, `NotFound`, `Throttled`,
-`Unavailable`, or `Failed`, with response identity and retrieval/source
-times. `VehicleLookupResult.EnsureValidFor` binds every result to its exact
-requested registration.
+`Unavailable` or `Failed`, retaining response identity and source times.
 
-Implication: reuse `IVehicleLookupAdapter` once per candidate. A viable
-candidate is one returning the existing evidence-bearing outcomes
-`Current`, `Stale`, or `Partial`; do not invent a second provider result
-taxonomy. Preserve every result, including misses and failures.
+The new operation therefore reuses `IVehicleLookupAdapter` once per candidate
+and the existing outcome taxonomy. Candidate generation, supported character
+pairs, structural formats and final classification have one owner in Core.
 
-### Existing automatic lookup starts too late for image-initiated identities
+### Supported structures bound the search
 
-`ReconcileAutomaticVehicleLookups` and
-`EfVehicleWorkflowStore.EnqueueDueAsync` operate on active Case workflows
-and enqueue one durable request per `(CaseId, Registration)`.
-`VehicleLookupRequestEntity` and its external work item require a Case ID.
-By contrast, image recognition routes a usable read through
-`ImageIntakeAutomation` and `EfImageIntakeStore` to an existing Case, an
-Image-initiated pre-Case identity, or Unidentified. An Image-initiated identity
-is not a Case workflow and must not be fabricated as one merely to reuse the
-case lookup table.
+Normalize by removing spaces, uppercasing ASCII and rejecting non-alphanumeric
+input. Candidate structures are:
 
-Implication: disambiguation for image reads must occur before the routing
-decision acts on a registration, or through a separately durable intake-owned
-work record. It must feed the resolved candidate back into the existing
-group/single-image routing policy. The case reconciliation sweep remains the
-caller for exact established Case registrations and must not expand all Case
-values indiscriminately.
+| Family | Structure |
+| --- | --- |
+| GB current | `LLDDLLL` |
+| GB prefix | `L D{1,3} LLL` |
+| GB suffix | `LLL D{1,3} L` |
+| Dateless / Northern Ireland | `L{1,3} D{1,4}` or `D{1,4} L{1,3}`, total length at most seven |
 
-### Route provenance is available at intake, not reliably from Case value kind
+Generate substitutions only at `O`, `0`, `I` and `1`, retain only
+values matching one of those structures, de-duplicate, and order the valid raw
+read first followed by substitution count and ordinal comparison. Enumerating
+the structure masks proves that no input can yield more than eight distinct
+valid candidates; the length-five families are the maximum.
 
-Image recognition persists engine/model identity, suggested registration,
-confidence, outcome, and receipt/asset identity in the image-intake records.
-Instruction fields retain intake evidence labels and extraction policy
-provenance, but `CaseDataSourceKind` only distinguishes broad intake evidence;
-it does not itself say “document OCR”. Document Intelligence OCR for scan-like
-PDF pages is currently absent and allocated as INT-16, while ordinary-image
-VRM recognition is live and in-process.
+The policy provides UK-provider candidate handling only. It does not add
+Republic of Ireland or European formats, normalization or providers. A foreign
+registration that is textually indistinguishable from a supported UK structure
+cannot be classified by characters alone; provider evidence still fails
+closed.
 
-Implication: the OCR caller should opt into ambiguity resolution at the point
-where the OCR result still has explicit route provenance. Do not infer OCR
-later from generic Case data or apply the policy to staff-confirmed and
-ordinary embedded-text instruction values. The document side is wired when
-its real OCR caller exists; no dormant caller or fake activation belongs here.
+### Resolution waits for a conclusive whole set
 
-### Candidate expansion must be bounded and deterministic
+A candidate is viable only when the existing result is `Current`, `Stale`
+or `Partial`. A unique viable candidate resolves only if every other candidate
+is `NotFound`. More than one viable candidate is `Ambiguous`; all
+`NotFound` is `NoMatch`. Any throttled, unavailable, failed or otherwise
+unresolved attempt prevents a conclusion and becomes `Incomplete` or
+`Failed` according to the existing retry exhaustion contract.
 
-A standard registration read is seven characters in the current image matching
-policy. Exhaustively toggling every `O` / `0` position gives at most
-`2^7 = 128` distinct candidates for that accepted shape, including the
-original. The general `VehicleLookupRequest` currently permits twenty
-characters, for which unbounded expansion would be inappropriate.
+The original machine read, ordered candidates and every request/result remain
+evidence. A successful first call never short-circuits the remaining set.
 
-Implication: the Core generator should accept only the route's already-valid,
-normalised VRM shape, order the original first and remaining candidates
-deterministically, de-duplicate, and enforce an explicit maximum candidate
-count. An over-limit input abstains rather than truncating silently. The exact
-bound is a technical safety constant owned beside the generator, not copied
-into each caller.
+### Pre-Case work needs intake ownership
 
-### Resolution must fail closed across all terminal outcomes
+`ReconcileAutomaticVehicleLookups`,
+`EfVehicleWorkflowStore.EnqueueDueAsync` and
+`VehicleLookupRequestEntity` are Case-bound. Image recognition can identify a
+vehicle before a Case exists, so reusing those rows would require a fabricated
+Case and violate the intake invariant.
 
-One evidence-bearing candidate can resolve the ambiguity only after all
-generated candidates have terminal outcomes. Zero evidence-bearing candidates
-means no resolution. More than one means ambiguity. A retryable or unavailable
-candidate means the set is not conclusively exhausted and therefore cannot
-justify selecting another apparent hit.
+The durable ambiguity request must instead belong to the intake source evidence
+and link to the existing external-work item. It records the route, raw read,
+policy version, ordered candidates, per-candidate attempts/results and final
+state. Its replay identity prevents duplicate candidate calls for the same
+source evidence and read.
 
-Implication: the orchestration persists/returns every attempt and distinguishes
-resolved, no match, ambiguous, and incomplete/unavailable. It never updates a
-registration merely because the first candidate succeeds.
+### Route provenance is available only at the caller boundary
+
+`ImageIntakeAutomation` still has the recognition engine/model, asset,
+receipt and grouped-image context before routing. The future scan-like document
+OCR boundary supplied by [[TICK-041]] will likewise know that a registration is
+machine-read. Both callers opt in there.
+
+Staff-confirmed values, embedded-text instruction extraction, ordinary Case
+lookups and case search keep exact-registration behavior. Generic Case source
+kinds are not sufficient evidence that a value came from OCR.
+
+### The document caller is not available
+
+A live board check on 2026-09-04 found [[TICK-041]] still in Backlog, untaken,
+and still blocking this ticket. Source inspection also found no active
+scan-like document-OCR caller. The approved scope keeps both callers in this one
+ticket, so INTK-049 must remain in Preparing until that dependency lands; a
+dormant hook or image-only partial implementation would not satisfy the ticket.
+
+### Additional confusion pairs lack evidence
+
+The local corpus exists, but the focused
+`VrmRecognitionCorpusEvaluationTests` check exited 1 because it contains no
+case-attributed labelled images. That failure is retained as evidence: it
+cannot justify adding another pair. The current map is limited to the two
+operator-approved pairs. A future pair needs real labelled corpus or production
+evidence and a separate scope decision.
 
 ## Verified premises
 
-- Read-only source inspection confirmed the current single-registration
-  request contract and typed provider results.
-- Read-only source inspection confirmed automatic lookup is Case-bound and
-  idempotent per Case/registration.
-- Read-only source inspection confirmed image recognition retains route
-  provenance and routes pre-Case Image Intake identities.
-- The governing FRDs require DVSA for every Case, preservation of provider
-  provenance, and fail-closed intake association.
-- Document OCR remains deferred in the current architecture; this ticket must
-  provide its integration contract without claiming that route is live.
+- Read-only source inspection confirmed the single-registration Core request,
+  adapter and typed provider results.
+- Read-only source inspection confirmed the current automatic lookup is
+  Case-bound and image routing can occur pre-Case.
+- Read-only source inspection confirmed the existing confirmed-registration
+  matching rules, including the inserted-`1` plate-furniture case.
+- FRD-02 owns grouped-image terminality and fail-closed association.
+- FRD-06 owns exact provider outcomes and evidence provenance.
+- Official DVLA/GOV.UK guidance confirms the current, prefix, suffix, dateless
+  and Northern Ireland registration families used by the structural filter.
+- The live Kanmer dependency check confirmed [[TICK-041]] has not supplied the
+  document-OCR caller.
 
 ## Assumptions
 
-- “Opposing combinations” means every distinct combination obtained by
-  independently swapping each `O` and `0`, including the original.
-- The existing evidence-bearing lookup outcomes define a viable provider match.
-- No historical backfill is included; this is prospective processing and
-  idempotent replay of newly handled machine reads.
+- Provider outcomes remain the source of truth for whether a structurally valid
+  candidate identifies a UK vehicle.
+- No historical backfill is included. The behavior applies prospectively and
+  to idempotent replay of newly handled machine reads.
+- No new package, provider, runtime, deployment unit, feature flag or
+  compatibility path is required.

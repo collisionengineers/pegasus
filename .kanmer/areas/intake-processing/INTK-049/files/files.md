@@ -4,52 +4,80 @@
 
 | File or module | Planned responsibility | Risk |
 | --- | --- | --- |
-| `src/Pegasus.Core/Vehicle/LookupContracts.cs` or a focused sibling | Own the single candidate-generation and fail-closed resolution policy for machine-read `O` / `0` ambiguity | Candidate explosion or accepting before every result is terminal could select the wrong vehicle |
-| `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Invoke the shared policy for qualifying image-recognition reads before association or Image-initiated registration | Existing group precedence and recognition idempotency must remain intact |
-| `src/Pegasus.Core/ImageIntake/VrmRecognition.cs` | Reuse the existing normalised standard-VRM constraints; do not weaken `VrmRegistrationMatching` substitution rules | Changing matching semantics would affect unrelated automatic association |
-| `src/Pegasus.Core/Intake/*` (the future document-OCR result boundary) | Opt explicit document-OCR results into the same Core ambiguity operation when the real OCR caller is implemented | OCR is not currently active; no test-only or dormant production caller may be presented as wired |
-| `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` and image-intake entities/configuration | Durably retain the machine read, candidate attempts/results, resolution, and replay key for pre-Case intake | A Case-bound lookup row cannot be reused by fabricating a Case ID; schema and grants must ship together if persistence changes |
-| `src/Pegasus.Infrastructure/Vehicle/DvlaDvsaProductionAdapter.cs` | Reuse the existing one-registration adapter unchanged unless orchestration exposes a narrowly necessary defect | Provider calls, throttling, and provenance must not be duplicated in a second adapter |
-| Worker/Web composition roots and background work routing | Wire one production caller for durable image/OCR ambiguity work, using the existing external-work convention where it fits | A registration-only inline network call would bypass retry and durability conventions |
-| Core vehicle/image tests | Prove candidate order/bounds and resolved, no-match, ambiguous, unavailable/incomplete, and exact-route behavior | Tests must prove abstention, not only the happy path |
-| Integration tests for image intake and vehicle lookup | Prove durable idempotency, provenance, no premature association, and unchanged non-machine routes | Requires controlled provider doubles; no fabricated domain evidence |
-| EF migration, model snapshot, and worker grants if a new durable record is needed | Add storage and least-privilege access in one diff | Permission omission would leave the production Worker unwired |
-| `docs/current-architecture.md` | Refresh as-built behavior only when implementation is actually wired | Must not describe deferred document OCR as live |
+| `src/Pegasus.Core/Vehicle/LookupContracts.cs` or a focused sibling | Own the O/0 and I/1 confusion map, UK structure validation, candidate order/bound and fail-closed result classification | A copied map or permissive grammar could select or call the wrong vehicle |
+| `src/Pegasus.Core/Vehicle/LookupWorkItem.cs` | Reuse the current application retry schedule and outcome handling for each candidate | First-hit short-circuiting or swallowed retries would make the set inconclusive |
+| `src/Pegasus.Core/Custody/ExternalWorkProcessing.cs` | Add the one new durable external-work kind and dispatch path | The dispatcher must surface unknown or failed work |
+| `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Request ambiguity work for qualifying terminal image reads and wait before routing | Existing recognition idempotency and grouped routing precedence must remain intact |
+| `src/Pegasus.Core/ImageIntake/VrmRecognition.cs` | Reuse normalization constraints while leaving confirmed-registration matching unchanged | The inserted-`1` plate-furniture rule must not become a general substitution |
+| [[TICK-041]] document-OCR result boundary | Call the same Core operation while OCR provenance is explicit | The caller does not exist yet; no dormant or test-only path is acceptable |
+| `src/Pegasus.Infrastructure/Persistence/ImageIntakeEntities.cs` and a focused ambiguity-work entity if needed | Persist source evidence, raw read, policy version, state and final resolution | Work must remain intake-owned rather than fabricating a Case |
+| `src/Pegasus.Infrastructure/Persistence/ExternalWorkStatePersistence.cs` and `EfExternalWorkStore.cs` | Link and lease the new work through the existing external-work mechanism | Publication and concurrency results may not be discarded |
+| `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` | Enqueue/replay image-owned requests and resume routing after terminal resolution | Duplicate requests or premature routing could create the wrong identity |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` and model configuration | Map the durable request and candidate attempts with required uniqueness/indexes | Schema constraints must enforce the replay key and attempt identity |
+| `src/Pegasus.Infrastructure/Vehicle/DvlaDvsaProductionAdapter.cs` | Reuse the existing one-registration DVLA/DVSA adapter | Do not duplicate provider calls or provenance mapping |
+| Worker composition and external-work dispatch registration | Wire one production processor for the new work kind | Registered-but-unreachable code is not delivered |
+| New EF migration and `PegasusDbContextModelSnapshot.cs` | Create tables/indexes and grant the Worker least-privilege access in the same change | Missing grants would leave production work unprocessable |
+| `tests/Pegasus.Core.Tests/Vehicle/*` | Prove structures, ordering, bound and result classifications | Tests must cover abstention and mixed O/0/I/1 positions |
+| `tests/Pegasus.Core.Tests/ImageIntake/*` | Prove image opt-in and unchanged confirmed-registration matching | Matching semantics outside the provider-backed route must not change |
+| `tests/Pegasus.IntegrationTests/ImageIntakePersistenceTests.cs`, grouped-image tests and focused vehicle tests | Prove durability, idempotency, provider provenance, retries and group waiting | Controlled provider doubles only; no fabricated domain documents |
+| `docs/frd/frd-02-intake-and-source-identity.md` | Govern route scope, supported UK formats and fail-closed intake behavior | Must not claim document OCR is active before [[TICK-041]] lands |
+| `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Govern provider-backed ambiguity outcomes and preserved raw/candidate evidence | Must remain distinct from confirmed-case image matching |
+| `docs/current-architecture.md` | Record the final caller-backed as-built shape | Update only after both named callers are genuinely wired |
+
+## Reuse decisions
+
+- Reuse `IVehicleLookupAdapter`, `VehicleLookupRequest`,
+  `VehicleLookupResult` and `VehicleLookupOutcome`; do not add a second
+  provider contract.
+- Reuse the external-work publication, leasing and retry conventions; add only
+  the intake-owned request state that the Case-bound vehicle table cannot hold.
+- Reuse `ImageIntakeGroupRoutingPolicy` after ambiguity terminality; do not
+  create a competing group resolver.
+- Keep the supported confusion map and structural grammar in one Core policy.
+  Callers pass provenance and consume the result; they do not reproduce lists.
+- No existing port can own pre-Case ambiguity attempts because the current
+  vehicle work store requires a Case. That verified mismatch justifies the
+  focused intake-owned persistence.
 
 ## Ripple effects
 
-- Grouped image intake must wait for a terminal ambiguity result just as it
-  waits for terminal recognition; it cannot let a member-level shortcut
-  override group fail-closed behavior.
-- Lookup rate and retry behavior increase with the number of generated
-  candidates. The bounded generator and durable per-candidate idempotency are
-  therefore acceptance requirements.
-- If the resolved registration differs from the raw read, both remain
-  reviewable with engine/model and DVLA/DVSA provenance.
-- Case creation, reference allocation, matching, and vehicle enrichment must
-  consume only the uniquely resolved registration.
-- Existing exact staff refresh and automatic Case lookup retain their
-  single-registration operation keys.
+- Grouped image intake must treat ambiguity work as non-terminal until the whole
+  candidate set is conclusive.
+- Provider traffic grows by the number of structurally valid candidates, but
+  never above eight for one read.
+- The resolved registration may differ from the raw read; both remain
+  reviewable with recognition and provider provenance.
+- Case creation, reference allocation, matching and enrichment consume only a
+  unique terminal resolution.
+- Exact staff refresh, embedded-text instructions, Case search and automatic
+  Case lookup keep their current single-registration keys.
+- Republic of Ireland and European support remains absent. No foreign provider,
+  grammar or normalization is introduced.
 
 ## Context files
 
 | File | Why it must be read |
 | --- | --- |
-| `docs/frd/frd-02-intake-and-source-identity.md` | Owns grouped-image routing, fail-closed association, mileage tiers, and DVSA-for-every-Case behavior |
-| `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Owns vehicle lookup outcomes, evidence provenance, refresh behavior, and source limitations |
-| `docs/current-architecture.md` | Distinguishes live image recognition, absent scan-like document OCR, and composed DVLA/DVSA lookup |
-| `src/Pegasus.Core/ImageIntake/VrmRecognition.cs` | Existing recognition confidence and matching rules must remain authoritative |
-| `src/Pegasus.Core/ImageIntake/ImageIntakeGroupRouting.cs` | Group-level precedence is the authority for association |
-| `src/Pegasus.Core/Vehicle/LookupContracts.cs` | Existing provider request/result taxonomy to reuse |
-| `src/Pegasus.Infrastructure/Persistence/EfVehicleWorkflowStore.cs` | Shows current Case-bound idempotency and why pre-Case intake needs its own durable ownership |
-| `src/Pegasus.Infrastructure/Vehicle/DvlaDvsaProductionAdapter.cs` | Existing production provider calls and provenance mapping |
+| `docs/frd/frd-02-intake-and-source-identity.md` | Owns grouped-image routing and fail-closed association |
+| `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Owns lookup outcomes, provenance and confirmed-registration matching |
+| `docs/current-architecture.md` | Distinguishes live image recognition from absent document OCR |
+| `src/Pegasus.Core/ImageIntake/VrmRecognition.cs` | Existing confidence and matching rules remain authoritative |
+| `src/Pegasus.Core/ImageIntake/ImageIntakeGroupRouting.cs` | Existing group precedence is reused |
+| `src/Pegasus.Core/Vehicle/LookupContracts.cs` | Existing request/result taxonomy is reused |
+| `src/Pegasus.Core/Vehicle/LookupWorkItem.cs` | Existing retry behavior is reused |
+| `src/Pegasus.Infrastructure/Persistence/EfVehicleWorkflowStore.cs` | Demonstrates why existing work is Case-bound |
+| `src/Pegasus.Infrastructure/Persistence/EfExternalWorkStore.cs` | Durable publication and leasing convention |
+| `src/Pegasus.Infrastructure/Vehicle/DvlaDvsaProductionAdapter.cs` | Existing production calls and provenance mapping |
+| [[TICK-041]] | Supplies the document-OCR caller and its governed failure route |
 
 ## Out of scope
 
-- Treating `O` and `0` as equivalent in ordinary case search or
+- Treating ambiguous characters as equivalent in Case search or
   `VrmRegistrationMatching`.
-- Reinterpreting a staff-confirmed or embedded-text instruction registration.
-- Activating or selecting a Document Intelligence OCR provider.
+- Reinterpreting staff-confirmed or embedded-text instruction registrations.
+- Republic of Ireland or European registration support.
+- Adding confusion pairs without labelled evidence.
+- Activating, selecting or provisioning a Document Intelligence provider.
 - Historical backfill.
-- Changing DVLA/DVSA credentials, provider selection, or live approval.
-- Broad vehicle-image model changes or accuracy evaluation.
+- Changing DVLA/DVSA credentials or provider selection.
+- Broad vehicle-image model changes or accuracy work.
