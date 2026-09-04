@@ -2,10 +2,12 @@
 id: INTK-059
 type: ticket
 title: Show the valid principal on the Triage case page
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-04T10:28:53.909Z'
 labels:
   - triage
   - principal
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-04T10:21:48.346Z'
-updated: '2026-09-04T10:21:48.346Z'
+updated: '2026-09-04T10:28:53.909Z'
 ---
 
 ## What
