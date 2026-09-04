@@ -2,10 +2,12 @@
 id: PLAT-073
 type: ticket
 title: Provision and document the Linux-native WSL toolchain
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-04T15:11:36.637Z'
 labels:
   - wsl
   - linux
@@ -18,7 +20,7 @@ blocks:
   - UIIMP-016
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T11:58:57.715Z'
+updated: '2026-09-04T15:11:36.637Z'
 ---
 
 ## What
