@@ -1,5 +1,6 @@
 using System.Net;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Qdos;
 
@@ -11,6 +12,34 @@ namespace Pegasus.Core.Tests.Qdos;
 /// </summary>
 public sealed class EvaSubmissionPolicyTests
 {
+    [Fact]
+    public void FirstManualSendMovesReviewToWithEngineer() =>
+        Assert.Equal(
+            CaseLifecycleState.ReportPreparation,
+            EvaSubmissionPolicy.StateAfterSend(
+                CaseLifecycleState.Review,
+                EvaSubmissionTrigger.Manual));
+
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    [InlineData(CaseLifecycleState.PostReport)]
+    public void ManualResendDoesNotChangeWithEngineerState(CaseLifecycleState state) =>
+        Assert.Equal(state, EvaSubmissionPolicy.StateAfterSend(state, EvaSubmissionTrigger.Manual));
+
+    [Fact]
+    public void AutomaticSubmissionIsReviewOnly()
+    {
+        Assert.Equal(
+            CaseLifecycleState.Review,
+            EvaSubmissionPolicy.StateAfterSend(
+                CaseLifecycleState.Review,
+                EvaSubmissionTrigger.Automatic));
+        Assert.Throws<EvaHandoffStateException>(() =>
+            EvaSubmissionPolicy.StateAfterSend(
+                CaseLifecycleState.ReportPreparation,
+                EvaSubmissionTrigger.Automatic));
+    }
+
     [Fact]
     public void AnAcceptedEnvelopeWithAnIdentifierSucceeds() =>
         Assert.Equal(

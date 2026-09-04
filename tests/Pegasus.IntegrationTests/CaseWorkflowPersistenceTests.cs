@@ -739,10 +739,12 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, before.Version, actor, "claim-ineligible-assignment"),
             default);
         var operationKey = $"assign-ineligible-{role}-{isEnabled}-{createAccount}";
+        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var sut = new AssignCaseEngineer(
             harness.Store,
             new DefaultCaseWorkflowConfiguration(),
-            harness.EngineerEligibility);
+            harness.EngineerEligibility,
+            new EfStaffAccountQueries(staffContext));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(
@@ -769,7 +771,11 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var engineerId = Guid.NewGuid();
-        await harness.SeedStaffAccountAsync(engineerId, true, StaffRole.Engineer);
+        await harness.SeedStaffAccountAsync(
+            engineerId,
+            true,
+            StaffRole.Engineer,
+            isSignOffEngineer: true);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var before = Assert.IsType<CaseWorkflowRecord>(
             await harness.Store.GetAsync(harness.CaseId, default));
@@ -785,10 +791,12 @@ public sealed class CaseWorkflowPersistenceTests
             lease.Token,
             engineerId,
             new(true, true, "accepted-readiness"));
+        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var sut = new AssignCaseEngineer(
             harness.Store,
             new DefaultCaseWorkflowConfiguration(),
-            harness.EngineerEligibility);
+            harness.EngineerEligibility,
+            new EfStaffAccountQueries(staffContext));
 
         var assigned = await sut.ExecuteAsync(request, default);
         await harness.SetStaffEnabledAsync(engineerId, false);
@@ -797,9 +805,52 @@ public sealed class CaseWorkflowPersistenceTests
 
         Assert.False(disabled.IsEnabled);
         Assert.Equal(engineerId, assigned.AssignedEngineerId);
+        Assert.Equal(engineerId, assigned.SignOffEngineerId);
         Assert.Equal(before.Version + 1, assigned.Version);
         Assert.Equal(assigned, replay);
         Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
+    }
+
+    [Fact]
+    public async Task SignOffEngineerSelectionPersistsWithHistoryAndExactReplay()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var signOffEngineerId = Guid.NewGuid();
+        await harness.SeedStaffAccountAsync(
+            signOffEngineerId,
+            true,
+            StaffRole.Engineer,
+            isSignOffEngineer: true,
+            isDefaultSignOffEngineer: true);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-sign-off-selection"),
+            default);
+        var request = new SetCaseSignOffEngineerRequest(
+            harness.CaseId,
+            0,
+            actor,
+            "select-sign-off-engineer",
+            "Select report signatory",
+            lease.Token,
+            signOffEngineerId);
+        await using var staffContext = await harness.Factory.CreateDbContextAsync();
+        var sut = new SetCaseSignOffEngineer(
+            harness.Store,
+            new EfStaffAccountQueries(staffContext));
+
+        var selected = await sut.ExecuteAsync(request, default);
+        var replay = await sut.ExecuteAsync(request, default);
+
+        Assert.Equal(signOffEngineerId, selected.SignOffEngineerId);
+        Assert.Equal(selected, replay);
+        Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
+        await using var historyContext = await harness.Factory.CreateDbContextAsync();
+        var history = await historyContext.ActionHistory.SingleAsync(item =>
+            item.AggregateType == "Case"
+            && item.AggregateId == harness.CaseId.ToString("D")
+            && item.EventKind == "case_sign_off_engineer_selected");
+        Assert.Contains(signOffEngineerId.ToString("D"), history.AfterJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -2053,6 +2104,8 @@ public sealed class CaseWorkflowPersistenceTests
         private readonly LocalDbTestDatabase database;
         private readonly PooledDbContextFactory<PegasusDbContext> factory;
 
+        public PooledDbContextFactory<PegasusDbContext> Factory => factory;
+
         private WorkflowHarness(
             LocalDbTestDatabase database,
             PooledDbContextFactory<PegasusDbContext> factory,
@@ -2094,7 +2147,9 @@ public sealed class CaseWorkflowPersistenceTests
         public async Task SeedStaffAccountAsync(
             Guid staffId,
             bool isEnabled,
-            StaffRole role)
+            StaffRole role,
+            bool isSignOffEngineer = false,
+            bool isDefaultSignOffEngineer = false)
         {
             await using var context = await factory.CreateDbContextAsync();
             var roleName = role.ToString();
@@ -2114,6 +2169,9 @@ public sealed class CaseWorkflowPersistenceTests
             }
 
             var userName = $"workflow-test-{staffId:N}";
+            var signature = isSignOffEngineer
+                ? new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a }
+                : null;
             context.Users.Add(new PegasusIdentityUser
             {
                 Id = staffId,
@@ -2121,6 +2179,13 @@ public sealed class CaseWorkflowPersistenceTests
                 NormalizedUserName = userName.ToUpperInvariant(),
                 IsEnabled = isEnabled,
                 MustChangePassword = false,
+                IsSignOffEngineer = isSignOffEngineer,
+                SignOffPrintedName = isSignOffEngineer ? "Workflow Signatory" : null,
+                SignOffSignature = signature,
+                SignOffSignatureDigest = signature is null
+                    ? null
+                    : Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(signature)),
+                IsDefaultSignOffEngineer = isDefaultSignOffEngineer,
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });

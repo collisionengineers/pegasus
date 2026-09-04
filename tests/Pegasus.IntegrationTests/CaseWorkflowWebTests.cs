@@ -17,10 +17,12 @@ public sealed partial class CaseDetailsWebTests
         {
             Substitute<ITransitionCase>(services, store);
             Substitute<IAssignCaseEngineer>(services, store);
+            Substitute<ISetCaseSignOffEngineer>(services, store);
             Substitute<IRecordEngineerFinding>(services, store);
             Substitute<ICreateLinkedReplacement>(services, store);
         });
         var engineerId = Guid.NewGuid();
+        var signOffEngineerId = Guid.NewGuid();
         (string Name, string Value)[] readiness =
         [
             ("instructionsComplete", "true"),
@@ -34,6 +36,12 @@ public sealed partial class CaseDetailsWebTests
         using var assigned = await workspace.PostAsync(
             "Workflow?handler=AssignEngineer",
             workspace.MutationForm("assign-engineer", "Engineer available", [("engineerId", engineerId.ToString("D")), .. readiness]));
+        using var signOffSet = await workspace.PostAsync(
+            "Workflow?handler=SetSignOffEngineer",
+            workspace.MutationForm(
+                "set-sign-off-engineer",
+                "Signatory selected",
+                ("signOffEngineerId", signOffEngineerId.ToString("D"))));
         using var found = await workspace.PostAsync(
             "Workflow?handler=RecordEngineerFinding",
             workspace.MutationForm("record-finding", "Inspection complete", ("assessment", "TotalLoss")));
@@ -43,6 +51,7 @@ public sealed partial class CaseDetailsWebTests
 
         AssertPrg(returned, store.CaseId);
         AssertPrg(assigned, store.CaseId);
+        AssertPrg(signOffSet, store.CaseId);
         AssertPrg(found, store.CaseId);
         AssertPrg(replaced, store.CaseId);
         var expectedReadiness = new CaseReadinessEvidence(true, true, "review-evidence-1");
@@ -56,6 +65,14 @@ public sealed partial class CaseDetailsWebTests
         AssertLeasedMutation(workspace, assignment, "assign-engineer", "Engineer available");
         Assert.Equal(engineerId, assignment.EngineerId);
         Assert.Equal(expectedReadiness, assignment.Readiness);
+
+        var signOffSelection = Assert.Single(store.SignOffSelections);
+        AssertLeasedMutation(
+            workspace,
+            signOffSelection,
+            "set-sign-off-engineer",
+            "Signatory selected");
+        Assert.Equal(signOffEngineerId, signOffSelection.SignOffEngineerId);
 
         var finding = Assert.Single(store.EngineerFindings);
         AssertLeasedMutation(workspace, finding, "record-finding", "Inspection complete");
@@ -79,10 +96,12 @@ public sealed partial class CaseDetailsWebTests
 
     private sealed partial class RecordingCaseDetailsStore :
         IAssignCaseEngineer,
+        ISetCaseSignOffEngineer,
         IRecordEngineerFinding,
         ICreateLinkedReplacement
     {
         public List<AssignCaseEngineerRequest> EngineerAssignments { get; } = [];
+        public List<SetCaseSignOffEngineerRequest> SignOffSelections { get; } = [];
         public List<RecordEngineerFindingRequest> EngineerFindings { get; } = [];
         public List<CreateLinkedReplacementRequest> LinkedReplacements { get; } = [];
 
@@ -93,6 +112,18 @@ public sealed partial class CaseDetailsWebTests
             ThrowNextFailure();
             EngineerAssignments.Add(request);
             return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = request.EngineerId });
+        }
+
+        Task<CaseWorkflowRecord> ISetCaseSignOffEngineer.ExecuteAsync(
+            SetCaseSignOffEngineerRequest request,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            SignOffSelections.Add(request);
+            return Task.FromResult(CreateWorkflow() with
+            {
+                SignOffEngineerId = request.SignOffEngineerId
+            });
         }
 
         Task<CaseIdentity> IRecordEngineerFinding.ExecuteAsync(
