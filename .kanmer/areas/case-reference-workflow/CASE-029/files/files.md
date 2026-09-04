@@ -80,3 +80,15 @@ keeps the suggestion writer single.
   and fee-note-preview files.
 - [[TICK-083]] / EXT-10: valuation adjustments, rationale, and revaluation
   history.
+
+## Correction (2026-09-04, controller)
+
+| Path | Action | Why | Reuses |
+| --- | --- | --- | --- |
+| `src/Pegasus.Web/Pages/Cases/Details.cshtml` | change (valuation include point only) | Compose `_CaseValuation.cshtml` into the `section-valuation` host CASE-038 reserved for this ticket. | CASE-038 host and fragment contract |
+| `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | change (valuation projection only) | Load the case valuations for the section with the existing `IListCaseValuations` port. | ENG-027 port; existing section load |
+| `src/Pegasus.Core/Cases/CaseQueries.cs` | change (`CaseRequestUploadSummary` Recipient/Reason members only) | Step 2's projection needs somewhere to land. | Existing record |
+
+The "must not touch" rows above for `Details.*` were written under the
+capacity-one rule; §Build policy (2026-09-04) supersedes them — merge after
+CASE-038 (done) and CASE-040 (queue order).
