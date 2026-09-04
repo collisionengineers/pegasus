@@ -119,6 +119,10 @@ public sealed class WorkerActivationReleaseContractTests
             CopyValidationFixtureFile(
                 repositoryRoot,
                 testRoot,
+                "scripts/Build-ReleaseArtifacts.ps1");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
                 "scripts/Test-AzureDeploymentPlan.ps1");
 
             var platformBicepPath = Path.Combine(
