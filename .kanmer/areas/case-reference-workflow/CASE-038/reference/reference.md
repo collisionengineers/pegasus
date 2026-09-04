@@ -473,3 +473,43 @@ its new browser assertion were read line by line.
    are board documents, not repository files, so they do not move the head.
 
 Nothing else is required; findings 2, 3 and 4 need no change.
+
+### Addendum — the exact-head CI run completed after the review was written
+
+Run `33901021975` (`headSha f3005ea667407ea5c9dcd4c298a9add200071855`)
+finished **`failure`**. One job failed: **`test-ui`** (`infrastructure` was
+skipped as a consequence; every other job succeeded).
+
+The failure is in the capture's browser phase and is **not an assertion
+failure**:
+
+```
+Pegasus.IntegrationTests.Browser.LayoutIntegrityTests
+  .InspectionAddressOutsideEditFormIsGuardedAndSaved [FAIL]
+  Microsoft.Playwright.PlaywrightException :
+    net::ERR_NO_BUFFER_SPACE at http://127.0.0.1:64767/Cases/efbff…
+  Call log: - navigating to "…/Cases/efbff…", waiting until "networkidle"
+  at BrowserTestSupport.GoToAsync(String relativePath) : BrowserTestSupport.cs:129
+  at LayoutIntegrityTests.InspectionAddressOutsideEditFormIsGuardedAndSaved()
+     : LayoutIntegrityTests.cs:202
+Failed!  - Failed: 1, Passed: 123, Skipped: 0, Total: 124, Duration: 11m39s
+Test UI phase 'Capture browser responses' failed with exit code 1.
+```
+
+`ERR_NO_BUFFER_SPACE` on the very first `GoToAsync` (line 202, before any
+assertion in the scenario runs) is runner socket/buffer exhaustion under the
+parallel browser capture, not a defect in the code or the test's claim. The
+same test passed locally in this lane's own round-3 run
+(`--filter FullyQualifiedName~LayoutIntegrityTests`, 70 passed, exit 0) and
+123 of the 124 browser cases passed in this very run.
+
+**Disposition: the gate is not met and the PR is not merged.** The reviewer's
+rerun allowance in this workflow covers only a failed `changes` job, so
+`test-ui` is not rerun here. This is a lane-external state finding, on the
+same footing as round-3 findings 2 and 3:
+
+3. Rerun the failed `test-ui` job on run `33901021975`
+   (`gh run rerun 33901021975 --failed`) and require `conclusion: success` at
+   `f3005ea66` before merge. If it fails again at the same place, the cause is
+   browser-capture runner pressure and belongs to the Test UI cost lane, not
+   to CASE-038 — raise it there rather than changing this ticket's code.
