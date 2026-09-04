@@ -29,9 +29,12 @@ blocks:
   - DELIV-048
 refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
+commits:
+  - 0f15155b8162a3086c8e041617c0c9820065068d
+  - 287fc2e46aeee4999c8bab18349ea44f32b40b4d
 archived: false
 created: '2026-09-04T11:58:34.797Z'
-updated: '2026-09-04T19:06:41.555Z'
+updated: '2026-09-04T20:32:09.764Z'
 ---
 
 ## What

@@ -113,3 +113,11 @@ Preserve every failed attempt and exit code. Do not weaken a test, accept a Wind
 ## Stop condition
 
 Stop pre-merge with one reviewed Linux-route PR open against `dev`. After merge, verification may perform production promotion/release only with fresh `MERGE AUTH GRANTED` and exact-target cloud-write approval; otherwise retain the ticket in Verifying and report the precise authority still required.
+
+## Simplification pass — 2026-09-04
+
+- Reuse: retained the existing PowerShell/azd/Azure CLI release route, platform helper, Doctor tool table and deployment-plan validator; no parallel deployer or platform list was introduced.
+- Simplification: removed the 282-line stale Zcode copy in favour of its existing canonical-skill forwarding pattern; removed the configurable migration RID because there is now exactly one authorised host contract.
+- Efficiency: artifact identity remains a single manifest consumed by existing validation and release steps; ORAS uses the existing Doctor/repair-hint mechanism.
+- Altitude: changes stay at release tooling and guidance boundaries; application, infrastructure templates, schema and product behaviour are untouched.
+- Disposition: no further behaviour-preserving simplification found. The explicit schema-3 rejection and build-script source assertions remain because they are the fail-closed cutover checks, not duplicate business policy.
