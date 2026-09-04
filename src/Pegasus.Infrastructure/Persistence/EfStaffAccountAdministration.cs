@@ -1,4 +1,5 @@
 using System.Data;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,8 @@ public sealed class EfStaffAccountAdministration(
     : ICreateStaffAccountStore,
       IDisableStaffAccountStore,
       IAssignStaffRolesStore,
-      IReviewStaffAccessStore
+      IReviewStaffAccessStore,
+      IUpdateStaffAccountSignOffStore
 {
     public async Task<CreateStaffAccountResult> CreateAsync(
         CreateStaffAccountRequest request,
@@ -278,6 +280,100 @@ public sealed class EfStaffAccountAdministration(
         return new(user.Id, now, WasReplay: false);
     }
 
+    public async Task<UpdateStaffAccountSignOffResult> UpdateAsync(
+        UpdateStaffAccountSignOffRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.AggregateId != request.StaffId.ToString("D")
+                || replay.EventKind != "staff_account_sign_off_updated"
+                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal)
+                || !RecordedSignOffEqual(replay.AfterJson, request))
+            {
+                throw OperationConflict();
+            }
+
+            var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
+            var replayRoles = await GetRolesAsync(replayUser);
+            await transaction.CommitAsync(cancellationToken);
+            return new(
+                EfStaffAccountQueries.Summary(
+                    replayUser,
+                    replayRoles,
+                    await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
+                WasReplay: true);
+        }
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
+        var roles = await GetRolesAsync(user);
+        if (!roles.Contains(StaffRole.Engineer))
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole);
+        }
+
+        var previousDefault = await context.Users.SingleOrDefaultAsync(
+            item => item.IsDefaultSignOffEngineer,
+            cancellationToken);
+        var previousDefaultId = previousDefault?.Id;
+        var before = SignOffSnapshot(user, previousDefaultId);
+
+        user.IsSignOffEngineer = request.IsSignOffEngineer;
+        user.SignOffPrintedName = request.PrintedName;
+        user.SignOffQualifications = request.Qualifications;
+        if (request.Signature is not null)
+        {
+            user.SignOffSignature = request.Signature;
+            user.SignOffSignatureDigest = SignatureDigest(request.Signature);
+        }
+
+        if (request.IsDefault
+            && !SignOffEngineerEligibility.IsEligible(
+                user.IsEnabled,
+                roles,
+                user.IsSignOffEngineer,
+                user.SignOffSignature))
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.IneligibleSignOffEngineer);
+        }
+
+        if (request.IsDefault && previousDefault is not null && previousDefault.Id != user.Id)
+        {
+            previousDefault.IsDefaultSignOffEngineer = false;
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        user.IsDefaultSignOffEngineer = request.IsDefault;
+        var newDefaultId = request.IsDefault
+            ? user.Id
+            : previousDefault is { Id: var id } && id != user.Id
+                ? id
+                : (Guid?)null;
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "staff_account_sign_off_updated",
+            request.OperationKey,
+            before,
+            SignOffSnapshot(user, newDefaultId),
+            timeProvider.GetUtcNow(),
+            request.Reason);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            EfStaffAccountQueries.Summary(
+                user,
+                roles,
+                await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
+            WasReplay: false);
+    }
+
     private async Task<StaffAccountSummary> CreateUserCoreAsync(
         ActionActor actor,
         string userName,
@@ -457,6 +553,67 @@ public sealed class EfStaffAccountAdministration(
             .OrderBy(role => role);
         return recordedRoles.SequenceEqual(requestedRoles.OrderBy(role => role));
     }
+
+    private static bool RecordedSignOffEqual(
+        string? afterJson,
+        UpdateStaffAccountSignOffRequest request)
+    {
+        if (afterJson is null)
+        {
+            return false;
+        }
+
+        using var document = JsonDocument.Parse(afterJson);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("IsSignOffEngineer", out var flag)
+            || flag.GetBoolean() != request.IsSignOffEngineer
+            || !JsonTextEquals(root, "SignOffPrintedName", request.PrintedName)
+            || !JsonTextEquals(root, "SignOffQualifications", request.Qualifications)
+            || !root.TryGetProperty("IsDefaultSignOffEngineer", out var isDefault)
+            || isDefault.GetBoolean() != request.IsDefault)
+        {
+            return false;
+        }
+
+        return request.Signature is null
+            || JsonTextEquals(
+                root,
+                "SignOffSignatureDigest",
+                SignatureDigest(request.Signature));
+    }
+
+    private static bool JsonTextEquals(
+        JsonElement root,
+        string propertyName,
+        string? expected)
+    {
+        if (!root.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        var actual = property.ValueKind == JsonValueKind.Null
+            ? null
+            : property.GetString();
+        return string.Equals(actual, expected, StringComparison.Ordinal);
+    }
+
+    private static string SignOffSnapshot(
+        PegasusIdentityUser user,
+        Guid? defaultSignOffEngineerId) =>
+        JsonSerializer.Serialize(new
+        {
+            user.IsSignOffEngineer,
+            user.SignOffPrintedName,
+            user.SignOffQualifications,
+            HasSignOffSignature = user.SignOffSignature is { Length: > 0 },
+            user.SignOffSignatureDigest,
+            user.IsDefaultSignOffEngineer,
+            DefaultSignOffEngineerId = defaultSignOffEngineerId
+        });
+
+    private static string SignatureDigest(byte[] signature) =>
+        Convert.ToHexString(SHA256.HashData(signature)).ToLowerInvariant();
 
     private static (long Authorizations, long Tokens) ParseRevocationCounts(
         string? afterJson)
