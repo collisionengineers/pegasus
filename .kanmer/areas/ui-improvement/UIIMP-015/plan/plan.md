@@ -175,3 +175,25 @@ is the one lane the build policy allows to edit `TestUiSnapshotTests.cs` and
 
 Nothing the ticket body implies is unaddressed, and no operator question is
 open.
+
+## Simplification pass (2026-09-04)
+
+Ran gpt-5.6-sol (low) over `git diff origin/dev...HEAD` in
+`.worktrees/uiimp-015`, four lenses (reuse, simplification, efficiency,
+altitude), behaviour-preserving only. Dispositions:
+
+| # | Finding | File(s) | Disposition |
+| --- | --- | --- | --- |
+| 1 | The focused-refresh command block in `AGENTS.md` duplicates the same example in `docs/runbook.md`, two maintenance points for one procedure. | `AGENTS.md` L172-181, `docs/runbook.md` L660-669 | Rejected — this mirrors the repository's existing convention (the unscoped refresh/verify commands are already duplicated across `AGENTS.md`/`CLAUDE.md` and `docs/runbook.md`); the plan's step 3 explicitly requires updating both. Not a new duplication this ticket introduces. |
+| 2 | `FullyQualifiedName~TestUiFocusedRenderTests` appeared in both the default `-CaptureFilter` value and the unconditional wrapper that builds `$effectiveCaptureFilter`, so the default invocation emitted the clause twice. | `scripts/Update-TestUiSnapshots.ps1` (param block and `$effectiveCaptureFilter`) | Fixed — removed the clause from the default `-CaptureFilter` value; it is still guaranteed present via the unconditional append. |
+| 3 | `catalogueRoot` was passed into `Generate` but never read inside the method body. | `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`, `Generate` | Fixed — dropped the parameter and updated its one call site. |
+| 4 | `ValidateScope` allocated a fresh single-element array (`[prefix]`) per prefix comparison solely to call the collection-oriented `MatchesScope`. | `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`, `ValidateScope`/`MatchesScope` | Fixed — factored a `MatchesScopePrefix(file, prefix)` helper; `MatchesScope` and `ValidateScope` both call it directly, no allocation. |
+
+All applied fixes are behaviour-preserving. Re-verified after applying: Release
+build (0 warnings/errors), `Pegasus.Core.Tests` (1,225 passed),
+`Pegasus.ArchitectureTests` (100 passed), the changed `TestUiSnapshotTests`
+class (discovery + scoped update/verify all passed 1/1 each), the scoped
+`case-details` capture and `-Verify -SkipCapture` re-run clean, the
+non-`case-details` 56-file SHA-256 inventory stayed byte-identical, and
+`Test-UiCatalogue.ps1` passed (54 routed sources, 59 prototypes, 0 broken
+references).
