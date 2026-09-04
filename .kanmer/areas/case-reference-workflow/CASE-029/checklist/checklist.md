@@ -1,31 +1,31 @@
 # Checklist — CASE-029 (2026-09-02, gpt-5.6-terra high; corrected 2026-09-03 after plan review)
 
-- [ ] Preconditions: `git merge-base --is-ancestor` shows [[CASE-038]] and [[ENG-035]] merged on `origin/dev`; AUTO-018 is not a precondition; lane refreshed with `git merge --no-edit origin/dev`
-- [ ] Step 1 — `VehicleWorkflow.cs`: keyed one-field suggestion acceptance replaces whole-observation accept/correct; field key restricted to make, model, mileage(+unit atomically); no bulk-apply path
-- [ ] Step 1 — `EfVehicleWorkflowStore.cs` accepts one field and clears only its suggestion row; the existing `EfVehicleLookupWorkStore.AddLookupSuggestionsAsync` stays the only suggestion writer (no second projection path)
-- [ ] Step 1 — repeat-lookup rule unchanged: a pending suggestion is not overwritten (`existing.Contains(fieldName)`)
-- [ ] Step 1 — `VehicleWorkflowTests.cs` proves stale lease/version rejection and field-key validation; `VehicleLookupGapFillTests.cs` proves persisted one-field acceptance, retained siblings, cleared suggestion, atomic mileage+unit, retained provenance, repeat-lookup rule
-- [ ] Step 2 — `Valuations.cs`, `AssessmentEntities.cs`, `AssessmentModelConfiguration.cs`, `EfValuationStore.cs` carry guide month; Engineer's Value authorization unchanged
-- [ ] Step 2 — `ValuationPolicy` refuses a hand-recorded `Cazana` row in Core (disabled seam); vocabulary stays the `ValuationSource` enum, labels only in `OperatorLabels`
-- [ ] Step 2 — `RequestUploadPolicy.cs`, `CustodyEntities.cs`, `CustodyModelConfiguration.cs`, `EfDocumentRequestStore.cs`, `EfCaseQueryStore.cs` carry Recipient and Reason, normalised/validated in Core and included in `RequestUploadHistoryValue` so `RequireExactReplay` refuses same-key/different-metadata replay
-- [ ] Step 2 — lock `Persistence/Migrations/**` taken; one migration `*_CaseValuationGuideMonthAndRequestUploadMetadata` + Designer + snapshot; regenerated after the final `origin/dev` refresh so the timestamp sorts after every migration merged first
-- [ ] Step 2 — `ValuationTests.cs` (guide month, Cazana refused, Engineer's Value authority), `AssessmentPersistenceIntegrationTests.cs` (guide-month save/edit/list/order against `EfValuationStore`), `DocumentCustodyDurabilityTests.cs` (metadata durability, identical replay, refused conflicting replay), `IntakePersistenceIntegrationTests.cs` (migration list pinned)
-- [ ] Step 3 — lock `Presentation/OperatorLabels.cs` taken; lookup, chip, valuation source and dialog labels added; Glass's valuation and Glass's estimate import stay separate entries; no AI market research label
-- [ ] Step 3 — lock `Pages/Cases/Shared/*` taken; `_CaseVehicle.cshtml`: one `Look up DVLA & MOT` action, per-field chips compared against `Confirmed ?? Fact` (never `CaseField.Current`), Experian `.gated` seam; checks panel, history table, whole-record forms removed
-- [ ] Step 3 — `_CaseValuation.cshtml` created: one card per persisted valuation row keyed by `ValuationSource` + Add valuation dialog (Glass's, Cazana disabled `not connected`); no adjustments/rationale/history/remove; no AI card variant or action
-- [ ] Step 3 — `_CaseDocuments.cshtml` upload-request dialog (Recipient, read-only policy values, Reason); `_CaseHistory.cshtml` Record chase dialog (Recipient, Channel, Content, Outcome, Reason)
-- [ ] Step 4 — `Vehicle.cshtml.cs` binds the single lookup and the field-level chip post through `CaseMutationPageModel`
-- [ ] Step 4 — `Valuation.cshtml` + `Valuation.cshtml.cs` created, mutation-only, injecting `ISaveValuation` alone with lease, expected-version, operation-key and authorization checks
-- [ ] Step 4 — `Custody.cshtml.cs` binds Recipient/Reason; `Tasks.cshtml.cs` maps Recipient → `TargetPartyOrAddress`, Content → `Note`, `AttemptedAtUtc` server-supplied
-- [ ] Step 4 — `CaseVehicleWebTests.cs` (single action, difference-only chips, absent legacy controls, Experian seam) and `CaseDetailsWebTests.cs` (cards, dialogs, exact labels, PRG/lease, Cazana has no handler)
-- [ ] Simplification pass recorded on the branch diff under a dated heading in the plan
-- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
-- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
-- [ ] `./scripts/Test-MigrationGrants.ps1`
-- [ ] lock `docs/design/test-ui/**` taken; `./scripts/Update-TestUiSnapshots.ps1` run and the regenerated `docs/design/test-ui/**` committed in this PR
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
-- [ ] `./scripts/Test-UiCatalogue.ps1`
-- [ ] Hand-off recorded: [[CASE-038]] to supply `Details.*` include, valuation projection and `site.css` card/chip rules; [[AUTO-018]] to add the `MarketResearch` source, its label and the D35 request action to `_CaseValuation.cshtml` after this ticket merges; [[UIIMP-014]] to reconcile the catalogue across lanes
-- [ ] post-implementation report written
-- [ ] PR opened with Kanmer: CASE-029
+- [x] Preconditions: `git merge-base --is-ancestor` shows [[CASE-038]] and [[ENG-035]] merged on `origin/dev`; AUTO-018 is not a precondition; lane refreshed with `git merge --no-edit origin/dev`
+- [x] Step 1 — `VehicleWorkflow.cs`: keyed one-field suggestion acceptance replaces whole-observation accept/correct; field key restricted to make, model, mileage(+unit atomically); no bulk-apply path
+- [x] Step 1 — `EfVehicleWorkflowStore.cs` accepts one field and clears only its suggestion row; the existing `EfVehicleLookupWorkStore.AddLookupSuggestionsAsync` stays the only suggestion writer (no second projection path)
+- [x] Step 1 — repeat-lookup rule unchanged: a pending suggestion is not overwritten (`existing.Contains(fieldName)`)
+- [x] Step 1 — `VehicleWorkflowTests.cs` proves stale lease/version rejection and field-key validation; `VehicleLookupGapFillTests.cs` proves persisted one-field acceptance, retained siblings, cleared suggestion, atomic mileage+unit, retained provenance, repeat-lookup rule
+- [x] Step 2 — `Valuations.cs`, `AssessmentEntities.cs`, `AssessmentModelConfiguration.cs`, `EfValuationStore.cs` carry guide month; Engineer's Value authorization unchanged
+- [x] Step 2 — `ValuationPolicy` refuses a hand-recorded `Cazana` row in Core (disabled seam); vocabulary stays the `ValuationSource` enum, labels only in `OperatorLabels`
+- [x] Step 2 — `RequestUploadPolicy.cs`, `CustodyEntities.cs`, `CustodyModelConfiguration.cs`, `EfDocumentRequestStore.cs`, `EfCaseQueryStore.cs` carry Recipient and Reason, normalised/validated in Core and included in `RequestUploadHistoryValue` so `RequireExactReplay` refuses same-key/different-metadata replay
+- [x] Step 2 — lock `Persistence/Migrations/**` taken; one migration `*_CaseValuationGuideMonthAndRequestUploadMetadata` + Designer + snapshot; regenerated after the final `origin/dev` refresh so the timestamp sorts after every migration merged first
+- [x] Step 2 — `ValuationTests.cs` (guide month, Cazana refused, Engineer's Value authority), `AssessmentPersistenceIntegrationTests.cs` (guide-month save/edit/list/order against `EfValuationStore`), `DocumentCustodyDurabilityTests.cs` (metadata durability, identical replay, refused conflicting replay), `IntakePersistenceIntegrationTests.cs` (migration list pinned)
+- [x] Step 3 — lock `Presentation/OperatorLabels.cs` taken; lookup, chip, valuation source and dialog labels added; Glass's valuation and Glass's estimate import stay separate entries; no AI market research label
+- [x] Step 3 — lock `Pages/Cases/Shared/*` taken; `_CaseVehicle.cshtml`: one `Look up DVLA & MOT` action, per-field chips compared against `Confirmed ?? Fact` (never `CaseField.Current`), Experian `.gated` seam; checks panel, history table, whole-record forms removed
+- [x] Step 3 — `_CaseValuation.cshtml` created: one card per persisted valuation row keyed by `ValuationSource` + Add valuation dialog (Glass's, Cazana disabled `not connected`); no adjustments/rationale/history/remove; no AI card variant or action
+- [x] Step 3 — `_CaseDocuments.cshtml` upload-request dialog (Recipient, read-only policy values, Reason); `_CaseHistory.cshtml` Record chase dialog (Recipient, Channel, Content, Outcome, Reason)
+- [x] Step 4 — `Vehicle.cshtml.cs` binds the single lookup and the field-level chip post through `CaseMutationPageModel`
+- [x] Step 4 — `Valuation.cshtml` + `Valuation.cshtml.cs` created, mutation-only, injecting `ISaveValuation` alone with lease, expected-version, operation-key and authorization checks
+- [x] Step 4 — `Custody.cshtml.cs` binds Recipient/Reason; `Tasks.cshtml.cs` maps Recipient → `TargetPartyOrAddress`, Content → `Note`, `AttemptedAtUtc` server-supplied
+- [x] Step 4 — `CaseVehicleWebTests.cs` (single action, difference-only chips, absent legacy controls, Experian seam) and `CaseDetailsWebTests.cs` (cards, dialogs, exact labels, PRG/lease, Cazana has no handler)
+- [x] Simplification pass recorded on the branch diff under a dated heading in the plan
+- [x] `dotnet restore ./Pegasus.slnx --locked-mode`
+- [x] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"` — NOT run locally per MECHANICS (duplicates CI, 25 min); ran Core (1225/1225), Architecture (100/100), and the six focused/changed integration classes (110/110) instead — GitHub CI runs the full command as the merge gate.
+- [x] `./scripts/Test-MigrationGrants.ps1`
+- [x] lock `docs/design/test-ui/**` taken; `./scripts/Update-TestUiSnapshots.ps1` run and the regenerated `docs/design/test-ui/**` committed in this PR
+- [x] `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`
+- [x] `./scripts/Test-UiCatalogue.ps1`
+- [x] Hand-off recorded: [[CASE-038]] to supply `Details.*` include, valuation projection and `site.css` card/chip rules; [[AUTO-018]] to add the `MarketResearch` source, its label and the D35 request action to `_CaseValuation.cshtml` after this ticket merges; [[UIIMP-014]] to reconcile the catalogue across lanes
+- [x] post-implementation report written
+- [x] PR opened with Kanmer: CASE-029
