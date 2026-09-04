@@ -5,3 +5,5 @@
 ## Transitions
 
 - 2026-09-04T19:02:11.149Z lease-phase implementing → running-command (lease f9770d71-438d-4241-a126-a41b0880b5c4 rev 2; expires 2026-09-04T20:02:11.146Z)
+
+2026-09-04 canonical rail attempt 1: restore PASS; Release build PASS (0 warnings/errors); Core 1225/1225 PASS; Integration 1264 PASS, 7 intentional skips, 0 failures in 39m48s; Architecture 99 PASS, 1 FAIL. Failure: isolated Local deployment-plan fixture did not copy scripts/Build-ReleaseArtifacts.ps1 after Local validation began inspecting it. Expanded only the architecture fixture file scope; assertions remain unchanged.

@@ -6,7 +6,7 @@ Make Linux x64 under WSL the sole authorised build and terminal platform for the
 
 ## Starting state
 
-The Web, Worker and OCI outputs are already Linux x64. The build script defaults only the migration bundle to Windows, downstream validation accepts old Windows manifests, the runbook/agent guidance still declares a Windows release terminal, and ORAS is absent from this host despite being an existing artifact dependency. Azure CLI and azd have no active sign-in. Evidence: `research/research.md`@`423978d1b499b0af`, `files/files.md`@`826b9ed798160f74`.
+The Web, Worker and OCI outputs are already Linux x64. The build script defaults only the migration bundle to Windows, downstream validation accepts old Windows manifests, the runbook/agent guidance still declares a Windows release terminal, and ORAS is absent from this host despite being an existing artifact dependency. Azure CLI and azd have no active sign-in. Evidence: `research/research.md`@`423978d1b499b0af`, `files/files.md`@`d35e928cb7f26a52`.
 
 ## Governing docs
 
@@ -27,6 +27,7 @@ Enforce Linux x64 at artifact construction, emit only a schema-3 manifest with `
 | Modify | `docs/current-architecture.md` | Implemented release-tooling shape, without deployment claim. |
 | Modify | `docs/operations.md` | Current readiness and remaining authorization/authentication boundary. |
 | Modify | `scripts/Build-ReleaseArtifacts.ps1` | Linux-x64 host and manifest contract. |
+| Modify | `tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs` | Keep the isolated deployment-plan fixture complete. |
 | Modify | `scripts/Test-AzureDeploymentPlan.ps1` | Fail-closed schema/runtime/bundle validation and source assertions. |
 | Modify | `scripts/Invoke-Doctor.ps1` | Existing tool-health caller for ORAS. |
 | Modify | `scripts/PegasusPlatform.ps1` | Single ORAS repair-hint owner. |
@@ -37,7 +38,8 @@ Enforce Linux x64 at artifact construction, emit only a schema-3 manifest with `
 ## Do not modify
 
 - `src/**`
-- `tests/**`
+- `tests/Pegasus.Core.Tests/**`
+- `tests/Pegasus.IntegrationTests/**`
 - `infra/**`
 - `.github/**`
 - `docs/operator-notes.md`
@@ -53,7 +55,7 @@ No new package dependency, deployment unit, CI route or product feature. Use Pow
 ### Step 1 — Enforce the Linux artifact contract
 
 - Preconditions: DELIV-047 is taken on its exact `origin/dev` worktree and official ORAS 1.3.4 is installed outside the repository.
-- Files: `scripts/Build-ReleaseArtifacts.ps1`, `scripts/Test-AzureDeploymentPlan.ps1`, `scripts/Invoke-Doctor.ps1`, `scripts/PegasusPlatform.ps1`
+- Files: `scripts/Build-ReleaseArtifacts.ps1`, `scripts/Test-AzureDeploymentPlan.ps1`, `scripts/Invoke-Doctor.ps1`, `scripts/PegasusPlatform.ps1`, `tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs`
 - Change: reuse `Get-PegasusPlatform`; require Linux x64; emit schema 3 with fixed Linux bundle identity; reject missing/old/Windows identity; doctor-check ORAS through the existing repair table.
 - Preserved behaviour: exact clean SHA, locked restores, Linux Web/Worker/OCI identity, hashes, migration identity and Azure target validation remain unchanged.
 - Forbidden: Windows fallback, host-path constants, new dependency manager, Docker production route or weakened manifest checks.

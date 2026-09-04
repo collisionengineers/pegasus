@@ -11,6 +11,7 @@
 | `docs/current-architecture.md` | Record the implemented release-tooling shape after merge, without claiming production deployment. |
 | `docs/operations.md` | Record Linux release readiness and the remaining unauthenticated/unexecuted production boundary. |
 | `scripts/Build-ReleaseArtifacts.ps1` | Reuse `PegasusPlatform.ps1`, require Linux x64, remove the configurable migration RID, and emit schema-3 Linux artifacts. |
+| `tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs` | Keep the isolated Local deployment-plan fixture complete when validation reads the release build script. |
 | `scripts/Test-AzureDeploymentPlan.ps1` | Reject non-schema-3, non-`linux-x64`, non-`efbundle` manifests and assert the build-host contract. |
 | `scripts/Invoke-Doctor.ps1` | Include ORAS in the existing tool-health surface. |
 | `scripts/PegasusPlatform.ps1` | Add the ORAS Linux repair hint to the existing single repair-hint table. |
