@@ -123,14 +123,23 @@ public sealed class LayoutIntegrityTests
         Assert.Equal(11, await support.Page.Locator(".case-section").CountAsync());
         Assert.Equal("overview", await CurrentSectionAsync(support));
 
-        // Files is below the fold, so it is a placeholder until the reader goes
-        // there; the jump mounts it and the scroll-spy follows.
-        Assert.Equal(1, await support.Page.Locator("[data-lazy='files']").CountAsync());
+        // The jump-nav moves the reader and the scroll-spy follows it off
+        // Overview. Which later section reads as current is a matter of where
+        // the browser could stop scrolling at this width, so what is asserted
+        // is that exactly one entry is current and it is no longer the first.
+        await support.Page.Locator("[data-section-link='inspection']").ClickAsync();
+        await support.Page.WaitForFunctionAsync(
+            "() => { const links = document.querySelectorAll("
+            + "  '[data-section-link][aria-current=\"true\"]');"
+            + " return links.length === 1 && links[0].dataset.sectionLink !== 'overview'; }");
+        Assert.NotEqual("overview", await CurrentSectionAsync(support));
+
+        // Files is served below the fold as a fragment (the server marks it
+        // `data-lazy`; CaseDetailsWebTests asserts that). However early the
+        // reader reaches it, it ends up mounted with its own body.
         await support.Page.Locator("[data-section-link='files']").ClickAsync();
         await support.Page.Locator("#section-files:not([data-lazy])").WaitForAsync();
-        Assert.Equal(0, await support.Page.Locator("[data-lazy='files']").CountAsync());
-        await Assertions.Expect(support.Page.Locator("[data-section-link='files']"))
-            .ToHaveAttributeAsync("aria-current", "true");
+        Assert.True(await support.Page.Locator("#section-files .panel").CountAsync() > 0);
 
         // The mounted body's own controls are bound: the openers and evidence
         // triggers are bound by root, not once over the document at load, so a

@@ -185,6 +185,7 @@
     </div>
 
 <article class="record">
+    <div class="case-sticky" data-case-sticky>
     <div class="record-ribbon" aria-label="Case identity">
         <div class="ribbon-item ribbon-ref">
             <div class="ribbon-label">Case/PO</div>
@@ -203,6 +204,14 @@
             <div class="ribbon-value">QDOS</div>
         </div>
         <div class="ribbon-item">
+            <div class="ribbon-label">Engineer</div>
+            <div class="ribbon-value">Not recorded</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Sign-off</div>
+            <div class="ribbon-value">Not recorded</div>
+        </div>
+        <div class="ribbon-item">
             <div class="ribbon-label">State</div>
             <div class="ribbon-value"><span class="status status--amber">Not ready</span>
 </div>
@@ -214,44 +223,72 @@
             <span data-edit-authority>Case locked - AI is editing. Editing cannot be taken over.</span>
         </div>
     <div class="record-bar">
-        <span class="record-bar-end">
-                <span class="gated" data-condition="Available after the current Review export">
-                    <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
-                </span>
-        </span>
     </div>
 
 
-    <div class="record-body">
-        <div class="case-workspace">
-            <div class="case-section-nav">
-        <a aria-current="page" href="case-details--default.html">
+    <nav class="section-nav" aria-label="Case sections" data-section-nav>
+        <a class="section-link" href="#section-overview" data-section-link="overview"
+           aria-current="true">
             <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-            <span>Case Overview</span>
+            <span>Overview</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-engineer-notes" data-section-link="engineer-notes"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Engineer notes</span>
+        </a>
+        <a class="section-link" href="#section-inspection" data-section-link="inspection"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
+            <span>Inspection</span>
+        </a>
+        <a class="section-link" href="#section-vehicle" data-section-link="vehicle"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
             <span>Vehicle</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-damage" data-section-link="damage"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+            <span>Damage</span>
+        </a>
+        <a class="section-link" href="#section-valuation" data-section-link="valuation"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-            <span>Valuations</span>
+            <span>Valuation</span>
         </a>
-        <a href="case-details--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
-            <span>Inspection address</span>
+        <a class="section-link" href="#section-estimate" data-section-link="estimate"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+            <span>Estimate</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-settlement" data-section-link="settlement"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+            <span>Settlement</span>
+        </a>
+        <a class="section-link" href="#section-report" data-section-link="report"
+           aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+            <span>Report</span>
+        </a>
+        <a class="section-link" href="#section-files" data-section-link="files"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-            <span>Case Files</span>
+            <span>Files</span>
         </a>
-        <a href="case-details--default.html">
+        <a class="section-link" href="#section-notes" data-section-link="notes"
+           aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
             <span>Notes</span>
         </a>
-</div>
+</nav>
 
-            <section class="case-main">
+    </div>
+
+    <div class="case-workspace">
+        <div class="case-main" id="case-main">
+                <section class="case-section" id="section-overview" data-section="overview">
 
 <div class="stack">
 
@@ -327,26 +364,105 @@
     </div>
 </section>
 
-            </section>
-
-            <aside class="case-context stack" aria-label="Case context">
-                <section class="context-card">
-                    <div class="panel-head"><h2>Current position</h2></div>
-                    <div class="panel-body">
-                        <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
-</strong></div>
-                        <div class="decision-row"><span>Version</span><strong>7</strong></div>
-                        <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
-                        <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
-                        <div class="decision-row">
-                            <span>Edit authority</span>
-                            <strong>
-AI                            </strong>
-                        </div>
-                    </div>
                 </section>
-            </aside>
+                <section class="case-section" id="section-engineer-notes" data-section="engineer-notes">
+                        <section class="panel">
+                            <div class="panel-head"><h2 id="section-engineer-notes-title">Engineer notes</h2></div>
+                        </section>
+                </section>
+                <section class="case-section" id="section-inspection" data-section="inspection">
+
+<div class="stack">
+    <section class="panel" aria-labelledby="case-inspection-address-title">
+        <div class="panel-head">
+            <h2 id="case-inspection-address-title">Inspection address</h2>
         </div>
+        <div class="panel-body">
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Recorded value</dt>
+                    <dd>
+                        1 Depot Road
+                            <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+</span>
+
+                    </dd>
+                </dl>
+                    <dl class="definition">
+                        <dt>Inspection</dt>
+                        <dd>
+                            Physical address
+                            <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+</span>
+
+                        </dd>
+                    </dl>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+                </section>
+                    <section class="case-section section-placeholder" id="section-vehicle"
+                             data-section="vehicle" data-lazy="vehicle"
+                             aria-label="Vehicle"></section>
+                <section class="case-section" id="section-damage" data-section="damage">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-damage-title">Damage</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-valuation" data-section="valuation">
+                        <section class="panel">
+                            <div class="panel-head"><h2 id="section-valuation-title">Valuation</h2></div>
+                        </section>
+                </section>
+                <section class="case-section" id="section-estimate" data-section="estimate">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-estimate-title">Estimate</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-settlement" data-section="settlement">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-settlement-title">Settlement</h2></div>
+</section>
+
+                </section>
+                <section class="case-section" id="section-report" data-section="report">
+                        <section class="panel">
+    <div class="panel-head"><h2 id="section-report-title">Report</h2></div>
+</section>
+
+                </section>
+                    <section class="case-section section-placeholder" id="section-files"
+                             data-section="files" data-lazy="files"
+                             aria-label="Files"></section>
+                    <section class="case-section section-placeholder" id="section-notes"
+                             data-section="notes" data-lazy="notes"
+                             aria-label="Notes"></section>
+        </div>
+
+        <aside class="case-context stack" aria-label="Case context">
+            <section class="context-card">
+                <div class="panel-head"><h2>Current position</h2></div>
+                <div class="panel-body">
+                    <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
+</strong></div>
+                    <div class="decision-row"><span>Version</span><strong>7</strong></div>
+                    <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
+                    <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
+                    <div class="decision-row">
+                        <span>Edit authority</span>
+                        <strong>
+AI                        </strong>
+                    </div>
+                </div>
+            </section>
+        </aside>
     </div>
 </article>
 

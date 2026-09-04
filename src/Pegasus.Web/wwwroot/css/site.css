@@ -826,6 +826,11 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .detail-canvas{padding:13px}
   .scope-button{grid-template-columns:27px minmax(0,1fr) auto}
   .case-workspace{display:block;padding:12px}.case-context{display:block;position:static;margin-top:10px}
+  /* The Case stack stays with the reader at every width, so its ribbon keeps
+     two columns here rather than stacking into seven rows taller than the
+     viewport. */
+  .case-sticky .record-ribbon{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .case-sticky .record-ribbon .ribbon-item:nth-child(2n){border-right:0}
   .record-head{grid-template-columns:1fr;gap:7px}.record-head-end{justify-self:start}
   .record-bar-end{margin-left:0;width:100%;padding-top:4px;border-top:1px solid var(--line)}
   .record-ribbon{grid-template-columns:1fr}.record-ribbon .ribbon-item{border-right:0;border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
