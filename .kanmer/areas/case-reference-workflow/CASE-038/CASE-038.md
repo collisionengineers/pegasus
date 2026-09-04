@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Deliver the single-scroll Case workspace frame with sticky identity, action
   bar and section jump-nav
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: wf-build/case-038
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:12:33.208Z'
   review: '2026-09-04T01:06:13.673Z'
+  verifying: '2026-09-04T18:25:48.521Z'
 taken_at: '2026-09-03T23:23:31.044Z'
 branch: task/case-038-case-workspace-frame
 worktree: .worktrees/case-038
@@ -46,7 +47,7 @@ prs:
   - '656'
 archived: false
 created: '2026-09-02T20:31:38.600Z'
-updated: '2026-09-04T01:06:13.673Z'
+updated: '2026-09-04T18:25:48.521Z'
 ---
 
 ## What

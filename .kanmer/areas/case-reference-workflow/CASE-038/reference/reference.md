@@ -513,3 +513,127 @@ same footing as round-3 findings 2 and 3:
    `f3005ea66` before merge. If it fails again at the same place, the cause is
    browser-capture runner pressure and belongs to the Test UI cost lane, not
    to CASE-038 — raise it there rather than changing this ticket's code.
+
+# Review record — CASE-038 (PR https://github.com/collisionengineers/pegasus/pull/656) — round 5, approved and merged
+
+Head reviewed: `f3005ea667407ea5c9dcd4c298a9add200071855` — the same head as
+round 4, unmoved (`gh run list` and `git rev-parse HEAD` both confirm it). The
+round-4 items were board-document edits and a CI rerun, neither of which moves
+the head, so no new commit exists and no re-verification of the diff's shape
+was needed beyond a fresh independent read.
+
+Reviewed in a detached checkout at `.worktrees/case-038-review`, created from
+`origin/task/case-038-case-workspace-frame`, `git status --porcelain`-clean
+throughout. Base: `origin/dev`.
+
+Reviewers: Claude Opus 5 (independent read, dispositions, gate and merge) and
+gpt-5.6-terra at xhigh (independent cross-model read, run read-only in the
+same detached checkout, told to re-derive rather than restate rounds 1–4).
+
+## Verdict
+
+**APPROVE and merge.** No code defect exists at this head. The cross-model
+read returned no BLOCKER and no code, authorization, encoding, handler,
+Core-policy, migration, tooling-no-touch or merge-resolution defect; its five
+findings are two record-accuracy items and three test-oracle-strength
+observations, all dispositioned below with evidence. The two round-4 items are
+closed: the report's handed-on contract is corrected in place, and the
+exact-head Actions run finished green.
+
+## Round-4 items — closure evidence at this head
+
+| Round-4 # | Status | Evidence |
+| --- | --- | --- |
+| 1 — the report's "Contracts handed on" named a fragment URL and a form id that do not exist | **Closed.** | `post-implementation-report.md:511–539`, a new section "Record correction (2026-09-04, review round 3 — controller)" that states "They are superseded here; the earlier text stands only as history" and then supersedes all three entries by name: ENG-034's fragment URL is corrected to `/Cases/{id}/Section?section=<key>`; CASE-041's entry is corrected to "There is no `case-inspection-address-form` any more … the Inspection section contributes one control, `<input id="inspection-address" name="inspectionAddress" form="case-edit-form">`, to the single record form", with the instruction that CASE-041's controls must associate via `form=` with no form of their own; deviation 3 is retracted by name. `checklist.md` line 27 carries the refreshed snapshot evidence (`64,427` bytes), superseding the `41,040` figure by name. |
+| 2 / the gate — the exact-head Actions run was `in_progress`, then `failure` on `test-ui` (`net::ERR_NO_BUFFER_SPACE`, a runner socket exhaustion, not an assertion) | **Closed.** | Run `33901021975`, `headSha f3005ea667407ea5c9dcd4c298a9add200071855`, `status: completed`, **`conclusion: success`**. Jobs: `test-ui`, `browser`, `unit`, `documentation`, `reference-data`, `sql-integration (1,2,3)`, `sql-integration-coverage`, `local-development-scripts`, `changes` all `success`; `infrastructure` `skipped` (the diff touches no `infra/**`). The rerun confirms the earlier failure was runner pressure, exactly as round 4 diagnosed; nothing in the code changed between the failure and the pass. |
+
+## Findings and dispositions (round 5)
+
+| # | Sev raised | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | SHOULD-FIX | `wwwroot/js/site.js:1585` — the lazy-fragment failure text `'This section could not be loaded.'` is an operator-visible literal in JS rather than in `Presentation/OperatorLabels.cs`. | **Rejected with reason — the existing convention wins.** `git show origin/dev:src/Pegasus.Web/wwwroot/js/site.js` already carries seven operator-visible literals of exactly this kind, set the same way: `'Refreshing'` (66), `'Copied'` (87), `'Choose files'` (218), `'Choose different files'` (250), `'No matching cases found'` (477), `'Loading quick preview…'` (792), `'Quick preview unavailable. Open the message for full detail.'` (822). This ticket adds an eighth in the established shape, not a new practice. Moving script-set transient strings into `OperatorLabels` is a repo-wide convention change touching a file this ticket does not own the policy for, and is a follow-up, not a CASE-038 defect. The string is one failure value, not explanatory copy, and the failure is not swallowed (the placeholder is marked `data-lazy-state="failed"` and the cause is logged to `console.error`). |
+| 2 | MINOR | `Presentation/OperatorLabels.cs:1409` — the new members are contiguous but the block's comment (`// The identity ribbon the frame itself renders (D29, D31).`) does not name CASE-038, as the parallel-build policy asks. | **Accepted, no change.** The policy's stated purpose — "so concurrent additions merge cleanly" — is served by contiguity, and is demonstrated: this head merges `origin/dev` (`c90f2b891`) with no conflict in this file. Every added member carries a doc comment naming its governing decision (D30, D29/D31), which is the stronger provenance. Not worth a sixth round on a file three other lanes are waiting to append to. |
+| 3 | SHOULD-FIX | `CaseDetailsWebTests.cs:170–171` — `CaseSectionKeys` (defined at `:1453` as `[.. OperatorLabels.CaseWorkspace.Sections.Select(s => s.Key)]`) is derived from the same production list the page renders, so reordering production changes expected and actual together; the D30 order is not independently pinned by that assertion. | **Accepted with reason — the claim the test makes is the claim it proves, and D30 is pinned elsewhere.** That assertion's documented claim is *one list per concept* — that the hosts and the jump-nav both read the single ordered list and neither keeps a second copy — and for that claim deriving from production is correct, not tautological. The D30 *vocabulary and order* are independently pinned three other ways at this head: `TheAddressedSectionIsRenderedAndMarkedCurrent` (`:189–199`) uses eleven test-local literal keys including the three deleted pre-redesign keys (`valuations`, `inspection-address`, `case-files`) and asserts each resolves to Overview rather than being aliased; `TheSectionFragmentRefusesKeysItDoesNotServe` (`:259–264`) pins the served/refused split by literal; and the committed snapshot `case-details--default.html` carries the eleven `id="section-<key>"` hosts as literal bytes under CI's `-Verify`. No assertion was weakened or deleted to reach this shape. |
+| 4 | SHOULD-FIX | (a) `CaseDetailsWebTests.cs:248–251` — the fragment tests assert only the *absence* of frame chrome, so an empty or wrong body for `files`/`notes`/`vehicle` would pass. (b) `Browser/LayoutIntegrityTests.cs:155–158` — the evidence-viewer half of the mounted-control proof (`[data-evidence-item]:not([data-evidence-item-bound])` count `== 0`) is vacuous on a case seeded with no evidence images. | **Accepted with reason, and the record corrected here so no lane over-reads it.** (a) is covered end-to-end for the one fragment that matters: `LayoutIntegrityTests.cs:142` asserts `#section-files .panel` count `> 0` after the fragment mounts, at all three widths, so an empty Files fragment fails. `notes` and `vehicle` bodies are not content-asserted — a real but narrow gap in a body neither this ticket nor its blocked lanes author. (b) is confirmed: `SeedAcceptedCaseAsync` (`:282–292`) seeds an accepted case with no evidence image, so that one assertion is vacuous as written. The dialog half is **not** vacuous — it is filtered to `[data-dialog-open]` controls whose target `[data-dialog=…]` exists, and the Case record renders several. **Correction of the record:** checklist Step 4's phrase "assert a lazily mounted Files body opens its evidence viewer and dialogs" overstates what ships. What is proven at this head is: the mounted Files body arrives non-empty, and every dialog opener in the document (including the mounted body's) is bound by the root-scoped idempotent `bind(root)`. The evidence-viewer binding on a mounted body is *asserted but not exercised*. Reviewer's judgement: not a merge blocker — nothing is weakened or deleted, the binder is one shared root-scoped function whose dialog half is proven on the same mounted node, and the behaviour was read line by line. Any lane relying on evidence-viewer-after-mount should seed an evidence item; UIIMP-014, which owns the per-section Case snapshot states, is the natural home for that. |
+| 5 | SHOULD-FIX | `post-implementation-report.md:21` — the heading "Files changed (21)" is wrong at this head (`git diff --name-only origin/dev...HEAD` is 27), its `_CaseInspectionAddress.cshtml` bullet still describes a renamed form that was deleted, and the inventory omits `Program.cs`, `_CaseDataHiddenFields.cshtml` (deleted), `_CaseWorkflow.cshtml`, the six retargeted test files and the `docs/design/**` artifacts. Codex also read `checklist.md:3` as claiming an unfiltered grep returns nothing. | **Partly rejected, partly accepted — no further round.** The `checklist.md:3` half is **rejected**: that line's own parenthetical already states the true, qualified result — "the only remaining matches are immutable EF migration snapshots, PLAT-070's own drop migration and an absence assertion — recorded in the report" — which I confirmed (`git grep -il` returns only `Persistence/Migrations/**` designer snapshots plus the absence assertion; no live surface under `src/Pegasus.Web` or `src/Pegasus.Core`). The inventory half is **confirmed and accepted**: it is stale. It is not blocking, because the two interface-bearing statements it contained were already superseded by name in the round-3 correction section under an explicit "the earlier text stands only as history" preamble, and because `files/files.md` carries `Program.cs` in its own "Review-round amendment". The residual is a count and an inventory in a section the document itself marks as history. **The authoritative file inventory for the six blocked lanes is recorded here instead**, from `git diff --name-only origin/dev...HEAD` at `f3005ea66` — 27 files: `docs/design/README.md`; `docs/design/test-ui/{catalogue.json,index.html}`; `docs/design/test-ui/pages/case-details--{conflict,default}.html`; `src/Pegasus.Web/Pages/Cases/Details.cshtml{,.cs}`; `src/Pegasus.Web/Pages/Cases/Shared/{_CaseDamage,_CaseEstimate,_CaseReport,_CaseSettlement}.cshtml` (created); `.../Shared/_CaseDataHiddenFields.cshtml` (**deleted**); `.../Shared/{_CaseInspectionAddress,_CaseWorkflow,_CaseWorkspaceNav}.cshtml`; `src/Pegasus.Web/Presentation/OperatorLabels.cs`; `src/Pegasus.Web/Program.cs`; `src/Pegasus.Web/wwwroot/{css/site.css,js/site.js}`; and the tests `Browser/LayoutIntegrityTests.cs`, `Browser/OperatorJourneyTests.cs`, `Case{CustodyWebTests,DetailsWebTests,TasksWebTests,VehicleWebTests}.cs`, `Image{IntakeWebTests,ViewingWebTests}.cs`. |
+
+## What was checked and found sound at this head (my own read)
+
+- **The head is the reviewed head.** `git rev-parse HEAD` in the fresh
+  detached checkout = `f3005ea667407ea5c9dcd4c298a9add200071855`, and the
+  branch has not moved since round 4.
+- **The committed Test UI artifacts are the real pages**, opened directly by
+  byte, not trusted through the gate. `case-details--default.html`: 64,427
+  bytes as committed (`git cat-file -s`), begins `<!DOCTYPE html>`, exactly
+  one `class="case-sticky"`, seventeen `id="section-…"` matches resolving to
+  the eleven hosts (`damage`, `engineer-notes`, `estimate`, `files`,
+  `inspection`, `notes`, `overview`, `report`, `settlement`, `valuation`,
+  `vehicle`) plus six `-title` ids, zero `<img src="#">`.
+  `case-details--conflict.html`: 40,091 bytes, same markers.
+  `case-details--unavailable.html`: 24,390 bytes, no sticky block, unchanged
+  from `origin/dev`. All three match the checklist's and the report's
+  refreshed figures exactly.
+- **Scope**: 27 files, every one inside `files/files.md` including its two
+  plan-stage corrections, its Review-round amendment (`Program.cs`,
+  `index.html`) and the declared `Pages/Cases/Shared/*` exception. No
+  migration, so `Test-MigrationGrants.ps1` does not apply. No `Pegasus.Core`
+  or `Pegasus.Infrastructure` change. No new package. No edit to
+  `TestUiSnapshotTests.cs`, `.github/workflows/ci.yml` or any `scripts/*.ps1`
+  (the TOOLING NO-TOUCH set), to `docs/operator-notes.md`, or to `corpus/`.
+- **`Program.cs`** adds a matching-only selector with
+  `SuppressLinkGeneration = true` and `{handler:regex(^Section$)}`, so
+  `/Cases/{id}` and every `?handler=` link generate exactly as before, and a
+  fragment response can never be mistaken for the page itself — the cause of
+  round-1 finding 1, fixed at the cause rather than in the snapshot harness.
+- **One list per concept**: `OperatorLabels.CaseWorkspace.Sections` is the one
+  ordered eleven-entry `Key`/`Label`/`Icon` list; the page model's `?section=`
+  vocabulary, `_CaseWorkspaceNav`, the eleven hosts and the four ENG-034 shell
+  headings all read it. No second section list in Razor, CSS or script.
+- **Labels**: every new operator-visible label is in
+  `Presentation/OperatorLabels.cs` (the ribbon set, `SectionNav`,
+  `DefaultSectionKey`, `AbsentValue = "Not recorded"`), with the one
+  script-set failure string dispositioned as finding 1. No explanatory copy;
+  absent values render `AbsentValue`, never a blank, and absent stays distinct
+  from disabled.
+- **Tests prove the claim, none weakened**: no assertion is deleted or
+  relaxed anywhere in the diff. `CaseTasksWebTests`' rewrite replaces a
+  weaker in-form ordering claim with a stronger pair (old form asserted
+  absent, `form=`-associated control asserted present exactly once over the
+  page). `InspectionAddressOutsideEditFormIsGuardedAndSaved` fills only
+  `#inspection-address` before any in-DOM-tree control, then asserts the
+  Finish-editing confirmation is visible — which fails under the pre-fix
+  per-form listener, so it guards the regression it is recorded as guarding.
+- The simplification pass (`plan.md:635–669`) is dated, its findings real, and
+  each unapplied finding (7, 9, 10) carries a reason.
+
+## Commands and exit codes (review checkout, Windows, bash)
+
+| Command | Exit |
+| --- | --- |
+| `git fetch origin task/case-038-case-workspace-frame` | 0 |
+| `git worktree add --detach .worktrees/case-038-review origin/task/case-038-case-workspace-frame` | 0 — `HEAD` = `f3005ea667407ea5c9dcd4c298a9add200071855` |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 — 0 warnings, 0 errors |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --no-build` | 0 — 1225 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --no-build` | 0 — 100 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "FullyQualifiedName~CaseDetailsWebTests\|FullyQualifiedName~CaseTasksWebTests"` | 0 — 68 passed, 0 failed (5m46s) |
+| `codex exec -m gpt-5.6-terra -c model_reasoning_effort=xhigh` (independent read) | 0 |
+| `gh run view 33901021975 --json status,conclusion,headSha` | 0 — `completed` / **`success`** / `f3005ea667407ea5c9dcd4c298a9add200071855` |
+
+Why that scope covers the change: the diff adds no `Pegasus.Core` or
+`Pegasus.Infrastructure` code, so Core and Architecture are regression cover
+only (and cover the `origin/dev` Core changes this head absorbs by merge);
+every changed type on the Web side — `DetailsModel` and its
+`OnGetSectionAsync`, the Razor frame, the section partials, `OperatorLabels`
+and `Program.cs`'s selector — is exercised by `CaseDetailsWebTests`, and
+`CaseTasksWebTests` covers the one-editor claim the round-1 fix rests on. The
+Browser and snapshot lanes were not re-run locally because CI ran both green
+on this exact head (`browser` and `test-ui` jobs, run `33901021975`); the
+committed snapshot artifacts were nevertheless opened and measured directly
+rather than trusted through that gate.
+
+## Outcome
+
+Approved. No blocker remains. Merged to `dev` with `gh pr merge 656 --merge`;
+the merge commit SHA and the stage move to Verifying are recorded on the
+ticket.
