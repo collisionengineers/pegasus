@@ -519,6 +519,11 @@ date, and agent and moves it to the working stage — that record *is* the claim
    Committing is not gated: commit to your own task branch freely and often, in
    small logical slices, without operator authority. Only the `dev` → `main`
    merge requires `MERGE AUTH GRANTED`.
+   DELIV-046 is the sole exception allowed to merge the authorised
+   `origin/main` head `32f8679d3695e0dcab8f310a1c20f8b129d20190` into its
+   task branch and deliver it through a merge-commit PR to `dev`; the exception
+   expires when that PR merges and grants no direct shared-ref update or
+   history rewrite.
 6. **Release or abandon.** After merge, a maintenance push may delete every
    temporary-plan file owned by the task; then remove its worktree and branch and
    move the ticket to the final stage. To abandon, discard only the task's own
