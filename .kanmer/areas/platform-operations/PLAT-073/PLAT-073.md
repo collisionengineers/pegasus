@@ -11,17 +11,6 @@ stageEntered:
   review: '2026-09-04T16:57:17.882Z'
   verifying: '2026-09-04T18:03:12.916Z'
   done: '2026-09-04T18:08:23.229Z'
-taken_at: '2026-09-04T15:15:10.556Z'
-branch: PLAT-073-wsl-toolchain
-worktree: .worktrees/plat-073
-claim_expires_at: '2026-09-04T18:24:31.629Z'
-claim_controller: codex-root
-lease_id: b367fe67-fd5d-4e8e-9918-740ddd0d9974
-lease_revision: 4
-lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/plat-073'
-lease_provider: codex
-lease_phase: review
-lease_heartbeat_at: '2026-09-04T17:54:31.629Z'
 labels:
   - wsl
   - linux
@@ -43,7 +32,7 @@ delivery_sha: a33896724339591d07862bd5223f9d689a355aa7
 delivery_recorded_at: '2026-09-04T18:09:02.548Z'
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T18:09:02.548Z'
+updated: '2026-09-04T18:09:38.054Z'
 ---
 
 ## What
