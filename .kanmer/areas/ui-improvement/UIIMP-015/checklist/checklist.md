@@ -1,0 +1,14 @@
+- [ ] Step 1: Add `-Scope` and `-CaptureFilter` to `scripts/Update-TestUiSnapshots.ps1`, preserving the existing default cohort and restoring `PEGASUS_TEST_UI_SCOPE`.
+- [ ] Step 2: Scope generation, deletion, comparison, and offline rendering in `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`, while always rebuilding `index.html`.
+- [ ] Step 3: Update the existing Test UI command paragraphs in `CLAUDE.md`, `AGENTS.md`, and `docs/runbook.md`.
+- [ ] Step 4: Hash non-`case-details` committed pages before and after the focused update; confirm identical path/hash inventories.
+- [ ] Run `dotnet restore ./Pegasus.slnx --locked-mode`.
+- [ ] Run `dotnet build ./Pegasus.slnx --configuration Release --no-restore`.
+- [ ] Run `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build`.
+- [ ] Run `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build`.
+- [ ] Run `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~TestUiSnapshotTests"`.
+- [ ] Run `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"`.
+- [ ] Run `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details`.
+- [ ] Run `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1`.
+- [ ] Write the post-implementation report with page hashes, artifact sizes, doctypes, expected markers, command exits, and the exact CI result.
+- [ ] Open the PR targeting `dev` with `Kanmer: UIIMP-015` and move the ticket to Review.
