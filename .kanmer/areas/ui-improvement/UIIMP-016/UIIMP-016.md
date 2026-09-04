@@ -2,7 +2,7 @@
 id: UIIMP-016
 type: ticket
 title: Replace Windows accessibility evidence with Chromium automation
-status: implementing
+status: review
 area: ui-improvement
 assignee: codex
 profile: feature
@@ -34,11 +34,12 @@ refs:
   - docs/prd/pegasus-product.md
 commits:
   - 54f62baa35db508727b538ddcfa181a85e2f7cb2
+  - 6d8fa1e48dc3b3650e0c190024fd492047814e51
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/662'
 archived: false
 created: '2026-09-04T11:58:34.790Z'
-updated: '2026-09-04T18:32:46.306Z'
+updated: '2026-09-04T18:33:44.531Z'
 ---
 
 ## What

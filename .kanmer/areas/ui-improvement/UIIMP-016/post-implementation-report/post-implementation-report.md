@@ -28,3 +28,7 @@ n/a — docs-only. The six-document diff updates each existing authority in plac
 ## Risks and follow-ups
 
 Automation cannot replace assistive-technology testing as a technical matter. The accepted trade-off is represented explicitly rather than calling Chromium a Narrator substitute. DELIV-047 may now assess Linux release equivalence without a Windows accessibility handoff.
+
+## Remediation round 1
+
+F-001 was corrected in commit `6d8fa1e48dc3b3650e0c190024fd492047814e51`. The later design-authority acceptance list now records only the package-pinned Chromium Browser evidence while preserving screen-reader-compatible semantics as required behavior and explicitly excluding screen-reader interoperability from the selected evidence. Documentation links, the targeted terminology search, Markdown placement (with the required base/head arguments), and `git diff --check` pass. The first Markdown-placement invocation omitted its mandatory base/head arguments and failed; the corrected invocation passed.
