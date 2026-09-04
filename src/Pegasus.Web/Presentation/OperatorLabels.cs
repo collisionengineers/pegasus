@@ -1389,6 +1389,18 @@ public static class OperatorLabels
         public const string InspectionAddressPanel = "Inspection address";
         public const string RecordedInspectionAddress = "Recorded value";
         public const string ProviderDefaultInspectionAddress = "Provider default";
+        // CASE-041: Inspect-at choices and storage-location labels.
+        public const string InspectAt = "Inspect at";
+        public const string Source = "Source";
+        public const string ImageBasedAssessment = "Image Based Assessment";
+        public const string ClaimantAddress = "Claimant address";
+        public const string RepairerLocation = "Repairer location";
+        public const string StorageLocation = "Storage location";
+        public const string PreviousAddress = "Previous";
+        public const string ManualEntry = "Manual entry";
+        public const string NotRecorded = "Not recorded";
+        public const string NotRecordedSuffix = " · not recorded";
+        // End CASE-041.
         public const string FilesPanel = "Files";
         public const string UploadRequestsPanel = "Public upload requests";
         public const string InstructionPhotographs = "Instruction photographs";

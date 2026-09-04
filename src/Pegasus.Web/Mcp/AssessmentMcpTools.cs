@@ -415,6 +415,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
         [Description("Inspection address; must accompany inspectionMode.")] string? inspectionAddress = null,
         [Description("Inspection mode: physical_address or image_based_assessment.")] string? inspectionMode = null,
+        [Description("Storage location for the vehicle.")] string? storageLocation = null,
         [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
@@ -459,7 +460,10 @@ internal sealed class AssessmentMcpTools(
                         ?? current.Inspection.Deadline.Confirmed?.Value,
                     inspectionAddress ?? current.Inspection.Address.Confirmed?.Value,
                     ParseInspectionMode(inspectionMode)
-                        ?? current.Inspection.Mode.Confirmed?.Value);
+                        ?? current.Inspection.Mode.Confirmed?.Value,
+                    current.Claimant.ContactNumber.Confirmed?.Value,
+                    current.Claimant.Address.Confirmed?.Value,
+                    storageLocation ?? current.Inspection.StorageLocation?.Confirmed?.Value);
                 var saved = await saveCase.ExecuteAsync(
                     new(
                         caseId,
