@@ -10,20 +10,26 @@ Binding build policy: this group's `context.md` §Build policy (2026-09-04).
 Wave 1 (PLAT-070 #649, DOCS-017 #651, ENG-035 #648, PLAT-068 #655, AUTO-018
 #654) verified together at `80f0ca262b0fe2ca354a5dfb18933dc3f105b917`.
 
-## Phase A — in progress
+## Phase A — in progress (as of 12:00Z)
 
-- CASE-038 (#656, `.worktrees/case-038` @ `1ed9da3a9`): regenerate the Case
-  snapshots with the full capture, eye-check `case-details--default.html`,
-  correct `catalogue.json`, push, CI, **fresh independent review**, merge.
-- UIIMP-015 (new): scoped snapshot capture; plan then build.
-- PLAT-069: Operations notice.
-- CASE-032 (EPIC-011, pulled in): research → plan → build; unblocks CASE-042.
+- **PLAT-069 merged** — PR #657, merge SHA `8f3d0960`, CI green on the exact
+  reviewed head `74124b7f`; in Verifying, awaiting checkpoint V1.
+- UIIMP-015 — PR #658 open, in Review (scoped capture tooling).
+- CASE-032 — PR #659 open, in Review.
+- CASE-038 — closure lane re-running the full capture in `.worktrees/case-038`
+  (the first attempt was lost, see below); fresh independent review follows.
+
+Lesson applied 11:30Z: the first Phase A attempt lost two lanes because a
+wrapper that idles on a background command is forced to its final answer.
+`case-workspace-v2-build-3.js` now makes every long wait a bounded foreground
+loop and gives lanes a resume branch; UIIMP-015 was also wrongly caught by the
+tooling no-touch rule, now exempted for that ticket only.
 
 ## Merge queue (one at a time, in this order)
 
-Phase A lanes (UIIMP-015, PLAT-069, CASE-032, CASE-038) merge as each is
-ready · CASE-009, CASE-039, CASE-041, CASE-040, CASE-029, CASE-042, ENG-034,
-CASE-043 · ENG-029, ENG-036, ENG-031, DOCS-018 · UIIMP-014, DELIV-045.
+Phase A lanes (UIIMP-015, CASE-032, CASE-038) merge as each is ready ·
+CASE-009, CASE-039, CASE-041, CASE-040, CASE-029, CASE-042, ENG-034, CASE-043 ·
+ENG-029, ENG-036, ENG-031, DOCS-018 · UIIMP-014, DELIV-045.
 
 ## Checkpoints
 
