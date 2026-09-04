@@ -158,3 +158,117 @@ check on PR #656 and needs an orchestrator routing decision.
 - **CASE-041:** the inspection form is `case-inspection-address-form`, posts
   to the Details `Save` handler, and is not the sticky bar's Save target.
 - **UIIMP-005/013/014:** the offline-render dependency above.
+
+## Record correction (2026-09-04, review finding 8)
+
+The sections above were written at head `dd72edd66` and are now corrected
+where later commits contradicted them:
+
+- **"CASE-038 does not own that file and has not touched it"** (the Blocking
+  dependency section, about `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`)
+  was false from commit `3d8c00258`, which rewrote a non-catalogued `<img src>`
+  in that file to an inline placeholder pixel. `c9a7bb7b8` then raised the
+  `test-ui` CI caps in `.github/workflows/ci.yml`, also outside the plan's
+  Expected files. Both changes are withdrawn by `6cf4657f7`; neither file
+  differs from `origin/dev` on this branch any more.
+- **The escalation of the `-Verify` failure as an external dependency was
+  wrong in its cause.** The failing offline image was not a real Case page: it
+  was the Files *fragment*, which the capture recorded as a candidate for the
+  record's own snapshot states because the fragment answered `text/html` on
+  `/Cases/{id}` and `Generate` matches on path alone. The fix is the fragment's
+  own path, not the snapshot harness (`eaf023957`).
+- **`case-details--default.html` as committed at `c9a7bb7b8` is the Files
+  fragment, not the Case page**, and the `catalogue.json` text written in the
+  same commit describes a frame that artifact does not contain. Regenerating it
+  is outstanding — see below.
+- The `CaseTasksWebTests` re-scope stands as disclosed; the file's inspection
+  test is rewritten again this round (one record form).
+
+## Review round fixes (2026-09-04)
+
+Head `1ed9da3a9`. Per finding:
+
+1. **Finding 1 (blocker) — the fragment competing for the route's snapshot
+   states.** Fixed at the cause and inside owned paths: the section fragment
+   now answers on `/Cases/{id}/Section?section=<key>`. `Program.cs` adds one
+   matching-only page selector (`/Cases/{id:guid}/{handler:regex(^Section$)}`,
+   `SuppressLinkGeneration = true`), so `/Cases/{id}` and every other handler's
+   `?handler=` link generate exactly as before, and a fragment response can
+   never match the record's `^/Cases/[^/]+$` route pattern. The snapshot
+   harness is untouched. `site.js` and `CaseDetailsWebTests` follow the new
+   path. **Not yet complete: the snapshot artifacts have not been regenerated**
+   (see Outstanding).
+2. **Finding 2 (blocker) — placeholder pixel.** Reverted;
+   `TestUiSnapshotTests.cs` is byte-identical to `origin/dev`.
+3. **Finding 3 (blocker) — two whole-record Save forms.** The record renders
+   one editor. `_CaseInspectionAddress` no longer carries a form: it renders
+   the address control associated with `case-edit-form` (`form=` attribute),
+   and `_CaseWorkflow`'s hidden `inspectionAddress` is removed so that control
+   is the single entry for that name. `_CaseDataHiddenFields.cshtml` had no
+   caller left and is deleted. One consequence, recorded deliberately: the
+   record's one Save writes the address the record shows, where the Overview
+   form previously posted the confirmed value and the Inspection form the
+   current one. Proof: `CaseDetailsWebTests.TheRecordRendersOneEditorForEverySection`
+   asserts one `case-edit-form`, one `data-edit-save`, one `?handler=Save`
+   action and exactly one occurrence of each of the twenty editable names
+   across the whole rendered record — so there is no second form whose save
+   could discard another section's unsaved edit.
+   `TheRecordRendersOneStickySaveTarget` folds into it;
+   `InspectionAddressEditorContributesTheOnlyAddressEntryToTheRecordForm`
+   replaces the old ordering test.
+4. **Finding 6 (blocker) — CI caps.** Reverted to `timeout-minutes: 35` (step)
+   and `40` (job); the comment asserting a capture-growth regression is gone.
+5. **Finding 4 — swallowed jump callback and silent fetch failure.** `mount()`
+   keeps every caller's callback on the placeholder and answers them all when
+   the one in-flight fetch lands, so a jump made during a prefetch still
+   scrolls. A failed fetch now says so on the placeholder and records the error
+   on the console instead of only setting a data attribute.
+6. **Finding 5 — `AssessmentIsReadOnly` fails open.** A null access result now
+   reads as read-only (`?.IsReadOnly ?? true`). ENG-034 remains its declared
+   reader.
+7. **Finding 7 — `?section=estimate`.** Added to the browser scenario at all
+   three widths: the record opens with the Estimate section on screen and the
+   nav no longer current on Overview.
+8. **Finding 9 — the nav's no-script claim.** The comment now says what the
+   code does: the anchor moves the reader to the host, a body below the fold is
+   not there without script, and `?section=<key>` is the server-side address.
+9. **Finding 10** — left as accepted (CASE-040's contract slot).
+
+### Commands (Windows, PowerShell 7), this round
+
+| Command | Exit |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 (0 warnings) |
+| `dotnet test ./tests/Pegasus.Core.Tests/... --no-build` | 0 — 1219 passed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/... --no-build` | 0 — 100 passed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/... --filter "FullyQualifiedName~CaseDetailsWebTests&Category!=Corpus&Category!=Browser"` | 0 — 68 passed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/... --filter "FullyQualifiedName~LayoutIntegrityTests&Category!=Corpus"` | 0 — 69 passed |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1` | **not completed** — see Outstanding |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` | not run |
+| `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1` | not run |
+
+### Outstanding at `1ed9da3a9`
+
+The snapshot artifacts are **not** regenerated. The first
+`Update-TestUiSnapshots.ps1` run of this round aborted in its browser capture
+phase on the new `?section=estimate` assertion (a scroll-spy value, not a page
+defect); that assertion was corrected and `LayoutIntegrityTests` then passed
+69/69, but the session ended before the capture-and-verify run could be
+repeated. Therefore:
+
+- `docs/design/test-ui/pages/case-details--default.html` still holds the Files
+  fragment committed at `c9a7bb7b8`, and `catalogue.json`'s `default` branch
+  text still describes a frame that artifact does not contain.
+- Nobody has yet confirmed by eye that the regenerated default snapshot is the
+  full Case page (doctype, `case-sticky`, eleven `id="section-*"` hosts), and
+  no byte size is recorded.
+- Whether a genuine full-record default page still yields an unloadable
+  offline image (a case-document gallery `<img>` rewritten to `#`) is unknown
+  and must be answered by that run, not assumed. If it does, it is a separate
+  finding to report — not a reason to relax the assertion again.
+
+Next action for this lane: run `./scripts/Update-TestUiSnapshots.ps1`, then
+`-Verify -SkipCapture`, then `./scripts/Test-UiCatalogue.ps1`, inspect the
+regenerated `case-details--default.html` directly, correct `catalogue.json` to
+what it actually contains, and commit. Finding 1 is not closed until then.

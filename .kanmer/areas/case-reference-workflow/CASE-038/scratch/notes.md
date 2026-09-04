@@ -63,3 +63,33 @@ Fix belongs in `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`
 case-document images the way receipt images already are, or exclude
 `#`-rewritten images from the offline-image assertion. CASE-038 has not
 touched that file (AGENTS.md rules 1 and 2, plan failure rules).
+
+## 2026-09-04 — correction to the entry above (review finding 8)
+
+The entry above ("orchestrator action needed: Test UI offline-render
+dependency") is withdrawn. Two claims in it were wrong:
+
+1. "CASE-038 has not touched that file" was false from commit `3d8c00258`,
+   which changed `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs` to
+   rewrite a non-catalogued `<img src>` to an inline placeholder pixel;
+   `c9a7bb7b8` then raised the `test-ui` caps in `.github/workflows/ci.yml`.
+   Both are reverted at `6cf4657f7`; neither file differs from `origin/dev`
+   on this branch now.
+2. The cause was misdiagnosed. The broken offline image was not on a real
+   Case page: `case-details--default.html` had been generated from the Files
+   *fragment*, because `OnGetSectionAsync` answered `text/html` on
+   `/Cases/{id}` and `TestUiSnapshotTests.Generate` matches candidates on
+   path alone. It is not the Test UI lane's dependency; it is this lane's
+   defect, fixed at `eaf023957` by giving the fragment its own path
+   `/Cases/{id}/Section` (a matching-only, link-generation-suppressed page
+   selector). The snapshot harness is untouched.
+
+Round state at head `1ed9da3a9`: source fixes for review findings 1–7, 9 are
+in and green on restore, build, Core (1219), Architecture (100),
+`CaseDetailsWebTests` (68) and `LayoutIntegrityTests` (69). **The snapshot
+regeneration is outstanding** — `Update-TestUiSnapshots.ps1`, `-Verify
+-SkipCapture` and `Test-UiCatalogue.ps1` have not been run to completion this
+round, so `case-details--default.html` still holds the fragment and
+`catalogue.json`'s default branch text still overstates it. Finding 1 is not
+closed until that run, an eyes-on check of the regenerated file and a
+`catalogue.json` correction land.
