@@ -4,12 +4,23 @@ type: ticket
 title: >-
   Sign-off Engineer on the Case with the default rule, ribbon field and Send to
   EVA dialog (re-send from With Engineer)
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-040
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:11:20.520Z'
+taken_at: '2026-09-04T18:42:59.177Z'
+branch: task/case-040-sign-off-engineer-eva
+worktree: .worktrees/case-040
+claim_expires_at: '2026-09-04T19:12:59.177Z'
+claim_controller: wf-build/case-040
+lease_id: a164d9b0-11ce-4bc5-a341-dd51e48867b5
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-040'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T18:42:59.177Z'
 labels:
   - case
   - sign-off
@@ -27,7 +38,7 @@ refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
 archived: false
 created: '2026-09-02T20:31:38.755Z'
-updated: '2026-09-02T22:11:20.520Z'
+updated: '2026-09-04T18:42:59.177Z'
 ---
 
 ## What
