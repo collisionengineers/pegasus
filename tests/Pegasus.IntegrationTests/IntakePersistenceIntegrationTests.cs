@@ -119,7 +119,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260903153134_RemoveStaffReviewFlags",
                 "20260903225331_StaffAccountSignOff",
                 "20260903233954_MarketResearchAiJob",
-                "20260904183440_CaseInspectionAddressChoices"
+                "20260904210022_EngineerNotes",
+                "20260904233144_CaseInspectionAddressChoices"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

@@ -44,6 +44,7 @@ never renumbered or reused.
 | [0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | FRD-07 |
 | [0035](0035-ai-job-ledger.md) | AI job ledger | FRD-10, FRD-11 |
 | [0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | FRD-08 |
+| [0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | — |
 
 ## Superseded and relocated
 

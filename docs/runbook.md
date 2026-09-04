@@ -27,11 +27,11 @@ documentation shows a Windows form and a Linux form, run the one matching your
 workstation. Nothing here requires or supports mixing the two in a single run,
 checkout, or evidence record.
 
-Release operations remain Windows-only. The migration bundle is built for
-`win-x64` and applied from the authorised release terminal, which is a fixed
-release-route decision recorded in ADR-0007, not a development-platform
-requirement. Web and Worker packages are `linux-x64` and build identically on
-either platform.
+Release operations use the authorised Linux x64 terminal on Linux-native
+storage. Web, Worker, OCI and the self-contained `efbundle` migration artifact
+are built once for Linux x64 from the exact clean release SHA. ADR-0037 owns
+the workstation choice; ADR-0007 continues to own the direct-terminal order
+and approval boundaries.
 
 Hosted workflow runner choices and their evidence limits are owned by
 [the executable CI workflow](../.github/workflows/ci.yml). Linux development
@@ -59,7 +59,6 @@ What Windows gives this project that Linux does not:
 | --- | --- |
 | SQL Server Express LocalDB | Zero-configuration local database with integrated security and no container. |
 | `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
-| The `win-x64` migration bundle and authorised release terminal | Fixed by ADR-0007; see above. |
 | The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
 | `scripts/email-eval-desktop` | It targets `net10.0-windows` with Windows Forms, which has no Linux implementation, so it is Windows-only by construction. |
 
@@ -972,7 +971,10 @@ dated names are not current identity proof.
 
 ## Deployment and release
 
-The accepted direct-terminal Azure design is indexed by [architecture](current-architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
+The accepted Linux direct-terminal Azure design is indexed by
+[architecture](current-architecture.md) and the
+[decision register](adr/README.md). The target files are `infra/`,
+`azure.yaml`, and `.azure/deployment-plan.md`.
 
 `azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 
@@ -1004,7 +1006,7 @@ deployed runtime remains unverified evidence.
 
 Two route facts recorded by release 9 (details in operations):
 
-- `efbundle.exe` builds the Web host, so run it from `src/Pegasus.Web` with
+- `efbundle` builds the Web host, so run it from `src/Pegasus.Web` with
   the Production process environment (`ASPNETCORE_ENVIRONMENT=Production`,
   `Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
   `AzureIdentity__WebClientId`, the two storage account names and the custody
