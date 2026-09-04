@@ -33,14 +33,17 @@ blocks:
   - PLAT-074
   - UIIMP-016
 commits:
-  - ce1248fb4d3be62de0803cd2e542afeb44040360
-  - b2f0be13b0f1bf4b4fbc848a238927d16a66df13
-  - edb42e3252df48087078cef88ae8198a59ba3a9f
+  - a33896724339591d07862bd5223f9d689a355aa7
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/661'
+deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: a33896724339591d07862bd5223f9d689a355aa7
+delivery_recorded_at: '2026-09-04T18:09:02.548Z'
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T18:08:23.229Z'
+updated: '2026-09-04T18:09:02.548Z'
 ---
 
 ## What
@@ -49,10 +52,12 @@ Install the pinned offline and cloud development tools under Linux, remove Windo
 
 ## Why
 
-The WSL checkout is native but currently resolves Windows tools and lacks most Pegasus prerequisites.
+The WSL checkout is native but previously resolved Windows tools and lacked most Pegasus prerequisites.
 
 ## Verification
 
-- [ ] Both Doctor profiles and the canonical locked restore/build/test commands pass using Linux-native executables.
+- [x] Both Doctor profiles and the locked restore/build/test lanes pass using Linux-native executables.
 
 ## Outcome
+
+Merged through https://github.com/collisionengineers/pegasus/pull/661 at `a33896724339591d07862bd5223f9d689a355aa7`. The WSL host is provisioned and the repository contains only the cross-platform Doctor/diagnostic compatibility changes plus Kanmer v0.4.1 managed reconciliation. WSL restart remains the operator handoff. Follow-ups: [[PLAT-074]], [[UIIMP-016]], [[DELIV-047]], and [[DELIV-048]].

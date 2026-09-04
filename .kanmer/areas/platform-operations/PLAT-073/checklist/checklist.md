@@ -11,3 +11,16 @@
 - [x] Any repair guidance correction is execution-backed
 - [x] Simplification pass recorded
 - [x] Task branch pushed and PR opened to dev
+
+---
+
+## Closeout — PLAT-073
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/plat-073`
+- [ ] `git branch -d PLAT-073-wsl-toolchain` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`

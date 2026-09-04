@@ -100,3 +100,9 @@ attempts:
 # Verification outcome
 
 PASS. The exact GitHub merge commit is detached, clean and matches the recorded SHA. Initial failures were prerequisite ordering and verifier-client resolution errors, followed by the same checks passing without code changes. Hosted Test UI's timeout and unchanged-head successful rerun are retained. No application, cloud or production operation was performed.
+
+## Merge traceability
+
+PR: https://github.com/collisionengineers/pegasus/pull/661  
+Merged: 2026-09-04T18:03:01Z  
+Merge commit: `a33896724339591d07862bd5223f9d689a355aa7`
