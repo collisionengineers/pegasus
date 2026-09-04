@@ -74,3 +74,8 @@ Two command-entry errors are retained above: a nonexistent expanded SHA and a no
 ## Hosted evidence
 
 All required PR checks passed at the reviewed head before merge: unit, browser, Test UI, all three SQL integration shards and coverage, documentation, local-development scripts, reference data, and change classification. Infrastructure was intentionally skipped by path classification.
+
+## Merge identity
+
+PR: https://github.com/collisionengineers/pegasus/pull/660  
+Merged at: 2026-09-04T15:08:06Z
