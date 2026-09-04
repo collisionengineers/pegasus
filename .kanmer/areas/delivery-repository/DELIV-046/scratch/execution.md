@@ -8,3 +8,7 @@ The first execution packet recorded origin/dev at 80f0ca262b0fe2ca354a5dfb18933d
 - FAIL: `Test-MarkdownPlacement.ps1` was first called without mandatory `-Base` and `-Head`; PowerShell rejected the invocation.
 - PASS: rerun with `-Base origin/dev -Head HEAD`.
 - PASS: ancestry, blob identity, and diff checks.
+
+## Transitions
+
+- 2026-09-04T12:23:57.541Z lease-phase implementing → review (lease f68aa36e-600d-485f-9ccc-5b78dd369fb9 rev 2; expires 2026-09-04T12:53:57.535Z)
