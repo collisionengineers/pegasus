@@ -13,7 +13,9 @@
 | `scripts/Build-ReleaseArtifacts.ps1` | Reuse `PegasusPlatform.ps1`, require Linux x64, remove the configurable migration RID, and emit schema-3 Linux artifacts. |
 | `scripts/Test-AzureDeploymentPlan.ps1` | Reject non-schema-3, non-`linux-x64`, non-`efbundle` manifests and assert the build-host contract. |
 | `scripts/Invoke-Doctor.ps1` | Include ORAS in the existing tool-health surface. |
+| `scripts/Test-PegasusPlatform.ps1` | Prove the ORAS repair-hint and platform contract additions without adding a second test surface. |
 | `scripts/PegasusPlatform.ps1` | Add the ORAS Linux repair hint to the existing single repair-hint table. |
+| `.agents/skills/pegasus-release/SKILL.md` | State Linux x64 and ORAS as release preconditions while preserving the exact approval and target route. |
 | `.agents/skills/pegasus-release/references/database-migration.md` | Execute the Linux `efbundle` named by the approved manifest. |
 | `.zcode/skills/pegasus-release/SKILL.md` | Remove the stale duplicate route and forward to the canonical release skill, matching `.codex`. |
 
