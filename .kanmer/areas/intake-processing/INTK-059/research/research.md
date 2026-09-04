@@ -51,3 +51,30 @@ Triage invalid.
 No project-declared external research sources apply to Intake & Processing
 (`get_sources`, 2026-09-04). Findings above are read-only checks of the current
 repository and the two governing FRDs.
+
+## Origin-receipt clarification (2026-09-04)
+
+**Yes, the origin receipt persists a suggested principal code when extraction
+or a Provider API declaration supplies one.** `InstructionDraftEntity` is a
+one-to-one child of `IntakeReceiptEntity`, with
+`SuggestedPrincipalCode` persisted in `InstructionDrafts`
+(`src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs:247-272,
+1398,1419-1429`). `EfIntakeReceiptStore` writes and reads that exact value
+(`src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs:439-451,
+593-600,857-882`).
+
+**Yes, QDOS extraction obtains it — from the already established route
+context, not from the message body.** `QdosInstructionExtractionPolicy` passes
+`principalContext.PrincipalCode` into `CreateInstructionDraft`, which becomes
+the draft's first (`SuggestedPrincipalCode`) value
+(`src/Pegasus.Core/Intake/DirectProviders/Qdos/
+QdosInstructionExtractionPolicy.cs:137-178,700-718`). `ProcessIntake`
+rejects a draft whose code differs from the established route principal
+(`src/Pegasus.Core/Intake/ProcessIntake.cs:961-986`). The Provider API path
+likewise supplies `binding.PrincipalCode` to its draft
+(`src/Pegasus.Core/Intake/ProcessIntake.cs:753-786`).
+
+This is a durable **code on the origin receipt**, not a `PrincipalId` foreign
+key or a Triage-owned principal relationship. INTK-059 remains correctly
+scoped to preserve an optional authoritative relationship on the Triage record
+rather than re-derive a value at rendering time.
