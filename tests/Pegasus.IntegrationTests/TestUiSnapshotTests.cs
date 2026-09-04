@@ -28,6 +28,10 @@ public sealed partial class TestUiSnapshotTests
                 new("Disabling revokes existing browser sessions"),
             ["administration-principal-eva-submission--default"] = new(
                 "EVA API submission for WEBP", "We could not complete that request"),
+            ["case-details--default"] = new(
+                "You are editing this case.",
+                AlsoRequired: "case-overview-panel",
+                AlsoRequired2: "status status--navy\">Review<"),
             ["case-details--unavailable"] = new("<h1>Case unavailable</h1>"),
             ["case-details--conflict"] = new("case changed", "Case unavailable"),
             ["cases--empty"] = new("No cases match these filters."),
@@ -66,13 +70,15 @@ public sealed partial class TestUiSnapshotTests
         var repoRoot = FindRepoRoot();
         var catalogueRoot = Path.Combine(repoRoot, "docs", "design", "test-ui");
         var manifest = await ReadManifestAsync(Path.Combine(catalogueRoot, "catalogue.json"));
+        var scope = ParseScope(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_SCOPE"));
+        ValidateScope(manifest, scope);
         var candidates = await ReadCandidatesAsync(captureDirectory!);
         var assets = await ReadAssetsAsync(captureDirectory!);
-        var generated = Generate(manifest, candidates, assets, catalogueRoot);
+        var generated = Generate(manifest, candidates, assets, scope);
 
         if (mode.Equals("update", StringComparison.OrdinalIgnoreCase))
         {
-            WriteGenerated(catalogueRoot, generated);
+            WriteGenerated(catalogueRoot, generated, scope);
             return;
         }
 
@@ -88,6 +94,7 @@ public sealed partial class TestUiSnapshotTests
                 $"Generated Test UI file is stale: {file.Key}");
         }
         var orphans = CommittedPages(catalogueRoot)
+            .Where(page => scope is null || MatchesScope(page, scope))
             .Where(page => !generated.ContainsKey(page))
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -117,7 +124,7 @@ public sealed partial class TestUiSnapshotTests
         IReadOnlyList<CatalogueEntry> manifest,
         IReadOnlyList<CapturedResponse> candidates,
         IReadOnlyDictionary<string, string> assets,
-        string catalogueRoot)
+        IReadOnlyList<string>? scope)
     {
         var output = new Dictionary<string, string>(StringComparer.Ordinal);
         var missing = new List<string>();
@@ -129,6 +136,11 @@ public sealed partial class TestUiSnapshotTests
                 .ToArray();
             foreach (var state in entry.States)
             {
+                if (scope is not null && !MatchesScope(state.File, scope))
+                {
+                    continue;
+                }
+
                 var otherMatches = entry.States
                     .Where(other => other.Scenario != state.Scenario)
                     .Select(other => StateMatches.GetValueOrDefault(other.Scenario))
@@ -275,9 +287,14 @@ public sealed partial class TestUiSnapshotTests
         Directory.EnumerateFiles(Path.Combine(catalogueRoot, "pages"), "*.html", SearchOption.TopDirectoryOnly)
             .Select(page => "pages/" + Path.GetFileName(page));
 
-    private static void WriteGenerated(string catalogueRoot, Dictionary<string, string> generated)
+    private static void WriteGenerated(
+        string catalogueRoot,
+        Dictionary<string, string> generated,
+        IReadOnlyList<string>? scope)
     {
-        foreach (var orphan in CommittedPages(catalogueRoot).Where(page => !generated.ContainsKey(page)))
+        foreach (var orphan in CommittedPages(catalogueRoot)
+                     .Where(page => scope is null || MatchesScope(page, scope))
+                     .Where(page => !generated.ContainsKey(page)))
         {
             File.Delete(Path.Combine(catalogueRoot, orphan.Replace('/', Path.DirectorySeparatorChar)));
         }
@@ -288,6 +305,42 @@ public sealed partial class TestUiSnapshotTests
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, file.Value, new UTF8Encoding(false));
         }
+    }
+
+    private static string[]? ParseScope(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var scope = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(scope.Length > 0, $"Test UI scope contains no usable prefixes: '{value}'");
+        return scope;
+    }
+
+    private static bool MatchesScopePrefix(string file, string prefix) =>
+        file.StartsWith($"pages/{prefix}--", StringComparison.Ordinal);
+
+    private static bool MatchesScope(string file, IReadOnlyList<string> scope) =>
+        scope.Any(prefix => MatchesScopePrefix(file, prefix));
+
+    private static void ValidateScope(IReadOnlyList<CatalogueEntry> manifest, IReadOnlyList<string>? scope)
+    {
+        if (scope is null)
+        {
+            return;
+        }
+
+        var stateFiles = manifest
+            .Where(entry => entry.Classification == "visual")
+            .SelectMany(entry => entry.States)
+            .Select(state => state.File)
+            .ToArray();
+        var unmatched = scope.Where(prefix => !stateFiles.Any(file => MatchesScopePrefix(file, prefix))).ToArray();
+        Assert.True(unmatched.Length == 0, "Test UI scope prefixes matched no catalogue state:\n- " + string.Join("\n- ", unmatched));
     }
 
     private static async Task<IReadOnlyList<CatalogueEntry>> ReadManifestAsync(string path) =>
@@ -349,10 +402,16 @@ public sealed partial class TestUiSnapshotTests
 
     private static string NormalizeNewLines(string value) => value.Replace("\r\n", "\n", StringComparison.Ordinal);
 
-    private sealed record StateMatch(string Required, string? Excluded = null)
+    private sealed record StateMatch(
+        string Required,
+        string? Excluded = null,
+        string? AlsoRequired = null,
+        string? AlsoRequired2 = null)
     {
         public bool Matches(string html) =>
             html.Contains(Required, StringComparison.OrdinalIgnoreCase)
+            && (AlsoRequired is null || html.Contains(AlsoRequired, StringComparison.OrdinalIgnoreCase))
+            && (AlsoRequired2 is null || html.Contains(AlsoRequired2, StringComparison.OrdinalIgnoreCase))
             && (Excluded is null || !html.Contains(Excluded, StringComparison.OrdinalIgnoreCase));
     }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Case NOTACTIVE31001 · Pegasus</title>
+    <title>Case QDOS3100042 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -94,7 +94,7 @@
                 <a class="nav-link" aria-current="page" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="1 outstanding">1</span>
+                        <span class="nav-count" aria-label="0 outstanding">0</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -115,8 +115,8 @@
                 <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
             </div>
                 <div class="rail-user" role="group" aria-label="User">
-                    <span class="avatar" aria-hidden="true">IU</span>
-                    <div><strong>integration-user</strong><small>Administrator</small></div>
+                    <span class="avatar" aria-hidden="true">DO</span>
+                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
                     <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
                         <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
                     </button>
@@ -162,7 +162,7 @@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Case workspace · AB12CDE</p>
-        <h1>NOTACTIVE31001</h1>
+        <h1>QDOS3100042</h1>
     </div>
     <div class="page-actions">
         <a class="btn" href="queues--default.html">
@@ -184,7 +184,7 @@
     <div class="record-ribbon" aria-label="Case identity">
         <div class="ribbon-item ribbon-ref">
             <div class="ribbon-label">Case/PO</div>
-            <div class="ribbon-value">NOTACTIVE31001</div>
+            <div class="ribbon-value">QDOS3100042</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">Registration</div>
@@ -192,29 +192,70 @@
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">Claimant</div>
-            <div class="ribbon-value">Not recorded</div>
+            <div class="ribbon-value">Case claimant</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">Principal</div>
-            <div class="ribbon-value">NOTACTIVE</div>
+            <div class="ribbon-value">QDOS</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">State</div>
-            <div class="ribbon-value"><span class="status status--amber">Not ready</span>
+            <div class="ribbon-value"><span class="status status--navy">Review</span>
 </div>
         </div>
     </div>
 
+        <div class="presence-strip" role="status">
+            <span class="presence-dot" aria-hidden="true"></span>
+            <span>You are editing this case.</span>
+        </div>
     <div class="record-bar">
-            <form method="post" action="case-details--default.html">
+            <form method="post" id="case-finish-editing-form" data-edit-toggle-off action="case-details--default.html">
                 <input type="hidden" name="id" value="test-ui-guid-1" />
-                <input type="hidden" name="expectedVersion" value="0" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                <button type="submit" class="btn">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                    <span>Edit Case</span>
+                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                <button type="submit" class="btn btn--dark">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Finish editing</span>
                 </button>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <form method="post" data-edit-renew action="case-details--default.html">
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="7" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                <button type="submit" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                    <span>Renew editing</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <form method="post" data-edit-heartbeat data-heartbeat-seconds="60" hidden action="case-details--default.html">
+        <input type="hidden" name="id" value="test-ui-guid-1" />
+        <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+
+                    <button type="button" class="btn" data-dialog-open="case-hold-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                        <span>Place on Hold</span>
+                    </button>
+                <form method="post" action="#">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                        <span>Create upload link</span>
+                    </button>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                    <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                        <span>Close Case</span>
+                    </button>
+            <button type="button" class="btn" data-dialog-open="eva-handoff-dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Send to EVA</span>
+            </button>
         <span class="record-bar-end">
                 <span class="gated" data-condition="Available after the current Review export">
                     <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
@@ -222,6 +263,18 @@
         </span>
     </div>
 
+        <div class="edit-bar">
+            <strong>Editing QDOS3100042</strong>
+            <span class="muted">Version 7</span>
+            <button type="submit" form="case-finish-editing-form" class="btn">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span>Discard</span>
+            </button>
+            <button type="submit" form="case-edit-form" class="btn btn--primary">
+                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                <span>Save</span>
+            </button>
+        </div>
 
     <div class="record-body">
         <div class="case-workspace">
@@ -257,13 +310,13 @@
 <div class="stack">
 
     <ol class="workflow-stepper" aria-label="Case workflow">
-            <li class="workflow-step is-current">
+            <li class="workflow-step is-complete">
                 <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
                 </span>
                 <span>Not ready</span>
             </li>
-            <li class="workflow-step">
+            <li class="workflow-step is-current">
                 <span class="workflow-step-icon">
                     <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                 </span>
@@ -283,25 +336,91 @@
             </li>
     </ol>
 
-        <section class="panel" aria-labelledby="case-requirements-title">
-            <div class="panel-head">
-                <h2 id="case-requirements-title">Outstanding requirements</h2>
-                <span class="status status--amber">1 outstanding</span>
 
-            </div>
-            <div class="panel-body">
-                <ul class="blocker-list">
-                        <li class="blocker">
-                            <strong>Images incomplete</strong>
-                            <small>
-                                <b>Source:</b> Instruction completeness
-                                    <br /><b>Why:</b> Details are incomplete                                <br /><b>Resolve:</b> Confirm completeness
-                            </small>
-                        </li>
-                </ul>
+        <section class="panel" aria-labelledby="case-edit-title">
+            <div class="panel-head"><h2 id="case-edit-title">Edit Case data</h2></div>
+            <div class="panel-body stack">
+                <form method="post" id="case-edit-form" data-edit-save class="stack" action="case-details--default.html">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <input type="hidden" name="claimantContactNumber" />
+                    <input type="hidden" name="claimantAddress" />
+                    <input type="hidden" name="vehicleMileage" value="42000" />
+                    <input type="hidden" name="vehicleMileageUnit" value="miles" />
+                    <input type="hidden" name="incidentDate" />
+                    <input type="hidden" name="contactName" value="Case contact" />
+                    <input type="hidden" name="contactEmailAddress" />
+                    <input type="hidden" name="contactPhoneNumber" />
+                    <input type="hidden" name="instructionDate" />
+                    <input type="hidden" name="vatStatus" value="Standard" />
+                    <input type="hidden" name="inspectionDate" />
+                    <input type="hidden" name="inspectionDeadline" />
+                    <input type="hidden" name="inspectionAddress" value="1 Depot Road" />
+                    <input type="hidden" name="inspectionMode" value="PhysicalAddress" />
+                    <div class="grid grid-2">
+                        <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="Case claimant" /></div>
+                        <div class="field"><label for="edit-provider-reference">Provider reference</label><input id="edit-provider-reference" name="claimNumber" maxlength="200" value="CLM-42" /></div>
+                        <div class="field"><label for="edit-registration">Registration</label><input id="edit-registration" name="vehicleRegistration" maxlength="20" value="AB12CDE" /></div>
+                        <div class="field"><label for="edit-make">Make</label><input id="edit-make" name="vehicleMake" maxlength="100" value="Ford" /></div>
+                        <div class="field"><label for="edit-model">Model</label><input id="edit-model" name="vehicleModel" maxlength="100" value="Transit" /></div>
+                        <div class="field"><label class="req" for="edit-reason">Reason</label><input id="edit-reason" name="reason" required maxlength="500" /></div>
+                    </div>
+                    <div class="field">
+                        <label for="edit-circumstances">Accident circumstances</label>
+                        <textarea id="edit-circumstances" name="accidentCircumstances" maxlength="2000" rows="4">Rear impact</textarea>
+                    </div>
+                        <div class="notice notice--warning">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>Saving returns the case to Not ready.</span>
+                        </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                            <span>Save case data</span>
+                        </button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
         </section>
+        <section class="panel" aria-labelledby="case-lifecycle-title">
+            <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
+            <div class="panel-body button-row">
+                    <button type="button" class="btn" data-dialog-open="case-start-work-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                        <span>Start report preparation</span>
+                    </button>
+            </div>
+        </section>
+</div>
 
+        <div id="case-start-work-dialog" class="dialog-backdrop" data-dialog="case-start-work-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-start-work-dialog_title">
+        <div class="dialog-head">
+            <h2 id="case-start-work-dialog_title" tabindex="-1">Start report preparation</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="#">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="7" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="case-start-work-dialog_reason">Reason for action</label>
+                    <textarea id="case-start-work-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
 </div>
 
 
@@ -314,21 +433,21 @@
                 <h3 id="case-overview-work">Work</h3>
                 <div class="overview-facts">
                     <dl><dt>Case type</dt><dd>Inspection</dd></dl>
-                    <dl><dt>Provider reference</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Inspection</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Provider reference</dt><dd>CLM-42</dd></dl>
+                    <dl><dt>Inspection</dt><dd>1 Depot Road</dd></dl>
                     <dl><dt>Engineer</dt><dd>Unassigned</dd></dl>
-                    <dl><dt>Received</dt><dd>11 Aug 2031 10:15</dd></dl>
-                    <dl><dt>Due</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Received</dt><dd>04 May 2031 11:30</dd></dl>
+                    <dl><dt>Due</dt><dd>10 May 2031</dd></dl>
                 </div>
             </section>
             <section aria-labelledby="case-overview-parties">
                 <h3 id="case-overview-parties">Parties</h3>
                 <div class="overview-facts">
-                    <dl><dt>Principal</dt><dd>NOTACTIVE</dd></dl>
-                    <dl><dt>Claimant</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Principal</dt><dd>QDOS</dd></dl>
+                    <dl><dt>Claimant</dt><dd>Case claimant</dd></dl>
                     <dl><dt>Repairer / holder</dt><dd>Not recorded</dd></dl>
                     <dl><dt>Intermediary</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Origin</dt><dd>E-mail</dd></dl>
+                    <dl><dt>Origin</dt><dd>Email</dd></dl>
                 </div>
             </section>
         </div>
@@ -337,10 +456,10 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                 <h3 id="case-accident-title">Accident circumstances</h3>
             </div>
-            <p>Not recorded</p>
+            <p>Rear impact</p>
             <div class="accident-meta">
                 <span><b>Incident detail</b>Not recorded</span>
-                <span><b>Vehicle</b>AB12CDE</span>
+                <span><b>Vehicle</b>AB12CDE &#xB7; Ford Transit</span>
             </div>
         </section>
     </div>
@@ -352,29 +471,19 @@
                 <section class="context-card">
                     <div class="panel-head"><h2>Current position</h2></div>
                     <div class="panel-body">
-                        <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
+                        <div class="decision-row"><span>State</span><strong><span class="status status--navy">Review</span>
 </strong></div>
-                        <div class="decision-row"><span>Version</span><strong>0</strong></div>
-                        <div class="decision-row"><span>Due</span><strong>Not recorded</strong></div>
+                        <div class="decision-row"><span>Version</span><strong>7</strong></div>
+                        <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
                         <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
                         <div class="decision-row">
                             <span>Edit authority</span>
                             <strong>
-                                    Available
+                                    You
                             </strong>
                         </div>
                     </div>
                 </section>
-                    <section class="context-card">
-                        <div class="panel-head"><h2>Next action</h2></div>
-                        <div class="panel-body stack">
-                            <div class="notice notice--warning">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                <span>Images incomplete</span>
-                            </div>
-                            <a class="btn btn--dark" href="case-details--default.html">Open Notes</a>
-                        </div>
-                    </section>
             </aside>
         </div>
     </div>
@@ -432,9 +541,115 @@
 </div>
 
 
+        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-hold-dialog_title">
+        <div class="dialog-head">
+            <h2 id="case-hold-dialog_title" tabindex="-1">Place on Hold</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="#">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="7" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="case-hold-dialog_reason">Reason for action</label>
+                    <textarea id="case-hold-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+        <div class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
+            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
+                <div class="dialog-head">
+                    <h2 id="case-close-dialog-title" tabindex="-1">Close Case</h2>
+                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    </button>
+                </div>
+                <form method="post" action="#">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <div class="dialog-body stack">
+                        <div class="field">
+                            <label class="req" for="case-close-outcome">Outcome</label>
+                            <select id="case-close-outcome" name="outcome" required data-dialog-initial-focus>
+                                <option value="PostReportComplete">Post-report complete</option>
+                                <option value="ProviderCancelled">Provider cancelled</option>
+                                <option value="CollisionEngineersRejected">Collision Engineers rejected</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label class="req" for="case-close-reason">Reason for action</label>
+                            <textarea id="case-close-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close>Cancel</button>
+                        <button type="submit" class="btn btn--danger">Close Case</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <form method="post" action="#">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <div class="dialog-body stack">
+                        <div class="notice notice--warning">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>Created in error cannot be reopened. Create and link the replacement case.</span>
+                        </div>
+                        <div class="field">
+                            <label class="req" for="case-replacement-principal">Replacement principal code</label>
+                            <input id="case-replacement-principal" name="replacementPrincipalCode" required maxlength="100" />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="case-replacement-reason">Reason for action</label>
+                            <textarea id="case-replacement-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="submit" class="btn btn--danger">Create linked replacement</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </section>
+        </div>
 
 
 
+    <div class="dialog-backdrop" data-dialog="eva-handoff-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="eva-handoff-dialog-title">
+            <div class="dialog-head">
+                <h2 id="eva-handoff-dialog-title" tabindex="-1">EVA handoff</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                <form method="post" action="#">
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <div class="button-row">
+                        <button type="submit" class="btn">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>Export ZIP</span>
+                        </button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </section>
+    </div>
 
 
                 </div>
@@ -452,7 +667,7 @@
         </div>
         <div class="dialog-body">
             <div class="definition-list">
-                <dl class="definition"><dt>Name</dt><dd>integration-user</dd></dl>
+                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
                 <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
                 <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
             </div>
