@@ -8,6 +8,7 @@
 | .agents/skills/kanmer-* | Reconcile the bundled agent skills reported stale by get_status. |
 | .grok/skills/kanmer-* | Keep the repository-installed Kanmer skill projections consistent. |
 | .opencode/skills/kanmer-* | Keep the repository-installed Kanmer skill projections consistent. |
+| scripts/Test-MainBranchHistory.ps1 | Emit the existing rejection diagnostic without host-dependent PowerShell formatting so the cross-platform guard test sees the stable message. |
 | scripts/PegasusPlatform.ps1 | Only if executed Doctor output proves a Linux repair hint is inaccurate; reuse the existing centralized repair-hint map. |
 | docs/runbook.md | Only if the executable, evidence-backed Linux provisioning procedure is not already represented accurately. |
 | .gitignore | Retain the GUI-generated Kanmer ignore reconciliation if kanmer-setup confirms it; do not hand-edit unrelated rules. |

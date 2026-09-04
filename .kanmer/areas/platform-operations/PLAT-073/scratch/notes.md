@@ -1,0 +1,1 @@
+Canonical non-Corpus attempt failed: 842 integration tests selected Windows LocalDB because PEGASUS_TEST_SQL_DATASOURCE was unset; the architecture guard rejection diagnostic wrapped under PowerShell 7.6, breaking its stable substring assertion. Build passed. SQL rerun will use the documented container variables; guard script is added to the packet before modification.

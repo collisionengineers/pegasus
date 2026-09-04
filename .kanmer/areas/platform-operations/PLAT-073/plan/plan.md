@@ -25,6 +25,7 @@ Correct host Node selection; install exact prerequisite versions; acquire reposi
 | Managed reconciliation | .grok/skills/kanmer-*/** |
 | Managed reconciliation | .opencode/skills/kanmer-*/** |
 | Managed reconciliation | .gitignore |
+| Modify | scripts/Test-MainBranchHistory.ps1 | Stable cross-platform rejection diagnostic |
 | Conditional correction | scripts/PegasusPlatform.ps1 |
 | Conditional correction | docs/runbook.md |
 | Inspect | scripts/Invoke-Doctor.ps1 |
@@ -70,12 +71,12 @@ Reuse existing Doctor, platform and initialization owners. Use official signed r
 
 ### Step 3 — Reconcile Kanmer and guidance
 - Preconditions: Step 2 passes and the GUI board worktree is healthy.
-- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `docs/runbook.md`
-- Change: run kanmer-setup v0.4.1; change repair guidance only for an executed mismatch.
+- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `scripts/Test-MainBranchHistory.ps1`, `docs/runbook.md`
+- Change: run kanmer-setup v0.4.1; change repair guidance only for an executed mismatch; emit the history guard failure through unformatted stderr so PowerShell 7.6 preserves its one-line diagnostic.
 - Preserved behaviour: user-owned AGENTS content and board branch/worktree remain intact.
 - Forbidden: direct board-branch mutation or speculative documentation.
 - Negative cases: managed delimiter conflict or out-of-scope generated diff stops.
-- Tests: Kanmer build/headless smoke, both Doctors, platform/documentation/Markdown checks.
+- Tests: Kanmer build/headless smoke, both Doctors, MainBranchHistoryGuardTests, platform/documentation/Markdown checks.
 - Commands: npm run build; npm run smoke:headless; pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud; pwsh ./scripts/Test-DocumentationLinks.ps1; pwsh ./scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD; git diff --check origin/dev..HEAD.
 - Expected output: all commands exit zero and Kanmer reports no stale task-managed files.
 - Done when: managed diff is bounded and exact checks pass.
@@ -83,7 +84,7 @@ Reuse existing Doctor, platform and initialization owners. Use official signed r
 
 ### Step 4 — Deliver for independent review
 - Preconditions: Steps 1–3 pass and simplification findings are dispositioned.
-- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `docs/runbook.md`
+- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `scripts/Test-MainBranchHistory.ps1`, `docs/runbook.md`
 - Change: commit, push, open the dev PR, report exact evidence and move to Review.
 - Preserved behaviour: no shared branch is updated except through reviewed PR.
 - Forbidden: self-review, self-merge or dependent-ticket work.
