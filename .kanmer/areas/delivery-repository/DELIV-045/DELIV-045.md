@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Refresh current-architecture for the Case Workspace v2 and open the dev→main
   release PR
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-04T10:13:38.677Z'
 labels:
   - docs
   - release
@@ -20,7 +22,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-04T09:53:12.069Z'
-updated: '2026-09-04T09:53:12.069Z'
+updated: '2026-09-04T10:13:38.677Z'
 ---
 
 ## What

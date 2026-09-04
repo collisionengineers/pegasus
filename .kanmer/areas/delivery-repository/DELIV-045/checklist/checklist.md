@@ -1,0 +1,7 @@
+- [ ] Step 1: Confirm every EPIC-012 ticket is Done and merged to the final reachable `origin/dev`; capture each Outcome, PR, merge SHA, and UIIMP-014 final proof pointer.
+- [ ] Step 2: Verify every proposed architecture claim against the final merged callers, routes, migrations, labels, and stores; report any missing or conflicting premise.
+- [ ] Step 3: Refresh only `docs/current-architecture.md` and inspect, without editing, `docs/design/README.md`.
+- [ ] Step 4: Confirm the unreconciled `origin/main` condition and prepare the release-PR ticket table and two required conditions.
+- [ ] Run the local commands: locked restore, Release build, Core tests, Architecture tests, and `Test-DocumentationLinks.ps1`; run no whole integration or browser suite.
+- [ ] Write the DELIV-045 post-implementation report with command results, exact docs SHA, EPIC ticket evidence, final verification SHA, and proof pointer.
+- [ ] Open the unmerged `dev` → `main` PR, verify its metadata/body and green documentation CI, then move Kanmer DELIV-045 to Review.
