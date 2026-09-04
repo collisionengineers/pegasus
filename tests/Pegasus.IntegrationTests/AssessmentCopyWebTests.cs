@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,14 +11,11 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-025: the ported assessment page carries no explanatory copy
-/// (required state is visual, hint sentences stay out), the D11 gate
-/// renders the "Assessment unavailable" surface naming the export
-/// condition instead of 404-ing, and a refused case cannot post
-/// assessment changes.
+/// ENG-034: the Engineer sections carry no explanatory copy, render without
+/// the retired Assessment availability gate, and the old route redirects.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed partial class AssessmentCopyWebTests
+public sealed class AssessmentCopyWebTests
 {
     [Fact]
     public async Task PageCarriesNoHintSentencesOrExplainerCards()
@@ -28,7 +24,7 @@ public sealed partial class AssessmentCopyWebTests
         using var factory = Compose(caseId, out _);
         using var client = EngineerClient(factory);
 
-        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
+        using var response = await client.GetAsync($"/Cases/{caseId:D}?section=estimate");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
@@ -42,47 +38,37 @@ public sealed partial class AssessmentCopyWebTests
     }
 
     /// <summary>
-    /// D11: refused access renders the contract's unavailable surface —
-    /// the case is named, the export condition stated, the way back
-    /// offered — while the case itself still resolves for the header.
+    /// D30: CanOpen no longer gates the Engineer sections. The Case page
+    /// renders them in every state and access only decides read-only status.
     /// </summary>
     [Fact]
-    public async Task RefusedAccessRendersTheUnavailableSurfaceNamingTheExport()
+    public async Task CanOpenDoesNotHideTheEngineerSections()
     {
         var caseId = Guid.NewGuid();
         using var factory = Compose(caseId, out _, canOpen: false);
         using var client = EngineerClient(factory);
 
-        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
+        using var response = await client.GetAsync($"/Cases/{caseId:D}?section=estimate");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("Assessment unavailable", html, StringComparison.Ordinal);
-        Assert.Contains("QDOS-2026-00042", html, StringComparison.Ordinal);
-        Assert.Contains("A current Review-cycle EVA export is required", html, StringComparison.Ordinal);
-        Assert.Contains("Back to Case", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-damage\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-estimate\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-report\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assessment unavailable", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("A current Review-cycle EVA export is required", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task InaccessibleCaseCannotPostAssessmentChanges()
+    public async Task RetiredAssessmentRouteRedirectsPermanentlyToCaseEstimate()
     {
         var caseId = Guid.NewGuid();
-        using var factory = Compose(caseId, out _, canOpen: false);
+        using var factory = Compose(caseId, out _);
         using var client = EngineerClient(factory);
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
 
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=SendToClaude",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = AntiforgeryValue(html),
-                ["id"] = caseId.ToString("D"),
-                ["operationKey"] = Guid.NewGuid().ToString("N"),
-                ["direction"] = "Draft the estimate",
-                ["targetPercent"] = "80",
-            }));
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.Equal($"/Cases/{caseId:D}?section=estimate", response.Headers.Location?.OriginalString);
     }
 
     private static WebApplicationFactory<Program> Compose(
@@ -122,18 +108,6 @@ public sealed partial class AssessmentCopyWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
     }
-
-    private static string AntiforgeryValue(string html)
-    {
-        var tag = AntiforgeryTagRegex().Match(html);
-        Assert.True(tag.Success, "The page must render an antiforgery token.");
-        var value = Regex.Match(tag.Value, "value=\"(?<value>[^\"]+)\"");
-        Assert.True(value.Success, "The antiforgery token must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryTagRegex();
 
     private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace
     {

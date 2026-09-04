@@ -47,12 +47,38 @@ public sealed partial class AssessmentReportDraftWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=GenerateReportDraft",
+            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
             Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(pdfBytes, await response.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task PreviewRemainsAGetOnTheCaseHandlerAndReturnsThePdf()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var pdfBytes = new byte[] { 4, 3, 2, 1 };
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer(pdfBytes));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        using var response = await client.GetAsync(
+            $"/Cases/{caseId:D}?handler=PreviewReportDraft&section=report");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
@@ -76,7 +102,7 @@ public sealed partial class AssessmentReportDraftWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         Assert.Contains("Not ready", html, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
         // FRD-11: the control stays, disabled with its condition — no
@@ -85,13 +111,13 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=GenerateReportDraft",
+            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
             Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}/Assessment", response.Headers.Location?.OriginalString);
+        Assert.Equal($"/Cases/{caseId:D}?section=estimate", response.Headers.Location?.OriginalString);
 
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, afterHtml, StringComparison.Ordinal);
     }
 
@@ -112,10 +138,10 @@ public sealed partial class AssessmentReportDraftWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}/Assessment?handler=GenerateReportDraft",
+            $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
             Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
