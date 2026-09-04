@@ -19,3 +19,7 @@ The first canonical attempt passed Core and Integration but failed one Architect
 ## Remaining boundary
 
 Production promotion/deployment is deliberately not performed. It requires fresh Azure authentication, exact-target cloud-write approval, and `MERGE AUTH GRANTED` immediately before the `dev` to `main` update. Current-state documents must be refreshed after that live release.
+
+## Review round 1 remediation
+
+At reviewer-identified direct consumers, administrator bootstrap now accepts only schema 3 after full Artifact validation, and Artifact validation requires owner execute permission on the Linux bundle. Exact remediation head `5375e0f548c9210c08b866a5c3e24d940a680bd8` rebuilt all artifacts successfully; ordinary Artifact validation passed and a real `chmod u-x` negative run failed with the intended error. Architecture 100/100, documentation and diff checks passed. ADR-0037 is linked by exact pushed-head URL; its repository ref must be added after merge because Kanmer correctly refuses refs absent from the shared source checkout.
