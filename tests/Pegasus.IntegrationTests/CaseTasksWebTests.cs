@@ -119,15 +119,23 @@ public sealed partial class CaseDetailsWebTests
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
-        var html = await GetHtmlAsync(
+        var page = await GetHtmlAsync(
             workspace.Client,
-            $"/Cases/{store.CaseId:D}?section=inspection-address");
+            $"/Cases/{store.CaseId:D}?section=inspection");
+        // CASE-038: the record renders every section at once, so the ordering
+        // this asserts is read inside the Inspection form, not across the page
+        // — the Overview editor above it posts the same field names.
+        var formStart = page.IndexOf(
+            "id=\"case-inspection-address-form\"",
+            StringComparison.Ordinal);
+        Assert.True(formStart >= 0, "The inspection address form is not rendered.");
+        var html = page[formStart..];
         var visible = html.IndexOf("id=\"inspection-address\"", StringComparison.Ordinal);
         var hidden = html.IndexOf(
             "type=\"hidden\" name=\"inspectionAddress\"",
             StringComparison.Ordinal);
 
-        Assert.Contains("1 Depot Road", html, StringComparison.Ordinal);
+        Assert.Contains("1 Depot Road", page, StringComparison.Ordinal);
         Assert.Contains($"/Cases/{store.CaseId:D}?handler=Save", html, StringComparison.Ordinal);
         Assert.True(visible >= 0, "The inspection address input is not rendered.");
         Assert.True(hidden > visible, "The typed address must be posted before the current one.");

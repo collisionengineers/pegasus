@@ -136,7 +136,7 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=case-files");
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
         var download =
             $"/Cases/{store.CaseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}";
 
@@ -171,7 +171,7 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=case-files");
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
 
         Assert.DoesNotContain("Availability is not assumed", html, StringComparison.Ordinal);
         Assert.DoesNotContain("No vehicle images", html, StringComparison.Ordinal);

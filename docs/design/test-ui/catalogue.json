@@ -328,7 +328,7 @@
       {
         "state": "default",
         "file": "pages/case-details--default.html",
-        "branch": "Case workspace: Case Overview in Review with the edit lease held (header, identity ribbon, action bar, edit bar, section nav, context column).",
+        "branch": "Case record: the single-scroll workspace in Review with the edit lease held (header, sticky identity ribbon, action bar, edit bar, section jump-nav, eleven section hosts, context column).",
         "scenario": "case-details--default"
       },
       {

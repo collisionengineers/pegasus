@@ -21,12 +21,15 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseDetailsWebTests
 {
+    /// <summary>
+    /// D30: the Engineer's work is Case sections, so the record carries no
+    /// Open Assessment action and no assessment gate — neither enabled nor
+    /// drawn disabled — whatever the shared access decision says.
+    /// </summary>
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    public async Task AssessmentControlReflectsTheSharedAccessDecision(
-        bool canOpen,
-        bool expectsLink)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheRecordOffersNoAssessmentAction(bool canOpen)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -44,12 +47,12 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var actionBar = RecordBar(html);
 
-        Assert.Contains("Open Assessment", actionBar, StringComparison.Ordinal);
-        Assert.Equal(expectsLink, actionBar.Contains(
+        Assert.DoesNotContain("Open Assessment", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(
             $"/Cases/{store.CaseId:D}/Assessment",
-            StringComparison.OrdinalIgnoreCase));
+            html,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -145,22 +148,49 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The workspace's six sections are alternatives addressed by
-    /// <c>?section=</c>, and exactly one is current. A value the workspace does
-    /// not own — including the pre-redesign <c>?tab=</c>, which no link in the
-    /// product still writes — selects Case Overview rather than nothing.
+    /// D29/D30: the record is one scrolling page of eleven sections in a fixed
+    /// order. Every section has its stable host and its jump link, in that
+    /// order, on every response.
+    /// </summary>
+    [Fact]
+    public async Task TheRecordRendersElevenOrderedSectionHostsAndJumpLinks()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Equal(CaseSectionKeys, HostOrder(html));
+        Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
+    }
+
+    /// <summary>
+    /// <c>?section=</c> is a jump target, not an alternative: the addressed
+    /// section is rendered by the first response, so the link works with no
+    /// script, and it is the entry the jump-nav marks current. A key the record
+    /// does not own — including the deleted pre-redesign keys, which are not
+    /// aliased — selects Overview rather than nothing.
     /// </summary>
     [Theory]
-    [InlineData("", "Case Overview")]
-    [InlineData("?section=overview", "Case Overview")]
-    [InlineData("?section=vehicle", "Vehicle")]
-    [InlineData("?section=valuations", "Valuations")]
-    [InlineData("?section=inspection-address", "Inspection address")]
-    [InlineData("?section=case-files", "Case Files")]
-    [InlineData("?section=notes", "Notes")]
-    [InlineData("?section=evidence", "Case Overview")]
-    [InlineData("?tab=case-files", "Case Overview")]
-    public async Task SectionQuerySelectsOneSectionAndUnknownValuesFallBackToOverview(
+    [InlineData("", "overview")]
+    [InlineData("?section=overview", "overview")]
+    [InlineData("?section=vehicle", "vehicle")]
+    [InlineData("?section=estimate", "estimate")]
+    [InlineData("?section=files", "files")]
+    [InlineData("?section=notes", "notes")]
+    [InlineData("?section=valuations", "overview")]
+    [InlineData("?section=inspection-address", "overview")]
+    [InlineData("?section=case-files", "overview")]
+    [InlineData("?section=evidence", "overview")]
+    [InlineData("?tab=files", "overview")]
+    public async Task TheAddressedSectionIsRenderedAndMarkedCurrent(
         string query,
         string currentSection)
     {
@@ -176,7 +206,108 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}{query}");
 
-        Assert.Equal(currentSection, CurrentSectionLabel(html));
+        Assert.Equal(currentSection, CurrentSectionKey(html));
+        Assert.DoesNotContain(
+            $"data-lazy=\"{currentSection}\"",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The frame's fragment handler answers with one section body and nothing
+    /// of the record around it, so a mounted section cannot replace the frame
+    /// or another section.
+    /// </summary>
+    [Theory]
+    [InlineData("files")]
+    [InlineData("notes")]
+    [InlineData("vehicle")]
+    public async Task TheSectionFragmentReturnsOnlyThatSectionBody(string key)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var fragment = await GetHtmlAsync(
+            client,
+            $"/Cases/{store.CaseId:D}?handler=Section&section={key}");
+
+        Assert.DoesNotContain("case-sticky", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("section-nav", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-main\"", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("<html", fragment, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A section the frame renders itself, and a key the record does not own,
+    /// are not fragments at all — the deleted keys are refused rather than
+    /// aliased.
+    /// </summary>
+    [Theory]
+    [InlineData("overview")]
+    [InlineData("inspection")]
+    [InlineData("valuation")]
+    [InlineData("case-files")]
+    [InlineData("nonsense")]
+    public async Task TheSectionFragmentRefusesKeysItDoesNotServe(string key)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        using var response = await client.GetAsync(
+            new Uri($"/Cases/{store.CaseId:D}?handler=Section&section={key}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>
+    /// While this browser holds the edit lease the whole record is rendered: no
+    /// body is deferred, so nothing being typed can be replaced by a section
+    /// mounting under it.
+    /// </summary>
+    [Fact]
+    public async Task HoldingTheEditLeaseRendersEverySectionAndDefersNone()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.DoesNotContain("data-lazy=", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("section-placeholder", html, StringComparison.Ordinal);
+        Assert.Equal(CaseSectionKeys, HostOrder(html));
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+    }
+
+    /// <summary>
+    /// One form carries the sticky bar's Save: the Inspection section posts its
+    /// own form to the same handler, so the record never renders two elements
+    /// with the <c>case-edit-form</c> id.
+    /// </summary>
+    [Fact]
+    public async Task TheRecordRendersOneStickySaveTarget()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
+        Assert.Equal(1, Occurrences(html, "data-edit-save"));
+        Assert.Contains("id=\"case-inspection-address-form\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1272,23 +1403,57 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The label of the workspace section marked current. Scoped to the section
-    /// nav so the shell rail's own current link cannot answer for it.
+    /// The eleven Case sections in the order D30 fixes, from the frame's one
+    /// section list.
     /// </summary>
-    private static string CurrentSectionLabel(string html)
+    private static readonly string[] CaseSectionKeys =
+        [.. Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections
+            .Select(section => section.Key)];
+
+    /// <summary>The record's section hosts, in the order they render.</summary>
+    private static string[] HostOrder(string html) =>
+        [.. SectionHostRegex().Matches(html).Select(match => match.Groups[1].Value)];
+
+    /// <summary>The jump-nav's links, in the order they render.</summary>
+    private static string[] JumpLinkOrder(string html) =>
+        [.. JumpLinkRegex().Matches(JumpNav(html)).Select(match => match.Groups[1].Value)];
+
+    /// <summary>
+    /// The key of the jump-nav entry marked current. Scoped to the jump-nav so
+    /// the shell rail's own current link cannot answer for it.
+    /// </summary>
+    private static string CurrentSectionKey(string html)
     {
-        var start = html.IndexOf("class=\"case-section-nav\"", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The workspace section nav is not rendered.");
-        var end = html.IndexOf("</div>", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The section nav is not closed.");
-        var current = CurrentSectionRegex().Match(html[start..end]);
+        var current = CurrentSectionRegex().Match(JumpNav(html));
         Assert.True(current.Success, "No section is marked current.");
         return current.Groups[1].Value;
     }
 
+    private static string JumpNav(string html)
+    {
+        var start = html.IndexOf("class=\"section-nav\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The section jump-nav is not rendered.");
+        var end = html.IndexOf("</nav>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The jump-nav is not closed.");
+        return html[start..end];
+    }
+
+    private static int Occurrences(string html, string value) =>
+        html.Split(value, StringSplitOptions.None).Length - 1;
+
     [GeneratedRegex(
-        "aria-current=\"page\"[^>]*>.*?<span>([^<]*)</span>",
-        RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+        "<section class=\"case-section[^\"]*\" id=\"section-([a-z-]+)\"",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex SectionHostRegex();
+
+    [GeneratedRegex(
+        "data-section-link=\"([a-z-]+)\"",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex JumpLinkRegex();
+
+    [GeneratedRegex(
+        "data-section-link=\"([a-z-]+)\"\\s+aria-current=\"true\"",
+        RegexOptions.CultureInvariant)]
     private static partial Regex CurrentSectionRegex();
 
     private static string EditAuthorityNote(string html)
