@@ -2,12 +2,23 @@
 id: PLAT-073
 type: ticket
 title: Provision and document the Linux-native WSL toolchain
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-root
 profile: chore
 stageEntered:
   preparing: '2026-09-04T15:11:36.637Z'
+taken_at: '2026-09-04T15:15:10.556Z'
+branch: PLAT-073-wsl-toolchain
+worktree: .worktrees/plat-073
+claim_expires_at: '2026-09-04T15:45:10.556Z'
+claim_controller: codex-root
+lease_id: b367fe67-fd5d-4e8e-9918-740ddd0d9974
+lease_revision: 1
+lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/plat-073'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T15:15:10.556Z'
 labels:
   - wsl
   - linux
@@ -20,7 +31,7 @@ blocks:
   - UIIMP-016
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T15:11:36.637Z'
+updated: '2026-09-04T15:15:10.556Z'
 ---
 
 ## What
