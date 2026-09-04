@@ -1369,6 +1369,24 @@ public static class OperatorLabels
     /// </summary>
     public static class CaseWorkspace
     {
+        // CASE-039: Engineer notes
+        public const string EngineerNotesSectionTitle = "Engineer notes";
+        public const string AddEngineerNote = "Add note";
+        public const string AddEngineerNoteTitle = "Add Engineer note";
+        public const string EngineerNoteField = "Note";
+        public const string EngineerNoteAdded = "The Engineer note was added.";
+
+        public static string EngineerNoteCount(int count) =>
+            count == 1 ? "1 note" : $"{count} notes";
+        // end CASE-039
+
+        // CASE-009: read-only query correspondence table.
+        public const string Received = "Received";
+        public const string Sender = "Sender";
+        public const string Subject = "Subject";
+        public const string Classification = "Classification";
+        public const string OpenMessage = "Open message";
+
         public const string VehicleFactsPanel = "Vehicle";
         public const string VehicleChecksPanel = "Vehicle checks";
         public const string RefreshDvla = "Refresh DVLA";
@@ -1431,7 +1449,7 @@ public static class OperatorLabels
         public static readonly IReadOnlyList<CaseSection> Sections =
         [
             new("overview", "Overview", "icon-layout-dashboard"),
-            new("engineer-notes", "Engineer notes", "icon-pencil"),
+            new("engineer-notes", EngineerNotesSectionTitle, "icon-pencil"),
             new("inspection", "Inspection", "icon-map-pin"),
             new("vehicle", "Vehicle", "icon-car"),
             new("damage", "Damage", "icon-alert-triangle"),
