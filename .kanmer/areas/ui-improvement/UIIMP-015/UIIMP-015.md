@@ -2,13 +2,14 @@
 id: UIIMP-015
 type: ticket
 title: 'Scoped Test UI snapshot capture: regenerate only the routes a lane changed'
-status: review
+status: verifying
 area: ui-improvement
 assignee: wf-build/uiimp-015
 profile: chore
 stageEntered:
   preparing: '2026-09-04T10:13:58.674Z'
   review: '2026-09-04T11:50:44.625Z'
+  verifying: '2026-09-04T13:06:55.403Z'
 taken_at: '2026-09-04T10:46:14.440Z'
 branch: task/uiimp-015-scoped-test-ui-capture
 worktree: .worktrees/uiimp-015
@@ -34,7 +35,7 @@ prs:
   - '658'
 archived: false
 created: '2026-09-04T09:53:04.117Z'
-updated: '2026-09-04T11:50:44.625Z'
+updated: '2026-09-04T13:06:55.403Z'
 ---
 
 ## What
