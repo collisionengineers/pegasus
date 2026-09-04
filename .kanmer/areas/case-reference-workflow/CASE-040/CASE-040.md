@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Sign-off Engineer on the Case with the default rule, ribbon field and Send to
   EVA dialog (re-send from With Engineer)
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: wf-build/case-040
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:11:20.520Z'
+  review: '2026-09-04T20:27:33.931Z'
 taken_at: '2026-09-04T18:42:59.177Z'
 branch: task/case-040-sign-off-engineer-eva
 worktree: .worktrees/case-040
@@ -36,9 +37,11 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
   - docs/frd/frd-04-parties-accounts-and-access.md
+prs:
+  - '666'
 archived: false
 created: '2026-09-02T20:31:38.755Z'
-updated: '2026-09-04T18:42:59.177Z'
+updated: '2026-09-04T20:27:33.931Z'
 ---
 
 ## What
