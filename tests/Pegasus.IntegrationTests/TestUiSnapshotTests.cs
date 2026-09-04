@@ -220,14 +220,7 @@ public sealed partial class TestUiSnapshotTests
                 .States.FirstOrDefault(state => state.State == "default")?.File;
             if (target is null)
             {
-                // A route with no visual catalogue entry has no offline page
-                // to link to. Everywhere else that is exactly the dead link
-                // "#" it always was; an <img src>, though, must still resolve
-                // to something the offline verify browser can load, so it
-                // gets the inline placeholder pixel instead.
-                return attribute.Equals("src", StringComparison.OrdinalIgnoreCase) && IsImageTagAttribute(html, match.Index)
-                    ? $"{attribute}=\"{PlaceholderImageDataUrl}\""
-                    : $"{attribute}=\"#\"";
+                return $"{attribute}=\"#\"";
             }
             var currentDirectory = Path.GetDirectoryName(outputFile)?.Replace('\\', '/') ?? string.Empty;
             var relative = Path.GetRelativePath(currentDirectory, target).Replace('\\', '/');
@@ -265,21 +258,6 @@ public sealed partial class TestUiSnapshotTests
         return "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Pegasus Test UI</title><link rel=\"stylesheet\" href=\"../../../src/Pegasus.Web/wwwroot/css/site.css\"></head><body><main class=\"app-shell\"><header class=\"page-header\"><p class=\"eyebrow\">Razor-rendered snapshots</p><h1>Pegasus Test UI</h1></header><section aria-labelledby=\"visual-pages\"><h2 id=\"visual-pages\" class=\"section-label\">Visual routes</h2><ul class=\"link-list\">"
             + visual + "</ul></section><section aria-labelledby=\"nonvisual\"><h2 id=\"nonvisual\" class=\"section-label\">Non-visual routes</h2><div class=\"table-wrap\"><table><thead><tr><th>Route</th><th>Classification</th><th>Reason</th></tr></thead><tbody>"
             + nonvisual + "</tbody></table></div></section></main></body></html>\n";
-    }
-
-    // A single transparent pixel: the fallback for an <img src> whose route
-    // carries no visual catalogue entry, so the offline verify browser has
-    // something to decode instead of the dead "#" every other rewritten URL
-    // gets.
-    private const string PlaceholderImageDataUrl =
-        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-
-    private static bool IsImageTagAttribute(string html, int matchIndex)
-    {
-        var tagStart = html.LastIndexOf('<', matchIndex);
-        return tagStart >= 0
-            && html.AsSpan(tagStart).StartsWith("<img", StringComparison.OrdinalIgnoreCase)
-            && (tagStart + 4 >= html.Length || !char.IsLetter(html[tagStart + 4]));
     }
 
     private static string AssetPath(string attributeValue) =>
