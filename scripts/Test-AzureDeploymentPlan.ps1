@@ -27,6 +27,7 @@ $platformBicepPath = Join-Path $repositoryRoot 'infra/modules/platform.bicep'
 $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
+$releaseArtifactPath = Join-Path $repositoryRoot 'scripts/Build-ReleaseArtifacts.ps1'
 $expectedWorkerSettings = @(
     'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
     'AzureWebJobs.UnifiedWorkFunction.Disabled',
@@ -102,8 +103,8 @@ function Test-ArtifactManifest {
 
     $resolvedManifest = Resolve-Path -LiteralPath $Path
     $manifest = Get-Content -LiteralPath $resolvedManifest -Raw | ConvertFrom-Json
-    if ($manifest.schemaVersion -ne 2) {
-        throw 'The release manifest schemaVersion must be 2.'
+    if ($manifest.schemaVersion -ne 3) {
+        throw 'The release manifest schemaVersion must be 3.'
     }
     if ($manifest.sourceRevision -notmatch '^[0-9a-f]{40}$') {
         throw 'The release manifest sourceRevision must be an exact Git SHA.'
@@ -116,14 +117,11 @@ function Test-ArtifactManifest {
     }
 
     $manifestDirectory = Split-Path -Parent $resolvedManifest
-    # The migration bundle name follows the release terminal's runtime
-    # identifier, so read it from the manifest rather than assuming a platform.
-    # Manifests written before that field existed always carried the win-x64 bundle.
-    $migrationBundleName = 'efbundle.exe'
-    if ($manifest.PSObject.Properties.Name -contains 'migrationBundleName' -and
-        -not [string]::IsNullOrWhiteSpace($manifest.migrationBundleName)) {
-        $migrationBundleName = [string]$manifest.migrationBundleName
+    if ($manifest.migrationRuntimeIdentifier -ne 'linux-x64' -or
+        $manifest.migrationBundleName -ne 'efbundle') {
+        throw 'The release manifest must carry the Linux x64 efbundle.'
     }
+    $migrationBundleName = 'efbundle'
     $requiredNames = @('web.zip', 'web-image.tar.gz', 'worker.zip', $migrationBundleName)
     foreach ($name in $requiredNames) {
         $entry = @($manifest.artifacts | Where-Object name -eq $name)
@@ -170,7 +168,15 @@ $platformBicep = Get-Content -LiteralPath $platformBicepPath -Raw
 $parameters = Get-Content -LiteralPath $parametersPath -Raw
 $azureYaml = Get-Content -LiteralPath $azureYamlPath -Raw
 $productionSmoke = Get-Content -LiteralPath $productionSmokePath -Raw
+$releaseArtifactScript = Get-Content -LiteralPath $releaseArtifactPath -Raw
 $combined = "$mainBicep`n$platformBicep`n$parameters`n$azureYaml"
+
+Assert-Text $releaseArtifactScript "Get-PegasusPlatform[\s\S]*?IsLinux" 'Release artifact construction must require the Linux platform helper.'
+Assert-Text $releaseArtifactScript "OSArchitecture[\s\S]*?Architecture\]::X64" 'Release artifact construction must require x64.'
+Assert-Text $releaseArtifactScript "migrationRuntimeIdentifier\s*=\s*'linux-x64'" 'Release artifact construction must fix the migration runtime to linux-x64.'
+Assert-Text $releaseArtifactScript "migrationBundleName\s*=\s*'efbundle'" 'Release artifact construction must fix the migration bundle name to efbundle.'
+Assert-Text $releaseArtifactScript 'schemaVersion\s*=\s*3' 'Release artifact construction must emit manifest schema 3.'
+Assert-TextAbsent $releaseArtifactScript 'win-x64|efbundle\.exe' 'The active release artifact route must not retain a Windows bundle path.'
 
 Assert-Text $mainBicep "@allowed\(\[\s*'prod'\s*\]\)" 'infra/main.bicep must accept production only.'
 Assert-Text $mainBicep "deploymentMode\s*==\s*'approved-live-deployment'" 'Bicep must fail closed unless approved-live-deployment is supplied.'
