@@ -250,3 +250,74 @@ against each finding rather than redone. (2) `origin/dev` moved a second time
 mid-round (PLAT-068); the coordinator flagged it and the migration was
 regenerated again on the new tail. No other lane reported moving `dev` after
 that.
+
+## CI fix round (2026-09-04)
+
+CI run 33818731230, lane `sql-integration (2)`, failed
+`MarketResearchCompletionCompensatesAFailedContentWriteByRemovingTheOrphan`
+with `Assert.Throws() Failure: No exception was thrown` — the R5
+compensation test had never actually run before CI (the integration suite
+is CI-only here).
+
+**Root cause.** `ThrowingCommandInterceptor` overrode
+`NonQueryExecuting`/`NonQueryExecutingAsync`, but EF Core 10's SQL Server
+provider executes a batched `SaveChangesAsync` via `ExecuteReaderAsync`
+(it reads back an affected-row count/`OUTPUT` per statement for
+concurrency checking), not `ExecuteNonQueryAsync` — even for plain
+inserts with no store-generated values. Confirmed this empirically with a
+temporary diagnostic build against real LocalDB: the whole SaveChanges
+call for `CompleteMarketResearchAiJob` is one batched command (containing
+the `ActionHistory`, `AiJobs`, `CaseDocuments`, `CaseHistory`,
+`CaseValuations`, `CaseWorkflowEvents`, `CaseWorkflows`,
+`DocumentVersions`, `DocumentOccurrences` statements together), executed
+through `ReaderExecutingAsync`. `NonQueryExecuting(Async)` was simply
+never called, so the interceptor never fired and no exception was thrown.
+
+**Fix.** Reused the existing `ReaderCommandCounter` convention already in
+this file (it hooks `ReaderExecutingAsync` for the same reason). Replaced
+the dead `NonQueryExecuting`/`NonQueryExecutingAsync` overrides with a
+single `ReaderExecutingAsync` override, gated on
+`eventData.CommandSource == CommandSource.SaveChanges` in addition to the
+existing command-text match. The `CommandSource` gate was needed because
+the interceptor stays registered on the shared `PooledDbContextFactory`
+for the rest of the test — without it, the test's own post-failure LINQ
+verification queries against `CaseValuations` (e.g.
+`context.CaseValuations.CountAsync(...)`) also match the command-text
+predicate and get incorrectly failed too (`CommandSource.LinqQuery`,
+found and fixed via a second real LocalDB run).
+
+EF Core also wraps a SaveChanges-time provider/interceptor failure in
+`DbUpdateException`, with the injected `InvalidOperationException` as its
+`InnerException` — this is standard EF behaviour, not something the
+production code does. Updated the assertion accordingly: it now expects
+`DbUpdateException` and asserts the wrapped `InnerException` is the exact
+injected `InvalidOperationException` (by type and message), which keeps
+the test pinned to the specific injected failure rather than loosening it
+to "any exception." The underlying claim under test — a failed content
+write leaves no orphan — is unchanged and still fully asserted
+(`InterceptedCount >= 1`, `content.StoreCount == 1`,
+`content.DeleteCount == 1`, zero `CaseValuations`/`DocumentOccurrence`
+rows, unchanged `AiJobs` state/version).
+
+Also merged `origin/dev` (had advanced by two commits, both scoped to
+`.github/workflows/ci.yml` for DELIV-043 — no conflicts, no new
+migrations, so `MarketResearchAiJob` still sorts last in
+`IntakePersistenceIntegrationTests.cs`'s applied-migrations list; no
+regeneration needed).
+
+All other tests added in the R5 review round (the expired-lease
+compensation test and the rest of `AssessmentPersistenceIntegrationTests`
+filtered by `MarketResearchCompletion`) were run and confirmed passing —
+10/10.
+
+**Verification (real LocalDB, not CI):**
+- `dotnet restore ./Pegasus.slnx --locked-mode` — exit 0
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0
+- `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` — exit 0 (1219/1219 passed)
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~MarketResearchCompletion"` — exit 0 (10/10 passed), including the previously-failing compensation test, run for real against SQL LocalDB
+- `./scripts/Test-MigrationGrants.ps1` — exit 0 (91 migration files checked, every created table granted or exempted)
+
+New head SHA: `55d59cd80` (merge commit; fix commit `a55d727e2` on top of
+`582796b04`, merged with `origin/dev` at `f479a9484`). Pushed to
+`task/auto-018-market-research-job`. PR #654 not merged; ticket stage
+unchanged.
