@@ -136,6 +136,39 @@ public sealed class AutomationAiJobIngressTests
     }
 
     [Fact]
+    public async Task MarketResearchCompletionEnforcesTheJobsScope()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
+
+        using var response = await PostMcpAsync(
+            client,
+            casesOnlyToken,
+            MarketResearchCompletionPayload(
+                2,
+                Guid.NewGuid(),
+                0,
+                Guid.NewGuid(),
+                0,
+                "not-a-lease",
+                "mcp:market-research-scope-denied"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await ReadJsonRpcAsync(response);
+        Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+        Assert.Contains(JobsScope, document.RootElement.ToString(), StringComparison.Ordinal);
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_scope_denied'
+              AND Outcome = N'Denied'
+              AND SubjectId = N'pegasus-automation'
+            """));
+    }
+
+    [Fact]
     public async Task AClientCreatesListsTakesProgressesAndCompletesAQueuePassOverHttp()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
@@ -375,4 +408,327 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal("Queued", await factory.Database.ScalarAsync<string>(
             $"SELECT State FROM AiJobs WHERE JobId = '{queued:D}'"));
     }
+
+    [Fact]
+    public async Task MarketResearchCompletesOverHttpWithCaseLeaseDocumentValuationAndActorHistory()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    "market-research-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, "market-research-take"),
+                CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 20);
+        var arguments = new
+        {
+            jobId = taken.JobId,
+            expectedJobVersion = taken.Version,
+            caseId,
+            expectedCaseVersion = lease.CaseVersion,
+            editLeaseToken = lease.LeaseToken,
+            operationKey = "mcp:market-research-complete",
+            fileName = "market-research.pdf",
+            mediaType = "application/pdf",
+            contentBase64 = Convert.ToBase64String(new byte[] { 1, 2, 3 }),
+            recordedDate = "2031-05-06",
+            recordedTime = "10:30",
+            mileage = 42000,
+            retailValue = 12000m,
+            tradeValue = 10000m
+        };
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(21, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.Equal("DraftReady", result.GetProperty("job").GetProperty("state").GetString());
+            Assert.False(result.GetProperty("isReplay").GetBoolean());
+        }
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(22, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.True(result.GetProperty("isReplay").GetBoolean());
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_draft_ready' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
+    }
+
+    [Fact]
+    public async Task MarketResearchCompletionSucceedsWhileAutomationIsSwitchedOff()
+    {
+        // Finishing a claimed job is never blocked by the Administrator
+        // switch (only new claims and progress are), matching
+        // TheAdministratorSwitchRefusesClaimsAndProgressButNotFinishing.
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    "market-research-switch-off-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, "market-research-switch-off-take"),
+                CancellationToken.None);
+            await services.GetRequiredService<ISendToAiControl>().SetEnabledAsync(
+                false, Staff, "Integration-test stop", "market-research-switch-off-stop", CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 26);
+        var arguments = new
+        {
+            jobId = taken.JobId,
+            expectedJobVersion = taken.Version,
+            caseId,
+            expectedCaseVersion = lease.CaseVersion,
+            editLeaseToken = lease.LeaseToken,
+            operationKey = "mcp:market-research-switch-off-complete",
+            fileName = "market-research.pdf",
+            mediaType = "application/pdf",
+            contentBase64 = Convert.ToBase64String(new byte[] { 1, 2, 3 }),
+            recordedDate = "2031-05-06",
+            recordedTime = "10:30",
+            mileage = 42000,
+            retailValue = 12000m,
+            tradeValue = 10000m
+        };
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(27, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.Equal("DraftReady", result.GetProperty("job").GetProperty("state").GetString());
+            Assert.False(result.GetProperty("isReplay").GetBoolean());
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+    }
+
+    [Fact]
+    public async Task MarketResearchCompletionReplaySurvivesStaffConfirmation()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    "market-research-confirmed-replay-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, "market-research-confirmed-replay-take"),
+                CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 23);
+        var arguments = new
+        {
+            jobId = taken.JobId,
+            expectedJobVersion = taken.Version,
+            caseId,
+            expectedCaseVersion = lease.CaseVersion,
+            editLeaseToken = lease.LeaseToken,
+            operationKey = "mcp:market-research-confirmed-replay-complete",
+            fileName = "market-research.pdf",
+            mediaType = "application/pdf",
+            contentBase64 = Convert.ToBase64String(new byte[] { 1, 2, 3 }),
+            recordedDate = "2031-05-06",
+            recordedTime = "10:30",
+            mileage = 42000,
+            retailValue = 12000m,
+            tradeValue = 10000m
+        };
+
+        Guid occurrenceId;
+        Guid versionId;
+        Guid valuationId;
+        long draftReadyVersion;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(24, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.False(result.GetProperty("isReplay").GetBoolean());
+            occurrenceId = result.GetProperty("documentOccurrenceId").GetGuid();
+            versionId = result.GetProperty("documentVersionId").GetGuid();
+            valuationId = result.GetProperty("valuationId").GetGuid();
+            draftReadyVersion = result.GetProperty("job").GetProperty("version").GetInt64();
+        }
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IConfirmAiJob>().ExecuteAsync(
+                new(taken.JobId, draftReadyVersion, Staff, "market-research-confirm"),
+                CancellationToken.None);
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(25, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.True(result.GetProperty("isReplay").GetBoolean());
+            Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
+            Assert.Equal(occurrenceId, result.GetProperty("documentOccurrenceId").GetGuid());
+            Assert.Equal(versionId, result.GetProperty("documentVersionId").GetGuid());
+            Assert.Equal(valuationId, result.GetProperty("valuationId").GetGuid());
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+    }
+
+    [Fact]
+    public async Task MarketResearchCompletionRefusesAMissingCaseLeaseWithoutChangingTheJob()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    "market-research-missing-lease-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, "market-research-missing-lease-take"),
+                CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
+        using var response = await PostMcpAsync(
+            client,
+            token,
+            MarketResearchCompletionPayload(
+                23,
+                taken.JobId,
+                taken.Version,
+                caseId,
+                0,
+                "not-a-lease",
+                "mcp:market-research-missing-lease"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await ReadJsonRpcAsync(response);
+        Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+        Assert.Contains(
+            "no active edit authority",
+            document.RootElement.ToString(),
+            StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal("Taken", await factory.Database.ScalarAsync<string>(
+            $"SELECT State FROM AiJobs WHERE JobId = '{taken.JobId:D}'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+    }
+
+    private static string MarketResearchCompletionPayload(
+        int id,
+        Guid jobId,
+        long expectedJobVersion,
+        Guid caseId,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string operationKey) =>
+        ToolCallPayload(
+            id,
+            "pegasus_ai_job_complete_market_research",
+            new
+            {
+                jobId,
+                expectedJobVersion,
+                caseId,
+                expectedCaseVersion,
+                editLeaseToken,
+                operationKey,
+                fileName = "market-research.pdf",
+                mediaType = "application/pdf",
+                contentBase64 = Convert.ToBase64String(new byte[] { 1, 2, 3 }),
+                recordedDate = "2031-05-06",
+                recordedTime = "10:30",
+                mileage = 42000,
+                retailValue = 12000m,
+                tradeValue = 10000m
+            });
 }

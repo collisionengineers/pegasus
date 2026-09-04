@@ -472,6 +472,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICaseDocumentStateQueries>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
+            services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
         }
         if (composesDocumentSurface
             && requestUploadLimitsFactory is not null)

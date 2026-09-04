@@ -23,7 +23,8 @@ public sealed class ValuationTests
             source => Assert.True(ValuationSources.IsSupported(source)));
         Assert.False(ValuationSources.IsSupported((ValuationSource)99));
         Assert.Equal(
-            [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue],
+            [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue,
+                ValuationSource.AiMarketResearch],
             Enum.GetValues<ValuationSource>());
     }
 
@@ -77,6 +78,7 @@ public sealed class ValuationTests
                 Details(source: ValuationSource.EngineersValue, retail: 12345.67m)));
         Assert.Null(ValuationPolicy.EngineersValueField(Details(source: ValuationSource.Glasses)));
         Assert.Null(ValuationPolicy.EngineersValueField(Details(source: ValuationSource.Cazana)));
+        Assert.Null(ValuationPolicy.EngineersValueField(Details(source: ValuationSource.AiMarketResearch)));
         Assert.Equal(
             "12000.00",
             AssessmentPolicy.NormalizeFieldValue(AssessmentVocabulary.ValueEngineer, "12000"));
@@ -152,19 +154,12 @@ public sealed class ValuationTests
                     Guid.NewGuid(),
                     Details(source: ValuationSource.EngineersValue)),
                 CancellationToken.None));
-        // PerformCasework is the Automation Actor's right too (ADR-0011), so a
-        // market source is open to it; the confirmed professional finding is
-        // not, and neither is any actor without that right.
-        var automation = await save.ExecuteAsync(
-            SaveRequest(ActionActor.Automation("pegasus-automation"), "valuation-automation"),
-            CancellationToken.None);
-        Assert.Equal(ValuationSource.Glasses, automation.Details.Source);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             save.ExecuteAsync(
                 SaveRequest(
                     ActionActor.Automation("pegasus-automation"),
-                    "valuation-automation-engineers",
-                    ValuationSource.EngineersValue),
+                    "valuation-automation",
+                    ValuationSource.AiMarketResearch),
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             save.ExecuteAsync(
@@ -175,6 +170,15 @@ public sealed class ValuationTests
             SaveRequest(Engineer, "valuation-engineer", ValuationSource.EngineersValue),
             CancellationToken.None);
         Assert.Equal(ValuationSource.EngineersValue, engineers.Details.Source);
+    }
+
+    [Fact]
+    public void AutomationCompletionAdmitsOnlyAiMarketResearch()
+    {
+        var details = Details(source: ValuationSource.AiMarketResearch);
+        Assert.Equal(details, ValuationPolicy.ValidateAutomationMarketResearch(details));
+        Assert.Throws<InvalidOperationException>(() =>
+            ValuationPolicy.ValidateAutomationMarketResearch(Details(ValuationSource.Glasses)));
     }
 
     [Fact]

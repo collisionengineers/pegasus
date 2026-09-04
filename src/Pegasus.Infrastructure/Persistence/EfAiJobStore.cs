@@ -22,7 +22,7 @@ public sealed class EfAiJobStore(
     TimeProvider timeProvider) : IAiJobStore, IAiJobQueries
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private const string AggregateType = "ai_job";
+    internal const string AggregateType = "ai_job";
 
     public async Task<AiJobRecord> CreateAsync(NewAiJob job, CancellationToken cancellationToken)
     {
@@ -299,7 +299,7 @@ public sealed class EfAiJobStore(
                 || item.State == nameof(AiJobState.Taken)
                 || item.State == nameof(AiJobState.DraftReady));
 
-    private static void AddHistory(
+    internal static void AddHistory(
         PegasusDbContext context,
         AiJobEntity entity,
         string eventKind,

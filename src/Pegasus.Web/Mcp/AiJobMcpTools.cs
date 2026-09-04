@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.AiWork;
@@ -31,6 +32,13 @@ internal sealed record AiJobToolList(
     IReadOnlyList<AiJobToolItem> Jobs,
     string CorrelationId);
 
+internal sealed record MarketResearchCompletionToolResult(
+    AiJobToolItem Job,
+    Guid DocumentOccurrenceId,
+    Guid DocumentVersionId,
+    Guid ValuationId,
+    bool IsReplay);
+
 /// <summary>
 /// The AI job ledger tools (ADR-0035, FRD-10 § AI job and estimate tools):
 /// the pull side of the ledger for an external AI client. Every tool
@@ -43,6 +51,7 @@ internal sealed class AiJobMcpTools(
     IAiJobQueries queries,
     ICreateAiJob create,
     IWorkAiJob work,
+    ICompleteMarketResearchAiJob completeMarketResearch,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -56,7 +65,7 @@ internal sealed class AiJobMcpTools(
         UseStructuredContent = true)]
     [Description("Lists every queued AI job and the jobs this client currently holds, oldest first. A Taken job whose lease has lapsed is listed as Queued.")]
     public async Task<AiJobToolList> ListAsync(
-        [Description("Optional exact kind: Estimate, UnidentifiedResolution, QueryResponse or UnidentifiedQueuePass.")] string? kind = null,
+        [Description("Optional exact kind: Estimate, UnidentifiedResolution, QueryResponse, UnidentifiedQueuePass or MarketResearch.")] string? kind = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
@@ -193,7 +202,7 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Marks this client's job Draft ready, naming the draft or proposal it produced: an estimate reference, a proposed Unidentified destination with its reason, or draft reply text. Nothing is applied to the record; staff confirm through the record's own action.")]
+    [Description("Marks this client's non-MarketResearch job Draft ready, naming the draft or proposal it produced: an estimate reference, a proposed Unidentified destination with its reason, or draft reply text. MarketResearch uses pegasus_ai_job_complete_market_research. Nothing is applied to the record; staff confirm through the record's own action.")]
     public async Task<AiJobToolItem> CompleteAsync(
         Guid jobId,
         long expectedVersion,
@@ -226,6 +235,72 @@ internal sealed class AiJobMcpTools(
                         key,
                         new(parsed, resultReference, resultText)),
                     cancellationToken));
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_ai_job_complete_market_research",
+        Title = "Complete market research AI job",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Completes this client's MarketResearch job as Draft ready with one retained findings document and one AI market research valuation. Requires automation.jobs; first claim case edit authority with pegasus_case_edit_begin under automation.cases and present that lease here. Nothing is accepted automatically.")]
+    public async Task<MarketResearchCompletionToolResult> CompleteMarketResearchAsync(
+        Guid jobId,
+        long expectedJobVersion,
+        Guid caseId,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string operationKey,
+        [Description("Leaf name for the findings document, at most 255 characters.")] string fileName,
+        [Description("Media type for the findings document, at most 200 characters.")] string mediaType,
+        [Description("Base64 findings document, at most 10 MiB after decoding.")] string contentBase64,
+        [Description("Valuation date, yyyy-MM-dd.")] string recordedDate,
+        [Description("Valuation time, HH:mm or HH:mm:ss.")] string recordedTime,
+        long mileage,
+        decimal retailValue,
+        decimal tradeValue,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_ai_job_complete_market_research",
+            jobId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var completion = await completeMarketResearch.ExecuteAsync(
+                    new(
+                        RequireJobId(jobId),
+                        expectedJobVersion,
+                        AutomationMcpErrors.RequireId(caseId, "case identifier"),
+                        expectedCaseVersion,
+                        editLeaseToken,
+                        context.Actor,
+                        key,
+                        AutomationMcpErrors.RequireFileName(fileName),
+                        AutomationMcpErrors.RequireMediaType(mediaType),
+                        AutomationMcpErrors.DecodeContent(
+                            contentBase64,
+                            AutomationMcpErrors.MaximumDocumentBytes,
+                            "Findings document content"),
+                        ParseDate(recordedDate),
+                        ParseTime(recordedTime),
+                        mileage,
+                        retailValue,
+                        tradeValue),
+                    cancellationToken);
+                return new MarketResearchCompletionToolResult(
+                    Map(completion.Job),
+                    completion.Document.Occurrence.Id,
+                    completion.Document.Version.Id,
+                    completion.Valuation.ValuationId,
+                    completion.IsReplay);
             }),
             cancellationToken);
     }
@@ -296,6 +371,21 @@ internal sealed class AiJobMcpTools(
         Enum.TryParse<AiJobKind>(kind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
             ? parsed
             : throw new McpException("The AI job kind is not recognized.");
+
+    private static DateOnly ParseDate(string value) =>
+        DateOnly.TryParseExact(value?.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : throw new McpException("recordedDate must use yyyy-MM-dd.");
+
+    private static TimeOnly ParseTime(string value) =>
+        TimeOnly.TryParseExact(
+            value?.Trim(),
+            ["HH:mm", "HH:mm:ss"],
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed
+            : throw new McpException("recordedTime must use HH:mm or HH:mm:ss.");
 
     private static AiJobToolItem Map(AiJobRecord job) => new(
         job.JobId,
