@@ -275,7 +275,9 @@ public sealed record TriageSummary(
     Guid? AssigneeId,
     Guid? LinkedCaseId,
     DateTimeOffset CreatedAtUtc,
-    long Version);
+    long Version,
+    string? Reference,
+    string? Provider);
 
 public sealed record TriageDetail(
     TriageRecord Record,

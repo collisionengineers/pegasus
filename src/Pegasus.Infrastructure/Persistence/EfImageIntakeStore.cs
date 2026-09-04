@@ -851,7 +851,8 @@ public sealed class EfImageIntakeStore(
             Map(entity),
             entity.CreatedAtUtc,
             association?.CaseId,
-            association?.CaseReference);
+            association?.CaseReference,
+            ParseCustodyState(entity.CustodyState));
     }
 
     private static async Task<IReadOnlyList<ImageIntakeSummary>> ProjectAsync(
@@ -867,6 +868,7 @@ public sealed class EfImageIntakeStore(
                 intake.ImageIntakeReference,
                 intake.NormalizedVehicleRegistration,
                 intake.CreatedAtUtc,
+                intake.CustodyState,
                 intake.LifecycleState,
                 intake.ClosureReason,
                 Association = context.IntakeManualAssociations
@@ -914,6 +916,7 @@ public sealed class EfImageIntakeStore(
                         ? reference
                         : null,
                     row.CreatedAtUtc,
+                    ParseCustodyState(row.CustodyState),
                     ParseState(row.LifecycleState),
                     row.ClosureReason);
             })
@@ -960,6 +963,16 @@ public sealed class EfImageIntakeStore(
             : manualIsActive.Value
                 ? manualCaseId
                 : null;
+
+    private static ImageCustodyState? ParseCustodyState(string? state) => state switch
+    {
+        null => null,
+        ImageCustodyStates.Pending => ImageCustodyState.Pending,
+        ImageCustodyStates.Confirmed => ImageCustodyState.Confirmed,
+        ImageCustodyStates.Merged => ImageCustodyState.Merged,
+        ImageCustodyStates.Failed => ImageCustodyState.Failed,
+        _ => throw new InvalidOperationException($"Unknown image custody state '{state}'.")
+    };
 
     private static void EnsureRegisterReplay(ImageIntakeEntity entity, RegisterImageIntakeRequest request)
     {
