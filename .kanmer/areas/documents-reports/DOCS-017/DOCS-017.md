@@ -41,7 +41,7 @@ delivery_sha: 86ce276dcc78398bcfd2d6526cf27265d49afa7b
 delivery_recorded_at: '2026-09-03T21:30:56.519Z'
 archived: false
 created: '2026-09-02T11:20:50.869Z'
-updated: '2026-09-04T07:14:21.471Z'
+updated: '2026-09-04T07:14:50.720Z'
 ---
 
 ## What
@@ -63,3 +63,5 @@ Operator review of [[DELIV-040]] had withdrawn D18; the 2026-09-02 review reinst
 - [ ] An unflagged Engineer cannot be chosen as sign-off.
 
 ## Outcome
+
+Replaced the D18 fixed signatory tuple with a Core `ReportSignatory` contract read from the report projection (fail-closed until CASE-040/PLAT-068 supply the Case-sourced tuple), shipped in PR #651, merged to `dev` at `86ce276dcc78398bcfd2d6526cf27265d49afa7b`.

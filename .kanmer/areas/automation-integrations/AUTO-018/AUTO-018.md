@@ -33,7 +33,7 @@ delivery_sha: 80f0ca262b0fe2ca354a5dfb18933dc3f105b917
 delivery_recorded_at: '2026-09-04T06:14:29.639Z'
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-04T07:14:25.926Z'
+updated: '2026-09-04T07:15:03.668Z'
 ---
 
 ## What
@@ -57,3 +57,5 @@ D35; the operator asked for the button back. The research runs outside Pegasus, 
 - [ ] Stopping automation stops new claims.
 
 ## Outcome
+
+Added the MarketResearch AI job kind with a replay-safe Core completion contract, EF persistence transaction, and typed `automation.jobs` MCP tool (not yet activated end-to-end pending CASE-029's Valuation-section creation caller), shipped in PR #654, merged to `dev` at `80f0ca262b0fe2ca354a5dfb18933dc3f105b917`.

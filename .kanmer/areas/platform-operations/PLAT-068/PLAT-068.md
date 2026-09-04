@@ -41,7 +41,7 @@ delivery_sha: 3f0cb45edf5eef0e9cd592b7e7305aaea8e96c44
 delivery_recorded_at: '2026-09-03T23:36:18.976Z'
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-04T07:14:24.562Z'
+updated: '2026-09-04T07:15:00.058Z'
 ---
 
 ## What
@@ -62,3 +62,5 @@ D31; three signatures exist (Andy, Neil, Ed) and not every Engineer signs. Andy 
 - [ ] Renderer reads the sign-off tuple (DOCS-017).
 
 ## Outcome
+
+Added the Sign-off Engineer account setting (flag, printed name, qualifications, PNG signature, one Default sign-off Engineer designation) with the Core `SignOffEngineerProfile` seam for DOCS-017/CASE-040, shipped in PR #655, merged to `dev` at `3f0cb45edf5eef0e9cd592b7e7305aaea8e96c44`.
