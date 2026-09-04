@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Show auto-attached Query emails on Case Details and remove manual query
   creation
-status: implementing
+status: review
 area: case-reference-workflow
 order: 30
 assignee: wf-build/case-009
 profile: fix
 stageEntered:
   preparing: '2026-08-21T07:51:43.337Z'
+  review: '2026-09-04T20:15:44.686Z'
 taken_at: '2026-09-04T18:27:23.587Z'
 branch: task/case-009-case-queries-correspondence
 worktree: .worktrees/case-009
@@ -37,9 +38,11 @@ links:
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '665'
 archived: false
 created: '2026-08-21T07:51:29.215Z'
-updated: '2026-09-04T18:27:23.587Z'
+updated: '2026-09-04T20:15:44.686Z'
 ---
 
 ## Why
