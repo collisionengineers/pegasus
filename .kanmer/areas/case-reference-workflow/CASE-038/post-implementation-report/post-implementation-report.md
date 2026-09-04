@@ -506,3 +506,45 @@ declared reader) remain accepted with no change, per the review disposition.
 Committed as `fc5351e8b` (test fix) and `f3005ea66` (dev merge + snapshot
 regeneration), pushed to `task/case-038-case-workspace-frame`. PR #656 not
 merged by this pass.
+
+## Record correction (2026-09-04, review round 3 — controller)
+
+Head `f3005ea66`. The round-3 review found three statements above that the
+head contradicts. They are superseded here; the earlier text stands only as
+history.
+
+- **"Contracts handed on" → ENG-034.** The fragment URL is
+  `/Cases/{id}/Section?section=<key>` (one matching-only page selector in
+  `Program.cs`, `SuppressLinkGeneration = true`), not
+  `/Cases/{id}?handler=Section&section=<key>`; the latter no longer exists
+  anywhere in `src` or `tests`. Everything else in that entry (eleven hosts,
+  four heading-only shells, `DetailsModel` members, `AssessmentIsReadOnly`)
+  is current.
+- **"Contracts handed on" → CASE-041.** There is no
+  `case-inspection-address-form` any more: the round-1 finding-3 fix deleted
+  it (its only remaining mention is the absence assertion in
+  `CaseTasksWebTests.cs`). The Inspection section contributes one control,
+  `<input id="inspection-address" name="inspectionAddress" form="case-edit-form">`,
+  to the single record form; the record's one Save (`?handler=Save`) writes
+  it, and the CASE-007 dirty guard now resolves the owning form through the
+  control's `form` property (`edee9987f`). CASE-041's fast-update select and
+  address input must therefore render inside `_CaseInspectionAddress.cshtml`
+  as controls associated with `case-edit-form` via `form=`, with no form of
+  their own.
+- **Deviation 3** is stale for the same reason: there is no "Inspection
+  form" and nothing "both posts" `inspectionAddress`; the ordering test it
+  describes was replaced by
+  `InspectionAddressEditorContributesTheOnlyAddressEntryToTheRecordForm`
+  (round-1 finding 3) and the browser proof
+  `InspectionAddressOutsideEditFormIsGuardedAndSaved` (round 2).
+- **Snapshot evidence at this head** (supersedes the 41,040-byte figure
+  recorded for `b5f5ccda9`): after the `origin/dev` merge and scoped
+  regeneration in `f3005ea66`, `case-details--default.html` is 64,427 bytes
+  (doctype, one `case-sticky`, eleven `id="section-<key>"` hosts, zero
+  `<img src="#">`) and `index.html` is 12,562 bytes.
+
+CI at `f3005ea66`: run `33901021975` failed only its `test-ui` job on a
+Chromium navigation error (`net::ERR_NO_BUFFER_SPACE` in
+`BrowserTestSupport.GoToAsync`, 123 of 124 browser tests passed); the failed
+job was re-run by the controller at 17:56Z. The merge gate remains a green
+conclusion on this exact head.
