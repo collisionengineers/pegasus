@@ -6,7 +6,7 @@ Make the WSL host satisfy Pegasus Offline and Cloud static prerequisites from Li
 
 ## Starting state
 
-origin/dev is c90f2b8915186efd5bf932cec573846ae75ff1fe and contains origin/main. Evidence: `research/research.md`@`53d9fb4032408e93`, `files/files.md`@`7dac72ac000858ca`. Native PowerShell, Docker, GitHub CLI, Git and Python exist; the exact .NET and most Cloud tools do not. nvm contains Node 24 but resolves 26. Kanmer v0.4.1 runs outside the repo while get_status reports stale managed files.
+origin/dev is c90f2b8915186efd5bf932cec573846ae75ff1fe and contains origin/main. Evidence: `research/research.md`@`53d9fb4032408e93`, `files/files.md`@`2271bb3270b93319`. Native PowerShell, Docker, GitHub CLI, Git and Python exist; the exact .NET and most Cloud tools do not. nvm contains Node 24 but resolves 26. Kanmer v0.4.1 runs outside the repo while get_status reports stale managed files.
 
 ## Governing docs
 
@@ -25,6 +25,7 @@ Correct host Node selection; install exact prerequisite versions; acquire reposi
 | Managed reconciliation | .grok/skills/kanmer-*/** |
 | Managed reconciliation | .opencode/skills/kanmer-*/** |
 | Managed reconciliation | .gitignore |
+| Modify | tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs | Preserve diagnostic assertions across PowerShell line wrapping |
 | Modify | scripts/Test-MainBranchHistory.ps1 | Stable cross-platform rejection diagnostic |
 | Conditional correction | scripts/PegasusPlatform.ps1 |
 | Conditional correction | docs/runbook.md |
@@ -71,8 +72,8 @@ Reuse existing Doctor, platform and initialization owners. Use official signed r
 
 ### Step 3 — Reconcile Kanmer and guidance
 - Preconditions: Step 2 passes and the GUI board worktree is healthy.
-- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `scripts/Test-MainBranchHistory.ps1`, `docs/runbook.md`
-- Change: run kanmer-setup v0.4.1; change repair guidance only for an executed mismatch; emit the history guard failure through unformatted stderr so PowerShell 7.6 preserves its one-line diagnostic.
+- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `scripts/Test-MainBranchHistory.ps1`, `tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs`, `docs/runbook.md`
+- Change: run kanmer-setup v0.4.1; change repair guidance only for an executed mismatch; emit the history guard failure through unformatted stderr and normalize host-formatted whitespace before the existing Worker diagnostic assertions.
 - Preserved behaviour: user-owned AGENTS content and board branch/worktree remain intact.
 - Forbidden: direct board-branch mutation or speculative documentation.
 - Negative cases: managed delimiter conflict or out-of-scope generated diff stops.
@@ -84,7 +85,7 @@ Reuse existing Doctor, platform and initialization owners. Use official signed r
 
 ### Step 4 — Deliver for independent review
 - Preconditions: Steps 1–3 pass and simplification findings are dispositioned.
-- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `scripts/Test-MainBranchHistory.ps1`, `docs/runbook.md`
+- Files: `AGENTS.md`, `.agents/skills/kanmer-*/**`, `.grok/skills/kanmer-*/**`, `.opencode/skills/kanmer-*/**`, `.gitignore`, `scripts/PegasusPlatform.ps1`, `scripts/Test-MainBranchHistory.ps1`, `tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs`, `docs/runbook.md`
 - Change: commit, push, open the dev PR, report exact evidence and move to Review.
 - Preserved behaviour: no shared branch is updated except through reviewed PR.
 - Forbidden: self-review, self-merge or dependent-ticket work.
