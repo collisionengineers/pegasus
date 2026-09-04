@@ -517,7 +517,7 @@
         <div class="panel-body">
             <div class="definition-list">
                 <dl class="definition">
-                    <dt>Recorded value</dt>
+                    <dt>Inspect at</dt>
                     <dd>
                         1 Depot Road
                             <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
@@ -525,6 +525,10 @@
 </span>
 
                     </dd>
+                </dl>
+                <dl class="definition">
+                    <dt>Source</dt>
+                    <dd>Manual entry</dd>
                 </dl>
                     <dl class="definition">
                         <dt>Inspection</dt>
@@ -536,19 +540,37 @@
 
                         </dd>
                     </dl>
+                <dl class="definition">
+                    <dt>Storage location</dt>
+                    <dd>14 Storage Lane</dd>
+                </dl>
             </div>
         </div>
     </section>
 
         <section class="panel" aria-labelledby="case-inspection-address-edit-title">
             <div class="panel-head">
-                <h2 id="case-inspection-address-edit-title">Edit inspection address</h2>
+                <h2 id="case-inspection-address-edit-title">Inspection address</h2>
             </div>
             <div class="panel-body">
                 <div class="field">
+                    <label for="inspection-address-choice">Inspect at</label>
+                    <select id="inspection-address-choice" data-inspection-address-choice form="case-edit-form">
+                    </select>
+                </div>
+                <div class="field" data-inspection-address-field>
                     <label for="inspection-address">Inspection address</label>
                     <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
-                           maxlength="500" value="1 Depot Road" />
+                           maxlength="1000" value="1 Depot Road" data-inspection-address-input />
+                </div>
+                <div class="field" data-inspection-provider-default hidden>
+                    <span class="label">Provider default</span>
+                    <span class="value"></span>
+                </div>
+                <div class="field">
+                    <label for="storage-location">Storage location</label>
+                    <input id="storage-location" name="storageLocation" form="case-edit-form"
+                           maxlength="1000" value="14 Storage Lane" />
                 </div>
             </div>
         </section>
