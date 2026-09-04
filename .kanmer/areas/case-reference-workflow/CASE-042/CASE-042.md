@@ -20,12 +20,13 @@ links:
   - CASE-044
 blocks:
   - UIIMP-014
+  - CASE-045
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-03T10:54:49.132Z'
+updated: '2026-09-04T12:19:28.393Z'
 ---
 
 ## What

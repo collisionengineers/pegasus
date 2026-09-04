@@ -33,6 +33,7 @@ links:
 blocks:
   - CASE-025
   - CASE-042
+  - CASE-045
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
@@ -45,7 +46,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/659'
 archived: false
 created: '2026-08-29T13:04:56.182Z'
-updated: '2026-09-04T11:53:50.169Z'
+updated: '2026-09-04T12:19:29.729Z'
 ---
 
 ## What
