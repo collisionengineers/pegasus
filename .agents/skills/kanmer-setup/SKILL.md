@@ -254,7 +254,7 @@ registrations. Hosted Actions should mirror the same value in the repository
 variable, but Actions variables are not inherited by local processes.
 When a native runtime supervisor launches Kanmer through an operator-private
 wrapper, that wrapper must export both `KANMER_PROVIDER_CWD` and
-`KANMER_BOARD_BRANCH` before invoking the stable launcher. Native
+`KANMER_BOARD_BRANCH` before invoking the stable launcher.
 The GUI's OpenAI tunnel controls manage the same long-lived native runtime
 alias through `tunnel-client runtimes connect/status/stop/rm`. Application quit
 does not stop that runtime; readiness requires structured non-stale status, and
@@ -294,7 +294,7 @@ local removal must confirm the alias is stopped before deleting its metadata.
 
 **Conduct**
 
-22. **Review findings get dispositions.** Fix, reject with reason, accept risk, or defer to a ticket; never silence them.
+22. **Review findings get dispositions.** Fix, reject with reason, accept risk, defer to a ticket, or mark obsolete after change, naming the superseding commit; never silence them. Findings from one root cause are one class with one remedy, never one patch per example, and a convention change lands in the same PR as the work that needs it.
 23. **Secrets never appear in code, tickets, or proofs.**
 24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
 <!-- kanmer:instructions:end -->
