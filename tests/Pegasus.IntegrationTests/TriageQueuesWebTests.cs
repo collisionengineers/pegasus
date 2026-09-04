@@ -251,7 +251,10 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(reference, html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);
         Assert.Contains(provider, html, StringComparison.Ordinal);
-        Assert.Contains(DevelopmentOfflineIdentity.UserName, html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"{provider} · {DevelopmentOfflineIdentity.UserName}",
+            WebUtility.HtmlDecode(html),
+            StringComparison.Ordinal);
     }
 
     [Fact]
