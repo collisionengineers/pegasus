@@ -3,7 +3,7 @@ param(
     [switch]$Verify,
     [switch]$SkipCapture,
     [string]$Scope,
-    [string]$CaptureFilter = 'FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests'
+    [string]$CaptureFilter = 'FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests'
 )
 
 $ErrorActionPreference = 'Stop'

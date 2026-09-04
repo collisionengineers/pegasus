@@ -72,7 +72,7 @@ public sealed partial class TestUiSnapshotTests
         ValidateScope(manifest, scope);
         var candidates = await ReadCandidatesAsync(captureDirectory!);
         var assets = await ReadAssetsAsync(captureDirectory!);
-        var generated = Generate(manifest, candidates, assets, catalogueRoot, scope);
+        var generated = Generate(manifest, candidates, assets, scope);
 
         if (mode.Equals("update", StringComparison.OrdinalIgnoreCase))
         {
@@ -122,7 +122,6 @@ public sealed partial class TestUiSnapshotTests
         IReadOnlyList<CatalogueEntry> manifest,
         IReadOnlyList<CapturedResponse> candidates,
         IReadOnlyDictionary<string, string> assets,
-        string catalogueRoot,
         IReadOnlyList<string>? scope)
     {
         var output = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -318,8 +317,11 @@ public sealed partial class TestUiSnapshotTests
             .ToArray();
     }
 
+    private static bool MatchesScopePrefix(string file, string prefix) =>
+        file.StartsWith($"pages/{prefix}--", StringComparison.Ordinal);
+
     private static bool MatchesScope(string file, IReadOnlyList<string> scope) =>
-        scope.Any(prefix => file.StartsWith($"pages/{prefix}--", StringComparison.Ordinal));
+        scope.Any(prefix => MatchesScopePrefix(file, prefix));
 
     private static void ValidateScope(IReadOnlyList<CatalogueEntry> manifest, IReadOnlyList<string>? scope)
     {
@@ -333,7 +335,7 @@ public sealed partial class TestUiSnapshotTests
             .SelectMany(entry => entry.States)
             .Select(state => state.File)
             .ToArray();
-        var unmatched = scope.Where(prefix => !stateFiles.Any(file => MatchesScope(file, [prefix]))).ToArray();
+        var unmatched = scope.Where(prefix => !stateFiles.Any(file => MatchesScopePrefix(file, prefix))).ToArray();
         Assert.True(unmatched.Length == 0, "Test UI scope prefixes matched no catalogue state:\n- " + string.Join("\n- ", unmatched));
     }
 
