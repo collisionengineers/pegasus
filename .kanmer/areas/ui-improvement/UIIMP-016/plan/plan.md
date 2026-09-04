@@ -76,3 +76,8 @@ Stop if the change would remove required semantic/keyboard behavior, require a n
 ## Stop condition
 
 Stop with a docs-only PR open in Review. Do not self-review or merge, and do not start DELIV-047.
+
+## Simplification pass — 2026-09-04
+
+n/a — docs-only. Existing document owners were edited in place; no duplicate
+evidence mechanism, dependency, test, or implementation was added.
