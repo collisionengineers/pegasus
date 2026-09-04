@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -17,8 +18,10 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
+using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -1163,7 +1166,7 @@ public sealed class CustodyOutboxIntegrationTests
     /// is what the operator asked for and what never worked.
     /// </summary>
     [Fact]
-    public async Task ExportingACaseProducesTheEvaFormatArchive()
+    public async Task EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange()
     {
         using var factory = new IntakeWebApplicationFactory();
         var host = factory;
@@ -1248,6 +1251,60 @@ public sealed class CustodyOutboxIntegrationTests
         }
 
         var exporter = services.GetRequiredService<IExportCaseBundle>();
+        await using (var principalSettings = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var principal = await principalSettings.Principals.SingleAsync(
+                item => item.Code == QdosPrincipal.Code);
+            principal.EvaManualSubmission = true;
+            await principalSettings.SaveChangesAsync();
+        }
+        var evaTransport = new RecordingEvaTransport();
+        var submitter = new EvaSubmissionStore(
+            services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            services.GetRequiredService<ICaseDataQueries>(),
+            services.GetRequiredService<IVehicleEvidenceQueries>(),
+            services.GetRequiredService<IEvaSubmissionModeStore>(),
+            services.GetRequiredService<EvaCaseImageReader>(),
+            evaTransport,
+            new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
+            services.GetRequiredService<TimeProvider>());
+        var beforeSignOffRefusal = await services
+            .GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None);
+        await Assert.ThrowsAsync<EvaSignOffEngineerRequiredException>(() => exporter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                "66666666666666666666666666666666"),
+            CancellationToken.None));
+        var afterSignOffRefusal = await services
+            .GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None);
+        Assert.Equal(beforeSignOffRefusal, afterSignOffRefusal);
+        await Assert.ThrowsAsync<EvaSignOffEngineerRequiredException>(() => submitter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                "77777777777777777777777777777777",
+                EvaSubmissionTrigger.Manual),
+            CancellationToken.None));
+        Assert.Equal(0, evaTransport.CallCount);
+        Assert.Equal(
+            beforeSignOffRefusal,
+            await services.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(outcome.Identity.CaseId, CancellationToken.None));
+        await using (var refusalCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            Assert.Empty(await refusalCheck.EvaSubmissions
+                .Where(item => item.CaseId == outcome.Identity.CaseId)
+                .ToListAsync());
+        }
+        await ConfigureDefaultSignOffEngineerAsync(services);
+
         const string demotionRaceKey = "55555555555555555555555555555555";
         await using (var lockContext = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
@@ -1274,7 +1331,7 @@ public sealed class CustodyOutboxIntegrationTests
             await lockContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            await Assert.ThrowsAsync<CaseNotInReviewException>(() => racedExport);
+            await Assert.ThrowsAsync<EvaHandoffStateException>(() => racedExport);
         }
         await using (var rejectedCheck = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
@@ -1295,11 +1352,17 @@ public sealed class CustodyOutboxIntegrationTests
 
         var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         const string firstOperationKey = "11111111111111111111111111111111";
+        var firstSendVersion = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!.Version;
         var export = await exporter.ExecuteAsync(
             new(outcome.Identity.CaseId, firstActor, firstOperationKey),
             CancellationToken.None);
 
         Assert.NotNull(export);
+        var afterFirstSend = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
+        Assert.Equal(CaseLifecycleState.ReportPreparation, afterFirstSend.State);
+        Assert.Equal(firstSendVersion + 1, afterFirstSend.Version);
         Assert.Empty(export!.BlockingReasons);
         var bundle = Assert.IsType<EvaBundle>(export.Bundle);
         var reference = outcome.Identity.Reference;
@@ -1371,8 +1434,7 @@ public sealed class CustodyOutboxIntegrationTests
                 && item.EventKind == "eva_bundle_exported")
             .ToListAsync());
 
-        // And only the first success records one. A second export of the same
-        // case produces the same archive and no second row.
+        // A re-send records a distinct handoff without changing case state.
         var again = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
             new(
                 outcome.Identity.CaseId,
@@ -1380,6 +1442,10 @@ public sealed class CustodyOutboxIntegrationTests
                 "22222222222222222222222222222222"),
             CancellationToken.None);
         Assert.NotNull(again);
+        var afterResend = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
+        Assert.Equal(CaseLifecycleState.ReportPreparation, afterResend.State);
+        Assert.Equal(afterFirstSend.Version, afterResend.Version);
         Assert.Equal(bundle.Sha256, again!.Bundle!.Sha256);
         await using var recheck = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
@@ -1404,6 +1470,46 @@ public sealed class CustodyOutboxIntegrationTests
             item.AggregateType == "Case"
             && item.AggregateId == outcome.Identity.CaseId.ToString("D")
             && item.EventKind == "eva_bundle_exported"));
+
+        await using (var returnToReview = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var workflow = await returnToReview.CaseWorkflows.SingleAsync(
+                item => item.CaseId == outcome.Identity.CaseId);
+            workflow.State = CaseLifecycleState.Review.ToString();
+            await returnToReview.SaveChangesAsync();
+        }
+        var apiFirstVersion = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!.Version;
+        var firstApi = await submitter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                firstActor,
+                "88888888888888888888888888888888",
+                EvaSubmissionTrigger.Manual),
+            CancellationToken.None);
+        Assert.True(firstApi?.IsSubmitted);
+        var afterFirstApi = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
+        Assert.Equal(CaseLifecycleState.ReportPreparation, afterFirstApi.State);
+        Assert.Equal(apiFirstVersion + 1, afterFirstApi.Version);
+
+        var apiResend = await submitter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                firstActor,
+                "99999999999999999999999999999999",
+                EvaSubmissionTrigger.Manual),
+            CancellationToken.None);
+        Assert.True(apiResend?.IsSubmitted);
+        var afterApiResend = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
+        Assert.Equal(CaseLifecycleState.ReportPreparation, afterApiResend.State);
+        Assert.Equal(afterFirstApi.Version, afterApiResend.Version);
+        Assert.Equal(2, evaTransport.CallCount);
+        Assert.Equal(2, await recheck.EvaSubmissions.CountAsync(
+            item => item.CaseId == outcome.Identity.CaseId));
 
         const string concurrentOperationKey = "44444444444444444444444444444444";
         var concurrentActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -1433,13 +1539,53 @@ public sealed class CustodyOutboxIntegrationTests
 
         await replayCheck.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.NotReady)} WHERE CaseId = {outcome.Identity.CaseId}");
-        await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
+        await Assert.ThrowsAsync<EvaHandoffStateException>(() =>
             services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
                 new(
                     outcome.Identity.CaseId,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                     "33333333333333333333333333333333"),
                 CancellationToken.None));
+    }
+
+    private static async Task ConfigureDefaultSignOffEngineerAsync(IServiceProvider services)
+    {
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var user = await userManager.FindByIdAsync(
+            DevelopmentOfflineIdentity.AdministratorId.ToString("D"));
+        Assert.NotNull(user);
+        if (!await userManager.IsInRoleAsync(user, StaffRoleNames.Engineer))
+        {
+            Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.Engineer)).Succeeded);
+        }
+
+        var signature = new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
+        user.IsSignOffEngineer = true;
+        user.SignOffPrintedName = "Integration Engineer";
+        user.SignOffQualifications = null;
+        user.SignOffSignature = signature;
+        user.SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(signature));
+        user.IsDefaultSignOffEngineer = true;
+        Assert.True((await userManager.UpdateAsync(user)).Succeeded);
+    }
+
+    private sealed class RecordingEvaTransport : IEvaApiTransport
+    {
+        public int CallCount { get; private set; }
+
+        public Task<EvaSubmissionResult> SubmitInstructionAsync(
+            EvaInstructionPayload payload,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new EvaSubmissionResult(
+                EvaSubmissionOutcome.Succeeded,
+                $"eva-{CallCount}",
+                $"file-{CallCount}",
+                null,
+                null,
+                payload.Files.Count));
+        }
     }
 
     /// <summary>
