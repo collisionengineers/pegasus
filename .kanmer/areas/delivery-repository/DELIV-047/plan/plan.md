@@ -58,8 +58,8 @@ No new package dependency, deployment unit, CI route or product feature. Use Pow
 - Preserved behaviour: exact clean SHA, locked restores, Linux Web/Worker/OCI identity, hashes, migration identity and Azure target validation remain unchanged.
 - Forbidden: Windows fallback, host-path constants, new dependency manager, Docker production route or weakened manifest checks.
 - Negative cases: non-Linux host, missing ORAS, schema 2, `win-x64`, `efbundle.exe`, missing artifact or hash mismatch fail explicitly.
-- Tests: Linux `Invoke-Doctor.ps1 -Profile Offline` and `scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`.
-- Commands: `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline`; `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`.
+- Tests: Linux `Invoke-Doctor.ps1 -Profile Cloud` and `scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`.
+- Commands: `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud`; `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`.
 - Expected output: both exit 0 and name the passing Linux/Local contracts.
 - Done when: one enforced Linux artifact contract owns build and validation.
 - Deviation stop: stop if an existing release script requires a Windows-only API or the manifest change would prevent retained artifacts from being used for rollback.
