@@ -419,3 +419,30 @@ binding:
 3. **[[CASE-043]]** "Extend the case vehicle record with the DVLA/MOT fields,
    populated from the instruction first and DVLA/DVSA on intake" is filed
    (EPIC-012 + EPIC-011, Backlog) and is blocked by CASE-029.
+
+## Resolutions (2026-09-04, controller) — scope on the merged frame
+
+The implementation wrapper stopped on three items the 2026-09-02/03 documents
+did not foresee, because they were written before CASE-038 merged and under
+the old capacity-one lock rule. Under EPIC-012 `context.md` §Build policy
+(2026-09-04) and CASE-038's merged contract, all three are CASE-029's own
+scope; the "must not touch `Details.cshtml`/`.cs`" lines above are read as
+"merge after CASE-038", which has happened (`ddbbc5e8`).
+
+1. **Wire the Valuation section.** `Details.cshtml` on `dev` carries the
+   `section-valuation` host whose placeholder names CASE-029 as the lane that
+   fills it. CASE-029 composes `_CaseValuation.cshtml` there and adds the
+   valuation read to `DetailsModel` (the existing `IListCaseValuations` port
+   from ENG-027, one read inside the existing section load — no second
+   query path; lazily mounted through the `/Cases/{id}/Section` fragment if
+   the section is deferred, exactly as the Files body is). Owned paths gain
+   `src/Pegasus.Web/Pages/Cases/Details.cshtml` (the valuation include point
+   only) and `Details.cshtml.cs` (the valuation projection only).
+2. **Recipient/Reason on the upload-request summary.** Step 2 projects
+   Recipient and Reason through `EfCaseQueryStore.cs`; the record it
+   projects into, `CaseRequestUploadSummary` in
+   `src/Pegasus.Core/Cases/CaseQueries.cs`, gains the two nullable members.
+   Owned paths gain that file for those members only (CASE-009 has merged
+   its own `CaseQueries.cs` change, so merge `origin/dev` first).
+3. Everything else in the plan stands; CASE-029 merges after CASE-040 in the
+   queue and regenerates its migration at merge prep if `dev`'s tail moved.
