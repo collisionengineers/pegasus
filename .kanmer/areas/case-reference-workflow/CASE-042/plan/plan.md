@@ -438,3 +438,19 @@ The operator answered the third open question with **option (a)**:
    image-case route, reachable from the case action bar and the main rail.
    It is out of CASE-042's scope and does not block it; CASE-042 must not
    build any part of it.
+
+## Simplification pass (2026-09-04)
+
+Run over `git diff origin/dev...HEAD` by gpt-5.6-sol (low), read-only,
+dispositioned by the wrapper.
+
+| # | Lens | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | Simplification | `Pages/Cases/Index.cshtml.cs` `LoadNotReadyAsync` | `casesTask` was assigned and immediately awaited on the next line — dead task-shaped ceremony left over from the merged-source implementation, never run concurrently with anything. | **Applied.** Await `_searchCases.ExecuteAsync(...)` directly into `result`. |
+| 2 | Simplification | `Pages/Cases/Index.cshtml.cs` `ImageRow` | The retained-image count label (with its pluralisation) was built twice for the same row — once for `Facts`, once for `Excerpt`. | **Applied.** Computed once into `imageCountLabel` and reused in both places. |
+| 3 | Efficiency | `Persistence/EfImageIntakeStore.cs` `ProjectAsync` | `ImageCount` was added to the shared `ProjectAsync` projection used by `ListAsync` (the Awaiting queue), `ListByOriginReceiptsAsync`, `ListForCaseAsync`, and `SearchByRegistrationAsync`, so every one of those callers now pays for the multi-table image-count subquery even though only the Awaiting queue (`ListAsync`) needs it. | **Accepted risk, not applied.** Splitting the count out (a second projection variant, or a toggle parameter) would add a second query shape, which the plan explicitly rules out ("no per-row image query and no new query type" — Dependencies section). `ProjectAsync` is already the one shared projection point for `ImageIntakeSummary`; the other three callers are lower-traffic (case detail intake list, registration search, receipt-id lookup) and the added cost is one bounded subquery per row batch, not an N+1. Left as a documented cost of keeping one projection instead of two; a future ticket can split it if it becomes a measured hot path. |
+
+Rebuilt and re-ran `dotnet build` (0 errors), `Pegasus.Core.Tests` (1225
+passed), `Pegasus.ArchitectureTests` (100 passed), and
+`TriageQueuesWebTests`/`AccessibilityTests` (39 passed) after applying
+findings 1-2; all green.
