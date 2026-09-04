@@ -139,6 +139,12 @@ function Test-ArtifactManifest {
         }
     }
 
+    $migrationBundlePath = Join-Path $manifestDirectory $migrationBundleName
+    $migrationBundleMode = [IO.File]::GetUnixFileMode($migrationBundlePath)
+    if (($migrationBundleMode -band [IO.UnixFileMode]::UserExecute) -eq 0) {
+        throw 'The Linux x64 migration bundle must be executable by its owner.'
+    }
+
     if (
         $manifest.webImage.repository -ne 'pegasus/web' -or
         $manifest.webImage.tag -ne $manifest.sourceRevision -or
@@ -291,6 +297,7 @@ $databaseBootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '
 Assert-Text $bootstrapScript 'Get-FileHash[\s\S]*SHA256' 'Administrator bootstrap must verify the immutable Web package SHA-256.'
 Assert-Text $bootstrapScript 'ManifestSha256' 'Administrator bootstrap must require the operator-approved manifest SHA-256.'
 Assert-Text $bootstrapScript "Test-AzureDeploymentPlan\.ps1'\) -Mode Artifact" 'Administrator bootstrap must run full release-manifest and artifact validation.'
+Assert-Text $bootstrapScript 'manifest\.schemaVersion\s+-ne\s+3' 'Administrator bootstrap must accept only the current schema-3 release manifest.'
 Assert-Text $bootstrapScript 'e6076573-23a5-46a8-acef-7e22d264e5db' 'Administrator bootstrap must enforce the exact approved subscription.'
 Assert-Text $bootstrapScript '858cf5b3-aa0a-47a6-9b40-4851fd0afa94' 'Administrator bootstrap must enforce the exact approved tenant.'
 Assert-Text $databaseBootstrapScript 'sid <> \$webSid' 'Database bootstrap must reject an existing Web principal with the wrong SID.'

@@ -236,6 +236,8 @@ public sealed class WorkerActivationReleaseContractTests
         Assert.Contains("$sourceWorkerConditionalMatches", deploymentPlan);
         Assert.Contains("$compiledWorkerNameMatches", deploymentPlan);
         Assert.Contains("$compiledWorkerConditionalMatches", deploymentPlan);
+        Assert.Contains("GetUnixFileMode", deploymentPlan);
+        Assert.Contains("UnixFileMode]::UserExecute", deploymentPlan);
     }
 
     [Fact]
