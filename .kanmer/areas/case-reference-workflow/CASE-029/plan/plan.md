@@ -446,3 +446,100 @@ scope; the "must not touch `Details.cshtml`/`.cs`" lines above are read as
    its own `CaseQueries.cs` change, so merge `origin/dev` first).
 3. Everything else in the plan stands; CASE-029 merges after CASE-040 in the
    queue and regenerates its migration at merge prep if `dev`'s tail moved.
+
+## Simplification pass (2026-09-05)
+
+Ran gpt-5.6-sol (low) over the branch's uncommitted diff against `origin/dev`
+(reuse, simplification, efficiency, altitude lenses). Two findings, both
+applied:
+
+1. `src/Pegasus.Core/Vehicle/VehicleWorkflow.cs` (`AcceptVehicleSuggestion.ExecuteAsync`)
+   — the normalized `command with { ... }` expression redundantly set
+   `Correction = null`; the preceding guard already refuses any command whose
+   `Correction` is non-null when `Decision == Accept`, so the value is always
+   already null at that point. Removed the redundant assignment.
+   Behaviour-preserving; Core and the focused integration suite re-passed
+   after the change.
+2. `src/Pegasus.Infrastructure/Persistence/EfVehicleWorkflowStore.cs`
+   (`AcceptOnceAsync`) — `observation.Id.ToString("D")` was computed twice
+   (once building the suggestion-fields query predicate, again when writing
+   confirmed fields). Hoisted a single `sourceIdentity` local computed once
+   after `MapObservation` and reused it in both places. Behaviour-preserving
+   (same value, same SQL parameter, same persisted `SourceIdentity`);
+   `VehicleLookupGapFillTests` re-passed after the change.
+
+Re-ran after applying: `dotnet build ./Pegasus.slnx --configuration Release`
+(0 errors), `Pegasus.Core.Tests` (1225/1225 passed),
+`Pegasus.ArchitectureTests` (100/100 passed), and the six focused integration
+classes (`VehicleLookupGapFillTests`, `AssessmentPersistenceIntegrationTests`,
+`CaseVehicleWebTests`, `CaseDetailsWebTests`, `DocumentCustodyDurabilityTests`,
+`IntakePersistenceIntegrationTests`) — 110/110 passed.
+
+No other findings reported (reuse, altitude, and correctness were explicitly
+out of scope for this pass; no correctness issue was raised).
+
+## Implementation notes and deviations (2026-09-05)
+
+An earlier Codex attempt (packet predating the 2026-09-04 controller
+Resolutions) stopped with outcome WAITING because its packet still forbade
+editing `Details.cshtml`/`.cs`. The packet was corrected to include the
+2026-09-04 Resolutions/Correction sections verbatim and owned-path list, and
+Codex (gpt-5.6-sol, medium) completed the implementation on retry.
+
+During verification (not trusting Codex's own numbers), the wrapper found and
+fixed, within owned files only:
+
+- `_CaseVehicle.cshtml` used `details.Data!` (null-forgiving) and then
+  dereferenced `data.Vehicle...` without null-conditional access, throwing a
+  `NullReferenceException` on any case whose `CaseDataProjection? Data` is
+  null (e.g. `CaseReportApprovalWebTests`'s fixture). Reverted to the
+  pre-existing nullable `data` pattern with `data?.Vehicle...` throughout.
+- `VehicleWorkflowTests.AcceptanceRequiresAnExplicitReasonAndSupportedField`
+  asserted `ArgumentException` for an invalid `Field`, but the production
+  code (consistent with the adjacent `Decision` check) throws the more
+  specific `ArgumentOutOfRangeException`; xUnit's `ThrowsAsync` requires an
+  exact type match. Corrected the test's expected exception type.
+- `VehicleLookupGapFillTests.AcceptingOneSuggestionClearsOnlyThatFieldAndMileageIsAtomic`
+  (a new test for this ticket) hard-coded `expectedVersion: 0` for the first
+  lease claim, but the seeded case is already at version 1 by the time of
+  that claim (an existing, unrelated `EfVehicleLookupWorkStore` behaviour
+  recording the lookup outcome bumps the workflow version). Read the actual
+  `CaseWorkflows.Version` from the database first, matching the existing
+  convention used elsewhere in the integration suite.
+- `DocumentCustodyDurabilityTests.RequestUploadMetadataPersistsProjectsAndParticipatesInReplay`
+  (new) exercised `ICreateRequestUploadLink` without an accepted
+  `RequestUploadLimits`, so production composition resolved
+  `UnavailableDocumentRequestStore` and the test failed closed as designed.
+  `LocalDbTestDatabase` (in the owned `IntakePersistenceIntegrationTests.cs`)
+  had no way to pass a `requestUploadLimitsFactory` through to
+  `AddPegasusInfrastructure`, unlike its existing `localArtifactRootFactory`
+  parameter. Added the matching optional parameter, threaded exactly like
+  the existing one, and used it from the new test — the same pattern
+  `ProductionCompositionTests.cs` already uses directly against
+  `AddPegasusInfrastructure`.
+- `CaseDetailsWebTests`: `TheRecordRendersElevenOrderedSectionHostsAndJumpLinks`
+  and `TheSectionFragmentRefusesKeysItDoesNotServe` had hard-coded
+  expectations from before `valuation` became a served, deferred section;
+  updated the deferred-sections list and removed `valuation` from the
+  refused-keys `[InlineData]`.
+- `_CaseHistory.cshtml`'s Record-chase form dropped the hidden
+  `attemptedAtUtc` field while adding the Recipient/Content fields; the
+  handler still needs a rendered value for
+  `ManualChasePostUsesAntiforgeryServerActorLiveLeaseVersionAndReplayKey` to
+  read (the handler itself correctly ignores any posted value and stamps
+  `timeProvider.GetUtcNow()` per the plan's "server-supplied" requirement).
+  Restored the hidden field. Also updated the test's `ManualChaseForm` helper,
+  which still posted the pre-rename `targetPartyOrAddress`/`note` field
+  names instead of the new `recipient`/`content` names the handler now binds.
+- `CaseVehicleWebTests.VehicleSectionDrawsOneLookupAndNoLegacyChecksSurface`
+  asserted the plain-text label `"Look up DVLA & MOT"` against rendered HTML,
+  where Razor correctly HTML-encodes `&` to `&amp;`. Corrected the assertion
+  to compare against the HTML-encoded form.
+
+`docs/design/test-ui/catalogue.json` needed one added entry for the new
+`Valuation.cshtml` route (protocol/POST-only, same shape as the adjacent
+`Vehicle.cshtml` entry) — `Test-UiCatalogue.ps1` failed until it was added.
+
+No scope was added beyond the owned-path table plus this one catalogue entry
+and the `LocalDbTestDatabase` parameter (both squarely within the already-owned
+`docs/design/test-ui/**` and `IntakePersistenceIntegrationTests.cs` files).
