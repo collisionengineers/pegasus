@@ -2,11 +2,13 @@
 id: CASE-032
 type: ticket
 title: 'Queue-row projections: image-intake custody and Triage reference/provider'
-status: backlog
+status: preparing
 area: case-reference-workflow
 order: 120
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-04T10:09:09.196Z'
 labels:
   - backend
   - queues
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-29T13:04:56.182Z'
-updated: '2026-09-03T15:15:27.133Z'
+updated: '2026-09-04T10:09:09.196Z'
 ---
 
 ## What
