@@ -520,3 +520,21 @@ that one file. It binds.
 - Build policy for this ticket follows EPIC-012 `context.md` §Build policy
   (2026-09-04): build concurrently, merge in queue order after [[CASE-041]],
   regenerate the migration if `dev`'s tail moved.
+
+## Simplification pass (2026-09-04)
+
+gpt-5.6-sol (low) read `git diff origin/dev` in the task worktree
+(`.worktrees/case-040`) and reported three findings, reuse/simplification
+lenses. All three applied by the wrapper (Claude), rebuilt and re-verified
+green.
+
+| # | File | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | `src/Pegasus.Core/Lifecycle/CaseLifecycle.cs` (`AssignCaseEngineer`) | `IStaffAccountQueries` was an optional constructor parameter with an empty-list fallback, even though production DI always supplies it and sign-off resolution is now part of every non-replay assignment — a second execution path that exists only to accommodate callers. | Fixed. Made the dependency required (`IStaffAccountQueries staffAccounts`, null-checked in the constructor); removed the `is null` fallback and call the query directly. Updated the one integration-test call site (`CaseWorkflowPersistenceTests.MissingDisabledOrNonEngineerStaffCannotBeAssigned`) that previously omitted the argument to pass a scoped `EfStaffAccountQueries`, matching the pattern already used by the sibling tests in the same file. |
+| 2 | `src/Pegasus.Infrastructure/Persistence/EfAssessmentReportProjectionSource.cs` | The same optional-dependency/empty-list-fallback shape, even though both production DI and the one test call site already supply the service. | Fixed. Made `IStaffAccountQueries` required and replaced the conditional with one direct `ListSignOffEngineersAsync` call. No call site needed updating — the sole test construction already passed it. |
+| 3 | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | The page model kept an `EngineerOptions` property only to copy it immediately into `EvaHandoffViewModel`; no view or test read the page-level property (the partial's `Model.EngineerOptions` refers to the view model's own property, not the page's). | Fixed. Replaced the page-model property with a local `engineerOptions` variable in `DescribeWorkspaceExtrasAsync`, passed directly to the `EvaHandoffViewModel` constructor. |
+
+Re-verified after the fixes: `dotnet build ./Pegasus.slnx --configuration
+Release --no-restore` (0 warnings, 0 errors), `Pegasus.Core.Tests` (1230
+passed), `Pegasus.ArchitectureTests` (100 passed), and the same integration
+filter used before the pass (166 passed, 1 pre-existing skip) — all exit 0.
