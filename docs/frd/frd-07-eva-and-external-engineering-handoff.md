@@ -59,9 +59,12 @@ Every successful export writes replay-safe Case action history containing the
 case version, mapping identity, exported values and provenance, archive hashes,
 and image identities/hashes. The first successful export also records the
 once-per-case `First sent to Engineer` proxy used by the dashboard; later
-exports are additional action-history records. Export does not change the Case
-state or version. The HTTP download includes the archive SHA-256 as
-`Content-Digest`.
+exports are additional action-history records. The first successful Download
+ZIP from `Review` atomically records the handoff and moves the Case to `With
+Engineer`, increasing its version; Send to EVA is the implicit review (D44,
+D47). If either part fails, the Case remains in `Review` and no handoff is
+recorded. A re-send from `With Engineer` does not change state or version. The
+HTTP download includes the archive SHA-256 as `Content-Digest`.
 
 ### Direct EVA API submission
 
@@ -127,8 +130,12 @@ an operator quotes.
 
 Submission is gated on `Review` — or on `With Engineer` for a re-send (D36) —
 and on at least one eligible image, exactly as the export is; it repeats no
-other readiness policy. It records replay-safe
-Case action history and does not change the Case state or version.
+other readiness policy. It records replay-safe Case action history. The first
+successful manual Send via API from `Review` atomically records the handoff and
+moves the Case to `With Engineer`, increasing its version; Send to EVA is the
+implicit review (D44, D47). If either part fails, the Case remains in `Review`
+and no handoff is recorded. A re-send from `With Engineer` does not change
+state or version. Automatic submission remains a once-only `Review` action.
 
 Values EVA's instruction model has no field for — the inspection date and the
 mileage — are sent as labelled lines in the instruction's note rather than
