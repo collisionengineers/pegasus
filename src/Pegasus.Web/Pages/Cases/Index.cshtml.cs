@@ -383,14 +383,13 @@ public sealed class IndexModel(
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var casesTask = _searchCases.ExecuteAsync(
+        var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
                 new(State: CaseLifecycleState.NotReady, Principal: PrincipalFilter),
                 Page: 1,
                 PageSize: MergedPageSize),
             cancellationToken);
-        var result = await casesTask;
 
         // The Missing filter is applied to the read, so what it removes
         // never reaches the Principal select's options either — a principal
@@ -547,9 +546,10 @@ public sealed class IndexModel(
 
     private QueueRow ImageRow(ImageIntakeSummary item)
     {
+        var imageCountLabel = $"{item.ImageCount} retained image{(item.ImageCount == 1 ? string.Empty : "s")}";
         var facts = new List<(string Label, string Value)>
         {
-            ("Images", $"{item.ImageCount} retained image{(item.ImageCount == 1 ? string.Empty : "s")}"),
+            ("Images", imageCountLabel),
         };
         if (item.Custody is { } custodyDetail)
         {
@@ -565,7 +565,7 @@ public sealed class IndexModel(
             Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
             string.Empty,
             Join(
-                $"{item.ImageCount} retained image{(item.ImageCount == 1 ? string.Empty : "s")}",
+                imageCountLabel,
                 item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null),
             $"{OperatorLabels.SourceChannel(item.Source)} · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
             null,
