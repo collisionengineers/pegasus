@@ -144,3 +144,56 @@ contract (`Pegasus.Core.Tests`), the EF store plus migration
 Core→Infrastructure→Web dependency direction. The full solution suite and
 the unfiltered browser suite are CI's gate on the exact head, per the
 EPIC-012 §Build policy rule against duplicating CI locally.
+
+## CI gate — BLOCKED (2026-09-04)
+
+`gh run list --branch task/case-039-engineer-notes --limit 1` →
+run `33924646833`, `headSha` `cc2920bf86ecfc301a9972df0c9d3d4d844349de`
+(matches the reviewed head), `status: completed`, **`conclusion: failure`**.
+
+Job results: `reference-data`, `local-development-scripts`, `changes`,
+`documentation`, `infrastructure`, `test-ui`, `unit`, `browser`,
+`sql-integration (2)`, `sql-integration (3)`, `sql-integration-coverage` all
+**success**; **`sql-integration (1)` failure**.
+
+The failure is not the `changes` job and is not a flake, so no rerun was
+attempted and the merge is refused.
+
+### Blocking finding 5
+
+| # | Severity | Location | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 5 | **blocker** | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs:121` | The exhaustive applied-migrations list in `CommittedMigrationCreatesTheSqlServerSchema` was not extended with this ticket's migration. It ends at `"20260903233954_MarketResearchAiJob"`; the database now also carries `20260904210022_EngineerNotes`, so the assertion fails on CI. | **Fix — returned to the implementer.** |
+
+CI evidence (`sql-integration (1)`, 2026-09-04T22:19:44Z):
+
+```
+Pegasus.IntegrationTests.IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema [FAIL]
+Assert.Equal() Failure: Collections differ
+Expected: [···, "20260903225331_StaffAccountSignOff", "20260903233954_MarketResearchAiJob"]
+Actual:   [···, "20260903225331_StaffAccountSignOff", "20260903233954_MarketResearchAiJob", "20260904210022_EngineerNotes"]
+                                                                                            ↑ (pos 91)
+at tests\Pegasus.IntegrationTests\IntakePersistenceIntegrationTests.cs:line 29
+Failed! - Failed: 1, Passed: 407, Skipped: 1, Total: 409
+```
+
+Required fix: append `"20260904210022_EngineerNotes"` as the last entry of
+that list, keeping the migrations in chronological order. EPIC-012
+§Build policy names this file explicitly under merge prep — "the
+applied-migrations list in `IntakePersistenceIntegrationTests.cs` keeps every
+migration in chronological order" — so it is inside this ticket's scope, is
+not tooling, and is the correct place for the change. This is a test that
+proves the claim being brought up to date with the schema the ticket ships,
+not a weakened assertion.
+
+Why the lane missed it: the focused local filter
+(`EngineerNotePersistenceTests`, `CaseDetailsWebTests`,
+`AzureSqlRuntimeRoleMigrationTests`) does not include
+`IntakePersistenceIntegrationTests`, and `Test-MigrationGrants.ps1` checks
+grants, not the applied-migrations census. Any future migration lane should
+add `FullyQualifiedName~IntakePersistenceIntegrationTests` to its focused
+filter.
+
+Nothing was merged. The ticket stays in Review. Findings 1-4 above keep their
+dispositions and need no further action; only finding 5 must be applied,
+after which CI must go green on the new head and this record is amended.
