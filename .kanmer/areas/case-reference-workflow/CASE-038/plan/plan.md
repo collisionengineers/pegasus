@@ -689,13 +689,40 @@ edits because that control lives outside `#case-edit-form`'s DOM subtree
 bubble along). Fixed by resolving the owning form through the control's
 `form` IDL property via one delegated `document`-level listener. Added a
 browser test, `InspectionAddressOutsideEditFormIsGuardedAndSaved`
-(`tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs`), proving
-the confirmation dialog now appears and the typed address is what
-`SaveCase` persists. Finding 2 (SHOULD-FIX) is addressed by the Expected
-files amendment above. Rejected findings (site.js's existing-convention
-error text, the deliberately absent Open Assessment action, pre-existing
-catalogue.json wording, the unlabelled OperatorLabels block) needed no
-code change.
+(`tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs`). Finding
+2 (SHOULD-FIX) is addressed by the Expected files amendment above. Rejected
+findings (site.js's existing-convention error text, the deliberately absent
+Open Assessment action, pre-existing catalogue.json wording, the unlabelled
+OperatorLabels block) needed no code change.
+
+## Review round fixes (2026-09-04, round 3)
+
+Round-2 (second pass) review, finding 1 (SHOULD-FIX, reached independently
+by both reviewers): `InspectionAddressOutsideEditFormIsGuardedAndSaved` as
+originally written filled `#inspection-address` (the `form=`-associated,
+DOM-external control) and then `#edit-reason` (a DOM-tree-inside-form
+control) before asserting the confirmation dialog. Because Playwright's
+`FillAsync` dispatches an `input` event, filling `#edit-reason` alone would
+already have set `dirtyForm` under the OLD per-form-DOM-tree-only listener,
+so the test passed identically whether or not the `form=`-association fix
+above was in place — the prior sentence in this plan ("proving the
+confirmation dialog now appears") was incorrect; the test as first written
+proved nothing about that fix. Fixed by isolating the claim: the test now
+fills only `#inspection-address`, clicks Finish editing, asserts the
+confirmation dialog becomes visible from that fill alone (the step that
+fails under the pre-fix listener), dismisses it via
+`[data-edit-finish-keep]` (verified against site.js to only close the
+dialog, discarding nothing), then fills `#edit-reason` and `inspectionMode`,
+re-triggers and saves, keeping the pre-existing 302-status and
+persisted-address assertions. Committed `fc5351e8b`.
+
+Findings 2 and 3 in that same round were state findings (the branch behind
+`origin/dev` with two generated-Test-UI-artifact conflicts; no Actions run
+for the reviewed head) resolved by merging `origin/dev`, regenerating the
+two conflicting snapshot artifacts via the scoped capture under the capture
+lock, and pushing the new head — no further plan content affected. See the
+post-implementation report's "Review round fixes (2026-09-04)" section for
+full detail.
 
 Verification run: `dotnet build ./Pegasus.slnx --configuration Release
 --no-restore` (0 warnings/errors); `dotnet test
