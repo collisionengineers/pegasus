@@ -1449,6 +1449,125 @@ public static class OperatorLabels
         /// What the record prints where a value it would show is not held.
         /// </summary>
         public const string AbsentValue = "Not recorded";
+
+        // ENG-034: the Engineer sections moved from the retired Assessment
+        // page. Keep this block together so the parallel Case lanes can merge
+        // their own vocabulary without interleaving it.
+        public static class EngineerSections
+        {
+            public const string Damage = "Damage";
+            public const string ImpactLocation = "Impact location";
+            public const string ImpactSeverity = "Impact severity";
+            public const string IncidentNarrative = "Incident narrative";
+            public const string Estimate = "Estimate";
+            public const string Estimates = "Estimates";
+            public const string NoEstimatesRecorded = "No estimates recorded";
+            public const string NewEstimate = "New estimate";
+            public const string Current = "Current";
+            public const string Recorded = "recorded";
+            public const string DeleteEstimate = "Delete estimate";
+            public const string Duplicate = "Duplicate";
+            public const string UseEstimate = "Use estimate";
+            public const string SaveEstimate = "Save estimate";
+            public const string AddLine = "Add line";
+            public const string EstimateName = "Estimate name";
+            public const string Source = "Source";
+            public const string RepairDays = "Repair days";
+            public const string LabourRate = "Labour rate";
+            public const string LabourRatePerHour = "Labour rate (\u00a3/h)";
+            public const string PaintLabourRate = "Paint labour rate";
+            public const string PaintLabourRatePerHour = "Paint labour rate (\u00a3/h)";
+            public const string PaintMaterials = "Paint materials";
+            public const string PaintMaterialsPounds = "Paint materials (\u00a3)";
+            public const string OtherCosts = "Other costs";
+            public const string OtherCostsPounds = "Other costs (\u00a3)";
+            public const string Vat = "VAT";
+            public const string VatPercent = "VAT %";
+            public const string EstimateNotes = "Estimate notes";
+            public const string PartsAndOperations = "Parts and operations";
+            public const string Operation = "Operation";
+            public const string Description = "Description";
+            public const string PartNumber = "Part number";
+            public const string Quantity = "Quantity";
+            public const string QuantityShort = "Qty";
+            public const string LabourHours = "Labour hours";
+            public const string LabourHoursShort = "Labour h";
+            public const string PaintHours = "Paint hours";
+            public const string PaintHoursShort = "Paint h";
+            public const string PartAmount = "Part amount";
+            public const string PartPounds = "Part \u00a3";
+            public const string Action = "Action";
+            public const string Notes = "Notes";
+            public const string NoneRecorded = "None recorded";
+            public const string ImportEstimate = "Import estimate";
+            public const string AudatexPdf = "Audatex PDF";
+            public const string JsonEstimate = "JSON estimate";
+            public const string Other = "Other";
+            public const string EstimateDropzone = "Drag an estimate here, or choose it";
+            public const string ChooseFile = "Choose a file";
+            public const string Reason = "Reason";
+            public const string Cancel = "Cancel";
+            public const string CloseDialog = "Close dialog";
+            public const string Replace = "Replace";
+            public const string Repair = "Repair";
+            public const string RemoveAndRefit = "R&I";
+            public const string PaintOperation = "Paint";
+
+            public const string Settlement = "Settlement";
+            public const string Outcome = "Outcome";
+            public const string SalvageCategory = "Salvage category";
+            public const string SalvageValue = "Salvage value";
+            public const string RecoveryCharge = "Recovery charge";
+            public const string StorageCharge = "Storage charge";
+            public const string RepairerVatRegistered = "Repairer VAT registered";
+
+            public const string Report = "Report";
+            public const string EngineersComments = "Engineer's comments";
+            public const string HistoryCheck = "History check";
+            public const string AgreedFee = "Agreed fee";
+            public const string FeeDescription = "Fee description";
+            public const string StatementOfTruth = "Statement of truth";
+            public const string GenerateReportDraft = "Generate report draft";
+            public const string PreviewReportDraft = "Preview report draft";
+            public const string ReportDraftNotReady = "Report draft not ready";
+
+            public const string SendToClaude = "Send to Claude";
+            public const string Direction = "Direction";
+            public const string TargetEstimate = "Target Estimate";
+            public const string CaseValuation = "Case Valuation";
+            public const string TargetAmount = "Target amount";
+
+            public const string Parts = "Parts";
+            public const string Labour = "Labour";
+            public const string Paint = "Paint";
+            public const string Subtotal = "Subtotal";
+            public const string Total = "Total";
+            public const string Line = "Line";
+            public const string Type = "Type";
+            public const string Code = "Code";
+            public const string WorkUnits = "Work units";
+            public const string Price = "Price";
+            public const string Betterment = "Betterment";
+            public const string ToBeConfirmed = "To be confirmed";
+
+            public const string ReadOnlyOnceComplete = "Read-only once Complete";
+            public const string EngineerOnlyImport = "Only an Engineer can import an estimate";
+            public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
+            public const string ConfirmedEngineerValueRequired = "A confirmed Engineer's Value is required";
+            public const string NotAvailableForCase = "Not available for this case";
+            public const string NotReady = "Not ready";
+
+            public static string LineField(string label, int line) => $"{label}, line {line}";
+
+            public static string RemoveLine(int line) => $"Remove line {line}";
+
+            public static string DeleteEstimatePrompt(string name) =>
+                $"Delete {name} and its lines from this case?";
+
+            public static string SpecificationLinesCaption(string kind) =>
+                $"The {kind} specification's ordered lines, exactly as recorded.";
+        }
+        // ENG-034 end.
     }
 
     /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
