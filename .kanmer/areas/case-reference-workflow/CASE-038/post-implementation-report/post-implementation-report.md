@@ -425,3 +425,84 @@ was not run.
 Committed as `edee9987f` ("Fix CASE-007 dirty guard for form= associated
 controls (CASE-038 review)") and pushed to
 `task/case-038-case-workspace-frame`.
+
+## Review round fixes (2026-09-04)
+
+Head before this pass: `edee9987f`. Worktree `.worktrees/case-038`, branch
+`task/case-038-case-workspace-frame`. Findings from the round-2 review of PR
+#656 (three items returned before merge; findings 4 and 5 were already
+accepted with reasons and untouched).
+
+1. **Finding 1 (SHOULD-FIX, reached independently by both reviewers) —
+   fixed.** `InspectionAddressOutsideEditFormIsGuardedAndSaved` in
+   `tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs` filled
+   `#inspection-address` (outside `#case-edit-form`'s DOM tree, associated
+   only via `form=`) and then `#edit-reason` (inside the form's DOM tree)
+   before asserting the confirmation dialog and saving. Because Playwright's
+   `FillAsync` dispatches an `input` event, filling `#edit-reason` alone
+   would have set `dirtyForm` under the OLD per-form-DOM-tree listener too —
+   so the test passed identically with or without the `form=`-association
+   fix (`edee9987f`) and proved nothing about it, despite `plan.md` and this
+   report's prior entry stating it demonstrated the confirmation now
+   appears.
+
+   Restructured the test to isolate the claim: it now fills only
+   `#inspection-address`, clicks Finish editing, asserts
+   `#edit-finish-confirm` becomes visible from that fill alone (the actual
+   regression check — this step fails under the pre-fix per-form-DOM-tree
+   listener, since no in-DOM-tree control was touched), clicks
+   `[data-edit-finish-keep]` and asserts the dialog closes (confirmed
+   against `site.js`: the keep handler only sets `dialog.hidden = true`,
+   discarding nothing), then fills `#edit-reason` and sets `inspectionMode`,
+   re-triggers Finish editing, asserts the confirmation again, and saves —
+   keeping the existing 302-status and persisted-"Recorded value" assertions
+   unweakened. Committed as `fc5351e8b`.
+
+2. **Finding 2 (BLOCKER, state) — fixed.** `origin/dev` had advanced to
+   `c90f2b8915186efd5bf932cec573846ae75ff1fe` (CASE-032 #659, DELIV-046
+   #660) since the branch's last push. Merged `origin/dev` in; the merge
+   produced exactly the two predicted content conflicts, both generated Test
+   UI output (`docs/design/test-ui/index.html`,
+   `docs/design/test-ui/pages/case-details--default.html`) —
+   `catalogue.json` and `OperatorLabels.cs` auto-merged cleanly, as
+   expected. Resolved by regeneration, not hand-editing: took the capture
+   lock, ran the scoped capture (`-Scope case-details -CaptureFilter
+   "FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~TestUiFocusedRenderTests"`,
+   `-Scope` is available per `scripts/Update-TestUiSnapshots.ps1`), then
+   `-Verify -SkipCapture`, then `Test-UiCatalogue.ps1`, all exit 0, and
+   released the lock immediately after. Regenerated
+   `case-details--default.html` (64,427 bytes; begins `<!DOCTYPE html>`;
+   one `class="case-sticky"`; eleven non-title `id="section-<key>"` hosts —
+   damage, engineer-notes, estimate, files, inspection, notes, overview,
+   report, settlement, valuation, vehicle; zero `<img src="#">`) and
+   `index.html` (12,562 bytes; begins `<!doctype html>`; zero
+   `<img src="#">`). Committed as the merge commit `f3005ea66`; `git show
+   --remerge-diff --name-only` confirms the conflict resolution touched only
+   those two generated files.
+
+3. **Finding 3 (BLOCKER, state) — resolved by the push itself.** No Actions
+   run existed for `edee9987f`. Pushing the finding-1 and finding-2 fixes to
+   a new head (`f3005ea66`) triggers a fresh `repository-check` run
+   (confirmed in progress via `gh run list --branch
+   task/case-038-case-workspace-frame`, run `33901021975`); there is nothing
+   further to do here.
+
+Findings 4 (jump-nav click inside the 5s failed-fetch cooldown) and 5
+(`AssessmentIsReadOnly` has no reader yet, fails closed, ENG-034 is its
+declared reader) remain accepted with no change, per the review disposition.
+
+### Commands (Windows, PowerShell 7), this round
+
+| Command | Exit |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 (0 warnings) |
+| `dotnet test ./tests/Pegasus.IntegrationTests/... --filter "FullyQualifiedName~LayoutIntegrityTests" -- xUnit.MaxParallelThreads=2` | 0 — 70 passed |
+| `git diff --check` | 0 |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter "..."` | 0 |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` | 0 |
+| `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1` | 0 — 54 routes, 59 prototypes, 0 broken references |
+
+Committed as `fc5351e8b` (test fix) and `f3005ea66` (dev merge + snapshot
+regeneration), pushed to `task/case-038-case-workspace-frame`. PR #656 not
+merged by this pass.

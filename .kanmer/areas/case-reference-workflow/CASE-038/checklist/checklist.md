@@ -20,3 +20,10 @@
 - [x] Inspect the regenerated `docs/design/test-ui/pages/case-details--default.html` directly: doctype, `case-sticky`, eleven `id="section-*"` hosts, and record its byte size. (41,040 bytes; begins `<!DOCTYPE html>`; one `class="case-sticky"`; eleven non-title `id="section-<key>"` hosts — damage, engineer-notes, estimate, files, inspection, notes, overview, report, settlement, valuation, vehicle; zero `<img src="#">`. `case-details--conflict.html` likewise: 40,091 bytes, doctype, one `case-sticky`, eleven section hosts, zero `<img src="#">`. `case-details--unavailable.html`: `git diff --stat` shows no change.)
 - [x] post-implementation report written (corrected 2026-09-04 for review finding 8; snapshot regeneration appended 2026-09-04)
 - [x] PR opened with Kanmer: CASE-038 (#656)
+
+- [x] Review round 2 fixes (2026-09-04): isolated the `form=`-association
+  proof in `InspectionAddressOutsideEditFormIsGuardedAndSaved` (finding 1),
+  merged `origin/dev` and regenerated the two conflicting Test UI snapshots
+  under the capture lock (finding 2), pushed the new head `f3005ea66` so a
+  fresh Actions run exists (finding 3). Findings 4 and 5 left accepted per
+  the review disposition, no change.
