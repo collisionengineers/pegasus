@@ -27,7 +27,9 @@ labels:
   - azure
 groups:
   - EPIC-013
-links: []
+links:
+  - >-
+    https://github.com/collisionengineers/pegasus/blob/5375e0f54/docs/adr/0037-linux-authorised-release-workstation.md
 blocks:
   - DELIV-048
 refs:
@@ -35,11 +37,12 @@ refs:
 commits:
   - 0f15155b8162a3086c8e041617c0c9820065068d
   - 287fc2e46aeee4999c8bab18349ea44f32b40b4d
+  - 5375e0f542c1a5ae873ec03e9b6e9778dff3a41a
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/667'
 archived: false
 created: '2026-09-04T11:58:34.797Z'
-updated: '2026-09-04T20:36:28.926Z'
+updated: '2026-09-04T20:39:35.058Z'
 ---
 
 ## What

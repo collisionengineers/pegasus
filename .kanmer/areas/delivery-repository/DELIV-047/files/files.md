@@ -38,3 +38,11 @@ The release artifact manifest schema changes, so local deployment-plan tests and
 ## Out of scope
 
 CI redesign, GitHub Actions deployment, a staging environment, Docker as a second production deployer, product features, email evaluation, Azure SQL preview adoption, production promotion/deployment without fresh authority, and changes to `docs/operator-notes.md` or `corpus/**`.
+
+## Review remediation scope — 2026-09-04
+
+| Path | Why |
+| --- | --- |
+| `scripts/Invoke-ProductionAdministratorBootstrap.ps1` | Direct schema consumer must accept the one current schema-3 manifest after Artifact validation. |
+| `scripts/Test-AzureDeploymentPlan.ps1` | Artifact boundary must reject a Linux bundle that its owner cannot execute. |
+| `tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs` | Preserve static release-contract coverage for executable-mode validation. |

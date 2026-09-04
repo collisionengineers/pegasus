@@ -121,3 +121,10 @@ Stop pre-merge with one reviewed Linux-route PR open against `dev`. After merge,
 - Efficiency: artifact identity remains a single manifest consumed by existing validation and release steps; ORAS uses the existing Doctor/repair-hint mechanism.
 - Altitude: changes stay at release tooling and guidance boundaries; application, infrastructure templates, schema and product behaviour are untouched.
 - Disposition: no further behaviour-preserving simplification found. The explicit schema-3 rejection and build-script source assertions remain because they are the fail-closed cutover checks, not duplicate business policy.
+
+## Review remediation — round 1
+
+- F-001 fix: update the existing administrator-bootstrap manifest consumer from schema 2 to schema 3 and retain its Artifact/hash/target checks.
+- F-002 fix: at the existing Artifact validation boundary require owner execute permission on `efbundle`; prove normal validation passes and `chmod u-x` fails explicitly.
+- F-003 disposition: add ADR-0037 to ticket refs when the board source can resolve the merged path; until then retain the exact GitHub head link because Kanmer validates refs against the shared source checkout, where this unmerged file does not yet exist.
+- Verification: Local and Artifact validation, non-executable negative test, full Architecture suite, exact-head artifact rebuild, documentation/diff checks and applicable CI. Application and production state remain untouched.

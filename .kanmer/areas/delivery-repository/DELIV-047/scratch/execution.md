@@ -15,3 +15,5 @@ Canonical final-head rail against a fresh loopback-only pinned SQL Server contai
 Simplification pass completed and recorded in plan/plan.md. No application, schema, infrastructure template, CI, cloud or production state was changed.
 
 - 2026-09-04T20:36:28.930Z stage review → implementing by review_deliv_047; reason: needs-changes on 287fc2e46aeee4999c8bab18349ea44f32b40b4d: F-001, F-002; review_round 1
+
+2026-09-04 review round 1 remediation: F-001 fixed by updating the direct administrator-bootstrap consumer to require schema 3 after full Artifact validation. F-002 fixed at Test-ArtifactManifest by requiring owner execute permission; normal Artifact mode PASS and a real chmod u-x negative invocation exited nonzero with the intended executable-owner error; Architecture 100/100 PASS. F-003 will be linked as a repository ref immediately after merge because the Kanmer provider validates refs against the shared source checkout where unmerged ADR-0037 is not yet present. Remediation commit: 5375e0f54.
