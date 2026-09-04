@@ -301,3 +301,60 @@ The reviewer also confirmed that no staff review flag or action (D44), no damage
 type (D45) and no D46 surface appear anywhere in this plan, and that it adds no
 package, migration, grant, DI registration, mailbox mutation, explanatory copy
 or second classification list.
+
+## Simplification pass (2026-09-04)
+
+Ran over the working-tree diff vs `origin/dev` (gpt-5.6-sol low), four lenses
+(reuse, simplification, efficiency, altitude), behaviour-preserving only.
+
+Applied:
+
+1. **Efficiency** — `EfCaseQueryStore.cs`: the query-mail projection first
+   materialized every classified query receipt, then discarded receipts whose
+   current association belonged to another case. Constrained the receipt query
+   to receipt IDs that could be associated with the requested case (manual
+   associations or accepted case links) before the authoritative
+   `CurrentIntakeAssociations` current/reversed decision, reducing rows
+   transferred without changing association semantics.
+2. **Reuse** — `EfCaseQueryStore.cs`: replaced the duplicated literal
+   `"mailbox"` source-channel value with the existing canonical mapping
+   `EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)`.
+3. **Reuse / altitude** — `EfCaseQueryStore.cs`: the projection manually
+   rebuilt `MailCategory` from persisted family/subtype/reply-context fields;
+   now calls the existing persistence-to-Core mapping
+   `EfIntakeReceiptStore.MapMailClassificationDecision`, keeping that mapping
+   in its one existing Infrastructure owner.
+
+Rejected (with reason):
+
+1. Change `_CaseCorrespondence.cshtml` to take only the email collection —
+   would break the consistent `DetailsModel` convention used by every other
+   case-workspace partial for no material simplification.
+2. Move `CaseQueryEmail` out of `Pegasus.Core` — it is part of the
+   `ICaseQueryStore` read contract; Core is the correct altitude.
+3. Extract the query-correspondence persistence block into a helper — one
+   caller only; no second concrete use or external boundary to justify it.
+4. Consolidate the new correspondence labels with existing constants — no
+   existing constant owns these exact headings/action text; the additions
+   already follow the centralized `OperatorLabels` pattern.
+5. Extract the new integration-test fixture builders into shared test
+   infrastructure — local to one focused test; sharing would add an
+   abstraction outside this ticket's owned files.
+
+Additionally found and fixed (not a simplification-lens finding but a real
+defect caught by re-running `Update-TestUiSnapshots.ps1 -Verify` after
+implementation): `_CaseFiles.cshtml`'s unconditional `<partial
+Cases/Shared/_CaseCorrespondence>` call and that partial's own leading blank
+line each emitted one unconditional newline even when `QueryEmails` was
+empty, making `case-details--default.html` byte-stale. Fixed by gating the
+`<partial>` call itself on `details.QueryEmails.Count > 0` in `_CaseFiles.cshtml`
+and removing the now-redundant internal `@if` from `_CaseCorrespondence.cshtml`
+(single check, one place). Reverified with the scoped capture
+(`-Scope case-details`) and `-Verify -SkipCapture`: exit 0, byte-identical
+except for line-ending-only (`autocrlf`) noise with no content diff, which was
+reverted with `git checkout -- docs/design/test-ui/` so no snapshot file is
+part of this PR's diff.
+
+Rebuilt and reran the Release build, Core tests (1225 passed), Architecture
+tests (100 passed), and the two changed integration test classes (100 passed)
+after all fixes; all green.
