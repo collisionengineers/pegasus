@@ -540,44 +540,61 @@ public sealed class IndexModel(
         $"/Cases/{item.CaseId:D}",
         []);
 
-    private QueueRow ImageRow(ImageIntakeSummary item, int fileCount) => new(
-        RowKind.Image,
-        item.Id,
-        Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
-        OperatorLabels.ImageIntakeLifecycleState(item.State),
-        Join(
-            $"{fileCount} retained image{(fileCount == 1 ? string.Empty : "s")}",
-            item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null),
-        $"Image-initiated · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
-        null,
-        item.RegisteredAtUtc,
-        $"/VehicleImages/{item.Id:D}",
-        [
+    private QueueRow ImageRow(ImageIntakeSummary item, int fileCount)
+    {
+        var facts = new List<(string Label, string Value)>
+        {
             ("State", OperatorLabels.ImageIntakeLifecycleState(item.State)),
-            ("Custody", item.Custody is { } custodyDetail ? OperatorLabels.ImageCustodyState(custodyDetail) : string.Empty),
-            ("Registered", OperatorLabels.OfficeDate(item.RegisteredAtUtc)),
-            ("Chase", OperatorLabels.ImageChaseState(
-                ImageIntakeChaseSchedule.IsChaseDue(item.RegisteredAtUtc, _timeProvider.GetUtcNow())))
-        ]);
+        };
+        if (item.Custody is { } custodyDetail)
+        {
+            facts.Add(("Custody", OperatorLabels.ImageCustodyState(custodyDetail)));
+        }
+        facts.Add(("Registered", OperatorLabels.OfficeDate(item.RegisteredAtUtc)));
+        facts.Add(("Chase", OperatorLabels.ImageChaseState(
+            ImageIntakeChaseSchedule.IsChaseDue(item.RegisteredAtUtc, _timeProvider.GetUtcNow()))));
+        return new QueueRow(
+            RowKind.Image,
+            item.Id,
+            Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
+            OperatorLabels.ImageIntakeLifecycleState(item.State),
+            Join(
+                $"{fileCount} retained image{(fileCount == 1 ? string.Empty : "s")}",
+                item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null),
+            $"Image-initiated · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
+            null,
+            item.RegisteredAtUtc,
+            $"/VehicleImages/{item.Id:D}",
+            facts);
+    }
 
-    private static QueueRow TriageRow(TriageSummary item, string assignee) => new(
-        RowKind.Triage,
-        item.Id,
-        Join(item.Reference, item.NormalizedVehicleRegistration),
-        OperatorLabels.TriageState(item.State),
-        Join(item.Provider, assignee),
-        $"Opened {OperatorLabels.OfficeDate(item.CreatedAtUtc)}",
-        null,
-        item.CreatedAtUtc,
-        $"/Triage/{item.Id:D}",
-        [
-            ("Reference", item.Reference ?? string.Empty),
-            ("Registration", item.NormalizedVehicleRegistration),
-            ("Provider", item.Provider ?? string.Empty),
-            ("State", OperatorLabels.TriageState(item.State)),
-            ("Assigned to", assignee),
-            ("Opened", OperatorLabels.OfficeDate(item.CreatedAtUtc))
-        ]);
+    private static QueueRow TriageRow(TriageSummary item, string assignee)
+    {
+        var facts = new List<(string Label, string Value)>();
+        if (item.Reference is { } reference)
+        {
+            facts.Add(("Reference", reference));
+        }
+        facts.Add(("Registration", item.NormalizedVehicleRegistration));
+        if (item.Provider is { } provider)
+        {
+            facts.Add(("Provider", provider));
+        }
+        facts.Add(("State", OperatorLabels.TriageState(item.State)));
+        facts.Add(("Assigned to", assignee));
+        facts.Add(("Opened", OperatorLabels.OfficeDate(item.CreatedAtUtc)));
+        return new QueueRow(
+            RowKind.Triage,
+            item.Id,
+            Join(item.Reference, item.NormalizedVehicleRegistration),
+            OperatorLabels.TriageState(item.State),
+            Join(item.Provider, assignee),
+            $"Opened {OperatorLabels.OfficeDate(item.CreatedAtUtc)}",
+            null,
+            item.CreatedAtUtc,
+            $"/Triage/{item.Id:D}",
+            facts);
+    }
 
     private static QueueRow UnidentifiedRow(UnidentifiedQueueRow row) => new(
         RowKind.Unidentified,
