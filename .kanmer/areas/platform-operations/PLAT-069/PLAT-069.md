@@ -4,12 +4,23 @@ type: ticket
 title: >-
   Move Service health off Operations; Operations shows a partial-data notice
   linking to Administration
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: wf-build/plat-069
 profile: fix
 stageEntered:
   preparing: '2026-09-02T22:22:00.643Z'
+taken_at: '2026-09-04T10:04:55.966Z'
+branch: task/plat-069-operations-notice
+worktree: .worktrees/plat-069
+claim_expires_at: '2026-09-04T10:34:55.966Z'
+claim_controller: wf-build/plat-069
+lease_id: 992226f2-4279-4d02-9a63-60f27f263653
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-069'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T10:04:55.966Z'
 labels:
   - operations
   - ui
@@ -24,7 +35,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.879Z'
-updated: '2026-09-02T22:22:00.643Z'
+updated: '2026-09-04T10:04:55.966Z'
 ---
 
 ## What
