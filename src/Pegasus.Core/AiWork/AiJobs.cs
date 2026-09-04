@@ -1,4 +1,6 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Documents;
 
 namespace Pegasus.Core.AiWork;
 
@@ -15,7 +17,8 @@ public enum AiJobKind
     Estimate,
     UnidentifiedResolution,
     QueryResponse,
-    UnidentifiedQueuePass
+    UnidentifiedQueuePass,
+    MarketResearch
 }
 
 public enum AiJobState
@@ -40,7 +43,8 @@ public enum AiJobResultKind
 {
     Estimate,
     ProposedResolution,
-    DraftReply
+    DraftReply,
+    MarketResearch
 }
 
 public static class AiJobStates
@@ -178,6 +182,43 @@ public sealed record ConfirmAiJobCommand(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey);
+
+public sealed record CompleteMarketResearchAiJobCommand(
+    Guid JobId,
+    long ExpectedJobVersion,
+    Guid CaseId,
+    long ExpectedCaseVersion,
+    string EditLeaseToken,
+    ActionActor Actor,
+    string OperationKey,
+    string FileName,
+    string MediaType,
+    ReadOnlyMemory<byte> Content,
+    DateOnly RecordedDate,
+    TimeOnly RecordedTime,
+    long Mileage,
+    decimal RetailValue,
+    decimal TradeValue);
+
+public sealed record MarketResearchAiJobCompletion(
+    AiJobRecord Job,
+    AddCaseDocumentResult Document,
+    CaseValuation Valuation,
+    bool IsReplay);
+
+public interface IMarketResearchAiJobCompletionStore
+{
+    Task<MarketResearchAiJobCompletion> CompleteAsync(
+        CompleteMarketResearchAiJobCommand command,
+        CancellationToken cancellationToken);
+}
+
+public interface ICompleteMarketResearchAiJob
+{
+    Task<MarketResearchAiJobCompletion> ExecuteAsync(
+        CompleteMarketResearchAiJobCommand command,
+        CancellationToken cancellationToken);
+}
 
 public interface IAiJobStore
 {
