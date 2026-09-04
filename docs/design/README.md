@@ -1603,8 +1603,10 @@ When implemented:
 
 - each visible row and state needs authenticated Web-caller and named
   Core-owner evidence;
-- keyboard, screen-reader, focus/error, forced-colours, reduced-motion and
-  the three widths must be recorded;
+- the package-pinned Chromium Browser lane records keyboard, focus/error,
+  forced-colours, reduced-motion and the three widths; screen-reader-compatible
+  semantics remain required behavior, but screen-reader interoperability is
+  not part of the selected evidence;
 - operator review uses approved genuine local immutable material only;
   generated imagery or synthetic operational material cannot prove
   acceptance; and
