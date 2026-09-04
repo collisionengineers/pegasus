@@ -189,6 +189,61 @@ public sealed class LayoutIntegrityTests
         Assert.NotEqual("overview", await CurrentSectionAsync(support));
     }
 
+    [Fact]
+    public async Task InspectionAddressOutsideEditFormIsGuardedAndSaved()
+    {
+        await using var support = await BrowserTestSupport.StartAsync(width: 1440, height: 900);
+        // QDOS's default Image Based Assessment mode refuses a free-text
+        // address (Core policy), so this scenario needs the provider set to
+        // a physical address to prove the typed value itself is what saves.
+        var caseId = await SeedAcceptedCaseAsync(support.Services, principalInspectionMode: "physical_address");
+        var inspectionAddress = $"CASE-038 browser address {Guid.NewGuid():N}";
+
+        var response = await support.GoToAsync($"/Cases/{caseId:D}");
+        Assert.Equal(200, response.Status);
+        await support.Page.GetByRole(
+            AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Edit Case", Exact = true }).ClickAsync();
+        await support.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await support.Page.Locator("#inspection-address").FillAsync(inspectionAddress);
+        // "reason" is a required field on the one record form, and a fresh
+        // physical-address case has no Confirmed inspection mode yet — Core
+        // requires the address and mode saved together (CaseDataOperations.
+        // ValidateInspection) — so both accompany the address on this first
+        // save, exactly as a real edit of an already-confirmed case would
+        // already carry its own current mode in this same hidden field.
+        await support.Page.Locator("#edit-reason").FillAsync("CASE-038 browser test: confirm physical address");
+        await support.Page.Locator("input[name='inspectionMode']")
+            .EvaluateAsync($"el => {{ el.value = '{nameof(CaseInspectionMode.PhysicalAddress)}'; }}");
+        await support.Page.GetByRole(
+            AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Finish editing", Exact = true }).ClickAsync();
+
+        var confirmation = support.Page.Locator("#edit-finish-confirm");
+        Assert.True(await confirmation.IsVisibleAsync());
+        Assert.Null(await confirmation.GetAttributeAsync("hidden"));
+
+        var saveResponseTask = support.Page.WaitForResponseAsync(
+            r => r.Url.Contains("handler=Save", StringComparison.Ordinal));
+        await confirmation.Locator("[data-edit-finish-save]").ClickAsync();
+        var saveResponse = await saveResponseTask;
+        await support.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        // 302 is the Save handler's normal post/redirect/get on success; a
+        // rejected save (a version conflict, a lost lease, a Core policy
+        // refusal) re-renders the edit page directly instead.
+        Assert.Equal(302, saveResponse.Status);
+
+        var savedResponse = await support.GoToAsync($"/Cases/{caseId:D}");
+        Assert.Equal(200, savedResponse.Status);
+        var recordedAddress = support.Page.Locator(
+            "xpath=//dt[normalize-space(text())='Recorded value']/following-sibling::dd[1]");
+        Assert.Contains(
+            inspectionAddress,
+            await recordedAddress.InnerTextAsync(),
+            StringComparison.Ordinal);
+    }
+
     private static Task<string[]> ClippedElementsAsync(BrowserTestSupport support) =>
         support.Page.EvaluateAsync<string[]>(
             "(allowed) => Array.from(document.querySelectorAll('body *'))"
@@ -215,7 +270,19 @@ public sealed class LayoutIntegrityTests
     /// <c>OperatorJourneyTests.SeedCustodyRecoveryCaseAsync</c>, which is
     /// private to that class; this one seeds nothing the layout does not need.
     /// </summary>
-    private static async Task<Guid> SeedAcceptedCaseAsync(IServiceProvider services)
+    private static Task<Guid> SeedAcceptedCaseAsync(IServiceProvider services) =>
+        SeedAcceptedCaseAsync(services, principalInspectionMode: "image_based_assessment");
+
+    /// <summary>
+    /// <paramref name="principalInspectionMode"/> lets a scenario that needs
+    /// a freely editable physical inspection address (QDOS defaults to
+    /// Image Based Assessment, whose address Core refuses to accept as free
+    /// text) request <c>"physical_address"</c> instead, reusing the same
+    /// intake/accept flow rather than a second seeding path.
+    /// </summary>
+    private static async Task<Guid> SeedAcceptedCaseAsync(
+        IServiceProvider services,
+        string principalInspectionMode)
     {
         await using var scope = services.CreateAsyncScope();
         var scoped = scope.ServiceProvider;
@@ -234,6 +301,7 @@ public sealed class LayoutIntegrityTests
                 new(IntakeSourceChannel.ManualUpload, $"case-record-layout:{Guid.NewGuid():N}")),
             CancellationToken.None);
         await SeedPrincipalAsync(scoped, now);
+        await SetPrincipalInspectionModeAsync(scoped, principalInspectionMode);
         var accepted = await scoped.GetRequiredService<IAcceptIntake>().ExecuteAsync(
             new(
                 receipt.Id,
@@ -271,5 +339,19 @@ public sealed class LayoutIntegrityTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({Guid.NewGuid()}, {organizationId}, {QdosPrincipal.Code}, {lineageId}, {true}, {0L})");
         await transaction.CommitAsync();
+    }
+
+    /// <summary>
+    /// Sets QDOS's inspection-mode setting explicitly (mirrors
+    /// <c>ProviderInspectionModeAcceptanceTests.SetPrincipalModeAsync</c>)
+    /// so a scenario is not left depending on whatever value the seed
+    /// insert's column default or an earlier migration happened to leave.
+    /// </summary>
+    private static async Task SetPrincipalInspectionModeAsync(IServiceProvider services, string modeCode)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Principals SET InspectionMode = {modeCode} WHERE Code = {QdosPrincipal.Code}");
     }
 }

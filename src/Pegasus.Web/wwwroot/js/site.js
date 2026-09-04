@@ -566,7 +566,7 @@
 
 
 // CASE-007: finishing edit mode with unsaved changes asks first. Dirty means
-// any input inside a lease-carrying form changed since load; Save submits the
+// any input owned by a lease-carrying form changed since load; Save submits the
 // form that changed, Discard releases the lease as posted.
 (function () {
     var toggle = document.querySelector('[data-edit-toggle-off]');
@@ -575,6 +575,19 @@
         return;
     }
     var dirtyForm = null;
+    // Resolve the owning form from the control at event time. Native input
+    // events follow the DOM tree, not a control's `form=` association, so a
+    // listener on the form cannot see associated controls rendered elsewhere.
+    document.addEventListener('input', function (event) {
+        var control = event.target;
+        var form = control.form || (control.closest ? control.closest('form') : null);
+        if (!form
+            || form === toggle
+            || !form.querySelector('input[name="editLeaseToken"]')) {
+            return;
+        }
+        dirtyForm = form;
+    });
     // Root-scoped and idempotent so a lazily mounted Case section's
     // lease-carrying forms join the guard instead of escaping it.
     function bind(root) {
@@ -585,7 +598,6 @@
                 return;
             }
             form.dataset.dirtyGuardBound = 'true';
-            form.addEventListener('input', function () { dirtyForm = form; });
             form.addEventListener('submit', function () { dirtyForm = null; });
         });
     }
