@@ -104,7 +104,7 @@ public sealed class TriageQueuesWebTests
     /// count so it must agree too.
     /// </summary>
     [Fact]
-    public async Task NotReadyRailCountMatchesRowsAcrossBothOrigins()
+    public async Task NotReadyAndAwaitingRailCountsMatchTheirRows()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -132,13 +132,34 @@ public sealed class TriageQueuesWebTests
         Assert.True(countMatch.Success, "Not ready rail scope markup not found.");
         var railCount = int.Parse(countMatch.Groups[1].Value, CultureInfo.InvariantCulture);
 
-        // The rows actually rendered: both origins must be present, and the
-        // count must equal exactly that many rows (2 — one of each origin),
-        // not one or the other alone.
+        // Not ready now contains formal Cases only.
         Assert.Contains(instructionCaseReference, notReadyHtml, StringComparison.Ordinal);
-        Assert.Contains(imageIntake.ImageIntakeReference, notReadyHtml, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Count(notReadyHtml, "class=\"row-button\""));
-        Assert.Equal(2, railCount);
+        Assert.DoesNotContain(imageIntake.ImageIntakeReference, notReadyHtml, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(notReadyHtml, "class=\"row-button\""));
+        Assert.Equal(1, railCount);
+
+        using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
+        var awaitingHtml = await awaiting.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, awaiting.StatusCode);
+        Assert.DoesNotContain(instructionCaseReference, awaitingHtml, StringComparison.Ordinal);
+        Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(awaitingHtml, "class=\"row-button\""));
+        var awaitingCount = Regex.Match(
+            awaitingHtml,
+            "scope-button[\\s\\S]*?<span>Awaiting instruction</span>\\s*<span>(\\d+)</span>");
+        Assert.True(awaitingCount.Success, "Awaiting instruction rail scope markup not found.");
+        Assert.Equal(1, int.Parse(awaitingCount.Groups[1].Value, CultureInfo.InvariantCulture));
+        var shellCount = Regex.Match(
+            notReadyHtml,
+            "<span>Cases</span>\\s*<span class=\"nav-count\" aria-label=\"(\\d+) outstanding\"");
+        Assert.True(shellCount.Success, "Cases shell count markup not found.");
+        var railTotal = Regex.Matches(
+                notReadyHtml,
+                "class=\"scope-button[^\"]*\"[\\s\\S]*?<span>(\\d+)</span>\\s*</button>")
+            .Sum(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
+        Assert.Equal(
+            railTotal,
+            int.Parse(shellCount.Groups[1].Value, CultureInfo.InvariantCulture));
 
         // The Work Centre's Not ready metric reads the same count query, so
         // it must report the identical figure — a rail count that disagrees
@@ -161,7 +182,7 @@ public sealed class TriageQueuesWebTests
     /// (<c>ImageIntakeChaseScheduleTests</c>).
     /// </summary>
     [Fact]
-    public async Task NotReadyImageRowRendersRetainedImageCountAndChaseState()
+    public async Task AwaitingImageRowRendersRetainedImageCountSourceAndChaseState()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -173,7 +194,7 @@ public sealed class TriageQueuesWebTests
 
         var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "CD34EFG");
 
-        using var response = await client.GetAsync("/Cases?tab=not_ready");
+        using var response = await client.GetAsync("/Cases?tab=awaiting");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -181,6 +202,7 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(imageIntake.NormalizedVehicleRegistration, html, StringComparison.Ordinal);
         Assert.Contains("1 retained image", html, StringComparison.Ordinal);
         Assert.Contains("Storing", html, StringComparison.Ordinal);
+        Assert.Contains("Manual upload", html, StringComparison.Ordinal);
         Assert.Contains("Not yet due", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Chase due", html, StringComparison.Ordinal);
     }
@@ -404,7 +426,7 @@ public sealed class TriageQueuesWebTests
     /// strip.
     /// </summary>
     [Fact]
-    public async Task NotReadyRendersOneMergedRowListAcrossOrigins()
+    public async Task NotReadyAndAwaitingRenderSeparateRowLists()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -426,8 +448,8 @@ public sealed class TriageQueuesWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(instructionCaseReference, html, StringComparison.Ordinal);
-        Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
-        // One row list, not one per origin; rows are links, not tables.
+        Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+        // Rows remain links, not tables.
         Assert.DoesNotContain("<table", html, StringComparison.Ordinal);
         Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
         // The rail groups the workflow; the filters are selects.
@@ -436,8 +458,104 @@ public sealed class TriageQueuesWebTests
         Assert.Contains("Exceptions", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"missing\"", html, StringComparison.Ordinal);
-        // The image row keeps its own state chip.
-        Assert.Contains("Awaiting definitive instruction", html, StringComparison.Ordinal);
+        using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
+        var awaitingHtml = await awaiting.Content.ReadAsStringAsync();
+        Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(instructionCaseReference, awaitingHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Awaiting definitive instruction", awaitingHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AwaitingSecondRowSelectionShowsThatRowsQuickDetailWithoutScript()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var selected = await RegisterImageIntakeAsync(factory, client, services, "GH67JKL");
+        _ = await RegisterImageIntakeAsync(factory, client, services, "MN89PQR");
+
+        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={selected.Id:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"selected={selected.Id:D}", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(
+            $"<h2>{selected.ImageIntakeReference}[^<]*{selected.NormalizedVehicleRegistration}</h2>",
+            html);
+    }
+
+    [Fact]
+    public async Task AwaitingAttachMovesTheImageIntakeToAnExistingCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY34ZZZ", "CASE-042-ATTACH");
+        var reference = await CaseReferenceAsync(services, caseId);
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "ST12UVW");
+
+        using var response = await PostAttachAsync(
+            client,
+            imageIntake.Id,
+            imageIntake.Origin.ReceiptId,
+            reference,
+            "Staff matched the images to the instructed case.");
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+        using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
+        var html = await awaiting.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AwaitingAttachFailureIsVisibleAndLeavesTheRowInPlace()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, scope.ServiceProvider, "WX34YZA");
+
+        using var response = await PostAttachAsync(
+            client, imageIntake.Id, imageIntake.Origin.ReceiptId, "UNKNOWN", string.Empty);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        using var redirected = await client.GetAsync(response.Headers.Location);
+        var html = await redirected.Content.ReadAsStringAsync();
+        Assert.Contains("A reason is required to add this to a case.", html, StringComparison.Ordinal);
+        Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AwaitingCountExcludesReceiptLinkedBeforeMergeSynchronises()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var caseReceiptId = await StoreMinimalReceiptAsync(services, "linked-case.pdf");
+        var caseId = await SeedNotReadyCaseAsync(services, caseReceiptId, "QDOSCASE042");
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "BC56DEF");
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey) VALUES ({imageIntake.Origin.ReceiptId}, {caseId}, {true}, {0L}, {DateTimeOffset.UtcNow}, {"Staff"}, {Guid.NewGuid().ToString("D")}, {"[]"}, {"Linked before image merge synchronisation"}, {$"case-042-linked:{Guid.NewGuid():N}"})");
+        }
+
+        using var response = await client.GetAsync("/Cases?tab=awaiting");
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+        var count = Regex.Match(
+            html,
+            "scope-button[\\s\\S]*?<span>Awaiting instruction</span>\\s*<span>(\\d+)</span>");
+        Assert.True(count.Success);
+        Assert.Equal(Regex.Count(html, "class=\"row-button\""), int.Parse(count.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -583,6 +701,36 @@ public sealed class TriageQueuesWebTests
         return receipt.Id;
     }
 
+    private static async Task<string> CaseReferenceAsync(IServiceProvider services, Guid caseId)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.Cases
+            .Where(item => item.Id == caseId)
+            .Select(item => item.Reference)
+            .SingleAsync();
+    }
+
+    private static async Task<HttpResponseMessage> PostAttachAsync(
+        HttpClient client,
+        Guid id,
+        Guid receiptId,
+        string reference,
+        string reason)
+    {
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        return await client.PostAsync(
+            "/Cases?handler=Attach",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["id"] = id.ToString("D"),
+                ["receiptId"] = receiptId.ToString("D"),
+                ["reference"] = reference,
+                ["reason"] = reason
+            }));
+    }
+
     /// <summary>
     /// A raw-SQL Not-ready Case fixture: exercising the full instruction
     /// pipeline just to get one NotReady case row is unrelated to what these
@@ -591,7 +739,7 @@ public sealed class TriageQueuesWebTests
     /// mirrors the equivalent fixture in
     /// <c>ImageIntakePersistenceTests.SeedCaseAsync</c>.
     /// </summary>
-    private static async Task SeedNotReadyCaseAsync(
+    private static async Task<Guid> SeedNotReadyCaseAsync(
         IServiceProvider services,
         Guid originReceiptId,
         string reference,
@@ -618,5 +766,6 @@ public sealed class TriageQueuesWebTests
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"not-ready-fixture-reader"}, {"1"}, {"not-ready-fixture"}, {1}, {reference}, {1}, {true}, {now})");
+        return caseId;
     }
 }
