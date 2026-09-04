@@ -1,6 +1,6 @@
 # Checklist — CASE-038 (2026-09-02; revised 2026-09-03 after plan review)
 
-- [x] Step 0: confirm merged PLAT-070 — `git grep -i "ReviewedByStaff\|RequireStaffImageReview\|staff-reviewed"` returns nothing on the branch; stop and report if it does not.
+- [x] Step 0: confirm merged PLAT-070 — `git grep -i "ReviewedByStaff\|RequireStaffImageReview\|staff-reviewed"` returns nothing on the branch; stop and report if it does not. (PLAT-070 merged as `60fc84dc0`/#649; the only remaining matches are immutable EF migration snapshots, PLAT-070's own drop migration and an absence assertion — recorded in the report.)
 - [x] Step 1: replace the section contract with the one canonical ordered `Key`/`Label`/`Icon` descriptor in `OperatorLabels.CaseWorkspace`, and add the authorized `OnGetSectionAsync` fragment handler reusing the eager `IGetCase` load plus only the section's supplemental query (`IImageIntakeQueries`/`ICaseEvidenceImageQueries` for Files).
 - [x] Step 2: render the sticky eleven-host Case frame inside the retained `case-workspace`/`case-context` grid, with the server-side addressed host, Engineer and Sign-off ribbon slots (using the new `OperatorLabels` absent-value member), the horizontal jump-nav, and the four heading-only shells `_CaseDamage`/`_CaseEstimate`/`_CaseSettlement`/`_CaseReport` composed with `model="Model"`.
 - [x] Step 2a: rename the inspection form to `case-inspection-address-form` without `data-edit-save` in `_CaseInspectionAddress.cshtml` (declared `Pages/Cases/Shared/*` lock exception; id, attribute and comment lines only).
@@ -9,13 +9,13 @@
 - [x] Step 4: update Case Details proof and add the seeded three-width Browser scenario with its own local seed helper; assert a lazily mounted Files body opens its evidence viewer and dialogs, and that no staff-review control renders.
 - [x] Step 5: apply only the declared mechanical query-key retargets in the six direct test consumers.
 - [x] Step 6: regenerate default/conflict snapshots, preserve unavailable byte-identical, correct the Details `default` catalogue branch text, and drop `case-section-nav` from `docs/design/README.md` lines 810 and 436 (nothing else there).
-- [ ] Complete the dated Simplification pass with findings and dispositions.
-- [x] Run `dotnet restore ./Pegasus.slnx --locked-mode`.
-- [x] Run `dotnet build ./Pegasus.slnx --configuration Release --no-restore`.
-- [ ] Run `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`.
-- [ ] Run `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2`.
-- [ ] Run `./scripts/Update-TestUiSnapshots.ps1`.
-- [ ] Run `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`.
-- [ ] Run `./scripts/Test-UiCatalogue.ps1`.
-- [ ] post-implementation report written
-- [ ] PR opened with Kanmer: CASE-038
+- [x] Complete the dated Simplification pass with findings and dispositions.
+- [x] Run `dotnet restore ./Pegasus.slnx --locked-mode`. (exit 0)
+- [x] Run `dotnet build ./Pegasus.slnx --configuration Release --no-restore`. (exit 0)
+- [x] Run `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`. (exit 0)
+- [x] Run `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2`. (exit 0, 123 passed, as the snapshot script's browser capture phase)
+- [x] Run `./scripts/Update-TestUiSnapshots.ps1`. (exit 0)
+- [ ] Run `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture`. (exit 1 — `Offline image failed to load: pages/case-details--default.html`; the Test UI tool rewrites the Files gallery's case-document image URL to `#` and then asserts every image loads. The fix belongs to `TestUiSnapshotTests.cs` — UIIMP-005/UIIMP-013 — and is reported as a blocking dependency, not absorbed.)
+- [ ] Run `./scripts/Test-UiCatalogue.ps1`. (not reached — the verify phase throws first)
+- [x] post-implementation report written
+- [x] PR opened with Kanmer: CASE-038 (#656)

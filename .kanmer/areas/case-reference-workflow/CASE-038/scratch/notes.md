@@ -38,3 +38,28 @@
   with the same outcome its Assessment twin gives, proven by the new tests;
   the plan records under Simplification pass that the duplication window
   closes in ENG-034.
+
+## 2026-09-04 — orchestrator action needed: Test UI offline-render dependency
+
+PR #656 is open and everything CASE-038 owns is green (restore, build, the
+full non-Browser suite, the Browser suite, the snapshot update). One command
+fails and it is not this lane's to fix:
+
+`./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` → exit 1,
+`Offline image failed to load: pages/case-details--default.html`.
+
+The `default` Case snapshot is captured with the edit lease held, so the
+record renders every section including Files. Its instruction-photograph
+gallery renders `<img src="/Cases/{id}/Documents/{occ}/{ver}?inline=true">`,
+correct in production. `TestUiSnapshotTests.NormalizeAndRewrite` rewrites any
+application URL whose route has no *visual* catalogue entry to `#` (a
+case-document download is `protocol`), and `VerifyOfflineBrowserRenderAsync`
+then asserts every `<img>` has a non-zero `naturalWidth`. Receipt images
+escape this because they are inlined as `data:` URLs; case-document images
+are not.
+
+Fix belongs in `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`
+(UIIMP-005/UIIMP-013; UIIMP-014 owns per-section Case states): inline
+case-document images the way receipt images already are, or exclude
+`#`-rewritten images from the offline-image assertion. CASE-038 has not
+touched that file (AGENTS.md rules 1 and 2, plan failure rules).
