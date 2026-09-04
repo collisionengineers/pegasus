@@ -2,10 +2,12 @@
 id: UIIMP-016
 type: ticket
 title: Replace Windows accessibility evidence with Chromium automation
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-04T18:12:32.327Z'
 labels:
   - accessibility
   - chromium
@@ -19,7 +21,7 @@ refs:
   - docs/prd/pegasus-product.md
 archived: false
 created: '2026-09-04T11:58:34.790Z'
-updated: '2026-09-04T11:58:57.756Z'
+updated: '2026-09-04T18:12:32.327Z'
 ---
 
 ## What
