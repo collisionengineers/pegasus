@@ -631,3 +631,38 @@ CASE-038's scope is unchanged otherwise: the frame, the sticky identity
 ribbon, the action bar, the jump-nav with scroll-spy, and heading-only
 section shells. Any plan step above that added a handler to
 `Details.cshtml.cs` is withdrawn.
+
+## Simplification pass (2026-09-04)
+
+This completes the "Simplification pass — dated by executor before PR"
+placeholder above. Run by the implementer (Claude Opus 5) over
+`git diff origin/dev...HEAD` before the PR, under the four lenses.
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | reuse | Three binders (dialog openers, evidence triggers, the CASE-007 dirty guard) each enumerated `document` once at load, so a lazily mounted body would carry none of them. A fourth copy inside the Case module was the obvious shortcut. | **Applied.** Each became one root-scoped idempotent `bind(root)` registered in `window.pegasusMountBinders`; the Case module calls every registered binder with the mounted host. One seam, no copy — and it is the seam D46's crop tool (ENG-031) needs. |
+| 2 | reuse | `_CaseWorkspaceNav` held its own inline `(Key, Label, Icon)` array and `Details.cshtml` hard-coded the ribbon words. | **Applied.** `OperatorLabels.CaseWorkspace.Sections` is the only ordered section list; the nav, the eleven hosts, the headings and `DetailsModel`'s accepted `?section=` vocabulary all read it. No second list exists in Razor, CSS or script. |
+| 3 | simplification | The plan allowed a lazy placeholder for every section below the first three. Four of those (Damage, Estimate, Settlement, Report) are heading-only shells and two (Engineer notes, Valuation) are heading-only hosts, so a fragment round-trip would fetch a heading. | **Applied (deviation, recorded in the report).** Only the three sections that have a body today — Vehicle, Files, Notes — are deferred. `LazySectionViews` is that list and `OnGetSectionAsync` refuses every other key, so a lane adding a body adds one entry rather than restructuring the frame. |
+| 4 | simplification | `--case-sticky-h` was first written on `document.documentElement`, duplicating the sticky top offset in script and putting an inline style on `<html>`. | **Applied.** It is written on the record element (every consumer is inside it), and the scroll-spy reads the sticky block's own `getBoundingClientRect().bottom` as the reading line rather than repeating the `51px` offset. |
+| 5 | simplification | `Array.prototype.slice.call(document.querySelectorAll(...))` — the file already calls `.forEach` on a `NodeList` throughout. | **Applied.** The `slice.call` was removed. |
+| 6 | simplification | The test helper `Occurrences` was a six-line `IndexOf` loop. | **Applied.** One expression over `string.Split`. |
+| 7 | efficiency | `IGetCase` is an eager aggregate, so a fragment cannot be made cheaper by section. | **No change; recorded.** The fragment runs the same authorized load the full GET runs and adds only the section's own supplemental query (`ImagesByIntake` for Files). No Core query contract was widened. |
+| 8 | efficiency | `SectionIsDeferred` depends on `LeaseToken`, which `RestoreLeaseState` sets. | **Applied.** `OnGetAsync` restores the lease before choosing the section-specific loads, so the Files gallery load is skipped exactly when its body is not rendered. |
+| 9 | altitude | `AssessmentIsReadOnly` has no reader in this diff. | **Kept, with the reason.** It replaces `CanOpenAssessment` on a query the page already ran (`IGetAssessmentAccess`), so no work is added; it is ENG-034 contract item 2 and ENG-034 — which this ticket blocks — is its reader in the PR that adds the Engineer forms. Nothing else in the diff is unread. |
+| 10 | altitude | Six places render the same three-line heading panel: the four shells ENG-034 fills, and the Engineer notes / Valuation inline hosts. | **Rejected, with the reason.** ENG-034 replaces the four shells' content in its first PR and CASE-039/CASE-029 replace the two inline hosts, so a shared `_CaseSectionHeading` partial would be introduced and deleted inside one wave. The shells exist because a `<partial>` whose file is missing fails at render time (ENG-034 contract item 6), not as a pattern. |
+| 11 | altitude | `case-section-nav` had CSS rules, a 980px scroller rule and two `docs/design/README.md` mentions after its last composer was removed. | **Applied.** The class and its rules are deleted, the 980px rule keeps only `admin-nav`, and the two README lines were corrected. `case-workspace` and `case-context` stay: the record still composes them, as the mockup does (`20-case.js` 61–63). |
+
+Two further findings came out of running the proof rather than reading the
+diff, and are recorded here because both changed the shipped frame:
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 12 | correctness | At 760px the generic breakpoint stacks the ribbon into seven rows, making `.case-sticky` taller than the viewport. A sticky block cannot pin anything once its own box has scrolled past, so the reading line went off-screen and the scroll-spy could never leave Overview. | **Fixed in CSS, not in the test.** The record's ribbon keeps two columns at that width, so one block stays sticky at every width and the script measures one element. An intermediate attempt that made `.case-sticky` static and pinned only `.section-nav` was reverted: a sticky child cannot outlive its static parent's box, so it moved the bug rather than fixing it. |
+| 13 | altitude | The first Browser assertions asserted transient states — a placeholder count read before the initial mount pass, and one exact `aria-current` key that depends on where the browser can stop scrolling at a given width. | **Fixed.** The browser scenario asserts the durable end state (Files mounted with its own controls bound; exactly one jump entry current and no longer Overview), and `CaseDetailsWebTests` asserts server-side which sections the first response defers. No claim was dropped — each moved to the layer that can state it truthfully. |
+
+One further change was a fix, not a simplification, and is recorded in the
+post-implementation report as well: the Inspection ordering assertion in
+`CaseTasksWebTests.cs` had to be scoped to the Inspection form, because the
+record now renders the Overview editor above it and both post the same field
+names. No assertion was weakened — the same ordering is asserted, inside the
+form that owns it.
