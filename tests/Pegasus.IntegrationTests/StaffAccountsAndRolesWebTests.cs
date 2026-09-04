@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -93,6 +95,10 @@ public sealed partial class StaffAccountsAndRolesWebTests
             StringComparison.Ordinal);
         Assert.Contains(
             $"data-dialog-open=\"review-{created.Id:D}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            $"data-dialog-open=\"sign-off-{created.Id:D}\"",
             createdHtml,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -196,6 +202,59 @@ public sealed partial class StaffAccountsAndRolesWebTests
 
         var afterRoles = await FindAccountAsync(factory, "plat027-web-caller");
         Assert.Equal(new[] { StaffRole.Engineer, StaffRole.User }, afterRoles.Roles);
+
+        using var signOffLanding = await client.GetAsync(AreaRoute);
+        var signOffHtml = await signOffLanding.Content.ReadAsStringAsync();
+        signOffLanding.EnsureSuccessStatusCode();
+        Assert.Contains(
+            $"data-dialog-open=\"sign-off-{created.Id:D}\"",
+            signOffHtml,
+            StringComparison.Ordinal);
+        Assert.Empty(InlineScriptRegex().Matches(signOffHtml));
+        using var signOffPost = await client.PostAsync(
+            $"{AreaRoute}?handler=SignOff",
+            SignOffForm(
+                InputValue(signOffHtml, "__RequestVerificationToken"),
+                created.Id,
+                "A Engineer",
+                qualifications: null,
+                isDefault: true,
+                "PLAT-068 sign-off proof",
+                Guid.NewGuid().ToString("N"),
+                Png()));
+        Assert.Equal(HttpStatusCode.Redirect, signOffPost.StatusCode);
+
+        var afterSignOff = await FindAccountAsync(factory, "plat027-web-caller");
+        Assert.True(afterSignOff.SignOff.IsSignOffEngineer);
+        Assert.Equal("A Engineer", afterSignOff.SignOff.PrintedName);
+        Assert.Null(afterSignOff.SignOff.Qualifications);
+        Assert.True(afterSignOff.SignOff.HasSignature);
+        Assert.True(afterSignOff.SignOff.IsDefault);
+        await using (var signOffScope = factory.Services.CreateAsyncScope())
+        {
+            var context = signOffScope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            Assert.True(await context.ActionHistory.AnyAsync(item =>
+                item.AggregateId == created.Id.ToString("D")
+                && item.EventKind == "staff_account_sign_off_updated"
+                && item.Reason == "PLAT-068 sign-off proof"));
+        }
+
+        using var missingNamePost = await client.PostAsync(
+            $"{AreaRoute}?handler=SignOff",
+            SignOffForm(
+                InputValue(signOffHtml, "__RequestVerificationToken"),
+                created.Id,
+                string.Empty,
+                qualifications: null,
+                isDefault: false,
+                "Missing name proof",
+                Guid.NewGuid().ToString("N"),
+                signature: null));
+        Assert.Equal(HttpStatusCode.OK, missingNamePost.StatusCode);
+        Assert.Contains(
+            OperatorLabels.StaffAccounts.PrintedNameRequired,
+            await missingNamePost.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
 
         // Access review — the capability the separate Access page carried.
         using var reviewPost = await client.PostAsync(
@@ -305,8 +364,194 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task SignOffUpdatesAreReplaySafeAndTransferTheSingleDefault()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        _ = factory.Services;
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        var first = await CreateEngineerAsync(services, actor, "plat068-first");
+        var second = await CreateEngineerAsync(services, actor, "plat068-second");
+        var update = services.GetRequiredService<IUpdateStaffAccountSignOff>();
+        var operationKey = Guid.NewGuid().ToString("N");
+        var request = new UpdateStaffAccountSignOffRequest(
+            actor,
+            first.Id,
+            true,
+            "First Engineer",
+            null,
+            Png(),
+            true,
+            "First default",
+            operationKey);
+
+        var initial = await update.ExecuteAsync(request, default);
+        var replay = await update.ExecuteAsync(request, default);
+        var conflict = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            update.ExecuteAsync(
+                request with { Signature = [.. Png(), 0x01] },
+                default));
+        Assert.False(initial.WasReplay);
+        Assert.True(replay.WasReplay);
+        Assert.Equal(StaffAccountAdministrationError.OperationConflict, conflict.Error);
+
+        await update.ExecuteAsync(
+            new(
+                actor,
+                second.Id,
+                true,
+                "Second Engineer",
+                "M.Inst.IAEA",
+                Png(),
+                true,
+                "Transfer default",
+                Guid.NewGuid().ToString("N")),
+            default);
+
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+        var profiles = await queries.ListSignOffEngineersAsync(default);
+        Assert.Equal(2, profiles.Count);
+        Assert.False((await queries.GetSignOffEngineerAsync(first.Id, default))!.IsDefault);
+        Assert.True((await queries.GetSignOffEngineerAsync(second.Id, default))!.IsDefault);
+
+        await services.GetRequiredService<IDisableStaffAccount>().ExecuteAsync(
+            new(
+                actor,
+                second.Id,
+                "Disable current default",
+                Guid.NewGuid().ToString("N")),
+            default);
+        var retainedIneligibleDefault = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            update.ExecuteAsync(
+                new(
+                    actor,
+                    second.Id,
+                    true,
+                    "Second Engineer",
+                    "M.Inst.IAEA",
+                    null,
+                    true,
+                    "Retain ineligible default",
+                    Guid.NewGuid().ToString("N")),
+                default));
+        Assert.Equal(
+            StaffAccountAdministrationError.IneligibleSignOffEngineer,
+            retainedIneligibleDefault.Error);
+
+        await services.GetRequiredService<IAssignStaffRoles>().ExecuteAsync(
+            new(
+                actor,
+                first.Id,
+                [StaffRole.User],
+                "Remove Engineer role",
+                Guid.NewGuid().ToString("N")),
+            default);
+        Assert.Null(await queries.GetSignOffEngineerAsync(first.Id, default));
+        var retained = await queries.GetAsync(first.Id, default);
+        Assert.True(retained!.SignOff.IsSignOffEngineer);
+        var ineligibleDefault = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            update.ExecuteAsync(
+                request with
+                {
+                    Signature = null,
+                    OperationKey = Guid.NewGuid().ToString("N")
+                },
+                default));
+        Assert.Equal(
+            StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole,
+            ineligibleDefault.Error);
+
+        var context = services.GetRequiredService<PegasusDbContext>();
+        var history = await context.ActionHistory
+            .Where(item => item.CorrelationId == operationKey)
+            .SingleAsync();
+        Assert.Contains("SignOffSignatureDigest", history.AfterJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(Convert.ToBase64String(Png()), history.AfterJson, StringComparison.Ordinal);
+
+        await using var invariantScope = factory.Services.CreateAsyncScope();
+        var invariantContext = invariantScope.ServiceProvider
+            .GetRequiredService<PegasusDbContext>();
+        Assert.Equal(
+            second.Id,
+            await invariantContext.Users
+                .Where(item => item.IsDefaultSignOffEngineer)
+                .Select(item => item.Id)
+                .SingleAsync());
+        var firstUser = await invariantContext.Users
+            .SingleAsync(item => item.Id == first.Id);
+        firstUser.IsDefaultSignOffEngineer = true;
+        await Assert.ThrowsAsync<DbUpdateException>(
+            () => invariantContext.SaveChangesAsync());
+    }
+
     private static FormUrlEncodedContent Form(params (string Name, string Value)[] fields) =>
         new(fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value)));
+
+    private static MultipartFormDataContent SignOffForm(
+        string token,
+        Guid staffId,
+        string printedName,
+        string? qualifications,
+        bool isDefault,
+        string reason,
+        string operationKey,
+        byte[]? signature)
+    {
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent(token), "__RequestVerificationToken" },
+            { new StringContent(staffId.ToString("D")), "staffId" },
+            { new StringContent("true"), "isSignOffEngineer" },
+            { new StringContent(printedName), "printedName" },
+            { new StringContent(isDefault ? "true" : "false"), "isDefault" },
+            { new StringContent(reason), "reason" },
+            { new StringContent(operationKey), "operationKey" }
+        };
+        if (qualifications is not null)
+        {
+            form.Add(new StringContent(qualifications), "qualifications");
+        }
+
+        if (signature is not null)
+        {
+            var file = new ByteArrayContent(signature);
+            file.Headers.ContentType = new MediaTypeHeaderValue(SignOffSignaturePolicy.MediaType);
+            form.Add(file, "signature", "signature.png");
+        }
+
+        return form;
+    }
+
+    private static async Task<StaffAccountSummary> CreateEngineerAsync(
+        IServiceProvider services,
+        ActionActor actor,
+        string userName)
+    {
+        var created = await services.GetRequiredService<ICreateStaffAccount>().ExecuteAsync(
+            new(
+                actor,
+                userName,
+                "Temporary-Password-1",
+                "PLAT-068 account",
+                Guid.NewGuid().ToString("N")),
+            default);
+        await services.GetRequiredService<IAssignStaffRoles>().ExecuteAsync(
+            new(
+                actor,
+                created.Account.Id,
+                [StaffRole.Engineer],
+                "PLAT-068 Engineer role",
+                Guid.NewGuid().ToString("N")),
+            default);
+        return created.Account;
+    }
+
+    private static byte[] Png() =>
+        [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
     private static async Task<StaffAccountSummary> FindAccountAsync(
         IntakeWebApplicationFactory factory,
@@ -359,4 +604,9 @@ public sealed partial class StaffAccountsAndRolesWebTests
         "<time\\b[^>]*\\bdatetime=\"(?<value>[^\"]+)\"",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TimeStampRegex();
+
+    [GeneratedRegex(
+        "<script(?![^>]*\\bsrc=)[^>]*>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex InlineScriptRegex();
 }

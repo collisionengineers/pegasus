@@ -135,5 +135,14 @@ public sealed class EngineerActivityReportTests
             Task.FromResult(staffId == knownId
                 ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.Engineer], null)
                 : null);
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by the report.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by the report.");
     }
 }
