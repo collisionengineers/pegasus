@@ -2,18 +2,20 @@
 id: UIIMP-016
 type: ticket
 title: Replace Windows accessibility evidence with Chromium automation
-status: review
+status: implementing
 area: ui-improvement
 assignee: codex
 profile: feature
 stageEntered:
   preparing: '2026-09-04T18:12:32.327Z'
   review: '2026-09-04T18:28:42.592Z'
+  implementing: '2026-09-04T18:32:08.372Z'
 taken_at: '2026-09-04T18:14:27.477Z'
 branch: UIIMP-016-chromium-accessibility
 worktree: .worktrees/uiimp-016
 claim_expires_at: '2026-09-04T18:46:51.940Z'
 claim_controller: codex
+review_round: 1
 lease_id: e249bc77-023c-45d8-9fc2-4820201cc5c5
 lease_revision: 2
 lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/uiimp-016'
@@ -36,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/662'
 archived: false
 created: '2026-09-04T11:58:34.790Z'
-updated: '2026-09-04T18:28:42.592Z'
+updated: '2026-09-04T18:32:08.372Z'
 ---
 
 ## What
