@@ -2,12 +2,23 @@
 id: CASE-042
 type: ticket
 title: 'Awaiting instruction: image-initiated cases as a Pre-case queue on Cases'
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-042
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:20:38.061Z'
+taken_at: '2026-09-04T17:58:44.553Z'
+branch: task/case-042-awaiting-instruction-queue
+worktree: .worktrees/case-042
+claim_expires_at: '2026-09-04T18:28:44.553Z'
+claim_controller: wf-build/case-042
+lease_id: 706d76d5-1050-418e-bacd-148095033418
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-042'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T17:58:44.553Z'
 labels:
   - cases
   - queues
@@ -26,7 +37,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-04T12:19:28.393Z'
+updated: '2026-09-04T17:58:44.553Z'
 ---
 
 ## What
