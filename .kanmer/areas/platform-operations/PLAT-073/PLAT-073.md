@@ -11,14 +11,14 @@ stageEntered:
 taken_at: '2026-09-04T15:15:10.556Z'
 branch: PLAT-073-wsl-toolchain
 worktree: .worktrees/plat-073
-claim_expires_at: '2026-09-04T17:24:31.420Z'
+claim_expires_at: '2026-09-04T17:52:16.474Z'
 claim_controller: codex-root
 lease_id: b367fe67-fd5d-4e8e-9918-740ddd0d9974
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/plat-073'
 lease_provider: codex
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-04T15:24:31.420Z'
+lease_heartbeat_at: '2026-09-04T16:52:16.474Z'
 labels:
   - wsl
   - linux
@@ -31,7 +31,7 @@ blocks:
   - UIIMP-016
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T15:24:31.420Z'
+updated: '2026-09-04T16:52:16.474Z'
 ---
 
 ## What
