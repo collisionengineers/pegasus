@@ -431,7 +431,7 @@ public sealed class EfCaseQueryStore(
                 throw new InvalidDataException("Case archive metadata is incomplete.");
             }
 
-            return workflow;
+        return workflow with { SignOffEngineerId = entity.SignOffEngineerId };
         }
         if (entity.ArchivedByKind is null
             || entity.ArchivedBySubjectId is null
