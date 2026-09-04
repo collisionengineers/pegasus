@@ -272,3 +272,77 @@ Next action for this lane: run `./scripts/Update-TestUiSnapshots.ps1`, then
 `-Verify -SkipCapture`, then `./scripts/Test-UiCatalogue.ps1`, inspect the
 regenerated `case-details--default.html` directly, correct `catalogue.json` to
 what it actually contains, and commit. Finding 1 is not closed until then.
+
+## Snapshot regeneration (2026-09-04)
+
+Head before this pass: `1ed9da3a9`. Worktree `.worktrees/case-038`,
+branch `task/case-038-case-workspace-frame`. `git status --porcelain` was
+clean; `git fetch origin dev` + `git merge --no-edit origin/dev` reported
+already up to date.
+
+An earlier attempt of this lane had died mid-capture, leaving the shared
+`capture.lock` directory behind. A live `Update-TestUiSnapshots.ps1` process
+(PID 14712) was found running against this same worktree; it was allowed to
+finish rather than started again. Its own log
+(`scratchpad/capture-full.log`) showed only the capture phase's test
+discovery line with no completion, and the snapshot files it would have
+written were unchanged (`git status` clean for `docs/design/test-ui/`,
+mtimes from the prior commit) — that process had stalled without writing
+anything. Once it exited (confirmed via `Get-Process -Id 14712` erroring
+"not found"), the stale lock was removed and a fresh one taken.
+
+`grep -c "Scope" scripts/Update-TestUiSnapshots.ps1` returned 0, so the FULL
+capture ran (no `-Scope` available yet).
+
+### Commands (Windows, PowerShell 7)
+
+| Command | Exit |
+| --- | --- |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1` | 0 — capture browser 123 passed (10m36s), capture non-browser 310 passed (11m23s), snapshot update 1 passed |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` | 0 — 1 passed (58s) |
+| `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1` | 0 — "Test UI catalogue valid: 54 routed sources, 58 prototypes, 0 broken local references." |
+
+The capture lock was released (`rmdir capture.lock`) in the same turn these
+commands finished.
+
+### Artifact inspection
+
+`docs/design/test-ui/pages/case-details--default.html`: 41,040 bytes (was
+3,356 at the stale `1ed9da3a9` commit — the Files fragment reported in
+review finding 1); begins `<!DOCTYPE html>`; contains exactly one
+`class="case-sticky"`; contains eleven non-title `id="section-<key>"` hosts
+(`damage`, `engineer-notes`, `estimate`, `files`, `inspection`, `notes`,
+`overview`, `report`, `settlement`, `valuation`, `vehicle` — six of these
+also carry a separate `-title` heading id, which is expected and additional);
+contains zero `<img src="#">`.
+
+`docs/design/test-ui/pages/case-details--conflict.html`: 40,091 bytes,
+unchanged by this regeneration (it was already the full record, not the
+fragment); same doctype, one `case-sticky`, eleven section hosts, zero
+`<img src="#">`.
+
+`docs/design/test-ui/pages/case-details--unavailable.html`:
+`git diff --stat` shows no change — byte-identical, as required.
+
+`docs/design/test-ui/catalogue.json`'s Details `default` branch text was
+already correct (written in an earlier commit on this branch, per the
+existing checklist note) and needed no edit this round.
+`docs/design/test-ui/index.html` shows no diff either.
+
+`git diff --stat` after regeneration showed exactly one file:
+`docs/design/test-ui/pages/case-details--default.html` (662 insertions, 63
+deletions).
+
+### Disposition
+
+Review finding 1 ("the committed default snapshot is the Files fragment, not
+the Case page") is now closed: the regenerated artifact is the real record,
+matching the catalogue text the PR already carries. No unloadable
+offline-render dependency resurfaced — `-Verify` passed clean at exit 0,
+confirming the case-document gallery concern from the earlier report's
+"Blocking dependency" section did not recur once the fragment-routing fix
+(finding 1's own resolution, `eaf023957`) was in place.
+
+Committed as `b5f5ccda9` ("Regenerate the Case snapshots from the real
+record (CASE-038)") and pushed to
+`task/case-038-case-workspace-frame`.
