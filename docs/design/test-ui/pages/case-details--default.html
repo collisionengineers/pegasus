@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Case NOTACTIVE31001 · Pegasus</title>
+    <title>Case QDOS3100042 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -94,7 +94,7 @@
                 <a class="nav-link" aria-current="page" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="1 outstanding">1</span>
+                        <span class="nav-count" aria-label="0 outstanding">0</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -115,8 +115,8 @@
                 <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
             </div>
                 <div class="rail-user" role="group" aria-label="User">
-                    <span class="avatar" aria-hidden="true">IU</span>
-                    <div><strong>integration-user</strong><small>Administrator</small></div>
+                    <span class="avatar" aria-hidden="true">DO</span>
+                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
                     <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
                         <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
                     </button>
@@ -162,7 +162,7 @@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Case workspace · AB12CDE</p>
-        <h1>NOTACTIVE31001</h1>
+        <h1>QDOS3100042</h1>
     </div>
     <div class="page-actions">
         <a class="btn" href="queues--default.html">
@@ -184,7 +184,7 @@
     <div class="record-ribbon" aria-label="Case identity">
         <div class="ribbon-item ribbon-ref">
             <div class="ribbon-label">Case/PO</div>
-            <div class="ribbon-value">NOTACTIVE31001</div>
+            <div class="ribbon-value">QDOS3100042</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">Registration</div>
@@ -192,11 +192,11 @@
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">Claimant</div>
-            <div class="ribbon-value">Not recorded</div>
+            <div class="ribbon-value">Case claimant</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">Principal</div>
-            <div class="ribbon-value">NOTACTIVE</div>
+            <div class="ribbon-value">QDOS</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">State</div>
@@ -205,15 +205,16 @@
         </div>
     </div>
 
+        <div class="presence-strip" role="status">
+            <span class="presence-dot" aria-hidden="true"></span>
+            <span>You are editing this case.</span>
+        </div>
     <div class="record-bar">
             <form method="post" action="case-details--default.html">
                 <input type="hidden" name="id" value="test-ui-guid-1" />
-                <input type="hidden" name="expectedVersion" value="0" />
+                <input type="hidden" name="expectedVersion" value="7" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                <button type="submit" class="btn">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                    <span>Edit Case</span>
-                </button>
+                <button type="submit" class="btn">Recover editing</button>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
         <span class="record-bar-end">
                 <span class="gated" data-condition="Available after the current Review export">
@@ -283,24 +284,6 @@
             </li>
     </ol>
 
-        <section class="panel" aria-labelledby="case-requirements-title">
-            <div class="panel-head">
-                <h2 id="case-requirements-title">Outstanding requirements</h2>
-                <span class="status status--amber">1 outstanding</span>
-
-            </div>
-            <div class="panel-body">
-                <ul class="blocker-list">
-                        <li class="blocker">
-                            <strong>Images incomplete</strong>
-                            <small>
-                                <b>Source:</b> Instruction completeness
-                                    <br /><b>Why:</b> Details are incomplete                                <br /><b>Resolve:</b> Confirm completeness
-                            </small>
-                        </li>
-                </ul>
-            </div>
-        </section>
 
 </div>
 
@@ -314,21 +297,21 @@
                 <h3 id="case-overview-work">Work</h3>
                 <div class="overview-facts">
                     <dl><dt>Case type</dt><dd>Inspection</dd></dl>
-                    <dl><dt>Provider reference</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Inspection</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Provider reference</dt><dd>CLM-42</dd></dl>
+                    <dl><dt>Inspection</dt><dd>1 Depot Road</dd></dl>
                     <dl><dt>Engineer</dt><dd>Unassigned</dd></dl>
-                    <dl><dt>Received</dt><dd>11 Aug 2031 10:15</dd></dl>
-                    <dl><dt>Due</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Received</dt><dd>04 May 2031 11:30</dd></dl>
+                    <dl><dt>Due</dt><dd>10 May 2031</dd></dl>
                 </div>
             </section>
             <section aria-labelledby="case-overview-parties">
                 <h3 id="case-overview-parties">Parties</h3>
                 <div class="overview-facts">
-                    <dl><dt>Principal</dt><dd>NOTACTIVE</dd></dl>
-                    <dl><dt>Claimant</dt><dd>Not recorded</dd></dl>
+                    <dl><dt>Principal</dt><dd>QDOS</dd></dl>
+                    <dl><dt>Claimant</dt><dd>Case claimant</dd></dl>
                     <dl><dt>Repairer / holder</dt><dd>Not recorded</dd></dl>
                     <dl><dt>Intermediary</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Origin</dt><dd>E-mail</dd></dl>
+                    <dl><dt>Origin</dt><dd>Email</dd></dl>
                 </div>
             </section>
         </div>
@@ -337,10 +320,10 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                 <h3 id="case-accident-title">Accident circumstances</h3>
             </div>
-            <p>Not recorded</p>
+            <p>Rear impact</p>
             <div class="accident-meta">
                 <span><b>Incident detail</b>Not recorded</span>
-                <span><b>Vehicle</b>AB12CDE</span>
+                <span><b>Vehicle</b>AB12CDE &#xB7; Ford Transit</span>
             </div>
         </section>
     </div>
@@ -354,27 +337,17 @@
                     <div class="panel-body">
                         <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
 </strong></div>
-                        <div class="decision-row"><span>Version</span><strong>0</strong></div>
-                        <div class="decision-row"><span>Due</span><strong>Not recorded</strong></div>
+                        <div class="decision-row"><span>Version</span><strong>7</strong></div>
+                        <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
                         <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
                         <div class="decision-row">
                             <span>Edit authority</span>
                             <strong>
-                                    Available
+                                    You
                             </strong>
                         </div>
                     </div>
                 </section>
-                    <section class="context-card">
-                        <div class="panel-head"><h2>Next action</h2></div>
-                        <div class="panel-body stack">
-                            <div class="notice notice--warning">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                <span>Images incomplete</span>
-                            </div>
-                            <a class="btn btn--dark" href="case-details--default.html">Open Notes</a>
-                        </div>
-                    </section>
             </aside>
         </div>
     </div>
@@ -452,7 +425,7 @@
         </div>
         <div class="dialog-body">
             <div class="definition-list">
-                <dl class="definition"><dt>Name</dt><dd>integration-user</dd></dl>
+                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
                 <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
                 <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
             </div>

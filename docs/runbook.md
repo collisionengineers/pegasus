@@ -657,6 +657,16 @@ not maintained as parallel hand-written pages. Run
 catalogue differs from the current render. Capture requires the normal
 SQL Server integration-test prerequisite; opening Test UI does not.
 
+For a focused refresh, pair the page prefix with the integration-test cohort
+that captures it, then verify the retained capture at the same scope:
+
+```powershell
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
+  -Scope case-details `
+  -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
+  -Verify -SkipCapture -Scope case-details
+```
 
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,
