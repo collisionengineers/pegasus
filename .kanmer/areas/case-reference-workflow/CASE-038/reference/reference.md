@@ -325,3 +325,151 @@ because finding 1 means no test currently sees it.
 3. Push, and let CI produce a green run at the new head (finding 3).
 
 Nothing else is required; findings 4 and 5 need no change.
+
+---
+
+# Review record — CASE-038 (PR https://github.com/collisionengineers/pegasus/pull/656) — re-review
+
+Head reviewed: `f3005ea667407ea5c9dcd4c298a9add200071855`
+(branch `task/case-038-case-workspace-frame`, review round 4 — the fresh
+independent read after the round-3 fix). Reviewed in a detached checkout at
+`.worktrees/case-038-review`, `git status --porcelain`-clean throughout;
+nothing on the lane's branch was changed. Base: `origin/dev` =
+`c90f2b8915186efd5bf932cec573846ae75ff1fe`, which this head merges in
+(`f3005ea66`), so the PR is no longer `CONFLICTING`.
+
+Reviewers: Claude Opus 5 (independent read, dispositions and gate) and
+gpt-5.6-terra xhigh (independent cross-model read, run read-only in the same
+detached checkout). Finding 1 below was reached independently by both.
+
+Two commits since the round-3 head: `fc5351e8b` "Test external form dirty
+tracking" (`Browser/LayoutIntegrityTests.cs`, +10/−1) and the merge
+`f3005ea66` "Merge origin/dev and regenerate Case Test UI", whose only
+conflict resolution is the two generated Test UI artifacts.
+
+## Verdict
+
+**REQUEST CHANGES — not merged.** No code defect survives: the round-3
+blocker is fixed at exactly the place it was raised, the whole diff re-reads
+clean, and the cross-model read found no substantive code, authorization,
+XSS, control-handler, label-ownership, Core-policy, snapshot or
+merge-resolution defect. What remains is finding 1 — the ticket's
+"Contracts handed on" section still hands the six tickets this one blocks a
+fragment URL and a form id that do not exist at this head. The gate is also
+not yet satisfiable: the exact-head Actions run `33901021975` was still
+`in_progress` at review time.
+
+## Round-3 findings — closure evidence at this head
+
+| Round-3 # | Status | Evidence |
+| --- | --- | --- |
+| 1 — `InspectionAddressOutsideEditFormIsGuardedAndSaved` passed identically against the bug | **Closed at the cause.** | `LayoutIntegrityTests.cs:209–219` now fills **only** `#inspection-address`, then clicks Finish editing and asserts `#edit-finish-confirm` is visible with no `hidden` attribute, then dismisses via `[data-edit-finish-keep]` and asserts it closes — all before `#edit-reason` (the first in-DOM-tree control) is touched at line 231. Under the pre-fix per-form listener no in-tree control has been touched at that point, `dirtyForm` is `null`, the toggle's `if (allowed \|\| !dirtyForm) return;` releases the lease and the confirmation never appears: the assertion fails. The test now guards the regression it is recorded as guarding. The 302 and persisted-`Recorded value` assertions are kept unweakened. `plan.md:698–717` and the report's round-3 section both retract the earlier "proving the confirmation dialog now appears" sentence by name. |
+| 2 — PR `CONFLICTING` against `origin/dev` | **Closed.** | `gh pr view 656` → `mergeable: MERGEABLE`. `origin/dev` `c90f2b891` is merged at `f3005ea66`; the two conflicting generated artifacts were resolved by regeneration under the capture lock, not by hand-editing. `git diff origin/dev...HEAD` touches 27 files, all inside the amended Expected files. |
+| 3 — no Actions run for the reviewed head | **Partly closed.** | `gh run list` newest is `33901021975`, `headSha f3005ea66…` — the reviewed head — but `status: in_progress` at review time. The gate needs `conclusion: success`. |
+
+## Findings and dispositions
+
+| # | Sev | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | **fix before merge** | The post-implementation report's **"Contracts handed on"** section still states two things that are false at this head, and it is the interface document for the six tickets CASE-038 blocks. (a) *"**ENG-034:** … the fragment URL `/Cases/{id}?handler=Section&section=<key>`"* — `grep -rn 'handler=Section' src tests` returns **nothing**; the fragment moved to its own path `/Cases/{id}/Section?section=<key>` when round-1 finding 1 was fixed at its cause in `Program.cs`. (b) *"**CASE-041:** the inspection form is `case-inspection-address-form`, posts to the Details `Save` handler, and is not the sticky bar's Save target"* — that form was **deleted** by the round-1 finding-3 fix; the only occurrence left in the tree is `CaseTasksWebTests.cs:128`, `Assert.DoesNotContain("case-inspection-address-form", page)`. The Inspection section now contributes one control, `<input id="inspection-address" name="inspectionAddress" form="case-edit-form">`, to the single record form. Deviation 3 (report lines 131–137) is stale for the same reason: it describes "the Inspection form" and "both post `inspectionAddress`". | **Confirmed, fix before merge — record only, no code change. Reached independently by both reviewers.** This is the same class as round-1 finding 8 (the record contradicting the head), which was blocking, and here it is worse-directed: a lane reading the handed-on contract would build CASE-041 against a form id the diff explicitly asserts is absent, and ENG-034 against a URL that 404s. The existing "Record correction (2026-09-04, review finding 8)" section is the pattern — extend it, or supersede the three entries in place, naming the real fragment path and the `form=`-associated control. Also refresh the checklist's snapshot-evidence line, which still records `41,040 bytes` for `case-details--default.html` against the `64,427` this head commits. |
+| 2 | minor | `OnGetSectionAsync` (`Details.cshtml.cs:274–320`) does not set `ManualChaseAttemptedAtUtc`, which `OnGetAsync:259` does. `_CaseHistory.cshtml:73` renders it into the manual-chase form's `attemptedAtUtc`, so a `notes` fragment fetched while the caller holds the lease would post `0001-01-01`. | **Accepted, no change — Core owns and refuses it.** `RecordManualCaseChase.cs:55` rejects `AttemptedAtUtc == default`, so the failure direction is a refused chase, not bad data. The path is also unreachable from the frame: `SectionIsDeferred` requires `LeaseToken is null`, and `_CaseHistory`'s `mayEdit` requires a lease, so the chase form never renders in a mounted fragment. |
+| 3 | — | `catalogue.json`'s Details `default` branch text — rejected in round 2 as inaccurate-but-pre-existing about "the edit lease held … edit bar". | **Now correct, no action.** `origin/dev`'s UIIMP-015 (`b7fa4f70c`) tightened the `case-details--default` matcher to the Review state, and the regenerated artifact at this head carries `case-edit-form` (3), `edit-bar` (1), `data-edit-save` (1), `section-nav` (1) and `case-context` (1). Every clause of the branch text is now true of the artifact. |
+| 4 | — | Round-3 findings 4 (jump-nav click inside the 5s failed-fetch cooldown) and 5 (`AssessmentIsReadOnly` has no reader). | **Accepted, unchanged.** No result is discarded — the callback is deferred to the automatic retry; `AssessmentIsReadOnly` is `?.IsReadOnly ?? true` (fails closed) and ENG-034 is its declared reader. |
+
+## What was checked and found sound at this head
+
+- **The committed snapshot artifacts are the real page**, opened directly, not
+  trusted through a gate. `case-details--default.html`: 64,427 bytes as
+  committed (65,484 in the CRLF working tree), begins `<!DOCTYPE html>`,
+  exactly one `class="case-sticky"`, eleven section hosts (`damage`,
+  `engineer-notes`, `estimate`, `files`, `inspection`, `notes`, `overview`,
+  `report`, `settlement`, `valuation`, `vehicle`), zero `src="#"`.
+  `case-details--conflict.html`: 40,091 bytes committed, same markers, three
+  `data-lazy` placeholders (the no-lease state).
+  `case-details--unavailable.html`: 24,390 bytes, no sticky block, as on
+  `origin/dev`. `index.html`'s only change is the regenerated Details
+  `default` sentence.
+- **The dirty-guard fix**: one delegated `document` `input` listener resolving
+  `event.target.form` (which honours `form=`), the same admitted form set
+  (`form !== toggle && form.querySelector('input[name="editLeaseToken"]')`),
+  the submit-reset still in the root-scoped idempotent `bind()` so a lazily
+  mounted section's forms join the guard, `window.pegasusDirtyEditForm`
+  (Ctrl+S) untouched, and no `stopPropagation` anywhere in the file.
+- **One editor**: `_CaseDataHiddenFields.cshtml` is deleted, `_CaseWorkflow`'s
+  hidden `inspectionAddress` is removed, and the two render conditions are
+  byte-identical (`!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive
+  is null && data is not null`), so the associated control is never orphaned
+  and `inspectionAddress` has exactly one entry.
+- **The fragment handler** is actor-bound through the same authorized
+  `IGetCase` load, normalizes the key against the one section list, serves
+  only the closed three-entry `LazySectionViews` map, 404s every other key,
+  restores the lease before choosing supplemental loads, and returns only the
+  named body. Its `catch` excludes `OperationCanceledException`, logs, and
+  returns 503 — no suppression.
+- **`Program.cs`**: matching-only selector, `SuppressLinkGeneration = true`,
+  `{handler:regex(^Section$)}` — `/Cases/{id}` and every `?handler=` link
+  generate exactly as before.
+- **One list per concept**: `OperatorLabels.CaseWorkspace.Sections` is the only
+  ordered section list; `NormalizeSection`, `_CaseWorkspaceNav`, the eleven
+  hosts, the four shells' headings and the `?section=` vocabulary all read it.
+  All eleven icon ids resolve. No second copy in Razor, CSS or script.
+- **Scope**: `git diff --name-only origin/dev...HEAD` is 27 files, every one
+  inside the plan's amended Expected files plus the declared
+  `Pages/Cases/Shared/*` exception. No migration, no Core or Infrastructure
+  change, no new package, no Assessment POST handler, no
+  `Pages/Cases/Assessment/**`, `AccessibilityTests.cs`, `scripts/`, `ci.yml`
+  or `TestUiSnapshotTests.cs` edit.
+- **CSS**: `case-section-nav` is retired from every rule including the 980px,
+  reduced-motion and forced-colors blocks; `case-workspace`, `case-context`
+  and `case-main` keep live consumers. No dead selector left.
+- Every drawn control has a named handler; Sign-off is a display slot (D31);
+  the absent Open Assessment action is D30 and ENG-034's to restore; the four
+  ENG-034 shells are heading-only, with no control, prose or placeholder.
+- No explanatory copy introduced; no new operator label outside
+  `Presentation/OperatorLabels.cs`; absent values render `AbsentValue`
+  ("Not recorded"), never a blank.
+- No assertion weakened or deleted. `CaseTasksWebTests`' rewrite replaces the
+  in-form `inspectionAddress` ordering claim with a stronger pair — the old
+  form is asserted absent and the `form=`-associated control asserted present
+  exactly once over the whole page.
+- The simplification pass (`plan.md:635–669`) is dated and honestly
+  dispositioned; its unapplied findings (7, 9, 10) each carry a reason.
+
+## Commands and exit codes (review checkout, Windows, bash)
+
+| Command | Exit |
+| --- | --- |
+| `git worktree add --detach .worktrees/case-038-review origin/task/case-038-case-workspace-frame` | 0 (`HEAD` = `f3005ea667407ea5c9dcd4c298a9add200071855`) |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 — 0 warnings, 0 errors |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --no-build` | 0 — 1225 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --no-build` | 0 — 100 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "FullyQualifiedName~CaseDetailsWebTests\|FullyQualifiedName~CaseTasksWebTests"` | 0 — 68 passed, 0 failed (5m32s) |
+| `gh pr view 656 --json mergeable,mergeStateStatus` | 0 — `MERGEABLE` / `UNSTABLE` (run in flight) |
+| `gh run list --branch task/case-038-case-workspace-frame --limit 3` | 0 — newest `33901021975`, `headSha f3005ea66…`, `in_progress` |
+
+That scope covers the change: the diff adds no Core or Infrastructure code, so
+Core and Architecture are regression cover only (and cover the merged
+`origin/dev` Core changes this head absorbs); every changed type on the Web
+side — `DetailsModel`, the Razor frame, the section partials, `Program.cs`'s
+selector — is exercised by `CaseDetailsWebTests`, and `CaseTasksWebTests`
+covers the one-editor claim the round-1 fix rests on. The Browser and snapshot
+lanes were not re-run locally; the committed artifacts were opened and
+inspected directly rather than trusted through a gate, and the guard fix and
+its new browser assertion were read line by line.
+
+## What the implementer must change
+
+1. Correct the post-implementation report's "Contracts handed on" entries for
+   **ENG-034** (the fragment URL is `/Cases/{id}/Section?section=<key>`) and
+   **CASE-041** (there is no `case-inspection-address-form`; the Inspection
+   section contributes `<input id="inspection-address" name="inspectionAddress"
+   form="case-edit-form">` to the one record form), and supersede deviation 3,
+   which describes the deleted Inspection form (finding 1). Refresh the
+   checklist's `case-details--default.html` byte-size evidence to this head's
+   `64,427`.
+2. Let the exact-head Actions run `33901021975` finish green (round-3 finding
+   3 / the gate). No push is needed for the gate itself; the finding-1 edits
+   are board documents, not repository files, so they do not move the head.
+
+Nothing else is required; findings 2, 3 and 4 need no change.
