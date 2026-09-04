@@ -666,3 +666,41 @@ post-implementation report as well: the Inspection ordering assertion in
 record now renders the Overview editor above it and both post the same field
 names. No assertion was weakened — the same ordering is asserted, inside the
 form that owns it.
+
+## Expected files amendment (Claude, review round, 2026-09-04)
+
+Round-1 review, finding 2 (SHOULD-FIX): `src/Pegasus.Web/Program.cs` (+28)
+and `docs/design/test-ui/index.html` were already in the diff but named in
+neither this plan's Expected files nor files.md. Both are ACCEPTED on their
+merits: `Program.cs` adds a matching-only route selector
+(`SuppressLinkGeneration = true`) that fixes round-1 finding 1 at its
+cause without changing `/Cases/{id}` or `?handler=` link generation;
+`docs/design/test-ui/index.html` is the harness's own regeneration of
+catalogue text this ticket already owns. Added to Expected files
+(line 234) as of this amendment; full reasoning recorded in files.md's
+matching amendment.
+
+## Review round fixes (2026-09-04)
+
+Round-2 review, finding 1 (BLOCKER — fixed): the dirty guard's per-form
+`input` listener (site.js, `bind()`) never saw `#inspection-address`'s
+edits because that control lives outside `#case-edit-form`'s DOM subtree
+(`form="case-edit-form"` association only, which `input` events do not
+bubble along). Fixed by resolving the owning form through the control's
+`form` IDL property via one delegated `document`-level listener. Added a
+browser test, `InspectionAddressOutsideEditFormIsGuardedAndSaved`
+(`tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs`), proving
+the confirmation dialog now appears and the typed address is what
+`SaveCase` persists. Finding 2 (SHOULD-FIX) is addressed by the Expected
+files amendment above. Rejected findings (site.js's existing-convention
+error text, the deliberately absent Open Assessment action, pre-existing
+catalogue.json wording, the unlabelled OperatorLabels block) needed no
+code change.
+
+Verification run: `dotnet build ./Pegasus.slnx --configuration Release
+--no-restore` (0 warnings/errors); `dotnet test
+./tests/Pegasus.Core.Tests` (1219 passed); `dotnet test
+./tests/Pegasus.ArchitectureTests` (100 passed); `dotnet test
+./tests/Pegasus.IntegrationTests --filter
+"FullyQualifiedName~LayoutIntegrityTests"` (70 passed, 6m54s, includes the
+new test).

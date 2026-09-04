@@ -91,3 +91,39 @@ exist with `ls`/`grep` in the main checkout at `cad00be9`.
 | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml` | create (heading-only shell) | As above, `section-estimate`. | As above. |
 | `src/Pegasus.Web/Pages/Cases/Shared/_CaseSettlement.cshtml` | create (heading-only shell) | As above, `section-settlement`. | As above. |
 | `src/Pegasus.Web/Pages/Cases/Shared/_CaseReport.cshtml` | create (heading-only shell) | As above, `section-report`. | As above. |
+
+## Review-round amendment (Claude, 2026-09-04)
+
+Round-1 review (finding 2, SHOULD-FIX) noted two files already in the diff
+but missing from this map. Both are accepted on their merits — recorded
+here, not reverted:
+
+| Path | Action | Why |
+| --- | --- | --- |
+| `src/Pegasus.Web/Program.cs` | change (+28) | Fixes round-1 finding 1 at its cause: a matching-only route selector (`SuppressLinkGeneration = true`) so `/Cases/{id}` and every `?handler=` link generate exactly as before. |
+| `docs/design/test-ui/index.html` | change (regenerate) | The Test UI harness's own catalogue-text regeneration for pages this ticket already owns; not a new page or a new governing decision. |
+
+## Review round fixes (2026-09-04)
+
+Round-2 review, finding 1 (BLOCKER): the round-1 finding-3 fix bound the
+CASE-007 dirty guard as `form.addEventListener('input', ...)` on each
+lease-carrying form's own subtree. `_CaseInspectionAddress.cshtml`'s
+`#inspection-address` control renders outside `#case-edit-form`'s DOM
+subtree (associated only via `form="case-edit-form"`); a native `input`
+event bubbles the DOM tree, not the `form=` association, so typing only
+the address left `dirtyForm` null and Finish editing released the lease
+with no confirmation — silent data loss, newly introduced by the round-1
+fix.
+
+Fixed in `src/Pegasus.Web/wwwroot/js/site.js`: one delegated
+`document`-level `input` listener resolves the owning form via the
+control's `form` IDL property (which does honour `form=`), replacing the
+per-form listener. Added
+`InspectionAddressOutsideEditFormIsGuardedAndSaved` to
+`tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs`: types
+into the address control, confirms the Finish-editing dialog now appears,
+saves, and asserts the typed address is what `SaveCase` persisted (a case
+no existing test covered — the CaseDetailsWebTests.cs POST tests build
+form data directly and never exercise the browser's `form=` association).
+
+Finding 2 (SHOULD-FIX, record-only) is addressed by the amendment above.
