@@ -243,6 +243,7 @@ public sealed partial class IndexModel(
                     byReference.AssociatedCaseId,
                     byReference.AssociatedCaseReference,
                     byReference.RegisteredAtUtc,
+                    byReference.Custody,
                     byReference.State,
                     byReference.ClosureReason));
             }

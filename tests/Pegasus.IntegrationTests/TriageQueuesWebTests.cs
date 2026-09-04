@@ -7,6 +7,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -177,9 +178,83 @@ public sealed class TriageQueuesWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+        Assert.Contains(imageIntake.NormalizedVehicleRegistration, html, StringComparison.Ordinal);
         Assert.Contains("1 retained image", html, StringComparison.Ordinal);
+        Assert.Contains("Storing", html, StringComparison.Ordinal);
         Assert.Contains("Not yet due", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Chase due", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TriageRowRendersReferenceRegistrationProviderAndAssignee()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        const string reference = "TRIAGE-032";
+        const string registration = "TR32AGE";
+        const string provider = "QDOS";
+        var sourceIdentity = new IntakeSourceIdentity(
+            IntakeSourceChannel.ManualUpload,
+            Guid.NewGuid().ToString("N"));
+        var sourceHash = new string('a', 64);
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            registration,
+            "Accepted Triage match for the queue-row test.",
+            MatcherKey: "case-032-test",
+            MatcherVersion: 1);
+        var receiptId = await StoreMinimalReceiptAsync(
+            services,
+            "triage-row.pdf",
+            new InstructionDraft(
+                SuggestedPrincipalCode: provider,
+                ClaimantName: null,
+                ClaimNumber: reference,
+                VehicleRegistration: registration,
+                VehicleMake: null,
+                VehicleModel: null,
+                VehicleMileage: null,
+                AccidentCircumstances: null,
+                DateOfIncident: null,
+                InstructionDate: null,
+                InspectionAddress: null),
+            [acceptedMatch],
+            sourceIdentity,
+            sourceHash);
+        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(services, receiptId);
+        var triage = await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
+            new(
+                new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
+                registration,
+                acceptedMatch,
+                "test-actor",
+                $"triage-create:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        await services.GetRequiredService<IAssignTriage>().ExecuteAsync(
+            new(
+                triage.Id,
+                triage.Version,
+                DevelopmentOfflineIdentity.AdministratorId,
+                "test-actor",
+                $"triage-assign:{Guid.NewGuid():N}",
+                "Assigned for the queue-row test."),
+            CancellationToken.None);
+
+        using var response = await client.GetAsync("/Cases?tab=triage");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(reference, html, StringComparison.Ordinal);
+        Assert.Contains(registration, html, StringComparison.Ordinal);
+        Assert.Contains(provider, html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"{provider} · {DevelopmentOfflineIdentity.UserName}",
+            WebUtility.HtmlDecode(html),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -436,7 +511,50 @@ public sealed class TriageQueuesWebTests
             CancellationToken.None);
     }
 
-    private static async Task<Guid> StoreMinimalReceiptAsync(IServiceProvider services, string sourceFileName)
+    /// <summary>
+    /// Stages and completes one durable intake work item so the receipt has a
+    /// real <c>IntakeEvaluations</c> row, the FK <see cref="TriageOrigin"/>
+    /// requires. Mirrors the queued-intake completion path
+    /// (<c>IIntakeWorkStore.ReceiveAsync</c>/<c>CompleteProcessingAsync</c>)
+    /// without going through the full mail-decision pipeline.
+    /// </summary>
+    private static async Task<Guid> StageAndCompleteEvaluationAsync(IServiceProvider services, Guid processedReceiptId)
+    {
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = DateTimeOffset.UtcNow;
+        var staged = new IntakeStagedReceipt(
+            Guid.NewGuid(),
+            "triage-row-evaluation.pdf",
+            "application/pdf",
+            1024,
+            Guid.NewGuid().ToString("N"),
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
+            now,
+            "test-actor",
+            $"test-storage-key/{Guid.NewGuid():N}",
+            now);
+        await workStore.ReceiveAsync(staged, $"triage-row-evaluation-receive:{Guid.NewGuid():N}", CancellationToken.None);
+        var dispatchClaim = await workStore.ClaimDispatchAsync(now, TimeSpan.FromMinutes(1), CancellationToken.None)
+            ?? throw new InvalidOperationException("Expected the staged evaluation work item to be claimable.");
+        await workStore.MarkDispatchedAsync(dispatchClaim.Id, dispatchClaim.LeaseToken!, now, CancellationToken.None);
+        var processingClaim = await workStore.ClaimProcessingAsync(staged.Id, now, TimeSpan.FromMinutes(1), CancellationToken.None)
+            ?? throw new InvalidOperationException("Expected the dispatched evaluation work item to be claimable for processing.");
+        var evaluation = await workStore.CompleteProcessingAsync(
+            processingClaim.WorkItem.Id,
+            processingClaim.WorkItem.LeaseToken!,
+            processedReceiptId,
+            now,
+            CancellationToken.None);
+        return evaluation.Id;
+    }
+
+    private static async Task<Guid> StoreMinimalReceiptAsync(
+        IServiceProvider services,
+        string sourceFileName,
+        InstructionDraft? instructionDraft = null,
+        IReadOnlyList<IntakeEvidence>? evidence = null,
+        IntakeSourceIdentity? sourceIdentity = null,
+        string? sourceHash = null)
     {
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
         var receipt = await receiptStore.StoreAsync(
@@ -444,16 +562,16 @@ public sealed class TriageQueuesWebTests
                 sourceFileName,
                 "application/pdf",
                 1024,
-                Guid.NewGuid().ToString("N"),
-                new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
+                sourceHash ?? Guid.NewGuid().ToString("N"),
+                sourceIdentity ?? new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
                 "test-actor",
                 IntakeDecision.NeedsSorting,
                 "test decision reason",
+                evidence ?? [],
                 [],
-                [],
-                null,
+                instructionDraft,
                 [],
                 null,
                 null,

@@ -169,6 +169,7 @@ public sealed class ImageIntakeCasePairingTests
         associatedCaseId,
         null,
         DateTimeOffset.UtcNow,
+        null,
         state);
 
     private sealed class FakeQueries : IImageIntakeStore
