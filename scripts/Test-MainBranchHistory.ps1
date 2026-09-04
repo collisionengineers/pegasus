@@ -53,6 +53,6 @@ try {
     Write-Output "Main history guard passed: $($commits.Count) new first-parent commit(s); main head is contained in the release branch."
 }
 catch {
-    Write-Error "Main history guard failed: $($_.Exception.Message)"
+    [Console]::Error.WriteLine("Main history guard failed: $($_.Exception.Message)")
     exit 1
 }
