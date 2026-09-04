@@ -2,7 +2,7 @@
 id: DELIV-046
 type: ticket
 title: Restore main as an ancestor of dev
-status: verifying
+status: done
 area: delivery-repository
 assignee: codex-root
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-04T11:59:53.345Z'
   review: '2026-09-04T12:23:57.577Z'
   verifying: '2026-09-04T15:08:23.999Z'
+  done: '2026-09-04T15:10:04.262Z'
 taken_at: '2026-09-04T12:01:22.290Z'
 branch: DELIV-046-restore-main-ancestry
 worktree: .worktrees/deliv-046
@@ -38,7 +39,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/660'
 archived: false
 created: '2026-09-04T11:58:34.764Z'
-updated: '2026-09-04T15:08:23.999Z'
+updated: '2026-09-04T15:10:04.262Z'
 ---
 
 ## What
