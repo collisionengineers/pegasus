@@ -150,3 +150,67 @@ loaders are untouched).
 https://github.com/collisionengineers/pegasus/pull/new/task/case-032-queue-row-projections
 (opened via `gh pr create` — see the ticket's `prs` field for the number once
 recorded).
+
+## Review round fixes (2026-09-04)
+
+Two should-fix findings from the PR review were applied; one finding was
+rejected. Commit `fbb8f6622` (pushed to
+`task/case-032-queue-row-projections`).
+
+1. **Absent values rendered a blank labelled row (applied).**
+   `ImageRow` and `TriageRow` built their `Facts` list unconditionally,
+   so an absent `Custody`, `Reference`, or `Provider` produced a labelled
+   row with an empty value — Reference/Provider are null whenever the
+   Triage origin carries no instruction draft, so this was the common
+   case, not an edge one. Fixed by building `Facts` as a mutable list and
+   adding each of Custody/Reference/Provider only when its source value
+   is non-null, exactly matching `BlockedRow`'s existing
+   `if (handle.Length > 0)` convention — no placeholder word is
+   substituted, and the row for a missing fact does not appear. The
+   "Unassigned" assignee fallback and the `Meta` line's `Join(...)` calls
+   were left untouched, as the finding specified.
+2. **The assignee assertion was vacuous (applied).**
+   `TriageRowRendersReferenceRegistrationProviderAndAssignee` asserted
+   `Assert.Contains(DevelopmentOfflineIdentity.UserName, html, ...)`,
+   which passes on every page because the authenticated shell renders
+   that username regardless of whether the Triage row itself carries an
+   assignee. Fixed by asserting the contiguous rendered fragment
+   `"{provider} · {DevelopmentOfflineIdentity.UserName}"` (HTML-decoded,
+   since Razor emits the middle dot as `&#xB7;`) against the response
+   body — that fragment can only appear where `TriageRow`'s
+   `Join(item.Provider, assignee)` actually renders provider and
+   assignee together, so it proves the fourth half. The other three
+   assertions (reference, registration, provider) were left unchanged.
+3. **Move field captions into `OperatorLabels` (rejected, no action).**
+   `OperatorLabels` owns operator value vocabulary (state/kind/reason/role
+   words), not field captions; every other quick-detail caption in
+   `Index.cshtml.cs` is already a literal at its use site. Moving three of
+   thirteen captions there would create a second, partial list of a
+   concept that file does not own, and would contradict the file's own
+   established convention. No file was changed for this finding.
+
+Only the two files the fix packet named were touched:
+`src/Pegasus.Web/Pages/Cases/Index.cshtml.cs` and
+`tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs`.
+`OperatorLabels.cs` was not touched, matching Finding 3's rejection.
+
+No routed `.cshtml` file, partial, or `catalogue.json` changed (only the
+two `.cs` files above), and neither Custody nor Reference/Provider facts
+appear in any currently captured Test UI snapshot (`queues--default.html`
+and `queues--empty.html` render no Triage or Image row at all, per the
+original report's Snapshot artifact section) — the change makes no
+difference to any committed snapshot, so no re-capture was run.
+
+### Commands run (exit codes)
+
+- `dotnet restore ./Pegasus.slnx --locked-mode` — 0
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — 0
+  (0 warnings, 0 errors)
+- `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` — 0 (1225 passed)
+- `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` — 0 (100 passed)
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~TriageQueuesWebTests"` — 0 (9 passed)
+- `git push origin task/case-032-queue-row-projections` — 0
+  (`ed0dc6ad2..fbb8f6622`)
+
+PR #659 needs a fresh review at head `fbb8f6622` before it can be gated on
+CI and merged.
