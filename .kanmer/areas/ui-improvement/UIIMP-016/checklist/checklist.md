@@ -12,7 +12,7 @@
 - [x] proof.md finalised (PR URL + merge date appended)
 - [x] Moved to final stage
 - [x] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/uiimp-016`
-- [ ] `git branch -D UIIMP-016-chromium-accessibility` (squash-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] cd out of worktree; `git worktree remove .worktrees/uiimp-016`
+- [x] `git branch -D UIIMP-016-chromium-accessibility` (squash-merged)
+- [x] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: release`

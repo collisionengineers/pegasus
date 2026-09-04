@@ -12,17 +12,7 @@ stageEntered:
   implementing: '2026-09-04T18:32:08.372Z'
   verifying: '2026-09-04T18:36:05.116Z'
   done: '2026-09-04T18:49:53.491Z'
-taken_at: '2026-09-04T18:14:27.477Z'
-branch: UIIMP-016-chromium-accessibility
-worktree: .worktrees/uiimp-016
-claim_expires_at: '2026-09-04T19:02:46.306Z'
-claim_controller: codex
 review_round: 1
-lease_id: e249bc77-023c-45d8-9fc2-4820201cc5c5
-lease_revision: 3
-lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/uiimp-016'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-04T18:32:46.306Z'
 labels:
   - accessibility
   - chromium
@@ -47,7 +37,7 @@ delivery_sha: 90a7591846883dcf23ce8aef6d76bec66bb6edb4
 delivery_recorded_at: '2026-09-04T18:50:31.078Z'
 archived: false
 created: '2026-09-04T11:58:34.790Z'
-updated: '2026-09-04T18:50:31.078Z'
+updated: '2026-09-04T18:50:49.977Z'
 ---
 
 ## What

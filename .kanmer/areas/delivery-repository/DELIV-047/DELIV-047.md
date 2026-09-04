@@ -2,10 +2,12 @@
 id: DELIV-047
 type: ticket
 title: Make Linux the authorised Pegasus release workstation
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-04T18:51:30.385Z'
 labels:
   - release
   - linux
@@ -19,7 +21,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-09-04T11:58:34.797Z'
-updated: '2026-09-04T11:58:57.765Z'
+updated: '2026-09-04T18:51:30.385Z'
 ---
 
 ## What
