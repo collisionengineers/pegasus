@@ -103,6 +103,16 @@ public static class CaseDataPolicy
         }
     }
 
+    public static CaseInspectionMode? InferInspectionMode(string? address) =>
+        string.IsNullOrWhiteSpace(address)
+            ? null
+            : string.Equals(
+                address.Trim(),
+                Ext18InspectionAddressPolicy.ImageBasedAssessment,
+                StringComparison.Ordinal)
+                ? CaseInspectionMode.ImageBasedAssessment
+                : CaseInspectionMode.PhysicalAddress;
+
     public static CaseEditableData Normalize(CaseEditableData data)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -140,7 +150,8 @@ public static class CaseDataPolicy
             ContactEmailAddress = Text(data.ContactEmailAddress, 320, nameof(data.ContactEmailAddress)),
             ContactPhoneNumber = Text(data.ContactPhoneNumber, 100, nameof(data.ContactPhoneNumber)),
             VatStatus = Text(data.VatStatus, 100, nameof(data.VatStatus)),
-            InspectionAddress = Text(data.InspectionAddress, 1000, nameof(data.InspectionAddress))
+            InspectionAddress = Text(data.InspectionAddress, 1000, nameof(data.InspectionAddress)),
+            StorageLocation = Text(data.StorageLocation, 1000, nameof(data.StorageLocation))
         };
 
         if (normalized.VehicleMileage.HasValue != (normalized.VehicleMileageUnit is not null))
