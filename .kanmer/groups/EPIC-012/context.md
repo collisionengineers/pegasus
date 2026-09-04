@@ -104,7 +104,8 @@ epic's remaining tickets.
   `Presentation/OperatorLabels.cs`, `Pages/Cases/Details.cshtml(.cs)`,
   `docs/design/test-ui/**` and `Persistence/Migrations/**`; earlier plan text
   that says "wait for the lock" or "after hand-off" is read as "merge after
-  the named ticket".
+  the named ticket". New `OperatorLabels` members go in a block delimited for
+  the ticket, so concurrent additions merge without conflict.
 - **Merge prep before review.** When every ticket ahead of it in the queue has
   merged, the lane runs `git merge --no-edit origin/dev`, resolves conflicts
   (append-only files keep both sides; the applied-migrations list in
@@ -127,9 +128,11 @@ epic's remaining tickets.
   opens it and records its byte size, doctype and the markers it expects in
   the post-implementation report.
 - **Tooling is not a lane's to bend.** No lane other than UIIMP-015 edits
-  `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`,
-  `.github/workflows/ci.yml` or `scripts/*.ps1`; a lane that needs such a
-  change stops, reports it as `waiting`, and the controller files a ticket.
+  `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs` (beyond adding a
+  `StateMatches` entry for a new catalogue state the ticket itself
+  introduces), `.github/workflows/ci.yml` or `scripts/*.ps1`; a lane that
+  needs such a change stops, reports it as `waiting`, and the controller files
+  a ticket.
 
 ## Model allocation (operator, 2026-09-03; amended 2026-09-04)
 
@@ -164,11 +167,11 @@ operator/administrator action, not a lane's, and the release PR records it.
 Docs chore → all; PLAT-070 → frame; frame (CASE-038) → CASE-009, CASE-039,
 CASE-040, CASE-041, CASE-029, ENG-034; CASE-032 → CASE-042; CASE-029 →
 CASE-043 (D49); ENG-034 → ENG-029, ENG-036, ENG-031; ENG-029 → DOCS-018;
-every UI ticket → UIIMP-014 → DELIV-044 (release PR). Merge queue: Phase A
-UIIMP-015, PLAT-069, CASE-032, CASE-038; Phase B CASE-009, CASE-039,
-CASE-041, CASE-040, CASE-029, CASE-042, ENG-034, CASE-043; Phase C ENG-029,
-ENG-036, ENG-031, DOCS-018; Phase D UIIMP-014, DELIV-044. Exact ids: see each
-ticket's `blocks` and `blockedBy`.
+every UI ticket → UIIMP-014 → DELIV-045 (release PR). Merge queue: Phase A
+UIIMP-015, PLAT-069, CASE-032, CASE-038 (as each is ready); Phase B CASE-009,
+CASE-039, CASE-041, CASE-040, CASE-029, CASE-042, ENG-034, CASE-043; Phase C
+ENG-029, ENG-036, ENG-031, DOCS-018; Phase D UIIMP-014, DELIV-045. Exact ids:
+see each ticket's `blocks` and `blockedBy`.
 
 ## Rollout & rollback
 
@@ -179,5 +182,5 @@ verification is reverted PR-by-PR on `dev`.
 ## Definition of done
 
 Every member Done with proof at its merge SHA; the UIIMP-014 walk passed;
-DELIV-044 docs refreshed and the release PR open; the adversarial claims in
+DELIV-045 docs refreshed and the release PR open; the adversarial claims in
 the run record all survived.
