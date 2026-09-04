@@ -13,17 +13,6 @@ stageEntered:
   review: '2026-09-03T16:17:56.104Z'
   verifying: '2026-09-03T21:27:15.128Z'
   done: '2026-09-04T07:13:23.487Z'
-taken_at: '2026-09-03T13:04:09.384Z'
-branch: task/plat-070-remove-review-flags
-worktree: .worktrees/plat-070
-claim_expires_at: '2026-09-03T15:59:07.343Z'
-claim_controller: wf-build/plat-070
-lease_id: 42d2b76d-05ab-4e03-8e6b-2119c79cd74a
-lease_revision: 3
-lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-070'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T15:29:07.343Z'
-lease_reclaimed_from: wf-build/plat-070
 labels:
   - case-workspace-v2
   - d44
@@ -49,7 +38,7 @@ delivery_sha: 60fc84dc0ef7e1c4746dd9b3961d287598845871
 delivery_recorded_at: '2026-09-03T21:27:16.637Z'
 archived: false
 created: '2026-09-03T07:47:48.081Z'
-updated: '2026-09-04T07:13:23.487Z'
+updated: '2026-09-04T07:14:45.806Z'
 ---
 
 ## What
@@ -76,3 +65,5 @@ The mockup and the shipped configuration both carried a staff "review instructio
 - [ ] D44 and D45 grep in frd-01, frd-06, frd-12, design README and both group context docs.
 
 ## Outcome
+
+Removed the staff review requirement flags and the Workflow configuration review panel (D44) and recorded D45's zone/severity/note-only damage record, shipped in PR #649, merged to `dev` at `60fc84dc0ef7e1c4746dd9b3961d287598845871`.

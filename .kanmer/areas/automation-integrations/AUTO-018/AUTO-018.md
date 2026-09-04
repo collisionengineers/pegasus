@@ -13,16 +13,6 @@ stageEntered:
   review: '2026-09-03T20:09:56.795Z'
   verifying: '2026-09-04T06:14:28.102Z'
   done: '2026-09-04T07:13:28.634Z'
-taken_at: '2026-09-03T13:49:10.474Z'
-branch: task/auto-018-market-research-job
-worktree: .worktrees/auto-018
-claim_expires_at: '2026-09-03T14:19:10.474Z'
-claim_controller: wf-build/auto-018
-lease_id: 271d34a0-7f79-4a7b-ab98-abeb2a6ea4e4
-lease_revision: 1
-lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\auto-018'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T13:49:10.474Z'
 labels:
   - ai
   - valuation
@@ -43,7 +33,7 @@ delivery_sha: 80f0ca262b0fe2ca354a5dfb18933dc3f105b917
 delivery_recorded_at: '2026-09-04T06:14:29.639Z'
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-04T07:13:28.634Z'
+updated: '2026-09-04T07:14:25.926Z'
 ---
 
 ## What

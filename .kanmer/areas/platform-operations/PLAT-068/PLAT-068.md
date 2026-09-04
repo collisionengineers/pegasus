@@ -11,16 +11,6 @@ stageEntered:
   review: '2026-09-03T21:09:35.151Z'
   verifying: '2026-09-03T23:36:17.640Z'
   done: '2026-09-04T07:13:27.334Z'
-taken_at: '2026-09-03T20:59:06.544Z'
-branch: task/plat-068-sign-off-account
-worktree: .worktrees/plat-068
-claim_expires_at: '2026-09-03T21:29:06.544Z'
-claim_controller: claude-code
-lease_id: e68edca2-8741-4cdb-ace5-412ef02b57fb
-lease_revision: 1
-lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\plat-068'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T20:59:06.544Z'
 labels:
   - administration
   - accounts
@@ -51,7 +41,7 @@ delivery_sha: 3f0cb45edf5eef0e9cd592b7e7305aaea8e96c44
 delivery_recorded_at: '2026-09-03T23:36:18.976Z'
 archived: false
 created: '2026-09-02T20:31:38.788Z'
-updated: '2026-09-04T07:13:27.334Z'
+updated: '2026-09-04T07:14:24.562Z'
 ---
 
 ## What

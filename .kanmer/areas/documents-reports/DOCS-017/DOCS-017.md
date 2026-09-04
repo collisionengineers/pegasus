@@ -11,16 +11,6 @@ stageEntered:
   review: '2026-09-03T18:34:39.660Z'
   verifying: '2026-09-03T21:30:55.083Z'
   done: '2026-09-04T07:13:24.766Z'
-taken_at: '2026-09-03T13:41:19.684Z'
-branch: task/docs-017-report-signatory
-worktree: .worktrees/docs-017
-claim_expires_at: '2026-09-03T14:11:19.684Z'
-claim_controller: wf-build/docs-017
-lease_id: e4695a60-ac41-4cd1-a6a9-282451887479
-lease_revision: 1
-lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\docs-017'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-03T13:41:19.684Z'
 labels:
   - sign-off
   - renderer
@@ -51,7 +41,7 @@ delivery_sha: 86ce276dcc78398bcfd2d6526cf27265d49afa7b
 delivery_recorded_at: '2026-09-03T21:30:56.519Z'
 archived: false
 created: '2026-09-02T11:20:50.869Z'
-updated: '2026-09-04T07:13:24.766Z'
+updated: '2026-09-04T07:14:21.471Z'
 ---
 
 ## What
