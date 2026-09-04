@@ -285,15 +285,8 @@
   {
     "source": "src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml",
     "route": "/Cases/{id:guid}/Assessment",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/case-assessment--default.html",
-        "branch": "Vehicle assessment section with ordinary action gates.",
-        "scenario": "case-assessment--default"
-      }
-    ]
+    "classification": "redirect",
+    "reason": "Redirects permanently to the Case Estimate section (D30, ENG-034)."
   },
   {
     "source": "src/Pegasus.Web/Pages/Cases/Closure.cshtml",
