@@ -24,3 +24,6 @@ capture and verification lines below.
 - [ ] `./scripts/Test-UiCatalogue.ps1` exits 0.
 - [ ] post-implementation report written
 - [ ] PR opened with Kanmer: CASE-040
+
+- [ ] Step 3a (2026-09-04): `EfAssessmentReportProjectionSource` passes the resolved complete `ReportSignatory` (null when none resolves) through the Core resolver; no second resolver.
+- [ ] Integration test through the real projection source: a draft generates end to end when the sign-off resolves; the Sign-off readiness item is returned when it does not. Test name recorded in the report.

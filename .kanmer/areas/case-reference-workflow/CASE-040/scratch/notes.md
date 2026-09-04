@@ -30,3 +30,5 @@ CASE-040 already names `EfAssessmentReportProjectionSource.cs` in its
 No release may go to `main` while this is open; EPIC-012 ships one production
 release after all its PRs, which is what keeps the interim state off any
 deployed environment.
+
+2026-09-04 controller: the files document and plan listed `EfAssessmentReportProjectionSource.cs` under "must not touch" (DOCS-017-owned) while the note above assigned CASE-040 the job of wiring the sign-off tuple through it. Resolved: the file is CASE-040's; "Resolutions (2026-09-04)" appended to the plan, a correction row to files, two items to the checklist. The lane must not treat the earlier must-not-touch row as binding.
