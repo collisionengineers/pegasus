@@ -1,134 +1,233 @@
-# Plan — CASE-032 (2026-09-04, gpt-5.6-terra high)
+# Plan — CASE-032 (2026-09-04, gpt-5.6-terra high; corrected after plan review)
 
-CASE-032 cannot proceed to implementation yet: both required Triage values lack
-defined business semantics. Do not invent a reference format or provider display
-vocabulary. The image-custody half is fully plannable; the Triage half remains
-blocked pending the two operator decisions below.
+Both halves are implementable now over existing columns. The 2026-09-04 plan
+review found the Triage half was wrongly blocked: the reference and provider
+vocabulary the ticket body promised does exist in Core, and both open questions
+are resolved from repository authority (see `open-questions/open-questions.md`).
 
-**Starting state:** verified at `80f0ca26`. EPIC-011 §1.4 requires
-image `ref·reg, files·custody` and Triage `ref·reg, provider·assignee`.
-`ProjectAsync` and `EfTriageStore.ListAsync` currently omit those values; the
-page has no additional query port suitable for per-row lookup.
+**Starting state:** verified read-only at `80f0ca26`.
+EPIC-011 §1.4 requires image rows `ref·reg, files·custody` and Triage rows
+`ref·reg, provider·assignee`. `EfImageIntakeStore.ProjectAsync` omits
+`ImageIntakeEntity.CustodyState`; `EfTriageStore.ListAsync` and
+`GetByOriginReceiptAsync` omit the origin draft's `ClaimNumber` and
+`SuggestedPrincipalCode`.
 
-**Governing docs:** EPIC-011 §1.4 defines the row shape; FRD-03 defines
-Triage's supported origins; `docs/design/README.md` binds exact labels,
-no explanatory copy, and absent-versus-disabled behaviour.
+**Governing docs:** EPIC-011 §1.4 (row shape) and §1.5 (`h1 ref; reg,
+provider`); `docs/operator-notes.md:219,221` ("Work Provider — Also referred to
+as the principal", "Claim Number — External reference number");
+`docs/design/README.md` (exact labels, no explanatory copy, absent values render
+nothing). EPIC-012 §Build policy binds: parallel build, ordered merge, no local
+full-suite runs, `OperatorLabels` additions in a ticket-delimited block, no
+lane edits to `TestUiSnapshotTests.cs`, CI or `scripts/*.ps1`.
 
-1. **Resolve the two Triage projection contracts before coding that half.**
-   Reuse `ICreateTriageFromIntake`/`ITriageStore` and the persisted
-   `TriageEntity.OriginReceiptId` only as evidence trails; neither currently
-   provides an operator-facing Triage reference or a provider display value.
-   Record the operator's selected authoritative source, immutable/reference
-   rule, and absent-value rule in the ticket's open questions, then refresh
-   this plan. No code file is touched in this step.
+**No migration.** Both halves project existing columns
+(`ImageIntakes.CustodyState`, `InstructionDrafts.ClaimNumber`,
+`InstructionDrafts.SuggestedPrincipalCode`). No schema change, no grant change,
+no bootstrap census entry.
 
-   The current `MailRouteSelection.WorkProviderCode` is a route code, not a
-   universal provider display name, and it does not cover Provider API or
-   manual Triage. If the answer requires new persisted values, that is a named
-   schema/migration dependency and must be separately authorised; do not
-   silently expand this projection-only ticket.
+## 1. Core image-custody vocabulary and the two image contracts
 
-2. **Expose image custody through the existing image-summary projection.**
-   Reuse `ImageIntakeSummary` and `EfImageIntakeStore.ProjectAsync`, which is
-   already shared by every image summary list path. Add a Core-facing,
-   non-presentation custody value to the summary; extend the existing EF
-   projection's single select to materialize `ImageIntakeEntity.CustodyState`
-   and map it to that value. Preserve the existing query shape — no additional
-   PageModel call and no per-row custody lookup.
+Add `public enum ImageCustodyState { Pending, Confirmed, Merged, Failed }` to
+`src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs`. Add
+`ImageCustodyState? Custody` to `ImageIntakeSummary`, positioned immediately
+after `RegisteredAtUtc` and **before** the defaulted `State` and
+`ClosureReason`, so every construction site must supply it — the file's own
+comment at `Pages/Search/Index.cshtml.cs:232-237` records what a silently
+defaulted member cost last time. Add the same member to `ImageIntakeDetail`.
 
-   Touch only:
+Null means "registered before image custody existed"; it is not a fifth state.
 
-   - `src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs`
-   - `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs`
+One list per concept: the Infrastructure constants
+`ImageIntakeEntities.ImageCustodyStates` stay the sole owner of the persisted
+strings and become the parse/format point for the new Core enum, exactly as
+`EfTriageStore.ParseState`/`ToCode` already do for `TriageState`. Do **not**
+duplicate the literals into Core and do **not** touch `EfExternalWorkStore` or
+`EfQueuedCustodyProcessor`, which keep using the constants unchanged.
+`OperatorLabels.CustodyState(DocumentCustodyStatus)` is not reusable — that
+enum has no `Merged` member, and the file's existing remark on
+`UploadRequestState` records that same rule.
 
-   Named dependency, not a step: the existing Infrastructure-only
-   `ImageCustodyStates` list is currently used by other persistence writers.
-   If promoting its vocabulary to Core is necessary to keep one vocabulary,
-   coordinate ownership of
-   `src/Pegasus.Infrastructure/Persistence/ImageIntakeEntities.cs` and its
-   existing consumers; do not duplicate state literals. No migration is
-   expected because `CustodyState` already exists.
+Touch: `src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs`.
 
-3. **Carry the extended image summary through existing constructors and render
-   the row.** Reuse `Search/Index`'s exact-reference reconstruction and the
-   existing `ImageRow` builder. Preserve every summary member, render the
-   existing file-count text plus the custody label as the row's meta, and add
-   the sole image-custody label mapping to `OperatorLabels`. The Web page must
-   receive a Core value, never persistence literals or a computed placeholder.
+## 2. Project image custody through the existing image reads
 
-   Touch only:
+In `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs`, select
+`CustodyState` inside the existing `ProjectAsync` select (`:857-920`) and map it
+to the Core enum; do the same in `ToDetailAsync` (`:844`) from the entity it has
+already loaded. `ProjectAsync` is the shared projection behind `ListAsync`,
+`ListByOriginReceiptsAsync`, `ListForCaseAsync` and `SearchByRegistrationAsync`,
+so all four gain the value from one edit. No new query, no per-row read.
 
-   - `src/Pegasus.Web/Pages/Search/Index.cshtml.cs`
-   - `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs`
-   - `src/Pegasus.Web/Presentation/OperatorLabels.cs`
+Touch: `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs`.
 
-4. **After Step 1 is resolved, extend the Triage list projection and row.**
-   Reuse `TriageSummary`, `EfTriageStore.ListAsync`, `IListTriage`/`ListTriage`,
-   `LoadTriageAsync`, and `TriageRow`. Add the operator-approved reference and
-   provider values to the Core summary, fold their authoritative retrieval into
-   the existing list read, then render `ref·reg` as the title and
-   `provider·assignee` as the meta. Do not add a Web display string, a second
-   query path, or per-row origin lookups.
+## 3. Render `files·custody` on the image row
 
-   Touch only after the source rules are approved:
+Add `OperatorLabels.ImageCustodyState(ImageCustodyState)` inside a
+`CASE-032`-delimited block in
+`src/Pegasus.Web/Presentation/OperatorLabels.cs` — the one place operator
+labels live.
 
-   - `src/Pegasus.Core/Triage/TriageContracts.cs`
-   - `src/Pegasus.Infrastructure/Persistence/EfTriageStore.cs`
-   - `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs`
+In `ImageRow` (`Pages/Cases/Index.cshtml.cs:543-559`) build the meta with the
+existing `Join` helper (`:628`), which already drops empty parts:
 
-   If the approved source is not already available from the existing list
-   read, stop and name the required persistence/migration work as a dependency
-   rather than broadening this step.
+    Join($"{fileCount} retained image…", item.Custody is { } custody
+        ? OperatorLabels.ImageCustodyState(custody) : null)
 
-5. **Prove populated rendered halves with the existing queue web test.**
-   Reuse `TriageQueuesWebTests`, `IntakeWebApplicationFactory`,
-   `RegisterImageIntakeAsync`, and the DI-resolved
-   `ICreateTriageFromIntake` port. Extend the existing image-row test to seed
-   and assert its custody label. After Step 1, add one Triage-row scenario
-   seeded through the approved source path and assert reference, registration,
-   provider, and assignee individually. No fitting Triage fixture exists in
-   this test class, so add only the minimum local setup needed for the approved
-   source.
+A pre-custody row therefore renders the file count alone — absent renders
+nothing, per `docs/design/README.md`. Add the custody pair to the row's quick
+detail list beside `State`, `Registered` and `Chase`.
 
-   Touch only:
+Update `Pages/Search/Index.cshtml.cs:238-247` to pass `byReference.Custody`
+into the reconstructed summary — the value Step 1 added to
+`ImageIntakeDetail`, so no second query.
 
-   - `tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs`
+Touch: `src/Pegasus.Web/Presentation/OperatorLabels.cs`,
+`src/Pegasus.Web/Pages/Cases/Index.cshtml.cs` (`ImageRow` only),
+`src/Pegasus.Web/Pages/Search/Index.cshtml.cs`.
 
-   Update the two listed Core test helpers only if their positional summary
-   construction no longer compiles:
+## 4. Add the Triage reference and provider to `TriageSummary`
 
-   - `tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeCasePairingTests.cs`
-   - `tests/Pegasus.Core.Tests/Operations/DashboardBoundaryTests.cs`
+Append `string? Reference` and `string? Provider` to `TriageSummary`
+(`src/Pegasus.Core/Triage/TriageContracts.cs:271-278`). No defaults: the three
+construction sites are updated by the compiler.
 
-**Acceptance conditions**
+Their owners, named per the ticket's Approach:
 
-- The image row renders the queried file count and queried Core custody value.
-- The custody state has one Core-owned vocabulary and one
-  `OperatorLabels` mapping; no raw persistence state is emitted by Web.
-- The image path remains `ProjectAsync` plus the existing image-count read;
-  no new PageModel/store call or row-specific custody lookup is added.
-- Once the operator answers both questions, Triage renders all four halves
-  from `TriageSummary`, using one existing list projection and no N+1 path.
-- `TriageQueuesWebTests` proves each rendered populated value.
-- No packages, new query types, pages, services, or migrations are added
-  unless the operator explicitly chooses a new persisted Triage value.
-- Keep labels concise; add no explanatory copy, disabled placeholder, or
-  alternate state vocabulary. Core owns the contract/policy.
+- **Reference** — `InstructionDraft.ClaimNumber`
+  (`src/Pegasus.Core/Intake/IntakeContracts.cs:382`), the operator's "Claim
+  Number — External reference number".
+- **Provider** — `InstructionDraft.SuggestedPrincipalCode` (`:380`), the
+  operator's "Work Provider … also referred to as the principal".
+  `IntakeAllocation.cs:263` already reads exactly
+  `receipt.InstructionDraft?.SuggestedPrincipalCode` as the principal code, so
+  this reuses Core's existing owner rather than inventing a display string.
 
-**Local commands**
+Both are nullable because a Triage record need not carry an instruction draft
+(FRD-03: manual classification invents no Principal identity). Absent values are
+dropped by `Join`; no placeholder text is invented.
 
-```powershell
-dotnet restore ./Pegasus.slnx --locked-mode
-dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
-dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~TriageQueuesWebTests"
-```
+Touch: `src/Pegasus.Core/Triage/TriageContracts.cs`.
 
-GitHub CI, not this plan, runs the full integration and browser suites.
+## 5. Project them in both `EfTriageStore` read paths
 
-**Stop condition:** after both operator answers are recorded, the scoped changes
-and commands pass, the implementation report is written, and a PR labelled
-`Kanmer: CASE-032` is open against `dev`; move the ticket to Review. Until the
-answers arrive, keep it Preparing and do not ship only the image half under this
-two-half ticket.
+`InstructionDraftEntity` is a nullable one-to-one on `IntakeReceiptEntity`
+keyed by `IntakeReceiptId` (`PegasusDbContext.cs:258-282,1421,1442-1449`), and
+`TriageEntity.OriginReceiptId` is that key. Left-join `InstructionDrafts` on
+`OriginReceiptId` **inside the existing query** in `EfTriageStore.ListAsync`
+(`:458-481`) and select the two columns with the row — one SQL statement, no
+per-row lookup.
+
+Apply the same join in `GetByOriginReceiptAsync` (`:438-456`), the second
+`TriageSummary` construction site. Leaving it null there would reproduce the
+silently-defaulted-member defect this ticket exists to fix.
+
+Touch: `src/Pegasus.Infrastructure/Persistence/EfTriageStore.cs`.
+
+## 6. Render `ref·reg` and `provider·assignee` on the Triage row
+
+In `TriageRow` (`Pages/Cases/Index.cshtml.cs:560-575`) title with
+`Join(item.Reference, item.NormalizedVehicleRegistration)` and meta with
+`Join(item.Provider, assignee)`. Add `Reference` and `Provider` to the quick
+detail list. `LoadTriageAsync` (`:417-430`) keeps supplying the assignee through
+the existing `ActorDisplayNames` resolution — unchanged, no new read.
+
+The whole `Pages/Cases/Index.cshtml.cs` diff is confined to `ImageRow`,
+`TriageRow` and their two quick-detail lists. Tabs, rail, filters, selection and
+the `LoadNotReadyAsync`/`LoadTriageAsync` bodies are untouched, so CASE-042 adds
+its Awaiting-instruction tab after this merges without conflict.
+
+Touch: `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs` (`TriageRow` only).
+
+## 7. Prove every half against seeded data
+
+In `tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs`:
+
+- Extend `NotReadyImageRowRendersRetainedImageCountAndChaseState` (`:163-183`),
+  which already seeds through `RegisterImageIntakeAsync` (a registration writes
+  `CustodyState = ImageCustodyStates.Pending`, `EfImageIntakeStore.cs:197`).
+  Assert reference, registration, file count and the custody label separately.
+- Add one Triage-row test seeded through the existing `StoreMinimalReceiptAsync`
+  helper, extended to persist an `InstructionDraft` carrying a claim number and
+  a principal code, then `ICreateTriageFromIntake` and `IAssignTriage` for a
+  resolvable assignee. Assert reference, registration, provider and assignee
+  individually — four distinct assertions, not one combined string.
+
+Query-count proof is structural, per the research document's finding that the
+page has no fixed query total: assert that both new Triage values arrive from
+`ListAsync`'s own projection and that no store or PageModel call was added
+inside row enumeration. Introduce no query-counting fixture.
+
+Update the two Core test helpers whose positional construction the new members
+break: `tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeCasePairingTests.cs`
+(`Summary`) and `tests/Pegasus.Core.Tests/Operations/DashboardBoundaryTests.cs`
+(`NewTriage`).
+
+## 8. Snapshots, simplification pass, PR
+
+`Pages/Cases/Index.cshtml.cs` is the routed `/Cases` PageModel and
+`docs/design/test-ui/pages/queues--default.html` / `queues--empty.html` are its
+captured states, so CLAUDE.md's regenerate-then-verify rule applies. Neither
+captured state currently contains an image or Triage row, so the artifacts may
+come back byte-identical — record which happened either way, with the file's
+byte size and doctype, in the post-implementation report (EPIC-012 "verify the
+artifact, not the gate"). Run the scoped capture UIIMP-015 delivers, using that
+ticket's actual switches as merged; at `80f0ca26`
+`scripts/Update-TestUiSnapshots.ps1` still accepts only `-Verify` and
+`-SkipCapture`, so do not assume a scope flag exists. Then
+`./scripts/Test-UiCatalogue.ps1`. Edit no script, no CI file and no
+`TestUiSnapshotTests.cs`.
+
+Run the simplification pass over the branch diff (`/simplify` plus
+`code-simplifier`, or equivalent independent lenses) and record findings and
+dispositions under a dated "Simplification pass" heading in this plan before
+opening the PR.
+
+## Acceptance conditions
+
+- The image row renders the queried file count and the queried Core custody
+  value; a null-custody row renders the file count alone.
+- The Triage row renders all four halves — claim reference, registration,
+  principal code, assignee — from `TriageSummary`.
+- One Core-owned custody vocabulary; the Infrastructure constants stay the sole
+  persistence-string owner; Web emits no persistence literal and no placeholder.
+- Both `EfTriageStore` read paths populate the two new members; both new Triage
+  values come from the existing list SQL, with no read added inside row
+  enumeration and no change to the image path beyond `ProjectAsync`.
+- `TriageQueuesWebTests` asserts each new half separately against seeded data.
+- No package, query type, page, service, or migration is added.
+- No explanatory copy; labels only in `OperatorLabels.cs`, in a CASE-032 block.
+
+## Local commands
+
+    dotnet restore ./Pegasus.slnx --locked-mode
+    dotnet build ./Pegasus.slnx --configuration Release --no-restore
+    dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+    dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+    dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~TriageQueuesWebTests"
+
+Plus the scoped snapshot capture/verify and `Test-UiCatalogue.ps1` of Step 8.
+GitHub CI, not this lane, runs the full integration and browser suites.
+
+## Stop condition
+
+The scoped changes and the commands above pass, the snapshot artifact is
+inspected and recorded, the simplification pass is recorded here, the
+post-implementation report is written and a PR labelled `Kanmer: CASE-032` is
+open against `dev`; then move the ticket to Review. Do not merge it.
+
+## Plan review (2026-09-04, gpt-5.6-sol xhigh; dispositions Claude Opus)
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | blocker | Steps 1/4 wrongly declared the Triage half unplannable. The reference and provider owners exist: `InstructionDraft.ClaimNumber` and `InstructionDraft.SuggestedPrincipalCode`, persisted per intake receipt and reachable from `TriageEntity.OriginReceiptId`; `operator-notes.md:219,221` defines both meanings; `IntakeAllocation.cs:263` already reads the principal code. | **Fixed.** Verified independently at `80f0ca26`. Step 1 deleted; new Steps 4–6 name those owners. Both open questions resolved from repository authority — the ticket body itself said the owners already exist in Core. |
+| 2 | should-fix | The Core custody type and the null-`CustodyState` render were left to implementation ("coordinate ownership if necessary"). | **Fixed.** Step 1 names `ImageCustodyState` with four members, keeps `ImageCustodyStates` as the sole persistence-string owner (the `ParseState`/`ToCode` pattern), and Step 3 renders a null row as the file count alone via `Join`. Confirmed `OperatorLabels.CustodyState(DocumentCustodyStatus)` cannot be reused: no `Merged` member. |
+| 3 | should-fix | Constructor audit incomplete — `EfTriageStore.GetByOriginReceiptAsync` (`:438-456`, target-typed `new(...)`) is a third `TriageSummary` site; `ImageIntakeDetail` carries no custody, so Search could not "preserve every member". Also: prefer required members over trailing optionals. | **Fixed.** Verified both. Step 5 covers `GetByOriginReceiptAsync`; Step 1 adds custody to `ImageIntakeDetail` and places the summary member before the defaulted parameters so no call site can silently default it. |
+| 4 | should-fix | Step 5 undernamed its reuse (`StoreMinimalReceiptAsync`, `IAssignTriage`) and did not require per-half assertions. | **Fixed.** Step 7 names both and requires four separate Triage assertions and four image assertions. |
+| 5 | should-fix | No Test UI snapshot refresh, no `Test-UiCatalogue.ps1`, no simplification pass, despite a routed-PageModel change. | **Fixed in substance; suggested commands rejected.** Step 8 adds the refresh, the catalogue check, the artifact inspection and the simplification pass. The reviewer's `-Scope queues -CaptureFilter …` flags do not exist on `scripts/Update-TestUiSnapshots.ps1` at `80f0ca26` (only `-Verify`, `-SkipCapture`), so Step 8 defers to UIIMP-015's merged switches rather than inventing them, and records that both captured queues states currently contain no image or Triage row. |
+
+Reviewer's closing points accepted without change: `Pages/Search/Index.cshtml.cs`
+and `OperatorLabels.cs` are justified refinements of the approximate owned
+paths; the `Pages/Cases/Index.cshtml.cs` diff stays inside `ImageRow` and
+`TriageRow`; the focused integration filter complies with EPIC-012; no package
+or abstraction is warranted. The read-only research checkout was clean after
+the review run.
