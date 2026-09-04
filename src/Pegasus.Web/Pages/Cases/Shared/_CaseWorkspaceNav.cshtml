@@ -1,9 +1,11 @@
 @*
     The Case record's section jump-nav (D29): one horizontal nav inside the
     sticky block, one link per section in D30 order. Each link is a real
-    fragment anchor, so with no script it still moves the reader to the
-    section; script adds the scroll-spy that moves `aria-current` as the page
-    scrolls. The section list is `OperatorLabels.CaseWorkspace.Sections`.
+    fragment anchor to the section's host. With no script a host whose body is
+    served below the fold is still empty, and `?section=<key>` is the address
+    that renders that one section server-side; script mounts the body and adds
+    the scroll-spy that moves `aria-current` as the page scrolls. The section
+    list is `OperatorLabels.CaseWorkspace.Sections`.
 *@
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.DetailsModel

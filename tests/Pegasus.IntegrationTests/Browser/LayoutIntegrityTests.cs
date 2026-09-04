@@ -169,6 +169,24 @@ public sealed class LayoutIntegrityTests
             + ".filter(element => !element.classList.contains('record'))"
             + ".map(element => element.tagName + '.' + element.getAttribute('class'))");
         Assert.Empty(inlineStyled);
+
+        // `?section=estimate` is the address ENG-034 and the retired
+        // Assessment route land on: the browser opens the record scrolled to
+        // that section.
+        var addressed = await support.GoToAsync($"/Cases/{caseId:D}?section=estimate");
+        Assert.Equal(200, addressed.Status);
+        // The server marks the addressed section current (CaseDetailsWebTests
+        // covers that); where the reader then stops is the browser's business.
+        // What the address must do is put the Estimate section on screen.
+        await support.Page.Locator("#section-estimate").WaitForAsync();
+        Assert.True(
+            await support.Page.EvaluateAsync<bool>(
+                "() => { const host = document.getElementById('section-estimate');"
+                + " if (!host) { return false; }"
+                + " const box = host.getBoundingClientRect();"
+                + " return box.top < window.innerHeight && box.bottom > 0; }"),
+            $"`?section=estimate` at {width}px did not bring the Estimate section on screen.");
+        Assert.NotEqual("overview", await CurrentSectionAsync(support));
     }
 
     private static Task<string[]> ClippedElementsAsync(BrowserTestSupport support) =>
