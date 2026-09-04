@@ -169,6 +169,17 @@ After changing a routed Razor page, regenerate the Test UI snapshots with
 `./scripts/Update-TestUiSnapshots.ps1`, then prove them with
 `./scripts/Update-TestUiSnapshots.ps1 -Verify` (a fresh capture; add
 `-SkipCapture` to reuse the last one) and `./scripts/Test-UiCatalogue.ps1`.
+For a focused refresh, pair the page prefix with the test cohort that captures
+it:
+
+```powershell
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
+  -Scope case-details `
+  -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
+  -Verify -SkipCapture -Scope case-details
+```
+
 Commit `docs/design/test-ui/` with the page change: CI runs the same verify
 in the build lane and the catalogue check on every change set.
 
