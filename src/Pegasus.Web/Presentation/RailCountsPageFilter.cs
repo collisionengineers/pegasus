@@ -71,6 +71,7 @@ public sealed class RailCountsPageFilter(
                     + stages.Review
                     + stages.WithEngineer
                     + stages.Held
+                    + stages.AwaitingInstruction
                     + triageTask.Result.TotalCount
                     + unidentifiedTask.Result.Count
             };

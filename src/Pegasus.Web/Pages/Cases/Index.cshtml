@@ -31,6 +31,11 @@
     </div>
 </header>
 
+@if (TempData["UploadConfirmationError"] is string uploadConfirmationError)
+{
+    <div class="alert alert--error" role="alert">@uploadConfirmationError</div>
+}
+
 @if (IndexModel.ListsCases(Model.Queue))
 {
     @* Selects submit on change; the button is the no-script path. The
@@ -123,10 +128,13 @@
                their own (D14). *@
             @foreach (var row in Model.Rows)
             {
-                <a class="row-button" href="@row.DetailHref" aria-current="@(Model.SelectedId == row.Id ? "true" : null)">
+                <a class="row-button" href="@(row.Kind == IndexModel.RowKind.Image ? Model.Href(selected: row.Id) : row.DetailHref)" aria-current="@(Model.SelectedId == row.Id ? "true" : null)">
                     <span class="row-top">
                         <span class="row-title">@row.Title</span>
-                        <partial name="Shared/_StatusChip" model="@row.Chip" />
+                        @if (!string.IsNullOrEmpty(row.Chip))
+                        {
+                            <partial name="Shared/_StatusChip" model="@row.Chip" />
+                        }
                     </span>
                     @if (!string.IsNullOrEmpty(row.Excerpt))
                     {
@@ -246,6 +254,24 @@
                                 <span>@detail.OpenLabel</span>
                             </a>
                         </div>
+                        @if (detail.Kind == IndexModel.RowKind.Image && detail.OriginReceiptId is { } receiptId)
+                        {
+                            <form method="post" asp-page-handler="Attach" class="section-gap">
+                                <input type="hidden" name="id" value="@Model.SelectedId" />
+                                <input type="hidden" name="receiptId" value="@receiptId" />
+                                <div class="field">
+                                    <label for="attach-reference">Case reference</label>
+                                    <input id="attach-reference" name="reference" required />
+                                </div>
+                                <div class="field">
+                                    <label for="attach-reason">Reason</label>
+                                    <textarea id="attach-reason" name="reason" required></textarea>
+                                </div>
+                                <div class="button-row section-gap">
+                                    <button type="submit" class="btn btn--dark">Add to an existing case</button>
+                                </div>
+                            </form>
+                        }
                     }
                 </div>
             }
