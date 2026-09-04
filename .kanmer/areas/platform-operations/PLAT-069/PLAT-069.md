@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Move Service health off Operations; Operations shows a partial-data notice
   linking to Administration
-status: review
+status: verifying
 area: platform-operations
 assignee: wf-build/plat-069
 profile: fix
 stageEntered:
   preparing: '2026-09-02T22:22:00.643Z'
   review: '2026-09-04T10:47:44.885Z'
+  verifying: '2026-09-04T11:14:11.060Z'
 taken_at: '2026-09-04T10:04:55.966Z'
 branch: task/plat-069-operations-notice
 worktree: .worktrees/plat-069
@@ -38,7 +39,7 @@ prs:
   - '657'
 archived: false
 created: '2026-09-02T20:31:38.879Z'
-updated: '2026-09-04T10:47:44.885Z'
+updated: '2026-09-04T11:14:11.060Z'
 ---
 
 ## What
