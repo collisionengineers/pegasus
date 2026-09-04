@@ -95,7 +95,7 @@ classifying the relationship.
 
 ## Write tools
 
-Every mutating tool accepts `expected_project?` at its **top-level call boundary**. Read `get_status.project` first and send its `project_id` (the board's stable logical identity, FRD-029; the same across copies of the board at other paths or machines) — or, for a board still reporting `identity: "unassigned"`, its legacy machine-local `fingerprint` — to fail closed before actor attribution, initialization, elicitation, or store mutation if a client is pointed at another project. It is never nested inside `create_item` fields or individual `create_items.items[]` entries. A mismatch retains plain `Error: …` text and adds `structuredContent.error.code: "WRONG_PROJECT"`; stale revision conflicts and document-gate refusals retain their legacy `Conflict: …` / `Error: …` text and add `REVISION_CONFLICT` / `GATE_BLOCKED`. Other errors remain unclassified, but **every** result — reads, writes and errors alike — carries `structuredContent.project` (`project_id`, `board_id`, `fingerprint`) naming the logical project that answered.
+Every mutating tool accepts `expected_project?` at its **top-level call boundary**. Read `get_status.project` first and send its `project_id` (the board's stable logical identity, FRD-029; the same across copies of the board at other paths or machines) — or, for a board still reporting `identity: "unassigned"`, its legacy machine-local `fingerprint` — to fail closed before actor attribution, initialization, elicitation, or store mutation if a client is pointed at another project. It is never nested inside `create_item` fields or individual `create_items.items[]` entries. A mismatch retains plain `Error: …` text and adds `structuredContent.error.code: "WRONG_PROJECT"`; stale revision conflicts and document-gate refusals retain their legacy `Conflict: …` / `Error: …` text and add `REVISION_CONFLICT` / `GATE_BLOCKED`. Other errors remain unclassified, but **every** result — reads, writes and errors alike — carries `structuredContent.project` (`project_id`, `board_id`, `fingerprint`) naming the logical project that answered. A successful call's `structuredContent` also carries the whole payload under `result`, mirroring `content[0].text` exactly, so a client that renders structured content in preference to text shows the result and not just the project stamp; an error result carries `error` there instead and no `result`.
 
 Ticket mutations (`update_item`, `move_item`, `take_ticket`, `set_ticket_doc`, `append_scratch`, `link_doc`, `link_items`) additionally accept `expected_revision?`: the document-inclusive `revision` read from `get_item` (also returned by `set_ticket_doc` and in an execution packet's `ticket.revision`). Unlike `expected_updated`, it changes whenever **any** pipeline document — plan, proof, review record — is rewritten, so a proof written by someone else since your read is a `REVISION_CONFLICT`, not a silent overwrite. Scratch notes and `reference/` inputs are excluded from it. The revision is computed on read and never stored in frontmatter. On `take_ticket` it applies to every action — `take`, `release`, `renew` and `transfer` — and a stale value is refused before anything is written.
 
@@ -392,13 +392,15 @@ Each finding is an ordered mapping with these keys and enums:
 - id: F-001
   severity: blocker # blocker | major | minor | note
   summary: "Non-empty finding summary"
-  disposition: open # open | fixed | rejected-with-reason | accepted-risk | deferred-to-ticket
-  reason: "Required for rejected-with-reason or accepted-risk"
+  disposition: open # open | fixed | rejected-with-reason | accepted-risk | deferred-to-ticket | obsolete-after-change
+  reason: "Required for rejected-with-reason, accepted-risk or obsolete-after-change"
   ticket: "MCP-025" # required for deferred-to-ticket
 ```
 
 `id` is a stable `F-###`-style string and `summary` is non-empty. `reason` is
-required for `rejected-with-reason` and `accepted-risk`, and optional otherwise.
+required for `rejected-with-reason`, `accepted-risk` and
+`obsolete-after-change`, and optional otherwise; for `obsolete-after-change`
+that reason names the superseding commit (`superseded by <full-sha>`).
 `ticket` is required for `deferred-to-ticket`, and optional otherwise. The body
 holds the human-readable change coverage, acceptance checks, finding details,
 dispositions, and residual risk; frontmatter is the machine-facing authority.

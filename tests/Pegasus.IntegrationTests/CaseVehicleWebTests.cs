@@ -220,7 +220,7 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        foreach (var section in new[] { string.Empty, "?section=vehicle", "?section=case-files", "?section=inspection-address", "?section=notes" })
+        foreach (var section in new[] { string.Empty, "?section=vehicle", "?section=files", "?section=inspection", "?section=notes" })
         {
             var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}{section}");
             Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);

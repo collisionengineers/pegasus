@@ -64,37 +64,19 @@
                 <h2 id="case-inspection-address-edit-title">Edit inspection address</h2>
             </div>
             <div class="panel-body">
-                @* The save overwrites every editable value, so the address the
-                   operator types is followed by the case's current values for
-                   the rest; the binder reads the first entry for a repeated
-                   name, so the typed address wins. *@
-                @* `case-edit-form` / `data-edit-save` are the ids the sticky edit
-                   bar's Save and site.js's Ctrl+S already bind to. Only one
-                   section renders an edit form at a time, so this is the same
-                   single form under a second section, not a second one. *@
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
-                      asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save class="stack">
-                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    <div class="field">
-                        <label for="inspection-address">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</label>
-                        <input id="inspection-address" name="inspectionAddress" maxlength="500" value="@recorded?.Value" />
-                    </div>
-                    <div class="field">
-                        <label class="req" for="inspection-address-reason">Reason for action</label>
-                        <input id="inspection-address-reason" name="reason" required maxlength="500" />
-                    </div>
-                    <partial name="Cases/Shared/_CaseDataHiddenFields" model="Model" />
-                    <div class="button-row">
-                        <button type="submit" form="case-finish-editing-form" class="btn">Cancel</button>
-                        <button type="submit" class="btn btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                            <span>Save</span>
-                        </button>
-                    </div>
-                </form>
+                @* CASE-038: the record renders every section at once, so a
+                   second whole-record form here would post the case's stored
+                   values over whatever the Overview editor is holding unsaved.
+                   The section contributes its control to the one record form
+                   instead — one edit mode over one lease, one Save. The
+                   Overview form no longer carries a hidden `inspectionAddress`,
+                   so this input is the only entry for that name and the address
+                   shown here is the address that is saved. *@
+                <div class="field">
+                    <label for="inspection-address">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</label>
+                    <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
+                           maxlength="500" value="@recorded?.Value" />
+                </div>
             </div>
         </section>
     }
