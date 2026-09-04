@@ -31,9 +31,11 @@ blocks:
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/669'
 archived: false
 created: '2026-09-02T20:31:38.723Z'
-updated: '2026-09-04T20:53:49.421Z'
+updated: '2026-09-04T21:57:56.207Z'
 ---
 
 ## What
