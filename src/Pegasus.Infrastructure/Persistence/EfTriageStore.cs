@@ -1,4 +1,5 @@
 using System.Data;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -440,19 +441,9 @@ public sealed class EfTriageStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Triage.AsNoTracking().SingleOrDefaultAsync(
-            item => item.OriginReceiptId == originReceiptId,
-            cancellationToken);
-        return entity is null
-            ? null
-            : new(
-                entity.Id,
-                entity.NormalizedVehicleRegistration,
-                ParseState(entity.State),
-                entity.AssigneeId,
-                entity.LinkedCaseId,
-                entity.CreatedAtUtc,
-                entity.Version);
+        var row = await TriageWithDraftQuery(context, item => item.OriginReceiptId == originReceiptId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return row is null ? null : ToSummary(row);
     }
 
     public async Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken)
@@ -463,23 +454,55 @@ public sealed class EfTriageStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var query = context.Triage.AsNoTracking();
-        if (state is not null)
+        var stateCode = state is null ? null : ToCode(state.Value);
+        var rows = await TriageWithDraftQuery(
+            context,
+            stateCode is null ? null : item => item.State == stateCode).ToListAsync(cancellationToken);
+        return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
+            .ThenBy(row => row.Item.Id)
+            .Select(ToSummary)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The one query behind both Triage read paths: Triage left-joined with
+    /// its originating <c>InstructionDraft</c> (a Triage need not carry one)
+    /// so the row already carries the reference and provider the queue rows
+    /// need — no per-row lookup. <paramref name="triagePredicate"/> filters
+    /// the Triage side before the join/projection: EF Core cannot translate
+    /// a filter applied after a <c>Select</c> into a named record type (only
+    /// into an anonymous type), so filtering happens here, not by the caller
+    /// composing <c>.Where</c> on the returned query.
+    /// </summary>
+    private static IQueryable<TriageWithDraftRow> TriageWithDraftQuery(
+        PegasusDbContext context,
+        Expression<Func<TriageEntity, bool>>? triagePredicate = null)
+    {
+        var triage = context.Triage.AsNoTracking();
+        if (triagePredicate is not null)
         {
-            var stateCode = ToCode(state.Value);
-            query = query.Where(item => item.State == stateCode);
+            triage = triage.Where(triagePredicate);
         }
 
-        var rows = await query.ToListAsync(cancellationToken);
-        return rows.OrderByDescending(item => item.CreatedAtUtc).ThenBy(item => item.Id).Select(item => new TriageSummary(
-            item.Id,
-            item.NormalizedVehicleRegistration,
-            ParseState(item.State),
-            item.AssigneeId,
-            item.LinkedCaseId,
-            item.CreatedAtUtc,
-            item.Version)).ToArray();
+        return from item in triage
+            join draft in context.InstructionDrafts.AsNoTracking()
+                on item.OriginReceiptId equals draft.IntakeReceiptId into drafts
+            from draft in drafts.DefaultIfEmpty()
+            select new TriageWithDraftRow(item, draft == null ? null : draft.ClaimNumber, draft == null ? null : draft.SuggestedPrincipalCode);
     }
+
+    private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
+        row.Item.Id,
+        row.Item.NormalizedVehicleRegistration,
+        ParseState(row.Item.State),
+        row.Item.AssigneeId,
+        row.Item.LinkedCaseId,
+        row.Item.CreatedAtUtc,
+        row.Item.Version,
+        row.Reference,
+        row.Provider);
+
+    private sealed record TriageWithDraftRow(TriageEntity Item, string? Reference, string? Provider);
 
     public async Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
     {

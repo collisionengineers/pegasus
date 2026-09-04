@@ -464,6 +464,17 @@ public static class OperatorLabels
         _ => Humanise(status.ToString())
     };
 
+    // CASE-032 start
+    public static string ImageCustodyState(ImageCustodyState state) => state switch
+    {
+        Pegasus.Core.ImageIntake.ImageCustodyState.Pending => "Storing",
+        Pegasus.Core.ImageIntake.ImageCustodyState.Confirmed => "Stored",
+        Pegasus.Core.ImageIntake.ImageCustodyState.Merged => "Merged",
+        Pegasus.Core.ImageIntake.ImageCustodyState.Failed => "Storage failed",
+        _ => Humanise(state.ToString())
+    };
+    // CASE-032 end
+
     /// <summary>
     /// The case's Box folder state, in the operator's words, for the cases
     /// where there is no live folder to open. A confirmed folder with a remote
@@ -1052,6 +1063,13 @@ public static class OperatorLabels
         public static string Count(int jobs) => jobs == 1
             ? "1 job"
             : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
+    }
+
+    // PLAT-069: Operations partial-data notices.
+    public static class OperationsNotices
+    {
+        public const string ServiceHealth = "Service health";
+        public const string PartialData = "Partial data";
     }
 
     /// <summary>

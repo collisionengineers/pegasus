@@ -142,6 +142,13 @@ public static class ServiceHealthPolicy
     public const string AiJobsService = "AI jobs";
     public const string AutomationService = "Automation ingress";
 
+    public static bool HasPartialData(ServiceHealthSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return snapshot.Rows.Any(row =>
+            row.State is ServiceHealthState.Partial or ServiceHealthState.Failed);
+    }
+
     /// <summary>
     /// A poll cursor: a recorded failure code wins, a cursor that has never
     /// completed has no evidence, and a completed poll goes stale at the
