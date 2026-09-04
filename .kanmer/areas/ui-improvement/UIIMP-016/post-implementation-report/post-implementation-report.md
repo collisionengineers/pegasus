@@ -2,7 +2,7 @@
 
 ## Result
 
-Replaced the Windows Edge/Narrator accessibility release gate with the existing package-pinned Playwright Chromium Browser lane. The documents now name the exact automated checks and explicitly exclude screen-reader interoperability, complete WCAG conformance, subjective usability and operator acceptance.
+Replaced the Windows Edge/Narrator accessibility release gate with the existing package-pinned Playwright Chromium Browser lane. The documents name the exact automated checks and explicitly exclude screen-reader interoperability, complete WCAG conformance, subjective usability and operator acceptance.
 
 ## Files changed
 
@@ -17,9 +17,9 @@ No source, Razor page, CSS, script, test, dependency, package lock or infrastruc
 
 ## Verification
 
-PASS: documentation links over 125 files; Markdown placement; diff check; locked restore; Release build with zero warnings/errors; targeted search confirms the Edge/Narrator release-gate wording is gone.
+PASS: documentation links over 125 files; Markdown placement; diff check; locked restore; Release build with zero warnings/errors; targeted Windows-gate terminology search; exact `Category=Browser` lane with a loopback-only per-run SQL container: 120 passed, 0 skipped, 0 failed in 10m52s. Container and temporary secret cleanup passed.
 
-The exact-head Browser lane is delegated to PR CI because local Linux Browser execution requires a separately provisioned SQL test container. The unchanged Browser implementation passed 120 tests under PLAT-073 immediately before this docs-only branch.
+PR CI at the unchanged head passed changes, documentation, local-development-scripts and reference-data. Code, SQL, Browser and Test UI lanes were correctly skipped by the docs-only classifier; the local Browser result supplies the explicit evidence.
 
 ## Simplification pass — 2026-09-04
 
