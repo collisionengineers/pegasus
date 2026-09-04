@@ -18,6 +18,7 @@ using Pegasus.Infrastructure.Intake;
 using Pegasus.Web.Health;
 using Pegasus.Web.Authentication;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -307,10 +308,29 @@ builder.Services.AddRazorPages()
     // session, so it is the only one that carries a transport-level bound.
     // Applying it here rather than on MapRazorPages() keeps every
     // authenticated page off the limiter.
-    .AddRazorPagesOptions(options => options.Conventions.AddPageApplicationModelConvention(
-        "/Uploads/Request",
-        model => model.EndpointMetadata.Add(
-            new EnableRateLimitingAttribute(PublicUploadLink.RateLimitPolicy))));
+    .AddRazorPagesOptions(options =>
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            "/Uploads/Request",
+            model => model.EndpointMetadata.Add(
+                new EnableRateLimitingAttribute(PublicUploadLink.RateLimitPolicy)));
+        // CASE-038: the Case record's section fragment answers on its own
+        // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
+        // a fragment response is never mistaken for the page itself. The
+        // constraint admits that one handler, and the route only matches — it
+        // generates no links, so `/Cases/{id}` and every other handler's
+        // query-string link are exactly as they were.
+        options.Conventions.AddPageRouteModelConvention(
+            "/Cases/Details",
+            model => model.Selectors.Add(new SelectorModel
+            {
+                AttributeRouteModel = new AttributeRouteModel
+                {
+                    Template = "/Cases/{id:guid}/{handler:regex(^Section$)}",
+                    SuppressLinkGeneration = true
+                }
+            }));
+    });
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {

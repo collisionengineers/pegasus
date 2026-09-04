@@ -1495,7 +1495,9 @@
     }
 
     var links = document.querySelectorAll('[data-section-link]');
-    var fragmentPath = window.location.pathname;
+    // The fragment is its own path, `/Cases/{id}/Section`, so a section body
+    // is never mistaken for the record's own response.
+    var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
 
     // The measured height is written on the record itself, not the document
     // element: every consumer (`.case-section`, `.case-context`) is inside it,
@@ -1519,11 +1521,21 @@
 
     function mount(placeholder, then) {
         var key = placeholder.getAttribute('data-lazy');
-        var attempted = Number(placeholder.dataset.lazyAttemptedAt || 0);
-        if (!key || placeholder.dataset.lazyState === 'loading') {
+        if (!key) {
             return;
         }
-        // A failed fetch leaves the placeholder in place and says so, and is
+        // Every caller waiting on this section is answered by the one fetch,
+        // so a jump made while its body is already in flight still scrolls to
+        // it instead of being dropped.
+        var waiting = placeholder.pegasusLazyWaiting || (placeholder.pegasusLazyWaiting = []);
+        if (then) {
+            waiting.push(then);
+        }
+        var attempted = Number(placeholder.dataset.lazyAttemptedAt || 0);
+        if (placeholder.dataset.lazyState === 'loading') {
+            return;
+        }
+        // A failed fetch leaves the placeholder in place saying so, and is
         // tried again rather than being dropped: no response is discarded
         // silently and no failure retries in a tight loop.
         if (placeholder.dataset.lazyState === 'failed' && Date.now() - attempted < 5000) {
@@ -1531,7 +1543,7 @@
         }
         placeholder.dataset.lazyState = 'loading';
         placeholder.dataset.lazyAttemptedAt = String(Date.now());
-        fetch(fragmentPath + '?handler=Section&section=' + encodeURIComponent(key), {
+        fetch(fragmentPath + '?section=' + encodeURIComponent(key), {
             credentials: 'same-origin',
             headers: { 'Accept': 'text/html' }
         }).then(function (response) {
@@ -1552,11 +1564,17 @@
             bindMounted(host);
             measure();
             spy();
-            if (then) {
-                then(host);
-            }
-        }).catch(function () {
+            var answered = waiting.splice(0, waiting.length);
+            answered.forEach(function (callback) { callback(host); });
+        }).catch(function (error) {
             placeholder.dataset.lazyState = 'failed';
+            // The failure is not swallowed: the reader sees the section did
+            // not arrive, and the record of why goes to the console.
+            placeholder.textContent = 'This section could not be loaded.';
+            waiting.length = 0;
+            if (window.console && window.console.error) {
+                window.console.error('Case section failed to load: ' + key, error);
+            }
         });
     }
 
