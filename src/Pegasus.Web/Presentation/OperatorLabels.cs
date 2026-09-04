@@ -1406,6 +1406,24 @@ public static class OperatorLabels
         public const string SaveAs = "Save as";
         public const string ThirdPartyVehicle = "Third-party vehicle";
 
+        // CASE-029: vehicle lookup, valuation and request/chase dialog labels.
+        public const string LookupDvlaMot = "Look up DVLA & MOT";
+        public const string AddValuation = "Add valuation";
+        public const string CazanaCondition = "not connected";
+        public const string Recipient = "Recipient";
+        public const string Reason = "Reason";
+        public const string Content = "Content";
+        public const string RecordChase = "Record chase";
+        public static string UseSuggestion(string value) => $"Use {value}";
+        public static string ValuationSourceLabel(ValuationSource source) => source switch
+        {
+            ValuationSource.Glasses => "Glass's valuation",
+            ValuationSource.Cazana => "Cazana",
+            ValuationSource.EngineersValue => "Engineer's Value",
+            ValuationSource.AiMarketResearch => "AI market research",
+            _ => throw new ArgumentOutOfRangeException(nameof(source))
+        };
+
         /// <summary>
         /// Why a refresh control is disabled: the lookup searches on the
         /// case's registration, and this case has none recorded. State, not a

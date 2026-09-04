@@ -170,11 +170,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
 
-        // The three sections that have a body below the fold are served as
+        // The sections that have a body below the fold are served as
         // fragments; every other host, including the four Engineer shells,
         // renders with the page.
         Assert.Equal(
-            ["vehicle", "files", "notes"],
+            ["vehicle", "valuation", "files", "notes"],
             DeferredSections(html));
     }
 
@@ -345,7 +345,6 @@ public sealed partial class CaseDetailsWebTests
     [Theory]
     [InlineData("overview")]
     [InlineData("inspection")]
-    [InlineData("valuation")]
     [InlineData("case-files")]
     [InlineData("nonsense")]
     public async Task TheSectionFragmentRefusesKeysItDoesNotServe(string key)
@@ -865,9 +864,9 @@ public sealed partial class CaseDetailsWebTests
             ("reason", "Missing evidence follow-up"),
             ("attemptedAtUtc", attemptedAtUtc),
             ("channel", "Telephone"),
-            ("targetPartyOrAddress", "Provider claims team"),
+            ("recipient", "Provider claims team"),
             ("outcome", "Awaiting requested photographs"),
-            ("note", "Asked provider for missing images"));
+            ("content", "Asked provider for missing images"));
 
     /// <summary>
     /// What every case mutation posts from the leased workspace — the case id, its version, the
@@ -1929,12 +1928,19 @@ public sealed partial class CaseDetailsWebTests
                 new(Confirmed("CLM-42")),
                 OmitVehicleValues
                     ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
-                    : new(
-                        Confirmed("AB12CDE"),
-                        Confirmed("Ford"),
-                        Confirmed("Transit"),
-                        Confirmed(42_000L),
-                        Confirmed("miles")),
+                    : IncludeVehicleSuggestions
+                        ? new(
+                            Confirmed("AB12CDE"),
+                            Suggested("Ford", "RENAULT"),
+                            Suggested("Transit", "CAPTUR"),
+                            Suggested(42_000L, 43_210L),
+                            Suggested("miles", "Miles"))
+                        : new(
+                            Confirmed("AB12CDE"),
+                            Confirmed("Ford"),
+                            Confirmed("Transit"),
+                            Confirmed(42_000L),
+                            Confirmed("miles")),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(Empty<DateOnly>(), Confirmed("Standard")),
@@ -1953,6 +1959,21 @@ public sealed partial class CaseDetailsWebTests
                 null,
                 null,
                 new(value, CaseDataValueKind.Confirmed, StaffCorrection, "staff", _now));
+
+        private CaseField<T> Suggested<T>(T confirmed, T suggestion)
+            where T : notnull =>
+            new(
+                null,
+                new(
+                    suggestion,
+                    CaseDataValueKind.Suggestion,
+                    new(
+                        CaseDataSourceKind.VehicleLookup,
+                        "33333333-3333-3333-3333-333333333333",
+                        "DVLA/DVSA",
+                        "vehicle-lookup",
+                        1)),
+                new(confirmed, CaseDataValueKind.Confirmed, StaffCorrection, "staff", _now));
 
         private static CaseField<T> Empty<T>()
             where T : notnull =>

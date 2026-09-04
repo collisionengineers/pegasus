@@ -1,4 +1,5 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@inject Pegasus.Core.Documents.RequestUploadLimits UploadLimits
 @using Pegasus.Core.Documents
 @using Pegasus.Core.Cases
 @using Pegasus.Web.Presentation
@@ -171,16 +172,7 @@
             <h2 id="case-upload-requests-title">@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h2>
             @if (mayEdit)
             {
-                <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink">
-                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                        <span>Create upload request</span>
-                    </button>
-                </form>
+                <button type="button" class="btn btn--primary" data-dialog-open="create-upload-request">Create upload request</button>
             }
         </div>
         @if (details.RequestUploadLinks.Count > 0)
@@ -188,11 +180,13 @@
             <div class="panel-body">
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th>Action</th>}</tr></thead>
+                        <thead><tr><th>Recipient</th><th>Reason</th><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th>Action</th>}</tr></thead>
                         <tbody>
                             @foreach (var request in details.RequestUploadLinks)
                             {
                                 <tr>
+                                    <td>@(request.Recipient ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                                    <td>@(request.Reason ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
                                     <td><partial name="Shared/_StatusChip" model="@OperatorLabels.UploadRequestState(request.Status)" /></td>
                                     <td>@OperatorLabels.OfficeTime(request.CreatedAtUtc)</td>
                                     <td>@OperatorLabels.OfficeTime(request.ExpiresAtUtc)</td>
@@ -235,4 +229,21 @@
             }
         }
     </section>
+}
+
+@if (mayEdit)
+{
+    <dialog id="create-upload-request" class="dialog">
+        <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink" class="stack">
+            <div class="dialog-head"><h2>Create upload request</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
+            <input type="hidden" name="id" value="@workflow.CaseId" />
+            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <div class="field"><label class="req" for="upload-recipient">@OperatorLabels.CaseWorkspace.Recipient</label><input id="upload-recipient" name="recipient" required maxlength="500" /></div>
+            <dl class="definition"><dt>Lifetime</dt><dd>@UploadLimits.Lifetime</dd><dt>Files</dt><dd>@UploadLimits.MaximumFileCount</dd><dt>File size</dt><dd>@OperatorLabels.FileSize(UploadLimits.MaximumFileBytes)</dd></dl>
+            <div class="field"><label for="upload-reason">@OperatorLabels.CaseWorkspace.Reason</label><textarea id="upload-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create</button></div>
+        </form>
+    </dialog>
 }
