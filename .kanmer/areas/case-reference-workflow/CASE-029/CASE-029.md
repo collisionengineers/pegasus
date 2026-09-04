@@ -4,12 +4,23 @@ type: ticket
 title: >-
   Case: Valuation section, DVLA & MOT lookup with per-field suggestion chips,
   upload-request dialog fields
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-029
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:22:26.445Z'
+taken_at: '2026-09-04T19:13:23.957Z'
+branch: task/case-029-valuation-lookup-chips
+worktree: .worktrees/case-029
+claim_expires_at: '2026-09-04T19:43:23.957Z'
+claim_controller: wf-build/case-029
+lease_id: 91b6f6ca-dcbb-4aa7-af4b-84ddb035b03f
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-029'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T19:13:23.957Z'
 labels:
   - ui
   - case
@@ -28,7 +39,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:24.142Z'
-updated: '2026-09-03T10:53:26.026Z'
+updated: '2026-09-04T19:13:23.957Z'
 ---
 
 ## What
