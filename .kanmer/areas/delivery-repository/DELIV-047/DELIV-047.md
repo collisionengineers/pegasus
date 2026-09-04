@@ -2,18 +2,20 @@
 id: DELIV-047
 type: ticket
 title: Make Linux the authorised Pegasus release workstation
-status: review
+status: implementing
 area: delivery-repository
 assignee: codex
 profile: chore
 stageEntered:
   preparing: '2026-09-04T18:51:30.385Z'
   review: '2026-09-04T20:33:03.557Z'
+  implementing: '2026-09-04T20:36:28.926Z'
 taken_at: '2026-09-04T18:56:09.501Z'
 branch: DELIV-047-linux-release
 worktree: .worktrees/deliv-047
 claim_expires_at: '2026-09-04T21:06:41.556Z'
 claim_controller: codex
+review_round: 1
 lease_id: f9770d71-438d-4241-a126-a41b0880b5c4
 lease_revision: 3
 lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/deliv-047'
@@ -37,7 +39,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/667'
 archived: false
 created: '2026-09-04T11:58:34.797Z'
-updated: '2026-09-04T20:33:03.557Z'
+updated: '2026-09-04T20:36:28.926Z'
 ---
 
 ## What

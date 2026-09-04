@@ -13,3 +13,5 @@
 Canonical final-head rail against a fresh loopback-only pinned SQL Server container: locked restore PASS; Release build PASS with 0 warnings and 0 errors; Core 1225/1225 PASS; Architecture 100/100 PASS; Integration 1264 PASS, 7 intentional skips, 0 failures in 37m34s. Exit code 0. Container and temporary credential file were removed by the cleanup trap; post-run container census was empty.
 
 Simplification pass completed and recorded in plan/plan.md. No application, schema, infrastructure template, CI, cloud or production state was changed.
+
+- 2026-09-04T20:36:28.930Z stage review → implementing by review_deliv_047; reason: needs-changes on 287fc2e46aeee4999c8bab18349ea44f32b40b4d: F-001, F-002; review_round 1
