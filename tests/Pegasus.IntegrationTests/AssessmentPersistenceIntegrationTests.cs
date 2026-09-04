@@ -1313,8 +1313,17 @@ public sealed class AssessmentPersistenceIntegrationTests
             12000m,
             10000m);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        // EF Core wraps a provider/interceptor failure raised while
+        // SaveChangesAsync executes its command batch in a DbUpdateException;
+        // the injected InvalidOperationException survives as its inner
+        // exception, so asserting on both proves the failure that triggered
+        // compensation was the one this test injected.
+        var thrown = await Assert.ThrowsAsync<DbUpdateException>(() =>
             complete.ExecuteAsync(command, CancellationToken.None));
+        var injected = Assert.IsType<InvalidOperationException>(thrown.InnerException);
+        Assert.Equal(
+            "Simulated database failure for the market research content-write compensation test.",
+            injected.Message);
 
         Assert.True(interceptor.InterceptedCount >= 1);
         Assert.Equal(1, content.StoreCount);
@@ -1758,32 +1767,32 @@ public sealed class AssessmentPersistenceIntegrationTests
         }
     }
 
+    // EF Core's SQL Server provider executes a batched SaveChanges via
+    // ExecuteReaderAsync (it reads back an affected-row count / OUTPUT per
+    // statement for concurrency checking), not ExecuteNonQueryAsync — even
+    // for plain inserts with no store-generated values. The command text for
+    // this fixture's SaveChanges call is a single batch containing every
+    // statement (ActionHistory, AiJobs, CaseDocuments, CaseHistory,
+    // CaseValuations, CaseWorkflowEvents, CaseWorkflows, DocumentVersions,
+    // DocumentOccurrences), so intercepting the reader path here fails the
+    // whole SaveChanges round trip before any of it reaches the server. The
+    // CommandSource.SaveChanges check restricts the fault to that write —
+    // without it, the interceptor stays registered on the shared factory and
+    // also trips the test's own post-failure LINQ verification queries
+    // against CaseValuations (CommandSource.LinqQuery), which read the same
+    // table name.
     private sealed class ThrowingCommandInterceptor(string commandTextContains) : DbCommandInterceptor
     {
         public int InterceptedCount { get; private set; }
 
-        public override InterceptionResult<int> NonQueryExecuting(
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command,
             CommandEventData eventData,
-            InterceptionResult<int> result)
-        {
-            if (command.CommandText.Contains(commandTextContains, StringComparison.Ordinal))
-            {
-                InterceptedCount++;
-                throw new InvalidOperationException(
-                    "Simulated database failure for the market research content-write compensation test.");
-            }
-
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<int> result,
+            InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains(commandTextContains, StringComparison.Ordinal))
+            if (eventData.CommandSource == CommandSource.SaveChanges
+                && command.CommandText.Contains(commandTextContains, StringComparison.Ordinal))
             {
                 InterceptedCount++;
                 throw new InvalidOperationException(
