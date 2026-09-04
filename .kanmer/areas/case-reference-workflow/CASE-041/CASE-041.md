@@ -35,9 +35,11 @@ blocks:
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
+prs:
+  - '664'
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-04T18:27:38.085Z'
+updated: '2026-09-04T19:43:58.725Z'
 ---
 
 ## What
