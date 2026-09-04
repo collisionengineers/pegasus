@@ -171,8 +171,8 @@ public enum EvaSubmissionTrigger
 /// <summary>
 /// One submission of one case to EVA.
 ///
-/// Like the export it takes an operation key for replay-safe action history
-/// and no edit lease: submitting does not change the case version.
+/// Like the export it takes an operation key for replay-safe action history.
+/// A first manual send is also the atomic Review-to-With-Engineer transition.
 /// </summary>
 public sealed record SubmitCaseToEvaRequest(
     Guid CaseId,
@@ -211,8 +211,8 @@ public sealed record EvaSubmissionRecord(
 
     /// <summary>
     /// The instruction reached EVA — either completely, or accepted with no
-    /// identifier returned. Both close the once-per-case rule: EVA created a
-    /// claim either way, and no API call can withdraw it.
+    /// identifier returned. Both are delivered outcomes even though a later
+    /// explicit manual operation may record a distinct re-send.
     /// </summary>
     public bool IsDelivered => Outcome is EvaSubmissionOutcome.Succeeded
         or EvaSubmissionOutcome.Partial;
@@ -222,9 +222,8 @@ public interface IEvaSubmissionQueries
 {
     /// <summary>
     /// The most recent attempt for a case, or null when it has never been
-    /// submitted. A succeeded attempt is the one that matters — the once-per-
-    /// case rule means there can only ever be one — but a failed last attempt
-    /// is what an operator needs to see to decide whether to try again.
+    /// submitted. The latest result is what an operator needs to see when
+    /// deciding whether another explicit manual handoff is required.
     /// </summary>
     Task<EvaSubmissionRecord?> GetLatestAsync(
         Guid caseId,
@@ -271,17 +270,4 @@ public sealed class EvaSubmissionNotEnabledException(Guid caseId)
         "The principal has not enabled EVA API submission for this case.")
 {
     public Guid CaseId { get; } = caseId;
-}
-
-/// <summary>
-/// A case that has already reached EVA. EVA has no idempotency of its own — a
-/// second instruction creates a second claim — so this is refused here and by
-/// a unique index in the database.
-/// </summary>
-public sealed class EvaAlreadySubmittedException(Guid caseId, string? fileReference)
-    : InvalidOperationException(
-        "The case has already been submitted to EVA.")
-{
-    public Guid CaseId { get; } = caseId;
-    public string? FileReference { get; } = fileReference;
 }

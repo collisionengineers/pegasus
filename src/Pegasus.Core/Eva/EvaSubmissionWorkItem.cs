@@ -163,11 +163,11 @@ public sealed class ProcessQueuedEvaSubmission(
             throw;
         }
         // The case left Review, its principal switched the route off, or it
-        // already reached EVA. All three are answers, not faults: the work is
+        // has no eligible signatory. These are answers, not faults: the work is
         // finished and must not be retried into existence.
-        catch (Exception exception) when (exception is CaseNotInReviewException
+        catch (Exception exception) when (exception is EvaHandoffStateException
             or EvaSubmissionNotEnabledException
-            or EvaAlreadySubmittedException)
+            or EvaSignOffEngineerRequiredException)
         {
             await RecordAsync(
                 workItem,
