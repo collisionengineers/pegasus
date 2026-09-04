@@ -1,4 +1,8 @@
 @page "/Cases/{id:guid}"
+@* CASE-038: the record answers on `/Cases/{id}` and its section
+   fragment on `/Cases/{id}/Section` (the added route in Program.cs), so a
+   fragment response is never a candidate for the record's own snapshot
+   states and every other handler keeps the query-string form. *@
 @using System.Globalization
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Workflow
@@ -101,25 +105,38 @@
 }
 
 <article class="record">
+    @* The identity ribbon, presence strip, action bar, edit bar and section
+       jump-nav travel together as the record scrolls (D29). *@
+    <div class="case-sticky" data-case-sticky>
     <div class="record-ribbon" aria-label="Case identity">
         <div class="ribbon-item ribbon-ref">
-            <div class="ribbon-label">Case/PO</div>
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonReference</div>
             <div class="ribbon-value">@workflow.Identity.Reference</div>
         </div>
         <div class="ribbon-item">
-            <div class="ribbon-label">Registration</div>
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonRegistration</div>
             <div class="ribbon-value">@registration</div>
         </div>
         <div class="ribbon-item">
-            <div class="ribbon-label">Claimant</div>
-            <div class="ribbon-value">@(string.IsNullOrWhiteSpace(summary.Claimant) ? "Not recorded" : summary.Claimant)</div>
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonClaimant</div>
+            <div class="ribbon-value">@(string.IsNullOrWhiteSpace(summary.Claimant) ? OperatorLabels.CaseWorkspace.AbsentValue : summary.Claimant)</div>
         </div>
         <div class="ribbon-item">
-            <div class="ribbon-label">Principal</div>
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonPrincipal</div>
             <div class="ribbon-value">@workflow.Identity.PrincipalCode</div>
         </div>
         <div class="ribbon-item">
-            <div class="ribbon-label">State</div>
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonEngineer</div>
+            <div class="ribbon-value">@(Model.EngineerDisplayName ?? OperatorLabels.CaseWorkspace.AbsentValue)</div>
+        </div>
+        @* CASE-040 supplies the sign-off Engineer itself; the frame carries its
+           ribbon label and the record's ordinary absent value. *@
+        <div class="ribbon-item">
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonSignOff</div>
+            <div class="ribbon-value">@OperatorLabels.CaseWorkspace.AbsentValue</div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonState</div>
             <div class="ribbon-value"><partial name="Shared/_StatusChip" model="@stage" /></div>
         </div>
     </div>
@@ -265,23 +282,6 @@
                 <span>Return to Engineer</span>
             </button>
         }
-        <span class="record-bar-end">
-            @* CASE-027: the gate is written out only when it has a condition to
-               state. Razor keeps an attribute whose expression is null when the
-               attribute is written this way, and `.gated::after` renders
-               `attr(data-condition)` with no guard, so the enabled control was
-               painting an empty pill (PLAT-061). *@
-            @if (Model.CanOpenAssessment)
-            {
-                <a class="btn btn--dark" asp-page="/Cases/Assessment/Index" asp-route-id="@summary.CaseId">Open Assessment</a>
-            }
-            else
-            {
-                <span class="gated" data-condition="Available after the current Review export">
-                    <a class="btn btn--dark is-disabled" aria-disabled="true">Open Assessment</a>
-                </span>
-            }
-        </span>
     </div>
 
     @if (editing)
@@ -305,84 +305,119 @@
         </div>
     }
 
-    <div class="record-body">
-        <div class="case-workspace">
-            <partial name="Cases/Shared/_CaseWorkspaceNav" model="Model" />
-            <section class="case-main">
-                @if (Model.Section == "notes")
-                {
-                    <partial name="Cases/Shared/_CaseHistory" model="Model" />
-                }
-                else if (Model.Section == "case-files")
-                {
-                    <partial name="Cases/Shared/_CaseFiles" model="Model" />
-                }
-                else if (Model.Section == "vehicle")
-                {
-                    <partial name="Cases/Shared/_CaseVehicle" model="Model" />
-                }
-                else if (Model.Section == "inspection-address")
-                {
-                    <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
-                }
-                else if (Model.Section == "valuations")
-                {
-                    @* Valuations is wave 4 (CASE-029/ENG-027); nothing inert
-                       renders for a capability that is not built yet. *@
-                    <section class="panel">
-                        <div class="panel-head"><h2>Valuations</h2></div>
-                    </section>
-                }
-                else
-                {
-                    <partial name="Cases/Shared/_CaseWorkflow" model="Model" />
-                    <partial name="Cases/Shared/_CaseSummary" model="Model" />
-                }
-            </section>
+    <partial name="Cases/Shared/_CaseWorkspaceNav" model="Model" />
+    </div>
 
-            <aside class="case-context stack" aria-label="Case context">
+    <div class="case-workspace">
+        <div class="case-main" id="case-main">
+            @* The eleven sections in their fixed order (D30), each under the
+               stable host `section-<key>` the jump-nav addresses. A body a
+               later lane owns is a heading here; a body below the fold is
+               fetched as the reader approaches it, unless this viewer holds
+               the edit lease, in which case the whole record is rendered so
+               nothing being typed can be replaced. *@
+            @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
+            {
+                if (Model.SectionIsDeferred(entry.Key))
+                {
+                    <section class="case-section section-placeholder" id="section-@entry.Key"
+                             data-section="@entry.Key" data-lazy="@entry.Key"
+                             aria-label="@entry.Label"></section>
+                    continue;
+                }
+
+                <section class="case-section" id="section-@entry.Key" data-section="@entry.Key">
+                    @if (entry.Key == "overview")
+                    {
+                        <partial name="Cases/Shared/_CaseWorkflow" model="Model" />
+                        <partial name="Cases/Shared/_CaseSummary" model="Model" />
+                    }
+                    else if (entry.Key == "inspection")
+                    {
+                        <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
+                    }
+                    else if (entry.Key == "vehicle")
+                    {
+                        <partial name="Cases/Shared/_CaseVehicle" model="Model" />
+                    }
+                    else if (entry.Key == "damage")
+                    {
+                        <partial name="Cases/Shared/_CaseDamage" model="Model" />
+                    }
+                    else if (entry.Key == "estimate")
+                    {
+                        <partial name="Cases/Shared/_CaseEstimate" model="Model" />
+                    }
+                    else if (entry.Key == "settlement")
+                    {
+                        <partial name="Cases/Shared/_CaseSettlement" model="Model" />
+                    }
+                    else if (entry.Key == "report")
+                    {
+                        <partial name="Cases/Shared/_CaseReport" model="Model" />
+                    }
+                    else if (entry.Key == "files")
+                    {
+                        <partial name="Cases/Shared/_CaseFiles" model="Model" />
+                    }
+                    else if (entry.Key == "notes")
+                    {
+                        <partial name="Cases/Shared/_CaseHistory" model="Model" />
+                    }
+                    else
+                    {
+                        @* Engineer notes (CASE-039) and Valuation (CASE-029)
+                           render into this host when their lanes build them. *@
+                        <section class="panel">
+                            <div class="panel-head"><h2 id="section-@(entry.Key)-title">@entry.Label</h2></div>
+                        </section>
+                    }
+                </section>
+            }
+        </div>
+
+        <aside class="case-context stack" aria-label="Case context">
+            <section class="context-card">
+                <div class="panel-head"><h2>Current position</h2></div>
+                <div class="panel-body">
+                    <div class="decision-row"><span>State</span><strong><partial name="Shared/_StatusChip" model="@stage" /></strong></div>
+                    <div class="decision-row"><span>Version</span><strong>@workflow.Version.ToString(CultureInfo.InvariantCulture)</strong></div>
+                    <div class="decision-row"><span>Due</span><strong>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? OperatorLabels.CaseWorkspace.AbsentValue)</strong></div>
+                    <div class="decision-row"><span>Engineer</span><strong>@(Model.EngineerDisplayName ?? "Unassigned")</strong></div>
+                    <div class="decision-row">
+                        <span>Edit authority</span>
+                        <strong>
+                            @if (Model.ViewerHoldsEditAuthority)
+                            {
+                                @:You
+                            }
+                            else if (Model.EditAuthorityHolder is { } authorityHolder)
+                            {
+                                @EditModeDisplay.HolderName(authorityHolder)
+                            }
+                            else
+                            {
+                                @:Available
+                            }
+                        </strong>
+                    </div>
+                </div>
+            </section>
+            @if (Model.OutstandingRequirements is { Count: > 0 } requirements)
+            {
+                var primary = requirements[0];
                 <section class="context-card">
-                    <div class="panel-head"><h2>Current position</h2></div>
-                    <div class="panel-body">
-                        <div class="decision-row"><span>State</span><strong><partial name="Shared/_StatusChip" model="@stage" /></strong></div>
-                        <div class="decision-row"><span>Version</span><strong>@workflow.Version.ToString(CultureInfo.InvariantCulture)</strong></div>
-                        <div class="decision-row"><span>Due</span><strong>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? "Not recorded")</strong></div>
-                        <div class="decision-row"><span>Engineer</span><strong>@(Model.EngineerDisplayName ?? "Unassigned")</strong></div>
-                        <div class="decision-row">
-                            <span>Edit authority</span>
-                            <strong>
-                                @if (Model.ViewerHoldsEditAuthority)
-                                {
-                                    @:You
-                                }
-                                else if (Model.EditAuthorityHolder is { } authorityHolder)
-                                {
-                                    @EditModeDisplay.HolderName(authorityHolder)
-                                }
-                                else
-                                {
-                                    @:Available
-                                }
-                            </strong>
+                    <div class="panel-head"><h2>Next action</h2></div>
+                    <div class="panel-body stack">
+                        <div class="notice notice--warning">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>@primary.Title</span>
                         </div>
+                        <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@summary.CaseId" asp-route-section="notes">Open Notes</a>
                     </div>
                 </section>
-                @if (Model.OutstandingRequirements is { Count: > 0 } requirements)
-                {
-                    var primary = requirements[0];
-                    <section class="context-card">
-                        <div class="panel-head"><h2>Next action</h2></div>
-                        <div class="panel-body stack">
-                            <div class="notice notice--warning">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                                <span>@primary.Title</span>
-                            </div>
-                            <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@summary.CaseId" asp-route-section="notes">Open Notes</a>
-                        </div>
-                    </section>
-                }
-            </aside>
-        </div>
+            }
+        </aside>
     </div>
 </article>
 

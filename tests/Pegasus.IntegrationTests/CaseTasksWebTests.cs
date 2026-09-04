@@ -108,29 +108,36 @@ public sealed partial class CaseDetailsWebTests
 
     /// <summary>
     /// EPIC-011 §1.8 Inspection address: the recorded value and, in edit
-    /// context, an editor for it. SaveCase writes every editable value, so the
-    /// form posts the typed address followed by the case's current values for
-    /// the rest; the binder reads the first entry for a repeated name, so the
-    /// typed address is the one that is saved and nothing else is cleared.
+    /// context, an editor for it. CASE-038: the record renders every section
+    /// at once, so the Inspection section no longer carries a whole-record
+    /// form of its own — its control is associated with the one record form,
+    /// which is the only entry for `inspectionAddress`, and that one form
+    /// still carries all twenty editable values SaveCase writes.
     /// </summary>
     [Fact]
-    public async Task InspectionAddressEditorPostsEveryEditableValueWithTheTypedAddressFirst()
+    public async Task InspectionAddressEditorContributesTheOnlyAddressEntryToTheRecordForm()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
-        var html = await GetHtmlAsync(
+        var page = await GetHtmlAsync(
             workspace.Client,
-            $"/Cases/{store.CaseId:D}?section=inspection-address");
-        var visible = html.IndexOf("id=\"inspection-address\"", StringComparison.Ordinal);
-        var hidden = html.IndexOf(
-            "type=\"hidden\" name=\"inspectionAddress\"",
-            StringComparison.Ordinal);
+            $"/Cases/{store.CaseId:D}?section=inspection");
 
-        Assert.Contains("1 Depot Road", html, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{store.CaseId:D}?handler=Save", html, StringComparison.Ordinal);
-        Assert.True(visible >= 0, "The inspection address input is not rendered.");
-        Assert.True(hidden > visible, "The typed address must be posted before the current one.");
+        Assert.Contains("1 Depot Road", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-inspection-address-form", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "id=\"inspection-address\" name=\"inspectionAddress\" form=\"case-edit-form\"",
+            page,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            page.Split("name=\"inspectionAddress\"", StringSplitOptions.None).Length - 1);
+
+        var formStart = page.IndexOf("id=\"case-edit-form\"", StringComparison.Ordinal);
+        Assert.True(formStart >= 0, "The record edit form is not rendered.");
+        var html = page[formStart..];
+        Assert.Contains($"/Cases/{store.CaseId:D}?handler=Save", page, StringComparison.Ordinal);
         foreach (var field in new[]
         {
             "claimantName",
@@ -151,7 +158,6 @@ public sealed partial class CaseDetailsWebTests
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",
-            "inspectionAddress",
             "inspectionMode"
         })
         {
