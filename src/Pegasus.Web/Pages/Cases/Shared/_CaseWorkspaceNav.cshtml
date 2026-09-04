@@ -1,29 +1,21 @@
 @*
-    The Case workspace's six sections, as the prototype draws them: one
-    sticky nav beside the main content and the context column. The non-
-    Overview sections are owned by later lanes (CASE-027, wave 4); the link
-    is the frame's part and the section body is delivered by theirs.
+    The Case record's section jump-nav (D29): one horizontal nav inside the
+    sticky block, one link per section in D30 order. Each link is a real
+    fragment anchor to the section's host. With no script a host whose body is
+    served below the fold is still empty, and `?section=<key>` is the address
+    that renders that one section server-side; script mounts the body and adds
+    the scroll-spy that moves `aria-current` as the page scrolls. The section
+    list is `OperatorLabels.CaseWorkspace.Sections`.
 *@
+@using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.DetailsModel
-@{
-    var caseId = Model.Case!.Summary.CaseId;
-    (string Key, string Label, string Icon)[] sections =
-    [
-        ("overview", "Case Overview", "icon-layout-dashboard"),
-        ("vehicle", "Vehicle", "icon-car"),
-        ("valuations", "Valuations", "icon-file-text"),
-        ("inspection-address", "Inspection address", "icon-map-pin"),
-        ("case-files", "Case Files", "icon-folder"),
-        ("notes", "Notes", "icon-history")
-    ];
-}
-<div class="case-section-nav">
-    @foreach (var (key, label, icon) in sections)
+<nav class="section-nav" aria-label="@OperatorLabels.CaseWorkspace.SectionNav" data-section-nav>
+    @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
     {
-        <a asp-page="/Cases/Details" asp-route-id="@caseId" asp-route-section="@key"
-           aria-current="@(Model.Section == key ? "page" : null)">
-            <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
-            <span>@label</span>
+        <a class="section-link" href="#section-@entry.Key" data-section-link="@entry.Key"
+           aria-current="@(Model.Section == entry.Key ? "true" : "false")">
+            <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
+            <span>@entry.Label</span>
         </a>
     }
-</div>
+</nav>
