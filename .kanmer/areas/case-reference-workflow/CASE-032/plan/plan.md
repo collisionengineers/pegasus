@@ -231,3 +231,17 @@ paths; the `Pages/Cases/Index.cshtml.cs` diff stays inside `ImageRow` and
 `TriageRow`; the focused integration filter complies with EPIC-012; no package
 or abstraction is warranted. The read-only research checkout was clean after
 the review run.
+
+## Simplification pass (2026-09-04, gpt-5.6-sol low; dispositions the executing agent)
+
+Ran over the branch's working-tree diff (the branch has no commits yet, so
+`git diff origin/dev...HEAD` was empty; the reviewer diffed the uncommitted
+scoped changes instead).
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | Remove the `// CASE-032 start`/`// CASE-032 end` markers around the `OperatorLabels.ImageCustodyState` mapping as ticket-specific scaffolding. | **Rejected.** EPIC-012's build policy requires new `OperatorLabels` members to sit in a ticket-delimited block precisely so concurrent lane additions merge cleanly; the markers are not scaffolding, they are the mandated convention. |
+| 2 | `ReconcileUnidentifiedDestinationsTests.cs:142`'s nine-argument positional `TriageSummary` construction (four consecutive nullables) is hard to scan; use named arguments like `DashboardBoundaryTests`. | **Fixed.** Switched to named arguments for the trailing/ambiguous positions. |
+| 3 | `EfTriageStore.GetByOriginReceiptAsync` and `ListAsync` duplicated the same `Triage` ⋈ `InstructionDrafts` left join, projection, and `TriageSummary` construction. | **Fixed.** Extracted one shared `TriageWithDraftQuery(context)` (returning a private `TriageWithDraftRow` record instead of an anonymous type, so it can be a named method return) and one shared `ToSummary(row)` mapper; both read paths call the same query/projection now. |
+
+Re-ran after applying: `dotnet build ./Pegasus.slnx --configuration Release --no-restore` (0 errors), `dotnet test` for Core.Tests, ArchitectureTests, and the `TriageQueuesWebTests` filter — all green (see post-implementation report for exit codes).
