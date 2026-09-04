@@ -1,41 +1,44 @@
 ---
-outcome: needs-changes
+outcome: approved
 pr: https://github.com/collisionengineers/pegasus/pull/659
-head: ed0dc6ad2b00d1299b404f06596ee0ed499ec250
-reviewers: gpt-5.6-terra (xhigh, independent read); Claude Opus (dispositions, verification)
+head: fbb8f6622e7fe59c0897730fa2a588fbdd0c8687
+merge_commit: e66e106993acbae39eaa6abd5c0e592a52302c61
+reviewers: gpt-5.6-terra (xhigh, independent read); Claude Opus (dispositions, verification, gating, merge)
 date: 2026-09-04
 ---
 
-# Review attestation — CASE-032 — needs changes
+# Review attestation — CASE-032 — approved and merged
 
-Reviewed PR https://github.com/collisionengineers/pegasus/pull/659 at head
-`ed0dc6ad2b00d1299b404f06596ee0ed499ec250`. Not merged.
+Re-reviewed PR https://github.com/collisionengineers/pegasus/pull/659 at head
+`fbb8f6622e7fe59c0897730fa2a588fbdd0c8687` after the fix round. Merged to `dev`
+as `e66e106993acbae39eaa6abd5c0e592a52302c61`.
 
-The full record, with every finding, disposition, command and exit code, is in
-this ticket's `reference` document ("Review record — CASE-032").
+The full record — every finding, disposition, command and exit code — is in this
+ticket's `reference` document ("Review record — CASE-032 … re-review").
 
-Two should-fix findings must be applied before this PR can merge:
+Both should-fix findings from the `ed0dc6ad2` round are genuinely closed:
 
-1. `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs:557,574,576` — the new
-   `Custody`, `Reference` and `Provider` quick-detail pairs pass `string.Empty`
-   when absent, and `Pages/Cases/Index.cshtml:216,235` renders every pair
-   unconditionally, so an absent value draws a labelled blank row instead of
-   nothing. Add each pair only when its source value is non-null, as
-   `BlockedRow` (`:609-618`) already does for `E-mail`. Do not add a
-   placeholder word; leave the `"Unassigned"` fallback at `:429` alone.
-2. `tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs:254` — the assignee
-   assertion is vacuous: `development-offline-administrator` is rendered by the
-   authenticated shell on every page. Assert the assignee inside the seeded
-   Triage row (or as the contiguous `provider · assignee` meta) so the fourth
-   half is actually proved. Weaken no existing assertion.
+1. `Index.cshtml.cs:549-552,574-582` — `Custody`, `Reference` and `Provider`
+   quick-detail facts are now added only when their source value is non-null,
+   matching `BlockedRow`'s convention. No placeholder substituted; the
+   `"Unassigned"` assignee fallback at `:427-429` is untouched; pre-existing
+   facts keep their order.
+2. `TriageQueuesWebTests.cs:254-257` — the assignee is now proved by the
+   contiguous decoded fragment `"{provider} · {assignee}"`, emitted only by
+   `TriageRow`'s `Join(item.Provider, assignee)`. No assertion weakened.
 
-One reviewer finding was rejected: moving the new field *captions* into
-`OperatorLabels` — that file owns value vocabulary, not captions, and every
-quick-detail caption in `Pages/Cases/Index.cshtml.cs` is already a literal at
-its use site. Reasoning is recorded in the review record.
+The fix commit touches exactly the two files the fix packet named and
+introduces no regression.
 
-Everything else passed: scope, no migration needed, Core ownership of the
-custody vocabulary, the cardinality-safe single-statement left join, the
-honest simplification pass, and a clean local verification at this head
-(restore 0, Release build 0, Core.Tests 0 / 1225 passed, ArchitectureTests
-0 / 100 passed, `TriageQueuesWebTests` 0 / 9 passed).
+Two fresh nits from the independent read were dispositioned without a code
+change: `ImageIntakeDetail.Custody`'s trailing default (**accept risk** — one
+production construction site, which supplies the value; no Core policy reads
+the member, so no fake can produce a false pass), and the absence of a snapshot
+re-run on this head (**rejected** — no captured page in the repository renders a
+queue row of any kind, so the changed row builders are unreachable from every
+snapshot state, and no artifact, `.cshtml`, catalogue or tooling file changed).
+
+Local verification at this head: restore 0, Release build 0 (0 warnings, 0
+errors), Core.Tests 0 / 1225 passed, ArchitectureTests 0 / 100 passed,
+`TriageQueuesWebTests` 0 / 9 passed. CI run `33879497231` on head
+`fbb8f6622` completed with conclusion `success` before the merge.
