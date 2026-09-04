@@ -184,8 +184,9 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Whether the Engineer sections are read-only: the one Core access rule
-    /// (Complete only). The record has no Open Assessment action and no
-    /// section visibility gate (D30).
+    /// (Complete only), read by ENG-034's Engineer forms. The record has no
+    /// Open Assessment action and no section visibility gate (D30). An
+    /// unresolved access answer reads as read-only.
     /// </summary>
     public bool AssessmentIsReadOnly { get; private set; }
 
@@ -232,9 +233,12 @@ public sealed partial class DetailsModel(
             {
                 return NotFound();
             }
+            // No access answer is not an editable record: an unresolved
+            // result fails closed to read-only, the same direction the
+            // pre-case gates fail.
             AssessmentIsReadOnly = (await getAssessmentAccess.ExecuteAsync(
                 new(id, actor),
-                cancellationToken))?.IsReadOnly == true;
+                cancellationToken))?.IsReadOnly ?? true;
             // The lease decides how much of the record is rendered now, so it is
             // restored before the section-specific loads are chosen.
             RestoreLeaseState(id, actor, Case.ActiveEditLease);
@@ -265,7 +269,8 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// One Case section's body, for the frame's lazy mount. It runs the same
+    /// One Case section's body, for the frame's lazy mount, on the record's
+    /// own fragment path <c>/Cases/{id}/Section?section=&lt;key&gt;</c>. It runs the same
     /// authorized load, lease restoration and section-specific supplemental
     /// query as the full GET and returns only the named body, so a mounted
     /// section carries the same lease token and version the page holds.

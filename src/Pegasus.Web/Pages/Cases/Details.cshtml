@@ -1,4 +1,8 @@
 @page "/Cases/{id:guid}"
+@* CASE-038: the record answers on `/Cases/{id}` and its section
+   fragment on `/Cases/{id}/Section` (the added route in Program.cs), so a
+   fragment response is never a candidate for the record's own snapshot
+   states and every other handler keeps the query-string form. *@
 @using System.Globalization
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Workflow

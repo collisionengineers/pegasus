@@ -243,7 +243,7 @@ public sealed partial class CaseDetailsWebTests
 
         var fragment = await GetHtmlAsync(
             client,
-            $"/Cases/{store.CaseId:D}?handler=Section&section={key}");
+            $"/Cases/{store.CaseId:D}/Section?section={key}");
 
         Assert.DoesNotContain("case-sticky", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("section-nav", fragment, StringComparison.Ordinal);
@@ -275,9 +275,64 @@ public sealed partial class CaseDetailsWebTests
         });
 
         using var response = await client.GetAsync(
-            new Uri($"/Cases/{store.CaseId:D}?handler=Section&section={key}", UriKind.Relative));
+            new Uri($"/Cases/{store.CaseId:D}/Section?section={key}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>
+    /// The record has exactly one editor. Every section renders at once while
+    /// the lease is held, so a second form posting the whole record would write
+    /// the case's stored values over whatever another section is holding
+    /// unsaved; the Inspection section contributes its control to the one
+    /// record form instead. Editing one section and saving therefore cannot
+    /// discard an unsaved edit in another: there is only one form to save.
+    /// </summary>
+    [Fact]
+    public async Task TheRecordRendersOneEditorForEverySection()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(1, Occurrences(html, $"/Cases/{store.CaseId:D}?handler=Save"));
+        Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
+        Assert.Equal(1, Occurrences(html, "data-edit-save"));
+        // Each of the twenty values SaveCase writes appears once across the
+        // record, so no control is shadowed by a stale copy of itself.
+        foreach (var field in new[]
+        {
+            "claimantName",
+            "claimantContactNumber",
+            "claimantAddress",
+            "claimNumber",
+            "vehicleRegistration",
+            "vehicleMake",
+            "vehicleModel",
+            "vehicleMileage",
+            "vehicleMileageUnit",
+            "accidentCircumstances",
+            "incidentDate",
+            "contactName",
+            "contactEmailAddress",
+            "contactPhoneNumber",
+            "instructionDate",
+            "vatStatus",
+            "inspectionDate",
+            "inspectionDeadline",
+            "inspectionAddress",
+            "inspectionMode"
+        })
+        {
+            Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
+        }
+        // The Inspection section's control is the record form's entry for the
+        // address, wherever it renders on the page.
+        Assert.Contains(
+            "id=\"inspection-address\" name=\"inspectionAddress\" form=\"case-edit-form\"",
+            html,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -297,24 +352,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("section-placeholder", html, StringComparison.Ordinal);
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
-    }
-
-    /// <summary>
-    /// One form carries the sticky bar's Save: the Inspection section posts its
-    /// own form to the same handler, so the record never renders two elements
-    /// with the <c>case-edit-form</c> id.
-    /// </summary>
-    [Fact]
-    public async Task TheRecordRendersOneStickySaveTarget()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await EnterEditModeAsync(store, _ => { });
-
-        var html = await workspace.GetWorkspaceAsync();
-
-        Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
-        Assert.Equal(1, Occurrences(html, "data-edit-save"));
-        Assert.Contains("id=\"case-inspection-address-form\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
