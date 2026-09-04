@@ -154,7 +154,8 @@ interface wording for the `Blocked intake` boundary and remains pre-case.
 
 Awaiting instruction lists the Image-initiated Cases still awaiting an
 instruction; it is Pre-Case work beside Triage, never a workflow queue, and
-its rows keep the Image-initiated row shape (D38). `?tab=` selects the queue.
+its rows show reference, registration, image count, custody, received, source
+and chase facts (D38). `?tab=` selects the queue.
 Filters are Principal (every queue) and, on Not ready only, Missing — `All`,
 `Instructions`, `Images`, `Both missing` — plus Clear. Each queue keeps its
 own row shape rather than being forced into one column set: a Case row
@@ -164,15 +165,18 @@ registration, file count and custody; a Triage
 row carries reference, registration, provider and assignee; an Unidentified
 row carries the U-reference, kind, operator-meaningful handle (the original
 filename, or the e-mail subject and sender — never an internal identifier),
-received date and time and the canonical reason. A row links to its detail
-and nothing else. Selecting a row shows a quick detail: for a Case its
+received date and time and the canonical reason. Awaiting-instruction rows
+select their quick detail; every other row links directly to its full detail.
+Selecting a row shows a quick detail: for a Case its
 origin, compact workflow position, outstanding requirements and current work
 (due, Engineer, next action) with Open full Case; for other kinds the
-definition list and the open action.
+definition list and the open action, with Add to an existing case on an
+Awaiting-instruction image record.
 
-Not ready rows are formal instructed Cases; an ImageIntake-backed projection
-still awaiting an instruction is listed under Awaiting instruction (D38) with
-its origin visible. Unidentified media kind (`Images` or `E-mails`) is
+Not ready contains only formal instructed Cases; an ImageIntake-backed
+projection still awaiting an instruction is listed under Awaiting instruction
+(D38) with its origin visible. Unidentified media kind (`Images` or
+`E-mails`) is
 derived from the retained receipt's source channel and content type, not a
 separate stored field. Terminal Cases other than Complete are excluded from
 the Cases rail and appear in Search as `Closed · <outcome>`.
