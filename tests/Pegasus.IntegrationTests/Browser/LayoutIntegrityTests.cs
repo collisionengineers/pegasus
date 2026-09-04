@@ -207,6 +207,16 @@ public sealed class LayoutIntegrityTests
         await support.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await support.Page.Locator("#inspection-address").FillAsync(inspectionAddress);
+        await support.Page.GetByRole(
+            AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Finish editing", Exact = true }).ClickAsync();
+
+        var confirmation = support.Page.Locator("#edit-finish-confirm");
+        Assert.True(await confirmation.IsVisibleAsync());
+        Assert.Null(await confirmation.GetAttributeAsync("hidden"));
+        await confirmation.Locator("[data-edit-finish-keep]").ClickAsync();
+        Assert.False(await confirmation.IsVisibleAsync());
+
         // "reason" is a required field on the one record form, and a fresh
         // physical-address case has no Confirmed inspection mode yet — Core
         // requires the address and mode saved together (CaseDataOperations.
@@ -220,7 +230,6 @@ public sealed class LayoutIntegrityTests
             AriaRole.Button,
             new PageGetByRoleOptions { Name = "Finish editing", Exact = true }).ClickAsync();
 
-        var confirmation = support.Page.Locator("#edit-finish-confirm");
         Assert.True(await confirmation.IsVisibleAsync());
         Assert.Null(await confirmation.GetAttributeAsync("hidden"));
 
