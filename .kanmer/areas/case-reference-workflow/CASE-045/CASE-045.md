@@ -2,10 +2,12 @@
 id: CASE-045
 type: ticket
 title: Show an optional known principal on image-initiated cases
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-04T13:15:19.801Z'
 labels:
   - image-intake
   - principal
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-04T10:21:48.548Z'
-updated: '2026-09-04T13:11:42.687Z'
+updated: '2026-09-04T13:15:19.801Z'
 ---
 
 ## What
