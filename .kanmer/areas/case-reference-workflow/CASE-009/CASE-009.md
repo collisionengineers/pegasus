@@ -4,13 +4,24 @@ type: ticket
 title: >-
   Show auto-attached Query emails on Case Details and remove manual query
   creation
-status: preparing
+status: implementing
 area: case-reference-workflow
 order: 30
-assignee: ''
+assignee: wf-build/case-009
 profile: fix
 stageEntered:
   preparing: '2026-08-21T07:51:43.337Z'
+taken_at: '2026-09-04T18:27:23.587Z'
+branch: task/case-009-case-queries-correspondence
+worktree: .worktrees/case-009
+claim_expires_at: '2026-09-04T18:57:23.587Z'
+claim_controller: wf-build/case-009
+lease_id: 4e541da8-e0ec-4226-889e-151776ea58d3
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-009'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T18:27:23.587Z'
 labels:
   - ui
   - case-detail
@@ -28,7 +39,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T07:51:29.215Z'
-updated: '2026-09-02T20:32:14.689Z'
+updated: '2026-09-04T18:27:23.587Z'
 ---
 
 ## Why

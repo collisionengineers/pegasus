@@ -4,12 +4,23 @@ type: ticket
 title: >-
   Inspect-at fast update from claimant, repairer, storage location and principal
   address history
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-041
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:09:37.240Z'
+taken_at: '2026-09-04T18:27:38.085Z'
+branch: task/case-041-inspect-at-choices
+worktree: .worktrees/case-041
+claim_expires_at: '2026-09-04T18:57:38.085Z'
+claim_controller: wf-build/case-041
+lease_id: 16f288ff-81d8-4b10-bda1-da11cb3b8ec0
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-041'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T18:27:38.085Z'
 labels:
   - case
   - inspection
@@ -26,7 +37,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-03T10:54:53.361Z'
+updated: '2026-09-04T18:27:38.085Z'
 ---
 
 ## What
