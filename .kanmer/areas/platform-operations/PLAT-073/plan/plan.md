@@ -4,43 +4,69 @@
 
 Make the WSL host satisfy Pegasus Offline and Cloud static prerequisites from Linux-native storage and executables, reconcile the repository to Kanmer v0.4.1, and record only evidence-backed repair guidance.
 
-## Preconditions and reuse
+## Starting state
 
-DELIV-046 is Done and origin/main is contained in origin/dev. Reuse scripts/Invoke-Doctor.ps1 as the executable census, scripts/PegasusPlatform.ps1 as the single repair-hint owner, scripts/Initialize-LocalDevelopment.ps1 for repository packages/browser/SQL acquisition, and the Kanmer v0.4.1 setup skill for managed-file reconciliation. No parallel installer or platform list is added.
+origin/dev is c90f2b8915186efd5bf932cec573846ae75ff1fe and contains origin/main. Research is pinned at research/research.md@53d9fb4032408e93 and the file census at files/files.md@7dac72ac000858ca. Native PowerShell, Docker, GitHub CLI, Git and Python exist; the exact .NET and most Cloud tools do not. nvm contains Node 24 but resolves 26. Kanmer v0.4.1 runs outside the repo while get_status reports stale managed files.
 
-## Step 1 — Pin the host shell and install exact prerequisites
+## Governing docs
 
-- Correct /home/pguser/.config/pegasus/environment.sh and the nvm default so Node 24 is selected before Node tools run.
-- Install .NET SDK 10.0.302 under /home/pguser/.dotnet and exact Cloud-profile tools from official signed repositories or release artifacts: Azure CLI 2.88, azd 1.28.0, Bicep 0.45.15, Infisical 0.43.104, Box CLI 4.9.2, go-sqlcmd 1.10.0, Functions Core Tools 4.12.1, and ExchangeOnlineManagement 3.10.0.
-- Keep all tools/caches on the Linux filesystem. Do not authenticate to vendors or execute cloud writes.
-- Verify each resolved executable path avoids /mnt and each version matches Doctor.
+docs/runbook.md owns executable workstation requirements; AGENTS.md owns workflow; EPIC-013/context.md binds Linux storage, no Windows PATH, no cloud write and sequencing. scripts/Invoke-Doctor.ps1 is the executable prerequisite authority and scripts/PegasusPlatform.ps1 is the one repair-hint owner.
 
-## Step 2 — Initialize the pinned Offline payload
+## Required changes
 
-- From the task worktree, run the repository-owned initialization path so npm lock restoration, .NET locks, package-pinned Chromium, HTTPS certificate and the pinned SQL image are acquired by their existing owner.
-- Run Offline Doctor, canonical locked restore/build/test, and the Browser lane. Do not overlap SQL-container and browser-heavy work where avoidable.
-- Record any failed attempt verbatim; correct host prerequisites without weakening checks.
+Correct host Node selection; install exact prerequisite versions; acquire repository-pinned packages, browser, certificate and SQL image through existing owners; reconcile Kanmer v0.4.1; correct only guidance disproved by execution.
 
-## Step 3 — Reconcile Kanmer v0.4.1
+## Expected files
 
-- Run kanmer-setup against the task worktree using the already-cloned /home/pguser/tools/kanmer v0.4.1 source.
-- Preserve the GUI-owned board branch/worktree and user-authored AGENTS.md content outside the managed block.
-- Review the mechanical managed-file diff; retain only the supported setup output. Verify get_status no longer reports stale managed artifacts after the task version reaches dev.
+| Action | Path |
+|---|---|
+| Managed reconciliation | AGENTS.md |
+| Managed reconciliation | .agents/skills/kanmer-*/** |
+| Managed reconciliation | .grok/skills/kanmer-*/** |
+| Managed reconciliation | .opencode/skills/kanmer-*/** |
+| Managed reconciliation | .gitignore |
+| Conditional correction | scripts/PegasusPlatform.ps1 |
+| Conditional correction | docs/runbook.md |
 
-## Step 4 — Align executable guidance only where proved
+Machine-private changes outside Git are /home/pguser/.config/pegasus/environment.sh, nvm aliases, /home/pguser/.local/bin, /home/pguser/.dotnet, /opt-installed tools and /etc/wsl.conf.
 
-- Run both Doctor profiles. If a failing repair hint does not install the version Doctor itself requires, update the centralized hint in scripts/PegasusPlatform.ps1 and the matching runbook text; otherwise make no speculative documentation change.
-- Run platform, documentation-link, Markdown-placement and relevant script tests.
-- Run a documentation-only or code simplification pass as dictated by the final diff and record dispositions here.
+## Do not modify
 
-## Step 5 — Deliver
+Application code, tests/assertions, infra, product governing docs, operator notes, corpus, board branch contents directly, package locks, production/cloud state, and PLAT-074/UIIMP-016/DELIV-047 scope.
 
-- Commit small logical slices, push the recorded task branch, open a PR to dev with Kanmer: PLAT-073, and stop in Review for an independent agent.
-- Required evidence: Offline Doctor PASS, Cloud Doctor PASS without login, canonical restore/build/non-Corpus test PASS, browser PASS, native path/version census PASS, Kanmer build/headless smoke PASS, and a clean task worktree.
+## Constraints
 
-## Deviations and stop conditions
+Reuse existing Doctor, platform and initialization owners. Use official signed repositories or pinned vendor release artifacts. No vendor authentication or cloud write. Preserve AGENTS content outside Kanmer managed delimiters. WSL restart remains an operator handoff.
 
-Stop on a required cloud login/write, secret prompt, managed-block conflict, unexpected package-version drift, changed origin/dev before taking the ticket, or failure that indicates PLAT-074/UIIMP-016/DELIV-047 scope. A WSL shutdown/restart remains an explicit final host handoff; current-session evidence is not presented as boot-level proof.
+## Ordered steps
+
+1. Correct environment.sh and nvm default to Node 24; install exact .NET 10.0.302 and Cloud-profile tool versions; prove Linux-native paths and versions.
+2. Run Initialize-LocalDevelopment.ps1 to restore locks and acquire pinned Chromium/SQL payload, then run Offline Doctor and canonical locked restore/build/test/browser checks sequentially.
+3. Run kanmer-setup v0.4.1 in the task worktree, preserve the GUI board worktree and inspect the managed diff.
+4. Run Cloud Doctor. Change scripts/PegasusPlatform.ps1 and docs/runbook.md only if an executed repair/version mismatch exists. Run platform/doc/Markdown regression checks and record the simplification pass.
+5. Commit, push the task branch, open a PR to dev with Kanmer: PLAT-073, write the post-implementation report, and move to Review.
+
+## Acceptance checks
+
+- command -v for required executables returns no /mnt path and exact versions satisfy both Doctor profiles.
+- pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline exits 0.
+- pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud exits 0 without authentication.
+- dotnet restore ./Pegasus.slnx --locked-mode, Release build and non-Corpus test commands exit 0.
+- Category=Browser integration tests exit 0.
+- Kanmer npm build and smoke:headless exit 0; get_status managed-artifact staleness is resolved for task contents.
+- Repository platform, documentation link, Markdown placement and diff checks exit 0.
+
+## Commands
+
+Use the exact Doctor and canonical commands above, repository initialization, focused Browser test, npm run build/smoke:headless in /home/pguser/tools/kanmer, Test-PegasusPlatform.ps1 where applicable, Test-DocumentationLinks.ps1, Test-MarkdownPlacement.ps1 with explicit base/head, and git diff --check.
+
+## Failure and deviation rules
+
+Stop on cloud authentication/write, secret prompt, managed-block conflict, package-version drift, origin/dev movement before take, failed assertion, or scope belonging to a dependent ticket. Retain every failed command in the report.
+
+## Stop condition
+
+Stop with the PR open in Review. Do not self-review, merge, or start PLAT-074/UIIMP-016.
 
 ## Simplification pass
 
