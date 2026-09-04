@@ -2,13 +2,14 @@
 id: CASE-032
 type: ticket
 title: 'Queue-row projections: image-intake custody and Triage reference/provider'
-status: implementing
+status: review
 area: case-reference-workflow
 order: 120
 assignee: wf-build/case-032
 profile: feature
 stageEntered:
   preparing: '2026-09-04T10:09:09.196Z'
+  review: '2026-09-04T11:53:50.169Z'
 taken_at: '2026-09-04T10:36:52.655Z'
 branch: task/case-032-queue-row-projections
 worktree: .worktrees/case-032
@@ -44,7 +45,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/659'
 archived: false
 created: '2026-08-29T13:04:56.182Z'
-updated: '2026-09-04T11:53:28.552Z'
+updated: '2026-09-04T11:53:50.169Z'
 ---
 
 ## What
