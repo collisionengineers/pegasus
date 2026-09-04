@@ -2,7 +2,7 @@
 id: DOCS-017
 type: ticket
 title: 'Report signatory policy: sign-off Engineer tuple on every report'
-status: verifying
+status: done
 area: documents-reports
 assignee: wf-build/docs-017
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-02T20:51:35.667Z'
   review: '2026-09-03T18:34:39.660Z'
   verifying: '2026-09-03T21:30:55.083Z'
+  done: '2026-09-04T07:13:24.766Z'
 taken_at: '2026-09-03T13:41:19.684Z'
 branch: task/docs-017-report-signatory
 worktree: .worktrees/docs-017
@@ -50,7 +51,7 @@ delivery_sha: 86ce276dcc78398bcfd2d6526cf27265d49afa7b
 delivery_recorded_at: '2026-09-03T21:30:56.519Z'
 archived: false
 created: '2026-09-02T11:20:50.869Z'
-updated: '2026-09-03T21:30:56.519Z'
+updated: '2026-09-04T07:13:24.766Z'
 ---
 
 ## What

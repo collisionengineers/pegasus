@@ -4,7 +4,7 @@ type: ticket
 title: >-
   AI market research job: external Cowork research completed through the
   Automation Actor into a valuation row and findings document
-status: verifying
+status: done
 area: automation-integrations
 assignee: wf-build/auto-018
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-09-02T22:06:47.198Z'
   review: '2026-09-03T20:09:56.795Z'
   verifying: '2026-09-04T06:14:28.102Z'
+  done: '2026-09-04T07:13:28.634Z'
 taken_at: '2026-09-03T13:49:10.474Z'
 branch: task/auto-018-market-research-job
 worktree: .worktrees/auto-018
@@ -42,7 +43,7 @@ delivery_sha: 80f0ca262b0fe2ca354a5dfb18933dc3f105b917
 delivery_recorded_at: '2026-09-04T06:14:29.639Z'
 archived: false
 created: '2026-09-02T20:31:38.846Z'
-updated: '2026-09-04T06:14:29.639Z'
+updated: '2026-09-04T07:13:28.634Z'
 ---
 
 ## What
