@@ -270,3 +270,28 @@ of scope.
 | 3 | should-fix | 4 | The resolved two-notice behaviour is untested: `RecordingOperationsStore` hard-codes `LimitReached: false` (`OperationsWebTests.cs:649`, confirmed by grep), so no web test exercises the limit notice or the removal of its sentence. | Fixed — step 4 makes the flag configurable and adds the combined-state test; the acceptance conditions name the both-conditions case. |
 | 4 | nit | files inventory | `files.md` listed `Index.cshtml.cs` as "change (if needed)" while the plan says no code-behind change. | Fixed — `files.md` marks it unchanged, and step 3 plus the acceptance conditions state it explicitly. |
 | 5 | should-fix (wrapper) | 3 | Deleting the table leaves `ServiceHealthAreaName`, `ServiceHealthServiceName`, `ServiceHealthStateName` and `ServiceHealthDependencyName` in `OperatorLabels.cs` with no caller anywhere in the solution (verified by grep). | Fixed as an explicit retention: step 3 keeps them for PLAT-051's Administration table — their named next caller in this epic — and tells the simplification pass to record the retention rather than delete them. |
+
+## Simplification pass (2026-09-04)
+
+Reviewer: gpt-5.6-sol low, over `git diff origin/dev` in the ticket
+worktree, restricted to this ticket's owned paths and told not to flag the
+deliberate retention of the four `ServiceHealth*Name` label helpers.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `src/Pegasus.Web/Presentation/OperatorLabels.cs:1057-1062` and `src/Pegasus.Web/Pages/Operations/Index.cshtml:46,56` — `OperationsNotices` adds a ticket-specific type and two constants for one-use, static notice headings that are not shared or transformed; suggested inlining `Partial data` and `Service health` directly in the two Razor notices and removing the block. | Rejected. "Visible labels belong only in `Presentation/OperatorLabels.cs`" is this ticket's own Governing rule, and CLAUDE.md states "labels only in `src/Pegasus.Web/Presentation/OperatorLabels.cs`" as a repository-wide, one-list-per-concept rule (not a style preference); EPIC-011 context.md repeats it. Inlining the two label strings as Razor literals would put a second label source back into the view layer for exactly the malady the rule exists to prevent, even though each string currently has one call site. `OperationsNotices` follows the existing `AiJobs` / `EvaHandoffs` nested-class shape the plan named as the reuse target. No change made. |
+
+The deliberate retention of `ServiceHealthAreaName`, `ServiceHealthServiceName`,
+`ServiceHealthStateName`, and `ServiceHealthDependencyName` in
+`OperatorLabels.cs` (no current caller after this ticket, named next caller
+is PLAT-051's Administration Service health table) stands as recorded in
+step 3 above; the reviewer was instructed not to flag it and did not.
+
+Also corrected during implementation/self-verification (see
+post-implementation report for full command list): the Codex-run full
+snapshot capture (this repo's `Update-TestUiSnapshots.ps1` has no `-Scope`
+flag yet) touched every catalogue page as an LF/CRLF line-ending stat, with
+no actual content diff outside the three Operations pages and
+`docs/design/test-ui/index.html`; all unrelated pages were reverted with
+`git checkout --` before commit so the diff stays scoped to this ticket's
+owned paths.
