@@ -21,13 +21,13 @@ Wave 1 (PLAT-070 #649, DOCS-017 #651, ENG-035 #648, PLAT-068 #655, AUTO-018
 
 ## Merge queue (one at a time, in this order)
 
-UIIMP-015, PLAT-069, CASE-032, CASE-038 · CASE-009, CASE-039, CASE-041,
-CASE-040, CASE-029, CASE-042, ENG-034, CASE-043 · ENG-029, ENG-036, ENG-031,
-DOCS-018 · UIIMP-014, DELIV-044.
+Phase A lanes (UIIMP-015, PLAT-069, CASE-032, CASE-038) merge as each is
+ready · CASE-009, CASE-039, CASE-041, CASE-040, CASE-029, CASE-042, ENG-034,
+CASE-043 · ENG-029, ENG-036, ENG-031, DOCS-018 · UIIMP-014, DELIV-045.
 
 ## Checkpoints
 
-V1 after ENG-034 merges; V-final after DELIV-044 merges (plus adversarial
+V1 after ENG-034 merges; V-final after DELIV-045 merges (plus adversarial
 claims). Critic after Phase B and after Phase C.
 
 ## Carried forward

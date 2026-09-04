@@ -21,12 +21,13 @@ groups:
 links: []
 blocks:
   - DELIV-030
+  - DELIV-045
 refs:
   - docs/engineering.md
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.991Z'
-updated: '2026-09-02T22:34:41.706Z'
+updated: '2026-09-04T09:56:25.076Z'
 ---
 
 ## What
