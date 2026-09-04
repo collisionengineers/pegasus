@@ -2,10 +2,12 @@
 id: UIIMP-015
 type: ticket
 title: 'Scoped Test UI snapshot capture: regenerate only the routes a lane changed'
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-04T10:13:58.674Z'
 labels:
   - test-ui
   - tooling
@@ -18,7 +20,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-04T09:53:04.117Z'
-updated: '2026-09-04T09:53:04.117Z'
+updated: '2026-09-04T10:13:58.674Z'
 ---
 
 ## What
