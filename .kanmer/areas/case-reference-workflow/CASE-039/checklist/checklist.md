@@ -87,3 +87,10 @@
 - [x] Simplification pass recorded in the plan under a dated heading.
 - [x] post-implementation report written
 - [x] PR opened with Kanmer: CASE-039
+
+- [x] Review round fix (2026-09-04): applied finding 5 (blocker) —
+  appended `20260904210022_EngineerNotes` to the applied-migrations list in
+  `IntakePersistenceIntegrationTests.cs`; re-ran the fast checks plus the
+  focused integration filter including `IntakePersistenceIntegrationTests`
+  (104 passed); committed `ae38f570e` and pushed to
+  `origin/task/case-039-engineer-notes`.
