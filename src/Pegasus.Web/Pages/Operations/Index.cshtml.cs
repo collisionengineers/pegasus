@@ -435,15 +435,17 @@ public sealed class IndexModel(
 
     /// <summary>
     /// Whether staff close this job by hand. FRD-11 gives Complete job to a
-    /// Draft ready Query response or Unidentified-queue pass only; an Estimate
-    /// and an Unidentified resolution are completed by the record's own act
-    /// (Use estimate, Resolve destination), never from this table.
+    /// Draft ready Query response, Unidentified-queue pass or Market research;
+    /// an Estimate and an Unidentified resolution are completed by the record's
+    /// own act (Use estimate, Resolve destination), never from this table.
     /// </summary>
     public static bool CanCompleteByHand(AiJobRecord job)
     {
         ArgumentNullException.ThrowIfNull(job);
         return job.State == AiJobState.DraftReady
-            && job.Kind is AiJobKind.QueryResponse or AiJobKind.UnidentifiedQueuePass;
+            && job.Kind is AiJobKind.QueryResponse
+                or AiJobKind.UnidentifiedQueuePass
+                or AiJobKind.MarketResearch;
     }
 
     /// <summary>
