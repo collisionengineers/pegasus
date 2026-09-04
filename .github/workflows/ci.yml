@@ -263,12 +263,7 @@ jobs:
     # keeps that cap for browser tests and lets non-browser tests inherit the
     # project's four-thread cap. Verify is one fact over the retained capture,
     # not a second pass through the capture suite.
-    #
-    # CASE-038 raised these: the single-scroll Case record renders every
-    # section on one page, so the capture suite grew and run 33843641587
-    # passed 123 tests in 19m13s and then hit the 35-minute step cap during
-    # verify. The cost is real, not a regression, so the caps follow it.
-    timeout-minutes: 65
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/dotnet-build
@@ -281,7 +276,7 @@ jobs:
         shell: pwsh
         run: pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
       - name: Capture and verify the Test UI snapshots
-        timeout-minutes: 55
+        timeout-minutes: 35
         shell: pwsh
         run: ./scripts/Update-TestUiSnapshots.ps1 -Verify
       - name: Explain an incomplete Test UI result
