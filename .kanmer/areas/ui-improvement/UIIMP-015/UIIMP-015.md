@@ -2,12 +2,23 @@
 id: UIIMP-015
 type: ticket
 title: 'Scoped Test UI snapshot capture: regenerate only the routes a lane changed'
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: wf-build/uiimp-015
 profile: chore
 stageEntered:
   preparing: '2026-09-04T10:13:58.674Z'
+taken_at: '2026-09-04T10:46:14.440Z'
+branch: task/uiimp-015-scoped-test-ui-capture
+worktree: .worktrees/uiimp-015
+claim_expires_at: '2026-09-04T11:16:14.440Z'
+claim_controller: wf-build/uiimp-015
+lease_id: 5dd8c4cb-4956-4f65-b031-e0af18f1504d
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\uiimp-015'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T10:46:14.440Z'
 labels:
   - test-ui
   - tooling
@@ -20,7 +31,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-04T09:53:04.117Z'
-updated: '2026-09-04T10:13:58.674Z'
+updated: '2026-09-04T10:46:14.440Z'
 ---
 
 ## What
