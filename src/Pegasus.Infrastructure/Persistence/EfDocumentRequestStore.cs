@@ -23,6 +23,7 @@ internal sealed class EfDocumentRequestStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = RequestUploadPolicy.NormalizeCreate(command);
         var operationKey = ValidateActorAndOperation(command.Actor, command.OperationKey);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -48,7 +49,12 @@ internal sealed class EfDocumentRequestStore(
                 "request_upload_created",
                 command.Actor,
                 reason: null,
-                afterJson: history.AfterJson);
+                afterJson: DocumentActionHistory.Serialize(
+                    HistoryValue(replay) with
+                    {
+                        Recipient = command.Recipient,
+                        Reason = command.Reason
+                    }));
             return new(replayLink, null, true);
         }
         if (history is not null)
@@ -75,6 +81,8 @@ internal sealed class EfDocumentRequestStore(
             CreatedAtUtc = now,
             ExpiresAtUtc = uploadPolicy.CalculateExpiry(now),
             LimitsVersion = uploadLimits.Version,
+            Recipient = command.Recipient,
+            Reason = command.Reason,
             Version = 1,
             CreateOperationKey = operationKey
         };
@@ -477,7 +485,9 @@ internal sealed class EfDocumentRequestStore(
         entity.AcceptedFileCount,
         entity.AcceptedByteCount,
         entity.LimitsVersion,
-        entity.Version);
+        entity.Version,
+        entity.Recipient,
+        entity.Reason);
 
     private sealed record RequestUploadHistoryValue(
         Guid RequestId,
@@ -489,7 +499,9 @@ internal sealed class EfDocumentRequestStore(
         int AcceptedFileCount,
         long AcceptedByteCount,
         string LimitsVersion,
-        long Version);
+        long Version,
+        string? Recipient,
+        string? Reason);
 
     private static RequestUploadLink ToCreatedUploadLink(
         RequestUploadLinkEntity current,
@@ -512,6 +524,8 @@ internal sealed class EfDocumentRequestStore(
                 snapshot.LimitsVersion,
                 current.LimitsVersion,
                 StringComparison.Ordinal)
+            || !string.Equals(snapshot.Recipient, current.Recipient, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Reason, current.Reason, StringComparison.Ordinal)
             || snapshot.Version != 1)
         {
             throw new InvalidDataException(
@@ -529,7 +543,9 @@ internal sealed class EfDocumentRequestStore(
             AcceptedFileCount: 0,
             AcceptedByteCount: 0,
             snapshot.LimitsVersion,
-            snapshot.Version);
+            snapshot.Version,
+            snapshot.Recipient,
+            snapshot.Reason);
     }
 
     private static void EnsureExpectedVersion(long actual, long expected, string aggregate)
@@ -552,7 +568,9 @@ internal sealed class EfDocumentRequestStore(
         value.AcceptedFileCount,
         value.AcceptedByteCount,
         value.LimitsVersion,
-        value.Version);
+        value.Version,
+        value.Recipient,
+        value.Reason);
 
     private static UploadToRequestResult Unavailable() =>
         new(RequestUploadDecision.Unavailable, null, false);

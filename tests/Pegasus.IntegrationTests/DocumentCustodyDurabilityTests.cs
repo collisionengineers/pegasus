@@ -416,6 +416,68 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
+    [Fact]
+    public async Task RequestUploadMetadataPersistsProjectsAndParticipatesInReplay()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.IntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root,
+                requestUploadLimitsFactory: _ => new RequestUploadLimits(
+                    "request-metadata-v1",
+                    TimeSpan.FromHours(1),
+                    5,
+                    1024,
+                    5120,
+                    ["text/plain"],
+                    10,
+                    TimeSpan.FromMinutes(1)));
+            var caseId = await SeedCaseAsync(database);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+            var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                .ClaimAsync(
+                    new(caseId, 0, actor, "request-metadata-lease"),
+                    CancellationToken.None);
+            var command = new CreateRequestUploadLinkCommand(
+                caseId,
+                actor,
+                "request-metadata-create",
+                lease.Version,
+                lease.Token,
+                "  Repairer evidence team  ",
+                "  Photographs requested  ");
+            var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
+
+            var created = await create.ExecuteAsync(command, CancellationToken.None);
+            var replay = await create.ExecuteAsync(command, CancellationToken.None);
+
+            Assert.False(created.IsReplay);
+            Assert.True(replay.IsReplay);
+            Assert.Equal("Repairer evidence team", created.Link.Recipient);
+            Assert.Equal("Photographs requested", created.Link.Reason);
+            var projected = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()
+                .GetAsync(new(caseId, actor), CancellationToken.None);
+            var summary = Assert.Single(projected!.RequestUploadLinks);
+            Assert.Equal(created.Link.Recipient, summary.Recipient);
+            Assert.Equal(created.Link.Reason, summary.Reason);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => create.ExecuteAsync(
+                command with { Recipient = "Different recipient" },
+                CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();

@@ -39,8 +39,12 @@ public sealed class ValuationTests
             ValuationPolicy.ValidateDetails(Details(retail: 1.001m)));
         Assert.Throws<ArgumentException>(() =>
             ValuationPolicy.ValidateDetails(Details(trade: -0.01m)));
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(
+                Details() with { GuideMonth = new DateOnly(2030, 5, 2) }));
 
-        Assert.Equal(Details(), ValuationPolicy.ValidateDetails(Details()));
+        var guideMonth = Details() with { GuideMonth = new DateOnly(2030, 5, 1) };
+        Assert.Equal(guideMonth, ValuationPolicy.ValidateDetails(guideMonth));
     }
 
     /// <summary>
@@ -130,13 +134,12 @@ public sealed class ValuationTests
         var glasses = await save.ExecuteAsync(
             SaveRequest(User, "valuation-user-glasses"),
             CancellationToken.None);
-        var cazana = await save.ExecuteAsync(
+        await Assert.ThrowsAsync<InvalidOperationException>(() => save.ExecuteAsync(
             SaveRequest(User, "valuation-user-cazana", ValuationSource.Cazana),
-            CancellationToken.None);
+            CancellationToken.None));
 
         Assert.Equal(ValuationSource.Glasses, glasses.Details.Source);
-        Assert.Equal(ValuationSource.Cazana, cazana.Details.Source);
-        Assert.Equal(2, store.Saves.Count);
+        Assert.Single(store.Saves);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             save.ExecuteAsync(

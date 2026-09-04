@@ -182,6 +182,7 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.Source).HasMaxLength(30).IsRequired();
             entity.Property(item => item.Date).HasColumnType("date");
             entity.Property(item => item.Time).HasColumnType("time");
+            entity.Property(item => item.GuideMonth).HasColumnType("date");
             entity.Property(item => item.RetailValue).HasPrecision(18, 2);
             entity.Property(item => item.TradeValue).HasPrecision(18, 2);
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();

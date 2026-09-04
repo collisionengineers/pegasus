@@ -638,7 +638,8 @@ public sealed class AssessmentPersistenceIntegrationTests
             TimeOnly time,
             long mileage,
             decimal retail,
-            decimal trade)
+            decimal trade,
+            DateOnly? guideMonth = null)
         {
             var lease = await LeaseAsync($"{key}-lease");
             var request = new SaveValuationRequest(
@@ -648,7 +649,7 @@ public sealed class AssessmentPersistenceIntegrationTests
                 key,
                 "Recorded a Case valuation.",
                 lease.Token,
-                new(source, date, time, mileage, retail, trade));
+                new(source, date, time, mileage, retail, trade, guideMonth));
             var result = await save.ExecuteAsync(request, CancellationToken.None);
             Assert.Equal(result, await save.ExecuteAsync(request, CancellationToken.None));
             version++;
@@ -656,13 +657,14 @@ public sealed class AssessmentPersistenceIntegrationTests
         }
 
         await SaveAsync(
-            "valuation-save-cazana",
-            ValuationSource.Cazana,
+            "valuation-save-glasses",
+            ValuationSource.Glasses,
             new DateOnly(2031, 5, 8),
             new TimeOnly(9, 0),
             42000,
             12100m,
-            10100m);
+            10100m,
+            new DateOnly(2031, 4, 1));
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
 
         var olderEngineerValue = await SaveAsync(
@@ -703,7 +705,8 @@ public sealed class AssessmentPersistenceIntegrationTests
                 new TimeOnly(10, 15),
                 42125,
                 12345.67m,
-                10345.67m));
+                10345.67m,
+                new DateOnly(2031, 5, 1)));
         var edited = await edit.ExecuteAsync(editRequest, CancellationToken.None);
         Assert.Equal(edited, await edit.ExecuteAsync(editRequest, CancellationToken.None));
         version++;
@@ -738,6 +741,10 @@ public sealed class AssessmentPersistenceIntegrationTests
         Assert.Equal(edited.ValuationId, valuations[0].ValuationId);
         Assert.Equal(42125, edited.Details.Mileage);
         Assert.Equal(12345.67m, edited.Details.RetailValue);
+        Assert.Equal(new DateOnly(2031, 5, 1), edited.Details.GuideMonth);
+        Assert.Contains(
+            valuations,
+            valuation => valuation.Details.GuideMonth == new DateOnly(2031, 4, 1));
         Assert.Equal(engineer.SubjectId, edited.LastEditedBy);
 
         await using var context = await harness.Factory.CreateDbContextAsync();

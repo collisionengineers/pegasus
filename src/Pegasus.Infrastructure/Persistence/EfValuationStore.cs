@@ -58,6 +58,7 @@ public sealed class EfValuationStore(
             Source = request.Details.Source.ToString(),
             Date = request.Details.Date,
             Time = request.Details.Time,
+            GuideMonth = request.Details.GuideMonth,
             Mileage = request.Details.Mileage,
             RetailValue = request.Details.RetailValue,
             TradeValue = request.Details.TradeValue,
@@ -129,6 +130,7 @@ public sealed class EfValuationStore(
         entity.Source = request.Details.Source.ToString();
         entity.Date = request.Details.Date;
         entity.Time = request.Details.Time;
+        entity.GuideMonth = request.Details.GuideMonth;
         entity.Mileage = request.Details.Mileage;
         entity.RetailValue = request.Details.RetailValue;
         entity.TradeValue = request.Details.TradeValue;
@@ -350,7 +352,8 @@ public sealed class EfValuationStore(
                 entity.Time,
                 entity.Mileage,
                 entity.RetailValue,
-                entity.TradeValue),
+                entity.TradeValue,
+                entity.GuideMonth),
             entity.RecordedBy,
             entity.RecordedAtUtc,
             entity.LastEditedBy,

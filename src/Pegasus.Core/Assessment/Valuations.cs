@@ -38,7 +38,8 @@ public sealed record ValuationDetails(
     TimeOnly Time,
     long Mileage,
     decimal RetailValue,
-    decimal TradeValue);
+    decimal TradeValue,
+    DateOnly? GuideMonth = null);
 
 public sealed record CaseValuation(
     Guid ValuationId,
@@ -78,6 +79,7 @@ public static class ValuationPolicy
     public static SaveValuationRequest ValidateSave(SaveValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        RequireManuallyRecordableSource(request.Details.Source);
         RequireActor(request.Actor, request.Details);
         return request with { Details = ValidateDetails(request.Details) };
     }
@@ -85,6 +87,7 @@ public static class ValuationPolicy
     public static EditValuationRequest ValidateEdit(EditValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        RequireManuallyRecordableSource(request.Details.Source);
         RequireActor(request.Actor, request.Details);
         if (request.ValuationId == Guid.Empty)
         {
@@ -106,6 +109,12 @@ public static class ValuationPolicy
         {
             throw new ArgumentException("Mileage cannot be negative.", nameof(details));
         }
+        if (details.GuideMonth is { Day: not 1 })
+        {
+            throw new ArgumentException(
+                "The valuation guide month must be represented by the first day of the month.",
+                nameof(details));
+        }
         Money(details.RetailValue, "retail value");
         Money(details.TradeValue, "trade value");
 
@@ -114,6 +123,15 @@ public static class ValuationPolicy
         // field is refused here rather than persisted and silently dropped.
         EngineersValueField(details);
         return details;
+    }
+
+    private static void RequireManuallyRecordableSource(ValuationSource source)
+    {
+        if (source is not (ValuationSource.Glasses or ValuationSource.EngineersValue))
+        {
+            throw new InvalidOperationException(
+                "This valuation source cannot be recorded through the staff valuation action.");
+        }
     }
 
     public static ValuationDetails ValidateAutomationMarketResearch(ValuationDetails details)

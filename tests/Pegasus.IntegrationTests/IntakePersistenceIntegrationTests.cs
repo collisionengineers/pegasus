@@ -118,7 +118,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260903110926_ExtendAssessmentVocabulary",
                 "20260903153134_RemoveStaffReviewFlags",
                 "20260903225331_StaffAccountSignOff",
-                "20260903233954_MarketResearchAiJob"
+                "20260903233954_MarketResearchAiJob",
+                "20260904210602_CaseValuationGuideMonthAndRequestUploadMetadata"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -597,7 +598,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         string databaseName,
         Action<DbContextOptionsBuilder>? configureDatabase,
         Func<IServiceProvider, string>? localArtifactRootFactory,
-        Action<IServiceCollection>? configureServices)
+        Action<IServiceCollection>? configureServices,
+        Func<IServiceProvider, Pegasus.Core.Documents.RequestUploadLimits>? requestUploadLimitsFactory)
     {
         DatabaseName = databaseName;
         ConnectionString = BuildConnectionString(databaseName);
@@ -609,7 +611,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
                 options.UseSqlServer(ConnectionString);
                 configureDatabase?.Invoke(options);
             },
-            localArtifactRootFactory);
+            localArtifactRootFactory,
+            requestUploadLimitsFactory);
         // This database harness has no queue transport. Production composition
         // supplies the mandatory publishers; persistence tests replace only that
         // transport boundary while exercising the durable outbox state.
@@ -638,13 +641,15 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         Action<DbContextOptionsBuilder>? configureDatabase = null,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
         Action<IServiceCollection>? configureServices = null,
-        bool useTemplate = true)
+        bool useTemplate = true,
+        Func<IServiceProvider, Pegasus.Core.Documents.RequestUploadLimits>? requestUploadLimitsFactory = null)
     {
         var database = new LocalDbTestDatabase(
             Prefix + Guid.NewGuid().ToString("N"),
             configureDatabase,
             localArtifactRootFactory,
-            configureServices);
+            configureServices,
+            requestUploadLimitsFactory);
         try
         {
             // An unmigrated database is what several tests are about, so the
