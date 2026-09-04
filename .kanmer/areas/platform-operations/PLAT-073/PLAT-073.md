@@ -12,14 +12,14 @@ stageEntered:
 taken_at: '2026-09-04T15:15:10.556Z'
 branch: PLAT-073-wsl-toolchain
 worktree: .worktrees/plat-073
-claim_expires_at: '2026-09-04T17:52:16.474Z'
+claim_expires_at: '2026-09-04T18:24:31.629Z'
 claim_controller: codex-root
 lease_id: b367fe67-fd5d-4e8e-9918-740ddd0d9974
-lease_revision: 3
+lease_revision: 4
 lease_workspace: 'worktree:/home/pguser/projects/pegasus/.worktrees/plat-073'
 lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-04T16:52:16.474Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-04T17:54:31.629Z'
 labels:
   - wsl
   - linux
@@ -38,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/661'
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T16:57:17.882Z'
+updated: '2026-09-04T17:54:31.629Z'
 ---
 
 ## What
