@@ -2,12 +2,23 @@
 id: CASE-039
 type: ticket
 title: 'Engineer notes: append-only staff notes to the Engineer as a Case section'
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-039
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:08:14.568Z'
+taken_at: '2026-09-04T18:28:37.306Z'
+branch: task/case-039-engineer-notes
+worktree: .worktrees/case-039
+claim_expires_at: '2026-09-04T18:58:37.306Z'
+claim_controller: wf-build/case-039
+lease_id: 8c4bd2f2-025b-40a4-bcad-8781cd365e44
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-039'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-04T18:28:37.306Z'
 labels:
   - case
   - notes
@@ -23,7 +34,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-02T20:31:38.723Z'
-updated: '2026-09-02T22:08:14.568Z'
+updated: '2026-09-04T18:28:37.306Z'
 ---
 
 ## What
