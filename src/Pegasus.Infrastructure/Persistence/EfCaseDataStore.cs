@@ -363,6 +363,7 @@ public sealed class EfCaseDataStore(
         SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionDeadline, CaseDataCodes.Date, Date(data.InspectionDeadline), actor, now);
         SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, data.InspectionAddress, actor, now);
         SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode, InspectionMode(data.InspectionMode), actor, now);
+        SetConfirmed(context, snapshot, CaseDataFieldNames.StorageLocation, CaseDataCodes.Text, data.StorageLocation, actor, now);
     }
 
     private static void SetConfirmed(
@@ -445,7 +446,8 @@ public sealed class EfCaseDataStore(
         ConfirmedText(snapshot, CaseDataFieldNames.InspectionAddress),
         ConfirmedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode),
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimantContactNumber),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantAddress));
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantAddress),
+        ConfirmedText(snapshot, CaseDataFieldNames.StorageLocation));
 
     private static string? ConfirmedText(CaseDataSnapshotEntity snapshot, string name) =>
         Confirmed(snapshot, name)?.Value;
@@ -640,7 +642,9 @@ public sealed class EfCaseDataStore(
             DateField(snapshot, CaseDataFieldNames.InspectionDate),
             DateField(snapshot, CaseDataFieldNames.InspectionDeadline),
             TextField(snapshot, CaseDataFieldNames.InspectionAddress),
-            InspectionModeField(snapshot, CaseDataFieldNames.InspectionMode)));
+            InspectionModeField(snapshot, CaseDataFieldNames.InspectionMode),
+            TextField(snapshot, CaseDataFieldNames.StorageLocation),
+            new(null, null, null)));
 
     private static CaseField<string> TextField(
         CaseDataSnapshotEntity snapshot,
