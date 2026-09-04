@@ -63,11 +63,13 @@ public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseTo
 public sealed class AssignCaseEngineer(
     ICaseWorkflowStore store,
     ICaseWorkflowConfiguration configuration,
-    ICaseEngineerEligibility eligibility) : IAssignCaseEngineer
+    ICaseEngineerEligibility eligibility,
+    IStaffAccountQueries staffAccounts) : IAssignCaseEngineer
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseWorkflowConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     private readonly ICaseEngineerEligibility _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
+    private readonly IStaffAccountQueries _staffAccounts = staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(
         AssignCaseEngineerRequest request,
@@ -85,16 +87,84 @@ public sealed class AssignCaseEngineer(
             throw new InvalidOperationException("An Engineer can be assigned only while the case is in Review.");
         }
 
+        Guid? signOffEngineerId = null;
         if (!isReplay)
         {
             await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
                 _eligibility,
                 request.EngineerId,
                 cancellationToken);
+
+            var profiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
+            signOffEngineerId = CaseSignOffEngineerResolver.Resolve(
+                current.SignOffEngineerId,
+                request.EngineerId,
+                profiles)?.StaffId;
         }
 
-        return await _store.AssignEngineerAsync(request, cancellationToken);
+        return await _store.AssignEngineerAsync(request, signOffEngineerId, cancellationToken);
     }
+}
+
+public sealed class SetCaseSignOffEngineer(
+    ICaseWorkflowStore store,
+    IStaffAccountQueries staffAccounts) : ISetCaseSignOffEngineer
+{
+    private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly IStaffAccountQueries _staffAccounts = staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
+
+    public async Task<CaseWorkflowRecord> ExecuteAsync(
+        SetCaseSignOffEngineerRequest request,
+        CancellationToken cancellationToken)
+    {
+        CaseLifecycleRules.ValidateMutation(request);
+        if (request.SignOffEngineerId == Guid.Empty)
+        {
+            throw new ArgumentException("A Sign-off Engineer identifier is required.", nameof(request));
+        }
+
+        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
+        var isReplay = await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken);
+        if (current.State is not (CaseLifecycleState.Review
+                or CaseLifecycleState.ReportPreparation
+                or CaseLifecycleState.PostReport)
+            && !isReplay)
+        {
+            throw new InvalidOperationException(
+                "A Sign-off Engineer can be selected only while the case is in Review or With Engineer.");
+        }
+
+        if (!isReplay)
+        {
+            var profiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
+            if (profiles.All(profile => profile.StaffId != request.SignOffEngineerId))
+            {
+                throw new InvalidOperationException("The selected Sign-off Engineer is not eligible.");
+            }
+        }
+
+        return await _store.SetSignOffEngineerAsync(request, cancellationToken);
+    }
+}
+
+public static class CaseSignOffEngineerResolver
+{
+    public static SignOffEngineerProfile? Resolve(
+        Guid? persistedSignOffEngineerId,
+        Guid? assignedEngineerId,
+        IReadOnlyList<SignOffEngineerProfile> eligibleProfiles)
+    {
+        ArgumentNullException.ThrowIfNull(eligibleProfiles);
+        return Find(persistedSignOffEngineerId, eligibleProfiles)
+            ?? Find(assignedEngineerId, eligibleProfiles)
+            ?? eligibleProfiles.SingleOrDefault(profile => profile.IsDefault);
+    }
+
+    private static SignOffEngineerProfile? Find(
+        Guid? staffId,
+        IReadOnlyList<SignOffEngineerProfile> profiles) => staffId is null
+            ? null
+            : profiles.FirstOrDefault(profile => profile.StaffId == staffId.Value);
 }
 
 public sealed class StartCaseWork(

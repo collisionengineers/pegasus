@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
@@ -36,8 +37,8 @@ public interface IEvaSubmissionModeStore
 }
 
 /// <summary>
-/// The one owner of EVA API submission decisions: who may submit, when a case
-/// may be submitted twice (never), and what EVA's answer means.
+/// The one owner of EVA API submission decisions: who may submit, which case
+/// states permit a send or re-send, and what EVA's answer means.
 ///
 /// It deliberately holds no transport concern and no persistence concern — it
 /// is given facts and returns a decision, which is what lets the same rules be
@@ -51,14 +52,6 @@ public static class EvaSubmissionPolicy
     /// <summary>The one wording for "this case has no photographs to send".</summary>
     public const string NoRetainedImagesReason =
         EvaHandoffPolicy.NoRetainedImagesReason;
-
-    /// <summary>The one wording for an already-delivered case.</summary>
-    public const string AlreadySubmittedReason =
-        "The case has already been submitted to EVA.";
-
-    /// <summary>The one wording for a principal with the route switched off.</summary>
-    public const string NotEnabledReason =
-        "EVA API submission is not enabled for this principal.";
 
     /// <summary>
     /// Whether an operator may submit this case by hand. Requires the manual
@@ -111,6 +104,16 @@ public static class EvaSubmissionPolicy
             _ => throw new ArgumentOutOfRangeException(nameof(trigger))
         };
     }
+
+    public static CaseLifecycleState StateAfterSend(
+        CaseLifecycleState state,
+        EvaSubmissionTrigger trigger) => trigger switch
+        {
+            EvaSubmissionTrigger.Manual => EvaHandoffPolicy.StateAfterManualSend(state),
+            EvaSubmissionTrigger.Automatic when state == CaseLifecycleState.Review => state,
+            EvaSubmissionTrigger.Automatic => throw new EvaHandoffStateException(state),
+            _ => throw new ArgumentOutOfRangeException(nameof(trigger))
+        };
 
     /// <summary>
     /// Whether a failed submission may be attempted again.
