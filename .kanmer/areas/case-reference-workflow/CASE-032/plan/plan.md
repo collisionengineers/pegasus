@@ -245,3 +245,30 @@ scoped changes instead).
 | 3 | `EfTriageStore.GetByOriginReceiptAsync` and `ListAsync` duplicated the same `Triage` ⋈ `InstructionDrafts` left join, projection, and `TriageSummary` construction. | **Fixed.** Extracted one shared `TriageWithDraftQuery(context)` (returning a private `TriageWithDraftRow` record instead of an anonymous type, so it can be a named method return) and one shared `ToSummary(row)` mapper; both read paths call the same query/projection now. |
 
 Re-ran after applying: `dotnet build ./Pegasus.slnx --configuration Release --no-restore` (0 errors), `dotnet test` for Core.Tests, ArchitectureTests, and the `TriageQueuesWebTests` filter — all green (see post-implementation report for exit codes).
+
+### Correction to finding #3 (2026-09-04, executing agent)
+
+The extracted `TriageWithDraftQuery(context)` shared query, when composed with
+a caller-side `.Where(row => row.Item.State == stateCode)` **after** the
+`Select` into the named `TriageWithDraftRow` record, is not translatable by EF
+Core (`InvalidOperationException` at `ListAsync`, surfaced as a 500 on the
+Work Centre home page, caught by `TriageQueuesWebTests.NotReadyRailCountMatchesRowsAcrossBothOrigins`
+via `ListTriage` → `GetOperationsSnapshot` → `Pages/Index.cshtml.cs`). EF
+Core supports composing `.Where` after `.Select` into an **anonymous** type
+(the pre-simplification shape) but not after `.Select` into a user-defined
+record constructor call in this position.
+
+Fixed by moving the filter to the Triage side of the query, before the
+join/projection: `TriageWithDraftQuery` now takes an optional
+`Expression<Func<TriageEntity, bool>> triagePredicate`, applied to
+`context.Triage.AsNoTracking()` before the join. Both `GetByOriginReceiptAsync`
+(predicate on `OriginReceiptId`) and `ListAsync` (predicate on `State`, only
+when a state filter is given) now share one query and one projection, without
+EF's post-Select-into-record translation limitation. Verified with a
+temporary diagnostic assertion that reproduced the exact
+`InvalidOperationException`/translated-LINQ-expression text before the fix,
+then removed the diagnostic once green.
+
+Re-ran after this fix: `dotnet build` (0 errors), Core.Tests (1219 passed),
+ArchitectureTests (100 passed), `TriageQueuesWebTests` filter (9 passed,
+including `NotReadyRailCountMatchesRowsAcrossBothOrigins`) — exit code 0 each.
