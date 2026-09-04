@@ -85,7 +85,13 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
 5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
-7. **Browser/accessibility** — authenticated workflows, dashboard/queue agreement, two-session editing, keyboard, focus and error behavior, semantic labels, text-plus-colour states, 200% zoom, and supported-browser coverage. Automated axe results do not replace manual keyboard or assistive-technology review.
+7. **Browser/accessibility** — the package-pinned Playwright Chromium lane
+   drives authenticated workflows, dashboard/queue agreement, two-session
+   editing, keyboard, focus and error behavior, semantic labels,
+   text-plus-colour states, 200%-equivalent reflow, forced colours, reduced
+   motion, and axe rules. It is the selected release evidence for those named
+   checks. It does not prove screen-reader interoperability, complete WCAG
+   conformance, subjective usability, or operator acceptance.
 8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
 9. **Security/observability** — role matrix, secure cookies, transient authentication throttling, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
 10. **Performance/concurrency** — eight concurrent operators, 2–20+ files per case, the 2,000-cases-per-month cohort and soak tier (**not run by this programme and never represented as passing** — D27, 2026-09-01; its evidence spike `PLAT-066` sits outside EPIC-011, while per-ticket concurrency tests still run), the current 10 MiB manual-upload bound and future intake bounds only after `INTK-052` research and operator decision (the Provider API envelope stays 30 MB and is owned by [FRD-09](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)), burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.

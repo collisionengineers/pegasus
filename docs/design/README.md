@@ -1308,10 +1308,11 @@ Required behavior:
 - permanent consequences visible without hover;
 - server authorisation regardless of route visibility.
 
-When a planned surface has a real caller, record:
+When a planned surface has a real caller, the package-pinned Playwright
+Chromium Browser lane records:
 
 1. keyboard-only traversal;
-2. screen-reader and semantic inspection;
+2. semantic structure and accessible-name inspection;
 3. focus and error behavior;
 4. 1280px-and-wider desktop review;
 5. 1024–1279px constrained-desktop review;
@@ -1321,7 +1322,12 @@ When a planned surface has a real caller, record:
 9. contrast review;
 10. automated accessibility scanning through the real caller.
 
-Each visible capability/state also needs authenticated Web-caller and named Core-owner evidence. Generated imagery or synthetic operational material cannot prove acceptance. Operator review uses approved, genuine, local immutable material only.
+These checks are the selected release accessibility evidence. They do not
+simulate Narrator or another screen reader and do not establish screen-reader
+interoperability, complete WCAG conformance, subjective usability, or operator
+acceptance. Each visible capability/state also needs authenticated Web-caller
+and named Core-owner evidence. Generated imagery or synthetic operational
+material cannot prove acceptance.
 
 ## Source and runtime map
 
@@ -1597,8 +1603,10 @@ When implemented:
 
 - each visible row and state needs authenticated Web-caller and named
   Core-owner evidence;
-- keyboard, screen-reader, focus/error, forced-colours, reduced-motion and
-  the three widths must be recorded;
+- the package-pinned Chromium Browser lane records keyboard, focus/error,
+  forced-colours, reduced-motion and the three widths; screen-reader-compatible
+  semantics remain required behavior, but screen-reader interoperability is
+  not part of the selected evidence;
 - operator review uses approved genuine local immutable material only;
   generated imagery or synthetic operational material cannot prove
   acceptance; and

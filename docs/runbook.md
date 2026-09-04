@@ -58,7 +58,6 @@ What Windows gives this project that Linux does not:
 | Capability | Why it matters here |
 | --- | --- |
 | SQL Server Express LocalDB | Zero-configuration local database with integrated security and no container. |
-| Microsoft Edge Stable with Windows Narrator | The named accessibility evidence tooling. This is a release gate, and it is Windows-bound. |
 | `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
 | The `win-x64` migration bundle and authorised release terminal | Fixed by ADR-0007; see above. |
 | The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
@@ -209,11 +208,14 @@ The local profile exercises no external adapter, credential, approval, or
 evidence gate. Browser coverage of authenticated and denied states is reproducible
 local caller evidence only; it cannot grant an external approval or activate a
 provider, custody, address, EVA, deployment, or operator-acceptance claim.
-Microsoft Edge Stable, Windows Narrator, manual keyboard/focus/200% zoom review,
-production identity/session behavior, external services, deployment, and
-operator acceptance remain separately required fail-closed evidence gates. Until
-those gates have their exact approval and evidence, their release claims remain
-unavailable.
+This package-pinned Chromium lane is the selected release accessibility
+evidence for its named automated checks, including the keyboard, focus,
+200%-equivalent reflow, forced-colour, reduced-motion, semantic and axe
+assertions. It does not simulate Narrator or another screen reader and does not
+establish screen-reader interoperability, complete WCAG conformance, subjective
+usability, or operator acceptance. Production identity/session behavior,
+external services, deployment, and operator acceptance remain separate evidence
+boundaries.
 
 ## Optional approved live-work profile
 
