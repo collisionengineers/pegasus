@@ -31,6 +31,8 @@ public sealed partial class DetailsModel(
     ISaveCase saveCase,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
+    IEngineerNoteQueries engineerNoteQueries,
+    IAddEngineerNote addEngineerNote,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
@@ -53,6 +55,13 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+
+    public IReadOnlyList<EngineerNoteDisplay> EngineerNotes { get; private set; } = [];
+
+    public sealed record EngineerNoteDisplay(
+        string RecordedBy,
+        string Note,
+        DateTimeOffset RecordedAtUtc);
 
     /// <summary>
     /// Which section of the Case record the request addresses.
@@ -88,6 +97,7 @@ public sealed partial class DetailsModel(
     private static readonly Dictionary<string, string> LazySectionViews =
         new(StringComparer.Ordinal)
         {
+            ["engineer-notes"] = "/Pages/Cases/Shared/_CaseEngineerNotes.cshtml",
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
@@ -253,6 +263,10 @@ public sealed partial class DetailsModel(
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
+            if (!SectionIsDeferred("engineer-notes"))
+            {
+                await LoadEngineerNotesAsync(id, cancellationToken);
+            }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
@@ -310,6 +324,10 @@ public sealed partial class DetailsModel(
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
+            if (key == "engineer-notes")
+            {
+                await LoadEngineerNotesAsync(id, cancellationToken);
+            }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             return Partial(view, this);
         }
@@ -330,6 +348,22 @@ public sealed partial class DetailsModel(
                 cancellationToken);
         }
         ImagesByIntake = imagesByIntake;
+    }
+
+    private async Task LoadEngineerNotesAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        var notes = await engineerNoteQueries.ListNewestFirstAsync(caseId, cancellationToken);
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccountQueries,
+            notes.Select(note => note.RecordedByStaffId),
+            cancellationToken);
+        EngineerNotes = notes.Select(note => new EngineerNoteDisplay(
+            ActorDisplayNames.Resolve(
+                ActorKind.Staff,
+                note.RecordedByStaffId.ToString("D"),
+                names),
+            note.Note,
+            note.RecordedAtUtc)).ToArray();
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(
@@ -441,6 +475,22 @@ public sealed partial class DetailsModel(
                         imagesConfirmedByStaff)),
                 cancellationToken),
             "Case completeness was confirmed against the current policy.");
+
+    public Task<IActionResult> OnPostAddEngineerNoteAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string note,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "add_engineer_note",
+            actor => addEngineerNote.ExecuteAsync(
+                new(id, actor, expectedVersion, operationKey, note, editLeaseToken),
+                cancellationToken),
+            Labels.CaseWorkspace.EngineerNoteAdded);
 
     public Task<IActionResult> OnPostSaveAsync(
         Guid id,
