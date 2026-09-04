@@ -72,7 +72,6 @@ internal sealed class DocumentMcpTools(
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    private const int MaximumDocumentBytes = 10 * 1024 * 1024;
     private const long MaximumExportArchiveBytes = 20 * 1024 * 1024;
     private const int DefaultInlineContentBytes = 64 * 1024;
     private const string SourceIdentityPrefix = "automation:";
@@ -141,7 +140,7 @@ internal sealed class DocumentMcpTools(
 
                 var content = AutomationMcpErrors.DecodeContent(
                     contentBase64,
-                    MaximumDocumentBytes,
+                    AutomationMcpErrors.MaximumDocumentBytes,
                     "The document content");
                 var result = await addDocument.ExecuteAsync(
                     new(
@@ -204,10 +203,10 @@ internal sealed class DocumentMcpTools(
                 var inlineLimit = maxInlineBytes == 0
                     ? DefaultInlineContentBytes
                     : maxInlineBytes;
-                if (inlineLimit is < 1 or > MaximumDocumentBytes)
+                if (inlineLimit is < 1 or > AutomationMcpErrors.MaximumDocumentBytes)
                 {
                     throw new McpException(
-                        $"maxInlineBytes must be between 1 and {MaximumDocumentBytes}.");
+                        $"maxInlineBytes must be between 1 and {AutomationMcpErrors.MaximumDocumentBytes}.");
                 }
 
                 await using var download = await downloadDocument.ExecuteAsync(
@@ -294,10 +293,10 @@ internal sealed class DocumentMcpTools(
                 var inlineLimit = maxInlineBytes == 0
                     ? DefaultInlineContentBytes
                     : maxInlineBytes;
-                if (inlineLimit is < 1 or > MaximumDocumentBytes)
+                if (inlineLimit is < 1 or > AutomationMcpErrors.MaximumDocumentBytes)
                 {
                     throw new McpException(
-                        $"maxInlineBytes must be between 1 and {MaximumDocumentBytes}.");
+                        $"maxInlineBytes must be between 1 and {AutomationMcpErrors.MaximumDocumentBytes}.");
                 }
 
                 await using var export = await exportDocuments.ExecuteAsync(

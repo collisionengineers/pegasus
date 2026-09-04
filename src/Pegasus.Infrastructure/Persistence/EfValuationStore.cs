@@ -267,7 +267,7 @@ public sealed class EfValuationStore(
         return new(before, written.Value);
     }
 
-    private sealed record EngineersValueChange(string? Before, string? After);
+    internal sealed record EngineersValueChange(string? Before, string? After);
 
     private static Task<CaseWorkflowEventEntity?> FindReplayAsync(
         PegasusDbContext context,
@@ -332,7 +332,7 @@ public sealed class EfValuationStore(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, SerializerOptions))));
 
-    private static CaseValuation Map(CaseValuationEntity entity)
+    internal static CaseValuation Map(CaseValuationEntity entity)
     {
         if (!Enum.TryParse<ValuationSource>(entity.Source, out var source)
             || !ValuationSources.IsSupported(source))
@@ -357,7 +357,7 @@ public sealed class EfValuationStore(
             entity.LastEditedAtUtc);
     }
 
-    private static void AddHistory(
+    internal static void AddHistory(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
         ActionActor actor,

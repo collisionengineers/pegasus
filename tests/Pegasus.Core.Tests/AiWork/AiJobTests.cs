@@ -208,6 +208,77 @@ public sealed class AiJobTests
                 CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation, true)]
+    [InlineData(CaseLifecycleState.PostReport, true)]
+    [InlineData(CaseLifecycleState.NotReady, false)]
+    [InlineData(CaseLifecycleState.Held, false)]
+    [InlineData(CaseLifecycleState.Review, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, false)]
+    [InlineData(CaseLifecycleState.ProviderCancelled, false)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
+    [InlineData(CaseLifecycleState.CreatedInError, false)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
+    public async Task MarketResearchUsesTheEstimateCaseEligibility(
+        CaseLifecycleState state,
+        bool eligible)
+    {
+        var harness = new Harness { CaseState = state };
+        var command = new CreateAiJobCommand(
+            AiJobKind.MarketResearch,
+            harness.CaseId,
+            null,
+            "Research the vehicle market.",
+            null,
+            Staff,
+            "op-market");
+        if (!eligible)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.Create.ExecuteAsync(command, CancellationToken.None));
+            return;
+        }
+
+        var created = await harness.Create.ExecuteAsync(command, CancellationToken.None);
+        Assert.Equal(AiJobKind.MarketResearch, created.Kind);
+        Assert.Equal(AiJobSubjectKind.Case, created.SubjectKind);
+        Assert.Equal(AiJobResultKind.MarketResearch, AiJobPolicy.ResultKindFor(created.Kind));
+    }
+
+    [Fact]
+    public async Task MarketResearchCompletionIsAutomationOnlyAndForwardsTheTypedCommand()
+    {
+        var store = new RecordingMarketResearchStore();
+        var useCase = new CompleteMarketResearchAiJob(store);
+        var command = new CompleteMarketResearchAiJobCommand(
+            Guid.NewGuid(), 1, Guid.NewGuid(), 3, "lease", Client, "op",
+            "findings.pdf", "application/pdf", new byte[] { 1 },
+            new DateOnly(2031, 5, 6), new TimeOnly(10, 30), 45000, 12000m, 10000m);
+
+        await useCase.ExecuteAsync(command, CancellationToken.None);
+        Assert.Equal(command, Assert.Single(store.Commands));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            useCase.ExecuteAsync(command with { Actor = Staff }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GenericCompletionRefusesMarketResearch()
+    {
+        var harness = new Harness();
+        harness.Store.ReadJob = JobRecord(AiJobKind.MarketResearch);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Work.CompleteAsync(
+                new(
+                    harness.Store.ReadJob.JobId,
+                    1,
+                    Client,
+                    "op-generic-market",
+                    new(AiJobResultKind.MarketResearch, "document", null)),
+                CancellationToken.None));
+        Assert.Empty(harness.Store.Transitions);
+    }
+
     private static CreateAiJobCommand EstimateCommand(Guid caseId) =>
         new(AiJobKind.Estimate, caseId, null, "Draft to target.", 60, Staff, "op-estimate");
 
@@ -228,6 +299,12 @@ public sealed class AiJobTests
             actor,
             "op",
             AiJobPolicy.DefaultExpiry);
+
+    private static AiJobRecord JobRecord(AiJobKind kind) => new(
+        Guid.NewGuid(), kind, AiJobPolicy.SubjectKindFor(kind), Guid.NewGuid(), "REF-1",
+        "Do the work.", null, null, AiJobState.Taken, ActorKind.Staff, "staff", Now,
+        Now + AiJobPolicy.DefaultExpiry, Client.SubjectId, Now,
+        Now + AiJobPolicy.LeaseDuration, null, null, null, null, null, null, 1);
 
     private sealed class Harness
     {
@@ -269,6 +346,7 @@ public sealed class AiJobTests
     private sealed class FakeStore : IAiJobStore
     {
         public List<AiJobTransition> Transitions { get; } = [];
+        public AiJobRecord? ReadJob { get; set; }
 
         public Task<AiJobRecord> CreateAsync(NewAiJob job, CancellationToken cancellationToken)
         {
@@ -292,7 +370,7 @@ public sealed class AiJobTests
         }
 
         public Task<AiJobRecord?> GetAsync(Guid jobId, CancellationToken cancellationToken) =>
-            Task.FromResult<AiJobRecord?>(null);
+            Task.FromResult(ReadJob);
 
         public Task<AiJobRecord> TransitionAsync(AiJobTransition transition, CancellationToken cancellationToken)
         {
@@ -322,6 +400,19 @@ public sealed class AiJobTests
                 null,
                 transition.Reason,
                 transition.ExpectedVersion + 1));
+        }
+    }
+
+    private sealed class RecordingMarketResearchStore : IMarketResearchAiJobCompletionStore
+    {
+        public List<CompleteMarketResearchAiJobCommand> Commands { get; } = [];
+
+        public Task<MarketResearchAiJobCompletion> CompleteAsync(
+            CompleteMarketResearchAiJobCommand command,
+            CancellationToken cancellationToken)
+        {
+            Commands.Add(command);
+            return Task.FromResult<MarketResearchAiJobCompletion>(null!);
         }
     }
 

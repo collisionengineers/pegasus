@@ -189,6 +189,15 @@ internal sealed class AiJobEntity
     public string? ResultKind { get; set; }
     public string? ResultReference { get; set; }
     public string? ResultText { get; set; }
+    public Guid? MarketResearchDocumentOccurrenceId { get; set; }
+    public Guid? MarketResearchDocumentVersionId { get; set; }
+    public Guid? MarketResearchValuationId { get; set; }
+    public DateOnly? MarketResearchRecordedDate { get; set; }
+    public TimeOnly? MarketResearchRecordedTime { get; set; }
+    public long? MarketResearchMileage { get; set; }
+    public decimal? MarketResearchRetailValue { get; set; }
+    public decimal? MarketResearchTradeValue { get; set; }
+    public string? MarketResearchCompletionHash { get; set; }
     public DateTimeOffset? ClosedAtUtc { get; set; }
     public string? ClosureReason { get; set; }
     public string? LastOperationKey { get; set; }

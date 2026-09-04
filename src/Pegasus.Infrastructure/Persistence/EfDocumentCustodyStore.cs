@@ -49,86 +49,15 @@ internal sealed class EfDocumentCustodyStore(
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
             timeProvider.GetUtcNow());
-        var caseReference = workflow.Case.Reference;
-        var caseRootRemoteId = workflow.Case.CustodyRootRemoteId;
-
-        var document = await context.Set<CaseDocumentEntity>()
-            .SingleOrDefaultAsync(
-                value => value.CaseId == command.CaseId
-                    && value.SourceOccurrenceIdentity == command.SourceOccurrenceIdentity,
-                cancellationToken);
-        if (document is null)
-        {
-            var lastOrdinal = await context.Set<CaseDocumentEntity>()
-                .Where(value => value.CaseId == command.CaseId)
-                .Select(value => (int?)value.Ordinal)
-                .MaxAsync(cancellationToken) ?? 1;
-            document = new()
-            {
-                Id = Guid.NewGuid(),
-                CaseId = command.CaseId,
-                Ordinal = checked(lastOrdinal + 1),
-                SourceOccurrenceIdentity = command.SourceOccurrenceIdentity
-            };
-            context.Add(document);
-        }
-
-        var existingVersions = await context.Set<DocumentVersionEntity>()
-            .Where(version => version.DocumentId == document.Id)
-            .ToListAsync(cancellationToken);
-        foreach (var existingVersion in existingVersions)
-        {
-            existingVersion.IsCurrent = false;
-        }
-
         var now = timeProvider.GetUtcNow();
-        var version = new DocumentVersionEntity
-        {
-            Id = Guid.NewGuid(),
-            DocumentId = document.Id,
-            Version = existingVersions.Count == 0 ? 1 : checked(existingVersions.Max(value => value.Version) + 1),
-            FileName = GetSafeFileName(command.FileName),
-            MediaType = command.MediaType.Trim(),
-            ContentLength = command.Content.Length,
-            Sha256 = contentHash,
-            CustodyStatus = DocumentCustodyStatus.Confirmed,
-            CreatedAtUtc = now,
-            CreatedBy = $"{command.Actor.Kind}:{command.Actor.SubjectId}",
-            IsCurrent = true
-        };
-        var occurrence = new DocumentOccurrenceEntity
-        {
-            Id = Guid.NewGuid(),
-            CaseId = command.CaseId,
-            DocumentId = document.Id,
-            VersionId = version.Id,
-            Ordinal = document.Ordinal,
-            SemanticRole = command.SemanticRole,
-            Source = command.Source,
-            SourceOccurrenceIdentity = command.SourceOccurrenceIdentity,
-            RecordedAtUtc = now,
-            OperationKey = command.OperationKey
-        };
-
-        var contentAddress = Address(
-            command.CaseId,
-            caseReference,
-            caseRootRemoteId,
-            occurrence,
-            version);
-        var contentWrite = await contentStore.StoreVersionAsync(
-            contentAddress,
-            command.Content,
-            contentHash,
-            cancellationToken);
+        var pending = await PrepareAddAsync(
+            context, contentStore, workflow, command, contentHash, now, cancellationToken);
         try
         {
-            context.Add(version);
-            context.Add(occurrence);
             CaseMutationGuard.Complete(workflow);
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new(ToOccurrence(occurrence), ToVersion(version), false);
+            return pending.Result with { IsReplay = false };
         }
         catch (Exception exception)
         {
@@ -144,14 +73,14 @@ internal sealed class EfDocumentCustodyStore(
 
             try
             {
-                if (contentWrite.Disposition == DocumentContentWriteDisposition.Created)
+                if (pending.ContentWrite.Disposition == DocumentContentWriteDisposition.Created)
                 {
                     await DocumentContentRollback.RemoveOrphanAsync(
                         dbContextFactory,
                         contentStore,
                         command.CaseId,
-                        caseReference,
-                        version.Id,
+                        workflow.Case.Reference,
+                        pending.Version.Id,
                         exception);
                 }
             }
@@ -696,7 +625,7 @@ internal sealed class EfDocumentCustodyStore(
             ?? throw new InvalidOperationException("The case is unavailable.");
     }
 
-    private static void ValidateAddCommand(AddCaseDocumentCommand command)
+    internal static void ValidateAddCommand(AddCaseDocumentCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
         ValidateActor(command.Actor);
@@ -736,7 +665,7 @@ internal sealed class EfDocumentCustodyStore(
                 && value.CorrelationId == operationKey,
             cancellationToken);
 
-    private static void EnsureReplayMatches(
+    internal static void EnsureReplayMatches(
         AddCaseDocumentCommand command,
         DocumentOccurrenceEntity occurrence,
         DocumentVersionEntity version,
@@ -753,7 +682,7 @@ internal sealed class EfDocumentCustodyStore(
         }
     }
 
-    private static string GetSafeFileName(string fileName)
+    internal static string GetSafeFileName(string fileName)
     {
         var value = Path.GetFileName(fileName.Replace('\\', '/'));
         if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.Any(char.IsControl))
@@ -787,10 +716,10 @@ internal sealed class EfDocumentCustodyStore(
         }
     }
 
-    private static string ComputeSha256(ReadOnlySpan<byte> content) =>
+    internal static string ComputeSha256(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
 
-    private static DocumentOccurrence ToOccurrence(DocumentOccurrenceEntity value) => new(
+    internal static DocumentOccurrence ToOccurrence(DocumentOccurrenceEntity value) => new(
         value.Id,
         value.CaseId,
         value.DocumentId,
@@ -803,7 +732,7 @@ internal sealed class EfDocumentCustodyStore(
         value.ThirdPartyVehicleConfirmationReason,
         value.Ordinal);
 
-    private static ManagedDocumentContentAddress Address(
+    internal static ManagedDocumentContentAddress Address(
         Guid caseId,
         string caseReference,
         string? caseRootRemoteId,
@@ -821,7 +750,7 @@ internal sealed class EfDocumentCustodyStore(
         version.FileName,
         version.MediaType);
 
-    private static DocumentVersion ToVersion(DocumentVersionEntity value) => new(
+    internal static DocumentVersion ToVersion(DocumentVersionEntity value) => new(
         value.Id,
         value.DocumentId,
         value.Version,
@@ -835,6 +764,94 @@ internal sealed class EfDocumentCustodyStore(
         value.IsCurrent,
         value.IsLogicallyRemoved,
         value.RemovalReason);
+
+    internal static async Task<PendingDocumentAdd> PrepareAddAsync(
+        PegasusDbContext context,
+        IDocumentContentStore contentStore,
+        CaseWorkflowEntity workflow,
+        AddCaseDocumentCommand command,
+        string contentHash,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var document = await context.Set<CaseDocumentEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CaseId == command.CaseId
+                    && value.SourceOccurrenceIdentity == command.SourceOccurrenceIdentity,
+                cancellationToken);
+        if (document is null)
+        {
+            var lastOrdinal = await context.Set<CaseDocumentEntity>()
+                .Where(value => value.CaseId == command.CaseId)
+                .Select(value => (int?)value.Ordinal)
+                .MaxAsync(cancellationToken) ?? 1;
+            document = new()
+            {
+                Id = Guid.NewGuid(),
+                CaseId = command.CaseId,
+                Ordinal = checked(lastOrdinal + 1),
+                SourceOccurrenceIdentity = command.SourceOccurrenceIdentity
+            };
+            context.Add(document);
+        }
+
+        var existingVersions = await context.Set<DocumentVersionEntity>()
+            .Where(version => version.DocumentId == document.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var existingVersion in existingVersions)
+        {
+            existingVersion.IsCurrent = false;
+        }
+
+        var version = new DocumentVersionEntity
+        {
+            Id = Guid.NewGuid(),
+            DocumentId = document.Id,
+            Version = existingVersions.Count == 0 ? 1 : checked(existingVersions.Max(value => value.Version) + 1),
+            FileName = GetSafeFileName(command.FileName),
+            MediaType = command.MediaType.Trim(),
+            ContentLength = command.Content.Length,
+            Sha256 = contentHash,
+            CustodyStatus = DocumentCustodyStatus.Confirmed,
+            CreatedAtUtc = now,
+            CreatedBy = $"{command.Actor.Kind}:{command.Actor.SubjectId}",
+            IsCurrent = true
+        };
+        var occurrence = new DocumentOccurrenceEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = command.CaseId,
+            DocumentId = document.Id,
+            VersionId = version.Id,
+            Ordinal = document.Ordinal,
+            SemanticRole = command.SemanticRole,
+            Source = command.Source,
+            SourceOccurrenceIdentity = command.SourceOccurrenceIdentity,
+            RecordedAtUtc = now,
+            OperationKey = command.OperationKey
+        };
+        context.Add(version);
+        context.Add(occurrence);
+        var contentWrite = await contentStore.StoreVersionAsync(
+            Address(
+                command.CaseId,
+                workflow.Case.Reference,
+                workflow.Case.CustodyRootRemoteId,
+                occurrence,
+                version),
+            command.Content,
+            contentHash,
+            cancellationToken);
+        return new(
+            new(ToOccurrence(occurrence), ToVersion(version), false),
+            version,
+            contentWrite);
+    }
+
+    internal sealed record PendingDocumentAdd(
+        AddCaseDocumentResult Result,
+        DocumentVersionEntity Version,
+        DocumentContentWriteResult ContentWrite);
 
     private sealed class MaximumLengthWriteStream(Stream inner, long maximumLength) : Stream
     {

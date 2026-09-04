@@ -57,6 +57,7 @@ public sealed class AutomationMcpIngressTests
         "pegasus_ai_job_take",
         "pegasus_ai_job_progress",
         "pegasus_ai_job_complete",
+        "pegasus_ai_job_complete_market_research",
         "pegasus_ai_job_fail",
         "pegasus_ai_job_release"
     ];

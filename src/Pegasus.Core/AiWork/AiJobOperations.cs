@@ -29,7 +29,8 @@ public static class AiJobPolicy
 
     public static AiJobSubjectKind SubjectKindFor(AiJobKind kind) => kind switch
     {
-        AiJobKind.Estimate or AiJobKind.QueryResponse => AiJobSubjectKind.Case,
+        AiJobKind.Estimate or AiJobKind.QueryResponse or AiJobKind.MarketResearch =>
+            AiJobSubjectKind.Case,
         AiJobKind.UnidentifiedResolution => AiJobSubjectKind.Unidentified,
         AiJobKind.UnidentifiedQueuePass => AiJobSubjectKind.Queue,
         _ => throw new ArgumentException("The AI job kind is not recognized.", nameof(kind))
@@ -41,6 +42,7 @@ public static class AiJobPolicy
         AiJobKind.UnidentifiedResolution or AiJobKind.UnidentifiedQueuePass =>
             AiJobResultKind.ProposedResolution,
         AiJobKind.QueryResponse => AiJobResultKind.DraftReply,
+        AiJobKind.MarketResearch => AiJobResultKind.MarketResearch,
         _ => throw new ArgumentException("The AI job kind is not recognized.", nameof(kind))
     };
 
@@ -272,6 +274,7 @@ public sealed class CreateAiJob(
         var job = command.Kind switch
         {
             AiJobKind.Estimate => await ForEstimateAsync(command, cancellationToken),
+            AiJobKind.MarketResearch => await ForMarketResearchAsync(command, cancellationToken),
             AiJobKind.QueryResponse => await ForQueryResponseAsync(command, cancellationToken),
             AiJobKind.UnidentifiedResolution => await ForUnidentifiedAsync(command, cancellationToken),
             _ => new NewAiJob(
@@ -336,6 +339,30 @@ public sealed class CreateAiJob(
 
         return new(
             AiJobKind.QueryResponse,
+            AiJobSubjectKind.Case,
+            record.CaseId,
+            record.Identity.Reference,
+            command.Instruction,
+            null,
+            null,
+            command.Actor,
+            command.OperationKey,
+            AiJobPolicy.DefaultExpiry);
+    }
+
+    private async Task<NewAiJob> ForMarketResearchAsync(
+        CreateAiJobCommand command,
+        CancellationToken cancellationToken)
+    {
+        var record = await RequireCaseAsync(command, cancellationToken);
+        if (!AiJobPolicy.IsEligibleEstimateCaseState(record.State))
+        {
+            throw new InvalidOperationException(
+                "A market research job needs a case that is With Engineer.");
+        }
+
+        return new(
+            AiJobKind.MarketResearch,
             AiJobSubjectKind.Case,
             record.CaseId,
             record.Identity.Reference,
@@ -455,12 +482,19 @@ public sealed class WorkAiJob(
             cancellationToken);
     }
 
-    public Task<AiJobRecord> CompleteAsync(
+    public async Task<AiJobRecord> CompleteAsync(
         CompleteAiJobCommand command,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return store.TransitionAsync(
+        var job = await store.GetAsync(command.JobId, cancellationToken);
+        if (job?.Kind == AiJobKind.MarketResearch)
+        {
+            throw new InvalidOperationException(
+                "A MarketResearch job requires the typed market research completion contract.");
+        }
+
+        return await store.TransitionAsync(
             new(
                 command.JobId,
                 command.ExpectedVersion,
@@ -530,5 +564,54 @@ public sealed class ConfirmAiJob(IAiJobStore store) : IConfirmAiJob
                 command.Actor,
                 command.OperationKey),
             cancellationToken);
+    }
+}
+
+public sealed class CompleteMarketResearchAiJob(
+    IMarketResearchAiJobCompletionStore store) : ICompleteMarketResearchAiJob
+{
+    public Task<MarketResearchAiJobCompletion> ExecuteAsync(
+        CompleteMarketResearchAiJobCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.JobId == Guid.Empty || command.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("Job and case identifiers are required.", nameof(command));
+        }
+        if (command.ExpectedJobVersion < 0 || command.ExpectedCaseVersion < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(command), "Expected versions cannot be negative.");
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.EditLeaseToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.MediaType);
+        if (command.Content.IsEmpty)
+        {
+            throw new ArgumentException("Document content is required.", nameof(command));
+        }
+
+        StaffAuthorization.Require(command.Actor, StaffAccessRight.PerformCasework);
+        if (command.Actor.Kind != ActorKind.Automation)
+        {
+            throw new InvalidOperationException(
+                "Only the Automation Actor completes market research jobs.");
+        }
+        ValuationPolicy.ValidateAutomationMarketResearch(new(
+            ValuationSource.AiMarketResearch,
+            command.RecordedDate,
+            command.RecordedTime,
+            command.Mileage,
+            command.RetailValue,
+            command.TradeValue));
+        AiJobPolicy.ValidateTransition(new(
+            command.JobId,
+            command.ExpectedJobVersion,
+            AiJobState.DraftReady,
+            command.Actor,
+            command.OperationKey,
+            Result: new(AiJobResultKind.MarketResearch, "pending", null)));
+        return store.CompleteAsync(command, cancellationToken);
     }
 }
