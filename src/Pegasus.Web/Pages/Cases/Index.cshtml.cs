@@ -545,13 +545,16 @@ public sealed class IndexModel(
         item.Id,
         Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
         OperatorLabels.ImageIntakeLifecycleState(item.State),
-        $"{fileCount} retained image{(fileCount == 1 ? string.Empty : "s")}",
+        Join(
+            $"{fileCount} retained image{(fileCount == 1 ? string.Empty : "s")}",
+            item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null),
         $"Image-initiated · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
         null,
         item.RegisteredAtUtc,
         $"/VehicleImages/{item.Id:D}",
         [
             ("State", OperatorLabels.ImageIntakeLifecycleState(item.State)),
+            ("Custody", item.Custody is { } custodyDetail ? OperatorLabels.ImageCustodyState(custodyDetail) : string.Empty),
             ("Registered", OperatorLabels.OfficeDate(item.RegisteredAtUtc)),
             ("Chase", OperatorLabels.ImageChaseState(
                 ImageIntakeChaseSchedule.IsChaseDue(item.RegisteredAtUtc, _timeProvider.GetUtcNow())))
@@ -560,15 +563,17 @@ public sealed class IndexModel(
     private static QueueRow TriageRow(TriageSummary item, string assignee) => new(
         RowKind.Triage,
         item.Id,
-        item.NormalizedVehicleRegistration,
+        Join(item.Reference, item.NormalizedVehicleRegistration),
         OperatorLabels.TriageState(item.State),
-        assignee,
+        Join(item.Provider, assignee),
         $"Opened {OperatorLabels.OfficeDate(item.CreatedAtUtc)}",
         null,
         item.CreatedAtUtc,
         $"/Triage/{item.Id:D}",
         [
+            ("Reference", item.Reference ?? string.Empty),
             ("Registration", item.NormalizedVehicleRegistration),
+            ("Provider", item.Provider ?? string.Empty),
             ("State", OperatorLabels.TriageState(item.State)),
             ("Assigned to", assignee),
             ("Opened", OperatorLabels.OfficeDate(item.CreatedAtUtc))
