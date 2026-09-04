@@ -1,13 +1,464 @@
-@*
-    The Estimate section's body. CASE-038 renders the heading host only; ENG-034
-    owns this file's content from its first PR. No control, prose or
-    placeholder renders for a capability that is not built yet.
-*@
+@using System.Globalization
+@using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var heading = OperatorLabels.CaseWorkspace.Sections.Single(entry => entry.Key == "estimate");
+    var caseId = Model.Case!.Workflow.CaseId;
+    var canImport = !Model.AssessmentIsReadOnly && Model.ImportCondition is null;
+    var engineerValue = Model.EngineerValue;
+    var targetBase = engineerValue is null
+        ? string.Empty
+        : engineerValue.Value.ToString("0.##", CultureInfo.InvariantCulture);
 }
-<section class="panel">
-    <div class="panel-head"><h2 id="section-estimate-title">@heading.Label</h2></div>
-</section>
+
+<div class="stack">
+    <section class="panel" aria-labelledby="section-estimate-title">
+        <div class="panel-head">
+            <h2 id="section-estimate-title">@EngineerLabels.Estimate</h2>
+            @if (!Model.AssessmentIsReadOnly)
+            {
+                <div class="button-row">
+                    @if (Model.ActorIsEngineer)
+                    {
+                        <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@caseId"
+                           asp-route-section="estimate" asp-route-estimate="new">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>@EngineerLabels.NewEstimate</span>
+                        </a>
+                    }
+                    @if (canImport)
+                    {
+                        <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId"
+                           asp-route-section="estimate" asp-route-dialog="import-estimate"
+                           data-dialog-open="import-estimate-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                            <span>@EngineerLabels.ImportEstimate</span>
+                        </a>
+                    }
+                    else if (Model.ImportCondition is not null && !Model.CaseIsArchived)
+                    {
+                        <span class="gated" data-condition="@Model.ImportCondition">
+                            <button type="button" class="btn" disabled aria-disabled="true">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                                <span>@EngineerLabels.ImportEstimate</span>
+                            </button>
+                        </span>
+                    }
+                    @if (Model.SendToClaudeCondition is null)
+                    {
+                        <a class="btn btn--primary" asp-page="/Cases/Details" asp-route-id="@caseId"
+                           asp-route-section="estimate" asp-route-dialog="send-to-claude"
+                           data-dialog-open="send-to-claude-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            <span>@EngineerLabels.SendToClaude</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="gated" data-condition="@Model.SendToClaudeCondition">
+                            <button type="button" class="btn btn--primary" disabled aria-disabled="true">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                <span>@EngineerLabels.SendToClaude</span>
+                            </button>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head"><h2>@EngineerLabels.Estimates</h2></div>
+        <div class="panel-body">
+            <div class="assessment-estimates">
+                @if (Model.Estimates.Count > 0 || Model.EditingNewEstimate)
+                {
+                    <div class="estimate-tabs" role="tablist" aria-label="@EngineerLabels.Estimates">
+                        @foreach (var estimate in Model.Estimates)
+                        {
+                            var isSelected = Model.SelectedEstimate?.SpecificationId == estimate.SpecificationId
+                                && !Model.EditingNewEstimate;
+                            <a class="estimate-tab" role="tab" asp-page="/Cases/Details"
+                               asp-route-id="@caseId" asp-route-section="estimate"
+                               asp-route-estimate="@estimate.SpecificationId"
+                               aria-selected="@(isSelected ? "true" : "false")">
+                                @estimate.Details.Name@(estimate.IsCurrent ? $" · {EngineerLabels.Current}" : null)
+                            </a>
+                        }
+                        @if (Model.EditingNewEstimate)
+                        {
+                            <a class="estimate-tab" role="tab" aria-selected="true"
+                               asp-page="/Cases/Details" asp-route-id="@caseId"
+                               asp-route-section="estimate" asp-route-estimate="new">@EngineerLabels.NewEstimate</a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty estimate-empty">@EngineerLabels.NoEstimatesRecorded</div>
+                }
+
+                @if (Model.SelectedEstimate is not null || Model.EditingNewEstimate)
+                {
+                    var estimate = Model.SelectedEstimate;
+                    var editable = Model.SelectedEstimateIsEditable;
+                    var details = Model.EditorDetails!;
+                    var totals = Model.EditorTotals;
+                    var route = estimate?.Source.Route ?? RepairSpecificationSourceRoute.Manual;
+                    <section class="panel estimate-editor" aria-labelledby="estimate-editor-title">
+                        <div class="panel-head">
+                            <div>
+                                <h2 id="estimate-editor-title">@(Model.EditingNewEstimate ? EngineerLabels.NewEstimate : details.Name)</h2>
+                                <span class="panel-title-meta">@OperatorLabels.RepairSpecificationRoute(route)</span>
+                            </div>
+                            <div class="button-row">
+                                @if (editable && estimate is not null && !estimate.IsCurrent)
+                                {
+                                    <a class="btn btn--danger" asp-page="/Cases/Details"
+                                       asp-route-id="@caseId" asp-route-section="estimate"
+                                       asp-route-estimate="@estimate.SpecificationId"
+                                       asp-route-dialog="delete-estimate" data-dialog-open="delete-estimate-dialog">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                                        <span>@EngineerLabels.DeleteEstimate</span>
+                                    </a>
+                                }
+                                @if (Model.SelectedEstimateCanBeDuplicated && estimate is not null)
+                                {
+                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="DuplicateEstimate"
+                                          asp-route-id="@caseId" asp-route-section="estimate">
+                                        <input type="hidden" name="operationKey" value="@Model.DuplicateOperationKey" />
+                                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                        <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
+                                        <button type="submit" class="btn">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                                            <span>@EngineerLabels.Duplicate</span>
+                                        </button>
+                                    </form>
+                                }
+                                @if (Model.SelectedEstimateCanBeCurrent && estimate is not null)
+                                {
+                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="SetCurrentEstimate"
+                                          asp-route-id="@caseId" asp-route-section="estimate">
+                                        <input type="hidden" name="operationKey" value="@Model.UseEstimateOperationKey" />
+                                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                        <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
+                                        <button type="submit" class="btn">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                            <span>@EngineerLabels.UseEstimate</span>
+                                        </button>
+                                    </form>
+                                }
+                                @if (estimate?.IsCurrent == true)
+                                {
+                                    <partial name="Shared/_StatusChip" model="@EngineerLabels.Current" />
+                                }
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            @if (editable)
+                            {
+                                <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveEstimate"
+                                      asp-route-id="@caseId" asp-route-section="estimate">
+                                    <input type="hidden" name="operationKey" value="@Model.SaveEstimateOperationKey" />
+                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                    <input type="hidden" name="estimateId" value="@(estimate?.SpecificationId)" />
+                                    <div class="estimate-form-grid">
+                                        <div>
+                                            <label for="estimate-name">@EngineerLabels.EstimateName</label>
+                                            <input id="estimate-name" name="estimateName" maxlength="100" required value="@details.Name" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-days">@EngineerLabels.RepairDays</label>
+                                            <input id="estimate-days" name="estimateRepairDays" type="number" min="0" step="1" inputmode="numeric" class="tabular" value="@details.RepairDays" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-labour-rate">@EngineerLabels.LabourRatePerHour</label>
+                                            <input id="estimate-labour-rate" name="estimateLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.LabourRate" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-paint-rate">@EngineerLabels.PaintLabourRatePerHour</label>
+                                            <input id="estimate-paint-rate" name="estimatePaintLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintLabourRate" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-materials">@EngineerLabels.PaintMaterialsPounds</label>
+                                            <input id="estimate-materials" name="estimatePaintMaterials" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintMaterials" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-other">@EngineerLabels.OtherCostsPounds</label>
+                                            <input id="estimate-other" name="estimateOtherCosts" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.OtherCosts" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-vat">@EngineerLabels.VatPercent</label>
+                                            <input id="estimate-vat" name="estimateVatPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@details.VatPercent" />
+                                        </div>
+                                    </div>
+                                    @{ var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" }); }
+                                    <div class="estimate-table-head">
+                                        <h3>@EngineerLabels.PartsAndOperations</h3>
+                                        <button type="submit" class="btn" name="addLine" value="true" formaction="@editLineAction">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                            <span>@EngineerLabels.AddLine</span>
+                                        </button>
+                                    </div>
+                                    <div class="table-wrap estimate-table">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">@EngineerLabels.Operation</th>
+                                                    <th scope="col">@EngineerLabels.Description</th>
+                                                    <th scope="col">@EngineerLabels.PartNumber</th>
+                                                    <th scope="col">@EngineerLabels.QuantityShort</th>
+                                                    <th scope="col">@EngineerLabels.LabourHoursShort</th>
+                                                    <th scope="col">@EngineerLabels.PaintHoursShort</th>
+                                                    <th scope="col">@EngineerLabels.PartPounds</th>
+                                                    <th scope="col"><span class="sr-only">@EngineerLabels.Action</span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for (var line = 0; line < Model.EditorLines.Count; line++)
+                                                {
+                                                    var row = Model.EditorLines[line];
+                                                    var lineNumber = line + 1;
+                                                    <tr>
+                                                        <td>
+                                                            <input type="hidden" name="lineId" value="@row.ExistingLineId" />
+                                                            <label class="vh" for="line-operation-@line">@EngineerLabels.LineField(EngineerLabels.Operation, lineNumber)</label>
+                                                            <select id="line-operation-@line" name="lineOperation">
+                                                                @foreach (var (value, label) in new[]
+                                                                {
+                                                                    ("Replace", EngineerLabels.Replace),
+                                                                    ("Repair", EngineerLabels.Repair),
+                                                                    ("RemoveAndRefit", EngineerLabels.RemoveAndRefit),
+                                                                    ("Paint", EngineerLabels.PaintOperation),
+                                                                    ("Other", EngineerLabels.Other)
+                                                                })
+                                                                {
+                                                                    <option value="@value" selected="@(row.Operation == value ? "selected" : null)">@label</option>
+                                                                }
+                                                            </select>
+                                                        </td>
+                                                        <td><label class="vh" for="line-description-@line">@EngineerLabels.LineField(EngineerLabels.Description, lineNumber)</label><input id="line-description-@line" name="lineDescription" value="@row.Description" /></td>
+                                                        <td><label class="vh" for="line-part-@line">@EngineerLabels.LineField(EngineerLabels.PartNumber, lineNumber)</label><input id="line-part-@line" name="linePartNumber" value="@row.PartNumber" /></td>
+                                                        <td><label class="vh" for="line-quantity-@line">@EngineerLabels.LineField(EngineerLabels.Quantity, lineNumber)</label><input id="line-quantity-@line" name="lineQuantity" type="number" min="1" step="1" inputmode="numeric" class="tabular" value="@row.Quantity" /></td>
+                                                        <td><label class="vh" for="line-labour-@line">@EngineerLabels.LineField(EngineerLabels.LabourHours, lineNumber)</label><input id="line-labour-@line" name="lineLabourHours" type="number" min="0" step="0.1" inputmode="decimal" class="tabular" value="@row.LabourHours" /></td>
+                                                        <td><label class="vh" for="line-paint-@line">@EngineerLabels.LineField(EngineerLabels.PaintHours, lineNumber)</label><input id="line-paint-@line" name="linePaintHours" type="number" min="0" step="0.1" inputmode="decimal" class="tabular" value="@row.PaintHours" /></td>
+                                                        <td><label class="vh" for="line-pounds-@line">@EngineerLabels.LineField(EngineerLabels.PartAmount, lineNumber)</label><input id="line-pounds-@line" name="linePartPounds" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@row.PartPounds" /></td>
+                                                        <td><button type="submit" class="btn btn--icon estimate-remove" name="removeLine" value="@line" formaction="@editLineAction" aria-label="@EngineerLabels.RemoveLine(lineNumber)"><svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg></button></td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="estimate-bottom">
+                                        <div class="estimate-notes"><label for="estimate-notes">@EngineerLabels.EstimateNotes</label><textarea id="estimate-notes" name="estimateNotes" rows="4" maxlength="4000">@details.Notes</textarea></div>
+                                        RenderEstimateTotals(totals);
+                                    </div>
+                                    <div class="button-row section-gap"><button type="submit" class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@EngineerLabels.SaveEstimate</span></button></div>
+                                </form>
+                            }
+                            else
+                            {
+                                <dl class="detail-list">
+                                    <div><dt>@EngineerLabels.RepairDays</dt><dd>@(details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+                                    <div><dt>@EngineerLabels.LabourRate</dt><dd>@(details.LabourRate is { } labourRate ? $"£{labourRate.ToString("N2")}/h" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+                                    <div><dt>@EngineerLabels.PaintLabourRate</dt><dd>@(details.PaintLabourRate is { } paintRate ? $"£{paintRate.ToString("N2")}/h" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+                                    <div><dt>@EngineerLabels.PaintMaterials</dt><dd>@(details.PaintMaterials is { } paintMaterials ? $"£{paintMaterials.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+                                    <div><dt>@EngineerLabels.OtherCosts</dt><dd>@(details.OtherCosts is { } otherCosts ? $"£{otherCosts.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+                                    <div><dt>@EngineerLabels.Vat</dt><dd>@($"{totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%")</dd></div>
+                                </dl>
+                                <div class="estimate-bottom">
+                                    <div class="estimate-notes"><h3 class="section-label">@EngineerLabels.Notes</h3>@(string.IsNullOrWhiteSpace(details.Notes) ? EngineerLabels.NoneRecorded : details.Notes)</div>
+                                    RenderEstimateTotals(totals);
+                                </div>
+                                RenderSpecificationLines(estimate!, EngineerLabels.Recorded);
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+@if (canImport)
+{
+    <div class="dialog-backdrop" data-dialog="import-estimate-dialog"
+         hidden="@(Model.OpenDialog == "import-estimate" ? null : "hidden")">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="import-estimate-dialog-title">
+            <div class="dialog-head">
+                <h2 id="import-estimate-dialog-title" tabindex="-1">@EngineerLabels.ImportEstimate</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" enctype="multipart/form-data" asp-page="/Cases/Details"
+                  asp-page-handler="ImportEstimate" asp-route-id="@caseId" asp-route-section="estimate">
+                <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <div class="dialog-body stack">
+                    <div>
+                        <label for="import-name">@EngineerLabels.EstimateName</label>
+                        <input type="text" id="import-name" name="name" maxlength="100" required data-dialog-initial-focus />
+                    </div>
+                    <div>
+                        <label for="import-source">@EngineerLabels.Source</label>
+                        <select id="import-source" name="source">
+                            <option value="audatex-pdf" selected>@EngineerLabels.AudatexPdf</option>
+                            <option value="json">@EngineerLabels.JsonEstimate</option>
+                            <option value="other" disabled>@EngineerLabels.Other</option>
+                        </select>
+                    </div>
+                    <div class="dropzone" data-dropzone>
+                        <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
+                        <label for="estimate-file">@EngineerLabels.EstimateDropzone</label>
+                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,.json,application/pdf,application/json" required />
+                        <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>@EngineerLabels.ChooseFile</button>
+                        <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
+                    </div>
+                    <div>
+                        <label for="import-reason">@EngineerLabels.Reason</label>
+                        <input type="text" id="import-reason" name="reason" maxlength="500" />
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>@EngineerLabels.Cancel</button>
+                    <button type="submit" class="btn btn--dark">@EngineerLabels.ImportEstimate</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (Model.SelectedEstimateIsEditable
+     && Model.SelectedEstimate is { IsCurrent: false } discardable
+     && !Model.EditingNewEstimate)
+{
+    <div class="dialog-backdrop" data-dialog="delete-estimate-dialog"
+         hidden="@(Model.OpenDialog == "delete-estimate" ? null : "hidden")">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="delete-estimate-dialog-title">
+            <div class="dialog-head">
+                <h2 id="delete-estimate-dialog-title" tabindex="-1">@EngineerLabels.DeleteEstimate</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="DiscardEstimate"
+                  asp-route-id="@caseId" asp-route-section="estimate">
+                <input type="hidden" name="operationKey" value="@Model.DiscardOperationKey" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="estimateId" value="@discardable.SpecificationId" />
+                <div class="dialog-body stack">
+                    <p>@EngineerLabels.DeleteEstimatePrompt(discardable.Details.Name)</p>
+                    <div>
+                        <label for="delete-reason">@EngineerLabels.Reason</label>
+                        <input type="text" id="delete-reason" name="reason" maxlength="500" required data-dialog-initial-focus />
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>@EngineerLabels.Cancel</button>
+                    <button type="submit" class="btn btn--danger">@EngineerLabels.DeleteEstimate</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (!Model.AssessmentIsReadOnly && Model.SendToClaudeCondition is null)
+{
+    <div class="dialog-backdrop" data-dialog="send-to-claude-dialog"
+         hidden="@(Model.OpenDialog == "send-to-claude" ? null : "hidden")">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-claude-dialog-title">
+            <div class="dialog-head">
+                <h2 id="send-to-claude-dialog-title" tabindex="-1">@EngineerLabels.SendToClaude</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="SendToClaude"
+                  asp-route-id="@caseId" asp-route-section="estimate">
+                <input type="hidden" name="operationKey" value="@Model.SendOperationKey" />
+                <div class="dialog-body stack">
+                    <div>
+                        <label for="claude-direction">@EngineerLabels.Direction</label>
+                        <textarea id="claude-direction" name="direction" rows="4" maxlength="1000"
+                                  data-dialog-initial-focus></textarea>
+                    </div>
+                    <div>
+                        <label for="claude-target">
+                            @EngineerLabels.TargetEstimate <output id="claude-target-value">75%</output>
+                        </label>
+                        <input type="range" id="claude-target" name="targetPercent" min="1" max="100" step="1" value="75"
+                               data-range-output="claude-target-value" data-range-base="@targetBase"
+                               data-range-amount-output="claude-target-amount" />
+                    </div>
+                    <dl class="definition-list">
+                        <div class="definition">
+                            <dt>@EngineerLabels.CaseValuation</dt>
+                            <dd>&#163;@engineerValue!.Value.ToString("N0")</dd>
+                        </div>
+                        <div class="definition">
+                            <dt>@EngineerLabels.TargetAmount</dt>
+                            <dd id="claude-target-amount">&#8212;</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>@EngineerLabels.Cancel</button>
+                    <button type="submit" class="btn btn--primary">@EngineerLabels.SendToClaude</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@functions {
+    private void RenderEstimateTotals(EstimateTotals totals)
+    {
+        <dl class="estimate-totals">
+            <div><dt>@EngineerLabels.Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Vat</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
+            <div class="estimate-total"><dt>@EngineerLabels.Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
+        </dl>
+    }
+
+    private void RenderSpecificationLines(RepairSpecificationVersion specification, string kind)
+    {
+        <div class="table-wrap">
+            <table class="line-grid">
+                <caption>@EngineerLabels.SpecificationLinesCaption(kind)</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">@EngineerLabels.Line</th>
+                        <th scope="col">@EngineerLabels.Type</th>
+                        <th scope="col">@EngineerLabels.Code</th>
+                        <th scope="col">@EngineerLabels.Description</th>
+                        <th scope="col">@EngineerLabels.WorkUnits</th>
+                        <th scope="col">@EngineerLabels.Price</th>
+                        <th scope="col">@EngineerLabels.PartNumber</th>
+                        <th scope="col">@EngineerLabels.Betterment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in specification.Lines)
+                    {
+                        <tr>
+                            <th scope="row">@line.Position</th>
+                            <td>@OperatorLabels.EstimateLineType(line.Type)</td>
+                            <td>@(line.GuideCode ?? "")</td>
+                            <td>@(line.Description ?? "")</td>
+                            <td class="tabular">@(line.WorkUnits is { } workUnits ? workUnits.ToString("0.0") : "")</td>
+                            <td class="tabular">@(line.Price is { } price ? "£" + price.ToString("N2") : line.Unpriced ? EngineerLabels.ToBeConfirmed : "")</td>
+                            <td>@(line.PartNumber ?? "")</td>
+                            <td>@(line.Betterment ?? "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
