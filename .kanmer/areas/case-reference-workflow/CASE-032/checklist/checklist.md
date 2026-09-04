@@ -17,3 +17,5 @@
 - [x] Run the simplification pass and record findings and dispositions in the plan.
 - [x] Write the post-implementation report.
 - [x] Open a PR with `Kanmer: CASE-032`. Do not merge it. (PR #659)
+
+- [x] Review round fixes (2026-09-04): omit absent Custody/Reference/Provider facts; scope the Triage assignee assertion to the row.
