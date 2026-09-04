@@ -1,14 +1,18 @@
 # EPIC-012 context — Case Workspace v2 (single-scroll Engineer workbench)
 
-Inherits EPIC-011 `context.md` and `waves.md` in full. Source of record:
+Inherits EPIC-011 `context.md` and `waves.md` in full, except where the Build
+policy below (2026-09-04) supersedes `waves.md`'s capacity-one lock rule for
+this epic. Source of record:
 `Downloads/Pegasus_UI_v2.html` + `Downloads/Pegasus_UI_v2_src/` (2 September
 2026, second pass; amended 3 September 2026) and
 `Downloads/Pegasus_UI_v2_notes.md` (its "Amendments (3 September 2026)"
 section binds). Execution plan: `Downloads/Pegasus_UI_v2_implementation_plan.md`
-as adjusted on 3 September 2026 (model policy, D44–D46). Decisions D29–D43 are
-recorded in the governing documents (DELIV-041, PR #647); D44–D46 are recorded
-by PLAT-070's PR and D47 by CASE-040's. They govern where they differ from
-EPIC-011 D1–D28.
+as adjusted on 3 September 2026 (model policy, D44–D46) and on 4 September
+2026 (`C:\Users\PC\.claude\plans\objective-plan-completion-lazy-haven.md`:
+dependency-driven merge queue, scoped capture, no local full-suite runs).
+Decisions D29–D43 are recorded in the governing documents (DELIV-041, PR
+#647); D44–D46 are recorded by PLAT-070's PR and D47 by CASE-040's. They
+govern where they differ from EPIC-011 D1–D28.
 
 ## Feature outcome
 
@@ -29,7 +33,9 @@ Staff (Users), Engineers, Administrators. No external surface changes.
 - Sign-off Engineer: separate field beside Engineer; only flagged accounts
   with a signature on file are offered; default is the assigned Engineer when
   flagged, otherwise the account carrying the Administrator-set "Default
-  sign-off Engineer" designation; reports render the sign-off tuple.
+  sign-off Engineer" designation; reports render the sign-off tuple, and a
+  report draft generates end to end from the production projection source
+  (the interim state left by DOCS-017 is closed by CASE-040).
 - Damage map, settlement figures and the fee note appear on the report preview
   from the accepted record.
 - Cropping never changes source bytes; issued reports keep their curation
@@ -49,7 +55,7 @@ task UI; a staff "review instructions/images" action (D44); a damage type
 (D45); creating a formal Case from an image-initiated record (D50); the
 vehicle-record extension beyond make, model and mileage (D49, CASE-043); a
 persisted repairer address (D48, INTK-058); the reverse "Add evidence" route
-(D50, CASE-044).
+(D50, CASE-044); CI redesign beyond the local scoped capture (UIIMP-015).
 
 ## Shared decisions (D29–D43 confirmed 2026-09-02; D44–D50 confirmed 2026-09-03)
 
@@ -81,58 +87,97 @@ persisted repairer address (D48, INTK-058); the reverse "Add evidence" route
 ## Constraints
 
 No explanatory copy; labels only in `Presentation/OperatorLabels.cs`; a ticket
-owns whole files; shared-lock paths (`Pages/Shared/*`, `Pages/Cases/Shared/*`,
-`Pages/Administration/Shared/*`, `wwwroot/css/site.css`, `wwwroot/js/site.js`,
-`Presentation/OperatorLabels.cs`, `docs/design/test-ui/**`,
-`Persistence/Migrations/**`, the governing docs) have capacity one; migrations
-serialized; lanes refresh with `git merge --no-edit origin/dev`; three lanes,
-no token budget; one edit mode over one lease covers every section.
+owns whole files; one edit mode over one lease covers every section; no token
+budget; a migration and its grants ride the same diff.
 
-## Model allocation (operator, 2026-09-03)
+## Build policy (operator, 2026-09-04)
 
-No Fable agent runs inside a workflow. Codex does 75 % or more of the work;
-Claude is a thin wrapper around it. Research and plans: gpt-5.6-terra (medium /
-high / xhigh) under Sonnet wrappers. Plan review: gpt-5.6-sol xhigh reads,
-Opus dispositions. Implementation: gpt-5.6-sol (low for fixes and chores,
-medium for features, high for ENG-034) on fifteen lanes; Opus high on
-CASE-038, ENG-036 and ENG-031; Sonnet wrappers own the board writes, the
-worktree, the packet file and re-run the build and tests themselves.
-Simplification pass: sol low. PR review: terra xhigh reads Codex-built PRs,
-sol xhigh reads Claude-built PRs; Opus dispositions, watches CI and merges to
-`dev`. Critic: terra xhigh, three lenses. Verify: Sonnet runs the commands,
-terra high audits the proof. Adversarial claims: sol xhigh, terra xhigh, Opus.
+Supersedes the capacity-one shared-lock rule of EPIC-011 `waves.md` for this
+epic's remaining tickets.
+
+- **Parallel build, ordered merge.** Lanes branch from the same `origin/dev`
+  and build concurrently (at most four implementation lanes at once). Only the
+  merge is ordered, by the queue in the run record (`automation/current.md`).
+  A lane may edit any path its plan or files document names, including
+  `Pages/Shared/*`, `Pages/Cases/Shared/*`, `Pages/Administration/Shared/*`,
+  `wwwroot/css/site.css`, `wwwroot/js/site.js`,
+  `Presentation/OperatorLabels.cs`, `Pages/Cases/Details.cshtml(.cs)`,
+  `docs/design/test-ui/**` and `Persistence/Migrations/**`; earlier plan text
+  that says "wait for the lock" or "after hand-off" is read as "merge after
+  the named ticket".
+- **Merge prep before review.** When every ticket ahead of it in the queue has
+  merged, the lane runs `git merge --no-edit origin/dev`, resolves conflicts
+  (append-only files keep both sides; the applied-migrations list in
+  `IntakePersistenceIntegrationTests.cs` keeps every migration in
+  chronological order; `AssessmentReportProjection.cs` keeps both edits),
+  regenerates its migration so it sorts after `dev`'s tail when that tail
+  moved and reconciles `PegasusDbContextModelSnapshot.cs`, re-runs the fast
+  checks and pushes. Migrations land one at a time, by queue position.
+- **No local duplication of CI.** A lane runs locally: the locked restore, the
+  Release build, `Pegasus.Core.Tests` and `Pegasus.ArchitectureTests`, the
+  integration and browser test classes it changed (by
+  `FullyQualifiedName~` filter, `--no-build`), `Test-MigrationGrants.ps1` for
+  a migration, `Test-UiCatalogue.ps1` for a catalogue edit, and the scoped
+  snapshot capture ([[UIIMP-015]]) for a routed page or partial change. No
+  lane and no reviewer runs the whole integration suite, the whole browser
+  suite or the whole capture; GitHub CI is the full-suite gate and the merge
+  waits for its run conclusion on the exact head. One verification run per
+  checkpoint (after the Phase-B set and at the end) proves the merged SHA.
+- **Verify the artifact, not the gate.** A lane that regenerates a snapshot
+  opens it and records its byte size, doctype and the markers it expects in
+  the post-implementation report.
+- **Tooling is not a lane's to bend.** No lane other than UIIMP-015 edits
+  `tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs`,
+  `.github/workflows/ci.yml` or `scripts/*.ps1`; a lane that needs such a
+  change stops, reports it as `waiting`, and the controller files a ticket.
+
+## Model allocation (operator, 2026-09-03; amended 2026-09-04)
+
+No Fable agent runs inside a workflow. Codex does the work; Claude is a thin
+wrapper. Research and plans: gpt-5.6-terra (medium / high / xhigh) under
+Sonnet wrappers. Plan review: gpt-5.6-sol xhigh reads, Opus dispositions.
+Implementation: gpt-5.6-sol (low for fixes and chores, medium for features,
+high for ENG-034) on every lane except ENG-036 and ENG-031, which gpt-5.6-terra
+high builds (moved off Opus on 2026-09-04 to conserve Claude usage); Sonnet
+wrappers own the board writes, the worktree, the packet file and re-run the
+fast checks themselves. Simplification pass: sol low. PR review: terra xhigh
+reads sol-built PRs, sol xhigh reads terra-built PRs; Opus (medium)
+dispositions, gates on the CI run conclusion and merges to `dev`. Critic:
+terra xhigh, three lenses, after Phase B and after Phase C. Verify: Sonnet
+runs the commands, terra high audits the proof. Adversarial claims: sol xhigh,
+terra xhigh, Opus.
 
 ## Risks
 
 Lazy sections versus unsaved edits and the lease; report template growth;
 D18 supersession; Codex lanes cannot reach the board (wrapper pattern);
 personal data in the repository under D43 (accepted by the operator);
-Kanmer MCP degraded mid-run (writes land, reads return nothing — wrappers
-read the board worktree files read-only); `origin/main` carried two direct
-pushes on 2026-09-03 that `origin/dev` does not have (test material and a
-skills merge), so `dev` is behind `main` by two commits — reconciling that is
-an operator/administrator action, not a lane's.
+conflict resolution in `Details.cshtml.cs`, `OperatorLabels.cs` and
+`CaseDetailsWebTests.cs` under the parallel-build policy (mitigated by the
+merge queue order and merge prep); `origin/main` carried two direct pushes on
+2026-09-03 that `origin/dev` does not have (test material and a skills
+merge), so `dev` is behind `main` by two commits — reconciling that is an
+operator/administrator action, not a lane's, and the release PR records it.
 
 ## Dependency map
 
-Docs chore → all; PLAT-070 → frame; frame → sections, Engineer notes UI,
-sign-off case field, inspect-at UI, CASE-029; vocabulary → sections move,
-damage map, ENG-029; sections move → damage map, ENG-031, ENG-029, fee note;
-DOCS-017 → sign-off case field and account setting; PLAT-068 → CASE-040;
-CASE-032 → Awaiting instruction queue; AUTO-011 and ENG-027 → market
-research; TICK-082 → Estimate card select; CASE-029 → CASE-043 (vehicle
-record extension, D49). ENG-034 runs serial in wave 3 after CASE-038 and
-CASE-039 because it takes the `Details.cshtml.cs` lease to move the
-Assessment handler surface. Exact ids: see each ticket's `blocks` and
-`blockedBy`.
+Docs chore → all; PLAT-070 → frame; frame (CASE-038) → CASE-009, CASE-039,
+CASE-040, CASE-041, CASE-029, ENG-034; CASE-032 → CASE-042; CASE-029 →
+CASE-043 (D49); ENG-034 → ENG-029, ENG-036, ENG-031; ENG-029 → DOCS-018;
+every UI ticket → UIIMP-014 → DELIV-044 (release PR). Merge queue: Phase A
+UIIMP-015, PLAT-069, CASE-032, CASE-038; Phase B CASE-009, CASE-039,
+CASE-041, CASE-040, CASE-029, CASE-042, ENG-034, CASE-043; Phase C ENG-029,
+ENG-036, ENG-031, DOCS-018; Phase D UIIMP-014, DELIV-044. Exact ids: see each
+ticket's `blocks` and `blockedBy`.
 
 ## Rollout & rollback
 
-Waves 0–5 merge to `dev`; one production release after all PRs; `dev` → `main`
-needs `MERGE AUTH GRANTED`; migrations additive; a failed wave is reverted
-PR-by-PR on `dev`.
+Everything merges to `dev`; one production release after all PRs; `dev` →
+`main` needs `MERGE AUTH GRANTED`; migrations additive; a failed checkpoint
+verification is reverted PR-by-PR on `dev`.
 
 ## Definition of done
 
-Every member Done with proof at its merge SHA; UIIMP-010 walk passed; DELIV-030
-docs refreshed; the adversarial claims in the run record all survived.
+Every member Done with proof at its merge SHA; the UIIMP-014 walk passed;
+DELIV-044 docs refreshed and the release PR open; the adversarial claims in
+the run record all survived.
