@@ -8,6 +8,11 @@ description: Promote and release Pegasus through its authorised terminal route, 
 Use the repository scripts and the exact source SHA. `azd up` and `azd deploy
 worker` are not release procedures.
 
+Run the route from the authorised Linux x64 terminal on Linux-native storage.
+Before preflight, require `uname -m` to report `x86_64`, `oras version` to
+report 1.3.4, and both `az account show` and `azd auth login --check-status` to
+identify the intended operator. Authentication is not write approval.
+
 [`docs/runbook.md`](../../../docs/runbook.md) and
 [`docs/engineering.md`](../../../docs/engineering.md) are authoritative. Stop
 if they disagree with this skill.
@@ -135,6 +140,10 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Artifact -ManifestPath $manife
 $manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 10
 ```
+
+The manifest must use schema 3, `migrationRuntimeIdentifier` `linux-x64` and
+`migrationBundleName` `efbundle`. The four artifacts are `web.zip`,
+`worker.zip`, `web-image.tar.gz` and `efbundle`.
 
 Record the manifest SHA-256, source SHA, image digest, migration identity and
 exact Azure operations. Obtain explicit approval for that manifest and those
