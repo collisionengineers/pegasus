@@ -2,7 +2,7 @@
 id: PLAT-073
 type: ticket
 title: Provision and document the Linux-native WSL toolchain
-status: verifying
+status: done
 area: platform-operations
 assignee: codex-root
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-04T15:11:36.637Z'
   review: '2026-09-04T16:57:17.882Z'
   verifying: '2026-09-04T18:03:12.916Z'
+  done: '2026-09-04T18:08:23.229Z'
 taken_at: '2026-09-04T15:15:10.556Z'
 branch: PLAT-073-wsl-toolchain
 worktree: .worktrees/plat-073
@@ -39,7 +40,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/661'
 archived: false
 created: '2026-09-04T11:58:34.774Z'
-updated: '2026-09-04T18:03:12.916Z'
+updated: '2026-09-04T18:08:23.229Z'
 ---
 
 ## What
