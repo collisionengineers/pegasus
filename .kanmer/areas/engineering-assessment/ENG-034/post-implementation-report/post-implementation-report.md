@@ -323,3 +323,85 @@ routed Razor page, partial, or `catalogue.json` changed this round).
 
 No test was weakened or deleted. Not merged; PR #668 remains open for the
 epic owner/review controller to re-review and merge.
+
+## Review round fixes (2026-09-05, round 3)
+
+Third round on the same PR (#668), same branch/worktree
+(`task/eng-034-engineer-sections-move`, `.worktrees/eng-034`), addressing the
+round-3 review findings (CI green at `6a2c3af77`). Codex was unavailable this
+round (reported unavailable before dispatch); the fix below was implemented
+directly by the Claude wrapper session in the same worktree/branch instead.
+
+Commit `795506d752bb0ce9e1e82bbee06678b412f8884f`, pushed to
+`origin/task/eng-034-engineer-sections-move`.
+
+### SHOULD-FIX — ReportDraftCondition now considers AssessmentCanOpen
+
+`ReportDraftCondition` (`Details.cshtml.cs`,
+`EvaluateEngineerSectionConditionsAsync`) ignored `AssessmentCanOpen`, so
+`_CaseReport.cshtml` rendered an active "Generate report draft" form and
+"Preview report draft" link for a case whose assessment workspace has not
+opened; both 404 at `AssessmentReportProjection.cs:434` — the same
+`CanOpen`-gated dead end the two earlier review rounds closed for the
+Estimate mutation handlers and Send to Claude. Confirmed the mechanism: the
+Case page always calls `getAssessmentWorkspace.ExecuteAsync`, which is not
+itself gated by `CanOpen` (`AssessmentWorkspace.cs`), so `ReportDraftPreparation`
+can be non-null (and `CanGenerate: true`) even when `AssessmentCanOpen` is
+false — exactly the case the existing
+`AssessmentReportDraftWebTests.CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly`
+test exercises (it composes with `canOpen: false` but a fully-populated,
+generate-ready projection).
+
+Fix: `ReportDraftCondition` is now
+`!AssessmentCanOpen || ReportDraftPreparation is null ? NotAvailableForCase :
+...` — reusing the existing `EngineerSections.NotAvailableForCase` label (no
+new label added; it is the same label already used for
+`SendToClaudeCondition`'s equivalent not-open case). `_CaseReport.cshtml`
+needed no edit: it already renders the gated/disabled span whenever
+`ReportDraftCondition` is non-null.
+
+Extended the existing
+`CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly` test (not a
+new test) to fetch the page HTML first (already fetched, previously unused
+beyond the antiforgery token) and assert
+`Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, ...)` and
+`Assert.DoesNotContain("Preview report draft", html, ...)`, matching the
+assertion shape already used by the sibling `NotReady` test
+(`IncompleteCaseFailsClosedNamingWhatIsMissingInsteadOfThrowing`). No
+existing assertion was weakened; the POST-then-404 assertion in the same
+test is unchanged.
+
+### NIT — case-details--unavailable.html byte count
+
+Re-measured `docs/design/test-ui/pages/case-details--unavailable.html` at
+this head with `wc -c` (Bash) and `Get-Item .Length` (PowerShell): both
+report **24,390 bytes**, matching this report's existing entry exactly (the
+round-2 section above already recorded this same 24,390 figure, confirmed
+against `wc -c` before making any change). No 24,694-byte state exists in
+the current worktree, the committed blob (`git cat-file -s`, also 24,390),
+or the branch history for this file. Rejecting this nit as not reproduced at
+the current head — no correction was made because the report already states
+the measured value; disposition: **rejected, not reproduced** (the finding's
+premise does not hold against this branch's actual committed bytes).
+
+No snapshot recapture was run this round: no routed Razor page, partial it
+composes, or `catalogue.json` changed (only the C# condition in
+`Details.cshtml.cs` and a test assertion changed). Ran the scoped
+`-Verify -SkipCapture -Scope case-details` to confirm per the round
+instruction — it passed (not stale), consistent with the existing report
+note that the captured default case has an open workspace and is unaffected
+by this condition.
+
+### Verification run this round (worktree `.worktrees/eng-034`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportDraftWebTests"` | 0 | 4 passed (including the extended `CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly`). |
+| `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details` | 0 | 1 test passed, not stale. |
+
+No test was weakened or deleted. Not merged; PR #668 remains open for the
+epic owner/review controller to re-review and merge.
