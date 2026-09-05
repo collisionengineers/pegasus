@@ -507,8 +507,10 @@ public sealed class TriageQueuesWebTests
             "Staff matched the images to the instructed case.");
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
 
-        using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
-        var html = await awaiting.Content.ReadAsStringAsync();
+        using var redirected = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, redirected.StatusCode);
+        var html = await redirected.Content.ReadAsStringAsync();
+        Assert.Contains($"This was added to case {reference}.", html, StringComparison.Ordinal);
         Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
     }
 
