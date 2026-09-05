@@ -71,6 +71,46 @@ public sealed class CaseEngineerSectionsWebTests
         }
     }
 
+    /// <summary>
+    /// ENG-034 review R1: GET ?estimate=new must not depend on either the
+    /// actor being an Engineer or the assessment being open to render the
+    /// (read-only) editor panel.
+    /// </summary>
+    [Theory]
+    [InlineData("User", true)]
+    [InlineData("Engineer", false)]
+    public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, bool canOpen)
+    {
+        var source = new EngineerSectionSource(CaseLifecycleState.ReportPreparation, canOpen);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentAccess>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<IListCaseEstimates>();
+                services.RemoveAll<ISendToAiControl>();
+                services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentAccess>(source);
+                services.AddSingleton<IGetAssessmentWorkspace>(source);
+                services.AddSingleton<IListCaseEstimates>(source);
+                services.AddSingleton<ISendToAiControl>(new EnabledSendToAiControl());
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", role);
+
+        using var response = await client.GetAsync($"/Cases/{source.CaseId:D}?section=estimate&estimate=new");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("id=\"section-estimate\"", html, StringComparison.Ordinal);
+    }
+
     private sealed class EngineerSectionSource :
         IGetCase,
         IGetAssessmentAccess,
@@ -80,9 +120,11 @@ public sealed class CaseEngineerSectionsWebTests
         private readonly CaseDetails details;
         private readonly AssessmentWorkspace workspace;
         private readonly RepairSpecificationVersion estimate;
+        private readonly bool canOpen;
 
-        public EngineerSectionSource(CaseLifecycleState state)
+        public EngineerSectionSource(CaseLifecycleState state, bool canOpen = true)
         {
+            this.canOpen = canOpen;
             CaseId = Guid.NewGuid();
             var identity = new CaseIdentity(CaseId, "QDOS", 2026, 42, "QDOS-2026-00042");
             var workflow = new CaseWorkflowRecord(
@@ -152,7 +194,9 @@ public sealed class CaseEngineerSectionsWebTests
             GetAssessmentAccessQuery query,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<AssessmentAccessState?>(
-                query.CaseId == CaseId ? new(details.Workflow.State, 7, 7) : null);
+                query.CaseId == CaseId
+                    ? new(details.Workflow.State, 7, canOpen ? 7 : null)
+                    : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
