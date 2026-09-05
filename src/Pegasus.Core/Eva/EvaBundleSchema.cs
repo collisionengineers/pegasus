@@ -113,9 +113,23 @@ public static class EvaHandoffPolicy
     public const string NoRetainedImagesReason =
         "At least one stored vehicle image is required.";
 
-    public static CaseLifecycleState StateAfterManualSend(CaseLifecycleState state) => state switch
+    /// <summary>
+    /// The state a manual send leaves the case in.
+    ///
+    /// <paramref name="isDelivered"/> defaults to true for the export route,
+    /// whose write is atomic with the state change (a failed write commits
+    /// nothing, so by the time this runs the handoff always happened). The
+    /// API route passes the transport's actual
+    /// <see cref="EvaSubmissionResult.IsDelivered"/> explicitly (CASE-040
+    /// review): a Rejected or Unknown outcome never reached EVA, so it is not
+    /// a handoff and must not move the case out of Review — only Succeeded or
+    /// Partial does, because Partial still means EVA created a claim.
+    /// </summary>
+    public static CaseLifecycleState StateAfterManualSend(
+        CaseLifecycleState state,
+        bool isDelivered = true) => state switch
     {
-        CaseLifecycleState.Review => CaseLifecycleState.ReportPreparation,
+        CaseLifecycleState.Review => isDelivered ? CaseLifecycleState.ReportPreparation : state,
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => state,
         _ => throw new EvaHandoffStateException(state)
     };

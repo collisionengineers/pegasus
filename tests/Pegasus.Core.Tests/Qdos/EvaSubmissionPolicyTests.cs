@@ -26,6 +26,43 @@ public sealed class EvaSubmissionPolicyTests
     public void ManualResendDoesNotChangeWithEngineerState(CaseLifecycleState state) =>
         Assert.Equal(state, EvaSubmissionPolicy.StateAfterSend(state, EvaSubmissionTrigger.Manual));
 
+    /// <summary>
+    /// CASE-040 review, blocker 1: a rejected or unreachable manual send
+    /// never reached EVA, so it is not a handoff — the case stays exactly
+    /// where it was rather than moving to With Engineer.
+    /// </summary>
+    [Theory]
+    [InlineData(EvaSubmissionOutcome.Rejected)]
+    [InlineData(EvaSubmissionOutcome.Unknown)]
+    public void UndeliveredManualSendFromReviewDoesNotMoveTheCase(EvaSubmissionOutcome outcome)
+    {
+        var result = new EvaSubmissionResult(outcome, null, null, "code", "detail", 0);
+        Assert.False(result.IsDelivered);
+        Assert.Equal(
+            CaseLifecycleState.Review,
+            EvaSubmissionPolicy.StateAfterSend(
+                CaseLifecycleState.Review,
+                EvaSubmissionTrigger.Manual,
+                result.IsDelivered));
+    }
+
+    /// <summary>
+    /// A Partial outcome still means EVA created a claim, so it is a
+    /// delivered handoff exactly like Succeeded (CASE-040 review, blocker 1).
+    /// </summary>
+    [Fact]
+    public void PartialManualSendFromReviewStillMovesTheCase()
+    {
+        var result = new EvaSubmissionResult(EvaSubmissionOutcome.Partial, null, null, null, null, 1);
+        Assert.True(result.IsDelivered);
+        Assert.Equal(
+            CaseLifecycleState.ReportPreparation,
+            EvaSubmissionPolicy.StateAfterSend(
+                CaseLifecycleState.Review,
+                EvaSubmissionTrigger.Manual,
+                result.IsDelivered));
+    }
+
     [Fact]
     public void AutomaticSubmissionIsReviewOnly()
     {
