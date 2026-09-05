@@ -1,9 +1,11 @@
 using System.Data;
+using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -81,15 +83,22 @@ public sealed class EvaSubmissionStore(
                 item.SignOffEngineerId
             })
             .SingleAsync(cancellationToken);
+        var initialState = Enum.Parse<CaseLifecycleState>(workflow.State);
+        var initialResultingState = EvaSubmissionPolicy.StateAfterSend(initialState, request.Trigger);
         var profiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken);
-        EvaSubmissionPolicy.StateAfterSend(
-            Enum.Parse<CaseLifecycleState>(workflow.State),
-            request.Trigger);
-        EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
+        var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             profiles);
+        if (initialResultingState != initialState)
+        {
+            await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
+                new EfCaseEngineerEligibility(contextFactory),
+                initialState,
+                workflow.AssignedEngineerId,
+                cancellationToken);
+        }
 
         // Replay first: the same operation key must answer the same way rather
         // than submit a second time. This is what makes a double-clicked
@@ -144,6 +153,7 @@ public sealed class EvaSubmissionStore(
             request,
             caseData,
             result,
+            signOffEngineer.StaffId,
             cancellationToken);
         return new(result, export.UnrecordedFields, []);
     }
@@ -242,6 +252,7 @@ public sealed class EvaSubmissionStore(
         SubmitCaseToEvaRequest request,
         CaseDataProjection caseData,
         EvaSubmissionResult result,
+        Guid submittedSignOffEngineerId,
         CancellationToken cancellationToken)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -257,25 +268,44 @@ public sealed class EvaSubmissionStore(
             : context.CaseWorkflows.Where(item => item.CaseId == request.CaseId);
         var workflow = await workflows.SingleAsync(cancellationToken);
         var currentState = Enum.Parse<CaseLifecycleState>(workflow.State);
-        var resultingState = EvaSubmissionPolicy.StateAfterSend(currentState, request.Trigger);
-        var eligibleProfiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
-        var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
-            workflow.SignOffEngineerId,
-            workflow.AssignedEngineerId,
-            eligibleProfiles);
-        if (workflow.Version != caseData.Version)
+        var resultingState = currentState;
+        Exception? transitionFailure = null;
+        try
         {
-            throw new CaseVersionConflictException(
-                request.CaseId,
-                caseData.Version,
-                workflow.Version);
+            resultingState = EvaSubmissionPolicy.StateAfterSend(currentState, request.Trigger);
+            if (resultingState != currentState)
+            {
+                await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
+                    new EfCaseEngineerEligibility(contextFactory),
+                    currentState,
+                    workflow.AssignedEngineerId,
+                    cancellationToken);
+            }
+            var eligibleProfiles = await new EfStaffAccountQueries(context)
+                .ListSignOffEngineersAsync(cancellationToken);
+            EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
+                workflow.SignOffEngineerId,
+                workflow.AssignedEngineerId,
+                eligibleProfiles);
+            if (workflow.Version != caseData.Version)
+            {
+                throw new CaseVersionConflictException(
+                    request.CaseId,
+                    caseData.Version,
+                    workflow.Version);
+            }
+        }
+        catch (Exception exception) when (exception is EvaHandoffStateException
+                                          or EvaSignOffEngineerRequiredException
+                                          or CaseVersionConflictException
+                                          or InvalidOperationException)
+        {
+            transitionFailure = exception;
         }
 
-        var resultingVersion = request.Trigger == EvaSubmissionTrigger.Manual
-            && currentState == CaseLifecycleState.Review
-                ? checked(workflow.Version + 1)
-                : workflow.Version;
+        var resultingVersion = transitionFailure is null && resultingState != currentState
+            ? checked(workflow.Version + 1)
+            : workflow.Version;
 
         var attemptCount = await context.EvaSubmissions
             .CountAsync(item => item.CaseId == request.CaseId, cancellationToken);
@@ -310,7 +340,7 @@ public sealed class EvaSubmissionStore(
             {
                 CaseVersion = resultingVersion,
                 AssignedEngineerId = workflow.AssignedEngineerId,
-                SignOffEngineerId = signOffEngineer.StaffId,
+                SignOffEngineerId = submittedSignOffEngineerId,
                 Trigger = request.Trigger.ToString(),
                 Outcome = result.Outcome.ToString(),
                 result.EvaId,
@@ -327,7 +357,7 @@ public sealed class EvaSubmissionStore(
             $"{EvaSubmissionPolicy.PolicyKey}/v{EvaSubmissionPolicy.PolicyVersion}";
         context.ActionHistory.Add(history);
 
-        if (resultingState != currentState)
+        if (transitionFailure is null && resultingState != currentState)
         {
             workflow.State = resultingState.ToString();
             workflow.Version = resultingVersion;
@@ -342,5 +372,10 @@ public sealed class EvaSubmissionStore(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        if (transitionFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(transitionFailure).Throw();
+        }
     }
 }

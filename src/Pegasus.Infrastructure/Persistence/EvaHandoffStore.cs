@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -157,6 +158,14 @@ public sealed class EvaHandoffStore(
         }
         var currentState = Enum.Parse<CaseLifecycleState>(lockedState.State);
         var resultingState = EvaHandoffPolicy.StateAfterManualSend(currentState);
+        if (resultingState != currentState)
+        {
+            await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
+                new EfCaseEngineerEligibility(contextFactory),
+                currentState,
+                lockedState.AssignedEngineerId,
+                cancellationToken);
+        }
         var eligibleProfiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken);
         var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(

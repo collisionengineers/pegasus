@@ -510,7 +510,10 @@ public sealed class EfCaseQueryStore(
                 : Enum.Parse<CaseClosureOutcome>(entity.ClosureOutcome),
             entity.OriginalCaseId,
             entity.ReplacementCaseId,
-            entity.Version);
+            entity.Version)
+        {
+            SignOffEngineerId = entity.SignOffEngineerId
+        };
         if (entity.ArchivedAtUtc is null)
         {
             if (entity.ArchivedByKind is not null
@@ -521,7 +524,7 @@ public sealed class EfCaseQueryStore(
                 throw new InvalidDataException("Case archive metadata is incomplete.");
             }
 
-        return workflow with { SignOffEngineerId = entity.SignOffEngineerId };
+            return workflow;
         }
         if (entity.ArchivedByKind is null
             || entity.ArchivedBySubjectId is null

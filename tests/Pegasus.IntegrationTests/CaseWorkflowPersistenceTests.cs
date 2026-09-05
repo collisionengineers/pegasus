@@ -854,6 +854,39 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task ArchivedCaseProjectionRetainsPersistedSignOffEngineer()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var signOffEngineerId = Guid.NewGuid();
+        await harness.SeedStaffAccountAsync(
+            signOffEngineerId,
+            true,
+            StaffRole.Engineer,
+            isSignOffEngineer: true);
+        var archivedBy = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(
+                item => item.CaseId == harness.CaseId);
+            workflow.SignOffEngineerId = signOffEngineerId;
+            workflow.ArchivedAtUtc = harness.TimeProvider.GetUtcNow();
+            workflow.ArchivedByKind = archivedBy.Kind.ToString();
+            workflow.ArchivedBySubjectId = archivedBy.SubjectId;
+            workflow.ArchivedByRolesJson = System.Text.Json.JsonSerializer.Serialize(
+                archivedBy.Roles.OrderBy(role => role));
+            workflow.ArchiveReason = "Projection test archive";
+            await context.SaveChangesAsync();
+        }
+
+        var details = Assert.IsType<CaseDetails>(
+            await harness.QueryStore.GetAsync(new(harness.CaseId, archivedBy), default));
+
+        Assert.NotNull(details.Workflow.Archive);
+        Assert.Equal(signOffEngineerId, details.Workflow.SignOffEngineerId);
+        Assert.NotEqual(details.Workflow.AssignedEngineerId, details.Workflow.SignOffEngineerId);
+    }
+
+    [Fact]
     public async Task FabricatedOrAlreadyLinkedSentEvidenceCannotTransitionAnotherCase()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
