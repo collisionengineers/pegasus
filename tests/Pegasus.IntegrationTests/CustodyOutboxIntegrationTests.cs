@@ -1733,6 +1733,137 @@ public sealed class CustodyOutboxIntegrationTests
                 CancellationToken.None));
     }
 
+    [Fact]
+    public async Task AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS automatic EVA test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Automatic EVA {fixtureId}\r\nClaim Number: AUTO-{fixtureId}"
+        };
+        builder.Attachments.Add(
+            "53364_1_LtrtoEngineerIn.pdf",
+            "%PDF-1.4 synthetic instruction letter"u8.ToArray(),
+            MimeKit.ContentType.Parse("application/pdf"));
+        var imageBytes = SyntheticJpeg();
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg",
+            imageBytes,
+            MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"automatic-eva-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"automatic-eva:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        await using (var seed = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var image = await (
+                    from occurrence in seed.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    join version in seed.Set<DocumentVersionEntity>().AsNoTracking()
+                        on occurrence.VersionId equals version.Id
+                    where occurrence.CaseId == outcome.Identity.CaseId
+                          && occurrence.SemanticRole == DocumentSemanticRole.Image
+                    select new { version.Id, version.Sha256 })
+                .SingleAsync();
+            await services.GetRequiredService<IDocumentContentStore>().StoreAsync(
+                outcome.Identity.CaseId,
+                outcome.Identity.Reference,
+                image.Id,
+                imageBytes,
+                image.Sha256,
+                CancellationToken.None);
+
+            var principal = await seed.Principals.SingleAsync(
+                item => item.Code == QdosPrincipal.Code);
+            principal.EvaAutomaticSubmission = true;
+            await seed.SaveChangesAsync();
+        }
+        await ConfigureDefaultSignOffEngineerAsync(services);
+
+        var reconciler = new ReconcileAutomaticEvaSubmissions(
+            services.GetRequiredService<IAutomaticEvaSubmissionStore>());
+        Assert.Equal(1, await reconciler.ExecuteAsync(10, CancellationToken.None));
+
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        Guid workItemId;
+        string operationKey;
+        await using (var queued = await contextFactory.CreateDbContextAsync())
+        {
+            var workItem = await queued.ExternalWorkItems.SingleAsync(item =>
+                item.CaseId == outcome.Identity.CaseId
+                && item.Kind == ExternalWorkKinds.SubmitCaseToEva);
+            workItemId = workItem.Id;
+            operationKey = EvaSubmissionPolicy.AttemptOperationKey(
+                workItem.OperationKey,
+                attemptCount: 1);
+        }
+
+        var transport = new RecordingEvaTransport(async () =>
+        {
+            await using var race = await contextFactory.CreateDbContextAsync();
+            await race.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET Version = Version + 1 WHERE CaseId = {outcome.Identity.CaseId}");
+        });
+        var submitter = new EvaSubmissionStore(
+            contextFactory,
+            services.GetRequiredService<ICaseDataQueries>(),
+            services.GetRequiredService<IVehicleEvidenceQueries>(),
+            services.GetRequiredService<IEvaSubmissionModeStore>(),
+            services.GetRequiredService<EvaCaseImageReader>(),
+            transport,
+            new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
+            services.GetRequiredService<TimeProvider>());
+        var processor = new ProcessQueuedEvaSubmission(
+            new EfEvaSubmissionWorkStore(contextFactory),
+            submitter,
+            services.GetRequiredService<TimeProvider>());
+
+        await processor.ExecuteAsync(workItemId, CancellationToken.None);
+
+        Assert.Equal(1, transport.CallCount);
+        await using var verification = await contextFactory.CreateDbContextAsync();
+        var submission = await verification.EvaSubmissions.SingleAsync(item =>
+            item.CaseId == outcome.Identity.CaseId);
+        Assert.Equal(operationKey, submission.OperationKey);
+        Assert.Equal("eva-1", submission.EvaId);
+        Assert.Equal("file-1", submission.FileReference);
+        Assert.Single(await verification.ActionHistory
+            .Where(item => item.AggregateType == "Case"
+                && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                && item.EventKind == "eva_api_submitted")
+            .ToListAsync());
+        var completedWork = await verification.ExternalWorkItems.SingleAsync(
+            item => item.Id == workItemId);
+        Assert.Equal("completed", completedWork.State);
+        Assert.Equal("eva_submission_no_longer_applicable", completedWork.FailureCode);
+        Assert.Null(completedWork.LeaseToken);
+    }
+
     private static async Task<Guid> ConfigureDefaultSignOffEngineerAsync(IServiceProvider services)
     {
         var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
