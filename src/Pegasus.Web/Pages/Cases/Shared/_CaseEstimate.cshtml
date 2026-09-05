@@ -271,7 +271,10 @@
                                     <div class="estimate-notes"><h3 class="section-label">@EngineerLabels.Notes</h3>@(string.IsNullOrWhiteSpace(details.Notes) ? EngineerLabels.NoneRecorded : details.Notes)</div>
                                     RenderEstimateTotals(totals);
                                 </div>
-                                RenderSpecificationLines(estimate!, EngineerLabels.Recorded);
+                                if (estimate is not null)
+                                {
+                                    RenderSpecificationLines(estimate, EngineerLabels.Recorded);
+                                }
                             }
                         </div>
                     </section>
