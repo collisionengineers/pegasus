@@ -448,9 +448,43 @@ dispositioned by the wrapper.
 | --- | --- | --- | --- | --- |
 | 1 | Simplification | `Pages/Cases/Index.cshtml.cs` `LoadNotReadyAsync` | `casesTask` was assigned and immediately awaited on the next line — dead task-shaped ceremony left over from the merged-source implementation, never run concurrently with anything. | **Applied.** Await `_searchCases.ExecuteAsync(...)` directly into `result`. |
 | 2 | Simplification | `Pages/Cases/Index.cshtml.cs` `ImageRow` | The retained-image count label (with its pluralisation) was built twice for the same row — once for `Facts`, once for `Excerpt`. | **Applied.** Computed once into `imageCountLabel` and reused in both places. |
-| 3 | Efficiency | `Persistence/EfImageIntakeStore.cs` `ProjectAsync` | `ImageCount` was added to the shared `ProjectAsync` projection used by `ListAsync` (the Awaiting queue), `ListByOriginReceiptsAsync`, `ListForCaseAsync`, and `SearchByRegistrationAsync`, so every one of those callers now pays for the multi-table image-count subquery even though only the Awaiting queue (`ListAsync`) needs it. | **Accepted risk, not applied.** Splitting the count out (a second projection variant, or a toggle parameter) would add a second query shape, which the plan explicitly rules out ("no per-row image query and no new query type" — Dependencies section). `ProjectAsync` is already the one shared projection point for `ImageIntakeSummary`; the other three callers are lower-traffic (case detail intake list, registration search, receipt-id lookup) and the added cost is one bounded subquery per row batch, not an N+1. Left as a documented cost of keeping one projection instead of two; a future ticket can split it if it becomes a measured hot path. |
+| 3 | Efficiency | `Persistence/EfImageIntakeStore.cs` `ProjectAsync` | `ImageCount` was added to the shared `ProjectAsync` projection used by `ListAsync` (the Awaiting queue), `ListByOriginReceiptsAsync`, `ListForCaseAsync`, and `SearchByRegistrationAsync`, so every one of those callers now pays for the multi-table image-count subquery even though only the Awaiting queue (`ListAsync`) needs it. | **Accepted risk, not applied.** Splitting the count out (a second projection variant, or a toggle parameter) would add a second query shape, which the plan explicitly rules out ("no per-row image query and no new query type" — Dependencies section). `ProjectAsync` is already the one shared projection point for `ImageIntakeSummary`; the other three callers are lower-traffic (case detail intake list, registration search, receipt-id lookup). The subquery is not "bounded" in the paging sense — `ListAsync(false, …)` (the Awaiting queue) reads unpaged, per `MergedPageSize`'s own class remark — but it remains one correlated subquery per row batch, not an N+1. Left as a documented cost of keeping one projection instead of two; a future ticket can split it if it becomes a measured hot path. |
 
 Rebuilt and re-ran `dotnet build` (0 errors), `Pegasus.Core.Tests` (1225
 passed), `Pegasus.ArchitectureTests` (100 passed), and
 `TriageQueuesWebTests`/`AccessibilityTests` (39 passed) after applying
 findings 1-2; all green.
+
+## Review round fixes (2026-09-05)
+
+PR review (round 1, at head `353f3da1b`) returned three findings, applied at
+the new head by gpt-5.6-sol (low), re-verified by the wrapper:
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | `Pages/Cases/Index.cshtml.cs:289, 341-343` | A successful "Add to an existing case" redirects to `?tab=awaiting&selected=<intakeId>`, but the attached intake has left the Awaiting rows (`LoadAwaitingAsync`'s `ListAsync(false, …)` excludes it), so `OnGetAsync`'s stale-`selected` guard returned `NotFound()` and the `TempData["Confirmation"]` message was never seen. `AwaitingAttachMovesTheImageIntakeToAnExistingCase` proved the row leaves the tab, which is exactly what made the redirect 404. | **Fixed.** The stale-selection guard now 404s on every tab except `awaiting`; on `awaiting` it drops the stale `SelectedId` and falls back to the first remaining row (or none) instead of 404ing. Every other tab's `NotFound()` behaviour for a genuinely bad `selected` is unchanged. |
+| 2 | blocker (test) | `TriageQueuesWebTests.cs:508-512` | The success test asserted only the 302 and then GETed a different URL (`/Cases?tab=awaiting`, no `selected=`), so it never exercised the redirect target and masked finding 1. | **Fixed.** The test now follows `response.Headers.Location`, asserts HTTP 200, asserts the confirmation text (`"This was added to case {reference}."`) renders, and asserts the row is gone. Re-run green (39/39) — this is the test that would have caught finding 1 had it followed the real redirect from the start. |
+| 3 | should-fix | `Index.cshtml:36` | The failure banner used `class="alert alert--error"`; neither class exists in `site.css` (the only stylesheet `_Layout.cshtml` links), so a refused attach rendered as unstyled body copy — R-9's "the failure must be visible" only half met. | **Fixed.** Changed to `class="validation-summary"`, the class the two upload pages this block was copied from actually use (styled in `site.css`). |
+
+Two more fixes rode along in the same commit:
+
+- **Stale doc comment** (`Index.cshtml.cs:24-25`): the `<remarks>` said
+  Pre-Case work was "(Triage)"; it now says "(Triage, Awaiting instruction)"
+  to match the tab this ticket added.
+- **Simplification-pass finding 3 wording** (above, "Efficiency" row):
+  corrected in place — the shared `ProjectAsync` image-count subquery is not
+  "bounded" (`ListAsync(false, …)` reads the Awaiting queue unpaged); the
+  accepted-risk substance is unchanged: one correlated subquery per row
+  batch, not an N+1, and splitting it into a second projection shape remains
+  out of scope per the plan's Dependencies section.
+- **Optional maxlength** (`Index.cshtml:264, 268`): the Awaiting attach
+  form's `reference`/`reason` inputs now carry `maxlength="60"`/`"500"`,
+  matching the sibling form in `UploadGroupStatus.cshtml`.
+
+Re-verified after the round: `dotnet build` (0 errors), `Pegasus.Core.Tests`
+(1240 passed), `Pegasus.ArchitectureTests` (100 passed),
+`TriageQueuesWebTests`/`AccessibilityTests` (39 passed, includes the
+strengthened success-redirect assertion), scoped `Update-TestUiSnapshots.ps1`
+capture/verify and `Test-UiCatalogue.ps1` all green (no `queues--*` snapshot
+content changed — neither the attach form's `maxlength` nor the failure
+banner's class appear in the default/empty captures).
