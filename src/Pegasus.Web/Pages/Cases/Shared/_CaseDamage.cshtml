@@ -1,13 +1,15 @@
-@*
-    The Damage section's body. CASE-038 renders the heading host only; ENG-034
-    owns this file's content from its first PR. No control, prose or
-    placeholder renders for a capability that is not built yet.
-*@
+@using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
-@{
-    var heading = OperatorLabels.CaseWorkspace.Sections.Single(entry => entry.Key == "damage");
-}
-<section class="panel">
-    <div class="panel-head"><h2 id="section-damage-title">@heading.Label</h2></div>
+
+<section class="panel" aria-labelledby="section-damage-title">
+    <div class="panel-head"><h2 id="section-damage-title">@EngineerLabels.Damage</h2></div>
+    <div class="panel-body">
+        <dl class="detail-list">
+            <div><dt>@EngineerLabels.ImpactLocation</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ImpactLocation)</dd></div>
+            <div><dt>@EngineerLabels.ImpactSeverity</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ImpactSeverity)</dd></div>
+            <div><dt>@EngineerLabels.IncidentNarrative</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</dd></div>
+        </dl>
+    </div>
 </section>

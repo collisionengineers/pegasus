@@ -47,28 +47,30 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         int For(string state) =>
             counts.SingleOrDefault(item => item.State == state)?.Count ?? 0;
 
-        // Not ready has two case origins (INTK-008/INTK-009): a formal Case
-        // in CaseWorkflows (instruction-initiated), and an unmerged Image
-        // Intake still awaiting instruction (image-initiated) — the latter
-        // has no CaseWorkflows row at all until it merges. The Not ready tab
-        // and the Dashboard tile both read this one count, so both must
-        // include both origins or the badge disagrees with the rows the tab
-        // lists (INTK-013). This mirrors the exact filter
-        // `Triage/Index.cshtml.cs LoadNotReadyAsync` applies to the rows:
-        // unassociated (`MergedIntoCaseId is null`) and still
-        // AwaitingInstruction.
+        // Awaiting instruction has no CaseWorkflows row until it merges. Its
+        // count mirrors Cases/Index.cshtml.cs LoadAwaitingAsync: the lifecycle
+        // is AwaitingInstruction and the origin receipt has no current case
+        // association. A reversed manual association overrides an older
+        // accepted link in the same way as EfImageIntakeStore.ProjectAsync.
         var awaitingInstruction = EfImageIntakeStore.ToCode(ImageInitiatedCaseState.AwaitingInstruction);
-        var imageInitiatedNotReady = await context.ImageIntakes
+        var awaitingInstructionCount = await context.ImageIntakes
             .AsNoTracking()
             .CountAsync(
-                item => item.MergedIntoCaseId == null && item.LifecycleState == awaitingInstruction,
+                item => item.LifecycleState == awaitingInstruction
+                    && !context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == item.OriginReceiptId && association.IsActive)
+                    && (context.IntakeManualAssociations.Any(association =>
+                            association.IntakeReceiptId == item.OriginReceiptId)
+                        || !context.CaseIntakeLinks.Any(link =>
+                            link.IntakeReceiptId == item.OriginReceiptId)),
                 cancellationToken);
 
         return new(
-            For(notReady) + imageInitiatedNotReady,
+            For(notReady),
             For(review),
             For(held),
             For(reportPreparation) + For(postReport),
+            awaitingInstructionCount,
             For(complete));
     }
 
