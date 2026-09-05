@@ -51,3 +51,12 @@ capture and verification lines below.
 - [x] Should-fix 3: dead `OperatorLabels.CaseWorkspace.RibbonSignOff` deleted.
 - [x] Should-fix 4: `Eva/Send.cshtml` title/h1 point at `OperatorLabels.CaseWorkspace.EvaHandoff`.
 - [x] Fixes committed (`64889c424`) and pushed to `task/case-040-sign-off-engineer-eva`.
+
+## Review round fixes (2026-09-05) — round 4
+
+- [x] Blocker 1: `EvaSubmissionPolicy.StateAfterSend`/`EvaHandoffPolicy.StateAfterManualSend` gain an `isDelivered` parameter (default true, preserving the export route and the pre-transport preflight check); `EvaSubmissionStore.RecordSubmissionAsync` passes `result.IsDelivered` explicitly, so a Rejected or Unknown manual send from Review no longer moves the case, bumps its version, or clears its edit lease, while Partial still transitions. New Core unit tests (`UndeliveredManualSendFromReviewDoesNotMoveTheCase`, `PartialManualSendFromReviewStillMovesTheCase`) and a new integration block in `EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange` (via the new `FixedOutcomeEvaTransport` fake) proving both outcomes leave state/version/edit-lease untouched while still recording the `EvaSubmissions` row and the `eva_api_submitted` history row.
+- [x] Should-fix 2: FRD-07's API-submission paragraph corrected to distinguish a pre-transport failure (nothing recorded, Review unchanged) from a post-delivery failure (submission and action history recorded, Review unchanged) and to state the Rejected/Unknown-is-not-a-handoff rule explicitly.
+- [x] Should-fix 3: post-implementation report corrected at the actual current head `3d82259f5`, with the real committed byte sizes for `case-details--default.html`/`case-details--conflict.html` and `queues--empty.html` named as an owned change from the `origin/dev` merge; authoritative sizes deferred to `proof.md` on merged `main`.
+- [x] Should-fix 4: raised as follow-up ticket [[CASE-046]] (retyping the shared partial touches `DetailsModel.cs` outside CASE-040's narrow owned regions) rather than applied in this ticket.
+- [x] Nit 5: `EvaSubmissionStore.RecordSubmissionAsync`'s catch filter narrowed to `InvalidOperationException` alone, with a comment naming why it stays deliberately wide.
+- [x] Verified locally: Core.Tests 1252 passed; ArchitectureTests 100 passed; `CustodyOutboxIntegrationTests` 23 passed/1 pre-existing skip; `EvaSubmissionPersistenceTests`+`CaseWorkflowPersistenceTests` 44 passed. No migration or routed page changed, so `Test-MigrationGrants.ps1` and the snapshot procedure do not apply.
