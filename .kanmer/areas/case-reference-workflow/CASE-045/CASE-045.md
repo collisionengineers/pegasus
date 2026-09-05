@@ -2,12 +2,23 @@
 id: CASE-045
 type: ticket
 title: Show an optional known principal on image-initiated cases
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: wf-build/case-045
 profile: feature
 stageEntered:
   preparing: '2026-09-04T13:15:19.801Z'
+taken_at: '2026-09-05T08:16:20.852Z'
+branch: task/case-045-image-initiated-principal
+worktree: .worktrees/case-045
+claim_expires_at: '2026-09-05T08:46:20.852Z'
+claim_controller: wf-build/case-045
+lease_id: a928f4bf-cac4-4d7e-a2f2-4b37b0509d44
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus\.worktrees\case-045'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-05T08:16:20.852Z'
 labels:
   - image-intake
   - principal
@@ -23,7 +34,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-04T10:21:48.548Z'
-updated: '2026-09-04T13:15:19.801Z'
+updated: '2026-09-05T08:16:20.852Z'
 ---
 
 ## What
