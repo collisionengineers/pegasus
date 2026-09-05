@@ -152,3 +152,99 @@ not applicable: this ticket adds no migration.
 ## PR
 
 https://github.com/collisionengineers/pegasus/pull/668
+
+## Review round fixes (2026-09-05)
+
+Codex (`gpt-5.6-sol`, high) was dispatched for this round but hit its usage
+limit before making any change (`ERROR: You've hit your usage limit ...`,
+`CODEX_EXIT=0` from the wrapper, no working-tree diff, no output file). The
+fixes below were implemented directly by the Claude wrapper session in the
+same worktree/branch instead.
+
+Commit `bd032ceb7cf0df5172de9a4c8940e08713034cbd`, pushed to
+`origin/task/eng-034-engineer-sections-move`.
+
+### BLOCKER — restored the CanOpen mutation gate
+
+- `GuardEstimateEditAsync` (`Details.cshtml.cs`) and `OnPostImportEstimateAsync`
+  restored to the pre-move check `access?.CanOpen != true → NotFound()`
+  (previously relaxed to a bare `access is null` check), matching the guard
+  removed commit `99c27e906`'s move dropped. This one shared guard covers
+  `SaveEstimate`, `EditLine`, `DuplicateEstimate`, `DiscardEstimate`,
+  `SetCurrentEstimate`; `ImportEstimate` has its own identical check.
+  `OnPostSendToClaudeAsync`/`HasAssessmentAccessAsync` was NOT touched —
+  not named in the finding, out of this ticket's scope.
+- Added `DetailsModel.AssessmentCanOpen` (populated in `OnGetAsync` from the
+  same `getAssessmentAccess` call already made for `AssessmentIsReadOnly`,
+  no second query added; fails closed to `false` on unresolved access).
+- `_CaseEstimate.cshtml`: the "New estimate" link and `canImport` (and its
+  gated/disabled fallback) now also require `AssessmentCanOpen`, so those
+  controls are absent (not disabled) when the workspace can't open — D30's
+  section-visibility rule is untouched (the five sections themselves still
+  always render).
+- `SelectedEstimateIsEditable`, `SelectedEstimateCanBeDuplicated`,
+  `SelectedEstimateCanBeCurrent` now also require `AssessmentCanOpen`, so an
+  already-open estimate editor/Duplicate/Use-estimate/Delete-estimate
+  control never renders in a state where the restored backend guard would
+  just 404 it.
+- Retargeted (not re-created as a new file) the deleted
+  `InaccessibleCaseCannotPostAssessmentChanges` test as
+  `InaccessibleCaseCannotPostEstimateMutations` in the existing
+  `AssessmentCopyWebTests.cs` (that file is itself the pre-move
+  `AssessmentCopyWebTests.cs`'s retarget onto the Case handler host): posts
+  to `?handler=SaveEstimate&section=estimate` with `canOpen: false` and
+  asserts `404 Not Found`, proving the restored gate through the real HTTP
+  pipeline. Updated the class's summary doc comment to mention it.
+
+### SHOULD-FIX — restored the negative assertion
+
+`AssessmentVehiclePrefillWebTests.ExtractedVehicleFactsTakePrecedenceOverLookupObservation`
+now also asserts `Assert.DoesNotContain("VOLKSWAGEN", ...)` and
+`Assert.DoesNotContain("GOLF", ...)` (the fixture's lookup make/model),
+restoring the precedence proof the move had reduced to a presence-only
+check.
+
+### NITS
+
+- Restored, verbatim from the pre-move blob
+  (`99c27e906a9ed10d0d6c3636e001e1dfa245bfed^:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs`),
+  the XML doc comments above `OnPostSaveEstimateAsync`, `OnPostEditLineAsync`,
+  `OnPostDuplicateEstimateAsync`, `OnPostDiscardEstimateAsync`,
+  `OnPostSetCurrentEstimateAsync`, `OnPostImportEstimateAsync`, and the
+  inline "Carried forward only while the line still has no price..." comment
+  in `OnPostSaveEstimateAsync`'s line-projection.
+- `OperatorLabels.CaseWorkspace.EngineerSections.SpecificationLinesCaption`'s
+  straight apostrophe: left as-is. The review finding itself dispositioned
+  this as accepted risk (cosmetic); no change made.
+- Snapshot byte sizes restated at this reviewed head (unchanged by this
+  round's diff, listed here per the finding): `case-details--default.html`
+  69,470 bytes; `case-details--conflict.html` 42,707 bytes;
+  `case-details--unavailable.html` 24,390 bytes (all confirmed by `wc -c`
+  before making any change in this round).
+
+### Snapshot recapture — not needed
+
+Checked whether any committed Case Details snapshot page renders in a
+`CanOpen: false` state before touching anything: neither
+`case-details--default.html` nor `case-details--conflict.html` contains the
+strings "New estimate" or "Import estimate" at all (`grep -c` returns 0 for
+both, before and after this round's diff) — both captures render as a
+non-Engineer actor, so those controls were already absent for a reason
+unrelated to `CanOpen` (`ActorIsEngineer` gates them too). `AssessmentCanOpen`
+being newly ANDed onto already-false conditions changes nothing about their
+rendered bytes. `case-details--unavailable.html` renders on a failed Case
+query, before any Engineer-section markup is reached, so it's unaffected by
+definition. No Test UI snapshot recapture was run for this round.
+
+### Verification run this round (worktree `.worktrees/eng-034`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentCopyWebTests\|FullyQualifiedName~AssessmentEstimateImportWebTests\|FullyQualifiedName~AssessmentVehiclePrefillWebTests\|FullyQualifiedName~CaseEngineerSectionsWebTests\|FullyQualifiedName~AssessmentReportDraftWebTests\|FullyQualifiedName~SendToAiIntegrationTests"` | 0 | 37 passed (36 pre-existing + the retargeted `InaccessibleCaseCannotPostEstimateMutations`). |
+
+No test was weakened or deleted. Not merged; PR #668 remains open for the
+epic owner/review controller to re-review and merge.
