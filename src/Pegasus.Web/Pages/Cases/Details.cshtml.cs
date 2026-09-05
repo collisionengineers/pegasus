@@ -566,6 +566,13 @@ public sealed partial class DetailsModel(
         {
             SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete;
         }
+        else if (!AssessmentCanOpen)
+        {
+            // D11: the assessment workspace has not opened yet, so
+            // HasAssessmentAccessAsync will refuse the mutation the same as
+            // GuardEstimateEditAsync does for the other Estimate handlers.
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.NotAvailableForCase;
+        }
         else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {
             SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.SendingToAiDisabled;
@@ -1622,9 +1629,9 @@ public sealed partial class DetailsModel(
         Guid caseId,
         ActionActor actor,
         CancellationToken cancellationToken) =>
-        await getAssessmentAccess.ExecuteAsync(
+        (await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
-            cancellationToken) is not null;
+            cancellationToken))?.CanOpen == true;
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;
