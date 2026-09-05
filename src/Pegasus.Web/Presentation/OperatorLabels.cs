@@ -1405,7 +1405,6 @@ public static class OperatorLabels
         public const string AcceptSuggestion = "Accept";
         public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
-        public const string RecordedInspectionAddress = "Recorded value";
         public const string ProviderDefaultInspectionAddress = "Provider default";
         // CASE-041: Inspect-at choices and storage-location labels.
         public const string InspectAt = "Inspect at";
