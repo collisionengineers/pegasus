@@ -445,3 +445,112 @@ Not reached — the PR was not approved, so no merge was attempted. Run
 `33974413448` on `headSha 3d82259f5fa1e37c5d4fcc7081f8c54f091115b4` was
 `in_progress` at review time. A green run would not change the verdict: finding
 1 is behaviour no existing check exercises.
+
+---
+
+# Review record — CASE-040 (PR https://github.com/collisionengineers/pegasus/pull/666) — re-review
+
+Reviewed head: `861391d9ad6bc3a42e83d107fc0d219d5346e347`
+(branch `task/case-040-sign-off-engineer-eva`, round 4 fixes commit
+"fix(eva): gate the D47 transition on delivery, not state and trigger alone").
+Verified in the detached review worktree
+`.worktrees/case-040-review`; `git rev-parse HEAD` equals the reviewed head and
+`origin/dev` is an ancestor.
+
+Reviewers: **Claude Opus 5** — sole independent reviewer this round, reading
+the whole `origin/dev...HEAD` diff and independently re-running the gates.
+Codex was unavailable (usage limit to 2026-09-08). Built by Claude Sonnet.
+
+**Verdict: REQUEST CHANGES — blocked.** Every finding from rounds 2, 3 and 4 is
+confirmed closed at this head and no regression was found in them. The
+implementation itself is correct and well proved. But CI is **red on this exact
+head** for a committed Test UI snapshot the branch should never have changed,
+and that is a merge blocker. Not merged; the ticket returns to the implementer.
+
+## Findings and dispositions
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | `docs/design/test-ui/pages/queues--empty.html:97,196,263` | The branch replaced dev's `queues--empty` capture with one whose nav-count and tab counts read 2/1/1 instead of 0/0/0. It still carries the state matcher (`class="muted">0 items</span>`, line 272, identical to dev), so a scoped local `-Verify` passes, but CI's full capture regenerates the 0/0/0 page: run `33976995699` (this head) and run `33974413448` (`3d82259f5`) both fail `test-ui` with `Generated Test UI file is stale: pages/queues--empty.html`. CASE-040 renders nothing on the `/Cases` queues route, and the plan's *Must not modify* list forbids any Test UI file other than the two capture-generated snapshots, so this file should not be in the diff. The report's "Files changed → Test UI" list also names only three snapshots while the diff carries four. | **Fix — returned to the implementer.** Restore dev's blob (`git checkout origin/dev -- docs/design/test-ui/pages/queues--empty.html`), or regenerate that route with the FULL capture (no `-Scope`) under the capture lock; then re-verify and correct the report's file list. `test-ui` is not the `changes` job, so a `--failed` rerun is not available. |
+| 2 | should-fix | `src/Pegasus.Infrastructure/Persistence/EvaSubmissionEntities.cs:33` | "…the unique index below is what actually prevents the second send" — `UX_EvaSubmissions_CaseDelivered` is dropped by this PR's migration and its configuration removed. The sibling comments in `EvaSubmissionModelConfiguration.cs` were rewritten; this one was missed, so the entity documents a guarantee the schema no longer carries. | **Fix — returned to the implementer.** Reword to name `EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission` and the durable `ExternalWorkItems` row as the automatic once-only owners. |
+| 3 | should-fix | `src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs:110-119` | Dropping the filtered unique index is required by D36, but automatic once-only now rests on an `AnyAsync(IsDelivered)` read taken outside the serializable transaction and before the transport call. It is proved only at Core (`EvaSubmissionPolicyTests`); no store-level test drives a second automatic submission over an already-delivered case. Residual risk is low — the enqueue sweep's two durable markers and the work-row lease are the real guards. | **Fix or accept risk — returned to the implementer.** Either add one assertion to `AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying` (a fresh automatic work item over a delivered case makes no transport call), or record the acceptance and its reasoning in `proof.md`. |
+| 4 | nit | `docs/current-architecture.md:587` | "…it does not take an edit lease or move the case version" is false after D47: the first export from `Review` moves the version and clears the lease. | **Defer.** It is the as-built/deployed snapshot and CASE-040 is not deployed; the refresh belongs to the release task, not this PR. |
+| 5 | nit | post-implementation report, "Files changed" | The Test UI list names three snapshots; the diff carries four. | **Rolled into finding 1.** |
+
+## Earlier rounds — confirmed closed at this head
+
+| Round | Finding | Evidence |
+| --- | --- | --- |
+| R2 B1 | D47 transition skipped StartCaseWork's preconditions | `CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync` inside the locked section on both routes (`EvaHandoffStore.cs:161`, `EvaSubmissionStore.cs:290`), proved for export *and* API by the "after an Engineer is assigned" / "Engineer account is disabled" assertions. |
+| R2 B2 | A delivered submission could be lost on a local re-check failure | `transitionFailure` captured, row and history committed, then `ExceptionDispatchInfo` rethrow (`EvaSubmissionStore.cs:378-396`); proved by the version-race block. |
+| R2 B3 | `SignOffEngineerId` dropped on the archived read path | `EfCaseQueryStore.cs:513-516`; `ArchivedCaseProjectionRetainsPersistedSignOffEngineer`. |
+| R3 BA | CI-red keyboard export journey | `OperatorJourneyTests.AssignEligibleEngineerAsync` + `Download ZIP`; CI `browser` job green on this head. |
+| R3 BB | Automatic worker double-submit after a post-delivery conflict | `CaseVersionConflictException` in `ProcessQueuedEvaSubmission`'s terminal catch; `AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying`. |
+| R4 B1 | Automatic once-only lost | `RequireOnceOnlyAutomaticSubmission` at `EvaSubmissionStore.cs:117` + unit tests (residual gap raised as finding 3). |
+| R4 B2 | Current position card missing Sign-off Engineer | `Details.cshtml:389`. |
+| R4 SF3 | Dead `RibbonSignOff` label | Deleted; 0-warning build proves no dangling reference. |
+| R5 B1 | Rejected/unreachable send still moved the case | `isDelivered` gate; `FixedOutcomeEvaTransport` block asserts state, version and the seeded edit-lease token untouched while the row and history still commit. |
+
+## Checked and clean
+
+Every drawn control has a named, registered handler (`AssignEngineer`,
+`SetSignOffEngineer`, Export `Bundle`, Eva/Send `Submit`;
+`ISetCaseSignOffEngineer` registered at `DependencyInjection.cs:404`). No
+dead-end control: all three new exception types derive from
+`InvalidOperationException`, already caught by `Export.cshtml.cs:97` and
+`Send.cshtml.cs:186`. `Model.EvaHandoff!` is unreachable while null. Labels are
+all inside one delimited `// CASE-040 … // end CASE-040` block, and the
+duplicate wording homes in `EvaSubmissionPolicy` were deleted rather than
+copied. No explanatory copy: the disabled *Send via API* uses the existing
+`class="gated" data-condition` convention. Core owns the policy — both stores
+call `EvaSubmissionPolicy` / `EvaHandoffPolicy` /
+`CaseEngineerEligibilityPolicy` / `CaseSignOffEngineerResolver` with no second
+implementation. The migration adds a nullable column to an existing table and
+drops an index, creating no table, so the bootstrap census is unchanged.
+
+**No test was weakened or deleted.** The two `EvaSubmissionPersistenceTests`
+were *inverted* (renamed, still asserting `Count == 2`) because the index they
+pinned is deliberately dropped — that change is the ticket.
+`ReportProjectionReadsPhotographsAndFailsClosedWithoutSignatory` was renamed
+and extended, its fail-closed assertions surviving verbatim.
+`SendToEvaRendersOnlyInReview` and `SendPageRendersItsChoiceForAReviewCase`
+became theories over the newly permitted states. `CaseNotInReviewException`
+assertions became `EvaHandoffStateException` (the type these routes now throw);
+the exception still exists and is still asserted for the custody route.
+Everything else is additive.
+
+Every file in the diff is named by the plan's *Expected files* or by its own
+binding Resolutions — `EfAssessmentReportProjectionSource.cs` by the 2026-09-04
+override, `frd-07` by the D47 resolution, `OperatorJourneyTests.cs` by the
+round-2 controller addition, `IntakePersistenceIntegrationTests.cs` by the
+migration list — **except** `queues--empty.html` (finding 1).
+
+## Commands and exit codes (review checkout, HEAD 861391d9a)
+
+```
+git rev-parse HEAD                                                                  861391d9ad6bc3a42e83d107fc0d219d5346e347
+dotnet restore ./Pegasus.slnx --locked-mode                                          RESTORE_EXIT=0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore                     BUILD_EXIT=0   (0 warnings, 0 errors)
+dotnet test ./tests/Pegasus.Core.Tests/... --configuration Release --no-build         CORE_EXIT=0    (1252 passed)
+dotnet test ./tests/Pegasus.ArchitectureTests/... --configuration Release --no-build  ARCH_EXIT=0    (100 passed)
+pwsh -NoProfile -File ./scripts/Test-MigrationGrants.ps1                              GRANTS_EXIT=0  (94 migration files; every created table granted or exempted)
+dotnet test ./tests/Pegasus.IntegrationTests/... --filter
+  "FullyQualifiedName~CustodyOutboxIntegrationTests|~EvaSubmissionPersistenceTests
+   |~CaseWorkflowPersistenceTests|~AssessmentPersistenceIntegrationTests
+   |~CaseDetailsWebTests" -- xUnit.MaxParallelThreads=2                               INT_EXIT=0     (165 passed, 1 pre-existing skip)
+gh run view 33976995699 (head 861391d9a)                                              conclusion=FAILURE — test-ui failed; every other job success
+```
+
+Scope rationale: the diff changes Core EVA and lifecycle policy (covered by
+`Pegasus.Core.Tests` and the layering rules in `Pegasus.ArchitectureTests`), the
+two EVA stores plus the workflow, query and report-projection stores (covered by
+`CustodyOutboxIntegrationTests`, `EvaSubmissionPersistenceTests`,
+`CaseWorkflowPersistenceTests`, `AssessmentPersistenceIntegrationTests`), the
+Case details and Send pages plus the new shared partial (covered by
+`CaseDetailsWebTests`, the partial class `CaseWorkflowWebTests` also extends),
+and one migration (`Test-MigrationGrants.ps1`). The Playwright journey change
+and the Test UI snapshots were left to CI's `browser` and `test-ui` jobs;
+`browser` passed, `test-ui` did not.
+
+Full findings file:
+`scratchpad/build/CASE-040/review-out-2.md`.
