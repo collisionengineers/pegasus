@@ -121,3 +121,88 @@ Read independently against `origin/dev` 80f0ca26. Verdict: REQUEST CHANGES. Ever
 | — | note | — | Reviewer confirmed every other named reuse symbol exists, that `PrincipalEntity` carries `Code` and `IsActive`, and — independently of the research — that no principal-authenticated ImageIntake **registration** route exists (the Provider API is principal-authenticated but calls `ISubmitProviderInstruction`, not `IRegisterImageIntake`). | **Accepted as evidence.** Recorded in the plan preamble; D51's second writer does not apply and the detail-page setter is the only new writer. |
 
 No finding was rejected, and none needed escalation to the operator: D51 already settles every product question this review touched. Open questions remain empty.
+
+## Simplification pass (2026-09-05)
+
+Codex (gpt-5.6-sol, medium) exhausted its usage quota mid-implementation
+(retry window Sep 8, 2026) before writing an implementation summary or
+running any verification. The bulk of the code change (steps 1-5) was
+already present and structurally sound in the worktree; I (Claude, acting
+as the execute agent since the delegated model was unavailable) reviewed
+every changed file line-by-line against the plan and the codebase's own
+conventions, fixed the defects verification surfaced, then ran the
+simplification pass myself over `git diff origin/dev` (reuse,
+simplification, efficiency, altitude — behaviour-preserving only).
+
+Correctness findings surfaced during my own verification (not simplification,
+but recorded here since they were fixed before the simplification pass could
+run meaningfully):
+
+1. **Fixed — wrong exception type asserted.** `ImageIntakePersistenceTests.cs`
+   asserted `ArgumentException` for an inactive-principal write, but
+   `EfImageIntakeStore.SetPrincipalAsync` correctly throws
+   `InvalidOperationException` for that case (matching the store's own
+   convention elsewhere, e.g. `EfOrganizationAdministration.cs:714`).
+   Corrected the test assertion to match the implementation's actual,
+   correct contract — the assertion was wrong, not the code.
+2. **Fixed — the N+1 proof was wired to the wrong DbContextFactory.** The
+   `commandInterceptor` parameter on `IntakeWebApplicationFactory` was passed
+   only into `LocalDbTestDatabase`'s own private `IServiceCollection`, which
+   is used solely for schema-management operations (migrate/restore
+   template) and is never touched by an HTTP request through the actual web
+   host. The host's own `IDbContextFactory<PegasusDbContext>` — the one a
+   `/Cases` GET actually reads through — is registered separately in
+   `Program.cs` via `AddPegasusInfrastructure`. Moved the interceptor wiring
+   into `ConfigureWebHost`'s `services.ConfigureServices` block
+   (`RemoveAll<IDbContextFactory<PegasusDbContext>>()` +
+   `AddDbContextFactory<PegasusDbContext>(...)` with the same connection
+   string plus `AddInterceptors`), which is the surface the request pipeline
+   actually resolves. Confirmed by re-running the test: count went from a
+   silent 0 (interceptor never invoked) to a real 14.
+3. **Fixed — hard-coded, unverified baseline number.** The read-count
+   regression test asserted a specific count of `4` for the Awaiting request
+   with no evidence it was CASE-042's actual baseline (Codex ran out of
+   budget before ever running the test). Measured the true baseline directly:
+   built a disposable detached worktree at CASE-042's exact merged head
+   (`a2658300e`), ported the identical interceptor/factory-wiring fix and a
+   throwaway measurement test using the same fixture (3 registered image
+   rows, 1 selected), and ran it — it reported 14 reader commands. That
+   matches CASE-045's own measured count exactly, which is the actual proof
+   the plan asked for (added column/join costs nothing extra per row).
+   Replaced the hard-coded `4` with `14` and a comment recording how it was
+   derived; removed the scratch worktree afterward.
+
+Simplification findings (reuse / simplification / efficiency / altitude):
+
+- **No changes proposed.** Reviewed every diff hunk against the codebase's
+  own established conventions before accepting it:
+  - `EfImageIntakeStore.SetPrincipalAsync` reuses the exact
+    `IsolationLevel.Serializable` transaction pattern used by every other
+    write method in the same file (`MergeAsync`, `CloseAsync`,
+    `EnsureRegisteredReceiptDecisionAsync`, etc.) rather than inventing a
+    lighter-weight or heavier-weight one.
+  - `ImageIntakeLifecycleRules.ValidateSetPrincipal`'s
+    `ArgumentNullException.ThrowIfNull(request.Actor, nameof(request))`
+    matches the file's own established (if unusual) `nameof(request)`
+    convention used by every other validator in the same file, not a new
+    pattern.
+  - `Details.cshtml.cs`'s `OnPostPrincipalAsync` reuses the exact
+    `DbUpdateConcurrencyException` → "This Image-initiated Case changed
+    while you were working. Reload and try again." message verbatim from
+    the existing `OnPostCloseAsync`, rather than writing new copy.
+  - `ImageIntakeTestData.SeedPrincipalAsync` in `ImageIntakeWebTests.cs`
+    follows this codebase's established per-file local-seed-helper pattern
+    (confirmed against `QdosAllocationRecoveryTests.cs`,
+    `CaseCreateWebTests.cs` and others, each with its own file-local
+    `SeedPrincipalAsync`) rather than adding a new shared cross-file helper.
+  - The `LocalDbTestDatabase.CreateAsync(configureDatabase: ...)` overload
+    the interceptor hook uses already existed (added by an earlier ticket);
+    no new test-support surface was needed beyond the small
+    `commandInterceptor` constructor parameter and the `ConfigureWebHost`
+    wiring described in finding 2 above.
+  - No dead code, unreachable branch, or duplicate list was introduced;
+    `OperatorLabels.ImageIntakePrincipal`/`ImageIntakePrincipalNotKnown`
+    are the sole owners of that label pair, in the CASE-045-delimited block.
+
+No finding required a follow-up ticket; everything actionable was applied
+directly.
