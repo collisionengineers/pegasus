@@ -723,33 +723,64 @@ internal static partial class IntakeWebDriver
         CancellationToken cancellationToken = default)
     {
         var workStore = services.GetRequiredService<IIntakeWorkStore>();
-        var dispatcher = new DispatchPendingIntakeWork(
-            workStore,
-            new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
-            services.GetRequiredService<TimeProvider>());
         var evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         while (evaluation is null)
         {
-            var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
-            if (dispatched == 0)
-            {
-                // A recoverable failure under load reschedules the item with
-                // a retry backoff the frozen test clock never reaches.
-                // Dispatch once from a clock past any backoff so the retry
-                // runs now — the worker timer would have done the same.
-                var lateDispatcher = new DispatchPendingIntakeWork(
-                    workStore,
-                    new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
-                    new OffsetTimeProvider(
-                        services.GetRequiredService<TimeProvider>(),
-                        TimeSpan.FromMinutes(10)));
-                dispatched = await lateDispatcher.ExecuteAsync(1, cancellationToken);
-            }
-            Assert.Equal(1, dispatched);
+            Assert.Equal(1, await DispatchNextAsync(services, workStore, cancellationToken));
             evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         }
 
         return evaluation;
+    }
+
+    internal static async Task<(QueuedIntakeStatus Status, IntakeEvaluationRevision? Evaluation)>
+        DrainStagedToTerminalAsync(
+            IServiceProvider services,
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default)
+    {
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var statusQueries = services.GetRequiredService<IQueuedIntakeStatusQueries>();
+        var status = await statusQueries.GetAsync(stagedReceiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The staged receipt has no processing status.");
+        while (status.Status is not QueuedIntakeStatusKind.Complete
+               and not QueuedIntakeStatusKind.Failed)
+        {
+            Assert.Equal(1, await DispatchNextAsync(services, workStore, cancellationToken));
+            status = await statusQueries.GetAsync(stagedReceiptId, cancellationToken)
+                ?? throw new InvalidOperationException("The staged receipt lost its processing status.");
+        }
+
+        return (
+            status,
+            await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken));
+    }
+
+    private static async Task<int> DispatchNextAsync(
+        IServiceProvider services,
+        IIntakeWorkStore workStore,
+        CancellationToken cancellationToken)
+    {
+        var dispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
+            services.GetRequiredService<TimeProvider>());
+        var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
+        if (dispatched != 0)
+        {
+            return dispatched;
+        }
+
+        // A recoverable failure under load reschedules the item with a retry
+        // backoff the frozen test clock never reaches. Dispatch once from a
+        // clock past any backoff so the retry runs now, as the Worker timer does.
+        var lateDispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
+            new OffsetTimeProvider(
+                services.GetRequiredService<TimeProvider>(),
+                TimeSpan.FromMinutes(10)));
+        return await lateDispatcher.ExecuteAsync(1, cancellationToken);
     }
 
     private sealed class OffsetTimeProvider(TimeProvider inner, TimeSpan offset) : TimeProvider

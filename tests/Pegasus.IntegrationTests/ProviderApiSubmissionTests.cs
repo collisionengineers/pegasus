@@ -189,6 +189,77 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
+    public async Task ASubmissionMatchingAnExistingCaseIsRejectedWithoutMutationOrDuplicateAllocation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+        var source = "provider instruction"u8.ToArray();
+
+        using var first = await SubmitAsync(
+            client,
+            secret,
+            "existing-case-1",
+            [("instruction.pdf", "application/pdf", source)]);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var firstId = (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid();
+        await DrainAsync(api, firstId);
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(1, await context.Cases.CountAsync());
+            Assert.Equal(1, await context.CaseIntakeLinks.CountAsync());
+        }
+
+        using var repeated = await SubmitAsync(
+            client,
+            secret,
+            "existing-case-2",
+            [("instruction.pdf", "application/pdf", source)]);
+        Assert.Equal(HttpStatusCode.Created, repeated.StatusCode);
+        var repeatedId = (await ReadJsonAsync(repeated)).GetProperty("submissionId").GetGuid();
+        await using (var processingScope = api.Services.CreateAsyncScope())
+        {
+            var staged = await processingScope.ServiceProvider
+                .GetRequiredService<IIntakeWorkStore>()
+                .FindBySourceIdentityAsync(
+                    new(
+                        IntakeSourceChannel.ProviderApi,
+                        ProviderSubmissionPolicy.SubmissionToken(repeatedId)),
+                    CancellationToken.None)
+                ?? throw new InvalidOperationException("The submission was not retained as a staged receipt.");
+            var terminal = await IntakeWebDriver.DrainStagedToTerminalAsync(
+                processingScope.ServiceProvider,
+                staged.Id,
+                CancellationToken.None);
+            Assert.Equal(QueuedIntakeStatusKind.Failed, terminal.Status.Status);
+            Assert.Null(terminal.Evaluation);
+        }
+
+        using (var resultResponse = await SendAsync(
+                   client,
+                   HttpMethod.Get,
+                   $"{Submissions}/{repeatedId:D}",
+                   secret))
+        {
+            Assert.Equal(HttpStatusCode.OK, resultResponse.StatusCode);
+            var result = await ReadJsonAsync(resultResponse);
+            Assert.Equal("Failed", result.GetProperty("status").GetString());
+            Assert.Equal(
+                ProviderExistingCaseMatchException.FailureCode,
+                result.GetProperty("failureCode").GetString());
+            Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
+        }
+
+        await using var verification = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(1, await verification.Cases.CountAsync());
+        Assert.Equal(1, await verification.CaseIntakeLinks.CountAsync());
+    }
+
+    [Fact]
     public async Task AcceptRecoveryRepairsTheSqlCandidateAfterAnInterruptedAccept()
     {
         using var factory = new IntakeWebApplicationFactory();

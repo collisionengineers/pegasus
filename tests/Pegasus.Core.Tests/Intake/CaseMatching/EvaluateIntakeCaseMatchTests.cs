@@ -7,6 +7,27 @@ public sealed class EvaluateIntakeCaseMatchTests
 {
     private static readonly Guid CaseA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid CaseB = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
+    [Fact]
+    public async Task DeclaredIdentityUsesTheProvidersExistingNormalizationAndEliminator()
+    {
+        var policy = new StubPolicy(Keys())
+        {
+            DerivedKeys = new("12345/1", "AB12CDE", "SMITH", "J", null)
+        };
+        var sut = new EvaluateIntakeCaseMatch(
+            [policy],
+            new StubQueries([Candidate(CaseA, claim: "12345/1", vrm: "AB12CDE", surname: "SMITH", initial: "J")]));
+
+        var result = await sut.ExecuteDeclaredAsync(
+            "QDOS",
+            new("AB/12345/1", "AB12 CDE", "Jane Smith", null),
+            CancellationToken.None);
+
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
+        Assert.Equal(CaseA, result.MatchedCaseId);
+        Assert.Equal(policy.DerivedKeys.DurableClaimToken, result.Keys.DurableClaimToken);
+    }
     private static readonly Guid CaseC = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     [Fact]
@@ -401,9 +422,10 @@ public sealed class EvaluateIntakeCaseMatchTests
         public string WorkProviderCode => Provider;
         public string PolicyKey => "qdos_case_match";
         public int PolicyVersion => 1;
+        public CaseMatchIndexKeys DerivedKeys { get; init; } = new(null, null, null, null, null);
         public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult) => keys;
         public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData) =>
-            new(null, null, null, null, null);
+            DerivedKeys;
     }
 
     private sealed class StubQueries(

@@ -1061,6 +1061,7 @@ public sealed class ProcessQueuedIntake(
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
         InvalidDataException => "invalid_intake_data",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
+        ProviderExistingCaseMatchException => ProviderExistingCaseMatchException.FailureCode,
         _ => null
     };
 
