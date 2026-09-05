@@ -109,6 +109,15 @@ public sealed class EvaSubmissionStore(
             return new(replay, [], []);
         }
 
+        var hasDeliveredSubmission = await context.EvaSubmissions
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == request.CaseId && item.IsDelivered,
+                cancellationToken);
+        EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
+            request.Trigger,
+            hasDeliveredSubmission);
+
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var export = CaseEvaMapping.MapForOperatorExport(
             EvaCaseEvidenceReader.Build(caseData, vehicle),

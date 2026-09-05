@@ -41,6 +41,24 @@ public sealed class EvaSubmissionPolicyTests
     }
 
     [Fact]
+    public void DeliveredAutomaticSubmissionIsRefused() =>
+        Assert.Throws<EvaAutomaticSubmissionAlreadyDeliveredException>(() =>
+            EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
+                EvaSubmissionTrigger.Automatic,
+                hasDeliveredSubmission: true));
+
+    [Theory]
+    [InlineData(EvaSubmissionTrigger.Automatic, false)]
+    [InlineData(EvaSubmissionTrigger.Manual, false)]
+    [InlineData(EvaSubmissionTrigger.Manual, true)]
+    public void FirstAutomaticAndAllManualSubmissionsRemainAllowed(
+        EvaSubmissionTrigger trigger,
+        bool hasDeliveredSubmission) =>
+        EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
+            trigger,
+            hasDeliveredSubmission);
+
+    [Fact]
     public void AnAcceptedEnvelopeWithAnIdentifierSucceeds() =>
         Assert.Equal(
             EvaSubmissionOutcome.Succeeded,

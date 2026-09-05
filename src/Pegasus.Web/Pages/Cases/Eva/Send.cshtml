@@ -1,14 +1,15 @@
 @page "/Cases/{caseId:guid}/Eva/Send"
 @using Pegasus.Core.Eva
+@using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.Eva.SendModel
 @{
-    ViewData["Title"] = "EVA handoff";
+    ViewData["Title"] = OperatorLabels.CaseWorkspace.EvaHandoff;
 }
 
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Case workspace · @Model.Reference</p>
-        <h1>EVA handoff</h1>
+        <h1>@OperatorLabels.CaseWorkspace.EvaHandoff</h1>
     </div>
     <div class="page-actions">
         <a class="btn" asp-page="/Cases/Details" asp-route-id="@Model.CaseId">
