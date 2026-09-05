@@ -27,3 +27,12 @@ capture and verification lines below.
 
 - [x] Step 3a (2026-09-04): `EfAssessmentReportProjectionSource` passes the resolved complete `ReportSignatory` (null when none resolves) through the Core resolver; no second resolver.
 - [x] Integration test through the real projection source: a draft generates end to end when the sign-off resolves; the Sign-off readiness item is returned when it does not. Test name recorded in the report.
+
+## Review round fixes (2026-09-04)
+
+- [x] Blocker 1: EVA routes apply StartCaseWork's assignment/eligibility preconditions inside the locked transition section.
+- [x] Blocker 2: a successful EVA submission durably records its EvaSubmissions/history rows even when the local re-check fails afterward.
+- [x] Blocker 3: archived-case projection carries the persisted SignOffEngineerId.
+- [x] Should-fix 4: re-send test asserts the second action-history row and its identity payload for both routes.
+- [x] Should-fix 5: post-implementation report refreshed at the fixes' head.
+- [x] Fixes committed (`bfd089394`) and pushed to `task/case-040-sign-off-engineer-eva`.

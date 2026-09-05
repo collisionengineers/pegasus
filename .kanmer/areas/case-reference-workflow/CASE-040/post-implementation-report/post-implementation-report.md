@@ -219,3 +219,153 @@ Full disposition table recorded in the ticket's plan document under
 No file outside the owned-paths list is in the final diff; no package,
 tooling script (`TestUiSnapshotTests.cs`, `ci.yml`, `scripts/*.ps1`), other
 worktree, or `.kanmer` file was touched.
+
+## Review round fixes (2026-09-04)
+
+PR: https://github.com/collisionengineers/pegasus/pull/666
+Branch: `task/case-040-sign-off-engineer-eva`
+Fixes commit: `bfd089394` (parent `51e7fe5c78f4643d549b86ce30051d7d3f01edcc`,
+the reviewed head).
+
+Built by gpt-5.6-sol (medium effort), driven from a fix packet naming all
+five review findings and the RULES that bind; independently reviewed and
+verified by the wrapper (Claude) before commit and push.
+
+### Blocker 1 — D47 transition skipped StartCaseWork's own preconditions
+
+Fixed. `CaseEngineerEligibilityPolicy` (`src/Pegasus.Core/Lifecycle/CaseLifecycle.cs`)
+gained one new public member, `RequireStartCaseWorkAsync(source, state,
+assignedEngineerId, cancellationToken)`, holding both of `StartCaseWork`'s
+runtime preconditions (state is Review and an Engineer is assigned; the
+assigned Engineer is eligible) in the one place `StartCaseWork` itself now
+calls. Both `EvaHandoffStore.RecordExportAsync` and
+`EvaSubmissionStore.RecordSubmissionAsync` call the same method, guarded by
+`if (resultingState != currentState)` so it runs only on the branch that is
+actually leaving Review, inside the same locked/transactional section as the
+state write — never on a With Engineer re-send, which still has no engineer
+re-check (matching the plan). No second implementation of the rule exists.
+
+Port-level tests added in `CustodyOutboxIntegrationTests.cs` (same method as
+the existing D47 acceptance test): a Review case with `AssignedEngineerId =
+null` is refused by both `IExportCaseBundle.ExecuteAsync` and
+`ISubmitCaseToEva.ExecuteAsync` with the exact `StartCaseWork` message
+("...after an Engineer is assigned"); a Review case whose assigned Engineer
+is disabled is refused by both routes with the eligibility message
+("...Engineer account is disabled"), and the EVA transport is never invoked
+for either refusal (`evaTransport.CallCount == 0`).
+
+### Blocker 2 — a completed EVA submission could be lost on a local re-check failure
+
+Fixed. `EvaSubmissionStore.RecordSubmissionAsync` no longer lets
+`EvaSubmissionPolicy.StateAfterSend`, `EvaHandoffPolicy.ResolveRequiredSignOffEngineer`,
+the new `CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync` check, or
+`CaseVersionConflictException` prevent the durable record of a transport call
+that already succeeded. Those four checks now run inside a local `try`, and
+on failure the exception is captured (not thrown) rather than aborting the
+method: the `EvaSubmissions` row and the `eva_api_submitted` action-history
+row are still added unconditionally (with the resolved Sign-off Engineer
+captured before the transport call, so it does not depend on the post-call
+re-check succeeding), `SaveChangesAsync`/`CommitAsync` still run, and only
+after the commit does the method re-throw the captured exception via
+`ExceptionDispatchInfo.Capture(...).Throw()` so the caller still observes the
+failure and the stack trace is preserved. The local state transition itself
+(workflow.State/Version/edit-lease clear) is skipped when a failure was
+captured, so the case's own workflow row is untouched, but the submission
+outcome is never lost.
+
+A version-race test in `CustodyOutboxIntegrationTests.cs` drives this exact
+window: a `RecordingEvaTransport` that mutates the workflow's `Version`
+column (via raw SQL) from inside the transport call itself, so the local
+re-check inside `RecordSubmissionAsync` observes a stale version and throws
+`CaseVersionConflictException` after EVA has already "accepted" the
+instruction. The test asserts: the caller sees the thrown
+`CaseVersionConflictException`; exactly one `EvaSubmissions` row and one
+`eva_api_submitted` history row exist for that operation key with the real
+EVA identifiers; the transport was called exactly once; and a second call
+with the same operation key replays that row (`IsSubmitted: true`, same
+`EvaId`) without invoking the transport again — proving the operation key is
+no longer replayable into a second live EVA claim.
+
+### Blocker 3 — SignOffEngineerId dropped on the archived read path
+
+Fixed. `EfCaseQueryStore.MapWorkflow` now sets `SignOffEngineerId =
+entity.SignOffEngineerId` once, in the initial `CaseWorkflowRecord` object
+initializer, before the archived/non-archived branch; the non-archived
+branch's redundant `with { SignOffEngineerId = ... }` was replaced with a
+plain `return workflow;`, and the archived branch (`workflow with { Archive
+= ... }`) now inherits the field automatically.
+
+A new projection test, `ArchivedCaseProjectionRetainsPersistedSignOffEngineer`
+in `CaseWorkflowPersistenceTests.cs`, seeds a workflow with a persisted
+`SignOffEngineerId` distinct from the assigned Engineer, archives it
+directly at the entity level, reads it back through the real query store,
+and asserts the archived projection's `SignOffEngineerId` equals the
+persisted value (not null, not a resolver fallback, and not equal to
+`AssignedEngineerId`).
+
+### Should-fix 4 — re-send test never asserted the second history row/identities
+
+Fixed. `CustodyOutboxIntegrationTests.cs`'s existing With-Engineer re-send
+coverage now asserts, for both routes:
+
+- the export route: a second `eva_bundle_exported` action-history row keyed
+  on the re-send's own operation key, whose `afterJson` carries the exact
+  `assignedEngineerId`/`signOffEngineerId` GUIDs used for that send;
+- the API route: `ActionHistory` count for `eva_api_submitted` is 2 after
+  the re-send, and the second row's `afterJson` likewise carries the exact
+  `assignedEngineerId`/`signOffEngineerId` GUIDs.
+
+No existing assertion was weakened or removed to add these.
+
+### Should-fix 5 — report accuracy at final head
+
+This report is now written at the fixes' own head. Head SHA for the
+implementation phase remains `51e7fe5c78f4643d549b86ce30051d7d3f01edcc`
+(unchanged by this round — no snapshot, migration, or routed-page file was
+touched); the review-round fixes landed as commit `bfd089394` on top of it.
+No snapshot regeneration was needed or performed in this round: none of the
+six changed files is a routed Razor page, a partial it composes, or
+`catalogue.json`.
+
+### Rejected findings (no action taken)
+
+- Moving `"The Sign-off Engineer was set."` into `OperatorLabels` —
+  confirmed still rejected per the reviewer's own disposition (every sibling
+  handler in `Workflow.cshtml.cs` keeps its inline literal).
+- `CaseSignOffEngineerResolver.Resolve`'s `SingleOrDefault(IsDefault)` throw
+  on a double default — confirmed still accepted as risk (PLAT-068 owns
+  enforcement; fails closed).
+
+### Commands run and exit codes
+
+By the fix wrapper (gpt-5.6-sol), after applying the fixes, in
+`.worktrees/case-040`:
+
+```
+dotnet restore ./Pegasus.slnx --locked-mode                              — exit 0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore         — exit 0, 0 warnings, 0 errors
+dotnet test tests/Pegasus.Core.Tests --configuration Release --no-build  — exit 0, 1245 passed
+dotnet test tests/Pegasus.ArchitectureTests --configuration Release --no-build — exit 0, 100 passed
+dotnet test tests/Pegasus.IntegrationTests --configuration Release --no-build \
+  --filter "FullyQualifiedName~CaseWorkflowPersistenceTests|~EvaSubmissionPersistenceTests|
+            ~CustodyOutboxIntegrationTests|~CaseDetailsWebTests|~IntakePersistenceIntegrationTests|
+            ~AssessmentPersistenceIntegrationTests|~CaseWorkflowWebTests"
+  -- xUnit.MaxParallelThreads=2                                          — exit 0, 174 passed, 1 pre-existing skip
+```
+
+Independently re-run by the wrapper (Claude) at commit `bfd089394`:
+
+```
+dotnet build ./Pegasus.slnx --configuration Release --no-restore         — exit 0
+dotnet test tests/Pegasus.IntegrationTests --configuration Release --no-build \
+  --filter "FullyQualifiedName~CustodyOutboxIntegrationTests|FullyQualifiedName~CaseWorkflowPersistenceTests" \
+  -- xUnit.MaxParallelThreads=2                                          — exit 0, 60 passed, 1 pre-existing skip
+dotnet test tests/Pegasus.Core.Tests --configuration Release --no-build  — exit 0
+dotnet test tests/Pegasus.ArchitectureTests --configuration Release --no-build — exit 0
+```
+
+No migration changed in this round, so `Test-MigrationGrants.ps1` was not
+re-run. No snapshot procedure applies (no routed page/partial/catalogue
+changed).
+
+Pushed: `51e7fe5c7..bfd089394 task/case-040-sign-off-engineer-eva`.
