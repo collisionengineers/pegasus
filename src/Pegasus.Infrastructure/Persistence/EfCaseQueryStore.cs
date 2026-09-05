@@ -4,6 +4,7 @@ using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -178,6 +179,92 @@ public sealed class EfCaseQueryStore(
             .ThenBy(item => item.Id)
             .Take(100)
             .ToArrayAsync(cancellationToken);
+        var querySelection = MailOperationalDestinationPolicy.Query(
+            MailOperationalDestination.Queries);
+        var queryFamilies = querySelection.Families
+            .Select(MailTaxonomy.CategoryName)
+            .ToArray();
+        var exactQuery = querySelection.ExactClassification;
+        var exactDirection = exactQuery?.Direction.ToString().ToLowerInvariant();
+        var associatedReceiptIds = context.IntakeManualAssociations
+            .AsNoTracking()
+            .Where(item => item.CaseId == query.CaseId)
+            .Select(item => item.IntakeReceiptId)
+            .Union(context.CaseIntakeLinks
+                .AsNoTracking()
+                .Where(item => item.CaseId == query.CaseId)
+                .Select(item => item.IntakeReceiptId));
+        var classifiedQueryReceipts = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => associatedReceiptIds.Contains(item.Id)
+                && item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
+                && item.MailClassificationDecision != null
+                && item.MailClassificationDecision.Outcome == "classified"
+                && ((item.MailClassificationDecision.Direction == "received"
+                        && item.MailClassificationDecision.Family != null
+                        && queryFamilies.Contains(item.MailClassificationDecision.Family))
+                    || (exactQuery != null
+                        && item.MailClassificationDecision.OtherName == null
+                        && item.MailClassificationDecision.Direction == exactDirection
+                        && item.MailClassificationDecision.Family == exactQuery.Name
+                        && item.MailClassificationDecision.Subtype == exactQuery.Subtype)))
+            .Select(item => new
+            {
+                item.Id,
+                item.ExternalReceiptToken,
+                Classification = item.MailClassificationDecision!,
+                EffectiveSenderAddress = item.MailRouteDecision == null
+                    ? null
+                    : item.MailRouteDecision.EffectiveSenderAddress
+            })
+            .ToArrayAsync(cancellationToken);
+        var queryAssociations = await CurrentIntakeAssociations.ReadAsync(
+            context,
+            classifiedQueryReceipts.Select(item => item.Id).ToArray(),
+            cancellationToken);
+        var linkedQueryReceipts = classifiedQueryReceipts
+            .Where(item => queryAssociations.Current.TryGetValue(item.Id, out var association)
+                && association.CaseId == query.CaseId)
+            .ToArray();
+        var linkedQueryTokens = linkedQueryReceipts
+            .Select(item => item.ExternalReceiptToken)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var retainedQueryMessages = linkedQueryTokens.Length == 0
+            ? []
+            : await context.RetainedMailboxMessages
+                .AsNoTracking()
+                .Where(item => linkedQueryTokens.Contains(item.ExternalReceiptToken))
+                .Select(item => new
+                {
+                    item.Id,
+                    item.ExternalReceiptToken,
+                    item.ReceivedAtUtc,
+                    item.SenderDisplayName,
+                    item.SenderAddress,
+                    item.Subject
+                })
+                .ToArrayAsync(cancellationToken);
+        var queryReceiptByToken = linkedQueryReceipts.ToDictionary(
+            item => item.ExternalReceiptToken,
+            StringComparer.Ordinal);
+        var queryEmails = retainedQueryMessages
+            .Select(item =>
+            {
+                var receipt = queryReceiptByToken[item.ExternalReceiptToken];
+                return new CaseQueryEmail(
+                    item.Id,
+                    item.ReceivedAtUtc,
+                    receipt.EffectiveSenderAddress,
+                    item.SenderDisplayName,
+                    item.SenderAddress,
+                    item.Subject,
+                    EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification)
+                        .Category!);
+            })
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenBy(item => item.RetainedMessageId)
+            .ToArray();
         var history = await context.CaseWorkflowEvents
             .AsNoTracking()
             .Where(item => item.CaseId == query.CaseId)
@@ -213,7 +300,10 @@ public sealed class EfCaseQueryStore(
             ParseCustodyState(workflow.Case.CustodyState),
             requestUploadLinks,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            history);
+            history)
+        {
+            QueryEmails = queryEmails
+        };
     }
 
     private static CaseCustodyState ParseCustodyState(string value) => value switch

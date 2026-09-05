@@ -18,6 +18,14 @@ authenticated `/Upload` POST through `ReceiveIntake` is the manual HTTP staging
 caller; Worker owns queued processing; `/Received` and `/Inbox` are read-only
 views. Source registration is not proof of deployed or live traffic.
 
+The repository release route is locally ready on Linux x64: .NET 10,
+PowerShell 7, Azure CLI, Azure Developer CLI, Bicep, ORAS 1.3.4 and the
+SqlServer module are available in WSL, and new artifacts use manifest schema 3
+with a Linux `efbundle`. Azure CLI and azd are not currently authenticated in
+this WSL instance, and no Linux-built artifact has been promoted or deployed.
+Authentication, `MERGE AUTH GRANTED` and exact-target write approval remain
+separate prerequisites for the production cutover.
+
 The assessment renderer is **deployed with a reachable operator caller** since
 release 12 (2026-08-19): the Web image carries the pinned Chromium build, and
 the case assessment page offers a "Report draft" action that renders and

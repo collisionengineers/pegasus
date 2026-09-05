@@ -330,6 +330,10 @@
                         <partial name="Cases/Shared/_CaseWorkflow" model="Model" />
                         <partial name="Cases/Shared/_CaseSummary" model="Model" />
                     }
+                    else if (entry.Key == "engineer-notes")
+                    {
+                        <partial name="Cases/Shared/_CaseEngineerNotes" model="Model" />
+                    }
                     else if (entry.Key == "inspection")
                     {
                         <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
@@ -364,8 +368,8 @@
                     }
                     else
                     {
-                        @* Engineer notes (CASE-039) and Valuation (CASE-029)
-                           render into this host when their lanes build them. *@
+                        @* Valuation (CASE-029) renders into this host when its
+                           lane builds it. *@
                         <section class="panel">
                             <div class="panel-head"><h2 id="section-@(entry.Key)-title">@entry.Label</h2></div>
                         </section>

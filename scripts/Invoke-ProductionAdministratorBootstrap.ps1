@@ -24,8 +24,8 @@ if (-not $actualManifestSha256.Equals($ManifestSha256, [StringComparison]::Ordin
 & (Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1') -Mode Artifact -ManifestPath $manifestFile
 $manifest = Get-Content -Raw -LiteralPath $manifestFile | ConvertFrom-Json -Depth 10
 $webEntries = @($manifest.artifacts | Where-Object name -eq 'web.zip')
-if ($webEntries.Count -ne 1 -or $manifest.schemaVersion -ne 2) {
-    throw 'Administrator bootstrap requires the schema-2 bootstrap-only web.zip entry.'
+if ($webEntries.Count -ne 1 -or $manifest.schemaVersion -ne 3) {
+    throw 'Administrator bootstrap requires the schema-3 bootstrap-only web.zip entry.'
 }
 $package = Join-Path ([IO.Path]::GetDirectoryName($manifestFile)) 'web.zip'
 $packageFile = Get-Item -LiteralPath $package

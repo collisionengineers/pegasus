@@ -112,7 +112,9 @@ public sealed record CaseInspectionData(
     CaseField<DateOnly> InspectionDate,
     CaseField<DateOnly> Deadline,
     CaseField<string> Address,
-    CaseField<CaseInspectionMode> Mode);
+    CaseField<CaseInspectionMode> Mode,
+    CaseField<string>? StorageLocation = null,
+    CaseField<string>? RepairerAddress = null);
 
 public sealed record CaseCompletenessEvaluation(
     bool SatisfiesPolicy,
@@ -162,7 +164,8 @@ public sealed record CaseEditableData(
     // (AssessmentMcpTools), so an inserted parameter would silently shift every
     // value after it.
     string? ClaimantContactNumber = null,
-    string? ClaimantAddress = null);
+    string? ClaimantAddress = null,
+    string? StorageLocation = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,
