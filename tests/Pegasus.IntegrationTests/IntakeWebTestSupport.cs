@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -38,6 +39,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
+    private readonly DbCommandInterceptor? commandInterceptor;
     private readonly LocalDbTestDatabase database;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
@@ -73,7 +75,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         bool initializeDevelopmentOffline = true,
         IVrmRecognitionEngine? recognitionEngine = null,
         IMailClassificationPolicy? mailClassificationPolicy = null,
-        IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver = null)
+        IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver = null,
+        DbCommandInterceptor? commandInterceptor = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
@@ -85,10 +88,14 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.approvedMailboxIdentityResolver = approvedMailboxIdentityResolver;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
+        this.commandInterceptor = commandInterceptor;
         // Restored from the per-run template rather than migrated here: this
         // constructor is the suite's most-repeated database lifecycle.
         // CreateHost still runs DevelopmentOfflineInitialization, whose own
-        // MigrateAsync then finds nothing to apply.
+        // MigrateAsync then finds nothing to apply. The interceptor is wired
+        // onto the host's own IDbContextFactory in ConfigureWebHost, not
+        // here: this database's private service provider only ever runs
+        // schema-management commands, never the requests under test.
         database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
     }
 
@@ -199,6 +206,21 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             {
                 services.RemoveAll<IResolveApprovedMailboxIdentity>();
                 services.AddSingleton(approvedMailboxIdentityResolver);
+            }
+            if (commandInterceptor is not null)
+            {
+                // The host's own factory, not the schema-management database
+                // above: this is what a request under test actually reads
+                // through, so a reader-command count against it is real.
+                services.RemoveAll<IDbContextFactory<PegasusDbContext>>();
+                services.AddDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
+                {
+                    var connectionString = serviceProvider.GetRequiredService<IConfiguration>()
+                        .GetConnectionString("Pegasus")
+                        ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
+                    options.UseSqlServer(connectionString);
+                    options.AddInterceptors(commandInterceptor);
+                });
             }
         });
     }

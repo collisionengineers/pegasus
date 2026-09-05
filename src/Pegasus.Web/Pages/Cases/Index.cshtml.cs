@@ -560,8 +560,10 @@ public sealed class IndexModel(
     private QueueRow ImageRow(ImageIntakeSummary item)
     {
         var imageCountLabel = $"{item.ImageCount} retained image{(item.ImageCount == 1 ? string.Empty : "s")}";
+        var principal = item.PrincipalCode ?? OperatorLabels.ImageIntakePrincipalNotKnown;
         var facts = new List<(string Label, string Value)>
         {
+            (OperatorLabels.ImageIntakePrincipal, principal),
             ("Images", imageCountLabel),
         };
         if (item.Custody is { } custodyDetail)
@@ -578,8 +580,10 @@ public sealed class IndexModel(
             Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
             string.Empty,
             Join(
-                imageCountLabel,
-                item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null),
+                $"{OperatorLabels.ImageIntakePrincipal}: {principal}",
+                Join(
+                    imageCountLabel,
+                    item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null)),
             $"{OperatorLabels.SourceChannel(item.Source)} · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
             null,
             item.RegisteredAtUtc,

@@ -555,6 +555,68 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None));
     }
 
+    [Fact]
+    public async Task PrincipalAssignmentRoundTripsWithoutLifecycleHistoryOrInference()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceiptId = await UploadImageAsync(factory, client);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceiptId, "AB12CDE", "principal-register");
+        var activeId = await ImageIntakeTestData.SeedPrincipalAsync(services, "ALPHA", isActive: true);
+        var inactiveId = await ImageIntakeTestData.SeedPrincipalAsync(services, "INACTIVE", isActive: false);
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var before = await store.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.NotNull(before);
+        Assert.Null(before.Record.PrincipalId);
+        Assert.Null(before.PrincipalCode);
+        var historyCount = (await store.ListHistoryAsync(before.Record.Id, CancellationToken.None)).Count;
+
+        var options = await store.ListActivePrincipalsAsync(CancellationToken.None);
+        Assert.Contains(options, principal => principal.Id == activeId && principal.Code == "ALPHA");
+        Assert.DoesNotContain(options, principal => principal.Id == inactiveId);
+        Assert.Equal(
+            options.Select(principal => principal.Code).Order(StringComparer.Ordinal),
+            options.Select(principal => principal.Code));
+
+        var assigned = await store.SetPrincipalAsync(
+            new(before.Record.Id, activeId, StaffActor(), before.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(activeId, assigned.PrincipalId);
+        Assert.Equal(before.LifecycleVersion + 1, assigned.LifecycleVersion);
+
+        var detail = await store.GetAsync(before.Record.Id, CancellationToken.None);
+        Assert.Equal(activeId, detail!.Record.PrincipalId);
+        Assert.Equal("ALPHA", detail.PrincipalCode);
+        var summary = Assert.Single(await store.ListAsync(false, CancellationToken.None));
+        Assert.Equal("ALPHA", summary.PrincipalCode);
+        Assert.Equal(historyCount, (await store.ListHistoryAsync(before.Record.Id, CancellationToken.None)).Count);
+
+        var repeated = await store.SetPrincipalAsync(
+            new(before.Record.Id, activeId, StaffActor(), assigned.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(assigned.LifecycleVersion, repeated.LifecycleVersion);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetPrincipalAsync(
+            new(before.Record.Id, inactiveId, StaffActor(), repeated.LifecycleVersion),
+            CancellationToken.None));
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => store.SetPrincipalAsync(
+            new(before.Record.Id, null, StaffActor(), before.LifecycleVersion),
+            CancellationToken.None));
+
+        var cleared = await store.SetPrincipalAsync(
+            new(before.Record.Id, null, StaffActor(), repeated.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Null(cleared.PrincipalId);
+        detail = await store.GetAsync(before.Record.Id, CancellationToken.None);
+        Assert.Null(detail!.Record.PrincipalId);
+        Assert.Null(detail.PrincipalCode);
+    }
+
     private static async Task<Guid> UploadImageAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client)
@@ -604,6 +666,7 @@ public sealed class ImageIntakePersistenceTests
                 "Staff confirmed the registration from the retained image."),
             CancellationToken.None);
     }
+
 
     private static async Task<CaseEditLease> ClaimLeaseAsync(
         IServiceProvider services,

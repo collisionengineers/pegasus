@@ -124,6 +124,40 @@ public sealed class ImageIntakeLifecycleTests
             request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
     }
 
+    [Fact]
+    public void PrincipalAssignmentRequiresStaffAndValidIdentifiers()
+    {
+        var request = new SetImageIntakePrincipalRequest(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            StaffActor(),
+            0);
+
+        ImageIntakeLifecycleRules.ValidateSetPrincipal(request);
+        ImageIntakeLifecycleRules.ValidateSetPrincipal(request with { PrincipalId = null });
+        Assert.Throws<StaffAuthorizationException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(
+                request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
+        Assert.ThrowsAny<ArgumentException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(request with { ImageIntakeId = Guid.Empty }));
+        Assert.ThrowsAny<ArgumentException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(request with { PrincipalId = Guid.Empty }));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(request with { ExpectedVersion = -1 }));
+    }
+
+    [Fact]
+    public void ImageIntakeRecordCarriesAnOptionalPrincipal()
+    {
+        var principalId = Guid.NewGuid();
+        var recorded = new ImageIntakeRecord(
+            Guid.NewGuid(), Origin(), "AB12CDE", "AB12CDE-01", PrincipalId: principalId);
+        var absent = new ImageIntakeRecord(Guid.NewGuid(), Origin(), "CD34EFG", "CD34EFG-01");
+
+        Assert.Equal(principalId, recorded.PrincipalId);
+        Assert.Null(absent.PrincipalId);
+    }
+
     public static TheoryData<CaseLifecycleState, bool, bool> EligibilityCases()
     {
         var data = new TheoryData<CaseLifecycleState, bool, bool>();

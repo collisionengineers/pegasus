@@ -120,7 +120,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260903225331_StaffAccountSignOff",
                 "20260903233954_MarketResearchAiJob",
                 "20260904210022_EngineerNotes",
-                "20260904233144_CaseInspectionAddressChoices"
+                "20260904233144_CaseInspectionAddressChoices",
+                "20260905082255_ImageIntakePrincipal"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -168,6 +169,22 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageIntakes'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageIntakeSequences'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'ImageIntakes')
+              AND name = N'PrincipalId'
+              AND is_nullable = 1
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.foreign_keys
+            WHERE parent_object_id = OBJECT_ID(N'ImageIntakes')
+              AND name = N'FK_ImageIntakes_Principals_PrincipalId'
+              AND delete_referential_action_desc = N'NO_ACTION'
+            """));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageVrmSuggestions'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
