@@ -1,3 +1,4 @@
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -87,6 +88,51 @@ public sealed class CaseDataOperationsTests
             new(InspectionAddress: "1 Test Street, London")));
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
             new(InspectionMode: CaseInspectionMode.PhysicalAddress)));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("Image Based Assessment", CaseInspectionMode.ImageBasedAssessment)]
+    [InlineData("1 Test Street", CaseInspectionMode.PhysicalAddress)]
+    public void InspectionModeIsInferredFromTheAddress(
+        string? address,
+        CaseInspectionMode? expected)
+    {
+        Assert.Equal(expected, CaseDataPolicy.InferInspectionMode(address));
+    }
+
+    [Fact]
+    public void NormalizeStorageLocationUsesTheCaseTextPolicy()
+    {
+        var normalized = CaseDataPolicy.Normalize(new(
+            StorageLocation: "  14 Storage   Lane\nLeeds  "));
+
+        Assert.Equal("14 Storage Lane Leeds", normalized.StorageLocation);
+    }
+
+    [Fact]
+    public void InspectionAddressChoicesHaveTheD33OrderAndAvailability()
+    {
+        var choices = InspectionAddressChoices.Resolve(new(
+            "1 Claimant Road",
+            RepairerAddress: null,
+            "3 Storage Way",
+            ["2 Previous Street", "1 Older Avenue"]));
+
+        Assert.Equal(
+            [
+                InspectionAddressChoiceKind.ImageBasedAssessment,
+                InspectionAddressChoiceKind.ClaimantAddress,
+                InspectionAddressChoiceKind.RepairerLocation,
+                InspectionAddressChoiceKind.StorageLocation,
+                InspectionAddressChoiceKind.PreviousAddress,
+                InspectionAddressChoiceKind.PreviousAddress,
+                InspectionAddressChoiceKind.ManualEntry
+            ],
+            choices.Select(choice => choice.Kind));
+        Assert.False(choices[2].IsAvailable);
+        Assert.All(choices.Where((_, index) => index != 2), choice => Assert.True(choice.IsAvailable));
     }
 
     [Fact]

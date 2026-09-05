@@ -603,6 +603,7 @@
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+
     // Ctrl+S submits the Case form that changed, not the document's first
     // [data-edit-save] form.
     window.pegasusDirtyEditForm = function () { return dirtyForm; };
@@ -628,6 +629,48 @@
             dirtyForm.requestSubmit();
         }
     });
+})();
+
+// CASE-041: Inspect-at choices fill the ordinary form-associated address
+// input. The input remains the no-script editing path.
+(function () {
+    function bind(root) {
+        root.querySelectorAll('[data-inspection-address-choice]').forEach(function (select) {
+            if (select.dataset.inspectionAddressBound === 'true') return;
+            var input = document.querySelector('[data-inspection-address-input]');
+            var mode = document.querySelector('input[name="inspectionMode"]');
+            var field = document.querySelector('[data-inspection-address-field]');
+            var providerDefault = document.querySelector('[data-inspection-provider-default]');
+            if (!input || !mode || !field || !providerDefault) return;
+
+            select.dataset.inspectionAddressBound = 'true';
+            function showImageBasedAssessment(show) {
+                field.hidden = show;
+                providerDefault.hidden = !show;
+            }
+            function choose() {
+                var option = select.options[select.selectedIndex];
+                if (!option) return;
+                if (option.value === 'ManualEntry') {
+                    if (input.value.toLowerCase() === 'image based assessment') input.value = '';
+                    mode.value = input.value.trim() ? 'PhysicalAddress' : '';
+                    showImageBasedAssessment(false);
+                    return;
+                }
+                input.value = option.dataset.address || '';
+                var imageBased = option.value === 'ImageBasedAssessment';
+                mode.value = imageBased ? 'ImageBasedAssessment' : 'PhysicalAddress';
+                showImageBasedAssessment(imageBased);
+            }
+            select.addEventListener('change', choose);
+            input.addEventListener('input', function () {
+                mode.value = input.value.trim() ? 'PhysicalAddress' : '';
+            });
+            showImageBasedAssessment(select.value === 'ImageBasedAssessment');
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
 // CASE-024: an open editor keeps its own lease alive, so a real editing session

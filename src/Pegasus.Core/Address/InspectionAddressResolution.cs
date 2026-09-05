@@ -149,5 +149,59 @@ public interface IInspectionAddressResolutionStore
         CancellationToken cancellationToken);
 }
 
+public enum InspectionAddressChoiceKind
+{
+    ImageBasedAssessment,
+    ClaimantAddress,
+    RepairerLocation,
+    StorageLocation,
+    PreviousAddress,
+    ManualEntry
+}
+
+public sealed record InspectionAddressChoicesData(
+    string? ClaimantAddress,
+    string? RepairerAddress,
+    string? StorageLocation,
+    IReadOnlyList<string> PreviousAddresses);
+
+public sealed record InspectionAddressChoice(
+    InspectionAddressChoiceKind Kind,
+    string? Address)
+{
+    public bool IsAvailable => Kind is InspectionAddressChoiceKind.ImageBasedAssessment
+        or InspectionAddressChoiceKind.ManualEntry
+        || Address is not null;
+}
+
+public static class InspectionAddressChoices
+{
+    public static IReadOnlyList<InspectionAddressChoice> Resolve(
+        InspectionAddressChoicesData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return
+        [
+            new(
+                InspectionAddressChoiceKind.ImageBasedAssessment,
+                Ext18InspectionAddressPolicy.ImageBasedAssessment),
+            new(InspectionAddressChoiceKind.ClaimantAddress, data.ClaimantAddress),
+            new(InspectionAddressChoiceKind.RepairerLocation, data.RepairerAddress),
+            new(InspectionAddressChoiceKind.StorageLocation, data.StorageLocation),
+            .. data.PreviousAddresses.Select(address =>
+                new InspectionAddressChoice(InspectionAddressChoiceKind.PreviousAddress, address)),
+            new(InspectionAddressChoiceKind.ManualEntry, null)
+        ];
+    }
+}
+
+public interface IInspectionAddressChoicesQueries
+{
+    Task<InspectionAddressChoicesData?> GetAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+}
+
 public sealed class InspectionAddressResolutionConcurrencyException()
     : InvalidOperationException("The intake evidence changed before the inspection address could be resolved.");

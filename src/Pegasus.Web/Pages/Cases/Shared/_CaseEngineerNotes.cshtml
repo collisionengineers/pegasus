@@ -1,0 +1,59 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Cases
+@using Pegasus.Web.Presentation
+@{
+    var workflow = Model.Case!.Workflow;
+    var leaseToken = Model.LeaseToken;
+    var editing = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+}
+
+<section class="panel" aria-labelledby="case-engineer-notes-title">
+    <div class="panel-head">
+        <h2 id="case-engineer-notes-title">@OperatorLabels.CaseWorkspace.EngineerNotesSectionTitle</h2>
+        @if (Model.EngineerNotes.Count > 0)
+        {
+            <span class="badge">@OperatorLabels.CaseWorkspace.EngineerNoteCount(Model.EngineerNotes.Count)</span>
+        }
+    </div>
+    @if (Model.EngineerNotes.Count > 0 || editing)
+    {
+        <div class="panel-body stack">
+            @if (Model.EngineerNotes.Count > 0)
+            {
+                <div class="notes-list">
+                    @foreach (var entry in Model.EngineerNotes)
+                    {
+                        <article class="note-entry">
+                            <div class="note-meta">
+                                <span>@OperatorLabels.OfficeDate(entry.RecordedAtUtc)</span>
+                                <span>@OperatorLabels.OfficeClock(entry.RecordedAtUtc)</span>
+                                <span>@entry.RecordedBy</span>
+                            </div>
+                            <div class="note-content">@entry.Note</div>
+                        </article>
+                    }
+                </div>
+            }
+
+            @if (editing)
+            {
+                <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                      asp-page-handler="AddEngineerNote" class="stack">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <h3>@OperatorLabels.CaseWorkspace.AddEngineerNoteTitle</h3>
+                    <div class="field">
+                        <label class="req" for="engineer-note">@OperatorLabels.CaseWorkspace.EngineerNoteField</label>
+                        <textarea id="engineer-note" name="note" rows="3" required
+                                  maxlength="@AddEngineerNote.MaximumLength"></textarea>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">@OperatorLabels.CaseWorkspace.AddEngineerNote</button>
+                    </div>
+                </form>
+            }
+        </div>
+    }
+</section>

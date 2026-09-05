@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -29,8 +30,11 @@ public sealed partial class DetailsModel(
     IReleaseCaseEditLease releaseLease,
     IConfirmCompleteness confirmCompleteness,
     ISaveCase saveCase,
+    IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
+    IEngineerNoteQueries engineerNoteQueries,
+    IAddEngineerNote addEngineerNote,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
@@ -39,6 +43,8 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
 {
+    public IReadOnlyList<InspectionAddressChoice> InspectionAddressChoices { get; private set; } = [];
+
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
     /// <summary>
@@ -53,6 +59,13 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+
+    public IReadOnlyList<EngineerNoteDisplay> EngineerNotes { get; private set; } = [];
+
+    public sealed record EngineerNoteDisplay(
+        string RecordedBy,
+        string Note,
+        DateTimeOffset RecordedAtUtc);
 
     /// <summary>
     /// Which section of the Case record the request addresses.
@@ -88,6 +101,7 @@ public sealed partial class DetailsModel(
     private static readonly Dictionary<string, string> LazySectionViews =
         new(StringComparer.Ordinal)
         {
+            ["engineer-notes"] = "/Pages/Cases/Shared/_CaseEngineerNotes.cshtml",
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
@@ -247,11 +261,22 @@ public sealed partial class DetailsModel(
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
+            if (!SectionIsDeferred("inspection"))
+            {
+                var choices = await inspectionAddressChoicesQueries.GetAsync(id, cancellationToken);
+                InspectionAddressChoices = choices is null
+                    ? []
+                    : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
+            }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
             EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
             if (!SectionIsDeferred("files"))
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
+            }
+            if (!SectionIsDeferred("engineer-notes"))
+            {
+                await LoadEngineerNotesAsync(id, cancellationToken);
             }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             RestoreProposedValues(id);
@@ -310,6 +335,10 @@ public sealed partial class DetailsModel(
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
+            if (key == "engineer-notes")
+            {
+                await LoadEngineerNotesAsync(id, cancellationToken);
+            }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             return Partial(view, this);
         }
@@ -330,6 +359,22 @@ public sealed partial class DetailsModel(
                 cancellationToken);
         }
         ImagesByIntake = imagesByIntake;
+    }
+
+    private async Task LoadEngineerNotesAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        var notes = await engineerNoteQueries.ListNewestFirstAsync(caseId, cancellationToken);
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccountQueries,
+            notes.Select(note => note.RecordedByStaffId),
+            cancellationToken);
+        EngineerNotes = notes.Select(note => new EngineerNoteDisplay(
+            ActorDisplayNames.Resolve(
+                ActorKind.Staff,
+                note.RecordedByStaffId.ToString("D"),
+                names),
+            note.Note,
+            note.RecordedAtUtc)).ToArray();
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(
@@ -442,6 +487,22 @@ public sealed partial class DetailsModel(
                 cancellationToken),
             "Case completeness was confirmed against the current policy.");
 
+    public Task<IActionResult> OnPostAddEngineerNoteAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string note,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "add_engineer_note",
+            actor => addEngineerNote.ExecuteAsync(
+                new(id, actor, expectedVersion, operationKey, note, editLeaseToken),
+                cancellationToken),
+            Labels.CaseWorkspace.EngineerNoteAdded);
+
     public Task<IActionResult> OnPostSaveAsync(
         Guid id,
         long expectedVersion,
@@ -472,6 +533,7 @@ public sealed partial class DetailsModel(
         // silently discarded the claimant's contact number and address.
         string? claimantContactNumber,
         string? claimantAddress,
+        string? storageLocation,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -503,9 +565,10 @@ public sealed partial class DetailsModel(
                         inspectionDate,
                         inspectionDeadline,
                         inspectionAddress,
-                        inspectionMode,
+                        CaseDataPolicy.InferInspectionMode(inspectionAddress),
                         claimantContactNumber,
-                        claimantAddress)),
+                        claimantAddress,
+                        storageLocation)),
                 cancellationToken),
             "Case data was saved. The case is Not ready until completeness is confirmed again.");
 
@@ -667,6 +730,7 @@ public sealed partial class DetailsModel(
             "inspectionDeadline" => data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionAddress" => data.Inspection.Address.Confirmed?.Value,
             "inspectionMode" => data.Inspection.Mode.Confirmed?.Value.ToString(),
+            "storageLocation" => data.Inspection.StorageLocation?.Confirmed?.Value,
 
             // The corrected-vehicle-suggestion form posts unprefixed names against the same case
             // fields, so the case's confirmed vehicle values are what it is compared with.
@@ -706,6 +770,7 @@ public sealed partial class DetailsModel(
         "inspectionDeadline" => "Inspection deadline",
         "inspectionAddress" => "Inspection address",
         "inspectionMode" => "Inspection mode",
+        "storageLocation" => Labels.CaseWorkspace.StorageLocation,
         "reason" => "Reason",
 
         // The completeness flags are labelled as the form the editor was looking at labelled them.
