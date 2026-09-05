@@ -56,7 +56,7 @@ public sealed class AssessmentVehiclePrefillWebTests
     }
 
     [Fact]
-    public async Task ExtractedVehicleFactsTakePrecedenceOverLookupObservation()
+    public async Task ConfirmedVehicleFactsTakePrecedenceOverLookupObservation()
     {
         var caseId = Guid.NewGuid();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -66,7 +66,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
-                var source = new FakeGetCase(caseId, includeExtractedFacts: true);
+                var source = new FakeGetCase(caseId, includeConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
@@ -89,7 +89,7 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.DoesNotContain("GOLF", html, StringComparison.Ordinal);
     }
 
-    private sealed class FakeGetCase(Guid caseId, bool includeExtractedFacts = false)
+    private sealed class FakeGetCase(Guid caseId, bool includeConfirmedFacts = false)
         : IGetCase, IGetAssessmentWorkspace
     {
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
@@ -111,7 +111,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             CaseDetails details = new(
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], [])
             {
-                Data = includeExtractedFacts ? Data(identity, workflow) : null,
+                Data = includeConfirmedFacts ? Data(identity, workflow) : null,
                 VehicleEvidence = new(caseId, null, observation, [observation], []),
             };
             return Task.FromResult<CaseDetails?>(details);
