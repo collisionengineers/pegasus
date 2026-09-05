@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Inspect-at fast update from claimant, repairer, storage location and principal
   address history
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: wf-build/case-041
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:09:37.240Z'
   review: '2026-09-04T19:44:07.304Z'
+  verifying: '2026-09-05T01:02:19.783Z'
 taken_at: '2026-09-04T18:27:38.085Z'
 branch: task/case-041-inspect-at-choices
 worktree: .worktrees/case-041
@@ -40,7 +41,7 @@ prs:
   - '664'
 archived: false
 created: '2026-09-02T20:31:38.819Z'
-updated: '2026-09-04T19:44:07.304Z'
+updated: '2026-09-05T01:02:19.783Z'
 ---
 
 ## What
