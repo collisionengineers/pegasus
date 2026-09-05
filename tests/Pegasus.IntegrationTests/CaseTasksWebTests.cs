@@ -1,3 +1,4 @@
+using System.Net;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -112,13 +113,14 @@ public sealed partial class CaseDetailsWebTests
     /// at once, so the Inspection section no longer carries a whole-record
     /// form of its own — its control is associated with the one record form,
     /// which is the only entry for `inspectionAddress`, and that one form
-    /// still carries all twenty editable values SaveCase writes.
+    /// still carries every editable value SaveCase writes.
     /// </summary>
     [Fact]
     public async Task InspectionAddressEditorContributesTheOnlyAddressEntryToTheRecordForm()
     {
         var store = new RecordingCaseDetailsStore();
-        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<Pegasus.Core.Address.IInspectionAddressChoicesQueries>(services, store));
 
         var page = await GetHtmlAsync(
             workspace.Client,
@@ -158,15 +160,30 @@ public sealed partial class CaseDetailsWebTests
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",
-            "inspectionMode"
+            "inspectionMode",
+            "storageLocation"
         })
         {
             Assert.Contains($"name=\"{field}\"", html, StringComparison.Ordinal);
         }
+
+        Assert.Contains("name=\"storageLocation\" form=\"case-edit-form\"", page, StringComparison.Ordinal);
+        var imageBased = page.IndexOf("value=\"ImageBasedAssessment\"", StringComparison.Ordinal);
+        var claimant = page.IndexOf("value=\"ClaimantAddress\"", StringComparison.Ordinal);
+        var repairer = page.IndexOf("value=\"RepairerLocation\"", StringComparison.Ordinal);
+        var storage = page.IndexOf("value=\"StorageLocation\"", StringComparison.Ordinal);
+        var previous = page.IndexOf("value=\"PreviousAddress\"", StringComparison.Ordinal);
+        var manual = page.IndexOf("value=\"ManualEntry\"", StringComparison.Ordinal);
+        Assert.True(imageBased >= 0 && imageBased < claimant && claimant < repairer && repairer < storage
+            && storage < previous && previous < manual);
+        var repairerOption = WebUtility.HtmlDecode(
+            page[repairer..page.IndexOf("</option>", repairer, StringComparison.Ordinal)]);
+        Assert.Contains("disabled", repairerOption, StringComparison.Ordinal);
+        Assert.Contains("Repairer location · not recorded", repairerOption, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The Overview editor writes the same twenty values, so it must carry the
+    /// The Overview editor writes the same editable values, so it must carry the
     /// claimant's own contact number and address too: SaveCase writes a null for
     /// anything the form omits, which cleared them on every save (CASE-027).
     /// </summary>
@@ -180,6 +197,7 @@ public sealed partial class CaseDetailsWebTests
 
         Assert.Contains("name=\"claimantContactNumber\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"claimantAddress\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"storageLocation\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
