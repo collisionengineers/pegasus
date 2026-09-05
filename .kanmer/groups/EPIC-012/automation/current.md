@@ -1,60 +1,54 @@
 # Current auto run — EPIC-012
 
-Run record: `automation/runs/20260904T103000Z-claude-fable.md` (continues
-`20260902T203000Z-claude-fable`). Status: **running** since 2026-09-04 10:30Z.
-Approved plan: `C:\Users\PC\.claude\plans\objective-plan-completion-lazy-haven.md`.
-Binding build policy: this group's `context.md` §Build policy (2026-09-04).
-Decision D51 (image-initiated principal, operator 2026-09-04):
-`decisions/d51-image-initiated-principal.md`.
+Run record: `automation/runs/20260904T103000Z-claude-fable.md`. Status:
+**running** (Phase B) as of 2026-09-05 03:00Z. Approved plan:
+`C:\Users\PC\.claude\plans\objective-plan-completion-lazy-haven.md`. Binding:
+`context.md` §Build policy; D51 in `decisions/d51-image-initiated-principal.md`.
 
-## Done
+## Merged to dev (Verifying, awaiting checkpoint V1)
 
-Wave 1 (PLAT-070 #649, DOCS-017 #651, ENG-035 #648, PLAT-068 #655, AUTO-018
-#654) verified together at `80f0ca262b0fe2ca354a5dfb18933dc3f105b917`.
+PLAT-069 #657 `8f3d0960` · UIIMP-015 #658 `df31d21a` · CASE-032 #659
+`e66e1069` · CASE-038 #656 `ddbbc5e8` · CASE-009 #665 `67ee1643` · CASE-039
+#669 `6e79f33d` · CASE-041 #664 `4fdfa21d`. Wave 1's five are Done.
 
-## Phase A — in progress (as of 13:40Z)
+## Phase B — in the merge queue (run `wf_ba05d301-711`)
 
-- **PLAT-069 merged** — PR #657, merge `8f3d0960`; Verifying, awaits V1.
-- **UIIMP-015 merged** — PR #658, merge `df31d21a` (scoped snapshot capture:
-  `Update-TestUiSnapshots.ps1 -Scope <prefixes> -CaptureFilter "<filter>"`);
-  Verifying, awaits V1. Every later lane uses the scoped form.
-- CASE-032 — PR #659; merge-prepped over UIIMP-015 (`ed0dc6ad`), review
-  returned two should-fix findings (blank labelled rows for absent values;
-  vacuous assignee assertion); fix round in progress.
-- CASE-038 — PR #656; the full capture completed and the real Case page is
-  committed (`b5f5ccda`, CI green); the fresh independent review found one
-  new blocker — the inspection address rendered with `form=` outside the
-  form's DOM subtree escapes the CASE-007 dirty guard, so Finish editing can
-  discard a typed address — plus a record-only finding; fix round in progress.
-- **CASE-045 pulled in** by the operator (created by another session at
-  10:21Z): prepared under D51; Phase B, after CASE-042, merging after CASE-043.
+1. CASE-042 #663 @ `44a5871b` — every review finding closed; regenerating the
+   queues snapshots with the FULL capture (scoped capture picked a different
+   `queues--empty` candidate than CI), then re-review and merge.
+2. ENG-034 #668 @ `c2a5d7e6` — merge-prep, review, merge (no migration).
+3. CASE-040 #666 @ `64889c42` — round-3 findings applied (Core-owned
+   once-only automatic refusal, Sign-off row on Current position, dead label
+   removed, Send page labels); merge-prep over ENG-034, review, merge.
+   Report generation on `dev` is closed by this ticket.
+4. CASE-029 #670 @ `ffa1effe` — merge-prep (regenerate migration), review.
+5. CASE-043 — starts and merges after CASE-029.
+6. CASE-045 — starts after CASE-042, merges after CASE-043.
 
-## Outside this run, affecting it
+## Lessons applied today
 
-- PR #660 (DELIV-046, other session) merges `origin/main`'s history into
-  `dev` through a repair branch, which would clear condition (1) on the
-  release PR. Not this run's to merge; lanes merge-prep over it if it lands.
+- Foreground bounded waits; resume branches; `fixFirst` for known findings.
+- UIIMP-015 exempt from the tooling no-touch rule; the bootstrap census file
+  and the runtime-role migration test are allowed for migration lanes.
+- Scoped capture limit: states with ambiguous matchers (queues) regenerate
+  with the full capture.
 
-## Merge queue (one at a time, in this order)
+## Other machine
 
-CASE-032, CASE-038 (as each is ready) · CASE-009, CASE-039, CASE-041,
-CASE-040, CASE-029, CASE-042, ENG-034, CASE-043, CASE-045 · ENG-029, ENG-036,
-ENG-031, DOCS-018 · UIIMP-014, DELIV-045.
+EPIC-013 (Linux/WSL) runs concurrently: PLAT-073 #661 and DELIV-046 #660
+merged to dev; UIIMP-016 #662 and DELIV-047 #667 open (docs-only overlap on
+`docs/design/README.md`). Not this run's tickets.
 
-## Checkpoints
+## Next
 
-V1 after ENG-034 merges; V-final after DELIV-045 merges (plus adversarial
-claims). Critic after Phase B and after Phase C.
+Checkpoint V1 (`case-workspace-v2-verify-3.js`) after ENG-034 merges: critic,
+one verification run, proofs, Done, closeout. Then Phase C (ENG-029, ENG-036,
+ENG-031, DOCS-018), Phase D (UIIMP-014, DELIV-045 + release PR), V-final.
 
 ## Carried forward
 
-1. Report generation is blocked on `dev` until CASE-040 wires the sign-off
-   Engineer through `EfAssessmentReportProjectionSource` (plan corrected
-   2026-09-04 to own that file). No promotion to `main` before then; release
-   needs explicit `MERGE AUTH GRANTED`.
-2. Migration ordering: regenerate after `dev`'s tail at merge prep.
-3. `origin/main` `32f8679d` is two commits ahead of `dev` — DELIV-046 (#660)
-   is repairing it; until it merges the release PR records the condition.
-4. Verify the artifact, not the gate.
-5. A wrapper that idles on a background command is forced to its final answer;
-   all long waits are bounded foreground loops (build-3 script, 11:30Z).
+1. No promotion to `main` before CASE-040's end-to-end draft proof at V1;
+   release needs explicit `MERGE AUTH GRANTED`.
+2. `main` ancestry repaired by DELIV-046; the release PR still records the
+   MERGE AUTH condition.
+3. Verify the artifact, not the gate.
