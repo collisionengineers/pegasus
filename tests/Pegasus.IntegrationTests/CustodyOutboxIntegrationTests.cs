@@ -1838,10 +1838,41 @@ public sealed class CustodyOutboxIntegrationTests
             transport,
             new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
             services.GetRequiredService<TimeProvider>());
+        var workStore = new EfEvaSubmissionWorkStore(contextFactory);
+        var claimedWork = Assert.IsType<EvaSubmissionWorkItem>(
+            await workStore.ClaimProcessingAsync(
+                workItemId,
+                FixedUtcNow,
+                TimeSpan.FromMinutes(5),
+                CancellationToken.None));
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => submitter.ExecuteAsync(
+            new(
+                claimedWork.CaseId,
+                ActionActor.SystemWorker("pegasus-worker"),
+                EvaSubmissionPolicy.AttemptOperationKey(
+                    claimedWork.OperationKey,
+                    claimedWork.AttemptCount),
+                EvaSubmissionTrigger.Automatic),
+            CancellationToken.None));
+
+        Assert.Equal(1, transport.CallCount);
+        await using (var expired = await contextFactory.CreateDbContextAsync())
+        {
+            var processingWork = await expired.ExternalWorkItems.SingleAsync(
+                item => item.Id == workItemId);
+            Assert.Equal("processing", processingWork.State);
+            Assert.Equal(
+                nameof(CaseLifecycleState.Review),
+                (await expired.CaseWorkflows.SingleAsync(
+                    item => item.CaseId == outcome.Identity.CaseId)).State);
+            processingWork.LeaseExpiresAtUtc = FixedUtcNow.AddMinutes(-1);
+            await expired.SaveChangesAsync();
+        }
+
         var processor = new ProcessQueuedEvaSubmission(
-            new EfEvaSubmissionWorkStore(contextFactory),
+            workStore,
             submitter,
-            services.GetRequiredService<TimeProvider>());
+            new MutableTimeProvider(FixedUtcNow));
 
         await processor.ExecuteAsync(workItemId, CancellationToken.None);
 
@@ -1860,6 +1891,7 @@ public sealed class CustodyOutboxIntegrationTests
         var completedWork = await verification.ExternalWorkItems.SingleAsync(
             item => item.Id == workItemId);
         Assert.Equal("completed", completedWork.State);
+        Assert.Equal(2, completedWork.AttemptCount);
         Assert.Equal("eva_submission_no_longer_applicable", completedWork.FailureCode);
         Assert.Null(completedWork.LeaseToken);
     }

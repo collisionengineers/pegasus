@@ -116,6 +116,27 @@ public static class EvaSubmissionPolicy
         };
 
     /// <summary>
+    /// Automatic submission is once-only because EVA has no idempotency and
+    /// a second instruction creates a second claim. Manual re-sends remain
+    /// explicit operator acts and are not constrained by this rule.
+    /// </summary>
+    public static void RequireOnceOnlyAutomaticSubmission(
+        EvaSubmissionTrigger trigger,
+        bool hasDeliveredSubmission)
+    {
+        switch (trigger)
+        {
+            case EvaSubmissionTrigger.Manual:
+            case EvaSubmissionTrigger.Automatic when !hasDeliveredSubmission:
+                return;
+            case EvaSubmissionTrigger.Automatic:
+                throw new EvaAutomaticSubmissionAlreadyDeliveredException();
+            default:
+                throw new ArgumentOutOfRangeException(nameof(trigger));
+        }
+    }
+
+    /// <summary>
     /// Whether a failed submission may be attempted again.
     ///
     /// Only <see cref="EvaSubmissionOutcome.Unknown"/> is retried, and this is

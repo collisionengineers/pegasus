@@ -271,3 +271,9 @@ public sealed class EvaSubmissionNotEnabledException(Guid caseId)
 {
     public Guid CaseId { get; } = caseId;
 }
+
+/// <summary>
+/// Automatic work for a case that has already been delivered to EVA.
+/// </summary>
+public sealed class EvaAutomaticSubmissionAlreadyDeliveredException()
+    : InvalidOperationException("The case already has a delivered EVA submission.");

@@ -1472,7 +1472,6 @@ public static class OperatorLabels
         public const string RibbonPrincipal = "Principal";
         public const string RibbonState = "State";
         public const string RibbonEngineer = "Engineer";
-        public const string RibbonSignOff = "Sign-off";
 
         /// <summary>
         /// What the record prints where a value it would show is not held.

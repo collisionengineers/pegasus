@@ -164,12 +164,14 @@ public sealed class ProcessQueuedEvaSubmission(
             throw;
         }
         // The case left Review, its principal switched the route off, it has
-        // no eligible signatory, or a version conflict was discovered after
-        // EVA accepted the transport and the delivery was durably recorded.
+        // no eligible signatory, it was already delivered, or a version
+        // conflict was discovered after EVA accepted the transport and the
+        // delivery was durably recorded.
         // These are answers, not faults: the work is finished and must not be
         // retried into existence.
         catch (Exception exception) when (exception is EvaHandoffStateException
             or EvaSubmissionNotEnabledException
+            or EvaAutomaticSubmissionAlreadyDeliveredException
             or EvaSignOffEngineerRequiredException
             or CaseVersionConflictException)
         {

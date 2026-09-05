@@ -386,6 +386,7 @@
                     <div class="decision-row"><span>Version</span><strong>@workflow.Version.ToString(CultureInfo.InvariantCulture)</strong></div>
                     <div class="decision-row"><span>Due</span><strong>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? OperatorLabels.CaseWorkspace.AbsentValue)</strong></div>
                     <div class="decision-row"><span>Engineer</span><strong>@(Model.EngineerDisplayName ?? "Unassigned")</strong></div>
+                    <div class="decision-row"><span>@OperatorLabels.CaseWorkspace.SignOffEngineer</span><strong>@Model.SignOffEngineerDisplayName</strong></div>
                     <div class="decision-row">
                         <span>Edit authority</span>
                         <strong>
