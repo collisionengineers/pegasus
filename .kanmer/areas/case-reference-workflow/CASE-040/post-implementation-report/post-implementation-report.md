@@ -803,3 +803,107 @@ re-run. No routed page, partial, or `catalogue.json` changed this round, so
 no snapshot procedure applies.
 
 Pushed: `3d82259f5..861391d9a task/case-040-sign-off-engineer-eva`.
+
+## Review round fixes (2026-09-05) — round 5
+
+PR: https://github.com/collisionengineers/pegasus/pull/666
+Branch: `task/case-040-sign-off-engineer-eva`
+Fixes commit: `41a92a1ed` (parent `861391d9ad6bc3a42e83d107fc0d219d5346e347`,
+round 4's own fixes commit and the branch tip at this round's review time).
+
+Codex was unavailable this round; the fixes below were applied directly by
+the wrapper (Claude) from a fix packet naming one BLOCKER and two
+SHOULD-FIX findings and the RULES that bind, and verified by the same
+agent (no separate independent-verification step this round).
+
+### Blocker 1 — stale queues--empty capture (0/0/0 replaced with 2/1/1)
+
+Fixed. `docs/design/test-ui/pages/queues--empty.html` had drifted from
+`origin/dev`'s committed capture — its nav-count read `2` instead of `0`,
+and its "Not ready"/"Unidentified" tab counts read `1`/`1` instead of
+`0`/`0` — while still keeping the `class="muted">0 items</span>` state
+matcher, so a scoped local `-Verify` passed while CI's full, unscoped
+capture regenerated the real 0/0/0 page and reported the file stale (runs
+33976995699 and 33974413448). CASE-040 renders nothing on the `/Cases`
+queues route, so no CASE-040 change should ever move this file; the round
+4 report's own "Should-fix 3" entry recorded the file's presence (from the
+`origin/dev` merge commit `916177da7` plus the regeneration commit
+`3d82259f5`) but did not catch that its content had diverged from what
+`origin/dev` actually carries.
+
+Restored with `git checkout origin/dev -- docs/design/test-ui/pages/queues--empty.html`
+(the finding's first fix option) rather than a full unscoped re-capture,
+since the target content is exactly `origin/dev`'s own committed file and
+no CASE-040 change touches that route. `git diff origin/dev -- docs/design/test-ui/pages/queues--empty.html`
+is now empty. Committed byte size at the new head: 29,803 bytes (`git
+cat-file -s`, matching `origin/dev`'s blob exactly — the larger `wc -c` a
+plain checkout reports locally is this workstation's `core.autocrlf=true`
+CRLF conversion on the working-tree copy, not a real content difference).
+
+**Files changed → Test UI correction:** the round-4 report's "Files
+changed" section never listed `queues--empty.html` as an owned CASE-040
+change (it only ever appeared via the `origin/dev` merge/regeneration
+commits, as round 4's own "Should-fix 3" entry states) — the finding's
+observation that the file count read three named snapshots against a
+four-file diff was about the branch's total working diff at review time,
+not this report's Test UI list, which already excluded the file. No
+"Files changed" edit was needed; that section stays accurate as written.
+
+### Should-fix 2 — stale comment named the dropped unique index as the once-only guard
+
+Fixed. `src/Pegasus.Infrastructure/Persistence/EvaSubmissionEntities.cs`'s
+`ExternalRef` doc comment said "the unique index below is what actually
+prevents the second send" — true before round 3's blocker-1 fix, false
+since `UX_EvaSubmissions_CaseDelivered` was dropped by this PR's migration
+and its configuration removed. Reworded to name
+`EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission` and the durable
+`ExternalWorkItems` row (D36) as the actual once-only owners, and to state
+that the database now deliberately permits an explicit manual re-send —
+matching the wording already carried by the sibling comments in
+`EvaSubmissionModelConfiguration.cs`, which the round-3 fix rewrote but
+this one sibling comment was missed.
+
+### Should-fix 3 — once-only guard proved only through the work-item wrapper, not the store directly
+
+Fixed. Added one direct-store assertion to the existing
+`CustodyOutboxIntegrationTests.AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying`:
+after the existing flow proves the guard through
+`ProcessQueuedEvaSubmission`'s exception-mapping onto the retried work
+item (transport called once, work item completes as
+`eva_submission_no_longer_applicable`), a further call directly against
+the test's own `EvaSubmissionStore` instance — with a wholly new,
+unrelated operation key, bypassing the work-item/processor plumbing
+entirely — is asserted to throw
+`EvaAutomaticSubmissionAlreadyDeliveredException` while `transport.CallCount`
+does not increase. This proves the once-only guard at the store level on
+its own terms (a fresh automatic submission call, not a retry of the same
+queued work item), complementing the existing Core-level
+`EvaSubmissionPolicyTests` coverage and the work-item-level completion
+proof already in this test. No existing assertion was weakened, removed,
+or duplicated to add this.
+
+### Nit 4 — accepted, deferred (no action this round)
+
+Left for the release task, per the reviewer's own disposition:
+`docs/current-architecture.md:587`'s stale claim that the export "does not
+take an edit lease or move the case version" is a current-architecture
+(as-built/deployed) snapshot fact, and CASE-040 is not yet deployed.
+
+### Commands run and exit codes (this round, in `.worktrees/case-040`)
+
+```
+dotnet restore ./Pegasus.slnx --locked-mode                                    — exit 0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore               — exit 0, 0 warnings, 0 errors
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build       — exit 0, 1252 passed
+dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build — exit 0, 100 passed
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CustodyOutboxIntegrationTests" — exit 0, 23 passed, 1 pre-existing skip
+```
+
+No migration changed this round, so `Test-MigrationGrants.ps1` was not
+re-run. No routed Razor page, partial, or `catalogue.json` changed this
+round — the restored `queues--empty.html` is a correction back to
+`origin/dev`'s already-correct content, not a page change — so no snapshot
+capture procedure applies; `Test-UiCatalogue.ps1` was not re-run for the
+same reason.
+
+Pushed: `861391d9a..41a92a1ed task/case-040-sign-off-engineer-eva`.
