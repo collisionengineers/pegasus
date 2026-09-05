@@ -94,3 +94,98 @@ suite and the Test UI verify are left to CI, which is the merge gate.
 CI at the reviewed head (`repository-check`, run `33955790118`) was
 `in_progress` at review time. **Not merged**: the blocker above must be
 dispositioned by the implementing lane first.
+
+# Review record — ENG-034 (PR https://github.com/collisionengineers/pegasus/pull/668) — re-review
+
+Reviewed head: `bd032ceb7cf0df5172de9a4c8940e08713034cbd` (branch
+`task/eng-034-engineer-sections-move`, confirmed by `git rev-parse HEAD` in
+the disposable review worktree `.worktrees/eng-034-review`). Head matches the
+one the controller named; the branch did not move during review.
+
+Reviewer models: the planned independent read by **gpt-5.6-terra xhigh** could
+not run — `codex exec` again returned `ERROR: You've hit your usage limit …
+try again at Sep 8th, 2026` (`CODEX_EXIT=1`, no output file), the same limit
+that blocked the first round and the fix round. The independent read was
+therefore performed by **Claude Opus** (this reviewer, who did not implement
+the ticket), reading the fix-round diff, the whole moved handler surface
+against its pre-move original
+(`99c27e906^:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs`), the four
+partials, the Core access policy, every changed test against its `origin/dev`
+version, and the three committed Case Details snapshots.
+
+Verdict: **REQUEST CHANGES** — one blocker (a second dropped `CanOpen`
+authorization gate on the moved `SendToClaude` handler, of the same class as
+round one's blocker, explicitly declined during the fix round), plus one
+report nit. Round one's findings 1, 2, 3 and 4 are confirmed closed.
+
+## Round-one findings — closed at this head?
+
+| # | Earlier finding | Closed? | Evidence |
+| --- | --- | --- | --- |
+| 1 | `CanOpen` mutation gate relaxed to `access is null`; proving test deleted | **Yes** | `Details.cshtml.cs:1240` and `:1469` now read `access?.CanOpen != true` / `importAccess?.CanOpen != true`, byte-identical to the pre-move original at `old:917` and `old:1140`. `AssessmentCanOpen` (`:230`) is set at `:444` on the same line-for-line path as `AssessmentIsReadOnly`, fails closed to `false`, and is ANDed into `SelectedEstimateIsEditable` / `CanBeDuplicated` / `CanBeCurrent` (`:255`, `:261`, `:267`) and into the New-estimate and import branches of `_CaseEstimate.cshtml` (`:8`, `:22`, `:39`) so those controls are absent, not disabled. `AssessmentCopyWebTests.InaccessibleCaseCannotPostEstimateMutations` posts `?handler=SaveEstimate` with `canOpen: false` and asserts 404; `GuardEstimateEditAsync`'s `CanOpen` check is its first non-actor check, so no other 404 path can satisfy the test and it genuinely fails without the fix. |
+| 2 | `ExtractedVehicleFactsTakePrecedenceOverLookupObservation` lost its negative half | **Yes** | `AssessmentVehiclePrefillWebTests.cs:88-89` restores `Assert.DoesNotContain("VOLKSWAGEN", …)` and `("GOLF", …)`. |
+| 3 | XML doc comments and the `Unpriced` inline comment dropped by the move | **Yes** | Restored on `OnPostSaveEstimateAsync`, `OnPostEditLineAsync`, `OnPostDuplicateEstimateAsync`, `OnPostDiscardEstimateAsync`, `OnPostSetCurrentEstimateAsync`, `OnPostImportEstimateAsync`, and the "Carried forward only while the line still has no price" comment at `Details.cshtml.cs:1024-1027`. |
+| 4 | `SpecificationLinesCaption` straight apostrophe | **Accepted risk** (unchanged, as dispositioned in round one). |
+| 5 | Stale snapshot byte sizes in the report | **Partly** — see finding 2 below. |
+
+The fix round's "no snapshot recapture needed" claim was independently
+verified and **holds**: `grep -c` for `New estimate`, `Import estimate`,
+`Save estimate`, `Delete estimate`, `Duplicate`, `Use estimate` and `Add line`
+returns 0 in both `case-details--default.html` and
+`case-details--conflict.html`, so ANDing `AssessmentCanOpen` onto conditions
+that were already false changes no rendered byte, and CI will not report a
+stale page.
+
+## Findings and dispositions
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs:1621-1628` (`HasAssessmentAccessAsync`), called from `:938` in `OnPostSendToClaudeAsync`; `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml:48`, `:367`, `:378` | The move rewrote the pre-move `CanAccessAsync` — `(await getAssessmentAccess.ExecuteAsync(…))?.CanOpen == true` (`99c27e906^:…/Assessment/Index.cshtml.cs:1372-1378`) — into `HasAssessmentAccessAsync`, which returns `… is not null`. `OnPostSendToClaudeAsync` therefore now creates an `AiJobKind.Estimate` job for a case whose assessment workspace has not opened under D11, where the pre-move handler returned `NotFound()`. This is the identical defect class round one blocked on the estimate-mutation guards, and it is materially worse than it was pre-move: the old Assessment page also 404'd the whole GET when `!access.CanOpen` (`old:420-424`), so the handler check was a second line of defence; under D30 the Estimate section always renders, making the handler gate the *only* defence. `CanOpen == false && IsReadOnly == false` is not an exotic state — `AssessmentAccessPolicy` (`src/Pegasus.Core/Assessment/AssessmentWorkspace.cs:45-53`) makes it true of every case before `ReportPreparation`, i.e. the ordinary Review-stage case. The Send to Claude entry and its POST form are gated only on `!AssessmentIsReadOnly && SendToClaudeCondition is null`, and `SendToClaudeCondition` (`Details.cshtml.cs:563-576`) considers read-only, the AI toggle and `EngineerValue` but **not** `CanOpen` — so the control is UI-reachable on such a case whenever a confirmed Engineer's value exists, and craftable by any Engineer with a valid token otherwise. No test covers the refusal in either the `origin/dev` or the head version of `SendToAiIntegrationTests.cs`, which is why the whole suite is green. The fix round declined this explicitly ("`OnPostSendToClaudeAsync`/`HasAssessmentAccessAsync` was NOT touched — not named in the finding, out of this ticket's scope"); that is not a valid disposition — `SendToClaude` is named in the ticket body, the plan's Resolutions item 1 and the report's own list of the moved handler surface, and the plan's binding instruction is "move, do not rewrite". | **Fix.** Restore the `CanOpen` semantics on `HasAssessmentAccessAsync` (i.e. `?.CanOpen == true`, matching the pre-move helper), and add a test proving `OnPostSendToClaudeAsync` returns `404` with `canOpen: false` on the Case handler host — the same shape as the `InaccessibleCaseCannotPostEstimateMutations` retarget this round already landed. Also gate the Send to Claude entry and dialog on `AssessmentCanOpen`, or add `CanOpen` to `SendToClaudeCondition`, so the control is absent rather than a dead end. Returned to the implementing lane. |
+| 2 | nit | `post-implementation-report.md` § Review round fixes → "Snapshot byte sizes restated at this reviewed head" | The restated sizes for `case-details--default.html` (69,470) and `case-details--conflict.html` (42,707) are correct at this head, but `case-details--unavailable.html` is restated as 24,390 bytes when the committed file is **24,694** bytes (`wc -c` in the review worktree). The other artifact facts hold: both Case pages begin `<!DOCTYPE html>`, carry `class="case-sticky"` once, expose exactly eleven `id="section-*"` hosts (damage, engineer-notes, estimate, files, inspection, notes, overview, report, settlement, valuation, vehicle) and contain no `<img src="#">`. | **Fix on the next report edit** (fold into the same round as finding 1). |
+
+## What was verified and found correct
+
+- Only owned paths changed. `git diff --stat origin/dev...HEAD` lists exactly
+  the 21 files the ticket's `files.md` and the parallel-build policy allow —
+  no `Pegasus.Core`, `Pegasus.Infrastructure`, `site.css`, `site.js`,
+  `TestUiSnapshotTests.cs`, `ci.yml` or `scripts/*.ps1` edit. No migration is
+  added, so `Test-MigrationGrants.ps1` is correctly not applicable. No package
+  reference changed (the locked restore passed).
+- `AssessmentCanOpen` is populated on exactly the path that populates
+  `AssessmentIsReadOnly`, from the same single `getAssessmentAccess` call — no
+  extra query — and defaults to `false`, so no path can report `true` when the
+  restored backend guard would 404.
+- `/Cases/{id}/Assessment` is a `RedirectPermanent` to
+  `/Cases/{id}?section=estimate` with the exact 301 + `Location` assertion in
+  `AssessmentCopyWebTests`; zero POST handlers remain on the retired page
+  model.
+- Every control drawn by the four partials names a handler that exists on
+  `Details.cshtml.cs` with a `method="post"` form and antiforgery.
+- `OnPostGenerateReportDraftAsync` is a faithful move — only the host-specific
+  `TempData` key and redirect target changed — and its access check stays in
+  Core (`AssessmentReportProjection.cs:434` checks `access?.CanOpen != true`),
+  so report-draft policy is not duplicated in Web.
+- No test lost an assertion this round; the checklist and the report otherwise
+  match the diff, and the simplification pass names its two applied fixes with
+  honest "not applicable" dispositions on the other three lenses.
+
+## Commands run and exit codes (review worktree `.worktrees/eng-034-review`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git rev-parse HEAD` | 0 | `bd032ceb7cf0df5172de9a4c8940e08713034cbd` — matches the reviewed head. |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --configuration Release --no-build` | 0 | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --configuration Release --no-build` | 0 | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "…AssessmentCopyWebTests\|…AssessmentEstimateImportWebTests\|…AssessmentVehiclePrefillWebTests\|…CaseEngineerSectionsWebTests\|…AssessmentReportDraftWebTests\|…SendToAiIntegrationTests"` | 0 | 37 passed. |
+| `codex exec -m gpt-5.6-terra …` (independent read) | 1 | Usage limit until Sep 8; no output. Read performed by Claude Opus instead. |
+
+That scope covers the change: the Release build compiles every changed Razor
+partial and page model, the Architecture tests prove the dependency direction
+after moving a handler surface between composition-root pages, and the six
+integration classes are the complete set of test files the diff touches plus
+the new one. The suite passing while finding 1 stands is itself the evidence
+that the dropped `SendToClaude` gate is uncovered. No snapshot recapture was
+run or needed (see above). CI on the exact head was not gated on, because the
+blocker returns the ticket to the implementing lane before merge.
