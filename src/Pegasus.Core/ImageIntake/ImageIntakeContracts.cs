@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -28,7 +29,8 @@ public sealed record ImageIntakeRecord(
     DateTimeOffset? ClosedAtUtc = null,
     long LifecycleVersion = 0,
     Guid? SubmissionGroupId = null,
-    Guid? PendingExternalWorkId = null);
+    Guid? PendingExternalWorkId = null,
+    Guid? PrincipalId = null);
 
 public enum ImageInitiatedCaseState
 {
@@ -117,7 +119,8 @@ public sealed record ImageIntakeSummary(
     ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
     string? ClosureReason = null,
     int ImageCount = 0,
-    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload);
+    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload,
+    string? PrincipalCode = null);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,
@@ -133,19 +136,21 @@ public sealed record ImageIntakeLifecycleEvent(
     string? CaseReference = null);
 
 /// <summary>
-/// The record plus the context that is not part of it: when it was registered
-/// and the origin receipt's current Case association. The Image-initiated
-/// lifecycle is not restated here — <see cref="Record"/> is its one owner and
-/// these forward to it, so the two can never disagree. Lifecycle history is a
-/// separate read (<see cref="IImageIntakeStore.ListHistoryAsync"/>): only the
-/// Image-initiated Case page renders it.
+/// The record plus the context that is not part of it: when it was registered,
+/// the optional principal's display code and the origin receipt's current Case
+/// association. The Image-initiated lifecycle is not restated here —
+/// <see cref="Record"/> is its one owner and these forward to it, so the two can
+/// never disagree. Lifecycle history is a separate read
+/// (<see cref="IImageIntakeStore.ListHistoryAsync"/>): only the Image-initiated
+/// Case page renders it.
 /// </summary>
 public sealed record ImageIntakeDetail(
     ImageIntakeRecord Record,
     DateTimeOffset RegisteredAtUtc,
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
-    ImageCustodyState? Custody = null)
+    ImageCustodyState? Custody = null,
+    string? PrincipalCode = null)
 {
     public ImageInitiatedCaseState State => Record.State;
 
@@ -179,6 +184,12 @@ public sealed record CloseImageInitiatedCaseRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
+    long ExpectedVersion);
+
+public sealed record SetImageIntakePrincipalRequest(
+    Guid ImageIntakeId,
+    Guid? PrincipalId,
+    ActionActor Actor,
     long ExpectedVersion);
 
 /// <summary>
@@ -228,6 +239,10 @@ public interface IImageIntakeQueries
     Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
         string normalizedVehicleRegistration,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Principal>>([]);
 }
 
 /// <summary>
@@ -243,8 +258,9 @@ public sealed record ImageIntakeOperationReplay(ImageIntakeRecord Result);
 /// per-VRM Image Intake Reference atomically (a reference is never reused),
 /// verifies the origin against the persisted receipt and evaluation revision,
 /// and moves the receipt's decision to `ImageIntakeRegistered` in the same
-/// transaction. Registration identity is immutable after creation — only the
-/// Image-initiated lifecycle columns change, and only through
+/// transaction. Registration source identity, VRM and Image Intake Reference
+/// are immutable after creation. The optional principal changes only through
+/// <see cref="SetPrincipalAsync"/>, while lifecycle columns change only through
 /// <see cref="MergeAsync"/>/<see cref="CloseAsync"/>; case association lives
 /// exclusively on the origin receipt.
 /// </summary>
@@ -278,6 +294,11 @@ public interface IImageIntakeStore : IImageIntakeQueries
         CloseImageInitiatedCaseRequest request,
         CancellationToken cancellationToken) =>
         Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    Task<ImageIntakeRecord> SetPrincipalAsync(
+        SetImageIntakePrincipalRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-intake principal assignment is not available."));
 
     Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,

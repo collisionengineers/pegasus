@@ -34,6 +34,20 @@ public sealed class RegisterImageIntake(
 
 public static class ImageIntakeLifecycleRules
 {
+    public static void ValidateSetPrincipal(SetImageIntakePrincipalRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor, nameof(request));
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        RequireId(request.ImageIntakeId, nameof(request.ImageIntakeId));
+        if (request.PrincipalId == Guid.Empty)
+        {
+            throw new ArgumentException("A principal identifier cannot be empty.", nameof(request));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedVersion);
+    }
+
     /// <summary>
     /// Merge is reached from the automatic pairing paths as well as a staff
     /// link, so it accepts the system worker on the same terms as automatic
