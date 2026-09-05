@@ -22,10 +22,11 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 /// <remarks>
 /// The rail groups are Workflow (Not ready, Review, With Engineer, Complete),
-/// Pre-Case work (Triage) and Exceptions (Held, Unidentified). With Engineer
-/// and Complete are display groupings of Core states (D3); the other terminal
-/// outcomes are not listed here. Blocked intake rows sit in the Unidentified
-/// group with their own chip and are not counted (D14).
+/// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
+/// Unidentified). With Engineer and Complete are display groupings of Core
+/// states (D3); the other terminal outcomes are not listed here. Blocked
+/// intake rows sit in the Unidentified group with their own chip and are not
+/// counted (D14).
 ///
 /// The group is <c>?tab=</c>; the pre-EPIC-011 <c>?queue=</c> is accepted as
 /// an alias and the README's hyphenated spellings normalise to the same keys.
@@ -340,7 +341,17 @@ public sealed class IndexModel(
             : Rows.Count > 0 ? Rows[0] : null;
         if (SelectedId is not null && selectedRow is null)
         {
-            return NotFound();
+            if (Queue != "awaiting")
+            {
+                return NotFound();
+            }
+
+            // A row just attached to a case leaves the Awaiting instruction queue
+            // (LoadAwaitingAsync excludes it), so a redirect that named it as
+            // `selected` no longer resolves. Drop the stale selection instead of
+            // 404ing past the just-written confirmation.
+            SelectedId = null;
+            selectedRow = Rows.Count > 0 ? Rows[0] : null;
         }
 
         if (selectedRow is not null)

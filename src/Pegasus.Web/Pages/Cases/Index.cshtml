@@ -33,7 +33,7 @@
 
 @if (TempData["UploadConfirmationError"] is string uploadConfirmationError)
 {
-    <div class="alert alert--error" role="alert">@uploadConfirmationError</div>
+    <div class="validation-summary" role="alert">@uploadConfirmationError</div>
 }
 
 @if (IndexModel.ListsCases(Model.Queue))
@@ -261,11 +261,11 @@
                                 <input type="hidden" name="receiptId" value="@receiptId" />
                                 <div class="field">
                                     <label for="attach-reference">Case reference</label>
-                                    <input id="attach-reference" name="reference" required />
+                                    <input id="attach-reference" name="reference" required maxlength="60" />
                                 </div>
                                 <div class="field">
                                     <label for="attach-reason">Reason</label>
-                                    <textarea id="attach-reason" name="reason" required></textarea>
+                                    <textarea id="attach-reason" name="reason" required maxlength="500"></textarea>
                                 </div>
                                 <div class="button-row section-gap">
                                     <button type="submit" class="btn btn--dark">Add to an existing case</button>
