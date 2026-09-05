@@ -1,0 +1,115 @@
+@model Pegasus.Web.Pages.Cases.EvaHandoffViewModel
+@using Pegasus.Core.Workflow
+@using Pegasus.Web.Presentation
+@{
+    var editing = !string.IsNullOrWhiteSpace(Model.EditLeaseToken);
+    var inReview = Model.State == CaseLifecycleState.Review;
+    var canSelectSignOff = editing && Model.State is CaseLifecycleState.Review
+        or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+}
+
+@if (editing && inReview && Model.EngineerOptions.Count > 0)
+{
+    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@Model.CaseId"
+          asp-page-handler="AssignEngineer" class="stack">
+        <input type="hidden" name="id" value="@Model.CaseId" />
+        <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion" />
+        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
+        <input type="hidden" name="instructionsComplete" value="@Model.InstructionsComplete" />
+        <input type="hidden" name="imagesComplete" value="@Model.ImagesComplete" />
+        <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
+        <div class="field">
+            <label class="req" for="eva-engineer">@OperatorLabels.CaseWorkspace.RibbonEngineer</label>
+            <select id="eva-engineer" name="engineerId" required data-dialog-initial-focus>
+                <option value=""></option>
+                @foreach (var engineer in Model.EngineerOptions)
+                {
+                    <option value="@engineer.Id">@engineer.Name</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label class="req" for="eva-engineer-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+            <input id="eva-engineer-reason" name="reason" required maxlength="500" />
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn--dark">@OperatorLabels.CaseWorkspace.AssignEngineer</button>
+        </div>
+    </form>
+}
+else
+{
+    <dl class="definition">
+        <dt>@OperatorLabels.CaseWorkspace.RibbonEngineer</dt>
+        <dd>@Model.EngineerDisplayName</dd>
+    </dl>
+}
+
+@if (canSelectSignOff && Model.SignOffEngineerOptions.Count > 0)
+{
+    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@Model.CaseId"
+          asp-page-handler="SetSignOffEngineer" class="stack">
+        <input type="hidden" name="id" value="@Model.CaseId" />
+        <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion" />
+        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
+        <div class="field">
+            <label class="req" for="eva-sign-off-engineer">@OperatorLabels.CaseWorkspace.SignOffEngineer</label>
+            <select id="eva-sign-off-engineer" name="signOffEngineerId" required>
+                @foreach (var engineer in Model.SignOffEngineerOptions)
+                {
+                    <option value="@engineer.Id" selected="@(engineer.Id == Model.SignOffEngineerId)">@engineer.Name</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label class="req" for="eva-sign-off-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+            <input id="eva-sign-off-reason" name="reason" required maxlength="500" />
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn--dark">@OperatorLabels.CaseWorkspace.SetSignOffEngineer</button>
+        </div>
+    </form>
+}
+else
+{
+    <dl class="definition">
+        <dt>@OperatorLabels.CaseWorkspace.SignOffEngineer</dt>
+        <dd>@Model.SignOffEngineerDisplayName</dd>
+    </dl>
+}
+
+<div class="cluster">
+    <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@Model.CaseId"
+          asp-page-handler="Bundle">
+        <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
+        <button type="submit" class="btn">
+            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+            <span>@OperatorLabels.CaseWorkspace.DownloadZip</span>
+        </button>
+    </form>
+    @if (Model.ApiComposed)
+    {
+        <form method="post" asp-page="/Cases/Eva/Send" asp-route-caseId="@Model.CaseId"
+              asp-page-handler="Submit">
+            <input type="hidden" name="operationKey" value="@Model.SubmitOperationKey" />
+            @if (Model.ApiEnabled)
+            {
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                    <span>@OperatorLabels.CaseWorkspace.SendViaApi</span>
+                </button>
+            }
+            else
+            {
+                <span class="gated" data-condition="@OperatorLabels.CaseWorkspace.EvaApiNotEnabled">
+                    <button type="button" class="btn btn--primary" disabled>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>@OperatorLabels.CaseWorkspace.SendViaApi</span>
+                    </button>
+                </span>
+            }
+        </form>
+    }
+</div>

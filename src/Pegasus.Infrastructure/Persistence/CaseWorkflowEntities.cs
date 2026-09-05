@@ -7,6 +7,7 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public required string State { get; set; }
     public string? PreHoldState { get; set; }
     public Guid? AssignedEngineerId { get; set; }
+    public Guid? SignOffEngineerId { get; set; }
     public Guid? ReportApprovalId { get; set; }
     public CaseReportApprovalEntity? ReportApproval { get; set; }
     public Guid? ReportSentEvidenceId { get; set; }

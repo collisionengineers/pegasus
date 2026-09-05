@@ -510,7 +510,10 @@ public sealed class EfCaseQueryStore(
                 : Enum.Parse<CaseClosureOutcome>(entity.ClosureOutcome),
             entity.OriginalCaseId,
             entity.ReplacementCaseId,
-            entity.Version);
+            entity.Version)
+        {
+            SignOffEngineerId = entity.SignOffEngineerId
+        };
         if (entity.ArchivedAtUtc is null)
         {
             if (entity.ArchivedByKind is not null

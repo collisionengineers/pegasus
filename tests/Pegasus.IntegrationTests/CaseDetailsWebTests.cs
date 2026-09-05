@@ -63,9 +63,10 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.NotReady, false)]
-    [InlineData(CaseLifecycleState.ReportPreparation, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true)]
+    [InlineData(CaseLifecycleState.PostReport, true)]
     [InlineData(CaseLifecycleState.Review, true)]
-    public async Task SendToEvaRendersOnlyInReview(CaseLifecycleState state, bool offersHandoff)
+    public async Task SendToEvaRendersInReviewAndWithEngineer(CaseLifecycleState state, bool offersHandoff)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore { State = state };
@@ -700,16 +701,19 @@ public sealed partial class CaseDetailsWebTests
             prefetched.Content.Headers.ContentType?.MediaType);
     }
 
-    [Fact]
-    public async Task SendPageRendersItsChoiceForAReviewCase()
+    [Theory]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    public async Task SendPageRendersItsChoiceInReviewAndWithEngineer(CaseLifecycleState state)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { CaseState = CaseLifecycleState.Review };
+        var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
         var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true, Automatic: false));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 Substitute<ICaseDataQueries>(services, store);
+                Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IEvaSubmissionQueries>(services, evaStores);
                 Substitute<IEvaSubmissionModeStore>(services, evaStores);
                 // The page treats an uncomposed transport as "no API route":
@@ -735,7 +739,8 @@ public sealed partial class CaseDetailsWebTests
             html,
             StringComparison.Ordinal);
         Assert.Contains("<span>Send via API</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Download export</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Download ZIP</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Download EVA package", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1909,6 +1914,7 @@ public sealed partial class CaseDetailsWebTests
         IHoldCase,
         IReleaseCase,
         ITransitionCase,
+        ICaseWorkflowQueries,
         IConfirmCompleteness,
         ISaveCase,
         IEngineerNoteQueries,
@@ -2042,6 +2048,16 @@ public sealed partial class CaseDetailsWebTests
         /// </summary>
         public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? CreateData() : null);
+
+        Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) => Task.FromResult<CaseWorkflowRecord?>(
+                caseId == CaseId ? CreateWorkflow() : null);
+
+        Task<bool> ICaseWorkflowQueries.HasOperationAsync(
+            Guid caseId,
+            string operationKey,
+            CancellationToken cancellationToken) => Task.FromResult(false);
 
         Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
             Guid caseId,

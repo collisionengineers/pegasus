@@ -1,6 +1,7 @@
 ﻿using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
@@ -162,12 +163,17 @@ public sealed class ProcessQueuedEvaSubmission(
         {
             throw;
         }
-        // The case left Review, its principal switched the route off, or it
-        // already reached EVA. All three are answers, not faults: the work is
-        // finished and must not be retried into existence.
-        catch (Exception exception) when (exception is CaseNotInReviewException
+        // The case left Review, its principal switched the route off, it has
+        // no eligible signatory, it was already delivered, or a version
+        // conflict was discovered after EVA accepted the transport and the
+        // delivery was durably recorded.
+        // These are answers, not faults: the work is finished and must not be
+        // retried into existence.
+        catch (Exception exception) when (exception is EvaHandoffStateException
             or EvaSubmissionNotEnabledException
-            or EvaAlreadySubmittedException)
+            or EvaAutomaticSubmissionAlreadyDeliveredException
+            or EvaSignOffEngineerRequiredException
+            or CaseVersionConflictException)
         {
             await RecordAsync(
                 workItem,

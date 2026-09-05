@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -131,6 +132,8 @@ public sealed class OperatorJourneyTests
         Assert.DoesNotContain("preparing", filesText, StringComparison.OrdinalIgnoreCase);
         AssertOperatorSafe(filesText, accepted.CaseId);
 
+        await AssignEligibleEngineerAsync(support.Services, accepted.CaseId);
+
         // ENG-016: one act, and it answers with the file rather than a
         // redirect. The case's handoff dialog needs script and this journey
         // runs without it, so the export starts from the Send page — the
@@ -148,8 +151,9 @@ public sealed class OperatorJourneyTests
             await support.Page.Locator("main").InnerTextAsync(),
             accepted.CaseId);
 
-        // Exporting again is the same act, not a revision: same archive, same
-        // name. The once-per-case proxy behind it is asserted in
+        // The case is now in ReportPreparation. Sending again is the D36
+        // re-send: same archive and name, with no further state change. The
+        // once-per-case proxy behind it is asserted in
         // CustodyOutboxIntegrationTests, which can read the row.
         var secondDownload = await ExportByKeyboardAsync(support.Page);
         Assert.Equal(firstDownload.SuggestedFilename, secondDownload.SuggestedFilename);
@@ -422,6 +426,77 @@ public sealed class OperatorJourneyTests
         Assert.Equal(DocumentCustodyStatus.Confirmed, added.Version.CustodyStatus);
     }
 
+    private static async Task AssignEligibleEngineerAsync(
+        IServiceProvider services,
+        Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        services = scope.ServiceProvider;
+        var engineerId = Guid.NewGuid();
+        await using (var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var roleName = StaffRole.Engineer.ToString();
+            var normalizedRoleName = roleName.ToUpperInvariant();
+            var identityRole = await context.Roles.SingleOrDefaultAsync(
+                item => item.NormalizedName == normalizedRoleName);
+            if (identityRole is null)
+            {
+                identityRole = new IdentityRole<Guid>
+                {
+                    Id = Guid.NewGuid(),
+                    Name = roleName,
+                    NormalizedName = normalizedRoleName,
+                    ConcurrencyStamp = Guid.NewGuid().ToString("N")
+                };
+                context.Roles.Add(identityRole);
+            }
+
+            var userName = $"browser-engineer-{engineerId:N}";
+            var signature = new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
+            context.Users.Add(new PegasusIdentityUser
+            {
+                Id = engineerId,
+                UserName = userName,
+                NormalizedUserName = userName.ToUpperInvariant(),
+                IsEnabled = true,
+                MustChangePassword = false,
+                IsSignOffEngineer = true,
+                SignOffPrintedName = "Browser Journey Engineer",
+                SignOffSignature = signature,
+                SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(signature)),
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            });
+            context.UserRoles.Add(new IdentityUserRole<Guid>
+            {
+                UserId = engineerId,
+                RoleId = identityRole.Id
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(await services
+            .GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(caseId, CancellationToken.None));
+        var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(caseId, workflow.Version, actor, $"browser-engineer-lease:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        await services.GetRequiredService<IAssignCaseEngineer>().ExecuteAsync(
+            new AssignCaseEngineerRequest(
+                caseId,
+                workflow.Version,
+                actor,
+                $"browser-engineer-assignment:{Guid.NewGuid():N}",
+                "Assign enabled Engineer for browser export journey.",
+                lease.Token,
+                engineerId,
+                new(true, true, "accepted-readiness")),
+            CancellationToken.None);
+    }
+
     private static int CountOccurrences(string haystack, string needle)
     {
         var count = 0;
@@ -464,7 +539,7 @@ public sealed class OperatorJourneyTests
             "The export journey must be on the Send page.");
         var button = page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Download export", Exact = true });
+            new PageGetByRoleOptions { Name = "Download ZIP", Exact = true });
         Assert.True(await button.IsVisibleAsync(), await page.Locator("main").InnerTextAsync());
         Assert.True(await button.IsEnabledAsync(), await page.Locator("main").InnerTextAsync());
         var responseTask = page.WaitForResponseAsync(value =>

@@ -476,10 +476,23 @@ public sealed class EfCaseWorkflowStore(
             return Task.CompletedTask;
         }, cancellationToken);
 
-    public Task<CaseWorkflowRecord> AssignEngineerAsync(AssignCaseEngineerRequest request, CancellationToken cancellationToken) =>
+    public Task<CaseWorkflowRecord> AssignEngineerAsync(
+        AssignCaseEngineerRequest request,
+        Guid? signOffEngineerId,
+        CancellationToken cancellationToken) =>
         MutateAsync(request, "case_engineer_assigned", (context, workflow, now) =>
         {
             workflow.AssignedEngineerId = request.EngineerId;
+            workflow.SignOffEngineerId = signOffEngineerId;
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+    public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
+        SetCaseSignOffEngineerRequest request,
+        CancellationToken cancellationToken) =>
+        MutateAsync(request, "case_sign_off_engineer_selected", (context, workflow, now) =>
+        {
+            workflow.SignOffEngineerId = request.SignOffEngineerId;
             return Task.CompletedTask;
         }, cancellationToken);
 
@@ -1426,7 +1439,8 @@ public sealed class EfCaseWorkflowStore(
         entity.ReplacementCaseId,
         entity.Version)
     {
-        Archive = MapArchive(entity)
+        Archive = MapArchive(entity),
+        SignOffEngineerId = entity.SignOffEngineerId
     };
     private static CaseArchive? MapArchive(CaseWorkflowEntity entity)
     {
@@ -1457,6 +1471,7 @@ public sealed class EfCaseWorkflowStore(
             entity.State,
             entity.PreHoldState,
             entity.AssignedEngineerId,
+            entity.SignOffEngineerId,
             entity.ReportApprovalId,
             entity.ReportSentEvidenceId,
             entity.ClosureOutcome,
@@ -1560,6 +1575,7 @@ public sealed class EfCaseWorkflowStore(
         string State,
         string? PreHoldState,
         Guid? AssignedEngineerId,
+        Guid? SignOffEngineerId,
         Guid? ReportApprovalId,
         Guid? ReportSentEvidenceId,
         string? ClosureOutcome,

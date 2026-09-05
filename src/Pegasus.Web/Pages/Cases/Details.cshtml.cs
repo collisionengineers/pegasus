@@ -56,7 +56,6 @@ public sealed partial class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
-    IEvaSubmissionQueries evaSubmissionQueries,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
@@ -138,31 +137,14 @@ public sealed partial class DetailsModel(
         && LazySectionViews.ContainsKey(key);
 
     /// <summary>
-    /// Whether the case has been exported as an EVA bundle at least once,
-    /// read from the history event the export itself writes.
-    /// </summary>
-    public bool HasExportedBundle { get; private set; }
-
-    /// <summary>
     /// The assigned Engineer's operator-facing name, resolved through the one
     /// staff-account query; null while no Engineer is assigned.
     /// </summary>
     public string? EngineerDisplayName { get; private set; }
 
-    /// <summary>
-    /// The named Engineer accounts offered by the EVA handoff dialog, loaded
-    /// only while the case is in Review (the only state that hands off).
-    /// </summary>
-    public IReadOnlyList<EngineerOption> EngineerOptions { get; private set; } = [];
+    public string SignOffEngineerDisplayName { get; private set; } = Labels.CaseWorkspace.Unassigned;
 
-    /// <summary>
-    /// Whether the EVA handoff dialog offers the API submission: the host
-    /// composed a transport, the principal enabled manual submission, and the
-    /// case has not already reached EVA.
-    /// </summary>
-    public bool CanSubmitToEva { get; private set; }
-
-    public sealed record EngineerOption(Guid Id, string Name);
+    public EvaHandoffViewModel? EvaHandoff { get; private set; }
 
     /// <summary>
     /// One outstanding requirement on the case: the completeness flags the
@@ -1668,10 +1650,9 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The values the workspace frame names that the case projection does not
-    /// carry directly: whether an EVA bundle export has ever happened, the
-    /// assigned Engineer's account name, and — only in Review, the one state
-    /// that hands off — the named Engineer accounts and whether the API
-    /// submission is a route this principal allows.
+    /// carry directly: the assigned and Sign-off Engineer names, the Engineer
+    /// choices available in Review, and whether API submission is a composed
+    /// route this principal allows.
     /// </summary>
     private async Task DescribeWorkspaceExtrasAsync(CancellationToken cancellationToken)
     {
@@ -1680,42 +1661,53 @@ public sealed partial class DetailsModel(
             return;
         }
 
-        HasExportedBundle = details.History.Any(entry =>
-            string.Equals(
-                entry.EventType,
-                EvaHandoffPolicy.BundleExportedHistoryEventKind,
-                StringComparison.Ordinal));
-
         if (workflow.AssignedEngineerId is { } engineerId)
         {
             var account = await staffAccountQueries.GetAsync(engineerId, cancellationToken);
             EngineerDisplayName = account?.UserName ?? ActorDisplayNames.UnknownStaff;
         }
 
-        if (workflow.State != CaseLifecycleState.Review)
+        var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+        var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            profiles);
+        SignOffEngineerDisplayName = signOffEngineer?.PrintedName
+            ?? Labels.CaseWorkspace.Unassigned;
+
+        IReadOnlyList<EvaHandoffEngineerOption> engineerOptions = [];
+        if (workflow.State == CaseLifecycleState.Review)
         {
-            return;
+            var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
+            engineerOptions = accounts.Accounts
+                .Where(account => account.IsEnabled && account.Roles.Contains(StaffRole.Engineer))
+                .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
+                .ToArray();
         }
 
-        var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
-        EngineerOptions = accounts.Accounts
-            .Where(account => account.IsEnabled && account.Roles.Contains(StaffRole.Engineer))
-            .Select(account => new EngineerOption(account.Id, account.UserName))
-            .ToArray();
-
-        var latestSubmission = await evaSubmissionQueries.GetLatestAsync(
-            workflow.CaseId,
-            cancellationToken);
         var modes = submitCaseToEva is null
             ? EvaSubmissionModes.Disabled
             : await evaModeStore.GetForPrincipalAsync(
                 workflow.Identity.PrincipalCode,
                 cancellationToken);
-        // Delivered, not merely succeeded: an instruction EVA accepted without
-        // returning an identifier still created a claim, and offering the
-        // button again would create a second one no API call can withdraw.
-        CanSubmitToEva = EvaSubmissionPolicy.AllowsManualSubmission(modes)
-            && latestSubmission is not { IsDelivered: true };
+        EvaHandoff = new(
+            workflow.CaseId,
+            workflow.Version,
+            workflow.State,
+            LeaseToken,
+            EngineerDisplayName ?? Labels.CaseWorkspace.Unassigned,
+            engineerOptions,
+            SignOffEngineerDisplayName,
+            signOffEngineer?.StaffId,
+            profiles.Select(profile => new EvaHandoffEngineerOption(
+                profile.StaffId,
+                profile.PrintedName)).ToArray(),
+            details.Data?.Completeness.Values.InstructionComplete ?? false,
+            details.Data?.Completeness.Values.ImagesComplete ?? false,
+            submitCaseToEva is not null,
+            EvaSubmissionPolicy.AllowsManualSubmission(modes),
+            NewOperationKey(),
+            NewOperationKey());
     }
 
     /// <summary>

@@ -59,9 +59,12 @@ Every successful export writes replay-safe Case action history containing the
 case version, mapping identity, exported values and provenance, archive hashes,
 and image identities/hashes. The first successful export also records the
 once-per-case `First sent to Engineer` proxy used by the dashboard; later
-exports are additional action-history records. Export does not change the Case
-state or version. The HTTP download includes the archive SHA-256 as
-`Content-Digest`.
+exports are additional action-history records. The first successful Download
+ZIP from `Review` atomically records the handoff and moves the Case to `With
+Engineer`, increasing its version; Send to EVA is the implicit review (D44,
+D47). If either part fails, the Case remains in `Review` and no handoff is
+recorded. A re-send from `With Engineer` does not change state or version. The
+HTTP download includes the archive SHA-256 as `Content-Digest`.
 
 ### Direct EVA API submission
 
@@ -127,8 +130,23 @@ an operator quotes.
 
 Submission is gated on `Review` — or on `With Engineer` for a re-send (D36) —
 and on at least one eligible image, exactly as the export is; it repeats no
-other readiness policy. It records replay-safe
-Case action history and does not change the Case state or version.
+other readiness policy. It records replay-safe Case action history for every
+attempt, delivered or not. The first successful manual Send via API from
+`Review` — an outcome of `Succeeded` or `Partial`, meaning EVA accepted the
+instruction — atomically records the handoff and moves the Case to `With
+Engineer`, increasing its version; Send to EVA is the implicit review (D44,
+D47). A `Rejected` or `Unknown` outcome is not a handoff: EVA did not accept
+the instruction, or delivery could not be determined, so the Case remains in
+`Review`, unchanged in version and edit lease, with no state transition —
+the attempt is still recorded in Case action history (CASE-040 review). A
+failure detected before the transport call leaves the Case in `Review` with
+nothing recorded at all. A failure detected only after EVA has already
+accepted the instruction — a state change or version conflict found on the
+post-delivery re-check — still records the submission and its action
+history, since the delivery already happened and must not be lost, but
+likewise leaves the Case in `Review`. A re-send from `With Engineer` does not
+change state or version. Automatic submission remains a once-only `Review`
+action.
 
 Values EVA's instruction model has no field for — the inspection date and the
 mileage — are sent as labelled lines in the instruction's note rather than
