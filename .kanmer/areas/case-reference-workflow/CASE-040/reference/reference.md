@@ -554,3 +554,157 @@ and the Test UI snapshots were left to CI's `browser` and `test-ui` jobs;
 
 Full findings file:
 `scratchpad/build/CASE-040/review-out-2.md`.
+
+# Review record — CASE-040 (PR https://github.com/collisionengineers/pegasus/pull/666) — re-review
+
+Reviewed head: `41a92a1edc0b028d114904fd1a2957b06cfe2eed`
+(branch `task/case-040-sign-off-engineer-eva`, round-5 fixes commit
+"fix(eva): restore dev's queues--empty capture and prove the once-only guard
+directly"). Verified in the detached review worktree
+`.worktrees/case-040-review`; `git rev-parse HEAD` equals the reviewed head and
+`origin/dev` is an ancestor.
+
+Reviewers: **Claude Opus 5** — sole independent reviewer this round, reading
+the whole `origin/dev...HEAD` diff and independently re-running the gates.
+Codex was unavailable (usage limit to 2026-09-08). Built by Claude Sonnet.
+
+**Verdict: APPROVE — merged.** Every round-5 finding is closed at this head,
+the round-5 commit introduced no regression, and CI's `repository-check` run
+`33979423138` is **success on this exact head** with every job green,
+including the `test-ui` job that blocked round 5. Three nits remain, all
+already dispositioned or pre-existing; none blocks the merge.
+
+## Round-5 findings — confirmed closed at this head
+
+| # | Round-5 finding | Evidence at 41a92a1ed |
+| --- | --- | --- |
+| 1 (blocker) | `queues--empty.html` carried a 2/1/1 capture instead of dev's 0/0/0, stale-failing CI's `test-ui` job | `git diff origin/dev...HEAD -- docs/design/test-ui/pages/queues--empty.html` is empty; the Test UI diff is now exactly the three snapshots the report names. CI `test-ui` green. |
+| 2 (should-fix) | `EvaSubmissionEntities.cs` comment documented a unique index the migration drops | `EvaSubmissionEntities.cs:29-38` now names `EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission` and the durable `ExternalWorkItems` row, and states the database deliberately permits an explicit manual re-send. |
+| 3 (should-fix) | Automatic once-only proved only at Core, not at store level | `CustodyOutboxIntegrationTests.cs:1979-1995` drives a wholly independent automatic `EvaSubmissionStore.ExecuteAsync` over the now-delivered case and asserts `EvaAutomaticSubmissionAlreadyDeliveredException` plus `Assert.Equal(deliveredCallCount, transport.CallCount)` — refused before the transport. |
+| 4 (nit) | `docs/current-architecture.md:587` stale after D47 | Still stale; **defer** stands (as-built snapshot; CASE-040 is not deployed). |
+| 5 (nit) | Report's Test UI list named three snapshots, diff carried four | Closed with finding 1. |
+
+Earlier rounds (R2 B1-B3, R3 BA/BB, R4 B1/B2/SF3, R5 B1) were re-confirmed
+closed at this head and no regression was found in any of them; the
+round-5 commit `861391d9a..41a92a1ed` touches only three files (a snapshot
+revert, one XML doc comment, one appended test block), 26 insertions / 5
+deletions, with no production behaviour change.
+
+## Findings and dispositions (this round)
+
+| # | Severity | File | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | nit | `src/Pegasus.Web/Pages/Cases/Shared/_EvaHandoff.cshtml:19-21` | The three readiness hidden fields are re-spelled inline rather than reusing `Cases/Shared/_ReadinessHiddenFields.cshtml`, whose own comment insists on one spelling. Values verified identical today; the shared partial is bound to `DetailsModel` and cannot take `EvaHandoffViewModel` without editing `Details.cshtml.cs` outside CASE-040's owned regions. | **Defer — already ticketed.** Round-4 should-fix 4 raised it as [[CASE-046]]; that disposition stands. |
+| 2 | nit | `docs/current-architecture.md:587` | "…it does not take an edit lease or move the case version" is false after D47. | **Defer.** As-built/deployed snapshot, refreshed by the release task; CASE-040 is not deployed. |
+| 3 | nit | `src/Pegasus.Web/Presentation/OperatorLabels.cs` vs `Details.cshtml:388`, `_CaseSummary.cshtml:30`, `Index.cshtml.cs:445` | The new `Unassigned` label constant coexists with three pre-existing bare `"Unassigned"` literals on the Engineer rows. | **Accept risk.** All three literals are pre-existing and outside CASE-040's owned regions; the constant is the plan's own instruction. |
+
+Observation, not a finding: `EvaSubmissionPolicy.StateAfterSend(Review,
+Automatic)` deliberately never transitions, while D47 speaks of "either
+route". D47's two routes are the operator routes (Download ZIP, Send via API);
+the automatic worker is a third, and FRD-07 now states the divergence
+explicitly ("Automatic submission remains a once-only `Review` action").
+
+## Checked and clean
+
+Every drawn control has a named, registered handler — `_EvaHandoff.cshtml`
+draws `AssignEngineer`, the new `SetSignOffEngineer`
+(`Workflow.cshtml.cs:126`), Export `Bundle` and Eva/Send `Submit`;
+`ISetCaseSignOffEngineer` is registered at `DependencyInjection.cs:404`. No
+dead-end control: all three new exception types derive from
+`InvalidOperationException`, already caught by `Export.cshtml.cs:97` and
+`Send.cshtml.cs:186`, and `Model.EvaHandoff!` is unreachable while null (the
+dialog sits inside `@if (canSendToEva)` at `Details.cshtml:597`). Labels live
+only in one delimited `// CASE-040 … // end CASE-040` block, and the duplicate
+wording homes (`AlreadySubmittedReason`, `NotEnabledReason`, `RibbonSignOff`)
+were deleted rather than copied — `git grep` returns only the intentional
+`Assert.DoesNotContain("Download EVA package", …)`. No explanatory copy: the
+disabled *Send via API* uses the existing `class="gated" data-condition`
+convention. Core owns the policy: both stores call `EvaSubmissionPolicy` /
+`EvaHandoffPolicy` / `CaseEngineerEligibilityPolicy` /
+`CaseSignOffEngineerResolver` with no second implementation.
+
+No data loss: a post-delivery local re-check failure still commits the
+`EvaSubmissions` row and its action history before rethrowing through
+`ExceptionDispatchInfo` (`EvaSubmissionStore.cs:296-397`), and
+`AssignEngineerAsync`'s unconditional `SignOffEngineerId` write cannot null a
+persisted value on replay because `MutateAsync` short-circuits before `apply`
+(`EfCaseWorkflowStore.cs:831-839`).
+
+**No test was weakened or deleted.** Ten test files change, +1,332/-49; every
+deletion was checked against `origin/dev`. The two
+`EvaSubmissionPersistenceTests` `DbUpdateException` assertions become
+`Assert.Equal(2, …CountAsync(…))` — the inversion the ticket is about, since
+the index they pinned is deliberately dropped. Three `CaseNotInReviewException`
+assertions become `EvaHandoffStateException` (the type these routes now throw;
+the old type still exists and is still asserted for the custody route). Two
+Web facts became theories over the newly permitted states, gaining rows.
+`ReportProjectionReadsPhotographsAndFailsClosedWithoutSignatory` was renamed
+and extended with its fail-closed assertions intact. Everything else is
+additive.
+
+The migration adds one nullable column to an existing table and drops an
+index, creating no table, so the bootstrap census is unchanged and no grant is
+required; `Down` restores the index and the model snapshot matches. Every file
+in the diff is named by the plan's *Expected files* or by a binding Resolution
+(FRD-07 by the D47 resolution, which explicitly overrides the plan's *Must not
+modify* line for it). The report's snapshot byte sizes were re-measured with
+`git cat-file -s` and match exactly (the working-tree `wc -c` differs only by
+CRLF, `core.autocrlf=true`). The simplification pass records three findings,
+all three fixed, each naming the call site it updated.
+
+## Commands and exit codes (review checkout, HEAD 41a92a1ed)
+
+```
+git rev-parse HEAD                                                     41a92a1edc0b028d114904fd1a2957b06cfe2eed
+dotnet restore ./Pegasus.slnx --locked-mode                            RESTORE_EXIT=0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore       BUILD_EXIT=0   (0 warnings, 0 errors)
+dotnet test ./tests/Pegasus.Core.Tests/... --no-build                  CORE_EXIT=0    (1252 passed)
+dotnet test ./tests/Pegasus.ArchitectureTests/... --no-build           ARCH_EXIT=0    (100 passed)
+pwsh -NoProfile -File ./scripts/Test-MigrationGrants.ps1               GRANTS_EXIT=0  (94 migration files)
+dotnet test ./tests/Pegasus.IntegrationTests/... --no-build --filter
+  "~CustodyOutboxIntegrationTests|~EvaSubmissionPersistenceTests
+   |~CaseWorkflowPersistenceTests|~AssessmentPersistenceIntegrationTests
+   |~CaseDetailsWebTests|~CaseWorkflowWebTests
+   |~IntakePersistenceIntegrationTests"                                INT_EXIT=0     (175 passed, 1 pre-existing skip)
+```
+
+Scope rationale: the diff changes Core EVA and lifecycle policy (covered by
+`Pegasus.Core.Tests` and the layering rules in `Pegasus.ArchitectureTests`),
+the two EVA stores plus the workflow, query and report-projection stores
+(`CustodyOutboxIntegrationTests`, `EvaSubmissionPersistenceTests`,
+`CaseWorkflowPersistenceTests`, `AssessmentPersistenceIntegrationTests`), the
+Case details and Send pages plus the new shared partial (`CaseDetailsWebTests`,
+`CaseWorkflowWebTests`), one migration (`Test-MigrationGrants.ps1`) and one
+migration-list test (`IntakePersistenceIntegrationTests`). The Playwright
+journey change and the three Test UI snapshots were left to CI's `browser` and
+`test-ui` jobs — both green on this head.
+
+## Snapshot artifacts opened at this head
+
+| File | Committed blob | Working tree (CRLF) | doctype | markers |
+| --- | --- | --- | --- | --- |
+| `case-details--default.html` | 68,567 B | 69,732 B / 1,165 lines | `<!DOCTYPE html>` | 1 x `class="case-sticky"`, 16 x `id="section-`, 0 x `<img src="#">`, 4 x "Sign-off Engineer" |
+| `case-details--conflict.html` | 42,179 B | 42,901 B / 722 lines | `<!DOCTYPE html>` | 1 x `class="case-sticky"`, 16 x `id="section-`, 0 x `<img src="#">`, 3 x "Sign-off Engineer" |
+| `case-eva-send--default.html` | 25,888 B | 26,237 B / 349 lines | `<!DOCTYPE html>` | not a Case-workspace page (0 sticky/section hosts, as expected), 0 x `<img src="#">`, 1 x "Sign-off Engineer" |
+| `queues--empty.html` | 29,803 B | — | — | byte-identical to `origin/dev`; not in this diff |
+
+Sixteen `id="section-` hosts rather than eleven: ENG-034's Engineer sections
+arrived through the `origin/dev` merge `916177da7` and are dev's shape, not
+CASE-040's.
+
+## CI gate
+
+```
+gh run list --branch task/case-040-sign-off-engineer-eva --limit 1
+  --json headSha,status,conclusion,databaseId
+    headSha    41a92a1edc0b028d114904fd1a2957b06cfe2eed   (equals the reviewed head)
+    databaseId 33979423138   status completed   conclusion success
+```
+
+Jobs: `changes`, `local-development-scripts`, `reference-data`,
+`documentation`, `unit`, `sql-integration (1|2|3)`, `sql-integration-coverage`,
+`browser`, `test-ui` — all **success**; `infrastructure` skipped. No rerun was
+needed.
+
+Full findings file:
+`scratchpad/build/CASE-040/review-out-2.md`.
