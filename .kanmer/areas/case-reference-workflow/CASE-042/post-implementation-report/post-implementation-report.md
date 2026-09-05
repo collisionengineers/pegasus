@@ -239,3 +239,48 @@ file), so no snapshot regeneration was required.
 Branch `task/case-042-awaiting-instruction-queue`, PR
 https://github.com/collisionengineers/pegasus/pull/663. Head
 `44a5871bc1ca0d47d5aeaf00efbefda6752ad126` pushed; CI/re-review awaited.
+
+## Snapshot regeneration (2026-09-05)
+
+CI's `test-ui` check was red at head `44a5871bc1ca0d47d5aeaf00efbefda6752ad126`:
+"Generated Test UI file is stale: pages/queues--empty.html". Cause: the
+committed `queues--*.html` pages had been produced by the narrow scoped
+capture (`-Scope queues -CaptureFilter ...`) used during implementation and
+the round fixes; the `queues--empty` catalogue state is satisfied by
+whichever captured `/Cases` response happens to carry `class="muted">0
+items</span>`, and CI's full unscoped capture claimed a different candidate
+response than the scoped local run had, so the committed page did not match
+what CI regenerates.
+
+Fix, run in `.worktrees/case-042` on `task/case-042-awaiting-instruction-queue`:
+
+1. `git merge --no-edit origin/dev` — clean, no conflicts.
+2. Capture lock taken (`mkdir .../capture.lock`), held for the duration of
+   steps 3-5, released after.
+3. Full unscoped capture: `pwsh -NoProfile -File
+   ./scripts/Update-TestUiSnapshots.ps1` — exit `0` (browser-response
+   capture phase: 129 passed, 9m49s; non-browser capture phase: 326 passed,
+   9m30s; snapshot-update phase: 1 passed, 4s).
+4. `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify
+   -SkipCapture` — exit `0`, 1 passed.
+5. `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1` — exit `0` (54
+   routed sources, 59 prototypes, 0 broken local references).
+6. Capture lock released.
+
+`git diff --stat` against pre-regeneration `HEAD` showed exactly one file
+changed: `docs/design/test-ui/pages/queues--empty.html` (3 insertions, 3
+deletions) — no other page drifted, so nothing beyond the one flagged file
+needed committing. `queues--default.html` was unaffected (still 31,687
+bytes, unchanged).
+
+Regenerated file: `docs/design/test-ui/pages/queues--empty.html` — 29,803
+bytes, begins `<!doctype html>`, is a complete document (closing `</html>`
+present), no `<img src="#">`, contains `Awaiting instruction`.
+
+Committed as `0255b681f4ca87794708bf8fe74633d3df1fdd5e`
+("Regenerate full Test UI queue snapshots") and pushed to
+`task/case-042-awaiting-instruction-queue`. Worktree clean; remote branch
+matches local HEAD.
+
+No functional review finding remained open at this head — this snapshot
+staleness was the sole outstanding item.
