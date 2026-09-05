@@ -189,3 +189,95 @@ the new one. The suite passing while finding 1 stands is itself the evidence
 that the dropped `SendToClaude` gate is uncovered. No snapshot recapture was
 run or needed (see above). CI on the exact head was not gated on, because the
 blocker returns the ticket to the implementing lane before merge.
+
+# Review record — ENG-034 (PR https://github.com/collisionengineers/pegasus/pull/668) — re-review
+
+Reviewed head: `6a2c3af779201144def500c964524902fc560d79` (branch
+`task/eng-034-engineer-sections-move`, confirmed by `git rev-parse HEAD` in
+the disposable review worktree `.worktrees/eng-034-review`, recreated from
+`origin/task/eng-034-engineer-sections-move`; the previous round had left a
+stale non-worktree directory at that path, which was removed first). The head
+matches the one the controller named; the branch did not move during review.
+
+Reviewer models: the planned independent read by **gpt-5.6-terra xhigh** again
+could not run — `codex exec` returned `ERROR: You've hit your usage limit …
+try again at Sep 8th, 2026` (`CODEX_EXIT=1`, no output file), the same limit
+that blocked rounds one and two and both fix rounds. The independent read was
+therefore performed by **Claude Opus** (this reviewer, who did not implement
+the ticket): the round-three diff (`git diff bd032ceb7..HEAD`), the whole
+moved handler surface against its pre-move original
+(`99c27e906^:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs`), the
+Core access and report-draft policies, the four partials, the changed tests
+and the three committed Case Details snapshots.
+
+Verdict: **REQUEST CHANGES** — round two's blocker is closed and its nit is
+withdrawn, but one further finding of the same class (a control that renders
+active and 404s) is open in this ticket's own owned files. Not merged.
+
+## Round-two findings — closed at this head?
+
+| # | Earlier finding | Closed? | Evidence |
+| --- | --- | --- | --- |
+| 1 | blocker — `HasAssessmentAccessAsync` dropped `CanOpen`, so `OnPostSendToClaudeAsync` created an `AiJobKind.Estimate` job for a case whose workspace had not opened; no test; control was a dead end | **Yes** | `Details.cshtml.cs:1628-1634` now reads `(await getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken))?.CanOpen == true`, byte-equivalent to the pre-move `CanAccessAsync` (`old:1372-1378`); `grep` confirms exactly one caller (`:945`, in `OnPostSendToClaudeAsync`), so no other behaviour depended on the looser semantics. `EvaluateEngineerSectionConditionsAsync` (`:569-575`) sets `SendToClaudeCondition` to the existing `EngineerSections.NotAvailableForCase` when `!AssessmentCanOpen`, after the read-only branch, so `_CaseEstimate.cshtml:48-66` renders the gated, `disabled`/`aria-disabled` button instead of the dialog link, and `:367`'s dialog is not emitted. Ordering verified: `AssessmentCanOpen` is assigned at `:444`, before `LoadEngineerSectionsAsync` calls the evaluation at `:497`/`:509`. `SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude` composes `canOpen: false`, asserts the gated render and the absent dialog, then POSTs `?handler=SendToClaude&section=estimate` and asserts `404` — it fails without the fix, since the `CanOpen` check is the handler's first non-actor gate. `Compose` gained `canOpen` with a `true` default, so no existing case changed. No assertion was weakened or deleted this round (`git diff bd032ceb7..HEAD` touches only `Details.cshtml.cs` +11/-4 and `SendToAiIntegrationTests.cs` +39/-2). |
+| 2 | nit — `case-details--unavailable.html` restated as 24,390 bytes when the file measured 24,694 | **Withdrawn — the lane's figure was right.** `core.autocrlf=true` in this repository: the committed blob is 24,390 bytes (`git show HEAD:… \| wc -c`, 304 lines) and the CRLF working copy is 24,694 (304 × 1). Round two measured the working copy, the lane measured the blob; both are correct readings and the discrepancy is a units difference, not a false report fact. The same holds for `case-details--default.html` (blob 68,319 / working copy 69,470) and `--conflict.html` (41,987 / 42,707). No change required. |
+
+Round-one findings 1–4 remain closed (re-checked at this head: `:1247`
+`access?.CanOpen != true`, `:1476` `importAccess?.CanOpen != true`, the
+restored XML doc comments, the restored `DoesNotContain("VOLKSWAGEN"/"GOLF")`
+assertions).
+
+## Findings and dispositions
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | should-fix (merge held) | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs:585-589` (`ReportDraftCondition`), rendered by `src/Pegasus.Web/Pages/Cases/Shared/_CaseReport.cshtml:11-30` | The report-draft controls are the last pair on the Case page that still ignores `CanOpen`. `ReportDraftCondition` is `NotAvailableForCase` only when `ReportDraftPreparation is null`, and `NotReady` only when the preparation has reasons; `GetAssessmentWorkspace` (`src/Pegasus.Core/Assessment/AssessmentWorkspace.cs:126-142`) does **not** gate on `CanOpen`, and `AssessmentReportDraftPreparation.CanGenerate` is assessment completeness only (`AssessmentReportProjection.cs:395-401`, "Review-entry requirements are not repeated here"). So on a case with a complete assessment but `CanOpen == false` and `IsReadOnly == false` — the ordinary out-of-cycle state, `AssessmentAccessPolicy.CanOpen` requiring `LatestExportVersion >= LatestReviewVersion` — `_CaseReport` renders a submittable `GenerateReportDraft` form and a `PreviewReportDraft` link, and both 404: `GenerateCaseAssessmentReportDraft.ExecuteAsync` refuses at `AssessmentReportProjection.cs:434` with `access?.CanOpen != true`. That state is not hypothetical: `AssessmentReportDraftWebTests.CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly` (`:124-149`) constructs exactly it, loads the page and asserts the POST 404 — it simply never asserts what the page drew. Pre-move the Assessment page returned `NotFound()` for the whole GET when `!access.CanOpen` (`99c27e906^:…/Assessment/Index.cshtml.cs:422-424`), so the control could not render; D30 removed that page-level 404, which is what round one and round two closed for the estimate mutations and Send to Claude. This is the same defect class in the same PR's own owned file, and the same shape of fix. Backend policy is intact — this is a dead end, not a bypass — hence should-fix, not blocker. | **Fix.** Add `!AssessmentCanOpen` to `ReportDraftCondition` (reusing `EngineerSections.NotAvailableForCase`, exactly as the Send to Claude branch does — no new label), so the Generate form and the Preview link are replaced by the already-present gated control at `_CaseReport.cshtml:32-38`; and assert it in the existing `CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly` (`Assert.DoesNotContain("handler=\"GenerateReportDraft\"", …)` and `("Preview report draft", …)`, the same pair that test class already uses at `:110-111`). Returned to the implementing lane. No snapshot recapture is implied: neither `case-details--default.html` nor `--conflict.html` contains "Generate report draft" or "Preview report draft" (`grep -c` = 0), so no committed page's bytes move. |
+
+## What was verified and found correct
+
+- Only owned paths changed; the 21-file diff carries no `Pegasus.Core`,
+  `Pegasus.Infrastructure`, `site.css`, `site.js`, `TestUiSnapshotTests.cs`,
+  `ci.yml` or `scripts/*.ps1` edit, no migration (so
+  `Test-MigrationGrants.ps1` is correctly not applicable) and no package
+  change (the locked restore passed).
+- Every mutation guard on the host now matches its pre-move original:
+  `GuardEstimateEditAsync` (`:1247`), `OnPostImportEstimateAsync` (`:1476`)
+  and `HasAssessmentAccessAsync` (`:1634`). No other `CanOpen`/`IsReadOnly`
+  check was relaxed (`grep` over the whole file lists 18 sites, all
+  accounted for).
+- `AssessmentCanOpen` comes from the single `getAssessmentAccess` call that
+  already fed `AssessmentIsReadOnly` (`:443-444`) — no second query — and
+  fails closed to `false`.
+- The new `!AssessmentCanOpen` branch reuses an existing label; nothing was
+  added to `OperatorLabels.cs` this round, and the ENG-034 block delimiters
+  (`:1482` … `:1599`) are intact.
+- The two round-three code comments are code comments, not operator-facing
+  copy; no explanatory copy was added to any partial.
+- CI on the exact reviewed head is **green**: run `33959780644`,
+  `headSha 6a2c3af779201144def500c964524902fc560d79`, `completed` /
+  `success`, every job passing including `browser` and `test-ui`. The
+  `LayoutIntegrityTests.TheCaseRecordLaysOutAndScrollsAtEveryWidth`
+  failures at 1100px and 760px seen on the two earlier heads (`32de5bb7e`
+  run `33955790118`, `bd032ceb7` run `33958578042`) did not reproduce here;
+  the round-three diff changed no layout, so those two runs are recorded as
+  flakes, not as a fixed defect. If that test fails again on a later head it
+  is a real finding, not a retry candidate.
+
+## Commands run and exit codes (review worktree `.worktrees/eng-034-review`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git worktree add --detach .worktrees/eng-034-review origin/task/eng-034-engineer-sections-move` | `WT_EXIT=0` | `git rev-parse HEAD` = `6a2c3af77…` |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --configuration Release --no-build` | `CORE_EXIT=0` | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --configuration Release --no-build` | `ARCH_EXIT=0` | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "…AssessmentCopyWebTests\|…AssessmentEstimateImportWebTests\|…AssessmentVehiclePrefillWebTests\|…AssessmentReportDraftWebTests\|…SendToAiIntegrationTests\|…CaseEngineerSectionsWebTests\|…AssessmentReadinessSummaryBrowserTests" -- xUnit.MaxParallelThreads=2` | `INTEG_EXIT=0` | 39 passed (the six retargeted classes, the new class and the one changed browser class). |
+| `gh run view 33959780644` | 0 | `success` on the reviewed head. |
+| `codex exec -m gpt-5.6-terra -c model_reasoning_effort=xhigh …` | `CODEX_EXIT=1` | Usage limit until Sep 8; no review produced. Read performed by Claude Opus instead. |
+
+That scope covers the change: the Release build compiles every changed Razor
+partial and page model, the Architecture tests prove the dependency direction
+after moving a handler surface between composition-root pages, and the seven
+classes are the complete set of test files the diff touches plus the new one;
+the full suite, the browser suite and the Test UI capture are CI's, and CI is
+green on this exact head.
