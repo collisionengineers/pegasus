@@ -150,3 +150,166 @@ entry plus the `LocalDbTestDatabase` parameter (both within the already-owned
 - CI (the full `Category!=Corpus` suite and the Browser lane) has not yet run
   on this PR's head as of writing this report; the PR body names the exact
   commands and results this worktree ran.
+
+## Review round fixes (2026-09-05)
+
+Applied the review's findings directly in this worktree (Codex was
+unavailable for this round). Head before this round: `77f97c40a`
+(corrects the report-accuracy finding below, which had recorded
+`ffa1effe`).
+
+### Blocker 1 — create-replay compared the live entity, not the creation
+snapshot
+
+`src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs:44-58`.
+Fixed exactly as directed: the create-replay branch now deserializes the
+stored creation snapshot once (`DocumentActionHistory
+.Deserialize<RequestUploadHistoryValue>(history.AfterJson)`) and both
+(a) builds `ToCreatedUploadLink` from that snapshot (the method now takes
+the snapshot directly instead of re-deserializing from `ActionHistoryEntity`)
+and (b) builds the `RequireExactReplay` comparison value as
+`snapshot with { Recipient = command.Recipient, Reason = command.Reason }`,
+so only the two metadata fields are compared — never `Status`,
+`RevokedAtUtc`, `AcceptedFileCount`, `AcceptedByteCount` or `Version` off the
+live, possibly-mutated entity.
+
+Extended `DocumentCustodyDurabilityTests
+.RequestUploadMetadataPersistsProjectsAndParticipatesInReplay` to accept an
+upload onto the link (bumping `AcceptedFileCount`/`Version`/`Status` on the
+live entity) *before* replaying the create command, pinning exactly the
+broken case; the replay is asserted `IsReplay` with `Link` unchanged from
+the original creation-time values.
+
+Verified: `CustodyOutboxIntegrationTests
+.EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay`
+(all four `[InlineData]` terminal states) and the extended durability test
+both pass at the new head — filter
+`FullyQualifiedName~DocumentCustodyDurabilityTests|FullyQualifiedName~CustodyOutboxIntegrationTests`,
+30/30 passed (1 skipped, pre-existing/unrelated).
+
+### Blocker 2 — `@inject RequestUploadLimits` threw when limits are not
+accepted
+
+`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`. Replaced the
+unconditional `@inject Pegasus.Core.Documents.RequestUploadLimits
+UploadLimits` (which resolves with `GetRequiredService` on every render of
+the Files section, edit mode or not) with `@inject IServiceProvider
+ServiceProvider` and `ServiceProvider
+.GetService<RequestUploadLimits>()`. Both the "Create upload request" button
+and its dialog are now drawn only when `mayEdit && uploadLimits is not
+null` (`mayCreateUploadRequest`); where limits are not accepted the control
+is absent, not disabled-with-copy, matching the existing absent/disabled
+convention.
+
+Added `CaseCustodyWebTests
+.CaseFilesSectionRendersWithUploadRequestCreationAbsentWhenLimitsAreNotAccepted`:
+enters edit mode with `DocumentRequests:AcceptedLimitsVersion` overridden to
+empty via `IWebHostBuilder.UseSetting` (a `RemoveAll<RequestUploadLimits>()`
+service substitution was tried first but fails DI graph validation, since
+`RequestUploadPolicy`/`EfDocumentRequestStore`/`RequestUploadAttemptLimiter`
+all still depend on it — the config override reproduces the real
+Program.cs-driven absence instead). `EnterEditModeAsync`
+(`CaseCapabilityPagesTestSupport.cs`) gained an optional
+`Action<IWebHostBuilder>? configureWebHost` parameter to carry this
+override; default `null` behaviour is unchanged for every existing caller.
+GET on `?section=files` now returns 200 (previously would 500) with no
+"Create upload request" control. Full `CaseDetailsWebTests` family (the
+partial class this test and `CaseVehicleWebTests`/`CaseCustodyWebTests`
+belong to): 77/77 passed.
+
+### Should-fix 3 — Make/Model/Mileage showed an unaccepted suggestion with
+no marker
+
+`src/Pegasus.Web/Pages/Cases/Shared/_CaseVehicle.cshtml`. `make`, `model`,
+`mileage` and `unit` now resolve `Confirmed?.Value ?? Fact?.Value` instead
+of `CaseField<T>.Current` (which falls through to `Suggestion`), matching
+the chip predicate's own comparison base and EPIC-012 D34 ("fill the field
+when chosen" — i.e. only once accepted). `mileageSource`'s provenance lookup
+was changed the same way so the "Mileage source" label never names the
+provenance of a value the field itself is not showing. Registration's
+existing chain is untouched, as directed. No test data in
+`RecordingCaseDetailsStore` exercises "suggestion present, nothing
+confirmed or extracted" (its `Suggested()` fixture helper always sets a
+confirmed value too), so this was not caught by — and adds no new coverage
+to — the existing `CaseVehicleWebTests` suite; the fix is a straightforward
+one-line-per-field expression change with no behavioural branch to assert
+beyond what `CaseDetailsWebTests`'s full pass already covers (unaffected,
+since the fixture always has Confirmed set).
+
+### NIT 4 — dead code from the per-field acceptance rework
+
+Removed the pieces confirmed to have zero remaining references after
+`grep -rn` across `src/` and `tests/`:
+
+- `OperatorLabels.CaseWorkspace`: `VehicleChecksPanel`, `RefreshDvla`,
+  `RefreshDvsaMot`, `VehicleChecksHistory`, `AcceptSuggestion`,
+  `CorrectSuggestion` (the `AcceptSuggestion`/`CorrectSuggestion` string
+  matches elsewhere in the repo are all
+  `InspectionAddressStaffDecision.AcceptSuggestion`/`CorrectSuggestion`
+  enum members — a different, still-live vocabulary).
+- `Pegasus.Core.Vehicle.ConfirmedVehicleFieldConflictException` (unused
+  exception class).
+- `VehicleSuggestionDecision.Correct` enum member, its arm in
+  `VehicleSuggestionAcceptancePolicy.Resolve`, and the `"corrected"`
+  mappings in `EfVehicleWorkflowStore.ToCode`/`ParseDecision`. Updated the
+  one test that constructed it
+  (`VehicleWorkflowTests.AcceptanceRequiresAnExplicitReasonAndSupportedField`)
+  to exercise the same still-live refusal branch
+  (`command.Correction is not null`) with a non-null `VehicleConfirmationValues`
+  instead, since `Decision = Correct` is no longer constructible.
+
+**Partial disposition, rest rejected as disproportionate for this NIT**:
+`AcceptVehicleSuggestionCommand.Correction` and the `Decision`
+property/persisted `Decision` string column were left in place.
+`Correction` still participates in `EfVehicleWorkflowStore
+.AcceptanceFingerprint`'s JSON shape (the idempotency-replay hash) and in
+the command's own "must be null" validation; `Decision` is a persisted
+column read back through `ParseDecision` for every historical acceptance
+row. Removing either is a real behavioural surface (the fingerprint
+algorithm, the command shape, `Vehicle.cshtml.cs`'s call site, and every
+`AcceptedVehicleSuggestion.Decision` consumer) rather than a mechanical
+dead-code deletion, and carries its own regression risk disproportionate to
+a NIT found mid-review-fix. Deferred; no ticket filed since it is purely
+internal cleanup with no product-visible effect and no other lane depends
+on the shape.
+
+Verified: `dotnet test Pegasus.Core.Tests` 1252/1252,
+`Pegasus.ArchitectureTests` 100/100, both green after the removals.
+
+### NIT 5 — accepted risk
+
+No action, as directed (`VehicleWorkflow.cs` `Field` defaulting to `Make`
+on an omitted POST field is an accepted risk: reachable only by a crafted
+POST from an authenticated leased staff actor, and the result is an
+audited, attributable acceptance of a real DVLA suggestion — not data
+loss).
+
+### NIT 6 — report accuracy
+
+This report's original numbers are superseded by this addendum: actual
+head at review time was `77f97c40a` (not `ffa1effe`); the migration is
+`20260905173354_CaseValuationGuideMonthAndRequestUploadMetadata` (not
+`20260904210602_…`); current
+`docs/design/test-ui/pages/case-details--default.html` is 70,105 bytes
+(not 65,965), `case-details--conflict.html` is 42,100 bytes (not 40,012),
+`case-details--unavailable.html` is 24,390 bytes (matches). The
+`ValuationSource.AiMarketResearch` arm in
+`OperatorLabels.ValuationSourceLabel` and the `wwwroot/css/site.css` block
+are **rejected as scope findings, no code change**: the label arm is
+required for switch exhaustiveness now that AUTO-018 merged the
+`AiMarketResearch` enum member (omitting it throws when rendering any
+Valuation section that has such a row), and `site.css` is named verbatim in
+this ticket's own files document ("Add valuation-card/chip presentation if
+frame CSS does not supply it") and permitted by EPIC-012 §Build policy.
+
+## Commands and exit codes (review round)
+
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0.
+- `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` — 1252/1252 passed.
+- `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` — 100/100 passed.
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~DocumentCustodyDurabilityTests|FullyQualifiedName~CustodyOutboxIntegrationTests"` — 29/30 passed, 1 skipped (pre-existing, unrelated).
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CaseDetailsWebTests"` — 77/77 passed (covers `CaseCustodyWebTests`, `CaseVehicleWebTests`, the rest of the partial class family, and the new Blocker-2 test).
+- `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"` — exit 0; `git status` shows **no diff** under `docs/design/test-ui/` — the fixed pages render byte-identical HTML under the fixtures these captures use (limits accepted, vehicle fields always carry a confirmed value), so nothing new was committed there.
+- `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details` — exit 0.
+- `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1` — exit 0 (55 routed sources, 58 prototypes, 0 broken references).
+- Opened `docs/design/test-ui/pages/case-details--default.html`: 70,105 bytes, begins `<!doctype html>`, `class="case-sticky"` ×1, `id="section-*"` ×15, no `<img src="#">`.
