@@ -281,3 +281,143 @@ after moving a handler surface between composition-root pages, and the seven
 classes are the complete set of test files the diff touches plus the new one;
 the full suite, the browser suite and the Test UI capture are CI's, and CI is
 green on this exact head.
+
+# Review record — ENG-034 (PR https://github.com/collisionengineers/pegasus/pull/668) — re-review, round four
+
+Reviewed head: `795506d752bb0ce9e1e82bbee06678b412f8884f` (branch
+`task/eng-034-engineer-sections-move`, confirmed by `git rev-parse HEAD` in the
+disposable review worktree `.worktrees/eng-034-review`, created detached from
+`origin/task/eng-034-engineer-sections-move`). Matches the head the controller
+named; the branch did not move during review.
+
+Reviewer models: Codex was unavailable again (usage limit until 2026-09-08), so
+the independent read was performed by **Claude Opus 5**, who did not implement
+the ticket. This round read the whole diff `origin/dev...HEAD` from scratch
+rather than only the round-three delta: every moved handler body diffed
+line-for-line against its pre-move blob
+(`origin/dev:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs`), all four
+partials, the label block, the catalogue and index changes, every changed test
+file against its `origin/dev` version, and the three committed Case Details
+snapshots opened byte-by-byte.
+
+Verdict: **REQUEST CHANGES** — round three's should-fix is closed, but one new
+should-fix is open: a retargeted test whose fixture was changed so that its
+name no longer describes what it proves, together with an undisclosed operator
+surface retirement it was the only guard for. Plus one pre-existing high-severity
+defect deferred to a new ticket. Not merged.
+
+## Round-three finding — closed at this head?
+
+| # | Earlier finding | Closed? | Evidence |
+| --- | --- | --- | --- |
+| 1 | should-fix — `ReportDraftCondition` ignored `CanOpen`, so `_CaseReport` drew an active Generate form and Preview link that both 404 | **Yes** | `Details.cshtml.cs:585-589` now reads `!AssessmentCanOpen \|\| ReportDraftPreparation is null ? NotAvailableForCase : …`, reusing the existing label with nothing added to `OperatorLabels.cs`. `_CaseReport.cshtml:11-38` therefore renders the already-present gated, `disabled`/`aria-disabled` control instead. `AssessmentReportDraftWebTests.CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly` was extended (not replaced) with `Assert.DoesNotContain("handler=\"GenerateReportDraft\"", …)` and `("Preview report draft", …)`, the same assertion pair the sibling `NotReady` test uses; the POST-then-404 assertion is unchanged. Re-verified green (4 passed). |
+
+Round-one and round-two findings remain closed: `GuardEstimateEditAsync`
+(`:1247`) and `OnPostImportEstimateAsync` (`:1476`) carry
+`access?.CanOpen != true`, `HasAssessmentAccessAsync` (`:1634`) carries
+`?.CanOpen == true`, the restored XML doc comments are present on the five
+estimate handlers, and the `DoesNotContain("VOLKSWAGEN"/"GOLF")` assertions are
+present.
+
+## Findings and dispositions
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | high, pre-existing | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml:255`, `:272` | `RenderEstimateTotals(totals);` sits inside markup (`<div class="estimate-bottom">`), so Razor emits it as **literal text** rather than calling it: the estimate totals table (Parts, Labour, Paint, Other, Subtotal, VAT, Total) never renders and the operator sees the raw source text. The sibling `RenderSpecificationLines(estimate!, …)` at `:274` is in code context and works, which is why it reads as fine. Proven, not inferred: the compiled `Pegasus.Web.dll` at this head carries the exact UTF-16 literal `RenderEstimateTotals(totals);` twice inside `WriteLiteral` chunks bounded by `</div>` and `</div>`, while genuine code lines from the same file (`var caseId = Model.Case!.Workflow.CaseId;`, `RenderSpecificationLines(estimate!`) appear zero times, and the assembly embeds no source. Identical on `origin/dev` at `Pages/Cases/Assessment/Index.cshtml:524,541`, so ENG-034 carried it over verbatim under "move, do not rewrite" rather than introducing it. No test asserts any totals figure anywhere, which is why four review rounds and a full CI suite never saw it. | **Defer to a linked ticket.** [[ENG-039]] created and linked (`engineering-assessment`, profile `fix`), carrying the evidence, the one-line fix (`@{ RenderEstimateTotals(totals); }`) and the missing assertion. Fixing it inside ENG-034 would be out-of-scope rewriting (conduct rule 1). |
+| 2 | should-fix (merge held) | `tests/Pegasus.IntegrationTests/AssessmentVehiclePrefillWebTests.cs:59` and `:161` | `ExtractedVehicleFactsTakePrecedenceOverLookupObservation` is still composed with `new FakeGetCase(caseId, includeExtractedFacts: true)`, but this PR changed the fixture helper it depends on from `Fact<T>(value) => new(new(value, CaseDataValueKind.Fact, source), null, null)` to `Confirmed<T>(value) => new(null, null, new(value, CaseDataValueKind.Confirmed, source, "engineer-1", …))`. The test therefore supplies **confirmed** values and proves confirmed-over-lookup precedence; the extracted-fact tier is exercised nowhere. The input was changed so the retarget would pass — `_CaseVehicle.cshtml:44-46` reads `data?.Vehicle.Make.Confirmed?.Value` only, so `Fact(...)` values render "Not recorded" and `Assert.Contains("FORD")` would fail. Two consequences, neither recorded anywhere: (a) the plan's step 5 says "no assertion is weakened or deleted to make a retarget pass" and the report says "every existing behavioural assertion … is unchanged" — the assertion survived but its premise was swapped, which is the same defect in a different place (conduct rule 19); (b) the retired page's `MileageDisplay`/`VehicleDisplay` (`origin/dev:…/Assessment/Index.cshtml.cs:253-288`) cascaded saved assessment value → confirmed → **extracted fact** → lookup observation into the Assessment ribbon's Mileage and Vehicle items, while the Case ribbon (`Details.cshtml:111-142`) carries seven different items and neither figure, and `_CaseVehicle` renders confirmed values only — so an extracted-but-unconfirmed make/model/mileage an operator could previously see is now displayed nowhere. That retirement may well be authorised by D30/D49 (CASE-029/CASE-043 own vehicle-field population, and D49 makes extraction-first population an explicit decision), but nothing in the plan, checklist or report records it, and D49's lane may now read a green test whose name falsely promises that tier is covered. | **Fix.** (a) Rename the test — and the `includeExtractedFacts` parameter — to what it now proves; (b) correct the report's "every existing behavioural assertion is unchanged" sentence and record the `Fact` → `Confirmed` fixture change with its reason; (c) record the retirement of the ribbon's Mileage/Vehicle figures and the extracted-fact tier, and either link it to CASE-029/CASE-043 under D49 or reject it with the reason D30/D49 already settles it. Returned to the implementing lane. No code change to `src/` is implied, so no snapshot recapture. |
+| 3 | nit | `post-implementation-report.md` § round-3 "NIT — case-details--unavailable.html byte count" | The report rejects the 24,694 figure as "not reproduced". Both figures are right and measure different things: `core.autocrlf=true`, so the blob is 24,390 bytes and the CRLF working copy is 24,694 (= 24,390 + 304 lines). The same holds for `case-details--default.html` (68,319 blob / 69,470 working copy) and `--conflict.html` (41,987 / 42,707), and the report quotes the working-copy figure for those two beside the blob figure for the third. The round-three **review record** already reached this conclusion and withdrew the nit on the correct grounds; only the report's own wording still frames it as "not reproduced". | **Accept risk, closed.** Optionally fold the units clarification into the report while making finding 2's edits. |
+| 4 | nit | `tests/Pegasus.IntegrationTests/AssessmentCopyWebTests.cs:139-152` | The class was de-`partial`ed and the source-generated `[GeneratedRegex] AntiforgeryTagRegex()` replaced with two inline runtime `Regex.Match` calls. Behaviour-preserving churn with no stated reason and a small step away from the form the file used. | **Accept risk.** Test-only, no behavioural effect. |
+| 5 | nit | `Details.cshtml.cs` — `OnGetPreviewReportDraftAsync`, `OnPostSendToClaudeAsync`, `MutationRefusalMessage`, and two inline comments in `OnPostImportEstimateAsync` | Round one restored the moved XML doc comments on the five estimate handlers, but these four summaries and the two inline comments ("Retaining the document was itself a case mutation …", "Whatever this leaves behind …") are still dropped relative to the pre-move blob. | **Accept risk.** Cosmetic; behaviour unchanged and the FRD-11 reference survives in the ticket record. |
+| 6 | nit | `src/Pegasus.Web/Pages/Cases/Assessment/Suggestions.cshtml:37` | The `href` was retargeted to `/Cases/{id}?section=estimate`, but the label still reads "Back to the assessment" and is a bare literal outside `OperatorLabels` (pre-existing). | **Defer** to whichever ticket next owns `Suggestions.cshtml`; not worth a round trip on its own. |
+| 7 | informational | ticket body vs `Details.cshtml:373` | The ticket body names five Engineer sections; `_CaseValuation.cshtml` does not exist and is not created here. `Details.cshtml:373` records the Valuation host as CASE-029's, and the plan and checklist scope ENG-034 to Damage, Estimate, Settlement and Report. `CaseEngineerSectionsWebTests` still asserts `id="section-valuation"` renders. Consistent with the epic. | **No action.** |
+
+## What was verified and found correct
+
+- **Handler fidelity.** Every moved handler body diffed against the pre-move
+  blob. The only differences are `TempData["Assessment*"]` → `TempData["Case*"]`,
+  `RedirectToPage(new { id })` → `RedirectToEstimate(id)`, the recorded
+  `ReadEditorPost` efficiency fix, the three rounds' `CanOpen` restorations and
+  the dropped comments in finding 5. No guard, refusal path or Core call
+  changed. `HasAssessmentAccessAsync` is byte-equivalent in effect to the
+  pre-move `CanAccessAsync`.
+- **Every drawn control has a named handler**: `DuplicateEstimate`,
+  `SetCurrentEstimate`, `SaveEstimate`, `ImportEstimate`, `DiscardEstimate`,
+  `SendToClaude`, `GenerateReportDraft`, `PreviewReportDraft` in the partials,
+  plus `EditLine` via `Url.Page("/Cases/Details", "EditLine", …)` at
+  `_CaseEstimate.cshtml:196`. All nine exist on `DetailsModel`; zero remain on
+  the retired page model, whose whole body is now a `RedirectPermanent`.
+- **No dead-end controls remain.** `AssessmentCanOpen` gates New estimate,
+  import (control and gated fallback), the editor and the
+  Duplicate/Use/Delete controls, `SendToClaudeCondition` and — as of this head
+  — `ReportDraftCondition`. Absent-versus-disabled is respected throughout.
+- **Labels.** One `// ENG-034: … // ENG-034 end.` block under
+  `CaseWorkspace.EngineerSections`, delimiters intact. Wording spot-checked
+  verbatim against the pre-move markup ("R&I", "Target Estimate",
+  "Case Valuation", "Drag an estimate here, or choose it", "To be confirmed",
+  "None recorded", the delete prompt, the `Part £` entity). No parallel label
+  or state map; `CaseStage`, `RepairSpecificationRoute`, `EstimateLineType` and
+  `AssessmentVocabulary` reused.
+- **No explanatory copy** added: the partials are labels and values plus the
+  pre-existing fail-closed report-draft notice.
+- **Core ownership.** Nothing moved into Core; the Web-side gating mirrors
+  guards Core already enforces (`AssessmentReportProjection.cs:434`,
+  `AssessmentAccessPolicy`). `Pegasus.Infrastructure.Assessment` and
+  `JsonEstimateParser` were already the pre-move page's dependencies, so the
+  composition root's shape is unchanged. ArchitectureTests green.
+- **Owned paths only.** 21 files, all named by the plan and files documents; no
+  `Details.cshtml`, `site.css`, `site.js`, `TestUiSnapshotTests.cs`, `ci.yml`
+  or `scripts/*.ps1` edit; no migration, so `Test-MigrationGrants.ps1` is
+  correctly not applicable; no package change (the locked restore passed).
+- **Tests.** Every changed test file diffed against `origin/dev`. Beyond
+  findings 2 and 4 the retargets are honest: `AssessmentEstimateImportWebTests`
+  flips `DoesNotContain("section=")` to `Contains("section=estimate")` (correct
+  for the new redirect); the deleted
+  `RefusedAccessRendersTheUnavailableSurfaceNamingTheExport` asserted a surface
+  D30 deliberately retires and is replaced by
+  `CanOpenDoesNotHideTheEngineerSections`; the browser test's dropped
+  "Evidence" pane assertion targeted a rail the Case Files section already
+  carries. New coverage added, none weakened: the 301 assertion, the
+  preview-GET test, two `canOpen: false` POST-404 tests, and the report-draft
+  absent-control assertions.
+- **Snapshot artifacts opened.** `case-details--default.html` and
+  `--conflict.html` both begin `<!DOCTYPE html>`, carry `class="case-sticky"`
+  once, expose exactly eleven `id="section-*"` hosts (damage, engineer-notes,
+  estimate, files, inspection, notes, overview, report, settlement, valuation,
+  vehicle) and contain no `<img src="#">`. `case-assessment--default.html` is
+  deleted; the catalogue entry is reclassified `visual` → `redirect` with the
+  matching `index.html` row moved to the non-visual table.
+- **Report and checklist against the diff.** All 25 checklist items are
+  supported by the diff and the report's file list matches
+  `git diff --name-status` exactly. The only inaccuracies are findings 2(a)
+  and 3.
+- **Simplification pass.** Both applied findings are visible in the diff (the
+  shared `DetailsModel.AssessmentValue` helper reusing
+  `CaseWorkspace.AbsentValue`; the six posted line-field collections
+  materialized once before the `ReadEditorPost` loop). The three "not
+  applicable" entries are honest against what was read.
+
+## Commands run and exit codes (review worktree `.worktrees/eng-034-review`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git worktree add --detach .worktrees/eng-034-review origin/task/eng-034-engineer-sections-move` | `WT_EXIT=0` | `git rev-parse HEAD` = `795506d752bb0ce9e1e82bbee06678b412f8884f` |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` | Build succeeded, 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --configuration Release --no-build` | `CORE_EXIT=0` | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --configuration Release --no-build` | `ARCH_EXIT=0` | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "…AssessmentCopyWebTests\|…AssessmentEstimateImportWebTests\|…AssessmentVehiclePrefillWebTests\|…AssessmentReportDraftWebTests\|…SendToAiIntegrationTests\|…CaseEngineerSectionsWebTests\|…CaseDetailsWebTests\|…AssessmentReadinessSummaryBrowserTests" -- xUnit.MaxParallelThreads=2` | `INTEG_EXIT=0` | 114 passed. |
+| `gh run list --branch task/eng-034-engineer-sections-move --limit 3` | 0 | `repository-check` `33968478708` on the reviewed head is `in_progress` at review time; `33959780644` was `success` on `6a2c3af77`. Not gated on: the ticket returns to the implementing lane before merge. |
+
+That scope covers the change: `git diff --name-only origin/dev...HEAD` lists
+exactly two production types (`DetailsModel` and the retired
+`Assessment.IndexModel`), four Razor partials, `OperatorLabels.cs` and seven
+test files. The filter runs all six changed test classes, the new one,
+`CaseDetailsWebTests` (the existing cover for `DetailsModel`/`Details.cshtml`,
+which this PR changes most) and the one changed browser class.
+ArchitectureTests prove the dependency direction after moving a handler surface
+between composition-root pages; Core.Tests cover the estimate policy the moved
+handlers call. The full suite, the browser suite and the Test UI capture are
+CI's. The snapshot diff was checked by opening the artifacts rather than
+re-running the capture, per the epic's "verify the artifact, not the gate" rule.
+
+Findings file: `scratchpad/build/ENG-034/review-out.md`.
