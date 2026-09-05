@@ -1388,9 +1388,6 @@ public static class OperatorLabels
         public const string OpenMessage = "Open message";
 
         public const string VehicleFactsPanel = "Vehicle";
-        public const string VehicleChecksPanel = "Vehicle checks";
-        public const string RefreshDvla = "Refresh DVLA";
-        public const string RefreshDvsaMot = "Refresh DVSA/MOT";
         public const string RunExperianCheck = "Run Experian check";
 
         /// <summary>
@@ -1401,9 +1398,6 @@ public static class OperatorLabels
         /// </summary>
         public const string ExperianSeamCondition = "Experian is not connected";
 
-        public const string VehicleChecksHistory = "Recorded checks";
-        public const string AcceptSuggestion = "Accept";
-        public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
         public const string ProviderDefaultInspectionAddress = "Provider default";
         // CASE-041: Inspect-at choices and storage-location labels.

@@ -11,10 +11,13 @@
         ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     var registration = details.VehicleEvidence?.Confirmed?.Registration.Value
         ?? data?.Vehicle.Registration.Current?.Value ?? details.Summary.Registration;
-    var make = data?.Vehicle.Make.Current?.Value;
-    var model = data?.Vehicle.Model.Current?.Value;
-    var mileage = data?.Vehicle.Mileage.Current?.Value;
-    var unit = data?.Vehicle.MileageUnit.Current?.Value;
+    // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an
+    // unaccepted suggestion, which would render with no marker distinguishing
+    // it from a recorded value while the chip beside it still offers "Use …".
+    var make = data?.Vehicle.Make.Confirmed?.Value ?? data?.Vehicle.Make.Fact?.Value;
+    var model = data?.Vehicle.Model.Confirmed?.Value ?? data?.Vehicle.Model.Fact?.Value;
+    var mileage = data?.Vehicle.Mileage.Confirmed?.Value ?? data?.Vehicle.Mileage.Fact?.Value;
+    var unit = data?.Vehicle.MileageUnit.Confirmed?.Value ?? data?.Vehicle.MileageUnit.Fact?.Value;
     var makeSuggestion = data?.Vehicle.Make.Suggestion;
     var modelSuggestion = data?.Vehicle.Model.Suggestion;
     var mileageSuggestion = data?.Vehicle.Mileage.Suggestion;
@@ -37,7 +40,7 @@
     var mileageText = mileage is { } figure
         ? string.IsNullOrWhiteSpace(unit) ? figure.ToString("N0") : $"{figure:N0} {unit}"
         : null;
-    var mileageSource = data?.Vehicle.Mileage.Current is { } mileageValue
+    var mileageSource = (data?.Vehicle.Mileage.Confirmed ?? data?.Vehicle.Mileage.Fact) is { } mileageValue
         ? OperatorLabels.Provenance(mileageValue.Source).Word : null;
     var year = details.VehicleEvidence?.LatestObservation?.Vehicle?.ManufactureYear;
 }

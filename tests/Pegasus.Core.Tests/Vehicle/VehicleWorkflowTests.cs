@@ -68,8 +68,7 @@ public sealed class VehicleWorkflowTests
             useCase.ExecuteAsync(
                 command with
                 {
-                    Decision = VehicleSuggestionDecision.Correct,
-                    Correction = null
+                    Correction = new VehicleConfirmationValues("AB12CDE", null, null, null, null)
                 },
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>

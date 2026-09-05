@@ -4,8 +4,7 @@ namespace Pegasus.Core.Vehicle;
 
 public enum VehicleSuggestionDecision
 {
-    Accept,
-    Correct
+    Accept
 }
 
 public enum VehicleSuggestionField
@@ -337,7 +336,6 @@ public static class VehicleSuggestionAcceptancePolicy
                 observation.Vehicle?.Model,
                 observation.Mileage?.Value,
                 observation.Mileage?.Unit),
-            VehicleSuggestionDecision.Correct when correction is not null => correction,
             _ => throw new ArgumentOutOfRangeException(nameof(decision))
         };
         ValidateValues(values);
@@ -429,16 +427,6 @@ public sealed class ConfirmedVehicleRegistrationConflictException(
     public Guid CaseId { get; } = caseId;
     public string ConfirmedRegistration { get; } = confirmedRegistration;
     public string ProposedRegistration { get; } = proposedRegistration;
-}
-
-public sealed class ConfirmedVehicleFieldConflictException(
-    Guid caseId,
-    string fieldName)
-    : InvalidOperationException(
-        $"Case '{caseId}' already has a different confirmed '{fieldName}' value. Use an explicit correction operation.")
-{
-    public Guid CaseId { get; } = caseId;
-    public string FieldName { get; } = fieldName;
 }
 
 /// <summary>

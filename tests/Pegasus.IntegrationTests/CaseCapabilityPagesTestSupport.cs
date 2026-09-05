@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -17,16 +18,20 @@ public sealed partial class CaseDetailsWebTests
 {
     private static async Task<LeasedWorkspace> EnterEditModeAsync(
         RecordingCaseDetailsStore store,
-        Action<IServiceCollection> substitutePorts)
+        Action<IServiceCollection> substitutePorts,
+        Action<IWebHostBuilder>? configureWebHost = null)
     {
         var baseFactory = new IntakeWebApplicationFactory();
         var factory = baseFactory.WithWebHostBuilder(builder =>
+        {
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
                 substitutePorts(services);
-            }));
+            });
+            configureWebHost?.Invoke(builder);
+        });
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

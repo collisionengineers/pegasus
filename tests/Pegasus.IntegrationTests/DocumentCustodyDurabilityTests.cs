@@ -454,10 +454,30 @@ public sealed class DocumentCustodyDurabilityTests
             var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
 
             var created = await create.ExecuteAsync(command, CancellationToken.None);
+            Assert.False(created.IsReplay);
+
+            // Pin the create-replay bug: an accepted upload bumps the live
+            // entity's Status, AcceptedFileCount, AcceptedByteCount and
+            // Version, but a subsequent replay of the *create* operation key
+            // must still compare against the creation-time snapshot rather
+            // than the live entity, or an idempotent replay wrongly throws.
+            var upload = scope.ServiceProvider.GetRequiredService<IUploadToRequest>();
+            var uploadResult = await upload.ExecuteAsync(
+                new UploadToRequestCommand(
+                    created.Secret!.Token,
+                    new RequestUploadFile(
+                        "evidence.txt",
+                        "text/plain",
+                        "evidence"u8.ToArray(),
+                        "request-metadata-upload"),
+                    AttemptsInCurrentRateWindow: 0),
+                CancellationToken.None);
+            Assert.Equal(RequestUploadDecision.Accepted, uploadResult.Decision);
+
             var replay = await create.ExecuteAsync(command, CancellationToken.None);
 
-            Assert.False(created.IsReplay);
             Assert.True(replay.IsReplay);
+            Assert.Equal(created.Link, replay.Link);
             Assert.Equal("Repairer evidence team", created.Link.Recipient);
             Assert.Equal("Photographs requested", created.Link.Reason);
             var projected = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()

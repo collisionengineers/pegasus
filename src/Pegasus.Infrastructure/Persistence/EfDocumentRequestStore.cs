@@ -41,7 +41,9 @@ internal sealed class EfDocumentRequestStore(
                     "The replayed upload-request creation is missing its action history.");
             }
 
-            var replayLink = ToCreatedUploadLink(replay, history);
+            var snapshot =
+                DocumentActionHistory.Deserialize<RequestUploadHistoryValue>(history.AfterJson);
+            var replayLink = ToCreatedUploadLink(replay, snapshot);
             DocumentActionHistory.RequireExactReplay(
                 history,
                 "request_upload_link",
@@ -50,7 +52,7 @@ internal sealed class EfDocumentRequestStore(
                 command.Actor,
                 reason: null,
                 afterJson: DocumentActionHistory.Serialize(
-                    HistoryValue(replay) with
+                    snapshot with
                     {
                         Recipient = command.Recipient,
                         Reason = command.Reason
@@ -505,10 +507,8 @@ internal sealed class EfDocumentRequestStore(
 
     private static RequestUploadLink ToCreatedUploadLink(
         RequestUploadLinkEntity current,
-        ActionHistoryEntity history)
+        RequestUploadHistoryValue snapshot)
     {
-        var snapshot =
-            DocumentActionHistory.Deserialize<RequestUploadHistoryValue>(history.AfterJson);
         if (snapshot.RequestId != current.Id
             || snapshot.CaseId != current.CaseId
             || !string.Equals(

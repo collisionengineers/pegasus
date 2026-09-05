@@ -1000,14 +1000,12 @@ internal sealed class EfVehicleWorkflowStore(
     private static string ToCode(VehicleSuggestionDecision decision) => decision switch
     {
         VehicleSuggestionDecision.Accept => "accepted",
-        VehicleSuggestionDecision.Correct => "corrected",
         _ => throw new ArgumentOutOfRangeException(nameof(decision))
     };
 
     private static VehicleSuggestionDecision ParseDecision(string decision) => decision switch
     {
         "accepted" => VehicleSuggestionDecision.Accept,
-        "corrected" => VehicleSuggestionDecision.Correct,
         _ => throw new InvalidDataException(
             $"Persisted vehicle suggestion decision '{decision}' is invalid.")
     };

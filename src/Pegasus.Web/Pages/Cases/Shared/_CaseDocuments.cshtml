@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
-@inject Pegasus.Core.Documents.RequestUploadLimits UploadLimits
+@inject IServiceProvider ServiceProvider
+@using Microsoft.Extensions.DependencyInjection
 @using Pegasus.Core.Documents
 @using Pegasus.Core.Cases
 @using Pegasus.Web.Presentation
@@ -9,6 +10,11 @@
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
     var files = CaseFiles.Live(details.Documents);
+    // RequestUploadLimits is registered only when DocumentRequests:AcceptedLimitsVersion
+    // is configured; where it is not, upload-request creation stays absent rather
+    // than throwing on render.
+    var uploadLimits = ServiceProvider.GetService<Pegasus.Core.Documents.RequestUploadLimits>();
+    var mayCreateUploadRequest = mayEdit && uploadLimits is not null;
     static bool MayConfirmThirdParty(DocumentOccurrence occurrence, DocumentVersion version) =>
         occurrence.SemanticRole == DocumentSemanticRole.Image
         && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
@@ -170,7 +176,7 @@
     <section class="panel" aria-labelledby="case-upload-requests-title">
         <div class="panel-head">
             <h2 id="case-upload-requests-title">@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h2>
-            @if (mayEdit)
+            @if (mayCreateUploadRequest)
             {
                 <button type="button" class="btn btn--primary" data-dialog-open="create-upload-request">Create upload request</button>
             }
@@ -231,7 +237,7 @@
     </section>
 }
 
-@if (mayEdit)
+@if (mayCreateUploadRequest)
 {
     <dialog id="create-upload-request" class="dialog">
         <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink" class="stack">
@@ -241,7 +247,7 @@
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <div class="field"><label class="req" for="upload-recipient">@OperatorLabels.CaseWorkspace.Recipient</label><input id="upload-recipient" name="recipient" required maxlength="500" /></div>
-            <dl class="definition"><dt>Lifetime</dt><dd>@UploadLimits.Lifetime</dd><dt>Files</dt><dd>@UploadLimits.MaximumFileCount</dd><dt>File size</dt><dd>@OperatorLabels.FileSize(UploadLimits.MaximumFileBytes)</dd></dl>
+            <dl class="definition"><dt>Lifetime</dt><dd>@uploadLimits!.Lifetime</dd><dt>Files</dt><dd>@uploadLimits.MaximumFileCount</dd><dt>File size</dt><dd>@OperatorLabels.FileSize(uploadLimits.MaximumFileBytes)</dd></dl>
             <div class="field"><label for="upload-reason">@OperatorLabels.CaseWorkspace.Reason</label><textarea id="upload-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
             <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create</button></div>
         </form>
