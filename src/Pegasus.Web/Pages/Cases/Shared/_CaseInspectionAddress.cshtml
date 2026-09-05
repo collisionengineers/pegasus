@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
+@using Pegasus.Core.Address
 @using Pegasus.Web.Presentation
 @{
     var details = Model.Case!;
@@ -17,6 +18,23 @@
     var providerDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
         .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.ProviderSetting);
     var mode = data?.Inspection.Mode.Current;
+    var storage = data?.Inspection.StorageLocation?.Current;
+    var choices = Model.InspectionAddressChoices;
+    var selectedChoice = choices.FirstOrDefault(choice =>
+        recorded is not null
+        && choice.Address is not null
+        && string.Equals(choice.Address, recorded.Value, StringComparison.OrdinalIgnoreCase))
+        ?? choices.FirstOrDefault(choice => choice.Kind == InspectionAddressChoiceKind.ManualEntry);
+    string ChoiceLabel(InspectionAddressChoice choice) => choice.Kind switch
+    {
+        InspectionAddressChoiceKind.ImageBasedAssessment => OperatorLabels.CaseWorkspace.ImageBasedAssessment,
+        InspectionAddressChoiceKind.ClaimantAddress => OperatorLabels.CaseWorkspace.ClaimantAddress,
+        InspectionAddressChoiceKind.RepairerLocation => OperatorLabels.CaseWorkspace.RepairerLocation,
+        InspectionAddressChoiceKind.StorageLocation => OperatorLabels.CaseWorkspace.StorageLocation,
+        InspectionAddressChoiceKind.PreviousAddress => $"{OperatorLabels.CaseWorkspace.PreviousAddress} · {choice.Address}",
+        InspectionAddressChoiceKind.ManualEntry => OperatorLabels.CaseWorkspace.ManualEntry,
+        _ => throw new InvalidOperationException("The inspection-address choice is invalid.")
+    };
 }
 
 <div class="stack">
@@ -27,14 +45,18 @@
         <div class="panel-body">
             <div class="definition-list">
                 <dl class="definition">
-                    <dt>@OperatorLabels.CaseWorkspace.RecordedInspectionAddress</dt>
+                    <dt>@OperatorLabels.CaseWorkspace.InspectAt</dt>
                     <dd>
-                        @(recorded is null ? "Not recorded" : recorded.Value)
+                        @(recorded is null ? OperatorLabels.CaseWorkspace.NotRecorded : recorded.Value)
                         @if (recorded is not null)
                         {
                             <partial name="Shared/_Provenance" model="recorded.Source" />
                         }
                     </dd>
+                </dl>
+                <dl class="definition">
+                    <dt>@OperatorLabels.CaseWorkspace.Source</dt>
+                    <dd>@(selectedChoice is null ? OperatorLabels.CaseWorkspace.ManualEntry : ChoiceLabel(selectedChoice))</dd>
                 </dl>
                 @if (providerDefault is not null)
                 {
@@ -53,6 +75,10 @@
                         </dd>
                     </dl>
                 }
+                <dl class="definition">
+                    <dt>@OperatorLabels.CaseWorkspace.StorageLocation</dt>
+                    <dd>@(storage?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
+                </dl>
             </div>
         </div>
     </section>
@@ -61,7 +87,7 @@
     {
         <section class="panel" aria-labelledby="case-inspection-address-edit-title">
             <div class="panel-head">
-                <h2 id="case-inspection-address-edit-title">Edit inspection address</h2>
+                <h2 id="case-inspection-address-edit-title">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</h2>
             </div>
             <div class="panel-body">
                 @* CASE-038: the record renders every section at once, so a
@@ -73,9 +99,30 @@
                    so this input is the only entry for that name and the address
                    shown here is the address that is saved. *@
                 <div class="field">
+                    <label for="inspection-address-choice">@OperatorLabels.CaseWorkspace.InspectAt</label>
+                    <select id="inspection-address-choice" data-inspection-address-choice form="case-edit-form">
+                        @foreach (var choice in choices)
+                        {
+                            var label = ChoiceLabel(choice);
+                            <option value="@choice.Kind" data-address="@choice.Address"
+                                    selected="@(choice == selectedChoice ? "selected" : null)"
+                                    disabled="@(!choice.IsAvailable ? "disabled" : null)">@label@(!choice.IsAvailable ? OperatorLabels.CaseWorkspace.NotRecordedSuffix : null)</option>
+                        }
+                    </select>
+                </div>
+                <div class="field" data-inspection-address-field>
                     <label for="inspection-address">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</label>
                     <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
-                           maxlength="500" value="@recorded?.Value" />
+                           maxlength="1000" value="@recorded?.Value" data-inspection-address-input />
+                </div>
+                <div class="field" data-inspection-provider-default hidden>
+                    <span class="label">@OperatorLabels.CaseWorkspace.ProviderDefaultInspectionAddress</span>
+                    <span class="value">@providerDefault?.Value</span>
+                </div>
+                <div class="field">
+                    <label for="storage-location">@OperatorLabels.CaseWorkspace.StorageLocation</label>
+                    <input id="storage-location" name="storageLocation" form="case-edit-form"
+                           maxlength="1000" value="@storage?.Value" />
                 </div>
             </div>
         </section>

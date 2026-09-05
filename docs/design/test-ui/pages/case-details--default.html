@@ -503,9 +503,31 @@
 
                 </section>
                 <section class="case-section" id="section-engineer-notes" data-section="engineer-notes">
-                        <section class="panel">
-                            <div class="panel-head"><h2 id="section-engineer-notes-title">Engineer notes</h2></div>
-                        </section>
+
+<section class="panel" aria-labelledby="case-engineer-notes-title">
+    <div class="panel-head">
+        <h2 id="case-engineer-notes-title">Engineer notes</h2>
+    </div>
+        <div class="panel-body stack">
+
+                <form method="post" class="stack" action="case-details--default.html">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <h3>Add Engineer note</h3>
+                    <div class="field">
+                        <label class="req" for="engineer-note">Note</label>
+                        <textarea id="engineer-note" name="note" rows="3" required
+                                  maxlength="2000"></textarea>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">Add note</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
+</section>
+
                 </section>
                 <section class="case-section" id="section-inspection" data-section="inspection">
 
@@ -517,7 +539,7 @@
         <div class="panel-body">
             <div class="definition-list">
                 <dl class="definition">
-                    <dt>Recorded value</dt>
+                    <dt>Inspect at</dt>
                     <dd>
                         1 Depot Road
                             <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
@@ -525,6 +547,10 @@
 </span>
 
                     </dd>
+                </dl>
+                <dl class="definition">
+                    <dt>Source</dt>
+                    <dd>Manual entry</dd>
                 </dl>
                     <dl class="definition">
                         <dt>Inspection</dt>
@@ -536,19 +562,37 @@
 
                         </dd>
                     </dl>
+                <dl class="definition">
+                    <dt>Storage location</dt>
+                    <dd>14 Storage Lane</dd>
+                </dl>
             </div>
         </div>
     </section>
 
         <section class="panel" aria-labelledby="case-inspection-address-edit-title">
             <div class="panel-head">
-                <h2 id="case-inspection-address-edit-title">Edit inspection address</h2>
+                <h2 id="case-inspection-address-edit-title">Inspection address</h2>
             </div>
             <div class="panel-body">
                 <div class="field">
+                    <label for="inspection-address-choice">Inspect at</label>
+                    <select id="inspection-address-choice" data-inspection-address-choice form="case-edit-form">
+                    </select>
+                </div>
+                <div class="field" data-inspection-address-field>
                     <label for="inspection-address">Inspection address</label>
                     <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
-                           maxlength="500" value="1 Depot Road" />
+                           maxlength="1000" value="1 Depot Road" data-inspection-address-input />
+                </div>
+                <div class="field" data-inspection-provider-default hidden>
+                    <span class="label">Provider default</span>
+                    <span class="value"></span>
+                </div>
+                <div class="field">
+                    <label for="storage-location">Storage location</label>
+                    <input id="storage-location" name="storageLocation" form="case-edit-form"
+                           maxlength="1000" value="14 Storage Lane" />
                 </div>
             </div>
         </section>

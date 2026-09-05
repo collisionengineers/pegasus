@@ -37,7 +37,9 @@ internal static class AssessmentWorkspaceTestData
             new CaseInstructionData(emptyDate, emptyString),
             new CaseInspectionData(
                 emptyDate, emptyDate, emptyString,
-                new CaseField<CaseInspectionMode>(null, null, null)));
+                new CaseField<CaseInspectionMode>(null, null, null),
+                emptyString,
+                emptyString));
 
         return new AssessmentWorkspace(
             new AssessmentWorkspaceHeader(

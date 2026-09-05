@@ -246,7 +246,7 @@ public sealed class LayoutIntegrityTests
         var savedResponse = await support.GoToAsync($"/Cases/{caseId:D}");
         Assert.Equal(200, savedResponse.Status);
         var recordedAddress = support.Page.Locator(
-            "xpath=//dt[normalize-space(text())='Recorded value']/following-sibling::dd[1]");
+            "xpath=//dt[normalize-space(text())='Inspect at']/following-sibling::dd[1]");
         Assert.Contains(
             inspectionAddress,
             await recordedAddress.InnerTextAsync(),

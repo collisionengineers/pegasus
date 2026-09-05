@@ -1369,6 +1369,24 @@ public static class OperatorLabels
     /// </summary>
     public static class CaseWorkspace
     {
+        // CASE-039: Engineer notes
+        public const string EngineerNotesSectionTitle = "Engineer notes";
+        public const string AddEngineerNote = "Add note";
+        public const string AddEngineerNoteTitle = "Add Engineer note";
+        public const string EngineerNoteField = "Note";
+        public const string EngineerNoteAdded = "The Engineer note was added.";
+
+        public static string EngineerNoteCount(int count) =>
+            count == 1 ? "1 note" : $"{count} notes";
+        // end CASE-039
+
+        // CASE-009: read-only query correspondence table.
+        public const string Received = "Received";
+        public const string Sender = "Sender";
+        public const string Subject = "Subject";
+        public const string Classification = "Classification";
+        public const string OpenMessage = "Open message";
+
         public const string VehicleFactsPanel = "Vehicle";
         public const string VehicleChecksPanel = "Vehicle checks";
         public const string RefreshDvla = "Refresh DVLA";
@@ -1387,8 +1405,19 @@ public static class OperatorLabels
         public const string AcceptSuggestion = "Accept";
         public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
-        public const string RecordedInspectionAddress = "Recorded value";
         public const string ProviderDefaultInspectionAddress = "Provider default";
+        // CASE-041: Inspect-at choices and storage-location labels.
+        public const string InspectAt = "Inspect at";
+        public const string Source = "Source";
+        public const string ImageBasedAssessment = "Image Based Assessment";
+        public const string ClaimantAddress = "Claimant address";
+        public const string RepairerLocation = "Repairer location";
+        public const string StorageLocation = "Storage location";
+        public const string PreviousAddress = "Previous";
+        public const string ManualEntry = "Manual entry";
+        public const string NotRecorded = "Not recorded";
+        public const string NotRecordedSuffix = " · not recorded";
+        // End CASE-041.
         public const string FilesPanel = "Files";
         public const string UploadRequestsPanel = "Public upload requests";
         public const string InstructionPhotographs = "Instruction photographs";
@@ -1419,7 +1448,7 @@ public static class OperatorLabels
         public static readonly IReadOnlyList<CaseSection> Sections =
         [
             new("overview", "Overview", "icon-layout-dashboard"),
-            new("engineer-notes", "Engineer notes", "icon-pencil"),
+            new("engineer-notes", EngineerNotesSectionTitle, "icon-pencil"),
             new("inspection", "Inspection", "icon-map-pin"),
             new("vehicle", "Vehicle", "icon-car"),
             new("damage", "Damage", "icon-alert-triangle"),
