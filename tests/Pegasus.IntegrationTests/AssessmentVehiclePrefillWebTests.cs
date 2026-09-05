@@ -85,6 +85,8 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.Contains("FORD", html, StringComparison.Ordinal);
         Assert.Contains("FOCUS", html, StringComparison.Ordinal);
         Assert.Contains("40,000 miles", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("VOLKSWAGEN", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("GOLF", html, StringComparison.Ordinal);
     }
 
     private sealed class FakeGetCase(Guid caseId, bool includeExtractedFacts = false)
