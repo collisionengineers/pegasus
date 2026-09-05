@@ -652,3 +652,154 @@ No migration changed in this round, so `Test-MigrationGrants.ps1` was not
 re-run.
 
 Pushed: `f96af2435..64889c424 task/case-040-sign-off-engineer-eva`.
+
+## Review round fixes (2026-09-05) — round 4
+
+PR: https://github.com/collisionengineers/pegasus/pull/666
+Branch: `task/case-040-sign-off-engineer-eva`
+Fixes commit: `861391d9ad6bc3a42e83d107fc0d219d5346e347` (parent `3d82259f5fa1e37c5d4fcc7081f8c54f091115b4`, the branch tip at review time).
+
+Built and independently verified by the wrapper (Claude), driven from a fix
+packet naming BLOCKER 1, SHOULD-FIX 2-4 and NIT 5 and the RULES that bind.
+
+### Blocker 1 — a rejected or unreachable EVA send still moved the case to With Engineer
+
+Fixed. `EvaSubmissionPolicy.StateAfterSend` and
+`EvaHandoffPolicy.StateAfterManualSend` (`src/Pegasus.Core/Eva/EvaSubmissionPolicy.cs`,
+`src/Pegasus.Core/Eva/EvaBundleSchema.cs`) each gain an `isDelivered`
+parameter defaulting to `true`. The default preserves both existing callers
+that must keep assuming success: the export route's own
+`StateAfterManualSend(state)`, whose write is atomic with the state change
+so a committed row always means a real handoff, and the API route's
+pre-transport preflight call in `EvaSubmissionStore.ExecuteAsync` (line 87),
+which asks "what state would this leave the case in if it succeeds?" before
+the outcome is known, purely to decide whether the D47 start-work
+preconditions need checking before attempting the transport call at all.
+`EvaSubmissionStore.RecordSubmissionAsync` (the actual post-transport
+commit) now passes `result.IsDelivered` explicitly — the same property
+`RequireOnceOnlyAutomaticSubmission` already consumes — so a `Rejected` or
+`Unknown` manual send from Review leaves the case exactly where it was: no
+state change, no version increment, no edit-lease clear. A `Partial`
+outcome still transitions, because EVA did create a claim.
+
+The local re-check's catch filter is unaffected by this change: a
+`Rejected`/`Unknown` outcome no longer even reaches the
+`resultingState != currentState` branch (both equal `Review`), so no
+`CaseEngineerEligibilityPolicy` re-check or version-conflict check runs on
+that branch — matching the plan's Resolutions §2 ("If either half fails the
+whole command fails: the case stays in Review"), now true for a
+transport-level failure as well as a local one.
+
+Proof:
+
+- Core unit tests in `EvaSubmissionPolicyTests.cs`:
+  `UndeliveredManualSendFromReviewDoesNotMoveTheCase` (`[Theory]` over
+  `Rejected` and `Unknown`, asserting `StateAfterSend(..., isDelivered:
+  false)` returns `Review` unchanged) and
+  `PartialManualSendFromReviewStillMovesTheCase` (asserts `Partial` still
+  returns `ReportPreparation`).
+- A new integration block in
+  `CustodyOutboxIntegrationTests.EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange`,
+  using a new `FixedOutcomeEvaTransport` fake (every other store-level test
+  in this file drives `RecordingEvaTransport`, which always returns
+  `Succeeded` — the gap the review named): with the case in `Review` and an
+  edit lease already held, a `Rejected` then an `Unknown` manual
+  `EvaSubmissionStore.ExecuteAsync` call are each asserted to: return
+  `IsSubmitted: true` with the real (undelivered) outcome; leave
+  `CaseWorkflows.State == "Review"` and `Version` unchanged; leave
+  `EditLeaseToken` exactly as seeded (proving the lease is untouched, not
+  merely absent); and still commit one `EvaSubmissions` row
+  (`IsDelivered == false`) and one `eva_api_submitted` action-history row
+  keyed on that send's own operation key.
+
+### Should-fix 2 — FRD-07 contradicted this PR's own durability fix
+
+Fixed. `docs/frd/frd-07-eva-and-external-engineering-handoff.md`'s API
+submission paragraph now distinguishes the three cases instead of the one
+blanket sentence: a failure detected before the transport call records
+nothing and leaves the Case in Review (unchanged); a `Rejected` or `Unknown`
+outcome is stated explicitly as not a handoff, for the same reason as
+Blocker 1 above; and a failure discovered only after EVA already accepted
+the instruction (a state or version conflict found on the post-delivery
+re-check) is now documented as still recording the submission and its
+action history — since the delivery already happened and must not be lost
+— while likewise leaving the Case in Review. The export paragraph (lines
+62-67) was already accurate (unconditional atomicity) and is unchanged.
+
+### Should-fix 3 — report/checklist stale at the head, fourth round writing this one
+
+This report's own Head SHA line above is not rewritten for every round (that
+repeated rewrite is exactly the structural defect round 3 identified); this
+section instead records the branch tip *at this round's review time* as
+`3d82259f5fa1e37c5d4fcc7081f8c54f091115b4`. As committed blobs at that SHA
+(`wc -c`): `case-details--default.html` is **68,567** bytes,
+`case-details--conflict.html` is **42,179** bytes, `case-eva-send--default.html`
+is **25,888** bytes (unchanged since round 3), and
+`docs/design/test-ui/pages/queues--empty.html` (**29,803** bytes) is also
+present at that head. All four moved or appeared via the `origin/dev` merge
+commit `916177da7` (bringing ENG-034's Engineer-sections move) and the
+follow-up regeneration commit `3d82259f5` — neither is a round-4 change; this
+round's own commit (`861391d9a`) touches only Core, Infrastructure, one FRD,
+and two test files, no routed page or `docs/design/test-ui/**` file. No
+snapshot procedure applies to round 4 itself. Authoritative byte sizes for
+whatever head actually merges belong in `proof.md`, written on merged `main`
+after review and merge, not repeated here again.
+
+### Should-fix 4 — three spellings of the readiness envelope
+
+Not applied in this ticket; raised as follow-up ticket
+[[CASE-046]] ("One spelling for the readiness envelope across reopen,
+return, assignment and EVA handoff forms"), linked from CASE-040. Retyping
+`_ReadinessHiddenFields.cshtml` off `DetailsModel` — the cheap-fix path the
+review named — reaches into `DetailsModel.cs` outside this ticket's narrow
+CASE-038 hand-off ownership of that file (recorded at the top of this
+report), so it is out of CASE-040's scope per the repository's own
+"scope is the ticket" rule rather than a judgement that the finding is
+wrong. Nothing is broken today: the three spellings currently agree.
+
+### Nit 5 — accepted, tightened
+
+Fixed while applying Blocker 1.
+`EvaSubmissionStore.RecordSubmissionAsync`'s local-recheck catch filter is
+narrowed from `EvaHandoffStateException or EvaSignOffEngineerRequiredException
+or CaseVersionConflictException or InvalidOperationException` to plain
+`InvalidOperationException`, with a comment stating that all three named
+types already derive from it and that the filter is deliberately just the
+base type because the guarded block is a fixed, closed set of local
+re-checks. Nothing was previously suppressed (the exception is always
+re-thrown via `ExceptionDispatchInfo` after commit) and nothing is
+suppressed now.
+
+### Accepted, no action (unchanged from prior rounds)
+
+- A post-delivery `CaseVersionConflictException` surfaces as "The case
+  could not be sent to EVA." on `Send.cshtml.cs` though EVA did receive it —
+  rare, delivery durable and visible on reload; worth a line in `proof.md`.
+- A concurrent duplicate export from Review throws
+  `CaseVersionConflictException` instead of replaying — error surfaces,
+  nothing lost, no EVA claim; worth a line in `proof.md`.
+- The inline `"The Sign-off Engineer was set."` literal — still rejected
+  (every sibling handler in `Workflow.cshtml.cs` keeps its own).
+- `CaseSignOffEngineerResolver.Resolve`'s `SingleOrDefault(IsDefault)` throw
+  on a double default — still accepted as risk (PLAT-068 owns enforcement;
+  fails closed).
+
+### Commands run and exit codes (this round, in `.worktrees/case-040`)
+
+Independently run by the wrapper (Claude):
+
+```
+dotnet build ./Pegasus.slnx --configuration Release --no-restore                                       — exit 0, 0 warnings, 0 errors
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build     — exit 0, 1252 passed (was 1249; +3 new)
+dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build — exit 0, 100 passed
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build \
+  --filter "FullyQualifiedName~CustodyOutboxIntegrationTests" -- xUnit.MaxParallelThreads=2            — exit 0, 23 passed, 1 pre-existing skip
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build \
+  --filter "FullyQualifiedName~EvaSubmissionPersistenceTests|FullyQualifiedName~CaseWorkflowPersistenceTests" -- xUnit.MaxParallelThreads=2 — exit 0, 44 passed
+```
+
+No migration changed this round, so `Test-MigrationGrants.ps1` was not
+re-run. No routed page, partial, or `catalogue.json` changed this round, so
+no snapshot procedure applies.
+
+Pushed: `3d82259f5..861391d9a task/case-040-sign-off-engineer-eva`.
