@@ -33,6 +33,10 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    // CASE-045: image-initiated principal field and its field-specific absent value.
+    public const string ImageIntakePrincipal = "Principal";
+    public const string ImageIntakePrincipalNotKnown = "Not known";
+
     public static string AttachmentSearchability(bool isSearchable) =>
         isSearchable ? "Searchable content" : "Content unavailable for search";
 

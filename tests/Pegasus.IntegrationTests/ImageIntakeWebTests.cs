@@ -1,4 +1,6 @@
 using System.Net;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -143,6 +145,89 @@ public sealed class ImageIntakeWebTests
             $"/Cases/{caseId:D}?section=files");
         Assert.Contains("AB12CDE-01", casePage);
     }
+
+    [Fact]
+    public async Task StaffSetsReplacesAndClearsTheImageIntakePrincipal()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var firstPrincipalId = await ImageIntakeTestData.SeedPrincipalAsync(
+            factory.Services, "ALPHA", isActive: true);
+        var secondPrincipalId = await ImageIntakeTestData.SeedPrincipalAsync(
+            factory.Services, "BETA", isActive: true);
+        var inactivePrincipalId = await ImageIntakeTestData.SeedPrincipalAsync(
+            factory.Services, "INACTIVE", isActive: false);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IImageIntakeStore>();
+        var detail = await store.GetByOriginReceiptAsync(
+            IntakeWebDriver.ReceiptId(upload),
+            CancellationToken.None);
+        Assert.NotNull(detail);
+        var path = $"/VehicleImages/{detail.Record.Id:D}";
+        var html = await IntakeWebDriver.GetHtmlAsync(client, path);
+        AssertPrincipalFact(html, "Not known");
+        Assert.Contains($"value=\"{firstPrincipalId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"value=\"{secondPrincipalId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"value=\"{inactivePrincipalId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+
+        await PostPrincipalAsync(client, path, firstPrincipalId, detail.LifecycleVersion);
+        detail = await store.GetAsync(detail.Record.Id, CancellationToken.None);
+        html = await IntakeWebDriver.GetHtmlAsync(client, path);
+        AssertPrincipalFact(html, "ALPHA");
+
+        await PostPrincipalAsync(client, path, secondPrincipalId, detail!.LifecycleVersion);
+        detail = await store.GetAsync(detail.Record.Id, CancellationToken.None);
+        html = await IntakeWebDriver.GetHtmlAsync(client, path);
+        AssertPrincipalFact(html, "BETA");
+
+        await PostPrincipalAsync(client, path, null, detail!.LifecycleVersion);
+        html = await IntakeWebDriver.GetHtmlAsync(client, path);
+        AssertPrincipalFact(html, "Not known");
+    }
+
+    private static async Task PostPrincipalAsync(
+        HttpClient client,
+        string path,
+        Guid? principalId,
+        long expectedVersion)
+    {
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var response = await client.PostAsync(
+            $"{path}?handler=Principal",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["principalId"] = principalId?.ToString("D") ?? string.Empty,
+                ["expectedVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    private static void AssertPrincipalFact(string html, string expected)
+    {
+        var match = Regex.Match(
+            html,
+            @"<dt>\s*Principal\s*</dt>\s*<dd>\s*(?<value>[^<]*)\s*</dd>",
+            RegexOptions.CultureInvariant);
+        Assert.True(match.Success);
+        var value = match.Groups["value"].Value.Trim();
+        Assert.Equal(expected, value);
+        if (expected == "Not known")
+        {
+            Assert.DoesNotContain(value, new[] { string.Empty, "None", "Unknown", "Unassigned" });
+        }
+    }
 }
 
 internal static class MultiFormatFixture
@@ -153,6 +238,32 @@ internal static class MultiFormatFixture
 
 internal static class ImageIntakeTestData
 {
+    public static async Task<Guid> SeedPrincipalAsync(
+        IServiceProvider services,
+        string code,
+        bool isActive)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<
+                Pegasus.Infrastructure.Persistence.PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
+            context.Database,
+            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Principal {code}"}, {0L})");
+        await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
+            context.Database,
+            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
+        await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
+            context.Database,
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {code}, {lineageId}, {isActive}, {0L})");
+        return principalId;
+    }
+
     /// <summary>
     /// Uploads a QDOS instruction email carrying the given registration and
     /// claim number, processes it, and promotes its allocated case: a real
