@@ -139,6 +139,10 @@ public sealed partial class AssessmentReportDraftWebTests
             BaseAddress = new Uri("https://localhost")
         });
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        // D11: the workspace has not opened, so the control stays disabled
+        // with its condition instead of offering a form that 404s.
+        Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",

@@ -582,7 +582,7 @@ public sealed partial class DetailsModel(
             SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ConfirmedEngineerValueRequired;
         }
 
-        ReportDraftCondition = ReportDraftPreparation is null
+        ReportDraftCondition = !AssessmentCanOpen || ReportDraftPreparation is null
             ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
             : ReportDraftPreparation.CanGenerate
                 ? null
