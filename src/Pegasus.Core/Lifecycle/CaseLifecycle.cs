@@ -182,17 +182,12 @@ public sealed class StartCaseWork(
             request.CaseId,
             request.OperationKey,
             cancellationToken);
-        if ((current.State != CaseLifecycleState.Review || current.AssignedEngineerId is null)
-            && !isReplay)
-        {
-            throw new InvalidOperationException("Case work can start only from Review after an Engineer is assigned.");
-        }
-
         if (!isReplay)
         {
-            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
+            await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
                 _eligibility,
-                current.AssignedEngineerId!.Value,
+                current.State,
+                current.AssignedEngineerId,
                 cancellationToken);
         }
 
@@ -200,8 +195,23 @@ public sealed class StartCaseWork(
     }
 }
 
-internal static class CaseEngineerEligibilityPolicy
+public static class CaseEngineerEligibilityPolicy
 {
+    public static async Task RequireStartCaseWorkAsync(
+        ICaseEngineerEligibility source,
+        CaseLifecycleState state,
+        Guid? assignedEngineerId,
+        CancellationToken cancellationToken)
+    {
+        if (state != CaseLifecycleState.Review || assignedEngineerId is null)
+        {
+            throw new InvalidOperationException(
+                "Case work can start only from Review after an Engineer is assigned.");
+        }
+
+        await RequireEligibleAsync(source, assignedEngineerId.Value, cancellationToken);
+    }
+
     public static async Task RequireEligibleAsync(
         ICaseEngineerEligibility source,
         Guid engineerId,
