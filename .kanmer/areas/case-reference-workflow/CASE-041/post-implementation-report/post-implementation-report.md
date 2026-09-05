@@ -173,3 +173,28 @@ were not regenerated.
 
 Head SHA after this fix: `42b38752a`. Pushed to
 `task/case-041-inspect-at-choices`; PR #664 unchanged (same branch).
+
+## Record correction at the final head (reviewer, 2026-09-05)
+
+The "Files changed", "Commands run" and "Snapshot artifact facts" sections
+above were written at head `d5b1123c…`, before the `origin/dev` merge
+(`7f035307`) regenerated the migration and the snapshots and before the
+review-round fix (`42b38752a`). Measured in the review worktree at the final
+head `42b38752a6ab38c4efe745cba87cc757a118ad7b`, the accurate figures are:
+
+- Migration: `20260904233144_CaseInspectionAddressChoices` (not
+  `20260904183440`). `Test-MigrationGrants.ps1` reports **93** migration files
+  checked (not 92).
+- `docs/design/test-ui/pages/case-details--default.html`: **67,734 bytes**;
+  begins `<!DOCTYPE html>`; one `class="case-sticky"`; **16 distinct
+  `id="section-…"` ids** — the eleven section hosts (overview,
+  engineer-notes, inspection, vehicle, damage, valuation, estimate,
+  settlement, report, files, notes) plus five `-title` ids; zero
+  `<img src="#">`.
+- `docs/design/test-ui/pages/case-details--conflict.html`: **40,971 bytes**;
+  same doctype, one `case-sticky`, the same 16 ids, zero `<img src="#">`.
+
+`tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs` and the
+removal of `OperatorLabels.CaseWorkspace.RecordedInspectionAddress` belong in
+the "Files changed" list; they are recorded in the "Review round fixes"
+section above.
