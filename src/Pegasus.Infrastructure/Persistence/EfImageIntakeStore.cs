@@ -860,6 +860,7 @@ public sealed class EfImageIntakeStore(
         PegasusDbContext context,
         CancellationToken cancellationToken)
     {
+        var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         var rows = await query
             .Select(intake => new
             {
@@ -868,6 +869,7 @@ public sealed class EfImageIntakeStore(
                 intake.ImageIntakeReference,
                 intake.NormalizedVehicleRegistration,
                 intake.CreatedAtUtc,
+                intake.SourceChannel,
                 intake.CustodyState,
                 intake.LifecycleState,
                 intake.ClosureReason,
@@ -878,7 +880,21 @@ public sealed class EfImageIntakeStore(
                 AcceptedCaseId = context.CaseIntakeLinks
                     .Where(link => link.IntakeReceiptId == intake.OriginReceiptId)
                     .Select(link => (Guid?)link.CaseId)
-                    .FirstOrDefault()
+                    .FirstOrDefault(),
+                ImageCount = context.IntakeAssets.Count(asset =>
+                    asset.Kind == "source"
+                    && asset.Disposition == "source"
+                    && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix)
+                    && context.IntakeReceipts.Any(receipt =>
+                        receipt.Id == asset.IntakeReceiptId
+                        && receipt.Decision == registeredDecision)
+                    && (asset.IntakeReceiptId == intake.OriginReceiptId
+                        || (intake.SubmissionGroupId != null
+                            && context.IntakeEvaluations.Any(evaluation =>
+                                evaluation.ProcessedReceiptId == asset.IntakeReceiptId
+                                && context.IntakeSubmissionGroupMembers.Any(member =>
+                                    member.GroupId == intake.SubmissionGroupId
+                                    && member.StagedReceiptId == evaluation.StagedReceiptId)))))
             })
             .ToArrayAsync(cancellationToken);
         var associatedCaseIds = rows
@@ -918,7 +934,9 @@ public sealed class EfImageIntakeStore(
                     row.CreatedAtUtc,
                     ParseCustodyState(row.CustodyState),
                     ParseState(row.LifecycleState),
-                    row.ClosureReason);
+                    row.ClosureReason,
+                    row.ImageCount,
+                    ParseChannel(row.SourceChannel));
             })
             .ToArray();
     }

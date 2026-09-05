@@ -1,13 +1,18 @@
-@*
-    The Settlement section's body. CASE-038 renders the heading host only; ENG-034
-    owns this file's content from its first PR. No control, prose or
-    placeholder renders for a capability that is not built yet.
-*@
+@using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
-@{
-    var heading = OperatorLabels.CaseWorkspace.Sections.Single(entry => entry.Key == "settlement");
-}
-<section class="panel">
-    <div class="panel-head"><h2 id="section-settlement-title">@heading.Label</h2></div>
+
+<section class="panel" aria-labelledby="section-settlement-title">
+    <div class="panel-head"><h2 id="section-settlement-title">@EngineerLabels.Settlement</h2></div>
+    <div class="panel-body">
+        <dl class="detail-list">
+            <div><dt>@EngineerLabels.Outcome</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.Outcome)</dd></div>
+            <div><dt>@EngineerLabels.SalvageCategory</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.SalvageCategory)</dd></div>
+            <div><dt>@EngineerLabels.SalvageValue</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.SalvageValue)</dd></div>
+            <div><dt>@EngineerLabels.RecoveryCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRecoveryCharge)</dd></div>
+            <div><dt>@EngineerLabels.StorageCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostStorageCharge)</dd></div>
+            <div><dt>@EngineerLabels.RepairerVatRegistered</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRepairerVatRegistered)</dd></div>
+        </dl>
+    </div>
 </section>

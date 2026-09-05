@@ -179,6 +179,7 @@
 </header>
 
 
+
 <section class="pane-layout pane-layout--3 queue-layout">
     <aside class="pane">
         <div class="pane-head">
@@ -233,6 +234,15 @@
                         <span>Triage</span>
                         <span>0</span>
                     </button>
+                    <button type="submit" name="tab" value="awaiting"
+                            class="scope-button"
+                            aria-pressed="false">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                        </span>
+                        <span>Awaiting instruction</span>
+                        <span>0</span>
+                    </button>
                     <div class="queue-group-divider"></div>
                 <div class="queue-group-label">Exceptions</div>
                     <button type="submit" name="tab" value="held"
@@ -267,7 +277,7 @@
                 <a class="row-button" href="received-details--default.html" aria-current="true">
                     <span class="row-top">
                         <span class="row-title">blocked-file.msg</span>
-                        <span class="status status--red">Blocked intake</span>
+                            <span class="status status--red">Blocked intake</span>
 
                     </span>
                     <span class="row-top">
