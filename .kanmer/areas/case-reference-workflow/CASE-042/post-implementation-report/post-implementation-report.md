@@ -176,3 +176,66 @@ appear in the default/empty captures).
 Branch `task/case-042-awaiting-instruction-queue`, PR
 https://github.com/collisionengineers/pegasus/pull/663. Head
 `60c80769ffa045ba49b79a3c7115313cd67a0594` pushed and CI awaited.
+
+## Review round fixes (2026-09-05)
+
+PR review (round 2, at head `60c80769ffa045ba49b79a3c7115313cd67a0594`)
+returned one blocker and one nit; both fixed at the new head
+`44a5871bc1ca0d47d5aeaf00efbefda6752ad126`.
+
+1. **BLOCKER** — `Index.cshtml.cs:342-355`: the round-1 fix exempted the
+   entire `awaiting` tab from the stale-`selected` 404 guard, not just the
+   post-attach redirect case. An arbitrary or stale `?tab=awaiting&selected=
+   <guid>` (e.g. a bookmark to a record another operator has since attached)
+   silently rendered row 0's quick detail instead of 404ing — and that quick
+   detail carries the mutating "Add to an existing case" form
+   (`Index.cshtml:257-273`) with a `receiptId` for the substituted row, not
+   the one the operator asked for. This is the wrong-record hazard the
+   repository's product invariants exist to prevent. Fixed: the fallback is
+   now narrowed to genuine post-attach redirects only, gated on the presence
+   of `TempData["Confirmation"]` or `TempData["UploadConfirmationError"]`
+   (the two keys `UploadConfirmationPageModel.OnPostAttachAsync` always sets
+   immediately before its `RedirectToSurface` redirect, and the only path
+   that lands on the awaiting tab with a since-departed `selected`). The
+   check uses `TempData.ContainsKey`, which does not consume the value, so
+   the existing consumers (`_Layout.cshtml:165` for `Confirmation`,
+   `Index.cshtml:34` for `UploadConfirmationError`) still read and clear it
+   normally when the page renders. Every other stale/arbitrary selection on
+   the awaiting tab now 404s, matching every other tab.
+2. **NIT (test doc)** — `TriageQueuesWebTests.cs:96-104`: the XML comment
+   above `NotReadyAndAwaitingRailCountsMatchTheirRows` still described Not
+   ready as a combined formal/image queue, which the test body now asserts
+   is false. Reworded to state the actual contract: Not ready and Awaiting
+   instruction are separate row lists, each rail count matches its own row
+   count, and the Work Centre's Not ready metric matches the Not ready row
+   count. INTK-013 citation kept.
+
+Also added `AwaitingNonexistentSelectionReturnsNotFound` to
+`TriageQueuesWebTests.cs`, asserting an arbitrary/nonexistent `selected` GUID
+on `?tab=awaiting` (no prior attach, no TempData set) returns
+`HttpStatusCode.NotFound`; the two existing post-attach tests
+(`AwaitingAttachMovesTheImageIntakeToAnExistingCase`,
+`AwaitingAttachFailureIsVisibleAndLeavesTheRowInPlace`) were re-verified
+green, confirming the narrowed guard still lets the real post-attach
+redirects through.
+
+No action taken on the independent reviewer's rejected second blocker
+(`DashboardCounts.cs:29-35`, the two defaulted `ImageIntakeSummary`
+parameters) — that finding was returned rejected with no action needed and
+is unchanged from round 1's disposition (see the deviation recorded above).
+
+Re-verified at the new head: `dotnet build ./Pegasus.slnx --configuration
+Release --no-restore` — 0; `dotnet test
+./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration
+Release --no-build` — 0, 1240 passed; `dotnet test
+./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj
+--configuration Release --no-build` — 0, 100 passed; `dotnet test
+./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+--configuration Release --no-build --filter
+"FullyQualifiedName~TriageQueuesWebTests"` — 0, 14 passed. No routed Razor
+page or partial changed (only `Index.cshtml.cs` code-behind and the test
+file), so no snapshot regeneration was required.
+
+Branch `task/case-042-awaiting-instruction-queue`, PR
+https://github.com/collisionengineers/pegasus/pull/663. Head
+`44a5871bc1ca0d47d5aeaf00efbefda6752ad126` pushed; CI/re-review awaited.
