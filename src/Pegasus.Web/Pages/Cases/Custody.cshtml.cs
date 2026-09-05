@@ -121,6 +121,8 @@ public sealed class CustodyModel(
         long expectedVersion,
         string operationKey,
         string editLeaseToken,
+        string recipient,
+        string? reason,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -131,7 +133,14 @@ public sealed class CustodyModel(
         try
         {
             var result = await createRequestUploadLink.ExecuteAsync(
-                new(id, actor, operationKey, expectedVersion, editLeaseToken),
+                new(
+                    id,
+                    actor,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken,
+                    recipient,
+                    reason),
                 cancellationToken);
             ClearLeaseState();
             if (result.Secret is null)

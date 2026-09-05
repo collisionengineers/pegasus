@@ -1388,9 +1388,6 @@ public static class OperatorLabels
         public const string OpenMessage = "Open message";
 
         public const string VehicleFactsPanel = "Vehicle";
-        public const string VehicleChecksPanel = "Vehicle checks";
-        public const string RefreshDvla = "Refresh DVLA";
-        public const string RefreshDvsaMot = "Refresh DVSA/MOT";
         public const string RunExperianCheck = "Run Experian check";
 
         /// <summary>
@@ -1401,9 +1398,6 @@ public static class OperatorLabels
         /// </summary>
         public const string ExperianSeamCondition = "Experian is not connected";
 
-        public const string VehicleChecksHistory = "Recorded checks";
-        public const string AcceptSuggestion = "Accept";
-        public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
         public const string ProviderDefaultInspectionAddress = "Provider default";
         // CASE-041: Inspect-at choices and storage-location labels.
@@ -1427,6 +1421,24 @@ public static class OperatorLabels
         public const string Preview = "Preview";
         public const string SaveAs = "Save as";
         public const string ThirdPartyVehicle = "Third-party vehicle";
+
+        // CASE-029: vehicle lookup, valuation and request/chase dialog labels.
+        public const string LookupDvlaMot = "Look up DVLA & MOT";
+        public const string AddValuation = "Add valuation";
+        public const string CazanaCondition = "not connected";
+        public const string Recipient = "Recipient";
+        public const string Reason = "Reason";
+        public const string Content = "Content";
+        public const string RecordChase = "Record chase";
+        public static string UseSuggestion(string value) => $"Use {value}";
+        public static string ValuationSourceLabel(ValuationSource source) => source switch
+        {
+            ValuationSource.Glasses => "Glass's valuation",
+            ValuationSource.Cazana => "Cazana",
+            ValuationSource.EngineersValue => "Engineer's Value",
+            ValuationSource.AiMarketResearch => "AI market research",
+            _ => throw new ArgumentOutOfRangeException(nameof(source))
+        };
 
         /// <summary>
         /// Why a refresh control is disabled: the lookup searches on the

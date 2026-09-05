@@ -51,6 +51,7 @@ public sealed partial class DetailsModel(
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
+    IListCaseValuations listCaseValuations,
     IEngineerNoteQueries engineerNoteQueries,
     IAddEngineerNote addEngineerNote,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
@@ -60,6 +61,7 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
 {
+    public IReadOnlyList<CaseValuation> Valuations { get; private set; } = [];
     public IReadOnlyList<InspectionAddressChoice> InspectionAddressChoices { get; private set; } = [];
 
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
@@ -120,6 +122,7 @@ public sealed partial class DetailsModel(
         {
             ["engineer-notes"] = "/Pages/Cases/Shared/_CaseEngineerNotes.cshtml",
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
+            ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
         };
@@ -446,6 +449,10 @@ public sealed partial class DetailsModel(
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
+            if (!SectionIsDeferred("valuation"))
+            {
+                Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
+            }
             if (!SectionIsDeferred("engineer-notes"))
             {
                 await LoadEngineerNotesAsync(id, cancellationToken);
@@ -612,6 +619,10 @@ public sealed partial class DetailsModel(
             if (key == "files")
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
+            }
+            if (key == "valuation")
+            {
+                Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
             }
             if (key == "engineer-notes")
             {

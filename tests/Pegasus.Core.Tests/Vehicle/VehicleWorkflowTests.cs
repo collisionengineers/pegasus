@@ -57,7 +57,7 @@ public sealed class VehicleWorkflowTests
     }
 
     [Fact]
-    public async Task AcceptanceRequiresAnExplicitReasonAndCorrectionShape()
+    public async Task AcceptanceRequiresAnExplicitReasonAndSupportedField()
     {
         var useCase = new AcceptVehicleSuggestion(new RecordingAcceptStore());
         var command = AcceptCommand();
@@ -68,38 +68,33 @@ public sealed class VehicleWorkflowTests
             useCase.ExecuteAsync(
                 command with
                 {
-                    Decision = VehicleSuggestionDecision.Correct,
-                    Correction = null
+                    Correction = new VehicleConfirmationValues("AB12CDE", null, null, null, null)
                 },
                 CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             useCase.ExecuteAsync(
-                command with
-                {
-                    Correction = new("AB12CDE", "Make", "Model", 12000, VehicleMileageUnit.Miles)
-                },
+                command with { Field = (VehicleSuggestionField)99 },
                 CancellationToken.None));
     }
 
     [Fact]
-    public async Task ExplicitCorrectionIsNormalizedAndDelegatedWithReason()
+    public async Task FieldAcceptanceIsNormalizedAndDelegated()
     {
         var store = new RecordingAcceptStore();
         var useCase = new AcceptVehicleSuggestion(store);
         var command = AcceptCommand() with
         {
-            Decision = VehicleSuggestionDecision.Correct,
-            Correction = new("AB12CDE", " Example ", " Model ", 12000, VehicleMileageUnit.Miles),
-            Reason = " Corrected against the retained source image. "
+            Field = VehicleSuggestionField.Mileage,
+            Reason = " Accepted the mileage suggestion. "
         };
 
         var result = await useCase.ExecuteAsync(command, CancellationToken.None);
 
         var recorded = Assert.Single(store.Commands);
-        Assert.Equal("Example", recorded.Correction?.Make);
-        Assert.Equal("Model", recorded.Correction?.Model);
-        Assert.Equal("Corrected against the retained source image.", recorded.Reason);
-        Assert.Equal(recorded.Correction, result.Values);
+        Assert.Equal(VehicleSuggestionField.Mileage, recorded.Field);
+        Assert.Null(recorded.Correction);
+        Assert.Equal("Accepted the mileage suggestion.", recorded.Reason);
+        Assert.Equal(VehicleSuggestionDecision.Accept, result.Decision);
     }
 
     [Fact]

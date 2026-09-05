@@ -101,6 +101,7 @@ internal sealed class CaseValuationEntity
     public required string Source { get; set; }
     public DateOnly Date { get; set; }
     public TimeOnly Time { get; set; }
+    public DateOnly? GuideMonth { get; set; }
     public long Mileage { get; set; }
     public decimal RetailValue { get; set; }
     public decimal TradeValue { get; set; }

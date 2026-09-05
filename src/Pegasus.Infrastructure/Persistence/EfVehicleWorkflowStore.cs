@@ -256,10 +256,18 @@ internal sealed class EfVehicleWorkflowStore(
         }
 
         var observation = EfVehicleLookupWorkStore.MapObservation(observationEntity);
-        var proposedValues = VehicleSuggestionAcceptancePolicy.Resolve(
+        var sourceIdentity = observation.Id.ToString("D");
+        var selectedNames = SuggestionFieldNames(command.Field);
+        var suggestionFields = await context.CaseDataFields
+            .Where(item => item.CaseId == command.CaseId
+                && item.ValueKind == CaseDataCodes.Suggestion
+                && item.SourceIdentity == sourceIdentity
+                && selectedNames.Contains(item.FieldName))
+            .ToArrayAsync(cancellationToken);
+        var proposedValues = ResolvePendingSuggestion(
+            command.Field,
             observation,
-            command.Decision,
-            command.Correction);
+            suggestionFields);
         if (!await context.CaseDataSnapshots
                 .AnyAsync(item => item.CaseId == command.CaseId, cancellationToken))
         {
@@ -272,86 +280,37 @@ internal sealed class EfVehicleWorkflowStore(
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && VehicleFieldNames.Contains(item.FieldName))
             .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal, cancellationToken);
-        if (command.Decision == VehicleSuggestionDecision.Accept)
-        {
-            RequireCompatibleConfirmedValues(command.CaseId, confirmedFields, proposedValues);
-        }
-
         var confirmationId = Guid.NewGuid();
-        var sourceKind = command.Decision == VehicleSuggestionDecision.Accept
-            ? CaseDataCodes.VehicleLookup
-            : CaseDataCodes.StaffCorrection;
-        var sourceIdentity = command.Decision == VehicleSuggestionDecision.Accept
-            ? observation.Id.ToString("D")
-            : confirmationId.ToString("D");
-        var sourceLabel = command.Decision == VehicleSuggestionDecision.Accept
-            ? $"{observation.Provenance.Provider} {observation.Provenance.ProviderVersion} response"
-            : "Explicit staff vehicle correction";
-        SetConfirmedField(
-            context,
-            confirmedFields,
-            command.CaseId,
-            CaseDataFieldNames.VehicleRegistration,
-            CaseDataCodes.Text,
-            proposedValues.Registration,
-            sourceKind,
-            sourceIdentity,
-            sourceLabel,
-            command.Actor.SubjectId,
-            nowUtc,
-            removeWhenMissing: false);
-        SetConfirmedField(
-            context,
-            confirmedFields,
-            command.CaseId,
-            CaseDataFieldNames.VehicleMake,
-            CaseDataCodes.Text,
-            proposedValues.Make,
-            sourceKind,
-            sourceIdentity,
-            sourceLabel,
-            command.Actor.SubjectId,
-            nowUtc,
-            removeWhenMissing: command.Decision == VehicleSuggestionDecision.Correct);
-        SetConfirmedField(
-            context,
-            confirmedFields,
-            command.CaseId,
-            CaseDataFieldNames.VehicleModel,
-            CaseDataCodes.Text,
-            proposedValues.Model,
-            sourceKind,
-            sourceIdentity,
-            sourceLabel,
-            command.Actor.SubjectId,
-            nowUtc,
-            removeWhenMissing: command.Decision == VehicleSuggestionDecision.Correct);
-        SetConfirmedField(
-            context,
-            confirmedFields,
-            command.CaseId,
-            CaseDataFieldNames.VehicleMileage,
-            CaseDataCodes.Integer,
-            proposedValues.Mileage?.ToString(CultureInfo.InvariantCulture),
-            sourceKind,
-            sourceIdentity,
-            sourceLabel,
-            command.Actor.SubjectId,
-            nowUtc,
-            removeWhenMissing: command.Decision == VehicleSuggestionDecision.Correct);
-        SetConfirmedField(
-            context,
-            confirmedFields,
-            command.CaseId,
-            CaseDataFieldNames.VehicleMileageUnit,
-            CaseDataCodes.Text,
-            proposedValues.MileageUnit?.ToString(),
-            sourceKind,
-            sourceIdentity,
-            sourceLabel,
-            command.Actor.SubjectId,
-            nowUtc,
-            removeWhenMissing: command.Decision == VehicleSuggestionDecision.Correct);
+        var sourceLabel = suggestionFields[0].SourceLabel;
+        foreach (var fieldName in selectedNames)
+        {
+            var (valueType, value) = fieldName switch
+            {
+                CaseDataFieldNames.VehicleMake => (CaseDataCodes.Text, proposedValues.Make),
+                CaseDataFieldNames.VehicleModel => (CaseDataCodes.Text, proposedValues.Model),
+                CaseDataFieldNames.VehicleMileage => (
+                    CaseDataCodes.Integer,
+                    proposedValues.Mileage?.ToString(CultureInfo.InvariantCulture)),
+                CaseDataFieldNames.VehicleMileageUnit => (
+                    CaseDataCodes.Text,
+                    proposedValues.MileageUnit?.ToString()),
+                _ => throw new UnreachableException()
+            };
+            SetConfirmedField(
+                context,
+                confirmedFields,
+                command.CaseId,
+                fieldName,
+                valueType,
+                value,
+                CaseDataCodes.VehicleLookup,
+                sourceIdentity,
+                sourceLabel,
+                command.Actor.SubjectId,
+                nowUtc,
+                removeWhenMissing: false);
+        }
+        context.CaseDataFields.RemoveRange(suggestionFields);
 
         // A confirmed vehicle value is the projector's preferred kind, so the case-match
         // index reprojects in this same transaction (drift here would strand the old VRM
@@ -412,9 +371,7 @@ internal sealed class EfVehicleWorkflowStore(
             PolicyKey = VehicleSuggestionAcceptancePolicy.PolicyKey,
             PolicyVersion = VehicleSuggestionAcceptancePolicy.PolicyVersion
         });
-        var eventKind = command.Decision == VehicleSuggestionDecision.Accept
-            ? "vehicle_suggestion_accepted"
-            : "vehicle_suggestion_corrected";
+        const string eventKind = "vehicle_suggestion_accepted";
         AddWorkflowEvent(
             context,
             workflow,
@@ -439,6 +396,7 @@ internal sealed class EfVehicleWorkflowStore(
             {
                 confirmationId,
                 observationId = observation.Id,
+                command.Field,
                 command.Decision,
                 Values = proposedValues
             },
@@ -527,52 +485,54 @@ internal sealed class EfVehicleWorkflowStore(
             item => item.OperationKey == operationKey,
             cancellationToken);
 
-    private static void RequireCompatibleConfirmedValues(
-        Guid caseId,
-        IReadOnlyDictionary<string, CaseDataFieldEntity> fields,
-        VehicleConfirmationValues values)
+    private static string[] SuggestionFieldNames(VehicleSuggestionField field) => field switch
     {
-        RequireCompatible(
-            caseId,
-            fields,
-            CaseDataFieldNames.VehicleRegistration,
-            values.Registration,
-            registration: true);
-        RequireCompatible(caseId, fields, CaseDataFieldNames.VehicleMake, values.Make);
-        RequireCompatible(caseId, fields, CaseDataFieldNames.VehicleModel, values.Model);
-        RequireCompatible(
-            caseId,
-            fields,
+        VehicleSuggestionField.Make => [CaseDataFieldNames.VehicleMake],
+        VehicleSuggestionField.Model => [CaseDataFieldNames.VehicleModel],
+        VehicleSuggestionField.Mileage =>
+        [
             CaseDataFieldNames.VehicleMileage,
-            values.Mileage?.ToString(CultureInfo.InvariantCulture));
-        RequireCompatible(
-            caseId,
-            fields,
-            CaseDataFieldNames.VehicleMileageUnit,
-            values.MileageUnit?.ToString());
-    }
+            CaseDataFieldNames.VehicleMileageUnit
+        ],
+        _ => throw new ArgumentOutOfRangeException(nameof(field))
+    };
 
-    private static void RequireCompatible(
-        Guid caseId,
-        IReadOnlyDictionary<string, CaseDataFieldEntity> fields,
-        string fieldName,
-        string? proposed,
-        bool registration = false)
+    private static VehicleConfirmationValues ResolvePendingSuggestion(
+        VehicleSuggestionField field,
+        VehicleLookupObservation observation,
+        IReadOnlyCollection<CaseDataFieldEntity> suggestions)
     {
-        if (!fields.TryGetValue(fieldName, out var existing)
-            || string.Equals(existing.Value, proposed, StringComparison.Ordinal))
-        {
-            return;
-        }
+        var values = suggestions.ToDictionary(item => item.FieldName, StringComparer.Ordinal);
+        string Required(string fieldName) => values.TryGetValue(fieldName, out var value)
+            ? value.Value
+            : throw new VehicleSuggestionUnavailableException(observation.Id, observation.Outcome);
 
-        if (registration)
+        return field switch
         {
-            throw new ConfirmedVehicleRegistrationConflictException(
-                caseId,
-                existing.Value,
-                proposed ?? string.Empty);
-        }
-        throw new ConfirmedVehicleFieldConflictException(caseId, fieldName);
+            VehicleSuggestionField.Make => new(
+                observation.Registration,
+                Required(CaseDataFieldNames.VehicleMake),
+                null,
+                null,
+                null),
+            VehicleSuggestionField.Model => new(
+                observation.Registration,
+                null,
+                Required(CaseDataFieldNames.VehicleModel),
+                null,
+                null),
+            VehicleSuggestionField.Mileage => new(
+                observation.Registration,
+                null,
+                null,
+                long.Parse(
+                    Required(CaseDataFieldNames.VehicleMileage),
+                    CultureInfo.InvariantCulture),
+                Enum.Parse<VehicleMileageUnit>(
+                    Required(CaseDataFieldNames.VehicleMileageUnit),
+                    ignoreCase: false)),
+            _ => throw new ArgumentOutOfRangeException(nameof(field))
+        };
     }
 
     private static void SetConfirmedField(
@@ -936,6 +896,7 @@ internal sealed class EfVehicleWorkflowStore(
         {
             command.CaseId,
             command.LookupObservationId,
+            command.Field,
             Decision = command.Decision.ToString(),
             command.Correction,
             ActorKind = command.Actor.Kind.ToString(),
@@ -1039,14 +1000,12 @@ internal sealed class EfVehicleWorkflowStore(
     private static string ToCode(VehicleSuggestionDecision decision) => decision switch
     {
         VehicleSuggestionDecision.Accept => "accepted",
-        VehicleSuggestionDecision.Correct => "corrected",
         _ => throw new ArgumentOutOfRangeException(nameof(decision))
     };
 
     private static VehicleSuggestionDecision ParseDecision(string decision) => decision switch
     {
         "accepted" => VehicleSuggestionDecision.Accept,
-        "corrected" => VehicleSuggestionDecision.Correct,
         _ => throw new InvalidDataException(
             $"Persisted vehicle suggestion decision '{decision}' is invalid.")
     };

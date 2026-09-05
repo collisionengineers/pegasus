@@ -66,6 +66,8 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.TokenDigest).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(value => value.LimitsVersion).HasMaxLength(64).IsRequired();
+            entity.Property(value => value.Recipient).HasMaxLength(500);
+            entity.Property(value => value.Reason).HasMaxLength(1000);
             entity.Property(value => value.CreateOperationKey).HasMaxLength(256).IsRequired();
             entity.Property(value => value.RevokeOperationKey).HasMaxLength(256);
             entity.Property(value => value.Version).IsConcurrencyToken();

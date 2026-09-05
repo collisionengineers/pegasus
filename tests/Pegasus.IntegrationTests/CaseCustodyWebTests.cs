@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -179,6 +180,28 @@ public sealed partial class CaseDetailsWebTests
             OperatorLabels.CaseWorkspace.UploadRequestsPanel,
             html,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// RequestUploadLimits is registered only when DocumentRequests:AcceptedLimitsVersion is
+    /// configured (Program.cs) — exactly the Development configuration that leaves it unset while
+    /// Features:LocalDocumentCustody is on. Where it is absent, the Files section must still
+    /// render — not throw — with upload-request creation absent rather than offered and failing
+    /// at post time.
+    /// </summary>
+    [Fact]
+    public async Task CaseFilesSectionRendersWithUploadRequestCreationAbsentWhenLimitsAreNotAccepted()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(
+            store,
+            _ => { },
+            builder => builder.UseSetting("DocumentRequests:AcceptedLimitsVersion", string.Empty));
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+
+        Assert.DoesNotContain("Create upload request", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"create-upload-request\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>One live case file: a current, unremoved, custody-confirmed version.</summary>

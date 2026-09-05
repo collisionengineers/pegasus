@@ -23,6 +23,7 @@ public sealed class TasksModel(
     IAddCaseNote addCaseNote,
     ILinkReportEvidence linkReportEvidence,
     IUnlinkReportEvidence unlinkReportEvidence,
+    TimeProvider timeProvider,
     ILogger<TasksModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -172,11 +173,10 @@ public sealed class TasksModel(
         string operationKey,
         string reason,
         string editLeaseToken,
-        DateTimeOffset attemptedAtUtc,
         string channel,
-        string targetPartyOrAddress,
+        string recipient,
         string outcome,
-        string? note,
+        string? content,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -191,10 +191,10 @@ public sealed class TasksModel(
                     operationKey,
                     reason,
                     channel,
-                    targetPartyOrAddress,
-                    attemptedAtUtc,
+                    recipient,
+                    timeProvider.GetUtcNow(),
                     outcome,
-                    note),
+                    content),
                 cancellationToken),
             "The manual chase was recorded and the next chase date was scheduled.");
 

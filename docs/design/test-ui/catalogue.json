@@ -389,6 +389,12 @@
     "reason": "POST-only note, task and report-evidence actions; GET has no handler and renders no content."
   },
   {
+    "source": "src/Pegasus.Web/Pages/Cases/Valuation.cshtml",
+    "route": "/Cases/{id:guid}/Valuation",
+    "classification": "protocol",
+    "reason": "POST-only valuation save action; GET has no handler and renders no content."
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Cases/Vehicle.cshtml",
     "route": "/Cases/{id:guid}/Vehicle",
     "classification": "protocol",

@@ -57,6 +57,8 @@ internal sealed class RequestUploadLinkEntity
     public int AcceptedFileCount { get; set; }
     public long AcceptedByteCount { get; set; }
     public string LimitsVersion { get; set; } = string.Empty;
+    public string? Recipient { get; set; }
+    public string? Reason { get; set; }
     public long Version { get; set; }
     public string CreateOperationKey { get; set; } = string.Empty;
     public string? RevokeOperationKey { get; set; }
