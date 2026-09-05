@@ -43,3 +43,11 @@ capture and verification lines below.
 - [x] Blocker B: ProcessQueuedEvaSubmission.ExecuteAsync treats a post-delivery CaseVersionConflictException as terminal (Completed), matching the state/signatory refusal branch; new automatic-path version-race test proves one transport call, one submission row, one history row, and a terminal (non-re-claimable) work row. Verified locally (CustodyOutboxIntegrationTests: 23 passed, 1 pre-existing skip).
 - [x] Should-fix C: post-implementation report rewritten in place at head `f96af2435` with the real migration name (`20260905010654_CaseSignOffEngineer`), the three actually-changed snapshot sizes (66,771 / 25,888 / 40,383 bytes), and the corrected claim that `case-details--conflict.html` is an owned change in the diff (it is not reverted).
 - [x] Fixes committed (`f96af2435`) and pushed to `task/case-040-sign-off-engineer-eva`.
+
+## Review round fixes (2026-09-05) — round 3
+
+- [x] Blocker 1: `EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission` restores a delivered-submission refusal for `EvaSubmissionTrigger.Automatic` only, checked before the transport call in `EvaSubmissionStore.ExecuteAsync`; manual re-sends unaffected. New/extended test proves a delivered `EvaSubmissions` row plus an expired-lease `Processing` work item, re-claimed, makes no second transport call and completes the work row (`AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying`), plus two focused `EvaSubmissionPolicyTests` unit tests.
+- [x] Blocker 2: Current position card renders the Sign-off Engineer row beside Engineer; Case details snapshots regenerated (scoped capture), verified, and catalogue re-checked — all green.
+- [x] Should-fix 3: dead `OperatorLabels.CaseWorkspace.RibbonSignOff` deleted.
+- [x] Should-fix 4: `Eva/Send.cshtml` title/h1 point at `OperatorLabels.CaseWorkspace.EvaHandoff`.
+- [x] Fixes committed (`64889c424`) and pushed to `task/case-040-sign-off-engineer-eva`.

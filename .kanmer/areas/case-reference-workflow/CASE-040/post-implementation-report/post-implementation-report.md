@@ -522,3 +522,133 @@ re-run. No snapshot procedure applies — neither commit in this round
 touched a routed Razor page, a partial it composes, or `catalogue.json`.
 
 Pushed: `bfd089394..f96af2435 task/case-040-sign-off-engineer-eva`.
+
+## Review round fixes (2026-09-05)
+
+PR: https://github.com/collisionengineers/pegasus/pull/666
+Branch: `task/case-040-sign-off-engineer-eva`
+Fixes commit: `64889c42444492a0efd33626a53d407de8479734` (parent
+`f96af24355bafd078bef7422e9837184cd36dcdc`, the third-round reviewed head).
+
+Built by gpt-5.6-sol (medium effort), driven from a fix packet naming all
+four round-3 findings and the RULES that bind; independently verified by
+the wrapper (Claude) before this write.
+
+### Blocker 1 — automatic once-only EVA submission no longer guaranteed
+
+Fixed. `EvaSubmissionPolicy` gained a new Core-owned rule,
+`RequireOnceOnlyAutomaticSubmission(trigger, hasDeliveredSubmission)`: it
+throws the new `EvaAutomaticSubmissionAlreadyDeliveredException`
+(`src/Pegasus.Core/Eva/EvaApiContracts.cs`) when the trigger is
+`Automatic` and a delivered `EvaSubmissions` row already exists for the
+case, and does nothing for `Manual` (of either delivered state) or for a
+not-yet-delivered `Automatic` case. `EvaSubmissionStore.ExecuteAsync`
+(`src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs`) queries
+`context.EvaSubmissions.AnyAsync(item => item.CaseId == ... &&
+item.IsDelivered)` immediately after the existing exact-key replay check
+and before the transport call, and calls the new policy method with that
+fact and `request.Trigger` — the store supplies the fact, Core owns the
+decision, exactly as the review asked. The new exception was added to
+`ProcessQueuedEvaSubmission`'s terminal "no longer applicable" catch
+filter (`src/Pegasus.Core/Eva/EvaSubmissionWorkItem.cs`), alongside
+`EvaHandoffStateException`, `EvaSubmissionNotEnabledException`,
+`EvaSignOffEngineerRequiredException` and `CaseVersionConflictException`,
+so it ends the work item as `Completed` rather than leaving it
+`Processing` for a retry.
+
+This closes the exact window round 3 identified: when the D47 local
+transition fails on a post-delivery version conflict, the workflow row
+stays in `Review` even though the `EvaSubmissions` row was already
+committed as delivered; if the process then crashes or the lease expires
+before the worker records completion, the re-claimed retry now hits the
+new pre-transport refusal (its own `hasDeliveredSubmission` check, not the
+state-based `StateAfterSend` guard that was inert in `Review`) instead of
+calling the transport a second time. Manual re-sends are unaffected —
+`RequireOnceOnlyAutomaticSubmission` is a no-op for `Manual` regardless of
+delivery state, matching D36.
+
+Proof, extending the existing round-2 automatic version-race test
+`CustodyOutboxIntegrationTests.AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying`
+rather than duplicating its fixture: after the first automatic attempt
+throws `CaseVersionConflictException` (one transport call, workflow still
+`Review`, `EvaSubmissions` row delivered), the `Processing` work item's
+lease is set to already-expired, `ProcessQueuedEvaSubmission.ExecuteAsync`
+re-claims it (`AttemptCount` becomes 2), and the test asserts
+`transport.CallCount` is **still 1** (no second live call to EVA) and the
+work row ends `completed` with `AttemptCount == 2` and
+`FailureCode == "eva_submission_no_longer_applicable"`. Two focused unit
+tests were also added to `EvaSubmissionPolicyTests.cs`:
+`DeliveredAutomaticSubmissionIsRefused` (throws for
+`Automatic`+delivered) and `FirstAutomaticAndAllManualSubmissionsRemainAllowed`
+(a `[Theory]` over `Automatic`+not-delivered, `Manual`+not-delivered,
+`Manual`+delivered — none throw).
+
+### Blocker 2 — Current position card missing Sign-off Engineer
+
+Fixed. `src/Pegasus.Web/Pages/Cases/Details.cshtml`'s "Current position"
+context card now renders a `decision-row` for Sign-off Engineer
+immediately beside Engineer, using
+`OperatorLabels.CaseWorkspace.SignOffEngineer` and
+`Model.SignOffEngineerDisplayName` — the same label/value pair the ribbon
+already uses, no new plumbing. This changes a routed Razor page, so the
+Case details snapshots were regenerated with the scoped capture
+(`-Scope case-details -CaptureFilter
+"FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~TestUiFocusedRenderTests"`),
+then verified (`-Verify -SkipCapture`) and the catalogue re-checked —
+both green. Two pages changed:
+`case-details--default.html` (now 66,881 bytes; carries "Sign-off
+Engineer" four times — ribbon, Overview, Current position, dialog — one
+`class="case-sticky"`, eleven distinct base `id="section-…"` hosts
+(overview, engineer-notes, inspection, vehicle, damage, valuation,
+estimate, settlement, report, files, notes) plus their five `-title`
+variants, no `<img src="#">`) and `case-details--conflict.html` (now
+40,493 bytes, same markers, three occurrences of "Sign-off Engineer" since
+the conflict scenario's dialog differs). `case-eva-send--default.html`
+did not move (25,888 bytes, unchanged) — expected, since finding 4 below
+only changes the source of an identical rendered string.
+
+### Should-fix 3 — dead RibbonSignOff label
+
+Fixed. Deleted `OperatorLabels.CaseWorkspace.RibbonSignOff` ("Sign-off").
+`grep -rn "RibbonSignOff" src/ tests/ docs/` returns nothing after the
+change.
+
+### Should-fix 4 — Eva/Send.cshtml literals duplicate EvaHandoff
+
+Fixed. Both `ViewData["Title"]` and the `<h1>` in
+`src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml` now read
+`OperatorLabels.CaseWorkspace.EvaHandoff` instead of the literal
+`"EVA handoff"` twice; a `@using Pegasus.Web.Presentation` was added. The
+rendered text is unchanged, and indeed `case-eva-send--default.html` did
+not move in the regenerated capture, confirming the review's own
+expectation.
+
+### Commands run and exit codes (this round, in `.worktrees/case-040`)
+
+By the fix wrapper (gpt-5.6-sol):
+
+```
+dotnet restore ./Pegasus.slnx --locked-mode                                   — exit 0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore              — exit 0, 0 warnings, 0 errors
+dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build       — exit 0, 1249 passed
+dotnet test tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build — exit 0, 100 passed
+dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CustodyOutboxIntegrationTests" — exit 0, 23 passed, 1 pre-existing skip
+```
+
+Independently re-run by the wrapper (Claude) at commit `64889c424`:
+
+```
+dotnet restore ./Pegasus.slnx --locked-mode                                   — exit 0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore              — exit 0, 0 warnings, 0 errors
+dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build       — exit 0, 1249 passed
+dotnet test tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build — exit 0, 100 passed
+dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CustodyOutboxIntegrationTests" — exit 0, 23 passed, 1 pre-existing skip
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~TestUiFocusedRenderTests" — exit 0
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details — exit 0
+pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1                          — exit 0, 54 routed sources, 59 prototypes, 0 broken local references
+```
+
+No migration changed in this round, so `Test-MigrationGrants.ps1` was not
+re-run.
+
+Pushed: `f96af2435..64889c424 task/case-040-sign-off-engineer-eva`.
