@@ -2,13 +2,14 @@
 id: CASE-042
 type: ticket
 title: 'Awaiting instruction: image-initiated cases as a Pre-case queue on Cases'
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: wf-build/case-042
 profile: feature
 stageEntered:
   preparing: '2026-09-02T22:20:38.061Z'
   review: '2026-09-04T19:11:02.503Z'
+  verifying: '2026-09-05T08:12:30.451Z'
 taken_at: '2026-09-04T17:58:44.553Z'
 branch: task/case-042-awaiting-instruction-queue
 worktree: .worktrees/case-042
@@ -49,7 +50,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/663'
 archived: false
 created: '2026-09-02T20:31:38.909Z'
-updated: '2026-09-05T05:07:47.320Z'
+updated: '2026-09-05T08:12:30.451Z'
 ---
 
 ## What

@@ -388,3 +388,178 @@ implementer; findings 3, 4 and 5 need no code change (3 corrected here, 4
 accepted, 5 deferred to [[UIIMP-014]]); finding 2 is rejected with reason.
 Re-review and gate at the new head once the regenerated `queues--empty.html`
 is pushed and `test-ui` reaches its verify phase green.
+
+---
+
+# Review record — CASE-042 (PR https://github.com/collisionengineers/pegasus/pull/663) — re-review
+
+Round 4, after the round-3 snapshot-regeneration fix.
+
+- Head reviewed: `0255b681f4ca87794708bf8fe74633d3df1fdd5e` — matches the head
+  named for review; the branch did not move. `git rev-parse HEAD` confirmed in
+  the detached worktree `.worktrees/case-042-review` (the leftover directory
+  from round 3 sat at `44a5871bc`; it was checked out clean to the reviewed
+  head, `git status --porcelain` empty).
+- Reviewers: gpt-5.6-terra (xhigh) independent read; Claude Opus dispositions,
+  gate and merge.
+- Round-3 head was `44a5871bc`. The only commit since is `0255b681f`
+  ("Regenerate full Test UI queue snapshots"), touching
+  `docs/design/test-ui/pages/queues--empty.html` alone.
+
+## Verdict
+
+**APPROVE.** Round 3's sole blocker — CI's red `test-ui` job on a stale
+`queues--empty.html` — is closed by a full unscoped regeneration, and
+`repository-check` run 33952928939 is `success` on this exact head with every
+job green. The independent reviewer returned one blocker and one should-fix;
+both are dispositioned below (rejected with reason, and accepted-and-corrected
+here). No new code entered the diff since round 3, so every code finding
+closed in rounds 1–3 stays closed.
+
+## Round-3 findings — closure at this head
+
+| # | Round-3 finding | Closed? | Evidence |
+| --- | --- | --- | --- |
+| 1 | **blocker (CI)** — `test-ui` red: `Generated Test UI file is stale: pages/queues--empty.html`, because the lane had regenerated with a narrow `-CaptureFilter` while CI captures the full suite and a different `/Cases` response wins the `class="muted">0 items` slot | **Yes** | The lane took the capture lock and ran the **unscoped** `Update-TestUiSnapshots.ps1` (exit 0; browser phase 129 passed, non-browser phase 326 passed, update phase 1 passed), then `-Verify -SkipCapture` (exit 0) and `Test-UiCatalogue.ps1` (exit 0). `git diff --stat` showed exactly one changed file, `queues--empty.html` (3 insertions, 3 deletions). Committed as `0255b681f`. CI `test-ui` on that head is **success**. The artifact was fixed at its cause; `TestUiSnapshotTests.cs`, `catalogue.json` and `scripts/*.ps1` are untouched (`git diff --name-only origin/dev...HEAD` confirms). |
+| 3 | nit — checklist item 4 says "required" `AwaitingInstruction` | carried | Re-raised by the independent reviewer this round; see finding 2 below. |
+| 4 | nit — hidden `id` is `@Model.SelectedId`, "null in the post-attach fallback state" | **Withdrawn — round 3's reading was wrong** | `Index.cshtml.cs:355` clears `SelectedId`, but `:359-362` then reassigns `SelectedId = selectedRow.Id` for the fallback row before the view renders. The hidden `id` is therefore never empty, no `Guid.Empty` redirect can occur, and the row highlight, the `?selected=` link builder (`Index.cshtml:16`) and the form's `id`/`receiptId` all name the record displayed on screen. Corrected here rather than left standing. |
+| 5 | nit — `queues--empty` moved to the Awaiting tab, losing Not-ready filter-bar coverage | still deferred to [[UIIMP-014]] | Unchanged by this round's regeneration; UIIMP-014 owns the `/Cases` state set. |
+
+## Findings at this head, with dispositions
+
+| # | Severity | Where | Finding (independent reviewer, gpt-5.6-terra xhigh) | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | blocker → **rejected** | `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs:342-356` | The narrowed post-attach fallback still substitutes `Rows[0]` when the selected row has departed, and the quick detail it renders carries the mutating attach form with that row's `OriginReceiptId`. The `TempData` gate is not request-bound: `Confirmation` is a shared key written by unrelated actions, so an arbitrary stale URL could still activate the fallback rather than 404. | **Rejected as a blocker, with reason; residual risk accepted (unchanged from round 3, plus one new fact).** (a) The fallback state is byte-identical to what a plain `/Cases?tab=awaiting` renders: `:339-341` already defaults to `Rows[0]` when no `selected` is supplied, and that default-to-first-row behaviour is the shipped convention for every tab on this page. The fallback therefore introduces no view the operator cannot reach by clicking the tab. (b) **There is no wrong-record write path.** `:361` sets `SelectedId = selectedRow.Id` before rendering, so the `<h2>` reference·registration, the highlighted row, the `?selected=` links and the form's `id` and `receiptId` all name the same record; the operator must additionally type a case reference and a reason. (c) On provenance: all three `Confirmation` writers (`Account/PasswordChange.cshtml.cs:147`, `Administration/Accounts/Index.cshtml.cs:320`, `UploadGroupStatus.cshtml.cs:141`) redirect to targets that render `_Layout` and consume the key on the very next request, so no single-session sequential path reaches the described state; the residual is a cross-tab race in a one-request window, whose worst outcome is the tab's own default view shown beside an unrelated banner. A dedicated redirect marker keyed to the attached id remains a fair future cleanup, not a merge condition. |
+| 2 | should-fix | `checklist/checklist.md` item 4 | The checklist records that `CaseStageCounts` gains a **required** `AwaitingInstruction`, while `DashboardCounts.cs:34` ships `int AwaitingInstruction = 0`. | **Accepted — corrected here rather than by another round.** The deviation itself was examined and rejected as a finding in round 2 and stands: plan R-3 is self-contradictory, since a required fifth positional parameter cannot coexist with four surviving `new(0,0,0,0)` call sites, three of them in files this ticket's *Do not modify* list forbids. The post-implementation report's "Deviation recorded (packet contradiction)" section states the truth plainly, production always passes the value explicitly (`EfDashboardQueries.cs:69-75`), and the defaulted call sites legitimately mean zero. The checklist line is stale wording over an honest record, not a concealed deviation; **this review record is the authoritative correction**. |
+| 3 | nit | `post-implementation-report.md` "Snapshot artifact facts" | The report writes the doctype lower-case (`<!doctype html>`); the committed files begin `<!DOCTYPE html>`. | **Accept.** Cosmetic transcription; the substantive facts (byte sizes, markers, absence of `<img src="#">`) are exact — see below. |
+
+The independent reviewer explicitly recorded no further blocker, should-fix or
+nit, and confirmed: no Create Case control, no inert or disabled control, no
+added explanatory copy, no migration, no out-of-scope path, `OperatorLabels.cs`
+untouched, the inline tab literal following the shipped Triage/Unidentified
+convention, count/row predicate parity holding against the single-association
+projection, Core remaining the policy owner through `ILinkIntake`, the
+unedited QDOS assertion intact, and the image-count subquery being one EF
+projection rather than an N+1 with a fair accepted-risk description.
+
+## Independently verified at this head — no finding
+
+Checked against the code myself, not taken from the reviewer or the report:
+
+- **Owned paths only.** `git diff --stat origin/dev...HEAD` returns exactly the
+  twelve files the plan's *Expected files* list names (354 insertions, 111
+  deletions). No `OperatorLabels.cs`, `site.css`, `site.js`, `Pages/Shared/*`,
+  `Pages/Cases/Shared/*`, `Pages/Cases/Details.*`, `Pages/Index.*`,
+  `catalogue.json`, `TestUiSnapshotTests.cs`, `scripts/**` or
+  `.github/workflows/**` edit. No migration, so `Test-MigrationGrants.ps1` is
+  not applicable and no grants or bootstrap-census diff is owed.
+- **R-7 count/row predicate parity — re-derived from scratch.**
+  `EfDashboardQueries.cs:56-66` counts `LifecycleState == AwaitingInstruction`
+  **and** no active `IntakeManualAssociations` row on the origin receipt
+  **and** (a manual association row exists, or no `CaseIntakeLinks` row
+  exists). `ProjectAsync` derives `AssociatedCaseId` through `CurrentCaseId`
+  (`EfImageIntakeStore.cs:978-983`): no manual row → the first
+  `CaseIntakeLinks` row; manual row active → its `CaseId`; manual row inactive
+  → `null`. Enumerated over all four states the two agree exactly, including
+  the reversed-association and linked-but-unmerged cases.
+  `PegasusDbContext.cs:605` configures the association one-to-one on
+  `IntakeReceiptId` (`HasForeignKey<IntakeManualAssociationEntity>`), so at
+  most one row exists per receipt and the projection's unordered
+  `FirstOrDefault()` cannot disagree with the count's `Any()`.
+- **The linked-but-unmerged test is real.**
+  `AwaitingCountExcludesReceiptLinkedBeforeMergeSynchronises` inserts an active
+  manual association by raw SQL while `MergedIntoCaseId` stays null, then
+  asserts both the rendered `row-button` count and the rail count are equal
+  (0). Under the pre-split `MergedIntoCaseId is null` predicate the count would
+  have been 1 with no row — the exact divergence R-7 names.
+- **R-1 every row selectable without script.** `Index.cshtml:131` routes only
+  `RowKind.Image` rows through `Model.Href(selected: row.Id)`;
+  `AwaitingSecondRowSelectionShowsThatRowsQuickDetailWithoutScript` asserts the
+  second-registered intake's own `<h2>` renders, so it is not passing on the
+  `Rows[0]` fallback.
+- **Every drawn control has a named handler; nothing inert.** The form posts
+  `asp-page-handler="Attach"` to the inherited
+  `UploadConfirmationPageModel.OnPostAttachAsync` (`:46-80`), which calls
+  `IUploadCaseDecision.AttachAsync` — the leased `ILinkIntake` path whose
+  success runs the single Core pairing owner — and turns
+  `StaffAuthorizationException` into `Forbid()`. `IndexModel` derives from that
+  base and supplies only `RedirectToSurface` (`:290-291`): no third handler
+  copy, no direct pairing-port call. No Create Case control exists anywhere in
+  `Index.cshtml` (D50). No disabled control, no field hint, no how-it-works
+  prose, no empty-state panel; the form is two labelled fields and one button.
+- **Failure surfaces.** `Index.cshtml:34-37` renders
+  `TempData["UploadConfirmationError"]` as `class="validation-summary"`, a real
+  styled class, and `AwaitingAttachFailureIsVisibleAndLeavesTheRowInPlace`
+  asserts both the message and that the row is still listed. No empty catch or
+  catch-all suppression anywhere in the diff.
+- **Tests prove the claim; none weakened.** All three Not-ready image tests are
+  repurposed with mirrored `Contains`/`DoesNotContain` pairs across the two
+  tabs; the lifecycle-chip `Assert.Contains` became a `DoesNotContain` on the
+  awaiting tab as planned. Six new tests were added.
+  `QdosAllocationRecoveryTests.cs:1272` `Assert.Equal(new(0, 0, 0, 0), stages)`
+  is unedited and passes in my own run.
+- **Snapshot artifacts opened at this head.**
+  `docs/design/test-ui/pages/queues--default.html` — **31,687 bytes** as the
+  committed blob (`git cat-file -s`), 32,148 on disk with CRLF over its 461
+  lines; begins `<!DOCTYPE html>`, ends `</html>`, one `Awaiting instruction`
+  occurrence, zero `<img src="#">`.
+  `queues--empty.html` — **29,803 bytes** as the committed blob, 30,229 on disk
+  over 426 lines; begins `<!DOCTYPE html>`, ends `</html>`, two `Awaiting
+  instruction` occurrences, zero `<img src="#">`. Both figures match the
+  report's exactly. No `queues--awaiting*` file, `catalogue.json` row or
+  `StateMatches` entry was added — those stay [[UIIMP-014]]'s.
+- **Report and checklist against the diff:** consistent, including the frank
+  deviation section and all three fix rounds. The one stale line is checklist
+  item 4 (finding 2 above).
+- **Simplification-pass dispositions are honest:** two applied (dead
+  task-shaped ceremony in `LoadNotReadyAsync`; the duplicated retained-image
+  label in `ImageRow`), one accepted as a named, reasoned risk (the shared
+  `ProjectAsync` image-count subquery now costs three lower-traffic callers),
+  with the earlier "bounded" overstatement corrected in place rather than left
+  standing.
+
+## Commands and exit codes (review checkout `.worktrees/case-042-review`)
+
+| Command | Exit | Result |
+| --- | --- | --- |
+| `git rev-parse HEAD` | 0 | `0255b681f4ca87794708bf8fe74633d3df1fdd5e` — the head under review |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 | restored |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 | 1240 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 | 100 passed, 0 failed |
+| `dotnet test ./tests/Pegasus.IntegrationTests/... --filter "FullyQualifiedName~TriageQueuesWebTests\|FullyQualifiedName~CasesIndexWebTests\|FullyQualifiedName~QdosAllocationRecoveryTests\|FullyQualifiedName~UploadOutcomeQueriesTests\|FullyQualifiedName~UploadConfirmationWebTests"` | 0 | 63 passed, 0 failed |
+
+Why that scope covers the change: `git diff --name-only origin/dev...HEAD`
+changes five source files across Core, Infrastructure and Web plus two test
+files. `Pegasus.Core.Tests` covers the `CaseStageCounts` and
+`ImageIntakeSummary` contract changes (`DashboardBoundaryTests`,
+`ImageIntakeCasePairingTests`, `ImageIntakeLifecycleTests`);
+`ArchitectureTests` enforces the Core/Infrastructure dependency direction the
+new Core field and Infrastructure predicate sit across; `TriageQueuesWebTests`
+is the only class exercising `/Cases` queue rows, counts, selection and the
+attach handler; `CasesIndexWebTests` and `UploadOutcomeQueriesTests` are the
+other two classes referencing the changed types;
+`UploadConfirmationWebTests` covers the inherited
+`UploadConfirmationPageModel` handler this page now shares; and
+`QdosAllocationRecoveryTests` holds the unedited `new(0, 0, 0, 0)` assertion
+the record change could have broken. No migration, so
+`Test-MigrationGrants.ps1` is not applicable. The two `queues--*` captures were
+opened and their facts recorded above rather than re-captured. The full
+integration and browser suites are GitHub CI's gate per EPIC-012 §Build
+policy — and that gate is green (below), not merely the local scope.
+
+## Gate
+
+| Run | Head | Status | Conclusion |
+| --- | --- | --- | --- |
+| 33952928939 `repository-check` | `0255b681f4ca87794708bf8fe74633d3df1fdd5e` (reviewed) | completed | **success** |
+
+Jobs: `unit`, `browser`, `test-ui`, `sql-integration (1)`, `sql-integration (2)`,
+`sql-integration (3)`, `sql-integration-coverage`, `changes`, `documentation`,
+`reference-data`, `local-development-scripts` — all **success**;
+`infrastructure` skipped by its path filter. `test-ui` — the job that was red
+in rounds 2 and 3 — is green on this head, confirming the regenerated
+`queues--empty.html` is the file CI reproduces. No job was re-run.
+
+**Approved and merged** to `dev` at the reviewed head; CASE-042 moves to
+Verifying. The review worktree was removed.
