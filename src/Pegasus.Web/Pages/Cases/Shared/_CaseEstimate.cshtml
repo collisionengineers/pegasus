@@ -5,7 +5,7 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
-    var canImport = !Model.AssessmentIsReadOnly && Model.ImportCondition is null;
+    var canImport = !Model.AssessmentIsReadOnly && Model.AssessmentCanOpen && Model.ImportCondition is null;
     var engineerValue = Model.EngineerValue;
     var targetBase = engineerValue is null
         ? string.Empty
@@ -19,7 +19,7 @@
             @if (!Model.AssessmentIsReadOnly)
             {
                 <div class="button-row">
-                    @if (Model.ActorIsEngineer)
+                    @if (Model.ActorIsEngineer && Model.AssessmentCanOpen)
                     {
                         <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@caseId"
                            asp-route-section="estimate" asp-route-estimate="new">
@@ -36,7 +36,7 @@
                             <span>@EngineerLabels.ImportEstimate</span>
                         </a>
                     }
-                    else if (Model.ImportCondition is not null && !Model.CaseIsArchived)
+                    else if (Model.AssessmentCanOpen && Model.ImportCondition is not null && !Model.CaseIsArchived)
                     {
                         <span class="gated" data-condition="@Model.ImportCondition">
                             <button type="button" class="btn" disabled aria-disabled="true">

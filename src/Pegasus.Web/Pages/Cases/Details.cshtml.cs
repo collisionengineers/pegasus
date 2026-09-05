@@ -222,6 +222,13 @@ public sealed partial class DetailsModel(
     /// </summary>
     public bool AssessmentIsReadOnly { get; private set; }
 
+    /// <summary>
+    /// D11: whether GuardEstimateEditAsync/OnPostImportEstimateAsync will
+    /// accept a mutation right now. Unresolved access fails closed to false,
+    /// the same direction as AssessmentIsReadOnly.
+    /// </summary>
+    public bool AssessmentCanOpen { get; private set; }
+
     private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
     private const string NotInEditMode = "Enter edit mode to change the assessment.";
 
@@ -245,16 +252,19 @@ public sealed partial class DetailsModel(
 
     public bool SelectedEstimateIsEditable =>
         !AssessmentIsReadOnly
+        && AssessmentCanOpen
         && ActorIsEngineer
         && (EditingNewEstimate || SelectedEstimate?.State == RepairSpecificationState.Draft);
 
     public bool SelectedEstimateCanBeDuplicated =>
         !AssessmentIsReadOnly
+        && AssessmentCanOpen
         && ActorIsEngineer
         && SelectedEstimate is { State: not RepairSpecificationState.Discarded };
 
     public bool SelectedEstimateCanBeCurrent =>
         !AssessmentIsReadOnly
+        && AssessmentCanOpen
         && ActorIsEngineer
         && SelectedEstimate is { IsCurrent: false }
         && (SelectedEstimate.State == RepairSpecificationState.Draft
@@ -427,9 +437,11 @@ public sealed partial class DetailsModel(
             // No access answer is not an editable record: an unresolved
             // result fails closed to read-only, the same direction the
             // pre-case gates fail.
-            AssessmentIsReadOnly = (await getAssessmentAccess.ExecuteAsync(
+            var assessmentAccess = await getAssessmentAccess.ExecuteAsync(
                 new(id, actor),
-                cancellationToken))?.IsReadOnly ?? true;
+                cancellationToken);
+            AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
+            AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
             await LoadEngineerSectionsAsync(id, actor, estimate, dialog, cancellationToken);
             // The lease decides how much of the record is rendered now, so it is
             // restored before the section-specific loads are chosen.
@@ -972,6 +984,10 @@ public sealed partial class DetailsModel(
         return RedirectToEstimate(id);
     }
 
+    /// <summary>
+    /// Creates a named estimate or replaces the whole content of an existing
+    /// Draft through ENG-026's Core-owned save use case.
+    /// </summary>
     public async Task<IActionResult> OnPostSaveEstimateAsync(
         Guid id,
         string operationKey,
@@ -1005,6 +1021,10 @@ public sealed partial class DetailsModel(
                 ? line with
                 {
                     GuideCode = previous.GuideCode,
+                    // Carried forward only while the line still has no price.
+                    // AssessmentPolicy refuses a line that is both marked To be
+                    // confirmed and priced, so preserving it unconditionally would
+                    // make pricing an imported unpriced line impossible.
                     Unpriced = previous.Unpriced && line.Price is null,
                     Betterment = previous.Betterment,
                     Status = previous.Status,
@@ -1053,6 +1073,10 @@ public sealed partial class DetailsModel(
         }
     }
 
+    /// <summary>
+    /// Re-renders an estimate form with one row added or removed. The posted
+    /// values are not persisted until Save estimate runs.
+    /// </summary>
     public async Task<IActionResult> OnPostEditLineAsync(
         Guid id,
         CancellationToken cancellationToken)
@@ -1073,6 +1097,7 @@ public sealed partial class DetailsModel(
         return await RedrawEditorAsync(id, editor.EstimateId, editor, rows, cancellationToken);
     }
 
+    /// <summary>Creates an Engineer's working copy of the selected estimate.</summary>
     public async Task<IActionResult> OnPostDuplicateEstimateAsync(
         Guid id,
         string operationKey,
@@ -1111,6 +1136,7 @@ public sealed partial class DetailsModel(
         }
     }
 
+    /// <summary>Discards a non-current draft estimate with the supplied reason.</summary>
     public async Task<IActionResult> OnPostDiscardEstimateAsync(
         Guid id,
         string operationKey,
@@ -1155,6 +1181,10 @@ public sealed partial class DetailsModel(
         }
     }
 
+    /// <summary>
+    /// Makes an estimate Current. Core derives its calculation basis and
+    /// completes a cited Draft-ready Estimate job when applicable.
+    /// </summary>
     public async Task<IActionResult> OnPostSetCurrentEstimateAsync(
         Guid id,
         string operationKey,
@@ -1207,7 +1237,7 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access is null)
+        if (access?.CanOpen != true)
         {
             return NotFound();
         }
@@ -1413,6 +1443,14 @@ public sealed partial class DetailsModel(
             existingLineIds);
     }
 
+    /// <summary>
+    /// ENG-026: the estimate import. The file is parsed first
+    /// (no side effects — a rejected parse retains nothing), then retained
+    /// through the existing case-document custody path, then landed as a
+    /// named Draft estimate carrying the route, source version and hash of
+    /// the retained document. Nothing feeds a report until an Engineer makes
+    /// an estimate Current.
+    /// </summary>
     public async Task<IActionResult> OnPostImportEstimateAsync(
         Guid id,
         string operationKey,
@@ -1428,7 +1466,7 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
         var importAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (importAccess is null)
+        if (importAccess?.CanOpen != true)
         {
             return NotFound();
         }

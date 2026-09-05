@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,7 +13,9 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// ENG-034: the Engineer sections carry no explanatory copy, render without
-/// the retired Assessment availability gate, and the old route redirects.
+/// the retired Assessment availability gate, the old route redirects, and
+/// D11's CanOpen mutation gate still refuses a POST on the Case handler host
+/// when the workspace can't open.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class AssessmentCopyWebTests
@@ -57,6 +60,31 @@ public sealed class AssessmentCopyWebTests
         Assert.Contains("id=\"section-report\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Assessment unavailable", html, StringComparison.Ordinal);
         Assert.DoesNotContain("A current Review-cycle EVA export is required", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// D11: the workspace's mutation gate (GuardEstimateEditAsync) still
+    /// refuses a POST when CanOpen is false, retargeted from the retired
+    /// Assessment page onto the Case handler host.
+    /// </summary>
+    [Fact]
+    public async Task InaccessibleCaseCannotPostEstimateMutations()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId, out _, canOpen: false);
+        using var client = EngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryValue(html),
+                ["id"] = caseId.ToString("D"),
+                ["operationKey"] = Guid.NewGuid().ToString("N"),
+            }));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -107,6 +135,21 @@ public sealed class AssessmentCopyWebTests
         using var response = await client.GetAsync(path);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
+    }
+
+    private static string AntiforgeryValue(string html)
+    {
+        var tag = Regex.Match(
+            html,
+            "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, "The page must render an antiforgery token.");
+        var value = Regex.Match(
+            tag.Value,
+            "value=\"(?<value>[^\"]+)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(value.Success, "The antiforgery token must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
     private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace
