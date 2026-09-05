@@ -2,12 +2,13 @@
 id: CASE-045
 type: ticket
 title: Show an optional known principal on image-initiated cases
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: wf-build/case-045
 profile: feature
 stageEntered:
   preparing: '2026-09-04T13:15:19.801Z'
+  review: '2026-09-05T09:39:55.441Z'
 taken_at: '2026-09-05T08:16:20.852Z'
 branch: task/case-045-image-initiated-principal
 worktree: .worktrees/case-045
@@ -32,9 +33,11 @@ links:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '671'
 archived: false
 created: '2026-09-04T10:21:48.548Z'
-updated: '2026-09-05T08:16:20.852Z'
+updated: '2026-09-05T09:39:55.441Z'
 ---
 
 ## What
