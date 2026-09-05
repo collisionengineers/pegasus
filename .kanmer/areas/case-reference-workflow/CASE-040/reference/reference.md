@@ -73,3 +73,106 @@ hosts, no `<img src="#">`; `case-eva-send--default.html` 26,237 bytes, begins
 CI was not gated: the PR was not approved, so no merge was attempted. The
 run for this head was still in progress (SQL integration, browser and Test UI
 checks) at review time.
+
+---
+
+# Review record — CASE-040 (PR https://github.com/collisionengineers/pegasus/pull/666) — re-review
+
+Reviewed head: `bfd0893943f2b81c4446b7756860c02f415a17b7`
+(branch `task/case-040-sign-off-engineer-eva`; the branch had not moved —
+`git rev-parse HEAD` in the detached review worktree
+`.worktrees/case-040-review` equals the head named in the packet).
+
+Reviewers: gpt-5.6-terra xhigh (independent read, reading-only, same detached
+worktree); Claude Opus (dispositions, independent verification, CI gate).
+Built by gpt-5.6-sol. Round 2, after the fix commit `bfd089394` on top of the
+first review's head `51e7fe5c7`.
+
+**Verdict: REQUEST CHANGES.** Three of the five earlier findings are closed and
+verified. One earlier finding (5, report accuracy) was claimed fixed but is
+not. Two blockers remain: a CI-red browser test this PR's own label rename
+broke, which no local lane filter covered, and a new double-claim path the
+blocker-2 fix opened on the automatic worker. Not merged.
+
+## Re-review status of the first round's findings
+
+| # | Earlier finding | Status at `bfd089394` | Evidence |
+| --- | --- | --- | --- |
+| 1 | D47 transition skipped `StartCaseWork`'s preconditions | **CLOSED** | `CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync` (`src/Pegasus.Core/Lifecycle/CaseLifecycle.cs:200-212`) holds both preconditions in one Core place; `StartCaseWork` now calls it instead of its own inline check (`:182-195`), and both stores call the same method, guarded by `resultingState != currentState` so it never runs on a re-send (`EvaHandoffStore.cs:159-168`, `EvaSubmissionStore.cs:275-282`). `EfCaseEngineerEligibility` reads only `Users`/`UserRoles`/`Roles`, so the extra context inside the `Serializable` `CaseWorkflows` row lock cannot self-deadlock. Port-level refusals for both routes, with the exact `StartCaseWork` and eligibility messages and `evaTransport.CallCount == 0`, at `CustodyOutboxIntegrationTests.cs:1324, 1332, 1369, 1377`. |
+| 2 | A completed EVA submission could be lost on a post-transport re-check failure | **PARTLY CLOSED — see new blocker B** | The manual, same-operation-key case is genuinely fixed: the four checks run in a local `try`, the failure is captured, the `EvaSubmissions` row and the `eva_api_submitted` history row are added unconditionally, `SaveChangesAsync`/`CommitAsync` run, the workflow write is skipped only when a failure was captured, and the exception is re-thrown after the commit via `ExceptionDispatchInfo` — so nothing is swallowed (`EvaSubmissionStore.cs:266-379`). The version-race test drives the exact window through a transport that mutates `CaseWorkflows.Version` by raw SQL from inside the call, and asserts the thrown conflict, one submission row with the real EVA identifiers, one history row, one transport call, and an exact-key replay that does not call the transport again (`CustodyOutboxIntegrationTests.cs:1639-1690`). What it does **not** close is the automatic worker's own retry, which uses a different attempt key — blocker B below. |
+| 3 | `SignOffEngineerId` dropped on the archived read path | **CLOSED** | `EfCaseQueryStore.MapWorkflow` sets it once in the initial object initializer, before the archived/non-archived branch (`EfCaseQueryStore.cs:510-516`); the archived branch inherits it. `CaseWorkflowPersistenceTests.ArchivedCaseProjectionRetainsPersistedSignOffEngineer` asserts the archived projection carries the persisted value, distinct from `AssignedEngineerId`. |
+| 4 | Re-send test never asserted the second history row or the identity payload | **CLOSED** | Export route: second `eva_bundle_exported` row keyed on the re-send's own operation key, with the exact `assignedEngineerId`/`signOffEngineerId` GUIDs from its `afterJson` (`CustodyOutboxIntegrationTests.cs:1538-1555`). API route: `eva_api_submitted` count 2 and the same two GUIDs on the second row (`:1607-1626`). No earlier assertion was weakened to make room. |
+| 5 | Post-implementation report stale at the final head | **OPEN — see finding C** | |
+
+## Findings and dispositions (this round)
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| A | blocker | `tests/Pegasus.IntegrationTests/Browser/OperatorJourneyTests.cs:467` | This PR renames the Send page's export button from `Download export` to `Download ZIP` (`Pages/Cases/Eva/Send.cshtml` loses its own cluster and now composes `_EvaHandoff`, which prints `OperatorLabels.CaseWorkspace.DownloadZip`). `git grep "Download export"` at this head returns exactly one hit — that test line — so the only assertion of the old name was never updated. `ExportByKeyboardAsync` therefore cannot find the button and the journey fails. This is **CI-red at the reviewed head**: run `33939704373`, job `browser` (`101234699951`), `OperatorJourneyTests.CustodyRecoveryAndExportAreKeyboardUsableWithoutInternalIdentifiersOrExternalClaims [FAIL]` at `OperatorJourneyTests.cs:468`, `Failed: 1, Passed: 124`; the same failure ended runs `33936115163` (`51e7fe5c7`) and `33916215696` (`d061171c8`) in both the `browser` and `test-ui` jobs. The class is outside the ticket's `files` document, which is why no local filter ran it — but the breakage is this ticket's. Two further breaks sit behind the rename in the same journey: the case it drives is in `Review` with **no assigned Engineer** (the failure text prints `Engineer / Unassigned`), which finding 1's own fix now refuses on a first send; and it exports twice and asserts the second archive is byte-identical, which D47 changes by moving the case to `ReportPreparation` on the first export. | **Fix.** Update `OperatorJourneyTests` for the new label, assign an eligible Engineer before the export so the D47 transition's preconditions are met, and re-express the second export as the D36 re-send it now is. The controller should widen the ticket's owned paths to include `tests/Pegasus.IntegrationTests/Browser/OperatorJourneyTests.cs` — it is a browser test, not tooling, so it is not covered by the tooling no-touch rule. Re-run it locally (`--filter "FullyQualifiedName~OperatorJourneyTests" -- xUnit.MaxParallelThreads=2`) before pushing. |
+| B | blocker | `src/Pegasus.Core/Eva/EvaSubmissionWorkItem.cs:165-180`, `src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs:296-379` | Blocker 2's fix makes the post-transport `CaseVersionConflictException` reach the caller **after** the commit — correct for the manual routes, but the automatic worker has no branch for it. Its terminal "no longer applicable" filter names only `EvaHandoffStateException`, `EvaSubmissionNotEnabledException` and `EvaSignOffEngineerRequiredException`, and its retryable filter names only `IOException`, `InvalidDataException`, `TimeoutException` and `UnauthorizedAccessException`, so the conflict escapes `EvaSubmissionWorkItem.ExecuteAsync` uncaught and the `ExternalWorkItems` row stays `Processing`. `EfEvaSubmissionWorkStore.ClaimProcessingAsync` re-claims a `Processing` row once its lease expires and increments `AttemptCount` (`EfEvaSubmissionWorkStore.cs:61-104`), and the next attempt runs under `EvaSubmissionPolicy.AttemptOperationKey(operationKey, attemptCount)` — a **different** key, which the exact-key replay guard (`EvaSubmissionStore.FindReplayAsync`) does not match. The delivered-submission uniqueness path that used to catch this was deliberately removed in Step 3b. EVA has no idempotency, so the case is submitted a second time and a second claim is created, even though the first delivery is now durably recorded. This is new in this PR: `dev`'s `RecordSubmissionAsync` had no post-transport version check, so no such exception existed. `StateAfterSend` returns `Review` unchanged for the automatic trigger, so `RequireStartCaseWorkAsync` is never reached on that path and the conflict is the only escaping case — which is precisely why it needs its own answer rather than a wider catch. | **Fix.** Make a post-delivery local-transition failure terminal for the automatic work item while still surfacing it — either add `CaseVersionConflictException` to the work item's terminal branch (a delivery that reached EVA is an answer, not a fault, exactly as the state and signatory refusals already are), or refuse a fresh automatic transport call for a case that already carries a delivered `EvaSubmissions` row. Prove it with an automatic-path version-race test: one transport call, one submission and one history row, and a terminal (not re-claimable) work row after the lease expires. |
+| C | should-fix | `post-implementation-report/post-implementation-report.md`, `checklist/checklist.md:37` | Finding 5 is not closed. The report's appendix asserts "This report is now written at the fixes' own head", but the body was not rewritten: it still names `Head SHA: d061171c8e2cab6066102af4d8a96f010b215e55`; still names the migration `20260904185256_CaseSignOffEngineer` in both "Files changed" and "Behaviour delivered" (the file at this head is `20260905010654_CaseSignOffEngineer`); still records the snapshots as 64,565 and 25,888 bytes (measured at this head: `case-details--default.html` **67,885**, `case-eva-send--default.html` **26,237**, `case-details--conflict.html` **41,054**); and still claims "No `case-details--conflict.html` … change is in the diff — those three non-owned snapshots … were reverted", which `git diff --stat origin/dev...HEAD` contradicts. The checklist item "Should-fix 5: post-implementation report refreshed at the fixes' head" is ticked on that false basis. The first round's disposition stands: regenerating the conflict snapshot is *correct* (CI runs the unscoped verify), so only the report's claim is wrong. | **Fix (report only).** Rewrite the report body against `bfd089394` — or the head of the next fix round — with the real migration name, the three changed snapshots and their measured sizes, and re-tick the checklist item only once it is true. |
+
+The two findings dispositioned in round 1 as **rejected** (the inline
+`"The Sign-off Engineer was set."` literal, matching every sibling handler in
+`Workflow.cshtml.cs`) and **accepted risk** (`SingleOrDefault(IsDefault)`
+failing closed on a double default, PLAT-068's rule to enforce) were re-checked
+and are unchanged; the reviewer did not re-raise them.
+
+## Checks that passed
+
+Every drawn control has a named, existing handler: `AssignEngineer` and
+`SetSignOffEngineer` on `/Cases/Workflow` (`Workflow.cshtml.cs:95, 126`),
+`Bundle` on `/Cases/Documents/Export` (`Export.cshtml.cs:46`), `Submit` on
+`/Cases/Eva/Send` (`Send.cshtml.cs:117`). `_EvaHandoff` has exactly two Razor
+callers (`Details.cshtml:607`, `Eva/Send.cshtml:63`). No explanatory copy is
+added — the disabled API route uses the existing `.gated` + `data-condition`
+convention and the removed Razor comments are server-side. All eleven new
+operator labels sit in the delimited `// CASE-040` block in
+`OperatorLabels.CaseWorkspace` (`OperatorLabels.cs:1481-1493`). Every one of
+the 39 changed paths is an owned path. Core owns the sign-off resolver, the
+EVA state policy and the start-work precondition, with no second
+implementation in Infrastructure or Web. D44 holds: `git grep` for
+`ReviewedByStaff` / `RequireStaffImageReview` outside frozen migrations returns
+only two negative assertions. `Download EVA package` survives only as a
+negative assertion (`CaseDetailsWebTests.cs:743`). The migration adds one
+nullable column and drops one filtered index — no new table, so no grant and
+no bootstrap census row is due. The regenerated Case page begins
+`<!DOCTYPE html>`, carries one `class="case-sticky"` and eleven distinct
+`id="section-…"` hosts (overview, engineer-notes, inspection, vehicle, damage,
+valuation, estimate, settlement, report, files, notes) and no `<img src="#">`;
+the EVA send page carries the Sign-off Engineer field.
+
+## Commands run in the review checkout (`.worktrees/case-040-review`)
+
+```
+git worktree add --detach … origin/task/case-040-sign-off-engineer-eva  — exit 0; HEAD = bfd0893943f2b81c4446b7756860c02f415a17b7
+dotnet restore ./Pegasus.slnx --locked-mode                             — RESTORE_EXIT=0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore        — BUILD_EXIT=0, 0 warnings, 0 errors
+dotnet test ./tests/Pegasus.Core.Tests --configuration Release --no-build        — CORE_EXIT=0, 1245 passed
+dotnet test ./tests/Pegasus.ArchitectureTests --configuration Release --no-build — ARCH_EXIT=0, 100 passed
+pwsh -NoProfile -File ./scripts/Test-MigrationGrants.ps1                — GRANTS_EXIT=0, 94 migrations checked
+dotnet test ./tests/Pegasus.IntegrationTests --configuration Release --no-build
+  --filter "FullyQualifiedName~CaseWorkflowPersistenceTests|~EvaSubmissionPersistenceTests|
+            ~CustodyOutboxIntegrationTests|~CaseDetailsWebTests|~IntakePersistenceIntegrationTests|
+            ~AssessmentPersistenceIntegrationTests|~CaseWorkflowWebTests"
+  -- xUnit.MaxParallelThreads=2                                         — INT_EXIT=0, 174 passed, 1 pre-existing skip
+```
+
+That scope covers the change: the filter names every test class under `tests/`
+in `git diff --name-only origin/dev...HEAD`, the two Core suites cover the new
+resolver, the EVA state policy and the new `RequireStartCaseWorkAsync`, and the
+grant script covers the new migration. It does **not** cover finding A — the
+class that fails is `Browser/OperatorJourneyTests`, which this ticket changed
+the behaviour of without changing the file, so no `--filter` derived from the
+diff would ever have reached it. That is the gap CI closed and the lane's local
+scope could not.
+
+## CI gate
+
+Not passed. `gh run list --branch task/case-040-sign-off-engineer-eva` names
+run `33939704373` on `headSha bfd0893943f2b81c4446b7756860c02f415a17b7`; its
+`browser` job completed with conclusion `failure` (`Failed: 1, Passed: 124`)
+for finding A, with `test-ui` and `sql-integration (1)` still in progress at
+the time of review. The two earlier heads failed the same way. No merge was
+attempted. A rerun would not help — the failure is deterministic and its cause
+is in the diff.
