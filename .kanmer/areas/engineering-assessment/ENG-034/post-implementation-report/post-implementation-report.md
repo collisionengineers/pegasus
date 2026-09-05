@@ -405,3 +405,117 @@ by this condition.
 
 No test was weakened or deleted. Not merged; PR #668 remains open for the
 epic owner/review controller to re-review and merge.
+
+## Review round fixes (2026-09-05, round 4)
+
+Fourth round on the same PR (#668), same branch/worktree
+(`task/eng-034-engineer-sections-move`, `.worktrees/eng-034`), addressing
+finding F2 (SHOULD-FIX) returned from this round's review. Codex was
+reported unavailable for this round; the fix below was implemented directly
+by the Claude wrapper session in the same worktree/branch instead.
+
+Commit `9f06b46a4cd6a636dd3aab035ca34ca80accbd92`, pushed to
+`origin/task/eng-034-engineer-sections-move`.
+
+### SHOULD-FIX (F2) — the test's fixture kind and its name had drifted apart
+
+`AssessmentVehiclePrefillWebTests.cs:59` and `:161` composed
+`FakeGetCase(caseId, includeExtractedFacts: true)`. The round-1/round-2 fix
+above that restored this test's missing `DoesNotContain("VOLKSWAGEN"...)` /
+`DoesNotContain("GOLF"...)` half also, in the same edit, changed the
+fixture-helper it used from `Fact<T>` (`CaseDataValueKind.Fact`) to
+`Confirmed<T>` (`CaseDataValueKind.Confirmed`) — necessarily, because
+`_CaseVehicle.cshtml:44-46` reads `data?.Vehicle.Make.Confirmed?.Value` (and
+the equivalent for Model and Mileage) only; a `Fact`-kind value renders "Not
+recorded" and `Assert.Contains("FORD", html, ...)` would fail against it.
+That swap was not itself wrong — the test has to feed the fixture that
+`_CaseVehicle.cshtml` actually reads to pass against real behaviour — but it
+changed which precedence tier the test proves (confirmed-over-lookup, not
+extracted-fact-over-lookup) without the test's name, its parameter, or this
+report saying so. It is the same defect the round-1 fix caught and corrected
+in a different place (a weakened assertion, restored that round) landing
+again here unnoticed, because the assertion *text* was never touched, only
+its premise.
+
+Fix: renamed the test
+`ExtractedVehicleFactsTakePrecedenceOverLookupObservation` →
+`ConfirmedVehicleFactsTakePrecedenceOverLookupObservation`, and the
+`FakeGetCase` constructor parameter `includeExtractedFacts` →
+`includeConfirmedFacts`, so the name and the fixture agree with what the
+survived assertions actually exercise. No assertion, fixture value, or test
+behaviour changed — this is a rename only. `_CaseVehicle.cshtml` is CASE-027's
+file (confirmed with `git log --follow`) and is not named in ENG-034's
+`files.md` as an owned or must-touch path, so no `src/` change was made and
+no Test UI snapshot recapture was run (no routed Razor page, partial, or
+`catalogue.json` changed).
+
+### Report correction
+
+The "What changed → Tests" section above states "every existing behavioural
+assertion (totals, import, duplicate, discard, current-estimate,
+report-draft, preview, Send to Claude) is unchanged" for the retargeted
+Assessment test files. That sentence is corrected here: it is true of every
+assertion's *wording*, but for
+`ConfirmedVehicleFactsTakePrecedenceOverLookupObservation` the *fixture kind
+behind* the surviving `Assert.Contains("FORD"/"FOCUS"/"40,000 miles", ...)`
+assertions changed from `CaseDataValueKind.Fact` to
+`CaseDataValueKind.Confirmed` during the round-1/round-2 fix, which is what
+this round's rename now names accurately. No other retargeted test in that
+list had its fixture kind, only its host/route, changed.
+
+### Extracted-fact display gap — recorded, not fixed here
+
+The retired `Assessment/Index.cshtml.cs`'s `MileageDisplay`/`VehicleDisplay`
+(`origin/dev:.../Assessment/Index.cshtml.cs:253-288`) cascaded saved
+assessment value → confirmed → extracted fact → lookup observation into the
+Assessment ribbon's Mileage and Vehicle items. The Case ribbon
+(`Details.cshtml:111-142`) carries seven different items and neither figure,
+and `_CaseVehicle.cshtml` renders confirmed values only for Make, Model and
+Mileage (verified above). So an extracted-but-unconfirmed make/model/mileage
+value that an operator could previously see on the Assessment page now
+displays nowhere on the Case page.
+
+Checked whether D30 or D49 already settle this, and conclude neither does:
+D30 moves the Engineer workbench sections (Damage/Valuation/Estimate/
+Settlement/Report) onto the Case page and says nothing about the Vehicle
+section's field precedence; D49 fixes the intake *population order*
+(extraction first, then an automatic DVLA/DVSA lookup) and assigns the
+vehicle-record *extension* beyond registration/make/model/mileage to
+CASE-043, and suggestion chips for make/model/mileage to CASE-029 — neither
+statement authorizes or forbids also surfacing the extracted-fact tier in
+the Vehicle section's primary display. Rejecting the "D30/D49 already
+settles it" disposition as not honestly supportable; recording the gap
+instead.
+
+`_CaseVehicle.cshtml` and the Case ribbon are outside ENG-034's owned/
+must-touch paths (`files.md`), so CLAUDE.md's ticket-scope rule ("touch only
+the paths its plan and files documents name") forbids fixing this in this
+PR. Linking it to CASE-029 and CASE-043 instead: D49 names those two tickets
+as the owners of vehicle-field population and its chip/suggestion display,
+so whoever picks up either should decide whether the Vehicle section's
+primary fields (or a chip alongside them) should also surface an
+extracted-but-unconfirmed fact, or whether losing that visibility is an
+accepted consequence of retiring the Assessment page. Recording this here so
+D49's lane does not read `CaseVehicleSectionShowsLookupEvidence` /
+`ConfirmedVehicleFactsTakePrecedenceOverLookupObservation` as proof the
+extracted-fact tier is covered on the Case page — it is not.
+
+### F3 (units clarification) — not reproduced as a defect
+
+`git commit` on the renamed test file emits Git's standard "LF will be
+replaced by CRLF" autocrlf notice; the working tree and the committed blob
+both carry CRLF line endings consistent with every other file in this
+directory (`git diff --stat` shows only the 4 renamed identifier lines
+changed). No blob/working-copy mismatch was found to fix.
+
+### Verification run this round (worktree `.worktrees/eng-034`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentVehiclePrefillWebTests"` | 0 | 2 passed (`CaseVehicleSectionShowsLookupEvidence`, `ConfirmedVehicleFactsTakePrecedenceOverLookupObservation`). |
+
+No test was weakened or deleted; only names changed. Not merged; PR #668
+remains open for the epic owner/review controller to re-review and merge.
