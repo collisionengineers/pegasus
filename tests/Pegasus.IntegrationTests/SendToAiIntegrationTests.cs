@@ -280,6 +280,40 @@ public sealed partial class SendToAiIntegrationTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// D11: the workspace's mutation gate refuses OnPostSendToClaudeAsync
+    /// when CanOpen is false — the ordinary pre-ReportPreparation case,
+    /// where D30 removed the page-level 404 that used to back this up, so
+    /// HasAssessmentAccessAsync's CanOpen check is now the only defence.
+    /// The control itself is also absent rather than a dead end.
+    /// </summary>
+    [Fact]
+    public async Task InaccessibleCaseCannotPostSendToClaude()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId, canOpen: false);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
+        // The control renders gated/disabled, not a clickable dead end.
+        var sendGate = Regex.Match(
+            html,
+            "<span class=\"gated\" data-condition=\"(?<value>[^\"]+)\">[^<]*<button[^>]*>(?:(?!</button>).)*?Send to Claude",
+            RegexOptions.Singleline);
+        Assert.True(sendGate.Success, "Send to Claude renders as a gated, disabled control.");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
+            Form(
+                AntiforgeryValue(html),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("direction", "Draft the estimate"),
+                ("targetPercent", "80")));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public async Task SendingRecordsAnEstimateJobWithTheDirectionAndTarget()
     {
@@ -373,7 +407,8 @@ public sealed partial class SendToAiIntegrationTests
     private static WebApplicationFactory<Program> Compose(
         Guid caseId,
         bool controlEnabled = true,
-        string? refusal = null)
+        string? refusal = null,
+        bool canOpen = true)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var source = new FakeGetCase(caseId);
@@ -387,7 +422,7 @@ public sealed partial class SendToAiIntegrationTests
                 services.RemoveAll<ICreateAiJob>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICreateAiJob>(jobs);
                 services.AddSingleton<ISendToAiControl>(new FixedSendToAiControl(controlEnabled));
