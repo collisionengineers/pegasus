@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -483,6 +485,47 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
+    public async Task AwaitingRowsAndQuickDetailShowPrincipalWithoutIncreasingTheReadCount()
+    {
+        var counter = new AwaitingRequestCommandCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine(),
+            commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var principalId = await ImageIntakeTestData.SeedPrincipalAsync(
+            services,
+            "ALPHA",
+            isActive: true);
+        var known = await RegisterImageIntakeAsync(factory, client, services, "JK12LMN");
+        _ = await RegisterImageIntakeAsync(factory, client, services, "NP34QRS");
+        _ = await RegisterImageIntakeAsync(factory, client, services, "TU56VWX");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var knownDetail = await store.GetAsync(known.Id, CancellationToken.None);
+        await store.SetPrincipalAsync(
+            new(known.Id, principalId, StaffActor(), knownDetail!.LifecycleVersion),
+            CancellationToken.None);
+        counter.Reset();
+
+        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={known.Id:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // 14 is CASE-042's own recorded baseline for this exact request shape
+        // (three registered image rows, one selected), measured against its
+        // merged head (a2658300e) with this same interceptor. Asserting the
+        // identical number after CASE-045's principal projection proves the
+        // added column/join cost nothing extra per row.
+        Assert.Equal(14, counter.ExecutedReaderCommands);
+        Assert.Contains("Principal: ALPHA", html, StringComparison.Ordinal);
+        Assert.Contains("Principal: Not known", html, StringComparison.Ordinal);
+        Assert.Matches(@"<dt>\s*Principal\s*</dt>\s*<dd>\s*ALPHA\s*</dd>", html);
+    }
+
+    [Fact]
     public async Task AwaitingNonexistentSelectionReturnsNotFound()
     {
         using var factory = new IntakeWebApplicationFactory(
@@ -779,5 +822,24 @@ public sealed class TriageQueuesWebTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"not-ready-fixture-reader"}, {"1"}, {"not-ready-fixture"}, {1}, {reference}, {1}, {true}, {now})");
         return caseId;
+    }
+
+    private sealed class AwaitingRequestCommandCounter : DbCommandInterceptor
+    {
+        private int executedReaderCommands;
+
+        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
+
+        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref executedReaderCommands);
+            return ValueTask.FromResult(result);
+        }
     }
 }

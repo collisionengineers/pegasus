@@ -188,7 +188,7 @@
             <span>1 image</span>
         </span>
         <span class="record-head-end">
-            <span class="status status--neutral">Merged into Instruction-initiated Case</span>
+            <span class="status status--neutral">Awaiting definitive instruction</span>
 
         </span>
     </header>
@@ -199,6 +199,12 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
             <span>Open the origin receipt</span>
         </a>
+            <span class="record-bar-end">
+                <button type="button" class="btn btn--danger" data-dialog-open="image-intake-close-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                    <span>Close with reason</span>
+                </button>
+            </span>
     </div>
 
     <div class="record-body">
@@ -221,15 +227,39 @@
                         </dl>
                         <dl class="definition">
                             <dt>Lifecycle state</dt>
-                            <dd>Merged into Instruction-initiated Case</dd>
+                            <dd>Awaiting definitive instruction</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Principal</dt>
+                            <dd>ALPHA</dd>
                         </dl>
                         <dl class="definition">
                             <dt>Case association</dt>
                             <dd>
-                                    <a href="case-details--default.html">QDOS31001</a>
-                            </dd>
+None — awaiting definitive instruction                            </dd>
                         </dl>
                     </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="image-intake-principal-title">
+                <div class="panel-head"><h2 id="image-intake-principal-title">Principal</h2></div>
+                <div class="panel-body">
+                    <form method="post" action="vehicle-images-details--default.html">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label for="image-intake-principal">Principal</label>
+                                <select id="image-intake-principal" name="principalId">
+                                    <option value="">Not known</option>
+                                        <option value="test-ui-guid-3" selected="selected">ALPHA</option>
+                                        <option value="test-ui-guid-4">BETA</option>
+                                        <option value="test-ui-guid-5">QDOS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <input type="hidden" name="expectedVersion" value="1" />
+                        <button type="submit" class="btn btn--primary">Save</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
                 </div>
             </section>
 
@@ -264,17 +294,6 @@
 
             </section>
 
-            <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
-                <div class="panel-head"><h2 id="image-initiated-history-title">History</h2></div>
-                <div class="panel-body">
-                    <div class="timeline">
-                            <div class="timeline-item">
-                                <div class="timeline-title">Merged into Instruction-initiated Case</div>
-                                <div class="timeline-meta">06 May 2031 11:30 · The Image-initiated case AB12CDE-01 was merged into the linked formal Case.</div>
-                            </div>
-                    </div>
-                </div>
-            </section>
 
 
             <section class="panel section-gap" aria-labelledby="image-intake-suggestions-title">
@@ -290,6 +309,35 @@
             </section>
     </div>
 </article>
+
+    <div id="image-intake-close-dialog" class="dialog-backdrop" data-dialog="image-intake-close-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="image-intake-close-dialog_title">
+        <div class="dialog-head">
+            <h2 id="image-intake-close-dialog_title" tabindex="-1">Close Image-initiated Case</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="vehicle-images-details--default.html">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="expectedVersion" value="1" />
+            <div class="dialog-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Use only when formal instructions will not arrive; the record becomes read-only.</span>
+                    </div>
+                <div class="field">
+                    <label class="req" for="image-intake-close-dialog_reason">Reason for action</label>
+                    <textarea id="image-intake-close-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
 
 
 <div id="evidence-viewer"
