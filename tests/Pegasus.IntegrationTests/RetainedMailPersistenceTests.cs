@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
+using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure;
@@ -226,6 +228,118 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal(
             MailOperationalDestination.DetailedClassification,
             detailed.OperationalDestination?.Destination);
+    }
+
+    [Fact]
+    public async Task CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var (caseId, otherCaseId) = await SeedQueryCasesAsync(database);
+        var query = Message("case-query", "Query", ReceivedAtUtc.AddMinutes(1));
+        var dispute = Message("case-dispute", "Dispute", ReceivedAtUtc);
+        var otherCase = Message("other-case-query", "Other case", ReceivedAtUtc.AddMinutes(8));
+        var nonQuery = Message("case-update", "Case update", ReceivedAtUtc.AddMinutes(7));
+        var reversed = Message("reversed-query", "Reversed", ReceivedAtUtc.AddMinutes(6));
+        var billing = Message("billing-query", "Billing query", ReceivedAtUtc.AddMinutes(5));
+        var unassociated = Message("unassociated-query", "Unassociated", ReceivedAtUtc.AddMinutes(4));
+        var sharedToken = Message("shared-token-query", "Shared first", ReceivedAtUtc.AddMinutes(3));
+        var fixtures = new[]
+        {
+            (query, ReceivedMailFamily.PostReportEmails, "query"),
+            (dispute, ReceivedMailFamily.PostReportEmails, "dispute"),
+            (otherCase, ReceivedMailFamily.PostReportEmails, "query"),
+            (nonQuery, ReceivedMailFamily.InProgressCases, "case-update"),
+            (reversed, ReceivedMailFamily.PostReportEmails, "query"),
+            (billing, ReceivedMailFamily.Billing, "billing-query"),
+            (unassociated, ReceivedMailFamily.PostReportEmails, "query"),
+            (sharedToken, ReceivedMailFamily.PostReportEmails, "query")
+        };
+        foreach (var (message, family, subtype) in fixtures)
+        {
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(
+                database,
+                message,
+                MailClassificationResult.Classified(
+                    MailCategory.Received(family, subtype),
+                    [],
+                    "Fixture classification.",
+                    "query-test",
+                    1));
+        }
+
+        Guid queryId;
+        Guid disputeId;
+        Guid billingId;
+        Guid sharedFirstId;
+        Guid sharedSecondId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receiptByToken = await context.IntakeReceipts
+                .ToDictionaryAsync(item => item.ExternalReceiptToken, StringComparer.Ordinal);
+            AddAssociation(context, receiptByToken[query.ExternalReceiptToken], caseId, true);
+            AddAssociation(context, receiptByToken[dispute.ExternalReceiptToken], caseId, true);
+            AddAssociation(context, receiptByToken[otherCase.ExternalReceiptToken], otherCaseId, true);
+            AddAssociation(context, receiptByToken[nonQuery.ExternalReceiptToken], caseId, true);
+            AddAssociation(context, receiptByToken[reversed.ExternalReceiptToken], caseId, false);
+            AddAssociation(context, receiptByToken[billing.ExternalReceiptToken], caseId, true);
+            AddAssociation(context, receiptByToken[sharedToken.ExternalReceiptToken], caseId, true);
+
+            var retained = await context.RetainedMailboxMessages.ToDictionaryAsync(
+                item => item.ImmutableMessageId,
+                StringComparer.Ordinal);
+            queryId = retained[query.ImmutableMessageId].Id;
+            disputeId = retained[dispute.ImmutableMessageId].Id;
+            billingId = retained[billing.ImmutableMessageId].Id;
+            var sharedFirst = retained[sharedToken.ImmutableMessageId];
+            sharedFirstId = sharedFirst.Id;
+            context.RetainedMailboxMessages.Add(new()
+            {
+                Id = sharedSecondId,
+                MailboxId = sharedFirst.MailboxId,
+                MailboxAddress = sharedFirst.MailboxAddress,
+                FolderScope = sharedFirst.FolderScope,
+                FolderIdentity = sharedFirst.FolderIdentity,
+                ImmutableMessageId = "shared-token-query-second",
+                ConversationIdentity = "conversation-2",
+                InternetMessageIdentity = "<shared-token-query-second@example.invalid>",
+                CanonicalInternetMessageIdentity = "shared-token-query-second@example.invalid",
+                ExternalReceiptToken = sharedFirst.ExternalReceiptToken,
+                SenderAddress = "second@example.invalid",
+                SenderDisplayName = "Second Sender",
+                ToAddressesJson = "[]",
+                CcAddressesJson = "[]",
+                Subject = "Shared second",
+                BodyExcerpt = "Second retained row.",
+                BodyPlainText = "Second retained row.",
+                IsRead = false,
+                SourceLength = 2,
+                SourceSha256 = new string('D', 64),
+                ReceivedAtUtc = ReceivedAtUtc.AddMinutes(2),
+                RetainedAtUtc = ReceivedAtUtc.AddMinutes(2)
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var details = Assert.IsType<CaseDetails>(await scope.ServiceProvider
+            .GetRequiredService<ICaseQueryStore>()
+            .GetAsync(new(caseId, ActionActor.SystemWorker("query-test")), CancellationToken.None));
+
+        Assert.Equal(
+            [billingId, sharedFirstId, sharedSecondId, queryId, disputeId],
+            details.QueryEmails.Select(item => item.RetainedMessageId));
+        Assert.Equal(
+            ["Billing query", "Shared first", "Shared second", "Query", "Dispute"],
+            details.QueryEmails.Select(item => item.Subject));
+        Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.QueryEmails[0].ReceivedAtUtc);
+        Assert.Equal("sender@example.invalid", details.QueryEmails[0].SenderAddress);
+        Assert.Equal(ReceivedMailFamily.Billing, details.QueryEmails[0].Classification.ReceivedFamily);
+        Assert.Equal("billing-query", details.QueryEmails[0].Classification.Subtype);
+        Assert.Equal("second@example.invalid", details.QueryEmails[2].SenderAddress);
+        Assert.DoesNotContain(details.QueryEmails, item => item.Subject is
+            "Other case" or "Case update" or "Reversed" or "Unassociated");
     }
 
     [Fact]
@@ -1372,6 +1486,112 @@ public sealed class RetainedMailPersistenceTests
             ExtractionPolicyVersion: 1,
             Assets: [],
             MailClassificationDecision: classification));
+
+    private static async Task<(Guid CaseId, Guid OtherCaseId)> SeedQueryCasesAsync(
+        LocalDbTestDatabase database)
+    {
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        var originId = Guid.NewGuid();
+        var otherOriginId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var otherCaseId = Guid.NewGuid();
+        await using var context = await database.CreateContextAsync();
+        context.AddRange(
+            new OrganizationEntity { Id = organizationId, Name = "Query test", Version = 0 },
+            new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = ReceivedAtUtc },
+            new PrincipalEntity
+            {
+                Id = principalId,
+                OrganizationId = organizationId,
+                SequenceLineageId = lineageId,
+                Code = "QDOS",
+                IsActive = true,
+                Version = 0
+            },
+            Receipt(originId, "origin:query-test"),
+            Receipt(otherOriginId, "origin:query-test-other"),
+            Case(caseId, principalId, lineageId, originId, 1),
+            Case(otherCaseId, principalId, lineageId, otherOriginId, 2),
+            Workflow(caseId),
+            Workflow(otherCaseId));
+        await context.SaveChangesAsync();
+        return (caseId, otherCaseId);
+    }
+
+    private static IntakeReceiptEntity Receipt(Guid id, string token) => new()
+    {
+        Id = id,
+        SourceFileName = "origin.pdf",
+        MediaType = "application/pdf",
+        SourceLength = 1,
+        SourceHash = new string('0', 64),
+        SourceChannel = "manual_upload",
+        ExternalReceiptToken = token,
+        ReceivedAtUtc = ReceivedAtUtc,
+        ProcessedAtUtc = ReceivedAtUtc,
+        SourceReaderKey = "query-test",
+        SourceReaderVersion = "1",
+        Version = 0,
+        Decision = "case_created",
+        DecisionReason = "Query test.",
+        EvidenceJson = "[]",
+        FieldsJson = "[]",
+        OcrCandidatesJson = "[]"
+    };
+
+    private static CaseEntity Case(
+        Guid id,
+        Guid principalId,
+        Guid lineageId,
+        Guid originId,
+        int sequence) => new()
+    {
+        Id = id,
+        PrincipalId = principalId,
+        SequenceLineageId = lineageId,
+        Year = 2031,
+        Sequence = sequence,
+        Reference = $"QDOS3100{sequence}",
+        Type = "Inspection",
+        InitialState = "Review",
+        CustodyState = "pending",
+        OriginIntakeReceiptId = originId,
+        CreatedAtUtc = ReceivedAtUtc,
+        Version = 1,
+        ConcurrencyToken = Guid.NewGuid()
+    };
+
+    private static CaseWorkflowEntity Workflow(Guid caseId) => new()
+    {
+        CaseId = caseId,
+        State = "Review",
+        Version = 1,
+        ConcurrencyToken = Guid.NewGuid()
+    };
+
+    private static void AddAssociation(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        Guid caseId,
+        bool active)
+    {
+        receipt.ManualAssociation = new()
+        {
+            IntakeReceiptId = receipt.Id,
+            CaseId = caseId,
+            IsActive = active,
+            Version = 0,
+            LinkedAtUtc = ReceivedAtUtc,
+            UnlinkedAtUtc = active ? null : ReceivedAtUtc.AddMinutes(1),
+            ActorKind = "Staff",
+            ActorSubjectId = Guid.NewGuid().ToString("D"),
+            ActorRolesJson = "[]",
+            Reason = "Query test.",
+            LastOperationKey = $"query-association:{receipt.Id:N}"
+        };
+    }
 
     private static ApprovedInboxMessage PolledMessage(
         string providerIdentity,

@@ -64,6 +64,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "inspectionDeadline",
         "inspectionAddress",
         "inspectionMode",
+        "storageLocation",
         "registration",
         "make",
         "model",

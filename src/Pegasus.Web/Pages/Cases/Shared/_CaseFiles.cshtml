@@ -9,12 +9,13 @@
    instruction carried, and the images each associated Image-initiated Case
    registered. Every tile is a [data-evidence-item] inside a
    [data-evidence-set], so the viewer Details.cshtml already renders once —
-   with its Rotate view and Save as controls — opens them.
-
-   Correspondence is absent: nothing queries retained mail by case, so there
-   are no linked message rows to draw. *@
+   with its Rotate view and Save as controls — opens them. *@
 <div class="stack">
     <partial name="Cases/Shared/_CaseDocuments" model="Model" />
+    @if (details.QueryEmails.Count > 0)
+    {
+        <partial name="Cases/Shared/_CaseCorrespondence" model="Model" />
+    }
 
     @if (Model.EvidenceImages.Count > 0)
     {
