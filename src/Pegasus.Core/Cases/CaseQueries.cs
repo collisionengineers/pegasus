@@ -2,6 +2,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Vehicle;
@@ -130,6 +131,15 @@ public sealed record CaseHistoryEntry(
     public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
 }
 
+public sealed record CaseQueryEmail(
+    Guid RetainedMessageId,
+    DateTimeOffset ReceivedAtUtc,
+    string? EffectiveSenderAddress,
+    string? SenderDisplayName,
+    string? SenderAddress,
+    string? Subject,
+    MailCategory Classification);
+
 public sealed record CaseDetails(
     CaseSearchItem Summary,
     CaseWorkflowRecord Workflow,
@@ -146,6 +156,7 @@ public sealed record CaseDetails(
     public GeneratedCaseChaser? LatestChaser { get; init; }
     public CaseVehicleEvidence? VehicleEvidence { get; init; }
     public IReadOnlyList<CaseCustodyPreparation> Custody { get; init; } = [];
+    public IReadOnlyList<CaseQueryEmail> QueryEmails { get; init; } = [];
 
     /// <summary>
     /// The operator-facing name for <c>Workflow.ReportApproval.ApprovedBy</c>,

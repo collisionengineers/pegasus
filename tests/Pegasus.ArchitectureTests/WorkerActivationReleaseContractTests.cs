@@ -119,6 +119,10 @@ public sealed class WorkerActivationReleaseContractTests
             CopyValidationFixtureFile(
                 repositoryRoot,
                 testRoot,
+                "scripts/Build-ReleaseArtifacts.ps1");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
                 "scripts/Test-AzureDeploymentPlan.ps1");
 
             var platformBicepPath = Path.Combine(
@@ -232,6 +236,8 @@ public sealed class WorkerActivationReleaseContractTests
         Assert.Contains("$sourceWorkerConditionalMatches", deploymentPlan);
         Assert.Contains("$compiledWorkerNameMatches", deploymentPlan);
         Assert.Contains("$compiledWorkerConditionalMatches", deploymentPlan);
+        Assert.Contains("GetUnixFileMode", deploymentPlan);
+        Assert.Contains("UnixFileMode]::UserExecute", deploymentPlan);
     }
 
     [Fact]

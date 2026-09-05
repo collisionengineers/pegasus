@@ -22,10 +22,11 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 /// <remarks>
 /// The rail groups are Workflow (Not ready, Review, With Engineer, Complete),
-/// Pre-Case work (Triage) and Exceptions (Held, Unidentified). With Engineer
-/// and Complete are display groupings of Core states (D3); the other terminal
-/// outcomes are not listed here. Blocked intake rows sit in the Unidentified
-/// group with their own chip and are not counted (D14).
+/// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
+/// Unidentified). With Engineer and Complete are display groupings of Core
+/// states (D3); the other terminal outcomes are not listed here. Blocked
+/// intake rows sit in the Unidentified group with their own chip and are not
+/// counted (D14).
 ///
 /// The group is <c>?tab=</c>; the pre-EPIC-011 <c>?queue=</c> is accepted as
 /// an alias and the README's hyphenated spellings normalise to the same keys.
@@ -41,9 +42,10 @@ public sealed class IndexModel(
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
+    IUploadCaseDecision caseDecision,
     IListIntake listIntake,
     IStaffAccountQueries staffAccounts,
-    TimeProvider timeProvider) : StaffPageModel
+    TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private const int PageSize = 25;
 
@@ -92,6 +94,7 @@ public sealed class IndexModel(
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
         new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
         new("triage", "Triage", PreCaseGroup, "icon-file-text"),
+        new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
         new("unidentified", "Unidentified", ExceptionsGroup, "icon-alert-triangle", IsException: true)
     ];
@@ -167,6 +170,7 @@ public sealed class IndexModel(
         "with_engineer" => StageCounts.WithEngineer,
         "complete" => StageCounts.Complete,
         "triage" => TriageCount,
+        "awaiting" => StageCounts.AwaitingInstruction,
         "held" => StageCounts.Held,
         "unidentified" => UnidentifiedCount,
         _ => 0
@@ -200,7 +204,8 @@ public sealed class IndexModel(
         string? Time,
         DateTimeOffset ReceivedAtUtc,
         string DetailHref,
-        IReadOnlyList<(string Label, string Value)> Facts);
+        IReadOnlyList<(string Label, string Value)> Facts,
+        Guid? OriginReceiptId = null);
 
     public IReadOnlyList<QueueRow> Rows { get; private set; } = [];
 
@@ -224,7 +229,8 @@ public sealed class IndexModel(
         string OpenLabel,
         IReadOnlyList<(string Label, string Value)> Facts,
         CaseLifecycleState? State = null,
-        IReadOnlyList<OperatorLabels.CaseRequirement>? Outstanding = null);
+        IReadOnlyList<OperatorLabels.CaseRequirement>? Outstanding = null,
+        Guid? OriginReceiptId = null);
 
     public QuickDetail? Selected { get; private set; }
 
@@ -281,6 +287,9 @@ public sealed class IndexModel(
             values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
     }
 
+    protected override IActionResult RedirectToSurface(Guid id) =>
+        RedirectToPage(new { tab = "awaiting", selected = id });
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (SearchOnlyParameters.Any(parameter => Request.Query.ContainsKey(parameter)))
@@ -317,6 +326,7 @@ public sealed class IndexModel(
         var rows = Queue switch
         {
             "triage" => await LoadTriageAsync(actor, cancellationToken),
+            "awaiting" => await LoadAwaitingAsync(cancellationToken),
             "unidentified" => await LoadUnidentifiedAsync(actor, openUnidentifiedTask.Result, cancellationToken),
             "not_ready" => await LoadNotReadyAsync(actor, cancellationToken),
             _ => await LoadCasesAsync(actor, cancellationToken)
@@ -331,7 +341,19 @@ public sealed class IndexModel(
             : Rows.Count > 0 ? Rows[0] : null;
         if (SelectedId is not null && selectedRow is null)
         {
-            return NotFound();
+            var isPostAttachRedirect = Queue == "awaiting"
+                && (TempData.ContainsKey("Confirmation")
+                    || TempData.ContainsKey("UploadConfirmationError"));
+            if (!isPostAttachRedirect)
+            {
+                return NotFound();
+            }
+
+            // A row just attached to a case leaves the Awaiting instruction queue
+            // (LoadAwaitingAsync excludes it), so its post-attach redirect no longer
+            // resolves. Preserve the TempData notice and drop only that stale selection.
+            SelectedId = null;
+            selectedRow = Rows.Count > 0 ? Rows[0] : null;
         }
 
         if (selectedRow is not null)
@@ -370,32 +392,23 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// Not ready's two origins — formal Cases and Image-initiated Cases still
-    /// awaiting instruction — read together and filtered by what each is
-    /// missing. An image-initiated row is missing its instruction and nothing
-    /// else by definition, so it is listed for All and Instructions only, and
-    /// never for a named Principal, which it does not have yet.
+    /// Formal Not ready Cases, filtered by their recorded completeness facts.
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var casesTask = _searchCases.ExecuteAsync(
+        var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
                 new(State: CaseLifecycleState.NotReady, Principal: PrincipalFilter),
                 Page: 1,
                 PageSize: MergedPageSize),
             cancellationToken);
-        var listImages = PrincipalFilter is null && MissingFilter is null or "instructions";
-        var imagesTask = listImages
-            ? _imageIntakeQueries.ListAsync(false, cancellationToken)
-            : Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
-        await Task.WhenAll(casesTask, imagesTask);
 
         // The Missing filter is applied to the read, so what it removes
         // never reaches the Principal select's options either — a principal
         // whose every row the filter dropped stays listed (PrincipalOptions)
         // so the active choice remains visible.
-        var matchingCases = casesTask.Result.Items
+        var matchingCases = result.Items
             .Where(item => MissingFilter switch
             {
                 "instructions" => item.InstructionComplete == false && item.ImagesComplete == true,
@@ -405,13 +418,16 @@ public sealed class IndexModel(
             })
             .ToArray();
         Principals = PrincipalOptions(matchingCases);
-        var cases = matchingCases.Select(CaseRow);
-        var images = await Task.WhenAll(imagesTask.Result
+        return matchingCases.Select(CaseRow).ToArray();
+    }
+
+    private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
+    {
+        var images = await _imageIntakeQueries.ListAsync(false, cancellationToken);
+        return images
             .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
-            .Select(async item => ImageRow(
-                item,
-                (await _imageIntakeQueries.ListImagesAsync(item.Id, cancellationToken)).Count)));
-        return cases.Concat(images).ToArray();
+            .Select(ImageRow)
+            .ToArray();
     }
 
     private async Task<IReadOnlyList<QueueRow>> LoadTriageAsync(ActionActor actor, CancellationToken cancellationToken)
@@ -526,7 +542,8 @@ public sealed class IndexModel(
                 RowKind.BlockedIntake => "Open received item",
                 _ => "Open Unidentified"
             },
-            facts);
+            facts,
+            OriginReceiptId: row.OriginReceiptId);
 
     private static QueueRow CaseRow(CaseSearchItem item) => new(
         RowKind.Case,
@@ -540,32 +557,35 @@ public sealed class IndexModel(
         $"/Cases/{item.CaseId:D}",
         []);
 
-    private QueueRow ImageRow(ImageIntakeSummary item, int fileCount)
+    private QueueRow ImageRow(ImageIntakeSummary item)
     {
+        var imageCountLabel = $"{item.ImageCount} retained image{(item.ImageCount == 1 ? string.Empty : "s")}";
         var facts = new List<(string Label, string Value)>
         {
-            ("State", OperatorLabels.ImageIntakeLifecycleState(item.State)),
+            ("Images", imageCountLabel),
         };
         if (item.Custody is { } custodyDetail)
         {
             facts.Add(("Custody", OperatorLabels.ImageCustodyState(custodyDetail)));
         }
-        facts.Add(("Registered", OperatorLabels.OfficeDate(item.RegisteredAtUtc)));
+        facts.Add(("Received", OperatorLabels.OfficeDate(item.RegisteredAtUtc)));
+        facts.Add(("Source", OperatorLabels.SourceChannel(item.Source)));
         facts.Add(("Chase", OperatorLabels.ImageChaseState(
             ImageIntakeChaseSchedule.IsChaseDue(item.RegisteredAtUtc, _timeProvider.GetUtcNow()))));
         return new QueueRow(
             RowKind.Image,
             item.Id,
             Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
-            OperatorLabels.ImageIntakeLifecycleState(item.State),
+            string.Empty,
             Join(
-                $"{fileCount} retained image{(fileCount == 1 ? string.Empty : "s")}",
+                imageCountLabel,
                 item.Custody is { } custody ? OperatorLabels.ImageCustodyState(custody) : null),
-            $"Image-initiated · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
+            $"{OperatorLabels.SourceChannel(item.Source)} · received {OperatorLabels.OfficeDate(item.RegisteredAtUtc)}",
             null,
             item.RegisteredAtUtc,
             $"/VehicleImages/{item.Id:D}",
-            facts);
+            facts,
+            item.OriginReceiptId);
     }
 
     private static QueueRow TriageRow(TriageSummary item, string assignee)
