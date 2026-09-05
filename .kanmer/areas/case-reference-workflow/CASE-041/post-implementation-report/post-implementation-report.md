@@ -132,3 +132,44 @@ abstraction extraction, both rejected).
 
 - Nothing outstanding for this ticket. The review/verify stages and
   `dev`→`main` release remain for the reviewer and the release process.
+
+## Review round fixes (2026-09-04)
+
+Blocker: `tests/Pegasus.IntegrationTests/Browser/LayoutIntegrityTests.cs:249`
+still located the read-mode inspection address by the old label
+("Recorded value"), which `_CaseInspectionAddress.cshtml` renamed to
+"Inspect at" as part of this ticket, breaking the browser and
+test-ui CI jobs.
+
+- Fixed. Repointed the xpath locator at `Inspect at` without weakening
+  the assertion — it still asserts the saved `inspectionAddress`
+  appears (via `Assert.Contains`, `StringComparison.Ordinal`) in the
+  read-mode `<dd>` value.
+- Removed the now-dead
+  `OperatorLabels.CaseWorkspace.RecordedInspectionAddress` constant in
+  the same change (no other reference to it existed outside build
+  artifacts).
+- Findings 2–6 from the review: no change on this branch, per their
+  existing dispositions in the review record.
+
+Commands run and exit codes:
+
+```
+dotnet restore ./Pegasus.slnx --locked-mode                                   # exit 0
+dotnet build ./Pegasus.slnx --configuration Release --no-restore              # exit 0, 0 warnings, 0 errors
+dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj \
+  --configuration Release --no-build                                          # exit 0, 1240 passed
+dotnet test tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj \
+  --configuration Release --no-build                                          # exit 0, 100 passed
+dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj \
+  --configuration Release --no-build \
+  --filter "FullyQualifiedName~LayoutIntegrityTests" \
+  -- xUnit.MaxParallelThreads=2                                               # exit 0, 70 passed
+```
+
+No routed Razor page, partial, or `catalogue.json` changed by this fix
+(only `OperatorLabels.cs` and the test locator), so Test UI snapshots
+were not regenerated.
+
+Head SHA after this fix: `42b38752a`. Pushed to
+`task/case-041-inspect-at-choices`; PR #664 unchanged (same branch).
