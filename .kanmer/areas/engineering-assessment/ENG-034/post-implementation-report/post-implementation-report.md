@@ -248,3 +248,78 @@ definition. No Test UI snapshot recapture was run for this round.
 
 No test was weakened or deleted. Not merged; PR #668 remains open for the
 epic owner/review controller to re-review and merge.
+
+## Review round fixes (2026-09-05)
+
+Second round on the same PR (#668), same branch/worktree
+(`task/eng-034-engineer-sections-move`, `.worktrees/eng-034`), addressing
+the remaining findings from the review that were not covered by the first
+`Review round fixes (2026-09-05)` section above (commit `bd032ceb7`).
+
+Codex (`gpt-5.6-sol`, high) was dispatched for this round but hit its usage
+limit before making any change (`ERROR: You've hit your usage limit ...`,
+`CODEX_EXIT=0` from the wrapper, no working-tree diff). The fixes below were
+implemented directly by the Claude wrapper session in the same
+worktree/branch instead.
+
+Commit `6a2c3af779201144def500c964524902fc560d79`, pushed to
+`origin/task/eng-034-engineer-sections-move`.
+
+### BLOCKER — restored CanOpen on HasAssessmentAccessAsync
+
+`HasAssessmentAccessAsync` (`Details.cshtml.cs`, the sole caller being
+`OnPostSendToClaudeAsync`) still checked `is not null` after the first
+round's fix, which only touched `GuardEstimateEditAsync` and
+`OnPostImportEstimateAsync`. Confirmed by reading pre-move
+`99c27e906^:src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs:1372-1378`
+that the original `CanAccessAsync` required `?.CanOpen == true`. Changed
+`HasAssessmentAccessAsync` to `(await getAssessmentAccess.ExecuteAsync(...))
+?.CanOpen == true`, so `OnPostSendToClaudeAsync` returns 404 again for a
+case whose assessment workspace has not opened (D11), closing the gap D30's
+removed page-level 404 used to cover. Confirmed `HasAssessmentAccessAsync`
+has exactly one caller before changing it — no other behaviour depends on
+the looser "record exists" semantics.
+
+### Missing test coverage — added
+
+`SendToAiIntegrationTests.Compose` gained a `canOpen: bool = true` parameter
+threaded into `new FakeGetAssessmentAccess(canOpen)` (mirroring the same
+parameter already on `AssessmentCopyWebTests.Compose`). Added
+`InaccessibleCaseCannotPostSendToClaude`: composes with `canOpen: false`,
+confirms the Send to Claude control renders gated/disabled (same regex
+assertion shape as the existing `ASwitchedOffControlStatesTheConditionAndIsNotOffered`),
+then POSTs to `/Cases/{id}?handler=SendToClaude&section=estimate` and
+asserts `404 Not Found`. No existing assertion in the file was weakened.
+
+### Absent, not a dead end — SendToClaudeCondition now considers CanOpen
+
+Added an `!AssessmentCanOpen` branch to `EvaluateEngineerSectionConditionsAsync`
+(checked right after `AssessmentIsReadOnly`, before the AI-toggle and
+Engineer's-Value checks), setting `SendToClaudeCondition` to the existing
+`Labels.CaseWorkspace.EngineerSections.NotAvailableForCase` label — reused
+rather than adding a new one, since it already carries the right generic
+"not available for this case" meaning and is already used for
+`ReportDraftCondition`'s equivalent not-ready case. No new label was added
+to `OperatorLabels.cs`. `_CaseEstimate.cshtml` needed no edit: both the
+button-row entry (`Model.SendToClaudeCondition is null`) and the dialog
+guard (`!Model.AssessmentIsReadOnly && Model.SendToClaudeCondition is
+null`) already key off `SendToClaudeCondition`, so the control now renders
+gated/disabled instead of a clickable dead end whenever `CanOpen` is false.
+
+### NIT — byte-count discrepancy: not reproduced at this head
+
+Checked `wc -c docs/design/test-ui/pages/case-details--unavailable.html`:
+24,390 bytes, matching the previous round's report entry exactly. No
+24,694-byte state was found in the current worktree or in the file as
+committed on this branch; no snapshot regeneration was needed or run (no
+routed Razor page, partial, or `catalogue.json` changed this round).
+
+### Verification run this round (worktree `.worktrees/eng-034`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~SendToAiIntegrationTests\|FullyQualifiedName~AssessmentCopyWebTests"` | 0 | 11 passed (includes the new `InaccessibleCaseCannotPostSendToClaude`). |
+
+No test was weakened or deleted. Not merged; PR #668 remains open for the
+epic owner/review controller to re-review and merge.
