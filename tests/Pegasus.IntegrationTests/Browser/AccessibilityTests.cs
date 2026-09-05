@@ -19,6 +19,7 @@ public sealed class AccessibilityTests
         // The Cases workflow tabs (EPIC-011 §1.4; the old /Triage queues).
         "/Cases",
         "/Cases?tab=triage",
+        "/Cases?tab=awaiting",
         // The Unidentified tab is a distinct rendered shape from the default
         // Not-ready view (INTK-009 folded the standalone /Unidentified page
         // in here as a tab, so it earns its own accessibility pass).
