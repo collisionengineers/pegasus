@@ -12,17 +12,15 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-008: the assessment identity ribbon's Mileage and Vehicle figures
-/// come from the same evidence cascade the old vehicle section prefilled
-/// from — the saved assessment value, else confirmed case facts, else the
-/// DVSA lookup observation — with no hint sentences anywhere on the page
-/// (ENG-025 ported the section away; the cascade is unchanged).
+/// ENG-034: vehicle evidence remains on the Case record when the Assessment
+/// page is retired. The existing Vehicle section renders lookup observations
+/// and gives confirmed case facts precedence in its primary fields.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class AssessmentVehiclePrefillWebTests
 {
     [Fact]
-    public async Task RibbonShowsMileageAndVehicleFromLookupEvidence()
+    public async Task CaseVehicleSectionShowsLookupEvidence()
     {
         var caseId = Guid.NewGuid();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -44,7 +42,7 @@ public sealed class AssessmentVehiclePrefillWebTests
         });
         client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
 
-        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
+        using var response = await client.GetAsync($"/Cases/{caseId:D}?section=vehicle");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
@@ -52,13 +50,13 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.DoesNotContain("In miles. Required unless", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Sets the mileage sentence", html, StringComparison.Ordinal);
 
-        Assert.Contains("<div class=\"ribbon-label\">Mileage</div>", html, StringComparison.Ordinal);
-        Assert.Contains("<div class=\"ribbon-value\">45123</div>", html, StringComparison.Ordinal);
-        Assert.Contains("<div class=\"ribbon-value\">VOLKSWAGEN GOLF</div>", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"case-vehicle-title\"", html, StringComparison.Ordinal);
+        Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
+        Assert.Contains("45,123 miles", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExtractedVehicleFactsTakePrecedenceOverLookupObservation()
+    public async Task ConfirmedVehicleFactsTakePrecedenceOverLookupObservation()
     {
         var caseId = Guid.NewGuid();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -68,7 +66,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
-                var source = new FakeGetCase(caseId, includeExtractedFacts: true);
+                var source = new FakeGetCase(caseId, includeConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
@@ -80,16 +78,18 @@ public sealed class AssessmentVehiclePrefillWebTests
         });
         client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
 
-        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
+        using var response = await client.GetAsync($"/Cases/{caseId:D}?section=vehicle");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("<div class=\"ribbon-value\">FORD FOCUS</div>", html, StringComparison.Ordinal);
-        Assert.Contains("<div class=\"ribbon-value\">40000</div>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<div class=\"ribbon-value\">VOLKSWAGEN GOLF</div>", html, StringComparison.Ordinal);
+        Assert.Contains("FORD", html, StringComparison.Ordinal);
+        Assert.Contains("FOCUS", html, StringComparison.Ordinal);
+        Assert.Contains("40,000 miles", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("VOLKSWAGEN", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("GOLF", html, StringComparison.Ordinal);
     }
 
-    private sealed class FakeGetCase(Guid caseId, bool includeExtractedFacts = false)
+    private sealed class FakeGetCase(Guid caseId, bool includeConfirmedFacts = false)
         : IGetCase, IGetAssessmentWorkspace
     {
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
@@ -111,7 +111,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             CaseDetails details = new(
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], [])
             {
-                Data = includeExtractedFacts ? Data(identity, workflow) : null,
+                Data = includeConfirmedFacts ? Data(identity, workflow) : null,
                 VehicleEvidence = new(caseId, null, observation, [observation], []),
             };
             return Task.FromResult<CaseDetails?>(details);
@@ -158,7 +158,10 @@ public sealed class AssessmentVehiclePrefillWebTests
     {
         var source = new CaseDataSource(CaseDataSourceKind.IntakeEvidence, "instruction", "Instruction", "test", 1);
         CaseField<T> Empty<T>() where T : notnull => new(null, null, null);
-        CaseField<T> Fact<T>(T value) where T : notnull => new(new(value, CaseDataValueKind.Fact, source), null, null);
+        CaseField<T> Confirmed<T>(T value) where T : notnull => new(
+            null,
+            null,
+            new(value, CaseDataValueKind.Confirmed, source, "engineer-1", DateTimeOffset.UtcNow));
         return new(
             identity,
             new(Guid.NewGuid(), IntakeSourceChannel.Mailbox, "mail", "hash", DateTimeOffset.UtcNow, "reader", "1", null, null),
@@ -169,7 +172,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             new(Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),
-            new(Fact("AB12CDE"), Fact("FORD"), Fact("FOCUS"), Fact(40000L), Fact("miles")),
+            new(Confirmed("AB12CDE"), Confirmed("FORD"), Confirmed("FOCUS"), Confirmed(40000L), Confirmed("miles")),
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
