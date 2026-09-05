@@ -95,13 +95,9 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// INTK-013: the operator saw two Not ready cases (one instruction, one
-    /// image-initiated) but a rail count of 1, because the count query
-    /// (<c>EfDashboardQueries.GetCaseStageCountsAsync</c>) only counted
-    /// CaseWorkflows rows while the row query also lists awaiting-instruction
-    /// Image Intakes. The rail count must equal the number of rows across
-    /// both origins, and the Work Centre's Not ready metric reads the same
-    /// count so it must agree too.
+    /// INTK-013: Not ready and Awaiting instruction are separate row lists.
+    /// Each rail count must equal its own row count, and the Work Centre's
+    /// Not ready metric must equal the Not ready row count.
     /// </summary>
     [Fact]
     public async Task NotReadyAndAwaitingRailCountsMatchTheirRows()
@@ -484,6 +480,20 @@ public sealed class TriageQueuesWebTests
         Assert.Matches(
             $"<h2>{selected.ImageIntakeReference}[^<]*{selected.NormalizedVehicleRegistration}</h2>",
             html);
+    }
+
+    [Fact]
+    public async Task AwaitingNonexistentSelectionReturnsNotFound()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        _ = await RegisterImageIntakeAsync(factory, client, scope.ServiceProvider, "QR12STU");
+
+        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={Guid.NewGuid():D}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

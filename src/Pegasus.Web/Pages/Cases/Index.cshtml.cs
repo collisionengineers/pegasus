@@ -341,15 +341,17 @@ public sealed class IndexModel(
             : Rows.Count > 0 ? Rows[0] : null;
         if (SelectedId is not null && selectedRow is null)
         {
-            if (Queue != "awaiting")
+            var isPostAttachRedirect = Queue == "awaiting"
+                && (TempData.ContainsKey("Confirmation")
+                    || TempData.ContainsKey("UploadConfirmationError"));
+            if (!isPostAttachRedirect)
             {
                 return NotFound();
             }
 
             // A row just attached to a case leaves the Awaiting instruction queue
-            // (LoadAwaitingAsync excludes it), so a redirect that named it as
-            // `selected` no longer resolves. Drop the stale selection instead of
-            // 404ing past the just-written confirmation.
+            // (LoadAwaitingAsync excludes it), so its post-attach redirect no longer
+            // resolves. Preserve the TempData notice and drop only that stale selection.
             SelectedId = null;
             selectedRow = Rows.Count > 0 ? Rows[0] : null;
         }
