@@ -693,6 +693,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.ImageIntakeReference).IsUnique();
+            entity.HasIndex(item => item.PrincipalId);
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
             entity.HasIndex(item => new { item.NormalizedVehicleRegistration, item.CreatedAtUtc });
             // One ImageIntake per submission group (INTK-015); single-receipt
@@ -707,6 +708,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne<IntakeSubmissionGroupEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.SubmissionGroupId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Principal)
+                .WithMany()
+                .HasForeignKey(item => item.PrincipalId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
