@@ -1,8 +1,10 @@
 ﻿using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
@@ -13,7 +15,10 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Assessment;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -24,6 +29,19 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed partial class DetailsModel(
     IGetCase getCase,
     IGetAssessmentAccess getAssessmentAccess,
+    IGetAssessmentWorkspace getAssessmentWorkspace,
+    ICreateAiJob createAiJob,
+    ISendToAiControl sendToAiControl,
+    GenerateCaseAssessmentReportDraft generateReportDraft,
+    IListCaseEstimates listEstimates,
+    ISaveEstimate saveEstimate,
+    IDuplicateEstimate duplicateEstimate,
+    IDiscardEstimate discardEstimate,
+    ISetCurrentEstimate setCurrentEstimate,
+    IRepairSpecificationStore repairSpecifications,
+    IEstimateDocumentParser estimateParser,
+    JsonEstimateParser jsonEstimateParser,
+    IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IHeartbeatCaseEditLease heartbeatLease,
@@ -205,6 +223,171 @@ public sealed partial class DetailsModel(
     public bool AssessmentIsReadOnly { get; private set; }
 
     /// <summary>
+    /// D11: whether GuardEstimateEditAsync/OnPostImportEstimateAsync will
+    /// accept a mutation right now. Unresolved access fails closed to false,
+    /// the same direction as AssessmentIsReadOnly.
+    /// </summary>
+    public bool AssessmentCanOpen { get; private set; }
+
+    private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
+    private const string NotInEditMode = "Enter edit mode to change the assessment.";
+
+    public CaseAssessmentProjection? Assessment { get; private set; }
+
+    public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
+
+    public IReadOnlyList<RepairSpecificationVersion> Estimates { get; private set; } = [];
+
+    public RepairSpecificationVersion? SelectedEstimate { get; private set; }
+
+    public bool EditingNewEstimate { get; private set; }
+
+    public EstimateDetails? EditorDetails { get; private set; }
+
+    public IReadOnlyList<EstimateEditorLine> EditorLines { get; private set; } = [];
+
+    public bool ActorIsEngineer { get; private set; }
+
+    public bool CaseIsArchived => Case?.Workflow.Archive is not null;
+
+    public bool SelectedEstimateIsEditable =>
+        !AssessmentIsReadOnly
+        && AssessmentCanOpen
+        && ActorIsEngineer
+        && (EditingNewEstimate || SelectedEstimate?.State == RepairSpecificationState.Draft);
+
+    public bool SelectedEstimateCanBeDuplicated =>
+        !AssessmentIsReadOnly
+        && AssessmentCanOpen
+        && ActorIsEngineer
+        && SelectedEstimate is { State: not RepairSpecificationState.Discarded };
+
+    public bool SelectedEstimateCanBeCurrent =>
+        !AssessmentIsReadOnly
+        && AssessmentCanOpen
+        && ActorIsEngineer
+        && SelectedEstimate is { IsCurrent: false }
+        && (SelectedEstimate.State == RepairSpecificationState.Draft
+            || SelectedEstimate.State == RepairSpecificationState.Accepted);
+
+    public EstimateTotals EditorTotals
+    {
+        get
+        {
+            var details = EditorDetails ?? SelectedEstimate?.Details
+                ?? new EstimateDetails(
+                    Name: Labels.CaseWorkspace.EngineerSections.Estimate,
+                    RepairDays: null,
+                    LabourRate: null,
+                    PaintLabourRate: null,
+                    PaintMaterials: null,
+                    OtherCosts: null,
+                    VatPercent: EstimatePolicy.DefaultVatPercent,
+                    Notes: null);
+            return EstimateTotals.Compute(new(
+                SelectedEstimate?.SpecificationId ?? Guid.Empty,
+                SelectedEstimate?.CaseId ?? Guid.Empty,
+                SelectedEstimate?.Version ?? 1,
+                RepairSpecificationState.Draft,
+                SelectedEstimate?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+                [.. EditorLines.Select((line, index) => new CaseEstimateLineRecord(
+                    Guid.Empty,
+                    index + 1,
+                    EstimateOperations.TryParse(line.Operation, out var operation)
+                        ? EstimateOperations.ToLineType(operation)
+                        : "specialist_fixed",
+                    null,
+                    line.Description,
+                    ParseNumber(line.LabourHours),
+                    ParseNumber(line.PartPounds),
+                    false,
+                    line.PartNumber,
+                    null,
+                    null,
+                    null,
+                    null,
+                    ActorKind.Staff,
+                    SelectedEstimate?.CreatedBy ?? string.Empty,
+                    DateTimeOffset.UtcNow,
+                    null,
+                    null,
+                    ParseNumber(line.PaintHours),
+                    string.IsNullOrWhiteSpace(line.Quantity)
+                        ? null
+                        : (int?)ParseNumber(line.Quantity)))],
+                null,
+                SelectedEstimate?.CreatedBy ?? string.Empty,
+                SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
+                null,
+                null,
+                null,
+                null,
+                details,
+                SelectedEstimate?.IsCurrent ?? false,
+                SelectedEstimate?.AiJobId,
+                SelectedEstimate?.DiscardReason));
+        }
+    }
+
+    public decimal? EngineerValue =>
+        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { IsConfirmed: true } engineerValue
+            && decimal.TryParse(
+                engineerValue.Value,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var parsed)
+            ? parsed
+            : null;
+
+    public string AssessmentValue(string path) =>
+        Assessment?.Field(path)?.Value is { } value && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : Labels.CaseWorkspace.AbsentValue;
+
+    public string? ImportCondition =>
+        AssessmentIsReadOnly
+            ? Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete
+            : !ActorIsEngineer
+                ? Labels.CaseWorkspace.EngineerSections.EngineerOnlyImport
+                : null;
+
+    public string? SendToClaudeCondition { get; private set; }
+
+    public AssessmentReportDraftPreparation? ReportDraftPreparation { get; private set; }
+
+    public string? ReportDraftCondition { get; private set; }
+
+    public bool ReportDraftNotReady =>
+        ReportDraftPreparation is { CanGenerate: false }
+        && ReportDraftReasons.Count > 0;
+
+    public IReadOnlyList<AssessmentReadinessItem> ReportDraftReasons =>
+        ReportDraftPreparation?.Reasons ?? [];
+
+    public string? OpenDialog { get; private set; }
+
+    public string ImportOperationKey { get; private set; } = NewOperationKey();
+
+    public string SaveEstimateOperationKey { get; private set; } = NewOperationKey();
+
+    public string DuplicateOperationKey { get; private set; } = NewOperationKey();
+
+    public string DiscardOperationKey { get; private set; } = NewOperationKey();
+
+    public string UseEstimateOperationKey { get; private set; } = NewOperationKey();
+
+    public string SendOperationKey { get; private set; } = NewOperationKey();
+
+    public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
+
+    private static decimal? ParseNumber(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
+
+    /// <summary>
     /// The values a refused editor submitted, held for comparison against the values the case now
     /// holds. There is no control that applies, merges, or forces them: the only way forward is to
     /// enter edit mode again and retype.
@@ -229,7 +412,11 @@ public sealed partial class DetailsModel(
 
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
 
-    public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(
+        Guid id,
+        string? estimate,
+        string? dialog,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -250,9 +437,12 @@ public sealed partial class DetailsModel(
             // No access answer is not an editable record: an unresolved
             // result fails closed to read-only, the same direction the
             // pre-case gates fail.
-            AssessmentIsReadOnly = (await getAssessmentAccess.ExecuteAsync(
+            var assessmentAccess = await getAssessmentAccess.ExecuteAsync(
                 new(id, actor),
-                cancellationToken))?.IsReadOnly ?? true;
+                cancellationToken);
+            AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
+            AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
+            await LoadEngineerSectionsAsync(id, actor, estimate, dialog, cancellationToken);
             // The lease decides how much of the record is rendered now, so it is
             // restored before the section-specific loads are chosen.
             RestoreLeaseState(id, actor, Case.ActiveEditLease);
@@ -291,6 +481,112 @@ public sealed partial class DetailsModel(
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             return Page();
         }
+    }
+
+    private async Task LoadEngineerSectionsAsync(
+        Guid id,
+        ActionActor actor,
+        string? estimate,
+        string? dialog,
+        CancellationToken cancellationToken)
+    {
+        ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
+        var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+        if (workspace is null)
+        {
+            await EvaluateEngineerSectionConditionsAsync(cancellationToken);
+            return;
+        }
+
+        Assessment = workspace.Assessment;
+        AcceptedSpecification = workspace.AcceptedSpecification;
+        Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
+        ApplyEstimateSelection(estimate);
+        ReportDraftPreparation = AssessmentReportProjection.Prepare(
+            Assessment,
+            costs: null,
+            currentEstimate: AcceptedSpecification);
+        await EvaluateEngineerSectionConditionsAsync(cancellationToken);
+        OpenDialog = dialog switch
+        {
+            "import-estimate" when ImportCondition is null => "import-estimate",
+            "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
+            "delete-estimate" when SelectedEstimateIsEditable
+                && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
+            _ => null
+        };
+    }
+
+    private void ApplyEstimateSelection(string? estimate)
+    {
+        if (string.Equals(estimate, "new", StringComparison.OrdinalIgnoreCase))
+        {
+            EditingNewEstimate = true;
+            EditorDetails = new EstimateDetails(
+                Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
+                RepairDays: null,
+                LabourRate: null,
+                PaintLabourRate: null,
+                PaintMaterials: null,
+                OtherCosts: null,
+                VatPercent: EstimatePolicy.DefaultVatPercent,
+                Notes: null);
+            EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null)];
+            return;
+        }
+
+        SelectedEstimate = Guid.TryParse(estimate, out var estimateId)
+            ? Estimates.FirstOrDefault(item => item.SpecificationId == estimateId)
+            : null;
+        SelectedEstimate ??= Estimates.FirstOrDefault(item => item.IsCurrent)
+            ?? Estimates.MaxBy(item => item.Version);
+        if (SelectedEstimate is null)
+        {
+            return;
+        }
+
+        EditorDetails = SelectedEstimate.Details;
+        EditorLines = SelectedEstimate.Lines
+            .OrderBy(line => line.Position)
+            .Select(line => new EstimateEditorLine(
+                EstimateOperations.FromLineType(line.Type).ToString(),
+                line.Description,
+                line.PartNumber,
+                line.Quantity?.ToString(CultureInfo.InvariantCulture),
+                line.WorkUnits?.ToString(CultureInfo.InvariantCulture),
+                line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture),
+                line.Price?.ToString("0.##", CultureInfo.InvariantCulture),
+                line.Id))
+            .ToList();
+    }
+
+    private async Task EvaluateEngineerSectionConditionsAsync(CancellationToken cancellationToken)
+    {
+        if (AssessmentIsReadOnly)
+        {
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete;
+        }
+        else if (!AssessmentCanOpen)
+        {
+            // D11: the assessment workspace has not opened yet, so
+            // HasAssessmentAccessAsync will refuse the mutation the same as
+            // GuardEstimateEditAsync does for the other Estimate handlers.
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.NotAvailableForCase;
+        }
+        else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
+        {
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.SendingToAiDisabled;
+        }
+        else if (EngineerValue is null)
+        {
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ConfirmedEngineerValueRequired;
+        }
+
+        ReportDraftCondition = !AssessmentCanOpen || ReportDraftPreparation is null
+            ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
+            : ReportDraftPreparation.CanGenerate
+                ? null
+                : Labels.CaseWorkspace.EngineerSections.NotReady;
     }
 
     /// <summary>
@@ -572,6 +868,782 @@ public sealed partial class DetailsModel(
                 cancellationToken),
             "Case data was saved. The case is Not ready until completeness is confirmed again.");
 
+    public async Task<IActionResult> OnPostGenerateReportDraftAsync(
+        Guid id,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+
+        GenerateCaseAssessmentReportDraftResult result;
+        try
+        {
+            result = await generateReportDraft.ExecuteAsync(id, actor, cancellationToken);
+        }
+        catch (Exception exception) when (exception is ReportRenderRejectedException
+            or InvalidOperationException
+            or IOException
+            or TimeoutException)
+        {
+            TempData["CaseError"] = "The report draft could not be generated. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+
+        switch (result.Outcome)
+        {
+            case GenerateCaseAssessmentReportDraftOutcome.NotFound:
+                return NotFound();
+            case GenerateCaseAssessmentReportDraftOutcome.NotReady:
+                TempData["CaseError"] =
+                    "The report draft is not ready. " + string.Join(
+                        " ",
+                        result.Reasons.Select(reason => $"{reason.Requirement}: {reason.WhyOutstanding}"));
+                return RedirectToEstimate(id);
+            default:
+                var assessmentPdf = result.Draft!.Assessment;
+                return File(assessmentPdf.Pdf, "application/pdf", assessmentPdf.SuggestedFileName);
+        }
+    }
+
+    public async Task<IActionResult> OnGetPreviewReportDraftAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        var result = await generateReportDraft.ExecuteAsync(id, actor, cancellationToken);
+        return result.Outcome switch
+        {
+            GenerateCaseAssessmentReportDraftOutcome.NotFound => NotFound(),
+            GenerateCaseAssessmentReportDraftOutcome.NotReady => RedirectToEstimate(id),
+            _ => File(result.Draft!.Assessment.Pdf, "application/pdf"),
+        };
+    }
+
+    public async Task<IActionResult> OnPostSendToClaudeAsync(
+        Guid id,
+        string operationKey,
+        string? direction,
+        int? targetPercent,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        var trimmedDirection = direction?.Trim();
+        var instruction = string.IsNullOrWhiteSpace(trimmedDirection)
+            ? $"Draft an estimate for case {details.Summary.Reference}."
+            : trimmedDirection;
+        try
+        {
+            await createAiJob.ExecuteAsync(
+                new(
+                    AiJobKind.Estimate,
+                    id,
+                    details.Summary.Reference,
+                    instruction,
+                    targetPercent,
+                    actor,
+                    operationKey),
+                cancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            TempData["CaseError"] = "Choose a target between 1 and 100 percent of the Engineer's Value.";
+            return RedirectToEstimate(id);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = exception.Message;
+            return RedirectToEstimate(id);
+        }
+
+        TempData["CaseStatus"] =
+            "Sent to Claude. The job is queued; its estimate opens from Operations when ready.";
+        return RedirectToEstimate(id);
+    }
+
+    /// <summary>
+    /// Creates a named estimate or replaces the whole content of an existing
+    /// Draft through ENG-026's Core-owned save use case.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid? estimateId,
+        CancellationToken cancellationToken)
+    {
+        var editor = ReadEditorPost();
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (editor.Lines is null)
+        {
+            TempData["CaseError"] =
+                "Check the estimate's lines: an operation, a quantity, hours or an amount does not read as a number.";
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
+
+        var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
+        var existingLines = existing?.Lines.ToDictionary(line => line.Id)
+            ?? new Dictionary<Guid, CaseEstimateLineRecord>();
+        var lines = editor.Lines.Select((line, index) =>
+            editor.ExistingLineIds[index] is { } lineId
+            && existingLines.TryGetValue(lineId, out var previous)
+                ? line with
+                {
+                    GuideCode = previous.GuideCode,
+                    // Carried forward only while the line still has no price.
+                    // AssessmentPolicy refuses a line that is both marked To be
+                    // confirmed and priced, so preserving it unconditionally would
+                    // make pricing an imported unpriced line impossible.
+                    Unpriced = previous.Unpriced && line.Price is null,
+                    Betterment = previous.Betterment,
+                    Status = previous.Status,
+                    EvidenceLabel = previous.EvidenceLabel,
+                    Justification = previous.Justification,
+                }
+                : line).ToArray();
+        var details = new EstimateDetails(
+            editor.Name ?? string.Empty,
+            editor.RepairDays,
+            editor.LabourRate,
+            editor.PaintLabourRate,
+            editor.PaintMaterials,
+            editor.OtherCosts,
+            editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
+            editor.Notes);
+        try
+        {
+            var saved = await saveEstimate.ExecuteAsync(
+                new(
+                    id,
+                    currentCaseVersion,
+                    actor,
+                    operationKey,
+                    estimateId is null ? "Estimate created" : "Estimate saved",
+                    editLeaseToken!,
+                    estimateId,
+                    details,
+                    lines,
+                    existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+                    existing?.AiJobId),
+                cancellationToken);
+            ClearLeaseState();
+            TempData["CaseStatus"] = "The estimate was saved.";
+            return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The estimate was not saved because the case changed or another editor holds it. Retry the operation.");
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
+    }
+
+    /// <summary>
+    /// Re-renders an estimate form with one row added or removed. The posted
+    /// values are not persisted until Save estimate runs.
+    /// </summary>
+    public async Task<IActionResult> OnPostEditLineAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var editor = ReadEditorPost();
+        IReadOnlyList<EstimateEditorLine> rows = editor.Rows;
+        if (Request.Form.TryGetValue("removeLine", out var removed)
+            && int.TryParse(removed.ToString(), out var removeAt)
+            && removeAt >= 0 && removeAt < rows.Count)
+        {
+            rows = rows.Where((_, index) => index != removeAt).ToArray();
+        }
+        else
+        {
+            rows = [.. rows, new EstimateEditorLine("", null, null, null, null, null, null)];
+        }
+
+        return await RedrawEditorAsync(id, editor.EstimateId, editor, rows, cancellationToken);
+    }
+
+    /// <summary>Creates an Engineer's working copy of the selected estimate.</summary>
+    public async Task<IActionResult> OnPostDuplicateEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var copy = await duplicateEstimate.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, "Estimate duplicated", editLeaseToken!, estimateId),
+                cancellationToken);
+            ClearLeaseState();
+            TempData["CaseStatus"] = "The estimate was duplicated.";
+            return RedirectToEstimate(id, copy.SpecificationId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The estimate was not duplicated because the case changed or another editor holds it. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+    }
+
+    /// <summary>Discards a non-current draft estimate with the supplied reason.</summary>
+    public async Task<IActionResult> OnPostDiscardEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            TempData["CaseError"] = "Give the reason this estimate is deleted.";
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+
+        try
+        {
+            await discardEstimate.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, reason.Trim(), editLeaseToken!, estimateId),
+                cancellationToken);
+            ClearLeaseState();
+            TempData["CaseStatus"] = "The estimate was deleted.";
+            return RedirectToEstimate(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The estimate was not deleted because the case changed or another editor holds it. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+    }
+
+    /// <summary>
+    /// Makes an estimate Current. Core derives its calculation basis and
+    /// completes a cited Draft-ready Estimate job when applicable.
+    /// </summary>
+    public async Task<IActionResult> OnPostSetCurrentEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await setCurrentEstimate.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, "Estimate made current", editLeaseToken!, estimateId),
+                cancellationToken);
+            ClearLeaseState();
+            TempData["CaseStatus"] = "The estimate is now the case's current estimate.";
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The estimate was not made current because the case changed or another editor holds it. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+    }
+
+    private long currentCaseVersion;
+
+    private async Task<IActionResult?> GuardEstimateEditAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true)
+        {
+            return NotFound();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["CaseError"] = "Only an Engineer can change an estimate.";
+            return RedirectToEstimate(id);
+        }
+        if (access.IsReadOnly)
+        {
+            TempData["CaseError"] = "The case is read-only once Complete.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["CaseError"] = NotInEditMode;
+            return RedirectToEstimate(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        currentCaseVersion = details.Workflow.Version;
+        return null;
+    }
+
+    private async Task<RepairSpecificationVersion?> ResolveEstimateAsync(
+        Guid caseId,
+        Guid? estimateId,
+        CancellationToken cancellationToken) =>
+        estimateId is { } selected
+            ? await repairSpecifications.GetVersionAsync(caseId, selected, cancellationToken)
+            : null;
+
+    private async Task<IActionResult> RedrawEditorAsync(
+        Guid id,
+        Guid? estimateId,
+        EstimateEditorPost editor,
+        IReadOnlyList<EstimateEditorLine> rows,
+        CancellationToken cancellationToken)
+    {
+        var result = await OnGetAsync(id, estimateId?.ToString("D"), null, cancellationToken);
+        if (Case is null)
+        {
+            return result;
+        }
+
+        SelectedEstimate = estimateId is { } selected
+            ? Estimates.FirstOrDefault(item => item.SpecificationId == selected)
+            : null;
+        EditingNewEstimate = estimateId is null;
+        EditorDetails = new EstimateDetails(
+            editor.Name ?? string.Empty,
+            editor.RepairDays,
+            editor.LabourRate,
+            editor.PaintLabourRate,
+            editor.PaintMaterials,
+            editor.OtherCosts,
+            editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
+            editor.Notes);
+        EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null)];
+        return Page();
+    }
+
+    private sealed record EstimateEditorPost(
+        string? Name,
+        int? RepairDays,
+        decimal? LabourRate,
+        decimal? PaintLabourRate,
+        decimal? PaintMaterials,
+        decimal? OtherCosts,
+        decimal? VatPercent,
+        string? Notes,
+        Guid? EstimateId,
+        IReadOnlyList<EstimateEditorLine> Rows,
+        IReadOnlyList<EstimateLineInput>? Lines,
+        IReadOnlyList<Guid?> ExistingLineIds);
+
+    private EstimateEditorPost ReadEditorPost()
+    {
+        var form = Request.Form;
+        static decimal? Money(string? value) =>
+            string.IsNullOrWhiteSpace(value)
+                ? null
+                : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : decimal.MinusOne;
+        static int? Days(string? value) =>
+            string.IsNullOrWhiteSpace(value)
+                ? null
+                : int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : -1;
+
+        var operations = form["lineOperation"].ToArray();
+        var postedLineIds = form["lineId"].ToArray();
+        var descriptions = form["lineDescription"].ToArray();
+        var partNumbers = form["linePartNumber"].ToArray();
+        var quantities = form["lineQuantity"].ToArray();
+        var labourHoursValues = form["lineLabourHours"].ToArray();
+        var paintHoursValues = form["linePaintHours"].ToArray();
+        var partPoundsValues = form["linePartPounds"].ToArray();
+        var rows = new List<EstimateEditorLine>(operations.Length);
+        var lines = new List<EstimateLineInput>(operations.Length);
+        var existingLineIds = new List<Guid?>(operations.Length);
+        var linesAreValid = true;
+        static string Field(string?[] values, int index) =>
+            index >= 0 && index < values.Length && values[index] is not null ? values[index]! : string.Empty;
+        for (var index = 0; index < operations.Length; index++)
+        {
+            var operation = operations[index] ?? string.Empty;
+            var description = Field(descriptions, index);
+            var partNumber = Field(partNumbers, index);
+            var quantity = Field(quantities, index);
+            var labourHours = Field(labourHoursValues, index);
+            var paintHours = Field(paintHoursValues, index);
+            var partPounds = Field(partPoundsValues, index);
+            var existingLineId = Guid.TryParse(Field(postedLineIds, index), out var parsedLineId)
+                ? parsedLineId
+                : (Guid?)null;
+            rows.Add(new EstimateEditorLine(
+                operation, description, partNumber, quantity, labourHours, paintHours, partPounds, existingLineId));
+
+            var isEmpty = string.IsNullOrWhiteSpace(description)
+                && string.IsNullOrWhiteSpace(partNumber)
+                && string.IsNullOrWhiteSpace(quantity)
+                && string.IsNullOrWhiteSpace(labourHours)
+                && string.IsNullOrWhiteSpace(paintHours)
+                && string.IsNullOrWhiteSpace(partPounds);
+            if (isEmpty)
+            {
+                continue;
+            }
+            existingLineIds.Add(existingLineId);
+
+            var typed = EstimateOperations.TryParse(operation, out var parsedOperation);
+            var workUnits = Money(labourHours);
+            var paintWorkUnits = Money(paintHours);
+            var price = Money(partPounds);
+            int? parsedQuantity = null;
+            if (!string.IsNullOrWhiteSpace(quantity))
+            {
+                parsedQuantity = int.TryParse(
+                    quantity.Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var quantityValue) && quantityValue >= 0
+                    ? quantityValue
+                    : -1;
+            }
+            if (!typed
+                || workUnits == decimal.MinusOne
+                || paintWorkUnits == decimal.MinusOne
+                || price == decimal.MinusOne
+                || parsedQuantity == -1
+                || workUnits is < 0
+                || paintWorkUnits is < 0
+                || price is < 0)
+            {
+                linesAreValid = false;
+                continue;
+            }
+
+            lines.Add(new(
+                EstimateOperations.ToLineType(parsedOperation),
+                null,
+                string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+                workUnits,
+                price,
+                false,
+                string.IsNullOrWhiteSpace(partNumber) ? null : partNumber.Trim(),
+                null,
+                null,
+                null,
+                null,
+                paintWorkUnits,
+                parsedQuantity));
+        }
+
+        Guid? estimateId = Guid.TryParse(form["estimateId"].ToString(), out var parsedId)
+            && parsedId != Guid.Empty
+            ? parsedId
+            : null;
+        return new(
+            form["estimateName"].ToString(),
+            Days(form["estimateRepairDays"].ToString()),
+            Money(form["estimateLabourRate"].ToString()),
+            Money(form["estimatePaintLabourRate"].ToString()),
+            Money(form["estimatePaintMaterials"].ToString()),
+            Money(form["estimateOtherCosts"].ToString()),
+            Money(form["estimateVatPercent"].ToString()),
+            form["estimateNotes"].ToString(),
+            estimateId,
+            rows,
+            linesAreValid ? lines : null,
+            existingLineIds);
+    }
+
+    /// <summary>
+    /// ENG-026: the estimate import. The file is parsed first
+    /// (no side effects — a rejected parse retains nothing), then retained
+    /// through the existing case-document custody path, then landed as a
+    /// named Draft estimate carrying the route, source version and hash of
+    /// the retained document. Nothing feeds a report until an Engineer makes
+    /// an estimate Current.
+    /// </summary>
+    public async Task<IActionResult> OnPostImportEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        string? name,
+        string? source,
+        string? reason,
+        IFormFile? estimateFile,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        var importAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (importAccess?.CanOpen != true)
+        {
+            return NotFound();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["CaseError"] = "Only an Engineer can import an estimate.";
+            return RedirectToEstimate(id);
+        }
+        if (importAccess.IsReadOnly)
+        {
+            TempData["CaseError"] = "The case is read-only once Complete.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        var trimmedName = name?.Trim();
+        if (string.IsNullOrEmpty(trimmedName))
+        {
+            TempData["CaseError"] = "Name the imported estimate.";
+            return RedirectToEstimate(id);
+        }
+        var parser = string.Equals(source, "json", StringComparison.OrdinalIgnoreCase)
+            ? jsonEstimateParser
+            : estimateParser;
+        var isJson = ReferenceEquals(parser, jsonEstimateParser);
+        if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
+        {
+            TempData["CaseError"] = "Choose a non-empty estimate file of 10 MB or less.";
+            return RedirectToEstimate(id);
+        }
+        if (!parser.CanParse(estimateFile.FileName, estimateFile.ContentType))
+        {
+            TempData["CaseError"] = isJson
+                ? "Only a JSON estimate can be imported from this source."
+                : "Only a PDF estimate can be imported from this source.";
+            return RedirectToEstimate(id);
+        }
+
+        await using var buffer = new MemoryStream((int)estimateFile.Length);
+        await estimateFile.CopyToAsync(buffer, cancellationToken);
+        var content = buffer.GetBuffer().AsMemory(0, checked((int)buffer.Length));
+
+        ParsedEstimate parsed;
+        try
+        {
+            parsed = parser.Parse(content);
+        }
+        catch (EstimateParseRejectedException exception)
+        {
+            TempData["CaseError"] = exception.Message;
+            return RedirectToEstimate(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["CaseError"] = NotInEditMode;
+            return RedirectToEstimate(id);
+        }
+
+        var caseVersion = details.Workflow.Version;
+        var artifactIdentity = $"estimate-import:{operationKey}";
+        AddCaseDocumentResult retained;
+        try
+        {
+            retained = await addCaseDocument.ExecuteAsync(
+                new(
+                    id,
+                    Path.GetFileName(estimateFile.FileName),
+                    isJson ? "application/json" : "application/pdf",
+                    content,
+                    DocumentSemanticRole.Other,
+                    DocumentSource.StaffUpload,
+                    artifactIdentity,
+                    actor,
+                    $"{operationKey}-document",
+                    caseVersion,
+                    editLeaseToken),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, editLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception,
+                "The estimate was not imported because the case changed or another editor holds it. "
+                + "Nothing was recorded; retry the import.");
+            return RedirectToEstimate(id);
+        }
+
+        try
+        {
+            var draftLease = await acquireLease.ExecuteAsync(
+                new(id, caseVersion + 1, actor, NewOperationKey()),
+                cancellationToken);
+            StoreLeaseAuthority(id, draftLease.Token);
+            var imported = await saveEstimate.ExecuteAsync(
+                new(
+                    id,
+                    caseVersion + 1,
+                    actor,
+                    operationKey,
+                    string.IsNullOrWhiteSpace(reason) ? "Estimate imported from a document" : reason.Trim(),
+                    draftLease.Token,
+                    null,
+                    new(trimmedName, null, null, null, null, null, EstimatePolicy.DefaultVatPercent, null),
+                    parsed.Lines,
+                    new(parser.Route, artifactIdentity, parsed.SourceVersion, retained.Version.Sha256)),
+                cancellationToken);
+            ClearLeaseState();
+            TempData["CaseStatus"] =
+                $"{trimmedName} was imported as a draft with {parsed.Lines.Count} lines for your review. "
+                + "The original document is kept on the case.";
+            return RedirectToEstimate(id, imported.SpecificationId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, PeekLeaseToken(), exception);
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception,
+                "The original document was kept on the case, but the estimate lines were not "
+                + "recorded because the case changed. Retry the import.");
+        }
+
+        return RedirectToEstimate(id);
+    }
+
+    private static string MutationRefusalMessage(Exception exception, string fallback) =>
+        exception is InvalidOperationException
+            and not CaseVersionConflictException
+            and not CaseEditLeaseConflictException
+            and not CaseEditLeaseExpiredException
+            and not CaseOperationConflictException
+            ? exception.Message
+            : fallback;
+
+    private async Task<bool> HasAssessmentAccessAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        (await getAssessmentAccess.ExecuteAsync(
+            new(caseId, actor),
+            cancellationToken))?.CanOpen == true;
+
+    private static bool IsOperationKeyValid(string value) =>
+        Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;
+
+    private RedirectToPageResult RedirectToEstimate(
+        Guid id,
+        string? estimate = null,
+        string? dialog = null) =>
+        RedirectToPage(
+            "/Cases/Details",
+            new { id, section = "estimate", estimate, dialog });
+
     private async Task DescribeEditAuthorityHolderAsync(
         ActionActor actor,
         CancellationToken cancellationToken)
@@ -810,3 +1882,17 @@ public sealed partial class DetailsModel(
 /// One field of a refused submission beside the value the case now holds, for comparison only.
 /// </summary>
 public sealed record ProposedCaseValue(string Label, string Proposed, string? Current);
+
+/// <summary>
+/// One editable estimate-line row as posted by the Case Estimate section.
+/// Core owns the conversion from its operation word to a persisted line type.
+/// </summary>
+public sealed record EstimateEditorLine(
+    string Operation,
+    string? Description,
+    string? PartNumber,
+    string? Quantity,
+    string? LabourHours,
+    string? PaintHours,
+    string? PartPounds,
+    Guid? ExistingLineId = null);
