@@ -421,3 +421,155 @@ CI's. The snapshot diff was checked by opening the artifacts rather than
 re-running the capture, per the epic's "verify the artifact, not the gate" rule.
 
 Findings file: `scratchpad/build/ENG-034/review-out.md`.
+
+# Review record — ENG-034 (PR https://github.com/collisionengineers/pegasus/pull/668) — re-review, round five
+
+Reviewed head: `9f06b46a4cd6a636dd3aab035ca34ca80accbd92` (branch
+`task/eng-034-engineer-sections-move`, confirmed by `git rev-parse HEAD` in the
+disposable review worktree `.worktrees/eng-034-review`, created detached from
+`origin/task/eng-034-engineer-sections-move`). Matches the head the controller
+named; the branch did not move during review.
+
+Reviewer models: Codex remains unavailable (usage limit until 2026-09-08), so
+the independent read was performed by **Claude Opus 5**, who did not implement
+the ticket. This round again read the whole diff `origin/dev...HEAD` rather
+than only the delta, and additionally proved two claims by execution rather
+than by inspection (the F1 totals defect against the compiled assembly, and a
+new rendering blocker against the running application through a temporary
+probe class that was removed afterwards).
+
+Verdict: **REQUEST CHANGES** — round four's should-fix (F2) is fully closed,
+but one **blocker** is open: `GET /Cases/{id}?section=estimate&estimate=new`
+returns 500 whenever the estimate editor is not editable, a path this PR's own
+`CanOpen` gating fix opened. Not merged.
+
+## Round-four findings — closed at this head?
+
+| # | Earlier finding | Closed? | Evidence |
+| --- | --- | --- | --- |
+| 1 | high, pre-existing — estimate totals never render (`RenderEstimateTotals(totals);` emitted as literal text) | **Still open, correctly deferred.** | Re-proved independently at this head against `src/Pegasus.Web/bin/Release/net10.0/Pegasus.Web.dll`: the exact UTF-16 literal `RenderEstimateTotals(totals);` occurs **2×** in the string heap, while genuine code lines from the same file (`var caseId = Model.Case!.Workflow.CaseId;`, `RenderSpecificationLines(estimate!`) occur **0×** — the assembly embeds no source, so the only way that text is in the binary is as emitted markup. Identical on `origin/dev:Pages/Cases/Assessment/Index.cshtml:524,541`, so moved-not-introduced. [[ENG-039]] exists, is backlinked from ENG-034 and carries the evidence and the fix. Disposition stands: **defer**. |
+| 2 | should-fix — a retargeted test no longer proved its own name, plus an undisclosed operator-surface retirement | **Yes.** | (a) `ExtractedVehicleFactsTakePrecedenceOverLookupObservation` → `ConfirmedVehicleFactsTakePrecedenceOverLookupObservation`; `FakeGetCase`'s `includeExtractedFacts` → `includeConfirmedFacts`; the class summary now reads "confirmed case facts". `git diff 795506d75..HEAD` is one file, +4/−4 — four identifier lines, no assertion, fixture value or behaviour changed. (b) The report's "every existing behavioural assertion … is unchanged" sentence is explicitly corrected under "Report correction", naming the `CaseDataValueKind.Fact` → `Confirmed` swap and its reason. (c) The retirement of the Assessment ribbon's Mileage/Vehicle figures and of the extracted-fact display tier is recorded under "Extracted-fact display gap — recorded, not fixed here"; the "D30/D49 already settles it" disposition is **rejected** with reasons read off D30 and D49, the gap is handed to CASE-029 and CASE-043 as D49's named owners, and the record warns D49's lane not to read the renamed test as proof of that tier. Honest and complete. |
+| 3 | nit — report's byte-count wording mixes measurement bases | Restated below as finding 3; **accept risk**. |
+| 4, 5, 6, 7 | `[GeneratedRegex]` churn; unrestored XML doc comments; `Suggestions.cshtml` back-link label; only four of five sections in this diff | Unchanged and re-confirmed at this head. Dispositions stand: accept risk, accept risk, defer, no action. |
+
+Round-one, -two and -three findings remain closed: `GuardEstimateEditAsync`
+and `OnPostImportEstimateAsync` carry `access?.CanOpen != true`,
+`HasAssessmentAccessAsync` carries `?.CanOpen == true`, `ReportDraftCondition`
+carries `!AssessmentCanOpen`, and the restored assertions and doc comments are
+present.
+
+## Findings and dispositions
+
+| # | Severity | File:line | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| 1 | **blocker** | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml:274` (`RenderSpecificationLines(estimate!, EngineerLabels.Recorded);`), reached because `Details.cshtml.cs:517-533` (`ApplyEstimateSelection`) sets `EditingNewEstimate = true` for `?estimate=new` without consulting role, `AssessmentCanOpen` or `AssessmentIsReadOnly` | `GET /Cases/{id}?section=estimate&estimate=new` returns **500** whenever `SelectedEstimateIsEditable` is false. `ApplyEstimateSelection("new")` leaves `SelectedEstimate` null, so the enclosing `@if (SelectedEstimate is not null \|\| EditingNewEstimate)` opens, the non-editable `else` branch runs, and `RenderSpecificationLines(estimate!, …)` dereferences a null `RepairSpecificationVersion` (`foreach (var line in specification.Lines)`). That `NullReferenceException` is thrown during view rendering, after `OnGetAsync`'s try/catch has already returned `Page()`, so the QueryFailed/503 path cannot catch it. **Proven by execution**, not inference: a temporary probe class built and run in the review checkout at this head, using the same fixture shape as `AssessmentCopyWebTests`, issued that GET three ways — Engineer + `CanOpen: true` → **200**; Engineer + `CanOpen: false` → **500**; `User` (non-Engineer) + `CanOpen: true` → **500** (`Failed: 2, Passed: 1`). Patching only `:274` to `if (estimate is not null) { RenderSpecificationLines(estimate, …); }` and re-running the identical probe gives `Failed: 0, Passed: 3`, so that null dereference is the sole cause. Both the probe and the patch were reverted; `git status --porcelain` is empty. **Why it is this PR's**: the non-Engineer variant is pre-existing in shape (`origin/dev:…/Assessment/Index.cshtml:543` has the same `estimate!`), but the `CanOpen: false` variant is new — on `origin/dev`, `Assessment/Index.cshtml.cs`'s `OnGetAsync` returned the "Assessment unavailable" surface at `if (!access.CanOpen)` *before* `ApplyEstimateSelection` ever ran, so the editor was unreachable in that state. D30 removed that page-level gate and this PR's round-one fix added `AssessmentCanOpen` to `SelectedEstimateIsEditable` (`Details.cshtml.cs:245-266`); together they opened the path. The blast radius also widened: the failure now takes out the **whole Case record page** for that URL, not the retired Assessment page. It is reachable without hand-editing a URL — an Engineer follows the rendered "New estimate" link, assessment access then changes (or the browser replays that URL from history, a bookmark or back/forward) — and it is reachable today by any non-Engineer with Case access. | **Fix.** Inside ENG-034's own owned file, no scope growth: make the read-only branch tolerate the new-estimate case (render the specification table only when `estimate is not null`), and add the missing coverage to `CaseEngineerSectionsWebTests` — a `?estimate=new` GET asserting 200 for a non-Engineer and for `CanOpen: false`. Do **not** fix it by hiding the section: D30 requires the five sections to render in every state. No `src/` change outside `_CaseEstimate.cshtml` is implied; whether a snapshot recapture is needed is answered by whether any committed Case page renders `?estimate=new` (none does). Returned to the implementing lane. |
+| 2 | nit | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs:868-935`; asserted at `tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs:117` | Every moved handler returns `RedirectToEstimate(id)`, including `OnPostGenerateReportDraftAsync` and `OnGetPreviewReportDraftAsync`, so pressing "Generate report draft" in the Report section on a not-ready case lands the operator on `?section=estimate` carrying a `CaseError` about the report. Faithful to the pre-move single-page redirect — but the pre-move page had one section. The retargeted test asserts exactly this, so it is deliberate and recorded, not accidental. | **Accept risk.** No data loss and the message is still shown; changing the redirect target is a behaviour change outside this brief. Worth a line in whichever ticket next owns the Report section. |
+| 3 | nit (carried) | `post-implementation-report.md` § "Review round fixes (2026-09-05, round 3)" | The sentence "No 24,694-byte state exists in the current worktree" is wrong as written. Measured at this head in a fresh checkout: `case-details--unavailable.html` is 24,694 bytes (`wc -c`) and 24,390 as a blob (`git cat-file -s`); 24,694 − 24,390 = 304 = that file's line count, i.e. exactly the `core.autocrlf` CRLF delta. The same holds for `case-details--default.html` (69,470 / 68,319) and `--conflict.html` (42,707 / 41,987). Both figures are right; they measure different things. Round four's "not reproduced as a defect" softens the claim but still does not name the units. The artifacts themselves are correct. | **Accept risk.** Cosmetic wording in the ticket record; fold the units clarification in while making finding 1's edits. |
+
+## Regression check against the previously reviewed head
+
+`git diff 795506d752bb0ce9e1e82bbee06678b412f8884f HEAD` is **one file, 4
+insertions / 4 deletions** — the finding-2 rename in
+`AssessmentVehiclePrefillWebTests.cs` and nothing else. No production file
+changed, so no regression can have entered through this round's fix. Blocker 1
+was present at the earlier head too; the previous round missed it.
+
+## What was verified and found correct
+
+- **Handler fidelity.** Every moved member extracted from
+  `origin/dev:Assessment/Index.cshtml.cs` and diffed line-for-line against
+  `Details.cshtml.cs` at this head. `OnPostEditLineAsync`,
+  `ResolveEstimateAsync`, `RedrawEditorAsync` and `MutationRefusalMessage` are
+  byte-identical. The only differences anywhere else are
+  `TempData["Assessment*"]` → `TempData["Case*"]`,
+  `RedirectToPage(new { id })` → `RedirectToEstimate(id)`,
+  `CanAccessAsync` → `HasAssessmentAccessAsync`, the recorded `ReadEditorPost`
+  efficiency hoist, `"New estimate"` → `Labels…NewEstimate`, and the two
+  dropped inline comments already carried as a nit. No guard, refusal path or
+  Core call changed.
+- **The TempData rename is wired.** `Details.cshtml:84` and `:91` render
+  `CaseStatus` / `CaseError`, so no confirmation or refusal message is lost in
+  the rename.
+- **No lazy-mount gap.** The four Engineer sections are deliberately *not* in
+  `LazySectionViews` (`Details.cshtml.cs:119-126`), so `OnGetSectionAsync` —
+  which never calls `LoadEngineerSectionsAsync` — cannot render an unpopulated
+  Estimate fragment. `?section=estimate` binds through
+  `[BindProperty(SupportsGet = true, Name = "section")]`.
+- **Every drawn control has a named handler**: `DuplicateEstimate`,
+  `SetCurrentEstimate`, `SaveEstimate`, `ImportEstimate`, `DiscardEstimate`,
+  `SendToClaude` in `_CaseEstimate.cshtml`; `GenerateReportDraft`,
+  `PreviewReportDraft` in `_CaseReport.cshtml`; `EditLine` through
+  `Url.Page("/Cases/Details", "EditLine", …)` at `_CaseEstimate.cshtml:196`.
+  All nine exist on `DetailsModel`.
+- **Absent versus disabled** respected throughout; finding 1 is the opposite
+  failure — an absent control's URL still reachable — not a dead-end control.
+- **Labels.** One `// ENG-034: … // ENG-034 end.` block
+  (`OperatorLabels.cs:1481-1599`), delimiters intact. Gating wording compared
+  verbatim against the pre-move code-behind (`ImportCondition`,
+  `EvaluateRecordBarConditionsAsync`): "Read-only once Complete", "Only an
+  Engineer can import an estimate", "Sending to AI is disabled by an
+  Administrator", "A confirmed Engineer's Value is required", "Not available
+  for this case", "Not ready" — all unchanged. `CaseStage`,
+  `RepairSpecificationRoute`, `EstimateLineType`, `AssessmentVocabulary` and
+  `CaseWorkspace.AbsentValue` reused; no parallel label or state map.
+- **No explanatory copy** added; the only prose is the pre-existing
+  "Report draft not ready:" fail-closed notice, which names requirements.
+- **Core ownership.** Nothing moved into Core. The Infrastructure-typed
+  constructor parameters were already the pre-move page's dependencies and Web
+  is a composition root; ArchitectureTests green (100 passed).
+- **Owned paths only.** 21 files, all named by the plan and files documents; no
+  `TestUiSnapshotTests.cs`, `ci.yml`, `scripts/*.ps1`, migration,
+  `docs/operator-notes.md` or `corpus/` change; no package change (the locked
+  restore passed), so `Test-MigrationGrants.ps1` is correctly not applicable.
+- **Tests — none weakened.** Every changed test file diffed against
+  `origin/dev`; the retargets are honest and net new coverage was added (the
+  301 assertion, the preview-GET test, two `canOpen: false` POST-404 tests and
+  the report-draft absent-control assertions).
+- **Catalogue and snapshots.** `Assessment/Index.cshtml` reclassified `visual`
+  → `redirect` with a D30/ENG-034 reason; `case-assessment--default.html`
+  deleted (confirmed absent); the one `/Cases/{id:guid}/Assessment` row moved
+  from `index.html`'s visual list to its non-visual table. Both regenerated
+  pages opened: `case-details--default.html` 69,470 bytes working copy / 68,319
+  blob and `case-details--conflict.html` 42,707 / 41,987; both begin
+  `<!DOCTYPE html>`, both carry exactly one `class="case-sticky"` and exactly
+  **eleven** `id="section-*"` hosts (damage, engineer-notes, estimate, files,
+  inspection, notes, overview, report, settlement, valuation, vehicle), and
+  neither contains `<img src="#">`.
+- **Report and checklist against the diff.** All 25 checklist items are
+  supported; the report's file list matches `git diff --name-status` exactly.
+  The only remaining inaccuracy is finding 3.
+- **Simplification pass.** Both applied findings are visible in the diff (the
+  shared `AssessmentValue` helper with the duplicate `NotRecorded` label
+  removed, and the hoisted `ReadEditorPost` arrays); the three "not applicable"
+  entries are honest. Its "no behavioural bugs" line is not dishonest — the
+  pass is quality-only by rule, and blocker 1 is exactly the kind of finding
+  review is meant to surface.
+
+## Commands run and exit codes (review worktree `.worktrees/eng-034-review`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git worktree add --detach .worktrees/eng-034-review origin/task/eng-034-engineer-sections-move` | `WT_EXIT=0` | `git rev-parse HEAD` = `9f06b46a4cd6a636dd3aab035ca34ca80accbd92` |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | `RESTORE_EXIT=0` | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | `BUILD_EXIT=0` | Build succeeded, 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/… --configuration Release --no-build` | `CORE_EXIT=0` | 1,240 passed, 0 failed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/… --configuration Release --no-build` | `ARCH_EXIT=0` | 100 passed, 0 failed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/… --filter "…AssessmentCopyWebTests\|…AssessmentEstimateImportWebTests\|…AssessmentVehiclePrefillWebTests\|…AssessmentReportDraftWebTests\|…SendToAiIntegrationTests\|…CaseEngineerSectionsWebTests\|…CaseDetailsWebTests\|…AssessmentReadinessSummaryBrowserTests" -- xUnit.MaxParallelThreads=2` | `INTEG_EXIT=0` | 114 passed, 0 failed. |
+| Blocker-1 probe (temporary class, `?estimate=new`, three cases) | 0 (runner) | **Failed: 2, Passed: 1** — two 500s. |
+| Blocker-1 probe after the one-line null guard | 0 (runner) | Failed: 0, Passed: 3 — cause confirmed. |
+| `git status --porcelain` after removing the probe and reverting the guard | 0 | Empty; review checkout clean, branch untouched. |
+| `Test-MigrationGrants.ps1` | n/a | No migration in the diff. |
+
+That scope covers the change: `git diff --name-only origin/dev...HEAD` lists
+exactly two production types (`DetailsModel` and the retired
+`Assessment.IndexModel`), four Razor partials, `OperatorLabels.cs`, the
+catalogue and two snapshots, and seven test files. The filter runs all six
+changed test classes, the new one, `CaseDetailsWebTests` (the existing cover
+for `DetailsModel`/`Details.cshtml`, which this PR changes most) and the one
+changed browser class. ArchitectureTests prove the dependency direction after
+moving a handler surface between composition-root pages; Core.Tests cover the
+estimate policy the moved handlers call. The full suite, the browser suite and
+the Test UI capture are CI's. CI on this head was not gated on: the blocker
+returns the ticket to the implementing lane before merge.
+
+Findings file: `scratchpad/build/ENG-034/review-out-2.md`.
