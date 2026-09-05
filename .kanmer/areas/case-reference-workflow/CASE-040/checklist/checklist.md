@@ -36,3 +36,10 @@ capture and verification lines below.
 - [x] Should-fix 4: re-send test asserts the second action-history row and its identity payload for both routes.
 - [x] Should-fix 5: post-implementation report refreshed at the fixes' head.
 - [x] Fixes committed (`bfd089394`) and pushed to `task/case-040-sign-off-engineer-eva`.
+
+## Review round fixes (2026-09-05) — second re-review
+
+- [x] Blocker A: OperatorJourneyTests.ExportByKeyboardAsync updated for the "Download ZIP" rename; an eligible Engineer is assigned before the export so the D47 precondition is met; the second export's comment now describes it as the D36 re-send it is. Verified locally (5 passed).
+- [x] Blocker B: ProcessQueuedEvaSubmission.ExecuteAsync treats a post-delivery CaseVersionConflictException as terminal (Completed), matching the state/signatory refusal branch; new automatic-path version-race test proves one transport call, one submission row, one history row, and a terminal (non-re-claimable) work row. Verified locally (CustodyOutboxIntegrationTests: 23 passed, 1 pre-existing skip).
+- [x] Should-fix C: post-implementation report rewritten in place at head `f96af2435` with the real migration name (`20260905010654_CaseSignOffEngineer`), the three actually-changed snapshot sizes (66,771 / 25,888 / 40,383 bytes), and the corrected claim that `case-details--conflict.html` is an owned change in the diff (it is not reverted).
+- [x] Fixes committed (`f96af2435`) and pushed to `task/case-040-sign-off-engineer-eva`.
