@@ -166,7 +166,7 @@
     <span class="health-dot"></span>
         <span><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">Current · 11:30</time></span>
     <form method="get" data-refresh-form>
-                <input type="hidden" name="tab" value="not_ready" />
+                <input type="hidden" name="tab" value="awaiting" />
         <button type="submit" class="btn btn--small" title="Refresh">
             <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
             <span data-refresh-label>Refresh</span>
@@ -177,25 +177,7 @@
     </div>
 </header>
 
-    <form method="get" class="filter-bar" data-auto-submit>
-        <input type="hidden" name="tab" value="not_ready" />
-        <div class="field">
-            <label for="queue-principal">Principal</label>
-            <select id="queue-principal" name="principal">
-                <option value="">All</option>
-            </select>
-        </div>
-            <div class="field">
-                <label for="queue-missing">Missing</label>
-                <select id="queue-missing" name="missing">
-                    <option value="">All</option>
-                    <option value="instructions">Instructions</option>
-                    <option value="images">Images</option>
-                    <option value="both">Both missing</option>
-                </select>
-            </div>
-        <noscript><button type="submit" class="btn">Apply</button></noscript>
-    </form>
+
 
 <section class="pane-layout pane-layout--3 queue-layout">
     <aside class="pane">
@@ -206,7 +188,7 @@
                 <div class="queue-group-label">Workflow</div>
                     <button type="submit" name="tab" value="not_ready"
                             class="scope-button"
-                            aria-pressed="true">
+                            aria-pressed="false">
                         <span class="scope-visual-icon">
                             <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
                         </span>
@@ -251,6 +233,15 @@
                         <span>Triage</span>
                         <span>0</span>
                     </button>
+                    <button type="submit" name="tab" value="awaiting"
+                            class="scope-button"
+                            aria-pressed="true">
+                        <span class="scope-visual-icon">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                        </span>
+                        <span>Awaiting instruction</span>
+                        <span>0</span>
+                    </button>
                     <div class="queue-group-divider"></div>
                 <div class="queue-group-label">Exceptions</div>
                     <button type="submit" name="tab" value="held"
@@ -277,7 +268,7 @@
     <div class="pane">
         <div class="pane-head">
             <div>
-                <h2>Not ready</h2>
+                <h2>Awaiting instruction</h2>
                 <span class="muted">0 items</span>
             </div>
         </div>

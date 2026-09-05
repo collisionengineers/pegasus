@@ -60,6 +60,7 @@ internal static class CaseDataFieldNames
     public const string InspectionDeadline = "inspection_deadline";
     public const string InspectionAddress = "inspection_address";
     public const string InspectionMode = "inspection_mode";
+    public const string StorageLocation = "storage_location";
 
     public static readonly string[] All =
     [
@@ -83,7 +84,8 @@ internal static class CaseDataFieldNames
         InspectionDate,
         InspectionDeadline,
         InspectionAddress,
-        InspectionMode
+        InspectionMode,
+        StorageLocation
     ];
 }
 

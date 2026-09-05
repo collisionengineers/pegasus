@@ -1,13 +1,60 @@
-@*
-    The Report section's body. CASE-038 renders the heading host only; ENG-034
-    owns this file's content from its first PR. No control, prose or
-    placeholder renders for a capability that is not built yet.
-*@
-@using Pegasus.Web.Presentation
+@using Pegasus.Core.Assessment
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var heading = OperatorLabels.CaseWorkspace.Sections.Single(entry => entry.Key == "report");
+    var caseId = Model.Case!.Workflow.CaseId;
 }
-<section class="panel">
-    <div class="panel-head"><h2 id="section-report-title">@heading.Label</h2></div>
+
+<section class="panel" aria-labelledby="section-report-title">
+    <div class="panel-head">
+        <h2 id="section-report-title">@EngineerLabels.Report</h2>
+        @if (!Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null)
+        {
+            <div class="button-row">
+                @if (Model.ReportDraftCondition is null)
+                {
+                    <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReportDraft"
+                          asp-route-id="@caseId" asp-route-section="estimate">
+                        <input type="hidden" name="operationKey" value="@Model.ReportDraftOperationKey" />
+                        <button type="submit" class="btn">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>@EngineerLabels.GenerateReportDraft</span>
+                        </button>
+                    </form>
+                    <a class="btn" asp-page="/Cases/Details" asp-page-handler="PreviewReportDraft"
+                       asp-route-id="@caseId" target="_blank" rel="noopener">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                        <span>@EngineerLabels.PreviewReportDraft</span>
+                    </a>
+                }
+                else
+                {
+                    <span class="gated" data-condition="@Model.ReportDraftCondition">
+                        <button type="button" class="btn" disabled aria-disabled="true">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>@EngineerLabels.GenerateReportDraft</span>
+                        </button>
+                    </span>
+                }
+            </div>
+        }
+    </div>
+    <div class="panel-body stack">
+        @if (!Model.AssessmentIsReadOnly && Model.ReportDraftNotReady)
+        {
+            <div class="notice notice--warning" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>
+                    @EngineerLabels.ReportDraftNotReady: @string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement)).
+                </span>
+            </div>
+        }
+        <dl class="detail-list">
+            <div><dt>@EngineerLabels.EngineersComments</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.EngineersComments)</dd></div>
+            <div><dt>@EngineerLabels.HistoryCheck</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</dd></div>
+            <div><dt>@EngineerLabels.AgreedFee</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.AgreedFee)</dd></div>
+            <div><dt>@EngineerLabels.FeeDescription</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.FeeDescriptionLines)</dd></div>
+            <div><dt>@EngineerLabels.StatementOfTruth</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.StatementOfTruth)</dd></div>
+        </dl>
+    </div>
 </section>

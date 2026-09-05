@@ -1,8 +1,7 @@
 namespace Pegasus.Core.Operations;
 
 /// <summary>
-/// How many cases are sitting in each of the three stages an operator can act
-/// on from the dashboard.
+/// How many Cases and image-initiated pre-Cases sit in each Cases rail scope.
 /// </summary>
 /// <remarks>
 /// These three counts did not exist before. The dashboard rendered the literal
@@ -10,22 +9,30 @@ namespace Pegasus.Core.Operations;
 /// an intake-receipt count — a different entity entirely, and one that was
 /// cumulative for all time.
 ///
-/// <see cref="NotReady"/> spans both Not ready case origins (INTK-013): a
-/// formal Case in CaseWorkflows (instruction-initiated) and an unmerged Image
-/// Intake still awaiting instruction (image-initiated), matching the rows the
-/// Queues page's Not ready tab lists for both origins combined.
+/// <see cref="NotReady"/> counts formal Cases only. Image-initiated records
+/// still awaiting instruction are counted separately by
+/// <see cref="AwaitingInstruction"/>.
 /// </remarks>
 /// <param name="WithEngineer">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation"/>
 /// or <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReport"/>: the
 /// operator reads both as "With Engineer" (EPIC-011 D3).
 /// </param>
+/// <param name="AwaitingInstruction">
+/// Unassociated image-initiated records still awaiting instruction.
+/// </param>
 /// <param name="Complete">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReportComplete"/>,
 /// the one terminal outcome the Cases rail lists (EPIC-011 D3); the other
 /// terminals are excluded from the rail and never counted here.
 /// </param>
-public sealed record CaseStageCounts(int NotReady, int Review, int Held, int WithEngineer, int Complete = 0);
+public sealed record CaseStageCounts(
+    int NotReady,
+    int Review,
+    int Held,
+    int WithEngineer,
+    int AwaitingInstruction = 0,
+    int Complete = 0);
 
 /// <summary>
 /// What moved today and this week.

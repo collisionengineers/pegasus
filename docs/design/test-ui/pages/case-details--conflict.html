@@ -208,8 +208,8 @@
             <div class="ribbon-value">Not recorded</div>
         </div>
         <div class="ribbon-item">
-            <div class="ribbon-label">Sign-off</div>
-            <div class="ribbon-value">Not recorded</div>
+            <div class="ribbon-label">Sign-off Engineer</div>
+            <div class="ribbon-value">Unassigned</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">State</div>
@@ -335,6 +335,7 @@
                     <dl><dt>Provider reference</dt><dd>CLM-42</dd></dl>
                     <dl><dt>Inspection</dt><dd>1 Depot Road</dd></dl>
                     <dl><dt>Engineer</dt><dd>Unassigned</dd></dl>
+                    <dl><dt>Sign-off Engineer</dt><dd>Unassigned</dd></dl>
                     <dl><dt>Received</dt><dd>04 May 2031 11:30</dd></dl>
                     <dl><dt>Due</dt><dd>10 May 2031</dd></dl>
                 </div>
@@ -365,11 +366,9 @@
 </section>
 
                 </section>
-                <section class="case-section" id="section-engineer-notes" data-section="engineer-notes">
-                        <section class="panel">
-                            <div class="panel-head"><h2 id="section-engineer-notes-title">Engineer notes</h2></div>
-                        </section>
-                </section>
+                    <section class="case-section section-placeholder" id="section-engineer-notes"
+                             data-section="engineer-notes" data-lazy="engineer-notes"
+                             aria-label="Engineer notes"></section>
                 <section class="case-section" id="section-inspection" data-section="inspection">
 
 <div class="stack">
@@ -380,7 +379,7 @@
         <div class="panel-body">
             <div class="definition-list">
                 <dl class="definition">
-                    <dt>Recorded value</dt>
+                    <dt>Inspect at</dt>
                     <dd>
                         1 Depot Road
                             <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
@@ -388,6 +387,10 @@
 </span>
 
                     </dd>
+                </dl>
+                <dl class="definition">
+                    <dt>Source</dt>
+                    <dd>Manual entry</dd>
                 </dl>
                     <dl class="definition">
                         <dt>Inspection</dt>
@@ -399,6 +402,10 @@
 
                         </dd>
                     </dl>
+                <dl class="definition">
+                    <dt>Storage location</dt>
+                    <dd>14 Storage Lane</dd>
+                </dl>
             </div>
         </div>
     </section>
@@ -410,8 +417,16 @@
                              data-section="vehicle" data-lazy="vehicle"
                              aria-label="Vehicle"></section>
                 <section class="case-section" id="section-damage" data-section="damage">
-                        <section class="panel">
+
+<section class="panel" aria-labelledby="section-damage-title">
     <div class="panel-head"><h2 id="section-damage-title">Damage</h2></div>
+    <div class="panel-body">
+        <dl class="detail-list">
+            <div><dt>Impact location</dt><dd>Not recorded</dd></div>
+            <div><dt>Impact severity</dt><dd>Not recorded</dd></div>
+            <div><dt>Incident narrative</dt><dd>Not recorded</dd></div>
+        </dl>
+    </div>
 </section>
 
                 </section>
@@ -419,20 +434,62 @@
                              data-section="valuation" data-lazy="valuation"
                              aria-label="Valuation"></section>
                 <section class="case-section" id="section-estimate" data-section="estimate">
-                        <section class="panel">
-    <div class="panel-head"><h2 id="section-estimate-title">Estimate</h2></div>
-</section>
+
+<div class="stack">
+    <section class="panel" aria-labelledby="section-estimate-title">
+        <div class="panel-head">
+            <h2 id="section-estimate-title">Estimate</h2>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head"><h2>Estimates</h2></div>
+        <div class="panel-body">
+            <div class="assessment-estimates">
+                    <div class="empty estimate-empty">No estimates recorded</div>
+
+            </div>
+        </div>
+    </section>
+</div>
+
+
+
+
 
                 </section>
                 <section class="case-section" id="section-settlement" data-section="settlement">
-                        <section class="panel">
+
+<section class="panel" aria-labelledby="section-settlement-title">
     <div class="panel-head"><h2 id="section-settlement-title">Settlement</h2></div>
+    <div class="panel-body">
+        <dl class="detail-list">
+            <div><dt>Outcome</dt><dd>Not recorded</dd></div>
+            <div><dt>Salvage category</dt><dd>Not recorded</dd></div>
+            <div><dt>Salvage value</dt><dd>Not recorded</dd></div>
+            <div><dt>Recovery charge</dt><dd>Not recorded</dd></div>
+            <div><dt>Storage charge</dt><dd>Not recorded</dd></div>
+            <div><dt>Repairer VAT registered</dt><dd>Not recorded</dd></div>
+        </dl>
+    </div>
 </section>
 
                 </section>
                 <section class="case-section" id="section-report" data-section="report">
-                        <section class="panel">
-    <div class="panel-head"><h2 id="section-report-title">Report</h2></div>
+
+<section class="panel" aria-labelledby="section-report-title">
+    <div class="panel-head">
+        <h2 id="section-report-title">Report</h2>
+    </div>
+    <div class="panel-body stack">
+        <dl class="detail-list">
+            <div><dt>Engineer&#x27;s comments</dt><dd>Not recorded</dd></div>
+            <div><dt>History check</dt><dd>Not recorded</dd></div>
+            <div><dt>Agreed fee</dt><dd>Not recorded</dd></div>
+            <div><dt>Fee description</dt><dd>Not recorded</dd></div>
+            <div><dt>Statement of truth</dt><dd>Not recorded</dd></div>
+        </dl>
+    </div>
 </section>
 
                 </section>
@@ -453,6 +510,7 @@
                     <div class="decision-row"><span>Version</span><strong>7</strong></div>
                     <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
                     <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
+                    <div class="decision-row"><span>Sign-off Engineer</span><strong>Unassigned</strong></div>
                     <div class="decision-row">
                         <span>Edit authority</span>
                         <strong>

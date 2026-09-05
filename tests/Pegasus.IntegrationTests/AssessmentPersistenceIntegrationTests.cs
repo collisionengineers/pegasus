@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -69,7 +71,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task ReportProjectionReadsPhotographsAndFailsClosedWithoutSignatory()
+    public async Task ReportDraftGenerationThroughProductionProjectionResolvesSignOffAndFailsClosedWithoutIt()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
@@ -77,11 +79,13 @@ public sealed class AssessmentPersistenceIntegrationTests
         await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
+        await using var staffContext = await harness.Factory.CreateDbContextAsync();
         var source = new EfAssessmentReportProjectionSource(
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            TimeProvider.System);
+            TimeProvider.System,
+            new EfStaffAccountQueries(staffContext));
 
         var input = await source.GetAsync(
             outcome.Identity.CaseId,
@@ -96,6 +100,201 @@ public sealed class AssessmentPersistenceIntegrationTests
         var projected = AssessmentReportProjection.Project(input);
         Assert.False(projected.IsReady);
         Assert.Contains(projected.Reasons, reason => reason.Requirement == "Sign-off Engineer");
+
+        var signOffEngineerId = await SeedSignOffEngineerAsync(
+            harness.Factory,
+            outcome.Identity.CaseId);
+        await SeedReportReadyAssessmentAsync(harness.Factory, outcome.Identity.CaseId);
+        input = await source.GetAsync(
+            outcome.Identity.CaseId,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
+        Assert.NotNull(input);
+        await using (var verificationContext = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.Equal(
+                signOffEngineerId,
+                (await verificationContext.CaseWorkflows.AsNoTracking().SingleAsync(
+                    item => item.CaseId == outcome.Identity.CaseId)).SignOffEngineerId);
+        }
+        Assert.Equal("A Engineer", input.Signatory?.PrintedName);
+
+        var ready = AssessmentReportProjection.Project(input);
+        Assert.True(ready.IsReady, string.Join("; ", ready.Reasons.Select(reason => reason.Requirement)));
+        var pdf = "%PDF-1.4 CASE-040"u8.ToArray();
+        var draft = await new GenerateAssessmentReportDraft(new TestReportRenderer(pdf))
+            .ExecuteAsync(ready.Snapshot!);
+        Assert.Equal(pdf, draft.Assessment.Pdf);
+    }
+
+    private static async Task<Guid> SeedSignOffEngineerAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        var staffId = Guid.NewGuid();
+        var engineerRole = await context.Roles.SingleOrDefaultAsync(
+            role => role.NormalizedName == "ENGINEER");
+        if (engineerRole is null)
+        {
+            engineerRole = new IdentityRole<Guid>(StaffRoleNames.Engineer)
+            {
+                Id = Guid.NewGuid(),
+                NormalizedName = StaffRoleNames.Engineer.ToUpperInvariant()
+            };
+            context.Roles.Add(engineerRole);
+        }
+
+        var signature = new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
+        context.Users.Add(new PegasusIdentityUser
+        {
+            Id = staffId,
+            UserName = "a.engineer",
+            NormalizedUserName = "A.ENGINEER",
+            IsEnabled = true,
+            IsSignOffEngineer = true,
+            SignOffPrintedName = "A Engineer",
+            SignOffQualifications = "ATA VDA",
+            SignOffSignature = signature,
+            SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(signature)),
+            IsDefaultSignOffEngineer = true,
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("N")
+        });
+        context.UserRoles.Add(new IdentityUserRole<Guid>
+        {
+            UserId = staffId,
+            RoleId = engineerRole.Id
+        });
+        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        workflow.SignOffEngineerId = staffId;
+        await context.SaveChangesAsync();
+        return staffId;
+    }
+
+    private static async Task SeedReportReadyAssessmentAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        var recordedAt = StartUtc;
+        const string engineer = "case-040-engineer";
+        var caseData = new (string Name, string Type, string Value)[]
+        {
+            (CaseDataFieldNames.ClaimantName, CaseDataCodes.Text, "Mrs Jane Example"),
+            (CaseDataFieldNames.ClaimNumber, CaseDataCodes.Text, "ABC/DEF/12345/1"),
+            (CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, "AB12CDE"),
+            (CaseDataFieldNames.VehicleMake, CaseDataCodes.Text, "Ford"),
+            (CaseDataFieldNames.VehicleModel, CaseDataCodes.Text, "Focus"),
+            (CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, "80000"),
+            (CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles"),
+            (CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, "2031-04-01"),
+            (CaseDataFieldNames.InstructionDate, CaseDataCodes.Date, "2031-05-01"),
+            (CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode,
+                ProviderInspectionModePolicy.ImageBasedAssessmentCode),
+            (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London")
+        };
+        var existingConfirmed = await context.Set<CaseDataFieldEntity>()
+            .Where(field => field.CaseId == caseId
+                && field.ValueKind == CaseDataCodes.Confirmed
+                && caseData.Select(value => value.Name).Contains(field.FieldName))
+            .ToArrayAsync();
+        context.RemoveRange(existingConfirmed);
+        context.Set<CaseDataFieldEntity>().AddRange(caseData.Select(field =>
+            new CaseDataFieldEntity
+            {
+                CaseId = caseId,
+                FieldName = field.Name,
+                ValueKind = CaseDataCodes.Confirmed,
+                ValueType = field.Type,
+                Value = field.Value,
+                SourceKind = CaseDataCodes.StaffCorrection,
+                SourceIdentity = engineer,
+                SourceLabel = "CASE-040 report-ready fixture",
+                PolicyKey = CaseDataPolicy.EditPolicyKey,
+                PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+                ConfirmedByActor = engineer,
+                ConfirmedAtUtc = recordedAt
+            }));
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.VehicleType] = "car",
+            [AssessmentVocabulary.VehicleYear] = "2012",
+            [AssessmentVocabulary.VehicleMileageSource] = "online_data",
+            [AssessmentVocabulary.VehicleCondition] = "good",
+            [AssessmentVocabulary.IncidentAssessed] = "2031-05-06",
+            [AssessmentVocabulary.ImpactSeverity] = "moderate",
+            [AssessmentVocabulary.ImpactLocation] = "right_rear",
+            [AssessmentVocabulary.ValueRetail] = "5000.00",
+            [AssessmentVocabulary.ValueTrade] = "4000.00",
+            [AssessmentVocabulary.ValueEngineer] = "5000.00",
+            [AssessmentVocabulary.CostRepairerVatRegistered] = "true",
+            [AssessmentVocabulary.Outcome] = "repairable",
+            [AssessmentVocabulary.LegalStatus] = "roadworthy",
+            [AssessmentVocabulary.HistoryCheck] = "History clear",
+            [AssessmentVocabulary.EngineerName] = "A Engineer",
+            [AssessmentVocabulary.EngineerQualifications] = "ATA VDA",
+            [AssessmentVocabulary.EngineerSignature] = "a_engineer",
+            [AssessmentVocabulary.AgreedFee] = "120.00"
+        };
+        context.CaseAssessmentFields.AddRange(values.Select(value =>
+            new CaseAssessmentFieldEntity
+            {
+                CaseId = caseId,
+                FieldPath = value.Key,
+                Value = value.Value,
+                RecordedByKind = ActorKind.Staff.ToString(),
+                RecordedBy = engineer,
+                RecordedAtUtc = recordedAt,
+                ConfirmedBy = engineer,
+                ConfirmedAtUtc = recordedAt
+            }));
+
+        context.Set<CaseRepairSpecificationEntity>().Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Version = 1,
+            State = RepairSpecificationState.Accepted.ToString(),
+            SourceRoute = RepairSpecificationSourceRoute.Manual.ToString(),
+            CalculationLabour = 100m,
+            CalculationParts = 200m,
+            CalculationPaintMaterials = 50m,
+            CalculationSpecialistOther = 0m,
+            RepairerVatRegistered = true,
+            CalculationVat = 70m,
+            CalculationTotal = 420m,
+            CalculationPolicyVersion =
+                $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
+            CreatedBy = engineer,
+            CreationOperationKey = "case-040-report-ready-estimate",
+            CreatedAtUtc = recordedAt,
+            AcceptedBy = engineer,
+            AcceptedAtUtc = recordedAt,
+            Name = "Engineer's",
+            LabourRate = 40m,
+            PaintMaterials = 50m,
+            OtherCosts = 0m,
+            VatPercent = 20m,
+            IsCurrent = true
+        });
+        await context.SaveChangesAsync();
+    }
+
+    private sealed class TestReportRenderer(byte[] pdf) : IAssessmentReportRenderer
+    {
+        public Task<AssessmentReportDraft> RenderAsync(
+            AssessmentReportSnapshot snapshot,
+            CancellationToken cancellationToken = default)
+        {
+            var artifact = new RenderedReportArtifact(
+                "assessment.pdf",
+                pdf,
+                1,
+                Convert.ToHexStringLower(SHA256.HashData(pdf)),
+                AssessmentReportContract.TemplateVersion,
+                "case-040-test");
+            return Task.FromResult(new AssessmentReportDraft(artifact, artifact));
+        }
     }
 
     [Fact]
@@ -1680,7 +1879,8 @@ public sealed class AssessmentPersistenceIntegrationTests
                     FileName = $"photo-{ordinal}.jpg",
                     MediaType = "image/jpeg",
                     ContentLength = 1,
-                    Sha256 = new string((char)('a' + ordinal - 1), 64),
+                    Sha256 = Convert.ToHexStringLower(
+                        SHA256.HashData([(byte)ordinal])),
                     CustodyStatus = DocumentCustodyStatus.Confirmed,
                     CreatedAtUtc = StartUtc,
                     CreatedBy = "Staff:test",
@@ -1716,7 +1916,8 @@ public sealed class AssessmentPersistenceIntegrationTests
             BatchReadCount++;
             Reads = reads;
             return Task.FromResult<IReadOnlyList<ReadOnlyMemory<byte>>>(
-                reads.Select(_ => (ReadOnlyMemory<byte>)new byte[] { 1 }).ToArray());
+                reads.Select((_, index) =>
+                    (ReadOnlyMemory<byte>)new byte[] { checked((byte)(index + 1)) }).ToArray());
         }
 
         public Task<Stream> OpenReadAsync(

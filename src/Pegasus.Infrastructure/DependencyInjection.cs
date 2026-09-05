@@ -1,5 +1,6 @@
 ﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -324,9 +325,16 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<ICaseDataQueries>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
+        services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
+        services.AddScoped<EfEngineerNoteStore>();
+        services.AddScoped<IEngineerNoteStore>(provider =>
+            provider.GetRequiredService<EfEngineerNoteStore>());
+        services.AddScoped<IEngineerNoteQueries>(provider =>
+            provider.GetRequiredService<EfEngineerNoteStore>());
+        services.AddScoped<IAddEngineerNote, AddEngineerNote>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
@@ -393,6 +401,7 @@ public static class DependencyInjection
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
         services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
+        services.AddScoped<ISetCaseSignOffEngineer, SetCaseSignOffEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
         services.AddScoped<IReleaseCase, ReleaseCase>();

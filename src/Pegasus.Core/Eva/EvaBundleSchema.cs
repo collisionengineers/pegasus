@@ -5,6 +5,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
@@ -111,6 +113,37 @@ public static class EvaHandoffPolicy
     public const string NoRetainedImagesReason =
         "At least one stored vehicle image is required.";
 
+    /// <summary>
+    /// The state a manual send leaves the case in.
+    ///
+    /// <paramref name="isDelivered"/> defaults to true for the export route,
+    /// whose write is atomic with the state change (a failed write commits
+    /// nothing, so by the time this runs the handoff always happened). The
+    /// API route passes the transport's actual
+    /// <see cref="EvaSubmissionResult.IsDelivered"/> explicitly (CASE-040
+    /// review): a Rejected or Unknown outcome never reached EVA, so it is not
+    /// a handoff and must not move the case out of Review — only Succeeded or
+    /// Partial does, because Partial still means EVA created a claim.
+    /// </summary>
+    public static CaseLifecycleState StateAfterManualSend(
+        CaseLifecycleState state,
+        bool isDelivered = true) => state switch
+    {
+        CaseLifecycleState.Review => isDelivered ? CaseLifecycleState.ReportPreparation : state,
+        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => state,
+        _ => throw new EvaHandoffStateException(state)
+    };
+
+    public static SignOffEngineerProfile ResolveRequiredSignOffEngineer(
+        Guid? persistedSignOffEngineerId,
+        Guid? assignedEngineerId,
+        IReadOnlyList<SignOffEngineerProfile> eligibleProfiles) =>
+        CaseSignOffEngineerResolver.Resolve(
+            persistedSignOffEngineerId,
+            assignedEngineerId,
+            eligibleProfiles)
+        ?? throw new EvaSignOffEngineerRequiredException();
+
     public static IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
         IEnumerable<EvaHandoffImageCandidate> candidates) => candidates
         .Where(candidate => candidate.SemanticRole == DocumentSemanticRole.Image
@@ -122,6 +155,15 @@ public static class EvaHandoffPolicy
         .OrderBy(candidate => candidate.Ordinal)
         .ToArray();
 }
+
+public sealed class EvaHandoffStateException(CaseLifecycleState state)
+    : InvalidOperationException("Send to EVA is available only in Review and With Engineer.")
+{
+    public CaseLifecycleState State { get; } = state;
+}
+
+public sealed class EvaSignOffEngineerRequiredException()
+    : InvalidOperationException("An eligible Sign-off Engineer is required before sending to EVA.");
 
 public sealed record EvaHandoffProxyRequest(
     Guid CaseId,

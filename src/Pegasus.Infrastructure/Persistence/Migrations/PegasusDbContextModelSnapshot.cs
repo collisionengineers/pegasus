@@ -1251,7 +1251,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_CaseDataFields_Confirmation", "([ValueKind] = 'confirmed' AND [ConfirmedByActor] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL) OR ([ValueKind] <> 'confirmed' AND [ConfirmedByActor] IS NULL AND [ConfirmedAtUtc] IS NULL)");
 
-                            t.HasCheckConstraint("CK_CaseDataFields_FieldName", "[FieldName] IN ('work_provider_code', 'claimant_name', 'claimant_contact_number', 'claimant_address', 'claim_number', 'vehicle_registration', 'vehicle_make', 'vehicle_model', 'vehicle_mileage', 'vehicle_mileage_unit', 'accident_circumstances', 'incident_date', 'contact_name', 'contact_email_address', 'contact_phone_number', 'instruction_date', 'vat_status', 'inspection_date', 'inspection_deadline', 'inspection_address', 'inspection_mode')");
+                            t.HasCheckConstraint("CK_CaseDataFields_FieldName", "[FieldName] IN ('work_provider_code', 'claimant_name', 'claimant_contact_number', 'claimant_address', 'claim_number', 'vehicle_registration', 'vehicle_make', 'vehicle_model', 'vehicle_mileage', 'vehicle_mileage_unit', 'accident_circumstances', 'incident_date', 'contact_name', 'contact_email_address', 'contact_phone_number', 'instruction_date', 'vat_status', 'inspection_date', 'inspection_deadline', 'inspection_address', 'inspection_mode', 'storage_location')");
 
                             t.HasCheckConstraint("CK_CaseDataFields_PolicyVersion", "[PolicyVersion] > 0");
 
@@ -2627,6 +2627,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ReportSentEvidenceId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("SignOffEngineerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -2983,6 +2986,59 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("EmailResponseEvidence", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EngineerNoteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("RecordedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RecordedByKind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("RecordedByRolesJson")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RecordedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "OperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("CaseId", "RecordedAtUtc", "Id")
+                        .IsDescending(false, true, true);
+
+                    b.ToTable("EngineerNotes", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>
                 {
                     b.Property<Guid>("CaseId")
@@ -3088,11 +3144,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CaseId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_EvaSubmissions_CaseDelivered")
-                        .HasFilter("[IsDelivered] = 1");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");
@@ -6872,6 +6923,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("SentEvidence");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EngineerNoteEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Case");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>

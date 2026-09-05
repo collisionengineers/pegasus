@@ -11,10 +11,9 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests.Browser;
 
 /// <summary>
-/// ENG-025: the ported Assessment workspace (context.md §1.9). The
-/// readiness list the old page disclosed is no longer drawn; the readiness
-/// verdict now conditions the record bar's report-draft controls, which
-/// name their outstanding count (design README §Absent versus disabled).
+/// ENG-034: report-draft readiness is rendered in the Case Report section.
+/// The readiness verdict conditions the draft controls and names every
+/// outstanding requirement (design README §Absent versus disabled).
 /// The fixture mirrors QDOS26002 from prod-diagnostics.md §4: a near-empty
 /// assessment, so most readiness checks fire.
 /// </summary>
@@ -45,26 +44,25 @@ public sealed class AssessmentReadinessSummaryBrowserTests
                     new FakeProjectionSource(NearEmptyInput(caseId)));
             }));
 
-        var response = await support.GoToAsync($"/Cases/{caseId:D}/Assessment");
+        var response = await support.GoToAsync($"/Cases/{caseId:D}?section=report");
         Assert.Equal(200, response.Status);
 
-        // The §1.9 shell: one header, the seven-item ribbon, the evidence
-        // rail and the Estimates pane of the assessment-v3 grid.
-        var heading = support.Page.Locator("h1");
-        Assert.Equal("Assessment", (await heading.First.InnerTextAsync()).Trim());
+        // The Case frame remains the one page and the addressed Report body
+        // renders server-side on the initial response.
+        var heading = support.Page.Locator("#section-report-title");
+        Assert.Equal("Report", (await heading.InnerTextAsync()).Trim());
         Assert.Equal(7, await support.Page.Locator(".record-ribbon .ribbon-item").CountAsync());
-        Assert.Equal("Estimates", (await support.Page.Locator(".assessment-v3-main .pane-head h2").InnerTextAsync()).Trim());
-        Assert.Equal("Evidence", (await support.Page.Locator(".assessment-v3-evidence .pane-head h2").InnerTextAsync()).Trim());
+        Assert.Equal("Estimate", (await support.Page.Locator("#section-estimate-title").InnerTextAsync()).Trim());
 
         // The readiness verdict the old disclosure itemised now leaves the
         // report-draft controls disabled with their condition stated, and
         // the reasons are named once, beside the bar (FRD-11 fail-closed).
-        var generate = support.Page.Locator(".record-bar-end .gated");
+        var generate = support.Page.Locator("#section-report .gated");
         var condition = await generate.GetAttributeAsync("data-condition");
         Assert.Equal("Not ready", condition?.Trim());
         Assert.True(await generate.Locator("button[disabled][aria-disabled=\"true\"]").CountAsync() == 1);
-        Assert.Equal(0, await support.Page.Locator(".record-bar-end a:has-text(\"Preview report draft\")").CountAsync());
-        var warning = support.Page.Locator(".notice--warning");
+        Assert.Equal(0, await support.Page.Locator("#section-report a:has-text(\"Preview report draft\")").CountAsync());
+        var warning = support.Page.Locator("#section-report .notice--warning");
         var warningText = (await warning.First.InnerTextAsync()).Trim();
         Assert.StartsWith("Report draft not ready:", warningText, StringComparison.Ordinal);
         Assert.Contains(
