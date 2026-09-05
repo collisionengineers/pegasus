@@ -1686,6 +1686,88 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(versionRaceReplay?.IsSubmitted);
         Assert.Equal("eva-1", versionRaceReplay!.Submission!.EvaId);
         Assert.Equal(1, versionRaceTransport.CallCount);
+
+        // CASE-040 review, blocker 1: a Rejected or Unknown manual send never
+        // reached EVA, so it is not a handoff. The case must stay in Review,
+        // at its current version, with an in-progress edit lease untouched --
+        // while the attempt and its outcome are still durably recorded.
+        const string undeliveredLeaseToken = "undelivered-send-lease-token";
+        await using (var seedLease = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var workflow = await seedLease.CaseWorkflows.SingleAsync(
+                item => item.CaseId == outcome.Identity.CaseId);
+            Assert.Equal(nameof(CaseLifecycleState.Review), workflow.State);
+            workflow.EditLeaseToken = undeliveredLeaseToken;
+            workflow.EditLeaseHolder = "undelivered-send-test";
+            workflow.EditLeaseHolderKind = "Staff";
+            workflow.EditLeaseExpiresAtUtc = FixedUtcNow.AddMinutes(10);
+            await seedLease.SaveChangesAsync();
+        }
+        var beforeUndeliveredSends = (await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
+        Assert.Equal(CaseLifecycleState.Review, beforeUndeliveredSends.State);
+        foreach (var (undeliveredOutcome, undeliveredKey) in new[]
+        {
+            (EvaSubmissionOutcome.Rejected, "ffffffffffffffffffffffffffffff01"),
+            (EvaSubmissionOutcome.Unknown, "ffffffffffffffffffffffffffffff02")
+        })
+        {
+            var undeliveredTransport = new FixedOutcomeEvaTransport(undeliveredOutcome);
+            var undeliveredSubmitter = new EvaSubmissionStore(
+                services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                services.GetRequiredService<ICaseDataQueries>(),
+                services.GetRequiredService<IVehicleEvidenceQueries>(),
+                services.GetRequiredService<IEvaSubmissionModeStore>(),
+                services.GetRequiredService<EvaCaseImageReader>(),
+                undeliveredTransport,
+                new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
+                services.GetRequiredService<TimeProvider>());
+            var undeliveredResult = await undeliveredSubmitter.ExecuteAsync(
+                new(outcome.Identity.CaseId, firstActor, undeliveredKey, EvaSubmissionTrigger.Manual),
+                CancellationToken.None);
+            Assert.True(undeliveredResult?.IsSubmitted);
+            Assert.Equal(undeliveredOutcome, undeliveredResult!.Submission!.Outcome);
+            Assert.False(undeliveredResult.Submission!.IsDelivered);
+            Assert.Equal(1, undeliveredTransport.CallCount);
+
+            var afterUndeliveredSend = (await services.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
+            Assert.Equal(CaseLifecycleState.Review, afterUndeliveredSend.State);
+            Assert.Equal(beforeUndeliveredSends.Version, afterUndeliveredSend.Version);
+
+            await using var undeliveredCheck = await services
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var undeliveredWorkflow = await undeliveredCheck.CaseWorkflows.SingleAsync(
+                item => item.CaseId == outcome.Identity.CaseId);
+            Assert.Equal(nameof(CaseLifecycleState.Review), undeliveredWorkflow.State);
+            Assert.Equal(undeliveredLeaseToken, undeliveredWorkflow.EditLeaseToken?.TrimEnd());
+            var undeliveredRow = await undeliveredCheck.EvaSubmissions.SingleAsync(item =>
+                item.CaseId == outcome.Identity.CaseId && item.OperationKey == undeliveredKey);
+            Assert.False(undeliveredRow.IsDelivered);
+            Assert.Equal(undeliveredOutcome.ToString(), undeliveredRow.Outcome);
+            Assert.Single(await undeliveredCheck.ActionHistory
+                .Where(item => item.AggregateType == "Case"
+                    && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                    && item.EventKind == "eva_api_submitted"
+                    && item.CorrelationId == undeliveredKey)
+                .ToListAsync());
+        }
+        await using (var clearLease = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var workflow = await clearLease.CaseWorkflows.SingleAsync(
+                item => item.CaseId == outcome.Identity.CaseId);
+            workflow.EditLeaseToken = null;
+            workflow.EditLeaseHolder = null;
+            workflow.EditLeaseHolderKind = null;
+            workflow.EditLeaseExpiresAtUtc = null;
+            await clearLease.SaveChangesAsync();
+        }
+
         await using (var restoreReportPreparation = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync())
@@ -1938,6 +2020,31 @@ public sealed class CustodyOutboxIntegrationTests
                 null,
                 null,
                 payload.Files.Count);
+        }
+    }
+
+    /// <summary>
+    /// CASE-040 review, blocker 1: every other store-level test drives
+    /// <see cref="RecordingEvaTransport"/>, which always returns Succeeded --
+    /// this is the one fake that lets a test prove what happens when EVA
+    /// does not deliver the instruction.
+    /// </summary>
+    private sealed class FixedOutcomeEvaTransport(EvaSubmissionOutcome outcome) : IEvaApiTransport
+    {
+        public int CallCount { get; private set; }
+
+        public Task<EvaSubmissionResult> SubmitInstructionAsync(
+            EvaInstructionPayload payload,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new EvaSubmissionResult(
+                outcome,
+                null,
+                null,
+                "eva-refused",
+                "synthetic refusal for CASE-040 review coverage",
+                0));
         }
     }
 

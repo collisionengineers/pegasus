@@ -281,7 +281,13 @@ public sealed class EvaSubmissionStore(
         Exception? transitionFailure = null;
         try
         {
-            resultingState = EvaSubmissionPolicy.StateAfterSend(currentState, request.Trigger);
+            // Gated on delivery (CASE-040 review), not on state and trigger
+            // alone: a Rejected or Unknown outcome never reached EVA, so it
+            // is not a handoff and must not move the case out of Review.
+            resultingState = EvaSubmissionPolicy.StateAfterSend(
+                currentState,
+                request.Trigger,
+                result.IsDelivered);
             if (resultingState != currentState)
             {
                 await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
@@ -304,10 +310,12 @@ public sealed class EvaSubmissionStore(
                     workflow.Version);
             }
         }
-        catch (Exception exception) when (exception is EvaHandoffStateException
-                                          or EvaSignOffEngineerRequiredException
-                                          or CaseVersionConflictException
-                                          or InvalidOperationException)
+        // EvaHandoffStateException, EvaSignOffEngineerRequiredException and
+        // CaseVersionConflictException are all InvalidOperationException
+        // (CASE-040 review NIT); this filter is deliberately just the base
+        // type because the block above is a fixed, closed set of local
+        // re-checks and every failure it can raise already derives from it.
+        catch (InvalidOperationException exception)
         {
             transitionFailure = exception;
         }

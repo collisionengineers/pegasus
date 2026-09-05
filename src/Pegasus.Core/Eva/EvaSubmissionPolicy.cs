@@ -105,11 +105,24 @@ public static class EvaSubmissionPolicy
         };
     }
 
+    /// <summary>
+    /// The state a send leaves the case in.
+    ///
+    /// <paramref name="isDelivered"/> defaults to true so a pre-flight check
+    /// made before the transport call — deciding whether the D47 start-work
+    /// preconditions need checking at all — can still ask "what state would
+    /// this leave the case in if it succeeds?" without knowing the outcome
+    /// yet. The actual post-transport commit
+    /// (<see cref="EvaSubmissionResult.IsDelivered"/>, CASE-040 review) must
+    /// pass the real outcome: a Rejected or Unknown manual send never reached
+    /// EVA, so it is not a handoff and the case stays exactly where it was.
+    /// </summary>
     public static CaseLifecycleState StateAfterSend(
         CaseLifecycleState state,
-        EvaSubmissionTrigger trigger) => trigger switch
+        EvaSubmissionTrigger trigger,
+        bool isDelivered = true) => trigger switch
         {
-            EvaSubmissionTrigger.Manual => EvaHandoffPolicy.StateAfterManualSend(state),
+            EvaSubmissionTrigger.Manual => EvaHandoffPolicy.StateAfterManualSend(state, isDelivered),
             EvaSubmissionTrigger.Automatic when state == CaseLifecycleState.Review => state,
             EvaSubmissionTrigger.Automatic => throw new EvaHandoffStateException(state),
             _ => throw new ArgumentOutOfRangeException(nameof(trigger))
