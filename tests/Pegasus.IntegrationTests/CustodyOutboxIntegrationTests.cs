@@ -1976,6 +1976,23 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(2, completedWork.AttemptCount);
         Assert.Equal("eva_submission_no_longer_applicable", completedWork.FailureCode);
         Assert.Null(completedWork.LeaseToken);
+
+        // SHOULD-FIX 3 (CASE-040 review round 4): the assertions above prove
+        // the outcome only through ProcessQueuedEvaSubmission's exception
+        // mapping onto the retried work item. Assert directly against the
+        // store that a wholly independent automatic submission call over the
+        // now-delivered case is refused before EVA is ever called, so the
+        // once-only guard is proved at this level, not only in
+        // EvaSubmissionPolicyTests.
+        var deliveredCallCount = transport.CallCount;
+        await Assert.ThrowsAsync<EvaAutomaticSubmissionAlreadyDeliveredException>(() => submitter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.SystemWorker("pegasus-worker"),
+                Guid.NewGuid().ToString("N"),
+                EvaSubmissionTrigger.Automatic),
+            CancellationToken.None));
+        Assert.Equal(deliveredCallCount, transport.CallCount);
     }
 
     private static async Task<Guid> ConfigureDefaultSignOffEngineerAsync(IServiceProvider services)
