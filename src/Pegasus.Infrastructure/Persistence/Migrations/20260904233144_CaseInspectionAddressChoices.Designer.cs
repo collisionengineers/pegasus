@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904233144_CaseInspectionAddressChoices")]
+    partial class CaseInspectionAddressChoices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2624,9 +2627,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ReportSentEvidenceId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("SignOffEngineerId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -3141,6 +3141,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CaseId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EvaSubmissions_CaseDelivered")
+                        .HasFilter("[IsDelivered] = 1");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");

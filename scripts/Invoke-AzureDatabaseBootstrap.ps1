@@ -401,6 +401,11 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|CaseValuations")
     }
+    # 20260904210022_EngineerNotes: the Web Case workspace appends and reads
+    # Engineer notes. Worker has no caller; UPDATE and DELETE are absent.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|EngineerNotes")
+    }
     return @($expected | Sort-Object -Unique)
 }
 

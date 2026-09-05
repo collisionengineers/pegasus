@@ -11,7 +11,8 @@ present in the deployed release.
      -ManifestSha256 $manifestSha256
    ```
 
-2. Run `efbundle.exe` from `src/Pegasus.Web` with the Production process
+2. Run the approved manifest's `efbundle` from `src/Pegasus.Web` with the
+   Production process
    environment required by `docs/runbook.md` under **Release artifacts and
    bootstrap**. Use `AZURE_TOKEN_CREDENTIALS=AzureCliCredential` and the
    approved azd environment values. The current Web host also requires
