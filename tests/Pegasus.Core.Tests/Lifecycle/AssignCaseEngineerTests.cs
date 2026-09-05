@@ -28,7 +28,8 @@ public sealed class AssignCaseEngineerTests
         var sut = new AssignCaseEngineer(
             store,
             new DefaultCaseWorkflowConfiguration(),
-            eligibility);
+            eligibility,
+            new StubStaffAccounts([]));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(CreateAssignmentRequest(), default));
@@ -58,7 +59,8 @@ public sealed class AssignCaseEngineerTests
         var sut = new AssignCaseEngineer(
             store,
             new DefaultCaseWorkflowConfiguration(),
-            eligibility);
+            eligibility,
+            new StubStaffAccounts([Profile(EngineerId, isDefault: false)]));
         var request = CreateAssignmentRequest();
 
         var assigned = await sut.ExecuteAsync(request, default);
@@ -66,11 +68,32 @@ public sealed class AssignCaseEngineerTests
         var replay = await sut.ExecuteAsync(request, default);
 
         Assert.Equal(EngineerId, assigned.AssignedEngineerId);
+        Assert.Equal(EngineerId, assigned.SignOffEngineerId);
         Assert.Equal(1L, assigned.Version);
         Assert.Equal(assigned, replay);
         Assert.Equal(1, eligibility.CallCount);
         Assert.Equal(2, store.AssignmentCount);
     }
+
+    [Fact]
+    public async Task UnflaggedAssignedEngineerDefaultsToAdministratorDesignatedSignOffEngineer()
+    {
+        var defaultSignOffEngineerId = Guid.NewGuid();
+        var store = new RecordingWorkflowStore();
+        var sut = new AssignCaseEngineer(
+            store,
+            new DefaultCaseWorkflowConfiguration(),
+            new StubEligibility(new(true, true, true)),
+            new StubStaffAccounts([Profile(defaultSignOffEngineerId, isDefault: true)]));
+
+        var assigned = await sut.ExecuteAsync(CreateAssignmentRequest(), default);
+
+        Assert.Equal(EngineerId, assigned.AssignedEngineerId);
+        Assert.Equal(defaultSignOffEngineerId, assigned.SignOffEngineerId);
+    }
+
+    private static SignOffEngineerProfile Profile(Guid staffId, bool isDefault) =>
+        new(staffId, "Named Signatory", null, [1], "image/png", isDefault);
 
     private static AssignCaseEngineerRequest CreateAssignmentRequest() =>
         new(
@@ -142,6 +165,7 @@ public sealed class AssignCaseEngineerTests
 
         public Task<CaseWorkflowRecord> AssignEngineerAsync(
             AssignCaseEngineerRequest request,
+            Guid? signOffEngineerId,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -161,10 +185,16 @@ public sealed class AssignCaseEngineerTests
             Current = Current with
             {
                 AssignedEngineerId = request.EngineerId,
+                SignOffEngineerId = signOffEngineerId,
                 Version = Current.Version + 1
             };
             return Task.FromResult(Current);
         }
+
+        public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
+            SetCaseSignOffEngineerRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request,
@@ -231,5 +261,27 @@ public sealed class AssignCaseEngineerTests
             ReopenCaseRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+
+    private sealed class StubStaffAccounts(IReadOnlyList<SignOffEngineerProfile> profiles)
+        : IStaffAccountQueries
+    {
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken) => Task.FromResult(profiles);
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) => Task.FromResult(
+                profiles.FirstOrDefault(profile => profile.StaffId == staffId));
+
+        public Task<StaffAccountQuerySlice> ListAsync(
+            int offset,
+            int limit,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<StaffAccountSummary?> GetAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

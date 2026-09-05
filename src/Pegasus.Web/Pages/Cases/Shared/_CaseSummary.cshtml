@@ -28,6 +28,7 @@
                     <dl><dt>Provider reference</dt><dd>@Value(data?.Claim.Number.Confirmed?.Value ?? summary.ClaimNumber)</dd></dl>
                     <dl><dt>Inspection</dt><dd>@Value(data?.Inspection.Address.Confirmed?.Value)</dd></dl>
                     <dl><dt>Engineer</dt><dd>@(Model.EngineerDisplayName ?? "Unassigned")</dd></dl>
+                    <dl><dt>@OperatorLabels.CaseWorkspace.SignOffEngineer</dt><dd>@Model.SignOffEngineerDisplayName</dd></dl>
                     <dl><dt>Received</dt><dd>@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</dd></dl>
                     <dl><dt>Due</dt><dd>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? "Not recorded")</dd></dl>
                     @if (workflow.ReportSentEvidence is { } sentEvidence)

@@ -5,19 +5,9 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// EXT-04. The once-per-case rule is the load-bearing safety property of the
-/// whole EVA integration, and it is the one rule no amount of unit testing can
-/// prove: EVA has no idempotency, so a second accepted instruction creates a
-/// second claim with its own File Reference that no API call can withdraw.
-/// Code refuses the second submission, and
-/// <c>UX_EvaSubmissions_CaseDelivered</c> refuses it again underneath — but a
-/// filtered unique index that is subtly wrong looks identical to a correct one
-/// until a real database is asked to enforce it.
-///
-/// So these tests ask a real database. They also pin the filter itself, which
-/// is what makes "at most one success, any number of failures" expressible:
-/// the failures are exactly what a caller needs in order to decide whether to
-/// try again, and an unfiltered index would delete that history.
+/// EXT-04 persistence coverage for distinct manual submissions and their
+/// retained outcomes. Automatic submission remains once-only in its work-row
+/// policy; the database permits explicit operator re-sends.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class EvaSubmissionPersistenceTests
@@ -26,7 +16,7 @@ public sealed class EvaSubmissionPersistenceTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task ACaseReachesEvaAtMostOnce()
+    public async Task TwoManualDeliveredSubmissionsAreRetainedAsDistinctHandoffs()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
@@ -40,18 +30,17 @@ public sealed class EvaSubmissionPersistenceTests
         await using (var context = await database.CreateContextAsync())
         {
             context.EvaSubmissions.Add(Submission(caseId, EvaSubmissionOutcome.Succeeded));
-            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            await context.SaveChangesAsync();
+            Assert.Equal(2, await context.EvaSubmissions.CountAsync(item => item.CaseId == caseId));
         }
     }
 
     /// <summary>
-    /// A partial delivery closes the rule too. EVA accepted the instruction and
-    /// returned no identifier — the claim exists all the same, and a second
-    /// send would create another one that no API call can withdraw. The index
-    /// is filtered on delivery rather than on success for exactly this case.
+    /// A partial delivery remains a distinct recorded outcome and does not
+    /// prevent an explicit later manual handoff.
     /// </summary>
     [Fact]
-    public async Task AnAcceptanceWithoutAnIdentifierAlsoClosesTheCase()
+    public async Task PartialDeliveryDoesNotBlockAnExplicitManualResend()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
@@ -65,7 +54,8 @@ public sealed class EvaSubmissionPersistenceTests
         await using (var context = await database.CreateContextAsync())
         {
             context.EvaSubmissions.Add(Submission(caseId, EvaSubmissionOutcome.Succeeded));
-            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            await context.SaveChangesAsync();
+            Assert.Equal(2, await context.EvaSubmissions.CountAsync(item => item.CaseId == caseId));
         }
     }
 

@@ -2624,6 +2624,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ReportSentEvidenceId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("SignOffEngineerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -3138,11 +3141,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CaseId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_EvaSubmissions_CaseDelivered")
-                        .HasFilter("[IsDelivered] = 1");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");

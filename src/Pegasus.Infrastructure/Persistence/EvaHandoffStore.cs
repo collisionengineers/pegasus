@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -36,8 +37,9 @@ public sealed class EvaHandoffStore(
     /// CASE-019 / ENG-016: the operator's export of a case as the EVA-format
     /// archive, and since ENG-016 the only way to produce one.
     ///
-    /// It takes no edit lease and does not move the case version: an export is
-    /// not a case-data mutation. Its operation key makes the action-history
+    /// It takes no edit lease. The first export from Review atomically starts
+    /// case work and increments the version; a re-send from With Engineer
+    /// leaves both unchanged. Its operation key makes the action-history
     /// write replay-safe. The first export also writes the once-per-case
     /// <c>First sent to Engineer</c> proxy row; every export updates its latest
     /// exported workflow version.
@@ -68,12 +70,24 @@ public sealed class EvaHandoffStore(
         {
             return null;
         }
-        if (caseData.State != CaseLifecycleState.Review)
-        {
-            throw new CaseNotInReviewException(request.CaseId);
-        }
-
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == request.CaseId)
+            .Select(item => new
+            {
+                item.State,
+                item.AssignedEngineerId,
+                item.SignOffEngineerId
+            })
+            .SingleAsync(cancellationToken);
+        var profiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken);
+        EvaHandoffPolicy.StateAfterManualSend(Enum.Parse<CaseLifecycleState>(workflow.State));
+        EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            profiles);
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var export = CaseEvaMapping.MapForOperatorExport(
             EvaCaseEvidenceReader.Build(caseData, vehicle),
@@ -138,13 +152,26 @@ public sealed class EvaHandoffStore(
             context,
             request.CaseId,
             cancellationToken);
-        if (lockedState is null || !string.Equals(
-                lockedState.State,
-                CaseLifecycleState.Review.ToString(),
-                StringComparison.Ordinal))
+        if (lockedState is null)
         {
-            throw new CaseNotInReviewException(request.CaseId);
+            throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         }
+        var currentState = Enum.Parse<CaseLifecycleState>(lockedState.State);
+        var resultingState = EvaHandoffPolicy.StateAfterManualSend(currentState);
+        if (resultingState != currentState)
+        {
+            await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
+                new EfCaseEngineerEligibility(contextFactory),
+                currentState,
+                lockedState.AssignedEngineerId,
+                cancellationToken);
+        }
+        var eligibleProfiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken);
+        var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
+            lockedState.SignOffEngineerId,
+            lockedState.AssignedEngineerId,
+            eligibleProfiles);
         if (lockedState.WorkflowVersion != caseData.Version)
         {
             throw new CaseVersionConflictException(
@@ -155,9 +182,14 @@ public sealed class EvaHandoffStore(
 
         var aggregateId = request.CaseId.ToString("D");
         var eventKind = EvaHandoffPolicy.BundleExportedHistoryEventKind;
+        var resultingVersion = currentState == CaseLifecycleState.Review
+            ? checked(lockedState.WorkflowVersion + 1)
+            : lockedState.WorkflowVersion;
         var afterJson = DocumentActionHistory.Serialize(new
         {
-            CaseVersion = caseData.Version,
+            CaseVersion = resultingVersion,
+            AssignedEngineerId = lockedState.AssignedEngineerId,
+            SignOffEngineerId = signOffEngineer.StaffId,
             Mapping = new
             {
                 source.MappingKey,
@@ -198,6 +230,19 @@ public sealed class EvaHandoffStore(
             return;
         }
 
+        if (currentState == CaseLifecycleState.Review)
+        {
+            lockedState.Workflow.State = resultingState.ToString();
+            lockedState.Workflow.Version = resultingVersion;
+            lockedState.Workflow.EditLeaseToken = null;
+            lockedState.Workflow.EditLeaseTokenHash = null;
+            lockedState.Workflow.EditLeaseRequestHash = null;
+            lockedState.Workflow.EditLeaseHolder = null;
+            lockedState.Workflow.EditLeaseHolderKind = null;
+            lockedState.Workflow.EditLeaseOperationKey = null;
+            lockedState.Workflow.EditLeaseExpiresAtUtc = null;
+        }
+
         var handoff = await context.EvaFirstHandoffProxies
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
         if (handoff is null)
@@ -217,7 +262,7 @@ public sealed class EvaHandoffStore(
                 AdapterKey = receipt.AdapterKey,
                 AdapterVersion = receipt.AdapterVersion,
                 RecordedAtUtc = receipt.RecordedAtUtc,
-                LatestExportedWorkflowVersion = caseData.Version,
+                LatestExportedWorkflowVersion = resultingVersion,
                 ActorSubjectId = request.Actor.SubjectId,
                 ClaimsExternalDelivery = false,
                 ClaimsEngineerAssignment = false
@@ -226,7 +271,7 @@ public sealed class EvaHandoffStore(
         }
         else
         {
-            handoff.LatestExportedWorkflowVersion = caseData.Version;
+            handoff.LatestExportedWorkflowVersion = resultingVersion;
         }
 
         var history = DocumentActionHistory.Succeeded(
@@ -256,10 +301,19 @@ public sealed class EvaHandoffStore(
                 """)
             : context.CaseWorkflows.Where(item => item.CaseId == caseId);
         return workflows
-            .AsNoTracking()
-            .Select(item => new LockedExportState(item.State, item.Version))
+            .Select(item => new LockedExportState(
+                item,
+                item.State,
+                item.Version,
+                item.AssignedEngineerId,
+                item.SignOffEngineerId))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    private sealed record LockedExportState(string State, long WorkflowVersion);
+    private sealed record LockedExportState(
+        CaseWorkflowEntity Workflow,
+        string State,
+        long WorkflowVersion,
+        Guid? AssignedEngineerId,
+        Guid? SignOffEngineerId);
 }

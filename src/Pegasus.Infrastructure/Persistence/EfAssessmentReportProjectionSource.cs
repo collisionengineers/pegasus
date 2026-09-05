@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -17,7 +18,8 @@ internal sealed class EfAssessmentReportProjectionSource(
     IDbContextFactory<PegasusDbContext> contextFactory,
     IGetAssessmentWorkspace getAssessmentWorkspace,
     IDocumentContentStore contentStore,
-    TimeProvider timeProvider) : IAssessmentReportProjectionSource
+    TimeProvider timeProvider,
+    IStaffAccountQueries staffAccountQueries) : IAssessmentReportProjectionSource
 {
     public async Task<AssessmentReportProjectionInput?> GetAsync(
         Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
@@ -31,6 +33,16 @@ internal sealed class EfAssessmentReportProjectionSource(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => new { item.AssignedEngineerId, item.SignOffEngineerId })
+            .SingleAsync(cancellationToken);
+        var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+        var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            profiles);
         var confirmed = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
@@ -106,7 +118,13 @@ internal sealed class EfAssessmentReportProjectionSource(
             sources,
             Costs: null,
             CurrentEstimate: workspace.AcceptedSpecification,
-            Signatory: null);
+            Signatory: signOffEngineer is null
+                ? null
+                : new ReportSignatory(
+                    signOffEngineer.PrintedName,
+                    signOffEngineer.Qualifications,
+                    signOffEngineer.Signature,
+                    signOffEngineer.SignatureContentType));
     }
 
     private sealed record ConfirmedDocumentRow(

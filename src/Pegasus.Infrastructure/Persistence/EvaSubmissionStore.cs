@@ -1,9 +1,11 @@
 using System.Data;
+using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -25,13 +27,10 @@ namespace Pegasus.Infrastructure.Persistence;
 ///    serializable case lock across an HTTP round trip carrying every
 ///    photograph of a case would block casework for as long as EVA is slow.
 ///    So the case is read and gated, the call is made, and the result is
-///    recorded — which means the record is written after the fact, and the
-///    unique index is what makes that safe.
-/// 2. **A second submission is refused.** EVA has no idempotency: a second
-///    accepted instruction creates a second claim with its own File Reference
-///    and no API call can undo it. So the once-per-case rule is checked before
-///    the call and enforced by <c>UX_EvaSubmissions_CaseDelivered</c> after
-///    it.
+///    recorded after the fact.
+/// 2. **Manual re-sends are distinct handoffs.** Automatic work remains
+///    once-only, while every explicit operator operation key retains its own
+///    outcome and EVA identifiers.
 /// </summary>
 public sealed class EvaSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -65,11 +64,6 @@ public sealed class EvaSubmissionStore(
         {
             return null;
         }
-        if (caseData.State != CaseLifecycleState.Review)
-        {
-            throw new CaseNotInReviewException(request.CaseId);
-        }
-
         var modes = await modeStore.GetForPrincipalAsync(
             caseData.Identity.PrincipalCode,
             cancellationToken);
@@ -79,6 +73,32 @@ public sealed class EvaSubmissionStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == request.CaseId)
+            .Select(item => new
+            {
+                item.State,
+                item.AssignedEngineerId,
+                item.SignOffEngineerId
+            })
+            .SingleAsync(cancellationToken);
+        var initialState = Enum.Parse<CaseLifecycleState>(workflow.State);
+        var initialResultingState = EvaSubmissionPolicy.StateAfterSend(initialState, request.Trigger);
+        var profiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken);
+        var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            profiles);
+        if (initialResultingState != initialState)
+        {
+            await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
+                new EfCaseEngineerEligibility(contextFactory),
+                initialState,
+                workflow.AssignedEngineerId,
+                cancellationToken);
+        }
 
         // Replay first: the same operation key must answer the same way rather
         // than submit a second time. This is what makes a double-clicked
@@ -89,14 +109,14 @@ public sealed class EvaSubmissionStore(
             return new(replay, [], []);
         }
 
-        // Then the once-per-case rule. Checked here so an operator is told
-        // plainly rather than discovering it as a database error, and enforced
-        // again by the unique index because this check is outside the write.
-        var delivered = await FindDeliveredAsync(context, request.CaseId, cancellationToken);
-        if (delivered is not null)
-        {
-            throw new EvaAlreadySubmittedException(request.CaseId, delivered.FileReference);
-        }
+        var hasDeliveredSubmission = await context.EvaSubmissions
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == request.CaseId && item.IsDelivered,
+                cancellationToken);
+        EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
+            request.Trigger,
+            hasDeliveredSubmission);
 
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var export = CaseEvaMapping.MapForOperatorExport(
@@ -137,7 +157,13 @@ public sealed class EvaSubmissionStore(
             images.Select(ToInstructionFile).ToArray());
 
         var result = await transport.SubmitInstructionAsync(payload, cancellationToken);
-        await RecordSubmissionAsync(context, request, caseData, result, cancellationToken);
+        await RecordSubmissionAsync(
+            context,
+            request,
+            caseData,
+            result,
+            signOffEngineer.StaffId,
+            cancellationToken);
         return new(result, export.UnrecordedFields, []);
     }
 
@@ -168,15 +194,6 @@ public sealed class EvaSubmissionStore(
     /// </summary>
     private static string MediaTypeExtension(string mediaType) =>
         mediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
-
-    private static Task<EvaSubmissionEntity?> FindDeliveredAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        CancellationToken cancellationToken) => context.EvaSubmissions
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.CaseId == caseId && item.IsDelivered,
-                cancellationToken);
 
     /// <summary>
     /// A previous attempt under this exact operation key, returned as its own
@@ -236,19 +253,76 @@ public sealed class EvaSubmissionStore(
     /// let the same case be submitted a second time - which EVA, having no
     /// idempotency, would turn into a second claim.
     ///
-    /// So the record states what happened, and the once-per-case rule is
-    /// carried by the unique index rather than by a state re-check here.
+    /// So the record states what happened. The locked workflow re-check below
+    /// owns the local state transition and prevents a partial local handoff.
     /// </summary>
     private async Task RecordSubmissionAsync(
         PegasusDbContext context,
         SubmitCaseToEvaRequest request,
         CaseDataProjection caseData,
         EvaSubmissionResult result,
+        Guid submittedSignOffEngineerId,
         CancellationToken cancellationToken)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+
+        var workflows = context.Database.IsSqlServer()
+            ? context.CaseWorkflows.FromSqlInterpolated($"""
+                SELECT *
+                FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [CaseId] = {request.CaseId}
+                """)
+            : context.CaseWorkflows.Where(item => item.CaseId == request.CaseId);
+        var workflow = await workflows.SingleAsync(cancellationToken);
+        var currentState = Enum.Parse<CaseLifecycleState>(workflow.State);
+        var resultingState = currentState;
+        Exception? transitionFailure = null;
+        try
+        {
+            // Gated on delivery (CASE-040 review), not on state and trigger
+            // alone: a Rejected or Unknown outcome never reached EVA, so it
+            // is not a handoff and must not move the case out of Review.
+            resultingState = EvaSubmissionPolicy.StateAfterSend(
+                currentState,
+                request.Trigger,
+                result.IsDelivered);
+            if (resultingState != currentState)
+            {
+                await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
+                    new EfCaseEngineerEligibility(contextFactory),
+                    currentState,
+                    workflow.AssignedEngineerId,
+                    cancellationToken);
+            }
+            var eligibleProfiles = await new EfStaffAccountQueries(context)
+                .ListSignOffEngineersAsync(cancellationToken);
+            EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
+                workflow.SignOffEngineerId,
+                workflow.AssignedEngineerId,
+                eligibleProfiles);
+            if (workflow.Version != caseData.Version)
+            {
+                throw new CaseVersionConflictException(
+                    request.CaseId,
+                    caseData.Version,
+                    workflow.Version);
+            }
+        }
+        // EvaHandoffStateException, EvaSignOffEngineerRequiredException and
+        // CaseVersionConflictException are all InvalidOperationException
+        // (CASE-040 review NIT); this filter is deliberately just the base
+        // type because the block above is a fixed, closed set of local
+        // re-checks and every failure it can raise already derives from it.
+        catch (InvalidOperationException exception)
+        {
+            transitionFailure = exception;
+        }
+
+        var resultingVersion = transitionFailure is null && resultingState != currentState
+            ? checked(workflow.Version + 1)
+            : workflow.Version;
 
         var attemptCount = await context.EvaSubmissions
             .CountAsync(item => item.CaseId == request.CaseId, cancellationToken);
@@ -257,7 +331,7 @@ public sealed class EvaSubmissionStore(
         {
             Id = Guid.CreateVersion7(),
             CaseId = request.CaseId,
-            WorkflowVersion = caseData.Version,
+            WorkflowVersion = resultingVersion,
             ExternalRef = caseData.Identity.Reference,
             OperationKey = request.OperationKey,
             Outcome = result.Outcome.ToString(),
@@ -281,7 +355,9 @@ public sealed class EvaSubmissionStore(
             request.OperationKey,
             afterJson: DocumentActionHistory.Serialize(new
             {
-                CaseVersion = caseData.Version,
+                CaseVersion = resultingVersion,
+                AssignedEngineerId = workflow.AssignedEngineerId,
+                SignOffEngineerId = submittedSignOffEngineerId,
                 Trigger = request.Trigger.ToString(),
                 Outcome = result.Outcome.ToString(),
                 result.EvaId,
@@ -298,7 +374,25 @@ public sealed class EvaSubmissionStore(
             $"{EvaSubmissionPolicy.PolicyKey}/v{EvaSubmissionPolicy.PolicyVersion}";
         context.ActionHistory.Add(history);
 
+        if (transitionFailure is null && resultingState != currentState)
+        {
+            workflow.State = resultingState.ToString();
+            workflow.Version = resultingVersion;
+            workflow.EditLeaseToken = null;
+            workflow.EditLeaseTokenHash = null;
+            workflow.EditLeaseRequestHash = null;
+            workflow.EditLeaseHolder = null;
+            workflow.EditLeaseHolderKind = null;
+            workflow.EditLeaseOperationKey = null;
+            workflow.EditLeaseExpiresAtUtc = null;
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        if (transitionFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(transitionFailure).Throw();
+        }
     }
 }

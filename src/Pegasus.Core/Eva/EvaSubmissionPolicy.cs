@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
@@ -36,8 +37,8 @@ public interface IEvaSubmissionModeStore
 }
 
 /// <summary>
-/// The one owner of EVA API submission decisions: who may submit, when a case
-/// may be submitted twice (never), and what EVA's answer means.
+/// The one owner of EVA API submission decisions: who may submit, which case
+/// states permit a send or re-send, and what EVA's answer means.
 ///
 /// It deliberately holds no transport concern and no persistence concern — it
 /// is given facts and returns a decision, which is what lets the same rules be
@@ -51,14 +52,6 @@ public static class EvaSubmissionPolicy
     /// <summary>The one wording for "this case has no photographs to send".</summary>
     public const string NoRetainedImagesReason =
         EvaHandoffPolicy.NoRetainedImagesReason;
-
-    /// <summary>The one wording for an already-delivered case.</summary>
-    public const string AlreadySubmittedReason =
-        "The case has already been submitted to EVA.";
-
-    /// <summary>The one wording for a principal with the route switched off.</summary>
-    public const string NotEnabledReason =
-        "EVA API submission is not enabled for this principal.";
 
     /// <summary>
     /// Whether an operator may submit this case by hand. Requires the manual
@@ -110,6 +103,50 @@ public static class EvaSubmissionPolicy
             EvaSubmissionTrigger.Automatic => AllowsAutomaticSubmission(modes),
             _ => throw new ArgumentOutOfRangeException(nameof(trigger))
         };
+    }
+
+    /// <summary>
+    /// The state a send leaves the case in.
+    ///
+    /// <paramref name="isDelivered"/> defaults to true so a pre-flight check
+    /// made before the transport call — deciding whether the D47 start-work
+    /// preconditions need checking at all — can still ask "what state would
+    /// this leave the case in if it succeeds?" without knowing the outcome
+    /// yet. The actual post-transport commit
+    /// (<see cref="EvaSubmissionResult.IsDelivered"/>, CASE-040 review) must
+    /// pass the real outcome: a Rejected or Unknown manual send never reached
+    /// EVA, so it is not a handoff and the case stays exactly where it was.
+    /// </summary>
+    public static CaseLifecycleState StateAfterSend(
+        CaseLifecycleState state,
+        EvaSubmissionTrigger trigger,
+        bool isDelivered = true) => trigger switch
+        {
+            EvaSubmissionTrigger.Manual => EvaHandoffPolicy.StateAfterManualSend(state, isDelivered),
+            EvaSubmissionTrigger.Automatic when state == CaseLifecycleState.Review => state,
+            EvaSubmissionTrigger.Automatic => throw new EvaHandoffStateException(state),
+            _ => throw new ArgumentOutOfRangeException(nameof(trigger))
+        };
+
+    /// <summary>
+    /// Automatic submission is once-only because EVA has no idempotency and
+    /// a second instruction creates a second claim. Manual re-sends remain
+    /// explicit operator acts and are not constrained by this rule.
+    /// </summary>
+    public static void RequireOnceOnlyAutomaticSubmission(
+        EvaSubmissionTrigger trigger,
+        bool hasDeliveredSubmission)
+    {
+        switch (trigger)
+        {
+            case EvaSubmissionTrigger.Manual:
+            case EvaSubmissionTrigger.Automatic when !hasDeliveredSubmission:
+                return;
+            case EvaSubmissionTrigger.Automatic:
+                throw new EvaAutomaticSubmissionAlreadyDeliveredException();
+            default:
+                throw new ArgumentOutOfRangeException(nameof(trigger));
+        }
     }
 
     /// <summary>

@@ -107,6 +107,8 @@ public sealed record CaseWorkflowRecord(
     long Version)
 {
     public CaseArchive? Archive { get; init; }
+
+    public Guid? SignOffEngineerId { get; init; }
 }
 
 public sealed record CaseEditLease(
@@ -229,6 +231,16 @@ public sealed record AssignCaseEngineerRequest(
     string EditLeaseToken,
     Guid EngineerId,
     CaseReadinessEvidence Readiness)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+public sealed record SetCaseSignOffEngineerRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken,
+    Guid SignOffEngineerId)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record RecordCaseReportApprovalRequest(
@@ -369,6 +381,11 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
 
     Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
+        Guid? signOffEngineerId,
+        CancellationToken cancellationToken);
+
+    Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
+        SetCaseSignOffEngineerRequest request,
         CancellationToken cancellationToken);
 
     Task<CaseWorkflowRecord> RecordReportApprovalAsync(
@@ -418,6 +435,13 @@ public interface IReturnCaseToReview
 public interface IAssignCaseEngineer
 {
     Task<CaseWorkflowRecord> ExecuteAsync(AssignCaseEngineerRequest request, CancellationToken cancellationToken);
+}
+
+public interface ISetCaseSignOffEngineer
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        SetCaseSignOffEngineerRequest request,
+        CancellationToken cancellationToken);
 }
 
 public interface IStartCaseWork

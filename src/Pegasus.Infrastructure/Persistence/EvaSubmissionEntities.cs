@@ -29,8 +29,12 @@ internal sealed class EvaSubmissionEntity
     /// <summary>
     /// The Pegasus case reference sent as EVA's <c>ExternalRef</c>. EVA
     /// enforces no uniqueness on it — the same value submitted twice creates
-    /// two claims — so it is recorded here as evidence of what was sent, and
-    /// the unique index below is what actually prevents the second send.
+    /// two claims — so it is recorded here as evidence of what was sent.
+    /// Once-only automatic submission is guarded by
+    /// <see cref="Pegasus.Core.Eva.EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission"/>
+    /// and the durable <c>ExternalWorkItems</c> row (D36), not by a unique
+    /// index here — the database deliberately permits an explicit manual
+    /// re-send of an already-delivered case.
     /// </summary>
     public string ExternalRef { get; set; } = string.Empty;
 

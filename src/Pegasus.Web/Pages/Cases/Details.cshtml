@@ -47,10 +47,8 @@
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
-    // The send control is a Review act both ways: Core refuses the export and
-    // the API submission outside Review, so the bar offers it there only, and
-    // its label says which of the two visits this is.
-    var canSendToEva = isReview;
+    var canSendToEva = state is CaseLifecycleState.Review
+        or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     // The confirmation is a lease-carrying Core action, so it is offered in
     // edit context only; without detected evidence there is nothing to
     // confirm (D10: a send is never asserted here).
@@ -132,8 +130,8 @@
         @* CASE-040 supplies the sign-off Engineer itself; the frame carries its
            ribbon label and the record's ordinary absent value. *@
         <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonSignOff</div>
-            <div class="ribbon-value">@OperatorLabels.CaseWorkspace.AbsentValue</div>
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.SignOffEngineer</div>
+            <div class="ribbon-value">@Model.SignOffEngineerDisplayName</div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonState</div>
@@ -265,7 +263,7 @@
         {
             <button type="button" class="btn" data-dialog-open="eva-handoff-dialog">
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                <span>@(Model.HasExportedBundle ? "Download EVA package" : "Send to EVA")</span>
+                <span>@OperatorLabels.CaseWorkspace.SendToEva</span>
             </button>
         }
         @if (canConfirmReportSent)
@@ -388,6 +386,7 @@
                     <div class="decision-row"><span>Version</span><strong>@workflow.Version.ToString(CultureInfo.InvariantCulture)</strong></div>
                     <div class="decision-row"><span>Due</span><strong>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? OperatorLabels.CaseWorkspace.AbsentValue)</strong></div>
                     <div class="decision-row"><span>Engineer</span><strong>@(Model.EngineerDisplayName ?? "Unassigned")</strong></div>
+                    <div class="decision-row"><span>@OperatorLabels.CaseWorkspace.SignOffEngineer</span><strong>@Model.SignOffEngineerDisplayName</strong></div>
                     <div class="decision-row">
                         <span>Edit authority</span>
                         <strong>
@@ -600,69 +599,13 @@
     <div class="dialog-backdrop" data-dialog="eva-handoff-dialog" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="eva-handoff-dialog-title">
             <div class="dialog-head">
-                <h2 id="eva-handoff-dialog-title" tabindex="-1">EVA handoff</h2>
+                <h2 id="eva-handoff-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.EvaHandoff</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
                     <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                 </button>
             </div>
             <div class="dialog-body stack">
-                @if (editing && Model.EngineerOptions.Count > 0)
-                {
-                    @* A named Engineer selector (inherited scope): the account's
-                       business name is the option text, its identifier only the
-                       posted value. The readiness gate posts the case's current
-                       values unchanged. *@
-                    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
-                          asp-page-handler="AssignEngineer" class="stack">
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                        <partial name="Cases/Shared/_ReadinessHiddenFields" model="Model" />
-                        <div class="field">
-                            <label class="req" for="eva-engineer">Engineer</label>
-                            <select id="eva-engineer" name="engineerId" required data-dialog-initial-focus>
-                                <option value="" selected></option>
-                                @foreach (var engineer in Model.EngineerOptions)
-                                {
-                                    <option value="@engineer.Id">@engineer.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="req" for="eva-engineer-reason">Reason for action</label>
-                            <input id="eva-engineer-reason" name="reason" required maxlength="500" />
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" class="btn btn--dark">Assign Engineer</button>
-                        </div>
-                    </form>
-                }
-                @* The export route is unchanged: it records the once-per-case
-                   First sent to Engineer proxy, so it stays a POST. *@
-                <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@workflow.CaseId"
-                      asp-page-handler="Bundle">
-                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                    <div class="button-row">
-                        <button type="submit" class="btn">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>Export ZIP</span>
-                        </button>
-                    </div>
-                </form>
-                @if (Model.CanSubmitToEva)
-                {
-                    <form method="post" asp-page="/Cases/Eva/Send" asp-route-caseId="@workflow.CaseId"
-                          asp-page-handler="Submit">
-                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                        <div class="button-row">
-                            <button type="submit" class="btn btn--primary">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                                <span>Send via API</span>
-                            </button>
-                        </div>
-                    </form>
-                }
+                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff!" />
             </div>
         </section>
     </div>

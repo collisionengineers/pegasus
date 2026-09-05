@@ -1472,12 +1472,25 @@ public static class OperatorLabels
         public const string RibbonPrincipal = "Principal";
         public const string RibbonState = "State";
         public const string RibbonEngineer = "Engineer";
-        public const string RibbonSignOff = "Sign-off";
 
         /// <summary>
         /// What the record prints where a value it would show is not held.
         /// </summary>
         public const string AbsentValue = "Not recorded";
+
+        // CASE-040: Sign-off Engineer / Send to EVA labels
+        public const string SignOffEngineer = "Sign-off Engineer";
+        public const string Unassigned = "Unassigned";
+        public const string ReasonForAction = "Reason for action";
+        public const string AssignEngineer = "Assign Engineer";
+        public const string SetSignOffEngineer = "Set Sign-off Engineer";
+        public const string SendToEva = "Send to EVA";
+        public const string EvaHandoff = "EVA handoff";
+        public const string DownloadZip = "Download ZIP";
+        public const string SendViaApi = "Send via API";
+        public const string EvaApiNotEnabled =
+            "EVA API submission is not enabled for this principal.";
+        // end CASE-040
 
         // ENG-034: the Engineer sections moved from the retired Assessment
         // page. Keep this block together so the parallel Case lanes can merge
