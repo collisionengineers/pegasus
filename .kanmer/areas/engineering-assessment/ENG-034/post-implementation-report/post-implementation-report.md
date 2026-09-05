@@ -519,3 +519,119 @@ changed). No blob/working-copy mismatch was found to fix.
 
 No test was weakened or deleted; only names changed. Not merged; PR #668
 remains open for the epic owner/review controller to re-review and merge.
+
+## Review round fixes (2026-09-05, round 5)
+
+Fifth round on the same PR (#668), same branch/worktree
+(`task/eng-034-engineer-sections-move`, `.worktrees/eng-034`), addressing the
+round-5 review findings. Codex was reported unavailable this round; the
+fixes below were implemented directly by the Claude wrapper session in the
+same worktree/branch instead.
+
+Commit `079990e1988eec127dda1fd7318c5b653945b9c8`, pushed to
+`origin/task/eng-034-engineer-sections-move`.
+
+### BLOCKER (R1) — 500 on GET `?section=estimate&estimate=new` when the editor is not editable
+
+`_CaseEstimate.cshtml:274` called `RenderSpecificationLines(estimate!,
+EngineerLabels.Recorded)` in the non-editable (`else`) branch of the
+`SelectedEstimate is not null || EditingNewEstimate` block. When
+`EditingNewEstimate` is true (query string `estimate=new`) and
+`SelectedEstimateIsEditable` is false — either because `AssessmentCanOpen`
+is false, or the actor is not an Engineer — `SelectedEstimate` (aliased
+`estimate` in the partial) is null, and the `!` null-forgiving operator does
+not stop `RenderSpecificationLines`'s `foreach (var line in
+specification.Lines)` from throwing an NRE. That NRE is thrown during view
+rendering, after `OnGetAsync`'s own try/catch had already returned `Page()`,
+so it takes out the whole Case record page as an unhandled 500 rather than
+the existing `QueryFailed`/503 path.
+
+Confirmed this is reachable without hand-editing a URL: the "New estimate"
+link is real markup an Engineer can follow, and a browser can replay
+`?estimate=new` from history/bookmark/back-forward after assessment access
+changes (or after the same actor stops being an Engineer); a non-Engineer
+can also request the URL directly since ASP.NET Core does not gate a GET
+handler on whether a link was rendered.
+
+Fix (`_CaseEstimate.cshtml`, the only file touched): guarded the call —
+
+```csharp
+if (estimate is not null)
+{
+    RenderSpecificationLines(estimate, EngineerLabels.Recorded);
+}
+```
+
+— instead of hiding the section, per D30's rule that all five sections
+render in every state. `details` (`Model.EditorDetails!`) is populated
+unconditionally by `ApplyEstimateSelection("new")` regardless of
+editability, so the rest of the read-only branch (repair days, rates,
+notes, totals) already rendered correctly with no estimate selected; only
+the specification-lines table needed the guard. No other `src/` file was
+touched; no committed Case Details snapshot renders `?estimate=new`, so no
+Test UI recapture was needed or run.
+
+Added the missing coverage named by the finding —
+`CaseEngineerSectionsWebTests.NewEstimateGetRendersReadOnlyEditorWhenNotEditable`
+(`[InlineData("User", true)]`, `[InlineData("Engineer", false)]`) — a GET to
+`?section=estimate&estimate=new` asserting `200 OK` and that
+`id="section-estimate"` renders, for a non-Engineer actor with
+`AssessmentCanOpen: true` and for an Engineer actor with
+`AssessmentCanOpen: false`. `EngineerSectionSource` gained an optional
+`canOpen` constructor parameter (default `true`, preserving every existing
+call site) that controls `LatestExportVersion` on the returned
+`AssessmentAccessState` (`null` when `canOpen` is false, so
+`AssessmentAccessPolicy.CanOpen` evaluates false per its own `is { }
+exportedVersion` check) — no second access-state shape was added.
+
+### R2 (optional) — report-draft failure redirect to `?section=estimate`: confirmed deliberate
+
+Verified `RedirectToEstimate` is the single redirect helper
+(`Details.cshtml.cs`) used by both `OnPostGenerateReportDraftAsync` and
+`OnPostPreviewReportDraftAsync` for every non-success branch (`NotReady`,
+missing preparation, guard failures) as well as by every Estimate-mutation
+handler. `AssessmentReportDraftWebTests.cs:117` already asserts this
+redirect target for a failed "Generate report draft" post, so a failed
+report-draft action landing the operator back on the Estimate section (not
+the Report section) is existing, tested, intentional behaviour, not a
+defect of this ticket. Disposition: **accept risk** — no change made,
+recorded here per the finding.
+
+### R3 (optional) — units on the round-3 "no 24,694-byte state" sentence
+
+Round 3's report entry compared `24,390` and `24,694` without saying what
+each number measured, reading as a contradiction. Both figures are correct
+and measure different things: `git cat-file -s` on the committed blob
+(`case-details--unavailable.html`) reports `24,390` bytes — LF line
+endings, the form Git stores; a CRLF working-copy checkout of the same file
+(`Get-Item .Length` / `wc -c` in this Windows worktree) reports `24,694`
+bytes — the difference, 304, equals the file's line count under
+`core.autocrlf`, one added `\r` per line. Restated for the record: **blob
+(LF, as committed) = 24,390 bytes; CRLF working-copy checkout on this
+platform = 24,694 bytes; delta 304 = line count.** Round 3's rejection of
+the finding as "not reproduced" stands — no defect exists — this entry only
+adds the units the earlier sentence omitted. Disposition: **accept risk**
+(documentation clarity only) — no code change.
+
+### Snapshot recapture — not needed
+
+Only `_CaseEstimate.cshtml`'s C# code (a razor-code `if` guard) and a test
+file changed. No committed Case Details snapshot renders
+`?section=estimate&estimate=new` in a non-editable state (confirmed by the
+finding itself: "no committed Case snapshot renders `?estimate=new`"), and
+the guarded branch behaves identically to before whenever `estimate` is
+non-null (every currently captured state), so no Test UI recapture was run
+this round.
+
+### Verification run this round (worktree `.worktrees/eng-034`)
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | 0 | Locked restore passed. |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | 0 | 0 warnings, 0 errors. |
+| `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` | 0 | 1,240 passed. |
+| `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` | 0 | 100 passed. |
+| `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CaseEngineerSectionsWebTests"` | 0 | 12 passed (10 pre-existing lifecycle-state cases + 2 new `NewEstimateGetRendersReadOnlyEditorWhenNotEditable` cases). |
+
+No test was weakened or deleted. Not merged; PR #668 remains open for the
+epic owner/review controller to re-review and merge.
