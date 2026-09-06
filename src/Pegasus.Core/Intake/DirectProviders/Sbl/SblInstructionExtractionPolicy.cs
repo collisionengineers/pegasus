@@ -233,7 +233,7 @@ public sealed partial class SblInstructionExtractionPolicy
     }
 
     private static Regex LabelRegex(string label) => new(
-        $@"(?im)^\s*{Regex.Escape(label)}\s*:\s*(?<value>[^\r\n]*)",
+        $@"(?im)^\s*{Regex.Escape(label)}\s*:[ \t]*(?<value>[^\r\n]*)",
         RegexOptions.CultureInvariant,
         TimeSpan.FromMilliseconds(100));
 
