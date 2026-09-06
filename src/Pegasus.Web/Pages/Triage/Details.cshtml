@@ -81,7 +81,7 @@
                    offer an assignment it cannot make. *@
                 @if (Model.EngineerChoices.Count > 0)
                 {
-                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="inline-form">
+                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
                         <input type="hidden" name="actionName" value="assign" />
                         <input type="hidden" name="expectedVersion" value="@record.Version" />
                         <input type="hidden" name="operationKey" value="@Model.OperationKey" />
