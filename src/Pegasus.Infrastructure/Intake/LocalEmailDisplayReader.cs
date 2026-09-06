@@ -76,8 +76,8 @@ public static partial class LocalEmailDisplayReader
         body = StaffForwardBodyCleaner.Clean(body ?? string.Empty, isStaffForward);
 
         var sender = message.From.Mailboxes.FirstOrDefault();
-        var replyToAddresses = Addresses(
-            message.ReplyTo.Count > 0 ? message.ReplyTo : message.From);
+        var hasReplyToHeader = message.Headers.Contains(HeaderId.ReplyTo);
+        var replyToAddresses = Addresses(hasReplyToHeader ? message.ReplyTo : message.From);
         var attachments = Attachments(message);
         return new LocalEmailDisplay(
             message.From.ToString(),

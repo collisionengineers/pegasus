@@ -72,6 +72,18 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task PresentButUnusableReplyToDoesNotFallBackToFrom()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.Headers.Add(HeaderId.ReplyTo, string.Empty);
+        });
+
+        Assert.Empty(display.ReplyToAddresses);
+    }
+
+    [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {
         var message = new MimeMessage();
