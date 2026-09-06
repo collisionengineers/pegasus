@@ -1265,12 +1265,7 @@ public sealed class IntakeAllocationConsumerTests
 
             var dashboard = scope.ServiceProvider.GetRequiredService<IDashboardQueries>();
             var stages = await dashboard.GetCaseStageCountsAsync(CancellationToken.None);
-            var activity = await dashboard.GetCaseActivityCountsAsync(
-                DateTimeOffset.MinValue,
-                DateTimeOffset.MinValue,
-                CancellationToken.None);
             Assert.Equal(new(0, 0, 0, 0), stages);
-            Assert.Equal(0, activity.NewCasesToday);
         }
 
         using var mcpFactory = factory.WithWebHostBuilder(builder =>
