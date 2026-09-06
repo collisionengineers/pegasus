@@ -131,7 +131,6 @@
                 </div>
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="SendPreparedReport"
                       asp-route-id="@caseId" asp-route-section="report">
-                    <input type="hidden" name="operationKey" value="@Model.SendPreparedReportOperationKey" />
                     <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
                     <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
                     <button type="submit" class="btn">

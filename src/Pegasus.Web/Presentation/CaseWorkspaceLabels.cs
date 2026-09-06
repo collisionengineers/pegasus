@@ -32,7 +32,10 @@ public static class CaseWorkspaceLabels
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";
+        public const string SendObservedSent = "The report send was observed as sent.";
         public const string SendAccepted = "The report send was accepted.";
+        public const string SendInProgress = "The report send is in progress.";
+        public const string SendCancelled = "The send was cancelled.";
         public const string SendUnknown =
             "The send result is not yet known. Check correspondence before retrying.";
         public const string SendFailed = "The report send failed. Retry the operation.";
