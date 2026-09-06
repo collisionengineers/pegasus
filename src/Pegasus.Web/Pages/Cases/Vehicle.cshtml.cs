@@ -6,9 +6,8 @@ using Pegasus.Core.Vehicle;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's vehicle actions: DVLA/DVSA lookups, and accepting or
-/// correcting a vehicle suggestion. Every action redirects back to the
-/// workspace.
+/// The Case workspace's vehicle actions: one DVLA/DVSA lookup and accepting
+/// one resulting field suggestion. Every action redirects back to the workspace.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -44,14 +43,8 @@ public sealed class VehicleModel(
         Guid id,
         long expectedVersion,
         Guid lookupObservationId,
-        VehicleSuggestionDecision decision,
-        string? registration,
-        string? make,
-        string? model,
-        long? mileage,
-        VehicleMileageUnit? mileageUnit,
+        VehicleSuggestionField field,
         string operationKey,
-        string reason,
         string editLeaseToken,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
@@ -63,21 +56,15 @@ public sealed class VehicleModel(
                     id,
                     expectedVersion,
                     lookupObservationId,
-                    decision,
-                    decision == VehicleSuggestionDecision.Correct
-                        ? new(
-                            registration ?? string.Empty,
-                            make,
-                            model,
-                            mileage,
-                            mileageUnit)
-                        : null,
+                    VehicleSuggestionDecision.Accept,
+                    null,
                     actor,
                     operationKey,
-                    reason,
-                    editLeaseToken),
+                    "Accepted vehicle lookup suggestion.",
+                    editLeaseToken)
+                {
+                    Field = field
+                },
                 cancellationToken),
-            decision == VehicleSuggestionDecision.Accept
-                ? "The vehicle suggestion was accepted with its external provenance."
-                : "The corrected vehicle values were confirmed with attributable provenance.");
+            "The vehicle field was updated from the lookup suggestion.");
 }
