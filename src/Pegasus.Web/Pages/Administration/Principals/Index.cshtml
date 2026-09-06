@@ -63,7 +63,8 @@ else
                                 <th scope="col">Code</th>
                                 <th scope="col">Status</th>
                                 <th scope="col">Inspection mode</th>
-                                <th scope="col">EVA API</th>
+                                <th scope="col">Manual EVA API</th>
+                                <th scope="col">Default inspection location</th>
                                 <th scope="col">Predecessor</th>
                                 <th scope="col">Successor</th>
                                 <th scope="col">Allocated cases</th>
@@ -77,11 +78,12 @@ else
                                 <td>@principal.Code</td>
                                 <td><partial name="Shared/_StatusChip" model="@(principal.IsActive ? "Active" : "Disabled")" /></td>
                                 <td>@(principal.InspectionMode == Pegasus.Core.Cases.CaseInspectionMode.ImageBasedAssessment ? "Image Based Assessment" : "Physical address")</td>
-                                @* EXT-04: two independent settings, so both
-                                   are named when set rather than reduced to
-                                   one word that could not say "automatic, no
-                                   button". *@
-                                <td>@EvaSubmission(principal)</td>
+                                @* EXT-18 item 7: automatic EVA submission is
+                                   retired from this administration surface —
+                                   only the explicit optional manual setting
+                                   remains to name. *@
+                                <td>@(principal.EvaManualSubmission ? "On" : "Off")</td>
+                                <td>@DefaultLocation(principal)</td>
                                 <td>@(principal.PredecessorId?.ToString("D") ?? "None")</td>
                                 <td>@(principal.SuccessorId?.ToString("D") ?? "None")</td>
                                 <td class="tabular">@principal.AllocatedCaseCount</td>
@@ -93,7 +95,7 @@ else
                                            asp-route-principalId="@principal.Id">Replace</a>
                                         <a asp-page="EvaSubmission"
                                            asp-route-organizationId="@organization.Id"
-                                           asp-route-principalId="@principal.Id">EVA API</a>
+                                           asp-route-principalId="@principal.Id">Settings</a>
                                     }
                                     else
                                     {
@@ -127,12 +129,8 @@ else
 </nav>
 
 @functions {
-    private static string EvaSubmission(Pegasus.Core.Cases.PrincipalAdministrationSummary principal) =>
-        (principal.EvaManualSubmission, principal.EvaAutomaticSubmission) switch
-        {
-            (true, true) => "Manual and automatic",
-            (true, false) => "Manual",
-            (false, true) => "Automatic",
-            _ => "Off"
-        };
+    private static string DefaultLocation(Pegasus.Core.Cases.PrincipalAdministrationSummary principal) =>
+        principal.DefaultInspectionAddress is null
+            ? "Image Based Assessment"
+            : principal.DefaultInspectionLocationLabel ?? principal.DefaultInspectionAddress;
 }
