@@ -170,6 +170,11 @@ public sealed class EfRepairSpecificationStore(
         Accept(entity, basis, request.Actor, now);
         entity.IsCurrent = true;
         entity.LastOperationKey = request.OperationKey;
+        // The current estimate's accepted breakdown is a frozen report
+        // input: a new acceptance stales the current generation here, in the
+        // same transaction.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context, request.CaseId, "estimate_accepted", now, cancellationToken);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "repair_specification_accepted", requestHash,
             new { entity.Id, entity.Version }, now);
@@ -198,9 +203,11 @@ public sealed class EfRepairSpecificationStore(
 
         CaseRepairSpecificationEntity entity;
         string eventType;
+        var editingCurrent = false;
         if (request.EstimateId is { } estimateId)
         {
             entity = await RequiredEstimateAsync(context, request.CaseId, estimateId, cancellationToken);
+            editingCurrent = entity.IsCurrent;
             EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
             context.CaseEstimateLines.RemoveRange(entity.Lines);
             entity.Lines.Clear();
@@ -233,6 +240,13 @@ public sealed class EfRepairSpecificationStore(
         entity.LastOperationKey = request.OperationKey;
         ApplyDetails(entity, request.Details);
         AddLines(context, entity, request.Lines, request.Actor, now);
+        if (editingCurrent)
+        {
+            // Editing the current estimate changes the breakdown a frozen
+            // report pinned; a Draft-only save never stales a generation.
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, "current_estimate_saved", now, cancellationToken);
+        }
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             eventType, requestHash, new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count }, now);
         await context.SaveChangesAsync(cancellationToken);
@@ -319,11 +333,19 @@ public sealed class EfRepairSpecificationStore(
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var entity = await RequiredEstimateAsync(context, request.CaseId, request.EstimateId, cancellationToken);
         EstimatePolicy.ValidateDiscard(Map(entity));
+        var discardingCurrent = entity.IsCurrent;
         entity.State = RepairSpecificationState.Discarded.ToString();
         entity.DiscardedBy = request.Actor.SubjectId;
         entity.DiscardedAtUtc = now;
         entity.DiscardReason = RequiredReason(request.Reason);
         entity.LastOperationKey = request.OperationKey;
+        if (discardingCurrent)
+        {
+            // Discarding the current estimate removes the breakdown a frozen
+            // report pinned; discarding a Draft changes nothing it froze.
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, "current_estimate_discarded", now, cancellationToken);
+        }
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_discarded", requestHash, new { entity.Id, entity.Version, entity.Name }, now);
         await context.SaveChangesAsync(cancellationToken);
@@ -383,6 +405,10 @@ public sealed class EfRepairSpecificationStore(
         }
         entity.IsCurrent = true;
         entity.LastOperationKey = request.OperationKey;
+        // Currency moved: the newly current estimate's figures are what the
+        // next generation freezes, so any existing one is stale now.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context, request.CaseId, "estimate_set_current", now, cancellationToken);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_set_current", requestHash,
             new { entity.Id, entity.Version, entity.Name, Previous = previous.Select(item => item.Id).ToArray() }, now);
