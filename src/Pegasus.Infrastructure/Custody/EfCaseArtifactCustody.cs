@@ -52,7 +52,7 @@ internal sealed class EfCaseArtifactCustody(
                     || !Guid.TryParse(request.Actor.SubjectId, out var requestLinkId)
                     || requestLinkId == Guid.Empty)
                 {
-                    throw new UnauthorizedAccessException("The request-upload custody authority is unavailable.");
+                    throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
                 }
                 await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
                 {
@@ -80,7 +80,7 @@ internal sealed class EfCaseArtifactCustody(
                 && value.ExpiresAtUtc > nowUtc,
                 cancellationToken);
         if (!authorized)
-            throw new UnauthorizedAccessException("The request-upload custody authority is unavailable.");
+            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
     }
 
     public async Task<CaseArtifactCustodyResult> GetAsync(
@@ -90,12 +90,16 @@ internal sealed class EfCaseArtifactCustody(
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         if (caseId == Guid.Empty || documentId == Guid.Empty || versionId == Guid.Empty)
         {
             throw new ArgumentException("Complete Case artifact identities are required.");
         }
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var requestLinkId = RequireStatusActor(actor);
+        var requestLinkCreator = requestLinkId is { } linkId
+            ? $"{ActorKind.RequestLink}:{linkId:D}"
+            : null;
+        var nowUtc = timeProvider.GetUtcNow();
         var version = await (
             from document in db.Set<CaseDocumentEntity>().AsNoTracking()
             join item in db.Set<DocumentVersionEntity>().AsNoTracking()
@@ -104,16 +108,104 @@ internal sealed class EfCaseArtifactCustody(
                 && document.Id == documentId
                 && item.Id == versionId
                 && !item.IsLogicallyRemoved
-            select item).SingleOrDefaultAsync(cancellationToken)
-            ?? throw new FileNotFoundException("The authorized Case artifact version is unavailable.");
-        return version.CustodyStatus switch
+                && (requestLinkCreator == null
+                    || item.CreatedBy == requestLinkCreator
+                    && db.Set<RequestUploadLinkEntity>().Any(link =>
+                        link.Id == requestLinkId
+                        && link.CaseId == caseId
+                        && link.Status == RequestUploadStatus.Active
+                        && link.RevokedAtUtc == null
+                        && link.ExpiresAtUtc > nowUtc)
+                    && db.Set<DocumentOccurrenceEntity>().Any(occurrence =>
+                        occurrence.CaseId == caseId
+                        && occurrence.DocumentId == documentId
+                        && occurrence.VersionId == versionId))
+            select item).SingleOrDefaultAsync(cancellationToken);
+        if (version is null)
+        {
+            if (requestLinkId is { } missingRequestLinkId)
+            {
+                // This query classifies a miss only. Successful disclosure above
+                // is authorized atomically in the statement that returns the row.
+                await RequireRequestLinkAuthorityAsync(
+                    db, missingRequestLinkId, caseId, cancellationToken);
+            }
+            throw new FileNotFoundException("The authorized Case artifact version is unavailable.");
+        }
+        return Status(version);
+    }
+
+    public async Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+        ActionActor actor,
+        Guid caseId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty || string.IsNullOrWhiteSpace(operationKey))
+        {
+            throw new ArgumentException("A Case and custody operation key are required.");
+        }
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var requestLinkId = RequireStatusActor(actor);
+        var requestLinkCreator = requestLinkId is { } linkId
+            ? $"{ActorKind.RequestLink}:{linkId:D}"
+            : null;
+        var nowUtc = timeProvider.GetUtcNow();
+        var version = await (
+            from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join document in db.Set<CaseDocumentEntity>().AsNoTracking()
+                on occurrence.DocumentId equals document.Id
+            join item in db.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.VersionId equals item.Id
+            where occurrence.OperationKey == operationKey
+                && occurrence.CaseId == caseId
+                && document.CaseId == caseId
+                && item.DocumentId == document.Id
+                && !item.IsLogicallyRemoved
+                && (requestLinkCreator == null
+                    || item.CreatedBy == requestLinkCreator
+                    && db.Set<RequestUploadLinkEntity>().Any(link =>
+                        link.Id == requestLinkId
+                        && link.CaseId == caseId
+                        && link.Status == RequestUploadStatus.Active
+                        && link.RevokedAtUtc == null
+                        && link.ExpiresAtUtc > nowUtc))
+            select item).SingleOrDefaultAsync(cancellationToken);
+        if (version is not null)
+        {
+            return Status(version);
+        }
+        if (requestLinkId is { } missingRequestLinkId)
+        {
+            await RequireRequestLinkAuthorityAsync(
+                db, missingRequestLinkId, caseId, cancellationToken);
+        }
+        return null;
+    }
+
+    private static Guid? RequireStatusActor(ActionActor actor)
+    {
+        if (actor.Kind != ActorKind.RequestLink)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+            return null;
+        }
+        StaffAuthorization.Require(actor, StaffAccessRight.SubmitRequestUpload);
+        if (!Guid.TryParse(actor.SubjectId, out var requestLinkId) || requestLinkId == Guid.Empty)
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+        }
+        return requestLinkId;
+    }
+
+    private static CaseArtifactCustodyResult Status(DocumentVersionEntity version) =>
+        version.CustodyStatus switch
         {
             DocumentCustodyStatus.Confirmed => Confirmed(version),
             DocumentCustodyStatus.Pending => Pending(version, "case_custody_pending"),
             DocumentCustodyStatus.Failed => Failed(version, "case_custody_failed"),
             _ => throw new InvalidDataException("The artifact custody status is invalid.")
         };
-    }
 
     private async Task<CaseArtifactCustodyResult> RetainCaseAsync(
         Guid caseId,
