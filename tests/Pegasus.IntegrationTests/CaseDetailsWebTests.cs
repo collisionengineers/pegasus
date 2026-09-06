@@ -311,6 +311,63 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// PR 670 port (B01): an upload request names who it was sent to and why,
+    /// read from the request's own record; a request recorded before those
+    /// facts existed shows the absent marker rather than an empty cell.
+    /// </summary>
+    [Fact]
+    public async Task UploadRequestsListRecipientAndReasonFromTheRecord()
+    {
+        var createdAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
+        {
+            RequestUploadLinks =
+            [
+                new(
+                    Guid.NewGuid(),
+                    RequestUploadStatus.Active,
+                    createdAtUtc,
+                    createdAtUtc.AddDays(7),
+                    null,
+                    0,
+                    0,
+                    1,
+                    "Provider claims team",
+                    "Missing photographs of the rear damage"),
+                new(
+                    Guid.NewGuid(),
+                    RequestUploadStatus.Expired,
+                    createdAtUtc.AddDays(-14),
+                    createdAtUtc.AddDays(-7),
+                    null,
+                    2,
+                    4_096,
+                    3)
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+        var panel = Section(html, "case-upload-requests-title");
+        var visible = WebUtility.HtmlDecode(VisibleText(panel));
+
+        foreach (var heading in new[] { "Recipient", "Reason", "State", "Created", "Expires", "Accepted" })
+        {
+            Assert.Contains(heading, visible, StringComparison.Ordinal);
+        }
+        Assert.Contains("Provider claims team", visible, StringComparison.Ordinal);
+        Assert.Contains("Missing photographs of the rear damage", visible, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(visible, Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue));
+    }
+
+    /// <summary>
     /// The frame's fragment handler answers with one section body and nothing
     /// of the record around it, so a mounted section cannot replace the frame
     /// or another section.
