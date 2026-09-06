@@ -175,7 +175,14 @@ internal static partial class InstructionFieldEngine
                     ? bound.Candidate with { Locator = locator with { Occurrence = occurrence } }
                     : bound.Candidate;
                 occurrence++;
-                yield return (candidate, bound.FragmentRank);
+                // Every structured reading of one field is a PEER of every
+                // other, so they all carry the same rank. Document order is a
+                // rule about a document's parts — an instruction before an
+                // appended report — and it says nothing about two cells of one
+                // row: letting it choose between them would be exactly the
+                // first-match winner the invariants forbid. Two cells the
+                // document supports equally stay ambiguous.
+                yield return (candidate, 0);
             }
         }
 
