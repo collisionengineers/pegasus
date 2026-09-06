@@ -172,6 +172,21 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionProfileSharesOperationsSnapshotWithAttentionRows()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var snapshot = services.GetRequiredService<GetOperationsSnapshot>();
+
+        Assert.Same(snapshot, services.GetRequiredService<IGetOperationsSnapshot>());
+        Assert.Same(snapshot, services.GetRequiredService<IGetAttentionRows>());
+        Assert.Single(services.GetServices<IGetOperationsSnapshot>());
+        Assert.Single(services.GetServices<IGetAttentionRows>());
+    }
+
+    [Fact]
     public void ProductionProfileDrivesTriageFromTheAcceptedRouteClassification()
     {
         // Automatic Triage matching was pinned inactive while its predicates

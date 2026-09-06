@@ -318,7 +318,11 @@ public static class DependencyInjection
         services.AddScoped<RetryMailboxProcessing>();
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
-        services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<GetOperationsSnapshot>();
+        services.AddScoped<IGetOperationsSnapshot>(provider =>
+            provider.GetRequiredService<GetOperationsSnapshot>());
+        services.AddScoped<IGetAttentionRows>(provider =>
+            provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
         services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
         services.AddScoped<GetEngineerActivityReport>();
