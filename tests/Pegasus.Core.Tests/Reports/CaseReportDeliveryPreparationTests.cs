@@ -168,6 +168,24 @@ public sealed class CaseReportDeliveryPreparationTests
             () => CaseReportDeliveryPolicy.RequireReady(request, record));
     }
 
+    /// <summary>
+    /// Stream A review (multiplicity): a request that duplicates one
+    /// artifact and omits another has the same count as the pin and every
+    /// item contained — a count-plus-contains check would pass it and send
+    /// without the fee note. Exact identity equality refuses it before the
+    /// transport is ever invoked.
+    /// </summary>
+    [Fact]
+    public void ReadinessRefusesADuplicatedArtifactThatOmitsAnother()
+    {
+        var pinned = new[] { ReportAttachment, FeeAttachment };
+        var record = Record(pinned: pinned, confirmed: pinned);
+        var request = ReadyRequest() with { Artifacts = [ReportAttachment, ReportAttachment] };
+
+        Assert.Throws<InvalidOperationException>(
+            () => CaseReportDeliveryPolicy.RequireReady(request, record));
+    }
+
     [Fact]
     public async Task DeliveryIsAStaffActAndRefusesOtherActors()
     {
@@ -299,12 +317,13 @@ public sealed class CaseReportDeliveryPreparationTests
         actor ?? Staff(), CaseId, 1, GenerationId, 1, PreparationId, 1, [ReportAttachment]);
 
     private static CaseReportDeliveryPreparationRecord Record(
+        IReadOnlyList<StaffMailAttachment>? pinned = null,
         IReadOnlyList<StaffMailAttachment>? confirmed = null,
         long frozenCaseVersion = 1,
         long currentCaseVersion = 1) => new(
         new CaseReportDeliveryPreparation(
             PreparationId, CaseId, GenerationId, 1, 1,
-            [ReportAttachment], Staff(), PreparedAtUtc),
+            pinned ?? [ReportAttachment], Staff(), PreparedAtUtc),
         new CaseReportDeliveryAddressing(
             [new("handler@principal.example", null)], [], "DVR-31001"),
         frozenCaseVersion,
@@ -312,7 +331,7 @@ public sealed class CaseReportDeliveryPreparationTests
         CaseReportGenerationState.Confirmed,
         GenerationIsCurrent: true,
         CurrentGenerationVersion: 1,
-        confirmed ?? [ReportAttachment]);
+        confirmed ?? pinned ?? [ReportAttachment]);
 
     private static CaseReportArtifactRecord Artifact(
         CaseReportArtifactStatus status,

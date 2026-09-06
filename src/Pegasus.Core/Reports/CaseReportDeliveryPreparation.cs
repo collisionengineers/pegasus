@@ -243,15 +243,16 @@ public static class CaseReportDeliveryPolicy
                 $"Report delivery preparation '{preparation.Id}' is at version {preparation.Version}, not expected version {request.ExpectedPreparationVersion}.");
         }
 
-        if (request.Artifacts.Count == 0
-            || request.Artifacts.Count != preparation.Artifacts.Count
-            || request.Artifacts.Any(attachment => !preparation.Artifacts.Contains(attachment)))
+        // Exact identity equality against the frozen pin — same count, same
+        // items, same order. A count-plus-contains check would let a
+        // duplicated artifact omit another (Stream A review, multiplicity).
+        if (!request.Artifacts.SequenceEqual(preparation.Artifacts))
         {
             throw new InvalidOperationException(
                 $"The attachments to send are not the ones report delivery preparation '{preparation.Id}' pinned.");
         }
 
-        if (request.Artifacts.Any(attachment => !record.ConfirmedArtifacts.Contains(attachment)))
+        if (!request.Artifacts.SequenceEqual(record.ConfirmedArtifacts))
         {
             throw new InvalidOperationException(
                 $"An attachment of report delivery preparation '{preparation.Id}' no longer matches its confirmed artifact's hash, length or identity.");
