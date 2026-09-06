@@ -52,19 +52,24 @@ public sealed class OrganizationAdministrationPersistenceTests
                 default));
         Assert.Equal(OrganizationAdministrationError.DuplicateOrganizationName, duplicateName.Error);
 
+        // A code the foundation migration (C-F05) has not already seeded:
+        // Principal.Code is unique globally, not per organization, so a
+        // fresh create using one of its 15 frozen codes (e.g. "qdos") would
+        // collide with the seeded row instead of exercising this create/
+        // replay/duplicate/conflict path.
         var principalRequest = new CreatePrincipalRequest(
             organization.Id,
-            "qdos",
+            "alpha",
             Administrator,
-            "principal:create:qdos");
+            "principal:create:alpha");
         var principal = await createPrincipal.ExecuteAsync(principalRequest, default);
         var principalReplay = await createPrincipal.ExecuteAsync(principalRequest, default);
 
-        Assert.Equal("QDOS", principal.Code);
+        Assert.Equal("ALPHA", principal.Code);
         Assert.Equal(principal, principalReplay);
         var duplicateCode = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             createPrincipal.ExecuteAsync(
-                principalRequest with { OperationKey = "principal:create:qdos-duplicate" },
+                principalRequest with { OperationKey = "principal:create:alpha-duplicate" },
                 default));
         Assert.Equal(OrganizationAdministrationError.DuplicatePrincipalCode, duplicateCode.Error);
         var principalConflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
@@ -227,25 +232,21 @@ public sealed class OrganizationAdministrationPersistenceTests
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
-        var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
-        var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
         var replacePrincipal = scope.ServiceProvider.GetRequiredService<IReplacePrincipal>();
         var getOrganization = scope.ServiceProvider.GetRequiredService<IGetOrganization>();
         var acceptIntake = scope.ServiceProvider.GetRequiredService<IAcceptIntake>();
-        var organization = await createOrganization.ExecuteAsync(
-            new(
-                "Replacement Provider",
-                [OrganizationRole.WorkProvider],
-                Administrator,
-                "organization:create:replacement"),
-            default);
-        var predecessor = await createPrincipal.ExecuteAsync(
-            new(
-                organization.Id,
-                QdosPrincipal.Code,
-                Administrator,
-                "principal:create:replacement"),
-            default);
+
+        // The foundation migration (C-F05) already seeds the QDOS principal
+        // and its owning work-provider organization exactly once; a fresh
+        // create with the same principal code would collide with it
+        // globally (Principal.Code has no per-organization scope), so the
+        // predecessor here is the seeded row itself, replaced within its
+        // own already-seeded, already-eligible organization.
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var seedContext = await contextFactory.CreateDbContextAsync();
+        var predecessor = await seedContext.Principals.AsNoTracking()
+            .SingleAsync(item => item.Code == QdosPrincipal.Code);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
         var receiptVersion = await factory.Database.ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
@@ -264,7 +265,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
             predecessor.Version,
-            organization.Id,
+            predecessor.OrganizationId,
             "QDOSNEXT",
             Administrator,
             "principal:replace:qdos",
@@ -278,7 +279,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(predecessor.Id, successor.PredecessorId);
         Assert.True(successor.IsActive);
         var details = await getOrganization.ExecuteAsync(
-            new(Administrator, organization.Id),
+            new(Administrator, predecessor.OrganizationId),
             default);
         Assert.NotNull(details);
         var persistedPredecessor = Assert.Single(
