@@ -130,3 +130,7 @@ Independent reviewer: one major `C01-R-1` (Unidentified keyset continuation filt
 ## Corpus lane finding from A
 
 `MultiFormatGenuineCorpusWebTests.GenuineMsgIsRetainedInNeedsSortingWithoutReference` fails on A's immutable corpus (pinned MSG `7e4c50d5…`): expected `NeedsSorting`, actual `CaseCreated`. The sample is not in the reference pack and this machine has no `corpus/`, so C requested the receipt's route/classification/extraction evidence from A's lane before deciding between re-pointing the assertion to what a routed staff-uploaded instruction should prove (with a non-routed `.msg` pinned for the NeedsSorting case) and fixing a C route/classification defect. Evidence limit recorded: the genuine-format cohort and QDOS cohorts skip on this workstation (INCONCLUSIVE, never PASS); C relies on A's corpus lane for those.
+
+## C07 review (b46a07452): needs-changes
+
+Two majors in `EfPublicUploadRetentionStore` (Box identities cleared on non-Confirmed records; UPDATE grant on `PublicUploadOccurrences` missing in A's migration — handoff), six minors/nits; allocator order, keyset, PR 671 corrections, session policy, custody invariants, G12 typed actors verified in code; no A-owned file touched. Correction round 3 dispatched; grant request posted to A. Both slices then get a targeted re-review and integrate.
