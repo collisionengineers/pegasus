@@ -196,3 +196,158 @@ and nowhere else in the store, and both columns carry unique indexes.
 
 A `## Simplification pass` section was added to the report over this slice's own
 diff — the review correctly found none.
+
+## C07b — RetainIncomingArtifact gets its production caller (branch `c07-retention-caller`, head `87eebffe1`)
+
+The public upload path (`/Uploads/{token}` → `IUploadToRequest` →
+`EfDocumentRequestStore`) now hands its bytes to custody instead of claiming
+custody itself. It stopped creating `CaseDocumentEntity`/`DocumentVersionEntity`
+(with `CustodyStatus = Confirmed` before any custody)/`DocumentOccurrenceEntity`
+and stopped writing through `IDocumentContentStore`. Order per request:
+
+1. token lookup → prior-receipt replay/conflict → `uploadPolicy.Authorize` →
+   archived/terminal guard (all unchanged);
+2. get-or-create the link's one `PublicUploadSessionEntity`, refuse when the
+   session no longer `AcceptsBytes` (`Unavailable`, no Case disclosure), refuse
+   `LimitsVersionMismatch` when the session's recorded limits version is not the
+   accepted one;
+3. get-or-create the `PublicUploadOccurrenceEntity` as `pending` with the
+   server-issued id; **commit**;
+4. `RetainIncomingArtifact.ExecuteAsync(ActionActor.RequestLink(link.Id), …)`
+   with the link row's own `CaseId`, read inside the transaction that
+   authorized the upload, and `IntakeReceiptId: null`;
+5. Confirmed/Pending → `Accepted`; Failed/Unknown → `NotRetained`. Only an
+   accepted disposition writes the receipt, increments
+   `AcceptedFileCount`/`AcceptedByteCount`/`Exhausted` and bumps the workflow
+   version; only a Confirmed one runs `PublicUploadSessionPolicy.Start`.
+
+### DECISION — the optional-bridge pattern (as C01 and C08)
+
+`RetainIncomingArtifact? retention = null` is an optional constructor
+dependency of `EfDocumentRequestStore`. When it is null `ExecuteAsync` returns
+`Unavailable` **before any row is written or read** and logs nothing. No stub,
+no fake success, no partial arrival. `UnavailableDocumentRequestStore` is
+untouched, and `IDocumentContentStore` was removed from the constructor because
+nothing on the path uses it any more (MS.DI resolves the optional parameter to
+null while the port is unregistered).
+
+### DECISION — `RequestUploadDecision.NotRetained` is a new member
+
+The enum had nothing for "custody did not take it". `Unavailable` means the
+link is gone and hides the Case, `RateLimited` names a limit that was not
+reached, and `InvalidFile`/`LimitExceeded` would blame a file policy had
+already accepted. `Failed` **and** `Unknown` both map to it: the same operation
+key is the safe retry either way, because `RetainIncomingArtifact` reconciles
+an uncertain hand-over instead of re-offering the bytes. `Request.cshtml.cs`
+renders it with the same plain, Case-free sentence its exception path already
+used.
+
+### DECISION — the occurrence key is scoped by the link, not the session
+
+`EfPublicUploadRetentionStore.ScopeOperationKey(Guid requestUploadLinkId, …)`
+now mints `request:{linkId:N}:{key}` (was `public-upload:{sessionId:N}:{key}`).
+It is the shape the legacy path already recorded on `DocumentOccurrences`, it
+survives any rebuild of the session row beneath the link, and uniqueness is
+unchanged because `PublicUploadSessions` carries a unique index on
+`RequestUploadLinkId` (exactly one session per link, forever — an expired
+session is never restarted; B reissues a new link on explicit staff action).
+`IncomingArtifactCustodyTests` was updated to the new signature.
+
+### ASSUMPTION 5 (C07b implementer, attempt 1) — the receipt is written after the hand-over, from the document occurrence custody created
+
+`RequestUploadReceiptEntity.OccurrenceId` and `.VersionId` are non-nullable
+`Guid`, and `CustodyModelConfiguration.cs:103` binds `OccurrenceId` as a
+**foreign key into `DocumentOccurrences`** — so it can never hold a
+`PublicUploadOccurrenceEntity.Id`, and `CaseArtifactCustodyResult` returns no
+occurrence identity. The receipt is therefore recorded after the hand-over,
+with `VersionId` from custody and `OccurrenceId` looked up as the document
+occurrence custody created for that version. When an adapter creates none, no
+receipt is written and `UploadToRequestResult.ReceiptId` is null; the accepted
+result still stands. Because: the FK is A-owned entity configuration and out of
+scope, and replay safety does not rest on the receipt — the
+`PublicUploadOccurrenceEntity` is committed *before* custody and is what makes
+a retry one retention (`RetainIncomingArtifact.FindAsync` returns the same
+document/version). Alternatives: keep creating a `DocumentOccurrenceEntity` in
+the caller (the brief forbids it, and it is the defect being removed), or stop
+writing receipts entirely (silently freezes `EfOperationsStore`'s
+`lastReceiptAtUtc` staff projection).
+
+### ASSUMPTION 6 (C07b implementer, attempt 1) — a Pending disposition returns `Accepted`
+
+The brief says Confirmed **or** Pending → `Accepted` because A04's Pending is
+durable. The plan's stop condition reads "an accepted upload lacks confirmed
+custody is a stop". They are reconciled as: `Accepted` means the bytes are held
+durably, `Confirmed` means custody holds them, and nothing claims the latter on
+a Pending — `CustodyStatus` stays `Pending`, no Box identity is written
+(`RecordAsync` guards on Confirmed), the fixed window does **not** open, and
+`RetainedIncomingArtifact.IsConfirmed` remains the one success gate. What a
+Pending *does* consume is the link's accepted file and byte totals, per the
+brief's "only for accepted dispositions". Because: the brief is the operative
+instruction and the stop condition is about a false custody claim, which this
+is not. Alternative: refuse a Pending, which would make a durable arrival look
+like a failure to the sender and invite a duplicate.
+
+### DEVIATION — two C-owned test files edited beyond the brief's enumeration
+
+Both are in the plan's `### C07 files` "Existing C files" list, and both were
+compile- or premise-broken by the change:
+
+- `tests/Pegasus.IntegrationTests/DocumentCustodyDurabilityTests.cs` — the only
+  direct `new EfDocumentRequestStore(...)` caller, and its request-upload case
+  proved that *this path* wrote content and removed the orphan when its own
+  save failed. The path writes no content now, so the test is retargeted to the
+  property that replaced it: a failed arrival save leaves no session, no
+  occurrence, no receipt, no document and no hand-over, and the same operation
+  key then succeeds exactly once. Its `ManagedOnlyDocumentContentStore` double
+  had no other caller and was removed; the save interceptor now trips on the
+  added `PublicUploadOccurrenceEntity`.
+- `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` — its
+  terminal-state test performs a real accepted upload, so its host now
+  registers the accept path through `PublicUploadRetentionWebTests.WithRetention`
+  (two lines). Without it the fail-closed `Unavailable` would have made a green
+  test red for the right reason but the wrong subject.
+
+`PublicUploadSessionTests` changed only a doc remark (it is pure policy; its
+premises are untouched).
+
+### C07-R-1 is CLOSED for the Web accept path
+
+`20260906054658_V1PlatformFoundation.cs:1319` now grants
+`SELECT,INSERT,UPDATE` on **both** `[dbo].[PublicUploadSessions]` and
+`[dbo].[PublicUploadOccurrences]` to `[pegasus_web_runtime_role]`, with
+`DENY DELETE` on both. That is exactly what this caller needs: INSERT the
+session and the occurrence, UPDATE both. No grant statement is outstanding for
+the Web request path.
+
+- [ ] Still open, and A's call: `[pegasus_worker_runtime_role]` holds **nothing**
+  on either table (`:1320` grants it other tables only). It needs
+  `SELECT,INSERT,UPDATE` on both if and only if the `Unknown` reconciliation
+  sweep runs from the Worker rather than a Web request — the likely shape once
+  A04 lands, since reconciliation is a durable retry.
+
+### RESIDUAL (C07-R-9) — the Worker-side channels are still uncalled
+
+- [ ] Plan item 7 asks for `RetainIncomingArtifact` on *every* received,
+  Unidentified, Triage and Image Intake occurrence. Only the public-upload
+  channel has its caller. The mail/provider/Unidentified/Triage-image channels
+  are untouched by this slice (their surfaces are Worker-side and outside this
+  brief), and each will need its own `IIncomingArtifactRetentionStore`
+  implementation for its own retained-record shape plus a `SystemWorker` actor
+  for the hand-over. Nothing in them claims confirmed custody today, so the
+  residual is a gap, not a defect.
+
+### Host registration handoff for A
+
+```csharp
+services.AddScoped<RetainIncomingArtifact>();
+services.AddScoped<IIncomingArtifactRetentionStore, EfPublicUploadRetentionStore>();
+```
+
+plus `ICaseArtifactCustody` **and** `ICaseArtifactCustodyStatus` resolving to
+A04's `EfCaseArtifactCustody` (the status port is optional on the command, but
+without it an `Unknown` hand-over can never be reconciled and stays Unknown
+forever). `EfDocumentRequestStore` picks the command up through its optional
+constructor parameter, so no change is needed where `AddScoped<EfDocumentRequestStore>()`
+already stands. Until those three registrations land, every public submission
+returns `Unavailable` / 404 and writes nothing — proved by
+`PublicUploadRetentionWebTests.WithoutTheRetentionCommandTheSubmissionRefusesAndWritesNothing`.
