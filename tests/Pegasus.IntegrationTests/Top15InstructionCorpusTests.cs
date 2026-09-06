@@ -451,6 +451,11 @@ public sealed class Top15InstructionCorpusTests
         ,new("RJS", $"{CorpusRoot}/RJS 03.DOC", "a8718e95523dd99230583153d03236984d95a5b12cd63f02b1cc78320ccd215d", new("Mr Mohamad Rizaf Mohamad Ilyas", "126170.001/LG/LG", "SF16EFM", new(2026, 4, 29), new(2026, 4, 30)), [new("Inspection address", "14 St. Edmunds Close Crawley RH11 7SR", "Claimant contact address has its own role.")])
         ,new("RJS", $"{CorpusRoot}/RJS 04.DOC", "bd1b55ea9ea8861665e252697a78fd04113f5032efc5c2127e372ebf51c4d118", new("Mr Abdul Malik", "126068.001/LG/LDB", "EA21YFN", new(2026, 4, 21), new(2026, 4, 28)), [new("Inspection address", "113 Dallow Road Luton LU1 1NP", "Claimant contact address has its own role.")])
         ,new("RJS", $"{CorpusRoot}/RJS 05.DOC", "4e789343422d0d79c4fa1b021b06ba2acdf318e72018e2732384bef31a220b26", new("Mrs Amna Ali", "125950.001/BN/BN", "YG67SZR", new(2026, 4, 21), new(2026, 4, 27)), [new("Inspection address", "250 Selbourne Road LU4 8LU", "Claimant contact address has its own role.")])
+        ,new("DFD", $"{CorpusRoot}/DFD 01.pdf", "a8eebc6d0c4088cd8d7a1ccff8dc690a5f8a13c96457d1bc04b1aed7b4930782", new("Samantha Wilson", "RJP/81517", "LS69OYW", new(2026, 4, 28), new(2026, 5, 1)), [])
+        ,new("DFD", $"{CorpusRoot}/DFD 02.pdf", "10f47df9a02a19c111e0ad07d9f739e904b4665fbe8a452640f4f7a1814fb72d", new("Henry Jones", "RJP/81516", "YS19OUA", new(2026, 4, 29), new(2026, 4, 30)), [])
+        ,new("DFD", $"{CorpusRoot}/DFD 03.pdf", "bc276820f055a184e8ca0f977b59e5bcdeb703ed15ebff24772f24511d0760d1", new("Farid Erfani", "RJP/81513", "DA17PGO", new(2026, 4, 24), new(2026, 4, 27)), [])
+        ,new("DFD", $"{CorpusRoot}/DFD 04.pdf", "6b27e492c18fbb4fde08ec059acbc3a79a18e2db4fa5036dfbae32224d96744b", new("Ali Abdul", "RJP/81509", "KJ17HHR", new(2026, 4, 14), new(2026, 5, 16)), [])
+        ,new("DFD", $"{CorpusRoot}/DFD 05.pdf", "ee4fab522c6f4bb5b3fbc693f405ac6282aa166d9af5bf9868f0f9a0d728019d", new("Alan Joseph", "RJP/81508", "GV12RHF", new(2026, 4, 1), new(2026, 4, 15)), [])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -542,7 +547,8 @@ public sealed class Top15InstructionCorpusTests
             new OakInstructionExtractionPolicy(),
             new SblInstructionExtractionPolicy(),
             new BlackInstructionExtractionPolicy(),
-            new RjsInstructionExtractionPolicy()
+            new RjsInstructionExtractionPolicy(),
+            new DfdInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
