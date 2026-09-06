@@ -869,10 +869,19 @@ public sealed class AutomationAssessmentIngressTests
                 line => Assert.False(line.GetProperty("isConfirmed").GetBoolean()));
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
-            Assert.Equal(100m, totals.GetProperty("labour").GetDecimal());
-            Assert.Equal(85m, totals.GetProperty("paint").GetDecimal());
+            Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());
+            Assert.Equal(60m, totals.GetProperty("paintLabour").GetDecimal());
+            Assert.Equal(25m, totals.GetProperty("materials").GetDecimal());
+            Assert.Equal(0m, totals.GetProperty("specialist").GetDecimal());
+            Assert.Equal(405.40m, totals.GetProperty("net").GetDecimal());
+            Assert.Equal(20m, totals.GetProperty("vatPercent").GetDecimal());
             Assert.Equal(81.08m, totals.GetProperty("vat").GetDecimal());
-            Assert.Equal(486.48m, totals.GetProperty("total").GetDecimal());
+            Assert.Equal(486.48m, totals.GetProperty("gross").GetDecimal());
+            Assert.False(totals.TryGetProperty("labour", out _));
+            Assert.False(totals.TryGetProperty("paint", out _));
+            Assert.False(totals.TryGetProperty("other", out _));
+            Assert.False(totals.TryGetProperty("subtotal", out _));
+            Assert.False(totals.TryGetProperty("total", out _));
             Assert.Equal(40m, estimate.GetProperty("labourRate").GetDecimal());
             Assert.False(estimate.TryGetProperty("paintLabourRate", out _));
         }
