@@ -102,6 +102,59 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// C08: the workspace contract says mailbox/folder/search/queue/unread/
+    /// sort/page are URL and retained-query state only — opening, previewing,
+    /// filtering or changing the unread scope never reaches Outlook or writes
+    /// a classification correction. <see cref="RecordingFolderMover"/> stands
+    /// in for the one Graph-facing port the pages can reach
+    /// (<see cref="MoveRetainedMailFolder"/>'s underlying mover) and
+    /// <see cref="RecordingClassificationStore"/> for
+    /// <see cref="CorrectRetainedMailClassification"/>'s store; both are
+    /// asserted at zero after every read action below. The explicit staff
+    /// <c>OnPostMoveToRecommendedFolderAsync</c> stays a write and is proved
+    /// elsewhere (<see cref="AuthenticatedStaffConfirmsTheServerDerivedFolderWithoutPostingTransportIdentity"/>).
+    /// </summary>
+    [Fact]
+    public async Task OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts()
+    {
+        var mover = new RecordingFolderMover();
+        var classificationStore = new RecordingClassificationStore();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IRetainedMailFolderMover>();
+                services.AddSingleton<IRetainedMailFolderMover>(mover);
+                services.RemoveAll<IRetainedMailClassificationStore>();
+                services.AddScoped<IRetainedMailClassificationStore>(_ => classificationStore);
+            }));
+        using var client = CreateClient(factory);
+
+        // Open the list, filter it every way the workspace contract names,
+        // preview a row, then open and return from the full message —
+        // carrying the exact same query string a real navigation would.
+        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=all&unread=true&sort=asc";
+        await GetHtmlAsync(client, "/Inbox");
+        await GetHtmlAsync(client, $"/Inbox?{query}");
+        await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={ids[0]:D}");
+
+        var messageHtml = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?{query}");
+        // "Back to Inbox" carries the mailbox the operator navigated with —
+        // the query state is preserved, not reset to the default.
+        var backLinkMarkup = Between(messageHtml, "<a class=\"btn\" asp-page", "Back to Inbox");
+        Assert.Contains($"href=\"/Inbox?mailbox={FirstMailboxId}", backLinkMarkup, StringComparison.Ordinal);
+
+        // Preview -> full message -> back preserves the query string:
+        // the message page carries it forward on every internal link it
+        // renders (the message tabs use the same asp-route-* set).
+        Assert.Contains($"mailbox={FirstMailboxId}", messageHtml, StringComparison.Ordinal);
+
+        Assert.Equal(0, mover.MoveCalls);
+        Assert.Equal(0, classificationStore.CorrectionCalls);
+    }
+
+    /// <summary>
     /// INTK-029's operator-facing half. The unlink dialog warns, naming the
     /// case, only when unlinking actually cancels it — that is, when the
     /// receipt's current link is the case its own acceptance created. A receipt
@@ -2204,6 +2257,36 @@ public sealed class MailWorkspaceWebTests
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(moved ? Coordinates?.DestinationFolderId : "inbox");
+    }
+
+    /// <summary>
+    /// C08: <see cref="CorrectRetainedMailClassification"/>'s store, recorded
+    /// rather than backed by real persistence — no read/open/preview/filter
+    /// path calls it, so a call here is itself the proof of an accidental
+    /// write.
+    /// </summary>
+    private sealed class RecordingClassificationStore : IRetainedMailClassificationStore
+    {
+        public int CorrectionCalls { get; private set; }
+
+        public Task<MailClassificationDossier?> GetClassificationAsync(
+            Guid messageId, CancellationToken cancellationToken) =>
+            Task.FromResult<MailClassificationDossier?>(null);
+
+        public Task<MailClassificationDossier> AppendCorrectionAsync(
+            Guid messageId,
+            int expectedVersion,
+            MailClassificationResult before,
+            MailClassificationResult after,
+            string actor,
+            string reason,
+            DateTimeOffset correctedAtUtc,
+            CancellationToken cancellationToken)
+        {
+            CorrectionCalls++;
+            throw new InvalidOperationException(
+                "A read-only mail workspace action attempted to write a classification correction.");
+        }
     }
 
     private sealed class SequenceRecoveryFolderMover(string recoveredParent) : IRetainedMailFolderMover
