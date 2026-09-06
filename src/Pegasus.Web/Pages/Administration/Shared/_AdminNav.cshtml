@@ -1,12 +1,15 @@
 @*
-    The administration area rail (§1.12). Only areas whose page exists are
-    listed — Service health, Action Logs and Reports join here when their
-    pages land (wave 4), never as dead links. Automation follows the existing
+    The administration area rail (§1.12). Automation follows the existing
     composition rule: absent when the ingress is not composed.
 
     ViewData["AdminArea"] — the current area key for aria-current:
     accounts | principals | configuration | mail | automation.
     ViewData["AdminAutomationComposed"] — whether to list Automation & AI.
+
+    C08: Action logs, AI jobs, Reports, Health, Valuation presets and Claim
+    sources land on other streams' branches in this slice, so these six are
+    plain `href` links rather than `asp-page` — the page name cannot resolve
+    locally yet. They convert to `asp-page` once their pages merge here.
 *@
 @{
     var area = ViewData["AdminArea"] as string;
@@ -37,4 +40,30 @@
             <span>@OperatorLabels.Admin.Automation</span>
         </a>
     }
+    @* C08 shell administration areas start — plain hrefs, see remark above. *@
+    <a href="/Administration/ActionLogs" aria-current="@Current("action-logs")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+        <span>@OperatorLabels.Admin.ActionLogs</span>
+    </a>
+    <a href="/Administration/AiJobs" aria-current="@Current("ai-jobs")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+        <span>@OperatorLabels.Admin.AiJobs</span>
+    </a>
+    <a href="/Administration/Reports" aria-current="@Current("reports")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+        <span>@OperatorLabels.Admin.Reports</span>
+    </a>
+    <a href="/Administration/Health" aria-current="@Current("health")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+        <span>@OperatorLabels.Admin.Health</span>
+    </a>
+    <a href="/Administration/ValuationPresets" aria-current="@Current("valuation-presets")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>@OperatorLabels.Admin.ValuationPresets</span>
+    </a>
+    <a href="/Administration/ClaimSources" aria-current="@Current("claim-sources")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>@OperatorLabels.Admin.ClaimSources</span>
+    </a>
+    @* C08 shell administration areas end *@
 </nav>
