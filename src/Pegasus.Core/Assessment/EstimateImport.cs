@@ -124,7 +124,9 @@ public sealed class ImportRawEstimate(
                 request.LeaseToken,
                 EstimateId: null,
                 new EstimateDetails(
-                    NextName(existing, parsed.ProviderName),
+                    string.IsNullOrWhiteSpace(request.Name)
+                        ? NextName(existing, parsed.ProviderName)
+                        : request.Name.Trim(),
                     RepairDays: null, LabourRate: null, PaintLabourRate: null,
                     PaintMaterials: null, OtherCosts: null,
                     EstimatePolicy.DefaultVatPercent, Notes: null),
@@ -206,7 +208,12 @@ public sealed class ImportRawEstimate(
                 line.WorkUnits, line.PaintWorkUnits, line.Price, line.Materials),
         };
 
-    /// <summary>"{Provider} {n}", counting the imports this Case already holds from that provider.</summary>
+    /// <summary>
+    /// The default Draft name when the caller supplies none: "{Provider} {n}",
+    /// counting the imports this Case already holds from that provider. A
+    /// caller-supplied <see cref="ImportRawEstimateRequest.Name"/> is used as
+    /// given (trimmed) and validated by <see cref="EstimatePolicy.ValidateDetails"/>.
+    /// </summary>
     private static string NextName(
         IReadOnlyList<RepairSpecificationVersion> existing, string providerName)
     {
