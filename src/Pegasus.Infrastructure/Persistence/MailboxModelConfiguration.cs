@@ -61,6 +61,9 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.SenderDisplayName).HasMaxLength(320);
             entity.Property(item => item.ToAddressesJson).IsRequired();
             entity.Property(item => item.CcAddressesJson).IsRequired();
+            entity.Property(item => item.ReplyToAddressesJson)
+                .HasColumnType("nvarchar(max)")
+                .IsRequired(false);
             entity.Property(item => item.Subject).HasMaxLength(1000);
             entity.Property(item => item.BodyExcerpt).HasMaxLength(400);
             entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength().IsRequired();
