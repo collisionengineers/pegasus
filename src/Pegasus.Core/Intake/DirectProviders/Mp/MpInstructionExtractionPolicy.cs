@@ -13,7 +13,7 @@ public sealed partial class MpInstructionExtractionPolicy
     [
         new("Claimant name", ["Our client"], PartyRole: "claimant"),
         new("Claim reference", ["Our Ref"], PartyRole: "principal", ReferenceRole: "principal"),
-        new("Vehicle registration", ["Vehicle Reg"], IsValidTyped: InstructionFieldEngine.IsUkRegistration, CanonicalValue: InstructionFieldEngine.NormalizeRegistration, PartyRole: "claimant"),
+        new("Vehicle registration", ["Vehicle Reg"], IsValidTyped: IsSevenCharacterUkRegistration, CanonicalValue: InstructionFieldEngine.NormalizeRegistration, PartyRole: "claimant"),
         new("Vehicle make and model", ["Vehicle description"], PartyRole: "claimant"),
         new("Incident date", ["Date of Accident"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
         new("Instruction date", ["Header date"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
@@ -57,6 +57,7 @@ public sealed partial class MpInstructionExtractionPolicy
         foreach (Match match in VehicleRegex().Matches(header)) { yield return Label(fragment, "Vehicle Reg", match.Groups["registration"].Value); yield return Label(fragment, "Vehicle description", match.Groups["vehicle"].Value); }
         foreach (Match match in AccidentRegex().Matches(header)) yield return Label(fragment, "Date of Accident", match.Groups["value"].Value);
         foreach (Match match in HeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", match.Groups["value"].Value);
+        if (text.Contains("[OCR page", StringComparison.Ordinal) && !header.Contains("MONTREAL", StringComparison.OrdinalIgnoreCase)) foreach (Match match in OcrCompactHeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", $"{match.Groups["day"].Value}/{match.Groups["month"].Value}/{match.Groups["year"].Value}");
         foreach (Match match in LocationRegex().Matches(body)) yield return Label(fragment, "Vehicle inspection address", match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
         foreach (Match match in MileageRegex().Matches(body)) yield return Label(fragment, "Mileage", match.Groups["value"].Value);
@@ -64,12 +65,14 @@ public sealed partial class MpInstructionExtractionPolicy
         foreach (Match match in VatRegex().Matches(body)) yield return Label(fragment, "VAT status", match.Groups["value"].Value);
     }
     private static IntakeContentFragment Label(IntakeContentFragment origin, string label, string value) => origin with { Text = $"{label}: {WhitespaceRegex().Replace(value, " ").Trim()}" };
+    private static bool IsSevenCharacterUkRegistration(string value) => InstructionFieldEngine.IsUkRegistration(value) && Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)).Length == 7;
     [GeneratedRegex(@"Please\s+arrange\s+to\s+inspect\s+the\s+above\s+vehicle\s+at\s+your\s+earliest\s+convenience\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)] private static partial Regex RequestRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ClaimantRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Ref\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
     [GeneratedRegex(@"(?im)^\s*Vehicle\s+Reg\s*:[ \t]*(?<registration>[^,\r\n]+)[ \t]*,[ \t]*(?<vehicle>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
     [GeneratedRegex(@"(?im)^\s*Date\s+of\s+Accident\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex AccidentRegex();
     [GeneratedRegex(@"(?m)^\s*(?<value>\d{1,2}/\d{1,2}/\d{4})\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex HeaderDateRegex();
+    [GeneratedRegex(@"(?m)^\s*(?<day>\d{1,2})/(?<month>\d{2})(?<year>\d{4})\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex OcrCompactHeaderDateRegex();
     [GeneratedRegex(@"(?ims)The\s+vehicle\s+is\s+to\s+be\s+inspected\s+at\s*:[ \t]*(?<value>.+?)(?=\n\s*Kind\s+regards)", RegexOptions.CultureInvariant, 100)] private static partial Regex LocationRegex();
     [GeneratedRegex(@"(?ims)^\s*(?:Accident\s+circumstances|Circumstances)\s*:[ \t]*(?<value>.+?)(?=\n\s*(?:The\s+vehicle|Kind\s+regards))", RegexOptions.CultureInvariant, 100)] private static partial Regex CircumstancesRegex();
     [GeneratedRegex(@"(?im)^\s*Mileage\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex MileageRegex();
