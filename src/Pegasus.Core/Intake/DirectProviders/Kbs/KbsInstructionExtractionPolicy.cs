@@ -46,7 +46,7 @@ public sealed partial class KbsInstructionExtractionPolicy
         var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(scoped, Definitions, Cache, processedAtUtc);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode, InstructionFieldEngine.TypedString(values["Claimant name"], 300),
-            InstructionFieldEngine.TypedString(values["Claim reference"], 100), InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]),
+            InstructionFieldEngine.TypedString(values["Claim reference"]?.Replace('‐', '-'), 100), InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]),
             InstructionFieldEngine.TypedString(values["Vehicle make"], 100), InstructionFieldEngine.TypedString(values["Vehicle model"], 100),
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]), InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]), InstructionFieldEngine.ParseDate(values["Instruction date"]),

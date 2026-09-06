@@ -54,7 +54,7 @@ public sealed partial class MpInstructionExtractionPolicy
         var header = text[..request.Index]; var body = text[request.Index..];
         foreach (Match match in ClaimantRegex().Matches(header)) yield return Label(fragment, "Our client", match.Groups["value"].Value);
         foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Ref", match.Groups["value"].Value);
-        foreach (Match match in VehicleRegex().Matches(header)) { yield return Label(fragment, "Vehicle Reg", match.Groups["registration"].Value); yield return Label(fragment, "Vehicle description", match.Groups["vehicle"].Value); }
+        foreach (Match match in VehicleRegex().Matches(header)) { var registration = match.Groups["registration"].Value; if (IsSevenCharacterUkRegistration(registration)) yield return Label(fragment, "Vehicle Reg", registration); yield return Label(fragment, "Vehicle description", match.Groups["vehicle"].Value); }
         foreach (Match match in AccidentRegex().Matches(header)) yield return Label(fragment, "Date of Accident", match.Groups["value"].Value);
         foreach (Match match in HeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", match.Groups["value"].Value);
         if (text.Contains("[OCR page", StringComparison.Ordinal) && !header.Contains("MONTREAL", StringComparison.OrdinalIgnoreCase)) foreach (Match match in OcrCompactHeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", $"{match.Groups["day"].Value}/{match.Groups["month"].Value}/{match.Groups["year"].Value}");
