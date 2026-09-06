@@ -225,6 +225,9 @@ public sealed class ProductionCompositionTests
 
         Assert.IsType<EfDocumentRequestStore>(
             scope.ServiceProvider.GetRequiredService<IUploadToRequest>());
+        Assert.IsType<EfPublicUploadRetentionStore>(
+            scope.ServiceProvider.GetRequiredService<IIncomingArtifactRetentionStore>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>());
         Assert.IsType<BoxDocumentContentStore>(
             scope.ServiceProvider.GetRequiredService<IDocumentContentStore>());
     }
