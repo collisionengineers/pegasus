@@ -72,16 +72,17 @@ public sealed partial class VehicleRegistrationCandidateLookup(IVehicleLookupAda
     public static IReadOnlyList<string> GenerateCandidates(string rawValue)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rawValue);
-        var original = SeparatorRegex().Replace(rawValue, string.Empty).ToUpperInvariant();
-        if (original.Length == 0 || original.Any(character => !char.IsAsciiLetterUpper(character) && !char.IsAsciiDigit(character)))
+        var original = WhitespaceRegex().Replace(rawValue, string.Empty).ToUpperInvariant();
+        if (original.Length is 0 or > 7
+            || original.Any(character => !char.IsAsciiLetterUpper(character) && !char.IsAsciiDigit(character)))
             return [];
 
         var positions = original.Select((character, index) => (character, index))
             .Where(item => item.character is 'O' or '0' or 'I' or '1').ToArray();
-        var results = new List<string>(MaximumCandidates);
+        var results = new List<(string Value, int Substitutions, int Ordinal)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var combinations = 1 << Math.Min(positions.Length, 20);
-        for (var mask = 0; mask < combinations && results.Count < MaximumCandidates; mask++)
+        var combinations = 1 << positions.Length;
+        for (var mask = 0; mask < combinations; mask++)
         {
             var characters = original.ToCharArray();
             for (var bit = 0; bit < positions.Length; bit++)
@@ -91,21 +92,30 @@ public sealed partial class VehicleRegistrationCandidateLookup(IVehicleLookupAda
                 characters[index] = character switch { 'O' => '0', '0' => 'O', 'I' => '1', '1' => 'I', _ => character };
             }
             var candidate = new string(characters);
-            if (IsSupportedRegistration(candidate) && seen.Add(candidate)) results.Add(candidate);
+            if (IsSupportedRegistration(candidate) && seen.Add(candidate))
+                results.Add((candidate, System.Numerics.BitOperations.PopCount((uint)mask), mask));
         }
-        return results;
+
+        if (results.Count > MaximumCandidates)
+            return [];
+
+        return results
+            .OrderBy(candidate => candidate.Substitutions)
+            .ThenBy(candidate => candidate.Ordinal)
+            .Select(candidate => candidate.Value)
+            .ToArray();
     }
 
     private static bool IsSupportedRegistration(string value) =>
         CurrentRegex().IsMatch(value) || PrefixRegex().IsMatch(value) || SuffixRegex().IsMatch(value)
-        || DatelessDigitsFirstRegex().IsMatch(value) || DatelessLettersFirstRegex().IsMatch(value)
-        || NorthernIrelandRegex().IsMatch(value);
+        || DigitsThenLettersRegex().IsMatch(value) || LettersThenDigitsRegex().IsMatch(value);
 
-    [GeneratedRegex(@"[\s-]", RegexOptions.CultureInvariant, 100)] private static partial Regex SeparatorRegex();
+    [GeneratedRegex(@"\s", RegexOptions.CultureInvariant, 100)] private static partial Regex WhitespaceRegex();
     [GeneratedRegex(@"^[A-Z]{2}[0-9]{2}[A-Z]{3}$", RegexOptions.CultureInvariant, 100)] private static partial Regex CurrentRegex();
     [GeneratedRegex(@"^[A-Z][0-9]{1,3}[A-Z]{3}$", RegexOptions.CultureInvariant, 100)] private static partial Regex PrefixRegex();
     [GeneratedRegex(@"^[A-Z]{3}[0-9]{1,3}[A-Z]$", RegexOptions.CultureInvariant, 100)] private static partial Regex SuffixRegex();
-    [GeneratedRegex(@"^[0-9]{1,4}[A-Z]{1,3}$", RegexOptions.CultureInvariant, 100)] private static partial Regex DatelessDigitsFirstRegex();
-    [GeneratedRegex(@"^[A-Z]{1,3}[0-9]{1,4}$", RegexOptions.CultureInvariant, 100)] private static partial Regex DatelessLettersFirstRegex();
-    [GeneratedRegex(@"^[A-Z]{1,3}[0-9]{1,4}$", RegexOptions.CultureInvariant, 100)] private static partial Regex NorthernIrelandRegex();
+    [GeneratedRegex(@"^[0-9]{1,4}[A-Z]{1,3}$", RegexOptions.CultureInvariant, 100)] private static partial Regex DigitsThenLettersRegex();
+    // This shared syntactic shape covers GB dateless letters-first and Northern
+    // Ireland registrations without maintaining a duplicate regular expression.
+    [GeneratedRegex(@"^[A-Z]{1,3}[0-9]{1,4}$", RegexOptions.CultureInvariant, 100)] private static partial Regex LettersThenDigitsRegex();
 }
