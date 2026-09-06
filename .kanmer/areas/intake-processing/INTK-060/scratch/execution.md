@@ -404,3 +404,7 @@ Build 0/0, core 287/287, web 57 + 7 known corpus skips, architecture 100. Reader
 ## A: INTK-027 bounded patch (PR 673 5561171653) + same-key replay correction (5561181368)
 
 Patch: 8,024 bytes, SHA-256 `14691a9f…`, against `92f98b749`, only `Core/Intake/DurableIntake.cs` + the two authorized `QdosAllocationRecoveryTests.cs` arguments; A infra/readers stay in the combined host; C owns further direct-constructor adaptations and the C05 tripwire retarget. A adapter `0c72818da`: same-key Pending replay returns the persisted status with one provider write; Failed replay returns its disposition. Applying the patch now.
+
+## INTK-027 patch applied — C branch `31e9857b8` (unpushed, build red)
+
+Patch hash verified, applied, committed with A attribution. Build fails on C's own direct `ProcessQueuedIntake` construction in `CustodyOutboxIntegrationTests.cs:2467` (new required `IReadLogicalDocumentVersion`). Integration implementer dispatched: adapt every C-owned direct construction with a C-owned reader double (standalone C has no A04 adapter — no production fallback), and retarget the C05 tripwire to `recorded_reading_stands` with the double serving the exact retained bytes. Then build, push, report. Editors: C07b r4, C03 b1, + this integration fix.
