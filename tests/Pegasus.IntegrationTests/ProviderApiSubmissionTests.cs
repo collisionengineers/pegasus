@@ -10,6 +10,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
 
@@ -720,6 +721,14 @@ public sealed class ProviderApiSubmissionTests
     /// Statement 8: an AMBIGUOUS match takes the identical path. PR 646 never
     /// drove this branch through the API - it was proven only by shared code -
     /// so it is executed here.
+    ///
+    /// Ambiguity needs two candidates that BOTH survive the eliminator, and the
+    /// eliminator is contradiction-driven: a declared claim reference that
+    /// differs from a candidate's ELIMINATES that candidate rather than adding
+    /// a second one. Two cases carrying different claim references are
+    /// therefore never ambiguous - each is eliminated in turn and the outcome
+    /// is NoMatch. The real ambiguity is a duplicate: two cases indexed on the
+    /// SAME identity, which is what this fixture seeds.
     /// </summary>
     [Fact]
     public async Task AnAmbiguousExistingCaseMatchIsRejectedOnTheSamePath()
@@ -729,62 +738,43 @@ public sealed class ProviderApiSubmissionTests
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
-        // Two Cases carrying the same declared registration and claimant under
-        // different claim references: a later declaration whose own claim
-        // reference matches neither then survives against both on the shared
-        // keys, which is exactly Ambiguous.
-        using var one = await SubmitAsync(
+        using var created = await SubmitAsync(
             client,
             secret,
             "ambiguous-1",
             [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
             claimNumber: "12345/1");
-        Assert.Equal(HttpStatusCode.Created, one.StatusCode);
-        await DrainAsync(api, (await ReadJsonAsync(one)).GetProperty("submissionId").GetGuid());
-
-        using var two = await SubmitAsync(
-            client,
-            secret,
-            "ambiguous-2",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
-            claimNumber: "12345/2");
-        Assert.Equal(HttpStatusCode.Created, two.StatusCode);
-        var secondId = (await ReadJsonAsync(two)).GetProperty("submissionId").GetGuid();
-
-        await using (var scope = api.Services.CreateAsyncScope())
-        {
-            // The second submission already matches the first on VRM and
-            // claimant, so it is refused too - one candidate, UniqueMatch.
-            var services = scope.ServiceProvider;
-            var staged = await StagedReceiptAsync(services, secondId);
-            var (status, _) = await DrainStagedToTerminalAsync(services, staged.Id);
-            Assert.Equal(QueuedIntakeStatusKind.Failed, status.Status);
-            Assert.Equal(ProviderExistingCaseMatchException.FailureCode, status.FailureCode);
-        }
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid());
 
         await using (var scope = api.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Cases.CountAsync());
 
-            // One Case exists; give it a sibling that shares the declared VRM
-            // and claimant but not the claim reference, so the next declaration
-            // sees two surviving candidates.
+            // A duplicate of the case just created: the same provider, the same
+            // claim token, the same vehicle and the same claimant. Nothing about
+            // the next declaration can tell them apart, which is exactly the
+            // ambiguity the rejection exists for.
             var template = await context.Cases.AsNoTracking().SingleAsync();
             var indexed = await context.Set<CaseMatchIndexEntity>().AsNoTracking().SingleAsync();
-            var siblingId = Guid.NewGuid();
+            var duplicateId = Guid.NewGuid();
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({siblingId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.InstructionConfirmedByStaff}, {template.ImagesConfirmedByStaff}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.InstructionConfirmedByStaff}, {template.ImagesConfirmedByStaff}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
+
+            // CaseWorkflows.State is the CaseLifecycleState enum name; the
+            // candidate query joins this row and parses it. It is deliberately
+            // NOT CreatedInError, which would send the candidate through the
+            // replacement redirect instead of leaving it to survive.
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({siblingId}, {"not_ready"}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({duplicateId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
             context.Set<CaseMatchIndexEntity>().Add(new CaseMatchIndexEntity
             {
-                CaseId = siblingId,
+                CaseId = duplicateId,
                 WorkProviderCode = indexed.WorkProviderCode,
-                // A claim reference of its own, so only the shared VRM and
-                // claimant can carry a later declaration onto both rows.
-                DurableClaimToken = "99999/9",
+                DurableClaimToken = indexed.DurableClaimToken,
                 NormalizedVrm = indexed.NormalizedVrm,
                 NormalizedSurname = indexed.NormalizedSurname,
                 NormalizedFirstInitial = indexed.NormalizedFirstInitial,
@@ -796,12 +786,14 @@ public sealed class ProviderApiSubmissionTests
             await context.SaveChangesAsync();
         }
 
+        // The same declared facts again: both indexed cases hit on every key and
+        // neither is contradicted, so two candidates survive.
         using var ambiguous = await SubmitAsync(
             client,
             secret,
-            "ambiguous-3",
+            "ambiguous-2",
             [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
-            claimNumber: "12345/3");
+            claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, ambiguous.StatusCode);
         var ambiguousId = (await ReadJsonAsync(ambiguous)).GetProperty("submissionId").GetGuid();
 
@@ -821,11 +813,51 @@ public sealed class ProviderApiSubmissionTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
 
-            // Two Cases: the created one and the seeded sibling. Neither
-            // rejected submission allocated anything.
+            // Nothing was allocated: the two cases are the one created and the
+            // one seeded, and the only link is the first submission's.
             Assert.Equal(2, await context.Cases.CountAsync());
             Assert.Equal(1, await context.CaseIntakeLinks.CountAsync());
         }
+    }
+
+    /// <summary>
+    /// The other half of the same rule, and the reason the fixture above seeds a
+    /// duplicate rather than a second distinct case: a declared claim reference
+    /// that CONTRADICTS the only candidate eliminates it, so the submission is
+    /// an ordinary create-only one and a second case is allocated.
+    /// </summary>
+    [Fact]
+    public async Task ASubmissionContradictingTheExistingCaseCreatesItsOwnCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var first = await SubmitAsync(
+            client,
+            secret,
+            "contradicting-1",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            claimNumber: "12345/1");
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid());
+
+        using var second = await SubmitAsync(
+            client,
+            secret,
+            "contradicting-2",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            claimNumber: "12345/2");
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(second)).GetProperty("submissionId").GetGuid());
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(2, await context.Cases.CountAsync());
+        Assert.Equal(2, await context.CaseIntakeLinks.CountAsync());
     }
 
     private static async Task<HttpResponseMessage> SubmitAsync(
