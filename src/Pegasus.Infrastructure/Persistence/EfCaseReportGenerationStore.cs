@@ -117,9 +117,16 @@ public sealed class EfCaseReportGenerationStore(
         var snapshot = BuildSnapshot(request, inputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
         var snapshotHash = HashOf(MaterialOf(snapshot));
 
+        // Reuse only the Case's current, un-staled generation: a stale or
+        // superseded generation with the same material hash is history, not
+        // a deliverable snapshot — reusing it would wedge the report journey
+        // on an undeliverable current forever (B09 review, lifecycle).
         var generation = await context.Set<CaseReportGenerationEntity>()
             .SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId && item.SnapshotHash == snapshotHash,
+                item => item.CaseId == request.CaseId
+                    && item.SnapshotHash == snapshotHash
+                    && item.SupersededById == null
+                    && item.State != nameof(CaseReportGenerationState.Stale),
                 cancellationToken)
             .ConfigureAwait(false);
         if (generation is null)
