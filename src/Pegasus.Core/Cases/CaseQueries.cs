@@ -458,45 +458,9 @@ public sealed class GetCase(
 
 // --- CASE-047: stable cursor continuations ------------------------------
 
-/// <summary>
-/// One keyset page: <paramref name="Items"/> in the requested sort order and
-/// <paramref name="NextCursor"/> to resume from, or null when this was the
-/// last page. Shared by every B-owned cursor query (A05).
-/// </summary>
-public sealed record CursorPage<T>(IReadOnlyList<T> Items, string? NextCursor);
+// Cursor page, limit and rejection primitives are the shared Pegasus.Core
+// CursorPage<T>, CursorPaging and CursorRejectedException (G9); this file adds the Case queries.
 
-/// <summary>
-/// The one limit rule every cursor query shares. An out-of-range limit is
-/// always refused, never silently clamped, so a caller never mistakes a
-/// smaller-than-asked page for the end of the list.
-/// </summary>
-public static class CursorPaging
-{
-    public const int DefaultLimit = 50;
-    public const int MaximumLimit = 100;
-
-    public static int NormalizeLimit(int? limit)
-    {
-        if (limit is null)
-        {
-            return DefaultLimit;
-        }
-        if (limit is < 1 or > MaximumLimit)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(limit), "The requested limit is outside the supported range.");
-        }
-
-        return limit.Value;
-    }
-}
-
-/// <summary>
-/// A cursor that cannot be honoured: malformed, minted for a different
-/// actor/filter set/order, or carrying a token version this build does not
-/// recognise. The caller starts over from the first page.
-/// </summary>
-public sealed class CursorRejectedException(string reason) : InvalidOperationException(reason);
 
 /// <summary>
 /// The one opaque-cursor codec every CASE-047 cursor query shares: a
