@@ -398,27 +398,27 @@ public sealed class Top15InstructionCorpusTests
             ]),
         new(
             "BLACK", $"{CorpusRoot}/BLACK 01.pdf",
-            "bf9f91f653436c3d344279f6f8606b908340d518f9f91cc27fb13761423b4385",
+            "bf9f91b87f71dec6ecbea3f77d54c0522867c9a446599a1ebf5f03d859fa4385",
             new("Mr Abraham Huruy", "261436SA", "BF16FOT", new(2026, 4, 30), new(2026, 5, 6)),
             [new("Inspection address", "Flat 1-2, 24 Potter Street, Newport Gwent, NP20 2DB", "Claimant address has its own role.")]),
         new(
             "BLACK", $"{CorpusRoot}/BLACK 02.pdf",
-            "7deb2e88da8e9740a65f745f6ed48b53e8e10ec59a30e666d69b08ef0c1eb834",
+            "7deb35748a1bff7f8804f312b1cee297c0abfdc4323474ab9e3142cf909fb834",
             new("Mr Osman Ifow", "261435SA", "BX66SZV", new(2026, 5, 3), new(2026, 5, 6)),
             [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
         new(
             "BLACK", $"{CorpusRoot}/BLACK 03.pdf",
-            "201fbada7460459d78049583de557aa8ecec729a3b041cdb77b74cd9693cc071",
+            "201fb07ae667c1300ca773f24c6dee1e66e8eb63364e30932ff626e660e98071",
             new("Mr Hassan Butt", "261434SA", "BR19SRX", new(2026, 4, 30), new(2026, 5, 5)),
             [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
         new(
             "BLACK", $"{CorpusRoot}/BLACK 04.pdf",
-            "89aa7d9b752b14564f78dd065cc287805274898028625f6df161ff211303afcd",
+            "89aaec4f52eb417ed7207319a8e7d2171b70d364f5f944b494b3e222de60afcd",
             new("Mr Jamal Khan", "261425SA", "CB11DCB", new(2026, 4, 22), new(2026, 4, 30)),
             [new("Inspection address", "13 Oregon Avenue, London, E12 5JE", "Claimant address has its own role.")]),
         new(
             "BLACK", $"{CorpusRoot}/BLACK 05.pdf",
-            "a0a1d79cc66fdff601643285415379808331152557b528483c65062fcddc5419",
+            "a0a1ae68d7f000d2d0fcf0e2db9e8185c53edc9a9a67b30c37466e95ec855419",
             new("Mr Afjol Hussain", "261422SA", "BX67RZU", new(2026, 4, 26), new(2026, 4, 30)),
             [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
         new(
