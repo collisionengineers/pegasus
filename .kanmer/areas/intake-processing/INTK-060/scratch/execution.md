@@ -444,3 +444,7 @@ Six `IntakeWebNegativeTests` (one-principal assumption) fixed at C01 `e80862f37`
 ## Wave 34 (C07 caller `2c427c643`): C lanes PASS
 
 Build 0/0, core 25, integration 68/69 (+1 skip); a-owned 1/5 (A seed); architecture 98/100 = the C-head A-owned standalone gap (`IReadLogicalDocumentVersion` unregistered in `WorkerDependencyInjection`), not the slice. Reviewer told to bind on the slice's lanes.
+
+## A rulings (PR 673 5561349163 / 5561352547 / 5561355946)
+
+G16 `e028ddf39` (filtered unique `CaseReportGenerations(CaseId,SnapshotHash) WHERE State <> Stale`, migration + snapshot; B owns the SQL regression proof) — merging `--no-ff`. Standalone reader: a host-only patch cannot compose the production reader (needs A04 Box fenced reads + custody writer identities); A retains adapters in its PR and proves the combined host; C adds NO stub — the `WorkerCompositionTests`/`QdosAllocationRecoveryTests` DI failures on the C branch are a qualified cross-stream dependency, stated as such in C's residuals. C's `0efc` test-reader adaptations passed A's source review. QDOS seeded-fixture hunk (3,714 bytes, sha `118128c3…`, against `0efc1d0df`, C-owned `QdosAllocationRecoveryTests.cs`, A-authored) — applying with A authorship.
