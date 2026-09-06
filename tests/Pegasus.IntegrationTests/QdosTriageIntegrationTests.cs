@@ -231,7 +231,12 @@ public sealed partial class QdosTriageIntegrationTests
             antiforgeryToken,
             0,
             "assign",
-            "Claimed by the reviewing operator");
+            "Claimed by the reviewing operator",
+            // The engineer is named explicitly now; nothing defaults to the
+            // signed-in staff member.
+            KeyValuePair.Create(
+                "assigneeId",
+                DevelopmentOfflineIdentity.AdministratorId.ToString("D")));
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(1, triage.Record.Version);
         Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, triage.Record.AssigneeId);
@@ -481,7 +486,11 @@ public sealed partial class QdosTriageIntegrationTests
         using var finalResponse = await client.GetAsync($"/Triage/{triageId:D}");
         var finalHtml = await finalResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, finalResponse.StatusCode);
-        Assert.Contains("Permanent history", finalHtml, StringComparison.Ordinal);
+        // The panel is named "Notes"; its entries are still the one permanent,
+        // attributed history, and nothing offers to assign to whoever is
+        // signed in.
+        Assert.Contains(">Notes</h2>", finalHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assign to me", finalHtml, StringComparison.Ordinal);
         Assert.Contains("Case unlinked", finalHtml, StringComparison.Ordinal);
 
     }
