@@ -562,6 +562,42 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(1, send.SendCalls);
     }
 
+    [Theory]
+    [InlineData(StaffMailState.Sent)]
+    [InlineData(StaffMailState.Failed)]
+    [InlineData(StaffMailState.Cancelled)]
+    public async Task TerminalRetainedOperationAllowsASecondServerIssuedAction(
+        StaffMailState terminalState)
+    {
+        var send = new RecordingStaffMailSend { NextState = terminalState };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 TERMINAL", $"SC08-MSG-{terminalState}");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+
+        using var firstGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var firstHtml = await firstGet.Content.ReadAsStringAsync();
+        var firstKey = InputValue(firstHtml, "CorrespondenceOperationKey");
+        using var firstPost = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(RetainedReplyForm(firstHtml, firstKey, "First action.")));
+        Assert.Equal(HttpStatusCode.Redirect, firstPost.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+
+        using var secondGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var secondHtml = await secondGet.Content.ReadAsStringAsync();
+        var secondKey = InputValue(secondHtml, "CorrespondenceOperationKey");
+        Assert.NotEqual(firstKey, secondKey);
+        using var secondPost = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(RetainedReplyForm(secondHtml, secondKey, "Second action.")));
+        Assert.Equal(HttpStatusCode.Redirect, secondPost.StatusCode);
+        Assert.Equal(2, send.SendCalls);
+    }
+
     [Fact]
     public async Task InvalidRetainedComposeModeIsNotFoundWithoutSending()
     {
@@ -852,6 +888,18 @@ public sealed class StaffCorrespondenceWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
+    private static Dictionary<string, string> RetainedReplyForm(
+        string html,
+        string operationKey,
+        string body) => new()
+    {
+        ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+        ["CorrespondenceOperationKey"] = operationKey,
+        ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+        ["CorrespondenceSubject"] = "Re: Source subject",
+        ["CorrespondenceBody"] = body
+    };
+
     private sealed class FixedApprovedMailboxStore(IReadOnlyList<ApprovedMailbox> mailboxes)
         : IApprovedMailboxStore
     {
@@ -1131,6 +1179,15 @@ public sealed class StaffCorrespondenceWebTests
         public Task<StaffMailOperation?> GetAsync(
             ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>
             Task.FromResult(byOperationId.TryGetValue(operationId, out var operation) ? operation : null);
+
+        public Task<StaffMailOperation?> GetLatestForOriginalAsync(
+            ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken)
+        {
+            var command = commands.LastOrDefault(item =>
+                item.OriginalMessage?.RetainedMessageId == retainedMessageId);
+            var operation = command is null ? null : byOperationKey[command.OperationKey];
+            return Task.FromResult(operation);
+        }
 
         public Task<StaffMailOperation> ReconcileAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken)
