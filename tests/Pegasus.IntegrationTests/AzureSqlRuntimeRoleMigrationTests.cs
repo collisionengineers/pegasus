@@ -240,7 +240,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeSourceCandidates:SELECT
         LabourRateCards:SELECT,INSERT,UPDATE
         OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
-        PublicUploadOccurrences:SELECT,INSERT
+        PublicUploadOccurrences:SELECT,INSERT,UPDATE
         PublicUploadSessions:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
         StaffMailSendOperations:SELECT,INSERT,UPDATE
@@ -906,6 +906,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             VALUES (
                 '{claimSourceId:D}', N'restricted-role-fixture', 1, N'test',
                 '2031-05-06T10:30:00+00:00', 0, '{webConcurrencyToken:D}');
+            UPDATE [dbo].[PublicUploadOccurrences]
+            SET [CustodyState] = [CustodyState]
+            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
@@ -942,6 +945,18 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     '{Guid.NewGuid():D}', N'forbidden', 1, N'test',
                     '2031-05-06T10:30:00+00:00', 0, '{Guid.NewGuid():D}');
                 THROW 51000, 'Worker runtime unexpectedly inserted a ClaimSource.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            BEGIN TRY
+                UPDATE [dbo].[PublicUploadOccurrences]
+                SET [CustodyState] = [CustodyState]
+                WHERE [Id] = '00000000-0000-0000-0000-000000000000';
+                THROW 51000, 'Worker runtime unexpectedly updated a PublicUploadOccurrence.', 1;
             END TRY
             BEGIN CATCH
                 IF ERROR_NUMBER() <> 229 THROW;
