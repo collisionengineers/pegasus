@@ -476,3 +476,5 @@ Replacement controller integrated independently reviewed C07b custody/public-upl
 - C03 AX/FW reviewed/tested at d0937813e9621e4d62a012d9304cecee74e8cd95: Core 11 PASS including AX02; FW genuine five-source matrix 1 PASS/no skip. QCL is next bounded implementation.
 - C06 zero-state delta remains reviewed and Release-build clean at refreshed head 49fabcb9da9667fdd9f4db8e8c425e7430dbc7fa. Required snapshot capture failed before generation (122/129) solely because the same A custody adapter is absent; no generated changes.
 - PRs 672/673/674 remain open/unmerged. No deployment, mailbox/provider write, or mail send occurred.
+
+- 2026-09-06T20:57:03.780Z lease-phase running-command → implementing (lease 40f03659-6845-4f20-b1cc-cfd09686ec00 rev 43; expires 2026-09-06T21:27:03.775Z)
