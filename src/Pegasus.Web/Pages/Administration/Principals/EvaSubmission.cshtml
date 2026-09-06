@@ -49,13 +49,6 @@
         </form>
     </div>
 
-    @* EXT-18/S05 correction round 2 (ASSUMPTION 8): this form only renders
-       when IUpdatePrincipalDefaultInspectionLocation is registered — on this
-       branch, until Stream A's registration lands, the constructor
-       dependency is absent and this panel is skipped rather than posting to
-       a handler that would 404. *@
-    @if (Model.DefaultLocationAvailable)
-    {
     <div class="panel form-panel">
         <h2>Default inspection location</h2>
         @* EXT-18 item 6: Image Based Assessment, or one sourced/manual
@@ -97,5 +90,4 @@
             </div>
         </form>
     </div>
-    }
 }
