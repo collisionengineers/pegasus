@@ -966,6 +966,81 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task RetainedMailboxReplyTargetsRoundTripThroughRestrictedRuntimeRoles()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns AS column_value
+            INNER JOIN sys.types AS type_value
+                ON type_value.user_type_id = column_value.user_type_id
+            WHERE column_value.object_id = OBJECT_ID(N'[dbo].[RetainedMailboxMessages]')
+              AND column_value.name = N'ReplyToAddressesJson'
+              AND type_value.name = N'nvarchar'
+              AND column_value.max_length = -1
+              AND column_value.is_nullable = 1
+            """));
+
+        var withReplyToId = Guid.NewGuid();
+        var withoutReplyToId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO [dbo].[ApprovedInboxPollStates] (
+                [ApprovedMailboxId], [MailboxAddress], [ScopeFingerprint], [Generation],
+                [ActivatedAtUtc], [StartBoundaryUtc], [DueAtUtc])
+            VALUES (
+                '49f47eb9-c5b0-464f-b8f0-8c90ba061728',
+                N'instructions@collisionengineers.co.uk', REPLICATE(N'C', 64), 1,
+                '2031-05-06T10:00:00+00:00', '2031-05-06T10:00:00+00:00',
+                '2031-05-06T10:00:00+00:00');
+
+            CREATE USER [pegasus_test_reply_web] WITHOUT LOGIN;
+            CREATE USER [pegasus_test_reply_worker] WITHOUT LOGIN;
+            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_reply_web];
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_reply_worker];
+
+            DECLARE @MailboxId uniqueidentifier =
+                (SELECT TOP (1) [ApprovedMailboxId] FROM [dbo].[ApprovedInboxPollStates]);
+            IF @MailboxId IS NULL
+                THROW 51000, 'The retained-mailbox role fixture requires an approved mailbox.', 1;
+
+            EXECUTE AS USER = N'pegasus_test_reply_worker';
+            INSERT INTO [dbo].[RetainedMailboxMessages] (
+                [Id], [MailboxId], [MailboxAddress], [FolderScope], [FolderIdentity],
+                [ImmutableMessageId], [ExternalReceiptToken], [ToAddressesJson],
+                [CcAddressesJson], [ReplyToAddressesJson], [IsRead], [SourceLength],
+                [SourceSha256], [ReceivedAtUtc], [RetainedAtUtc])
+            VALUES
+                ('{withReplyToId:D}', @MailboxId, N'intake@example.test', N'Inbox', N'inbox',
+                 N'reply-target-message', N'reply-target-receipt', N'[]', N'[]',
+                 N'["reply@example.test"]', 0, 1, REPLICATE(N'A', 64),
+                 '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00'),
+                ('{withoutReplyToId:D}', @MailboxId, N'intake@example.test', N'Inbox', N'inbox',
+                 N'no-reply-target-message', N'no-reply-target-receipt', N'[]', N'[]',
+                 NULL, 0, 1, REPLICATE(N'B', 64),
+                 '2031-05-06T10:32:00+00:00', '2031-05-06T10:33:00+00:00');
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_reply_web';
+            IF NOT EXISTS (
+                SELECT 1 FROM [dbo].[RetainedMailboxMessages]
+                WHERE [Id] = '{withReplyToId:D}'
+                  AND [ReplyToAddressesJson] = N'["reply@example.test"]')
+                THROW 51000, 'Web runtime did not read the retained reply targets.', 1;
+            IF NOT EXISTS (
+                SELECT 1 FROM [dbo].[RetainedMailboxMessages]
+                WHERE [Id] = '{withoutReplyToId:D}'
+                  AND [ReplyToAddressesJson] IS NULL)
+                THROW 51000, 'Web runtime did not preserve absent reply metadata as NULL.', 1;
+            REVERT;
+            """);
+    }
+
+    [Fact]
     public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
