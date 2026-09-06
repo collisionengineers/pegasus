@@ -424,3 +424,7 @@ Generation and StaffSend ARE mapped by A's store (combined) — C08 round 4 must
 ## INTK-027 integration on the C branch — `78cb51c2c` (unpushed, build 0/0)
 
 `465d099f8` adapts C's direct `ProcessQueuedIntake` constructions (`CustodyOutboxIntegrationTests:2467` refusing double; `IntakeWebDriver.CreateProcessor` prefers a host-composed reader, else the refusing double — test support only); new C-owned `Support/RecordingLogicalDocumentVersionReader.cs`. `78cb51c2c` retargets the C05 tripwire to work item Complete + `recorded` → `recorded_reading_stands` with the armed double serving the exact retained bytes (ASSUMPTION 8 closed). Wave 33 running before push. C02 round 1 dispatched (Opus). Editors: C07b r4, C03 b1, C02 r1. C08 r4 next.
+
+## A DevelopmentOffline mail composition patch (PR 673 5561281887)
+
+Two A-owned files (`Infrastructure/Email/UnavailableStaffMailSend.cs` new; `Web/Program.cs` offline-only registration), 2,721 bytes, SHA-256 `6eb2a5b5…` verified, dry-run applies on the C head `78cb51c2c`. Applied after wave 33 completes (so the wave binds to a stable head), then push + report. `IGetAttentionRows` binding follows after C08 publishes.
