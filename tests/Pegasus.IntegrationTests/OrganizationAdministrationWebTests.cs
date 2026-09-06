@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -14,8 +15,18 @@ public sealed partial class OrganizationAdministrationWebTests
     [Fact]
     public async Task AdministratorRoutesAreDiscoverableAndPostThroughCoreEfCallers()
     {
+        // C06 review R-1: this test drives the shared EvaSubmission page (a
+        // page model is activated per request, not at host startup), so it
+        // needs the full C06 composition — not just the optional-resolution
+        // bridge — to prove the page's real behaviour rather than only its
+        // degraded one.
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var host = factory.WithC06Adapters();
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
 
         using var landingResponse = await client.GetAsync("/Administration");
         var landingHtml = await landingResponse.Content.ReadAsStringAsync();
