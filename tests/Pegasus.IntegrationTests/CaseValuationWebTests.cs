@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
@@ -23,7 +24,9 @@ public sealed partial class CaseDetailsWebTests
     {
         var store = new RecordingCaseDetailsStore();
         var valuations = new RecordingValuationSaver();
-        using var workspace = await EnterEngineerEditModeAsync(store, valuations);
+        using var workspace = await EnterEngineerEditModeAsync(
+            store,
+            services => Substitute<ISaveValuation>(services, valuations));
         const string operationKey = "0f0e0d0c0b0a09080706050403020100";
 
         using var response = await workspace.Client.PostAsync(
@@ -67,7 +70,9 @@ public sealed partial class CaseDetailsWebTests
     {
         var store = new RecordingCaseDetailsStore();
         var valuations = new RecordingValuationSaver();
-        using var workspace = await EnterEngineerEditModeAsync(store, valuations);
+        using var workspace = await EnterEngineerEditModeAsync(
+            store,
+            services => Substitute<ISaveValuation>(services, valuations));
         var staleVersion = store.CaseVersion - 1;
         valuations.NextFailure = new CaseVersionConflictException(store.CaseId, staleVersion, store.CaseVersion);
 
@@ -114,7 +119,7 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     private static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
         RecordingCaseDetailsStore store,
-        ISaveValuation valuations)
+        Action<IServiceCollection> substitutePorts)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -123,7 +128,7 @@ public sealed partial class CaseDetailsWebTests
                 Substitute<IGetCase>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
-                Substitute<ISaveValuation>(services, valuations);
+                substitutePorts(services);
             }));
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

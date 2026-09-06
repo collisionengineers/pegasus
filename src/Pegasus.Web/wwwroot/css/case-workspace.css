@@ -7,3 +7,8 @@
 .valuation-card { padding: var(--sp-4); border: var(--border); border-radius: var(--radius); background: var(--paper); }
 .valuation-card h3 { margin: 0 0 var(--sp-3); }
 .valuation-card .figures { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin: 0 0 var(--sp-3); }
+
+/* B06: the report-image preparation cards the Files and Report sections share. */
+.report-images { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4); }
+.report-image { padding: var(--sp-4); border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.report-image h3 { margin: 0 0 var(--sp-3); }
