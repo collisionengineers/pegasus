@@ -197,3 +197,10 @@ Wave 14: build/architecture PASS; integration 62/70 — 5 corpus skips (local pi
 ## Checkpoint — C06 correction round 1 at `556a26b1a`
 
 Optional directory bridge on `InspectionAddressChoicesQueries` (ASSUMPTION 6), test-side composition helper `C06AdapterRegistrations.WithC06Adapters`, bridge-proof test, seeded-QDOS reuse in two `OrganizationAdministrationPersistenceTests` (ASSUMPTION 7). C head `15518699c` merged → `c94e3dddc`; wave 15 (build/core/integration/host/architecture) running; independent review dispatched against `556a26b1a`. C05 correction round 1 dispatched (Opus) at `975bf107b` for review majors/minors. C07 caller still running. C08 correction waits for a slot (its worktree holds the in-progress merge with the one `OperatorLabels.Admin.Health` conflict).
+
+## Checkpoint — A comments 5560061438/5560095062/5560149495
+
+- A04 request-link custody published on A (`7a6157d88`); C07 caller slice `c07-retention-caller` at `6bb5453ba` (impl `87eebffe1`; controller reverted the A-owned `DocumentCustodyDurabilityTests.cs` edit at `b5b5338a4`, hunk posted as PR 673 comment 5560181686). Wave 16 + review running.
+- A's regenerated principal-corpus source snapshots applied on the C branch → `d2b50f46e` (package hash verified); wave 17 Core hash lane running; push after.
+- `StaffAccounts.ReviewDue/Review` labels: still rendered by A01's Accounts page on the C branch; removal deferred to the step that carries A01's page here (posted to A).
+- C06 round 2 running (EvaSubmission optional bridge, UpdateLocation 302 defect); C06 review running on `556a26b1a`; C05 correction running. C08 correction still queued on the two-editor limit.
