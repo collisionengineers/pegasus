@@ -35,7 +35,7 @@ public sealed class BcInstructionExtractionPolicyTests
         Assert.NotEqual(text, wrongPrincipal);
         Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selector.Select(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "wrong principal", wrongPrincipal)], [], [], false), InstructionDocumentSignature.InstructionRole).Outcome);
         Assert.Throws<ArgumentException>(() => policy.Extract(
-            new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "incomplete", text)], [], [], true),
+            new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "incomplete", text)], [], [], RequiresOcr: false, IsIncomplete: true),
             DateTimeOffset.UtcNow,
             new("BC", BcInstructionExtractionPolicy.DocumentProfileKeyValue, 1)));
     }
