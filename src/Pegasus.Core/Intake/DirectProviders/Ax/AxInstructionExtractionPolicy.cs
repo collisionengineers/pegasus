@@ -32,7 +32,12 @@ public sealed class AxInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Inspection address", ["Inspection Location"], IsRequired: false, PartyRole: "instruction"),
-        new("Accident circumstances", ["Accident circumstances"], IsRequired: false, PartyRole: "claimant"),
+        new(
+            "Accident circumstances",
+            ["Accident circumstances"],
+            IsRequired: false,
+            PartyRole: "claimant",
+            PrefersLatestFragment: true),
         new("VAT status", ["VAT Registered"], IsRequired: false, PartyRole: "claimant"),
         new("Repairer name", ["Repairer name"], IsRequired: false, PartyRole: "repairer"),
         new(RepairerAddressField, [RepairerAddressField], IsRequired: false, PartyRole: "repairer"),
