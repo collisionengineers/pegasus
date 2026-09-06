@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ProviderApi;
 
@@ -19,7 +20,8 @@ public sealed class ProcessIntake(
     TimeProvider timeProvider,
     IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
     IRegisterUnidentified? registerUnidentified = null,
-    IProviderSubmissionBindings? providerSubmissionBindings = null)
+    IProviderSubmissionBindings? providerSubmissionBindings = null,
+    IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     public Task<IntakeReceipt> ExecuteAsync(
@@ -274,9 +276,92 @@ public sealed class ProcessIntake(
             receipt,
             assessment.MailClassificationDecision,
             cancellationToken);
+        await RecordThirdPartyReportSourceAsync(receipt, readResult, cancellationToken);
         await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
+    }
+
+    /// <summary>
+    /// Identifies the retained source's document role from the document itself
+    /// and, when it carries a third-party report signature, records what the
+    /// report says as ordinary source candidates (INTK-031).
+    ///
+    /// Retention is the right place for it: the role is a property of the bytes
+    /// that were just retained, not of anything a member of staff does later,
+    /// and reading it here means the Received page has the candidates the first
+    /// time it is opened. It changes no receipt decision, allocates nothing and
+    /// writes no Engineer value — a report remains third-party evidence until
+    /// Stream B's own command accepts a figure from it.
+    ///
+    /// A source with no signature is left alone entirely. The store is optional
+    /// for the same reason C01's other analysis composition is: until it is
+    /// registered, intake behaves exactly as before.
+    /// </summary>
+    private async Task RecordThirdPartyReportSourceAsync(
+        IntakeReceipt receipt,
+        IntakeSourceReadResult readResult,
+        CancellationToken cancellationToken)
+    {
+        if (retainedInstructionAnalysisStore is null
+            || readResult.Status != IntakeSourceReadStatus.Readable)
+        {
+            return;
+        }
+
+        var asset = IntakeFileIdentity.SourceAsset(receipt);
+        if (asset is null)
+        {
+            return;
+        }
+
+        var extraction = ThirdPartyReportExtraction.Extract(
+            readResult,
+            new(
+                receipt.Id,
+                asset.ContentHash,
+                Occurrence: 0,
+                IntakeAssetId: asset.Id,
+                ReaderVersion: readResult.ReaderVersion));
+        if (!ThirdPartyReportAnalysis.IsRecordable(extraction.Selection))
+        {
+            return;
+        }
+
+        try
+        {
+            await retainedInstructionAnalysisStore.RecordAsync(
+                new(
+                    Guid.NewGuid(),
+                    receipt.Id,
+                    asset.Id,
+                    asset.ContentHash,
+                    // Derived from the asset, so re-processing the same
+                    // retained bytes replays the record instead of writing a
+                    // second set of candidates for one document.
+                    $"{ThirdPartyReportAnalysis.PolicyKey}:{asset.Id}",
+                    ThirdPartyReportAnalysis.Outcome(extraction.Selection),
+                    receipt.Version,
+                    timeProvider.GetUtcNow(),
+                    ThirdPartyReportAnalysis.ToCandidates(
+                        extraction,
+                        readResult.ReaderKey,
+                        readResult.ReaderVersion)),
+                cancellationToken);
+        }
+        catch (RetainedInstructionAnalysisConflictException)
+        {
+            // The same document was already read under this key at a different
+            // receipt version. The recorded reading stands: the bytes have not
+            // changed, so re-reading them would add nothing and overwriting is
+            // exactly what the key exists to prevent.
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // Source evidence is supplementary. A receipt that has already been
+            // stored must not fail because a report reading could not be
+            // written beside it; the Received page offers analysis on demand.
+        }
     }
 
     private async Task RegisterUnidentifiedIfTerminalAsync(

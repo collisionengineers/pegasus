@@ -1131,3 +1131,90 @@ public static class ThirdPartyReportExtraction
                 .Where(row => row.Disposition != SourceCandidateDisposition.Missing);
     }
 }
+
+/// <summary>
+/// The bridge from a read third-party report onto the retained-analysis record
+/// C01 already owns (INTK-031). It adds no persistence of its own: a report's
+/// candidates are ordinary source candidates on the existing analysis row, so
+/// the Received page renders them through the provenance chips it already uses
+/// and <see cref="ISourceCandidateQueries"/> reads them back unchanged.
+///
+/// It converts nothing into a decision. Every row is a candidate, the printed
+/// amount roles stay separate, and an accepted Engineer value remains Stream
+/// B's own command.
+/// </summary>
+public static class ThirdPartyReportAnalysis
+{
+    /// <summary>Recorded on every row, so a report candidate is identifiable as one.</summary>
+    public const string PolicyKey = "third-party-report";
+
+    /// <summary>
+    /// Whether this source is one the report reader has anything to say about:
+    /// at least one document signature matched. A document with readable text
+    /// and no signature is left entirely alone — writing an empty analysis for
+    /// every unrelated attachment would bury the ones that matter.
+    /// </summary>
+    public static bool IsRecordable(ThirdPartyReportSelection selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        return selection.Matches.Count > 0;
+    }
+
+    /// <summary>
+    /// The analysis outcome for a selection: a matched family is
+    /// <see cref="RetainedInstructionAnalysisOutcome.Analyzed"/>, several
+    /// matched signatures are
+    /// <see cref="RetainedInstructionAnalysisOutcome.Ambiguous"/>, and an
+    /// explicit non-report role is
+    /// <see cref="RetainedInstructionAnalysisOutcome.NoProfile"/> — the
+    /// document was read and is genuinely not a report, which is the answer
+    /// the negative cases need rather than an invented verdict.
+    /// </summary>
+    public static RetainedInstructionAnalysisOutcome Outcome(ThirdPartyReportSelection selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        return selection.Outcome switch
+        {
+            ThirdPartySelectionOutcome.Selected => RetainedInstructionAnalysisOutcome.Analyzed,
+            ThirdPartySelectionOutcome.Ambiguous => RetainedInstructionAnalysisOutcome.Ambiguous,
+            _ => RetainedInstructionAnalysisOutcome.NoProfile
+        };
+    }
+
+    /// <summary>
+    /// Maps every read source row onto the recorded-candidate shape. Order is
+    /// the order the rows were read, and <c>Occurrence</c> is carried from the
+    /// source context rather than re-derived, so the same bytes always produce
+    /// the same record.
+    /// </summary>
+    public static IReadOnlyList<RetainedInstructionCandidate> ToCandidates(
+        ThirdPartyReportExtractionResult result,
+        string readerKey,
+        string readerVersion)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentException.ThrowIfNullOrWhiteSpace(readerKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(readerVersion);
+        return
+        [
+            .. result.Candidates.Select(row => new RetainedInstructionCandidate(
+                row.Id,
+                row.DocumentRole,
+                row.Field,
+                row.PartyRole.Length == 0 ? null : row.PartyRole,
+                row.ReferenceRole.Length == 0 ? null : row.ReferenceRole,
+                row.RawValue,
+                row.NormalizedValue,
+                row.Unit,
+                row.Currency,
+                row.SourceLabel,
+                row.Page,
+                row.Occurrence,
+                readerKey,
+                readerVersion,
+                PolicyKey,
+                row.PolicyVersion,
+                row.Disposition))
+        ];
+    }
+}
