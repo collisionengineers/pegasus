@@ -21,17 +21,22 @@ public sealed class QdosInstructionExtractionPolicyTests
             QdosContext);
 
         Assert.Equal(
-            "Damage Area: Offside front wing crushed and the\n"
-            + "headlamp assembly is detached.",
-            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+            "Offside front wing crushed and the headlamp assembly is detached.",
+            Field(result, "Damage area").SuggestedValue);
+        // And it is NOT the accident circumstances: this letter states no
+        // circumstances at all, and damage is not an account of the accident.
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
     }
 
     [Fact]
-    public void ALetterWithOnlyADamageAreaMakesItTheWholeCircumstances()
+    public void ALetterWithOnlyADamageAreaStillHasNoCircumstances()
     {
-        // ENG-015, and the shape of the QDOS audit letters: no circumstances
-        // prose at all, so the labelled damage area stands alone with no
-        // leading blank line.
+        // The shape of the QDOS audit letters: no circumstances prose at all.
+        // ENG-015 appended the labelled damage area to the circumstances
+        // field; INTK-060 C03 separated them, because what the vehicle looks
+        // like is not an account of how the accident happened and a reviewer
+        // reading one concatenated value cannot tell which half the letter
+        // actually stated.
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(new IntakeContentFragment(
                 IntakeEvidenceSource.PdfContent,
@@ -40,9 +45,8 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
-        Assert.Equal(
-            "Damage Area: Nearside Front: Light",
-            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+        Assert.Equal("Nearside Front: Light", Field(result, "Damage area").SuggestedValue);
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
     }
 
     [Fact]
@@ -68,9 +72,11 @@ public sealed class QdosInstructionExtractionPolicyTests
             QdosContext);
 
         Assert.Equal(
-            "Damage Area: Nearside: Moderate: Nearside rear wheel arch is\n"
-            + "damaged. Nearside door is damaged.",
-            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+            "Nearside: Moderate: Nearside rear wheel arch is damaged. "
+            + "Nearside door is damaged.",
+            Field(result, "Damage area").SuggestedValue);
+        // The pre-existing damage row that ended the block is its own field.
+        Assert.Equal("No.", Field(result, "Pre-existing damage").SuggestedValue);
     }
 
     [Fact]
@@ -536,8 +542,11 @@ public sealed class QdosInstructionExtractionPolicyTests
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal("Mrs Caroline Reynolds", draft.ClaimantName);
-        Assert.Equal("PEUGEOT", draft.VehicleMake);
-        Assert.Equal("RCZ GT THP 156", draft.VehicleModel);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+        Assert.Equal(
+            "PEUGEOT RCZ GT THP 156",
+            Field(result, "Vehicle description").SuggestedValue);
         Assert.Equal("L100YDR", draft.VehicleRegistration);
         Assert.Equal(new DateOnly(2026, 7, 3), draft.DateOfIncident);
         var claimant = Assert.Single(result.Fields, field => field.Name == "Claimant name");
@@ -583,8 +592,14 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
-    public void TwoWordMakesSplitTheVehicleDescriptionOnTheRightBoundary()
+    public void TheVehicleDescriptionIsNeverSplitIntoAMakeAndAModel()
     {
+        // This once asserted the opposite: the description was split on token
+        // position, helped by a five-entry list of two-word makes. Both are
+        // guesses the extraction invariants name and forbid, and the
+        // independently labelled corpus records the description as ONE value
+        // in every original. The whole description survives; a make and a
+        // model appear only where the letter labels them.
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(
                 new IntakeContentFragment(
@@ -594,14 +609,22 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
+        Assert.Equal(
+            "LAND ROVER R ROVER EVOQUE SE LK17 NHT",
+            Field(result, "Vehicle description").SuggestedValue);
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal("LAND ROVER", draft.VehicleMake);
-        Assert.Equal("R ROVER EVOQUE SE", draft.VehicleModel);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+        Assert.Contains("Vehicle make", result.MissingFields);
+        Assert.Contains("Vehicle model", result.MissingFields);
+        // A registration is still recovered from a description that ENDS in a
+        // valid one. That is a shape the value either has or has not - not a
+        // position, and not a name from a list.
         Assert.Equal("LK17NHT", draft.VehicleRegistration);
     }
 
     [Fact]
-    public void ExplicitVehicleFieldsBeatTheDescriptionDerivation()
+    public void AnExplicitMakeLabelIsTheOnlySourceOfAMake()
     {
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(
@@ -614,6 +637,10 @@ public sealed class QdosInstructionExtractionPolicyTests
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal("AUDI", draft.VehicleMake);
+        // The description is not a second opinion about the make, and the
+        // model the description might have been read as is unavailable.
+        Assert.Null(draft.VehicleModel);
+        Assert.Equal("PEUGEOT RCZ", Field(result, "Vehicle description").SuggestedValue);
     }
 
     [Fact]
@@ -637,8 +664,11 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.False(claimant.HasConflict);
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal("Mr Stuart Mcwalters", draft.ClaimantName);
-        Assert.Equal("MERCEDES-BENZ", draft.VehicleMake);
-        Assert.Equal("E 220 D AMG LINE PREMIUM+ AUTO", draft.VehicleModel);
+        Assert.Equal(
+            "MERCEDES-BENZ E 220 D AMG LINE PREMIUM+ AUTO",
+            Field(result, "Vehicle description").SuggestedValue);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
         Assert.Equal("V2MTM", draft.VehicleRegistration);
         Assert.Equal(new DateOnly(2026, 8, 15), draft.DateOfIncident);
     }
@@ -702,7 +732,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
-    public void ClaimantsVehicleLabelDerivesTheVehicleFields()
+    public void ClaimantsVehicleLabelKeepsTheWholeDescription()
     {
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(new IntakeContentFragment(
@@ -712,17 +742,21 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
+        Assert.Equal(
+            "FORD RANGER WILDTRAK ECOBLUE 4X4 A",
+            Field(result, "Vehicle description").SuggestedValue);
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal("FORD", draft.VehicleMake);
-        Assert.Equal("RANGER WILDTRAK ECOBLUE 4X4 A", draft.VehicleModel);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
     }
 
     [Fact]
     public void AReportsVehicleLineFillsTheDetailsTheLetterLacks()
     {
-        // INTK-025: the bodyshop report's own grammar backfills make/model
-        // when the letter carries no description — and only from a
-        // report-named document.
+        // INTK-025: the bodyshop report's own grammar backfills the vehicle
+        // description and registration when the letter carries neither. It
+        // does not backfill a make or a model - the report states one
+        // combined vehicle text too.
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(
                 new(
@@ -736,9 +770,12 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
+        Assert.Equal(
+            "FORD RANGER WILDTRAK",
+            Field(result, "Vehicle description").SuggestedValue);
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal("FORD", draft.VehicleMake);
-        Assert.Equal("RANGER WILDTRAK", draft.VehicleModel);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
         Assert.Equal("MD22DDU", draft.VehicleRegistration);
         // "Speedo: Miles" carries no digits and contributes nothing.
         Assert.Null(draft.VehicleMileage);
@@ -760,9 +797,9 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
-        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal("PEUGEOT", draft.VehicleMake);
-        Assert.Equal("RCZ GT", draft.VehicleModel);
+        var description = Field(result, "Vehicle description");
+        Assert.False(description.HasConflict);
+        Assert.Equal("PEUGEOT RCZ GT", description.SuggestedValue);
     }
 
     [Fact]
@@ -783,9 +820,9 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
-        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal("FORD", draft.VehicleMake);
-        Assert.Equal("RANGER WILDTRAK", draft.VehicleModel);
+        Assert.Equal(
+            "FORD RANGER WILDTRAK",
+            Field(result, "Vehicle description").SuggestedValue);
     }
 
     [Fact]
@@ -805,6 +842,15 @@ public sealed class QdosInstructionExtractionPolicyTests
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Null(draft.VehicleMake);
         Assert.Null(draft.VehicleModel);
+        Assert.Null(Field(result, "Vehicle description").SuggestedValue);
+        // It is read - under the third party's own role, where nothing
+        // downstream can mistake it for the claimant's vehicle.
+        Assert.Equal(
+            "AUDI A4 TECHNIK TDI",
+            Field(result, "Third-party vehicle").SuggestedValue);
+        Assert.Equal(
+            "third-party",
+            new QdosInstructionExtractionPolicy().FieldRoles["Third-party vehicle"].PartyRole);
     }
 
     [Fact]
@@ -825,9 +871,12 @@ public sealed class QdosInstructionExtractionPolicyTests
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(
             "Our client was stationary at traffic lights on Badger Avenue. " +
-            "Your insured failed to stop and collided with the rear of our client's car." +
-            "\n\nDamage Area: Rear: Moderate",
+            "Your insured failed to stop and collided with the rear of our client's car.",
             draft.AccidentCircumstances);
+        // The damage row the paragraph stopped at is a separate field, and the
+        // circumstances carry no part of it.
+        Assert.Equal("Rear: Moderate", Field(result, "Damage area").SuggestedValue);
+        Assert.DoesNotContain("Damage", draft.AccidentCircumstances!, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -870,9 +919,9 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.Equal(72_850, draft.VehicleMileage);
         Assert.Equal("DP07EFB", draft.VehicleRegistration);
         // The letter still outranks the report's own vehicle column, so the
-        // report's "TOYOTA NOT RECORDED" never becomes the model.
-        Assert.Equal("TOYOTA", draft.VehicleMake);
-        Assert.Equal("ALPHARD", draft.VehicleModel);
+        // report's "TOYOTA NOT RECORDED" never becomes the vehicle.
+        Assert.Equal("TOYOTA ALPHARD", Field(result, "Vehicle description").SuggestedValue);
+        Assert.Null(draft.VehicleMake);
     }
 
     [Fact]
@@ -914,9 +963,9 @@ public sealed class QdosInstructionExtractionPolicyTests
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(
-            "The insured reversed into the claimant's stationary vehicle."
-                + "\n\nDamage Area: rear",
+            "The insured reversed into the claimant's stationary vehicle.",
             draft.AccidentCircumstances);
+        Assert.Equal("rear", Field(result, "Damage area").SuggestedValue);
     }
 
     // The Triage subject template is the only QDOS shape whose registration
@@ -977,8 +1026,11 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
+        Assert.Equal(
+            "NISSAN QASHQAI N-TEC SH61WDY",
+            Field(result, "Vehicle description").SuggestedValue);
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal("NISSAN", draft.VehicleMake);
+        Assert.Null(draft.VehicleMake);
         Assert.Equal("SH61WDY", draft.VehicleRegistration);
     }
 
@@ -1002,6 +1054,88 @@ public sealed class QdosInstructionExtractionPolicyTests
             result.Evidence,
             item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
     }
+
+    /// <summary>
+    /// The letter's own party blocks, read from the shape the originals
+    /// print: a heading, then rows whose neighbouring column has to be cut
+    /// off them, and a client name row the claimant-name field already owns.
+    /// </summary>
+    [Fact]
+    public void ThePartyBlocksAreReadAsTheirOwnRolesAndCutFreeOfTheirNeighbours()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Our Client:         Ms Angela Feetham\n"
+                + "                    AUDIT REPORT NOTIFICATION\n"
+                + "CLIENT DETAILS\n"
+                + "Ms Angela Feetham                              Vehicle Details\n"
+                + "62 Edgefield\n"
+                + "West Allotment                                 Client's Vehicle:   NISSAN JUKE\n"
+                + "Newcastle upon Tyne\n"
+                + "NE27 0BT                                       Accident Date:      02/05/2026\n"
+                + "\n"
+                + "Home Tel:             07738011335\n"
+                + "Mobile:               07738011335\n"
+                + "\n"
+                + "REPAIRER DETAILS\n"
+                + "Gordon Marshall Coachworks\n"
+                + "16a West Langland Street\n"
+                + "Kilmarnock, KA1 2PY\n"
+                + "Tel:                  07923629069\n"
+                + "Email:                gwcmarshall@aol.com")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        // The client's own name row is left to the claimant-name field, the
+        // next column is cut off every row, and the bare label the cut leaves
+        // behind does not end the block.
+        Assert.Equal(
+            "62 Edgefield, West Allotment, Newcastle upon Tyne, NE27 0BT",
+            Field(result, "Claimant address").SuggestedValue);
+        Assert.Equal(
+            "Gordon Marshall Coachworks, 16a West Langland Street, Kilmarnock, KA1 2PY",
+            Field(result, "Repairer details").SuggestedValue);
+        Assert.Equal(
+            "AUDIT REPORT NOTIFICATION",
+            Field(result, "Requested work").SuggestedValue);
+        Assert.Equal("07738011335", Field(result, "Claimant home telephone").SuggestedValue);
+        // The repairer's bare "Tel:" row is the repairer's, and the claimant's
+        // "Home Tel:" row is the claimant's. Neither takes the other's number.
+        Assert.Equal("07923629069", Field(result, "Repairer telephone").SuggestedValue);
+        Assert.Equal("gwcmarshall@aol.com", Field(result, "Repairer email").SuggestedValue);
+
+        var roles = new QdosInstructionExtractionPolicy().FieldRoles;
+        Assert.Equal("claimant", roles["Claimant address"].PartyRole);
+        Assert.Equal("repairer", roles["Repairer details"].PartyRole);
+        Assert.Equal("instruction", roles["Requested work"].PartyRole);
+        Assert.Equal("principal", roles["Claim number"].ReferenceRole);
+    }
+
+    [Fact]
+    public void AMislabelledRepairerEmailRowIsWithheldRatherThanRecorded()
+    {
+        // One recorded original prints a telephone number under the
+        // repairer's "Email:" row. A value that is not an address is not this
+        // field's value, and returning nothing beats returning that.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "REPAIRER DETAILS\nEmail:                07902 317534")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var email = Field(result, "Repairer email");
+        Assert.Null(email.SuggestedValue);
+        Assert.Empty(email.Candidates);
+    }
+
+    private static InstructionReviewField Field(
+        InstructionExtractionResult result,
+        string name) =>
+        Assert.Single(result.Fields, field => field.Name == name);
 
     private static IntakeSourceReadResult ReadableWithSubject(
         string subject,
