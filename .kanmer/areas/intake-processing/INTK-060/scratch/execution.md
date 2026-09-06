@@ -348,3 +348,7 @@ Build 0/0, core 30, corpus 13/13 against the pack, web 11 + 5 known absent-pinne
 ## C05 integrated — C head `2c1a9d8a1`
 
 Review `pass` at `eb46b7a7d` (3 open minors R-21/R-22/R-23, residual). Merged `--no-ff`, build 0/0, pushed, published on PR 673. Residual for C05 closure: A's re-evaluation staging fix (tripwire test re-pointed after), `ThirdPartyReportValuation.Adjustments` contract request, Finding chip via C04/C08, minors R-21–R-23.
+
+## Checkpoint — rate limit hit (resets 21:30 London); continuing at low priority
+
+C07 caller round 3 at `4a92a06e4` (atomic claim `TryClaimHandOverAsync`, monotonic `IncomingArtifactCustodyProgress`, original-key GET/recovery, refusal → failed, R-18, G15 doubles, tests a–f); merged C head → `37a923067`; wave 29 + re-review dispatched. C02 implementer cut at `796778e8b` (locator + reader structure committed; `IntakeOcr.cs`, `AzureDocumentIntelligenceOcr.cs`, `EfIntakeOcrOperationStore.cs` untracked drafts) — resumed with "commit drafts first" and the C-F02 persistence caveat. C06 cleanup agent cut before any change — resumed. C08 round 3 (query values) still queued.
