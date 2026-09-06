@@ -161,7 +161,14 @@ public sealed class TestUiFocusedRenderTests
         using var client = IntakeWebDriver.CreateClient(factory);
         using var response = await client.GetAsync($"/Administration/{route}");
         response.EnsureSuccessStatusCode();
-        Assert.Contains(heading, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains(heading, html, StringComparison.Ordinal);
+        if (route == "Reports")
+        {
+            Assert.Contains("value=\"2031-04-05T11:30", html, StringComparison.Ordinal);
+            Assert.Contains("value=\"2031-05-06T11:30", html, StringComparison.Ordinal);
+            Assert.Contains("Received to generated artifact", html, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

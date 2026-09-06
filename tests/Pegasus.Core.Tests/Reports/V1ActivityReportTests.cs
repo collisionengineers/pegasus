@@ -78,10 +78,10 @@ public sealed class V1ActivityReportTests
     public void CsvUsesTheSharedFormulaSafeEscaping()
     {
         var csv = PrincipalReportActivityCsv.ToCsv(
-            [new(Guid.NewGuid(), "=QDOS", 1, 1, 1, 1, 0, 0, 0, 0, TimeSpan.FromHours(1), TimeSpan.FromHours(1), TimeSpan.FromHours(1), null, 0, null, 0, null, 0, [])]);
+            [new(Guid.NewGuid(), "=QDOS", 1, 1, 1, 1, 0, 0, 0, 0, TimeSpan.FromHours(1), TimeSpan.FromHours(2), TimeSpan.FromHours(1), null, 0, null, 0, null, 0, [])]);
 
         Assert.StartsWith(PrincipalReportActivityCsv.Header + "\r\n", csv, StringComparison.Ordinal);
-        Assert.Contains("'=QDOS,1,1,0,1,1,0,0,0,0,01:00:00,01:00:00,,0,,0,,0,\r\n", csv, StringComparison.Ordinal);
+        Assert.Contains("'=QDOS,1,1,0,1,1,0,0,0,0,01:00:00,02:00:00,01:00:00,,0,,0,,0,\r\n", csv, StringComparison.Ordinal);
     }
 
     private static ActionActor Administrator() =>

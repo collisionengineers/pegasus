@@ -10,7 +10,8 @@ namespace Pegasus.Web.Pages.Administration;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class ReportsModel(
     GetV1ActivityReport report,
-    GetEngineerActivityReport engineerReport) : AdministrationPageModel
+    GetEngineerActivityReport engineerReport,
+    TimeProvider timeProvider) : AdministrationPageModel
 {
     [BindProperty(SupportsGet = true, Name = "from")] public DateTime? From { get; set; }
     [BindProperty(SupportsGet = true, Name = "to")] public DateTime? To { get; set; }
@@ -42,7 +43,7 @@ public sealed class ReportsModel(
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return false;
-        var to = To is { } localTo ? LondonCalendar.ToUtc(localTo) : DateTimeOffset.UtcNow;
+        var to = To is { } localTo ? LondonCalendar.ToUtc(localTo) : timeProvider.GetUtcNow();
         var from = From is { } localFrom ? LondonCalendar.ToUtc(localFrom) : to.AddDays(-31);
         try
         {
