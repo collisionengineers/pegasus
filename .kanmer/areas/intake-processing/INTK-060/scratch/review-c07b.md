@@ -1063,3 +1063,227 @@ The dispatch's pass condition on lanes is met in full: 1, 2, 3 and 5 PASS and
 lane 4 fails only for the stated A-owned seed collision. The lanes do not
 change the verdict: the two open majors decide it on their own, and neither is
 a test failure — both are behaviour the suite currently asserts as correct.
+
+---
+
+# SUPERSEDING ATTESTATION — correction round 3
+
+```yaml
+kind: review-attestation
+pr: "none (controller override: no PR; worktree head review)"
+head_sha: "0a0e8897505dd853a3460522584274188e6d7b51"
+verdict: needs-changes
+reviewer: "pegasus-reviewer (INTK-060 C07b, round 3)"
+independent: true
+plan_hash: "62649b22a7e43d77"
+ticket_updated: "2026-09-06T17:37:17.700Z"
+board_sha: "09dd7b10635c74b482806dcb755e99916404d8d3"
+expected_reviewers: []
+threads_snapshot:
+  - source: manual
+    id: "PR673-comment-5560737585"
+    author: "stream-a"
+    resolved: true
+    finding: C07B-R-22
+  - source: manual
+    id: "PR673-comment-5560753915"
+    author: "stream-a"
+    resolved: false
+    finding: C07B-R-24
+  - source: manual
+    id: "PR673-comment-5560704411"
+    author: "stream-a"
+    resolved: true
+    finding: C07B-R-3a
+  - source: manual
+    id: "PR673-comment-5560716222"
+    author: "stream-c"
+    resolved: true
+    finding: C07B-R-3a
+  - source: manual
+    id: "PR673-comment-5560748861"
+    author: "stream-c"
+    resolved: false
+    finding: C07B-R-25
+  - source: manual
+    id: "PR673-comment-5560761330"
+    author: "stream-c"
+    resolved: false
+    finding: C07B-R-24
+findings:
+  - id: C07B-R-3a
+    severity: major
+    disposition: fixed
+    summary: "Identityless Unknown now reconciles by the ORIGINAL operation key through G15 FindByOperationKeyAsync, copying recovered DocumentId/VersionId; a null lookup returns the uncertain outcome and never authorizes a fresh key. RequestUploadPublicView.UnresolvedOperationKey plus UnscopeOperationKey re-present the sender's own key while an arrived/unknown/pending occurrence stands for the link, so no fresh key is minted over an unresolved occurrence. Proof: AnIdentitylessUncertainHandOverIsRecoveredByItsOriginalOperationKey (Core), ARecordThatFailsAfterCustodyAcceptedIsRecoveredByTheOriginalKey and TwoSimultaneousSubmissionsOfOneOperationKeyOfferTheBytesOnce (real SQL)."
+  - id: C07B-R-22
+    severity: major
+    disposition: fixed
+    summary: "Refusal mapping is now exactly A 5560737585. StaffAuthorizationException out of RetainAsync is a definite refusal of that attempted acceptance: the claimed occurrence records failed with FailureCode custody_refused and the refusal still surfaces. Adapter ArgumentException is removed from IsUncertainHandOver and is uncertain; only this command's own pre-call Validate refuses before anything is claimed. No bytes-read flag was added. Proof: ARefusedHandOverSurfacesAndClosesTheArrivalItWasClaimedFrom, AnAdapterArgumentExceptionIsUncertainAndNotARefusal (Core), ARefusedHandOverIsRecordedFailedAndTheNextLoadIssuesANewKey, AnAdapterArgumentExceptionLeavesTheArrivalUncertainAndTheKeyUnchanged (real SQL)."
+  - id: C07B-R-18
+    severity: minor
+    disposition: fixed
+    summary: "Request.cshtml.cs now catches StaffAuthorizationException and maps it to RefusedMessage ('This document was not accepted. Reload the link and try again.'), logging through LogPublicRequestUploadFailure. No Case, link or reason is disclosed and the wording does not invite a same-operation retry. OperatorLabels.cs is untouched, with the move to it deferred to C08's labels batch as before. Proof: ARefusedHandOverIsRecordedFailedAndTheNextLoadIssuesANewKey asserts HttpStatusCode.OK with RefusedMessage and DoesNotContain RetryMessage, i.e. not the 500 this finding named."
+  - id: C07B-R-24
+    severity: major
+    disposition: open
+    summary: "The monotonic transition is a non-atomic read-modify-write. RecordAsync loads PublicUploadOccurrenceEntity, tests MovesForward in memory, then saves; the entity carries no concurrency token (V1FoundationEntities.cs has no Version/ConcurrencyToken on it and V1FoundationModelConfiguration.cs configures only table/key/index/Sha256), so EF emits UPDATE ... WHERE Id = @id with no optimistic check. Two concurrent recorders on one occurrence are reachable: a claim loser reconciles while the winner is still inside RetainAsync, and A's own G15 note says the DocumentOccurrence row is written inside the accepting transaction, so the loser can read Pending before the winner returns Confirmed. Both read 'unknown', both pass MovesForward, and the later write wins - a Confirmed row downgraded to pending, which is exactly the regression A 5560761330 rule 2 forbids ('a late Pending/Unknown recorder against a Confirmed row is a no-op'). Blast radius is bounded (identities survive via ??=, the receipt and window are written from the returned artifact, and the next retry re-reconciles to Confirmed) but the invariant is not enforced where it is stated. The claim already shows the right shape: one conditional ExecuteUpdateAsync whose WHERE names the allowed source states. Test (a) does not catch it because the custody double commits nothing until the hold is released, so the loser's lookup returns null rather than Pending."
+  - id: C07B-R-25
+    severity: major
+    disposition: open
+    summary: "The web custody double applies A's published G15 fence to only one of the two status reads. RecordingCaseArtifactCustody.FindByOperationKeyAsync calls RequireStatusAuthority - staff casework, or the exact persisted RequestUploadLink with a matching CaseId, Status Active, RevokedAtUtc null and ExpiresAtUtc in the future, which is A's fence exactly - while GetAsync still calls StaffAuthorization.Require(actor, PerformCasework) alone and refuses a request-link actor. A 5560737585 states the adapter 'uses the same exact active/unrevoked/unexpired link + Case + accepted version creator/provenance fence for both status queries', and C's own disposition 5560748861 promised 'C's test doubles mirror the same link + Case + accepted-version fence for both status reads'. Neither is delivered. APendingArrivalIsNeverReOfferedAndThePublicSenderCannotReconcileIt then asserts the divergence as required behaviour (StatusCalls == 1 with the answer still Pending and StoringMessage on the second POST); against A's real adapter that submission would reconcile to Confirmed and redirect with RetainedMessage, so the test encodes a constraint the contract does not have and will fail when A publishes. No production defect follows - the divergence is in the safe direction - but the suite currently certifies the wrong contract."
+  - id: C07B-R-26
+    severity: major
+    disposition: open
+    summary: "Per-link key re-presentation disables plan item 6's additions without a recorded reconciliation. Plan item 6 states 'Additions and explicit replacements addressed by server-issued occurrence ID are allowed until explicit replay-safe finalization or expiry'. With UnresolvedCodes = [arrived, unknown, pending] the GET re-presents the outstanding occurrence's key for the whole link, and a POST of different bytes under that key hits the Sha256 mismatch branch of AuthorizeAndRecordArrivalAsync and is refused OperationConflict - so no second, different file can be added through the link until the first resolves. The implementer flagged this honestly in scratch/c07-notes ('a second file cannot be started through the link until the first resolves'), and it does follow A 5560761330's literal 'for that link' wording, so the behaviour is not itself a defect. What is missing is the reconciliation: no open question, assumption or governing-doc note records that a stated plan acceptance behaviour is now unavailable, and A's safety rule only requires that the unresolved occurrence's key not be replaced - it does not require refusing genuinely different bytes, so a per-occurrence reading satisfies both. Resolve by recording the conflict against plan item 6 and requesting A's ruling, or by presenting the outstanding key for a same-bytes retry while still allowing a new key for new content."
+  - id: C07B-R-27
+    severity: minor
+    disposition: open
+    summary: "The class contract on RetainIncomingArtifact overclaims. Its remarks say 'Every path to custody runs through a claim this caller won and committed first', but the claim is inside if (existing is not null): when FindAsync returns null the command calls custody.RetainAsync with no claim, and the StaffAuthorizationException handler's own if (existing is not null) guard then records nothing. Unreachable through the sole production caller today - EfDocumentRequestStore always commits the arrival before handing over, and the unique indexes on PublicUploadSessions.RequestUploadLinkId and PublicUploadOccurrences (SessionId, OperationKey) make the found row the caller's own occurrence - but the IntakeReceiptId destination the occurrence record already carries is a caller that would not pre-stage, and it would silently bypass the whole claim lifecycle. Either narrow the sentence to the staging contract it actually describes, or refuse an unstaged occurrence outright."
+  - id: C07B-R-28
+    severity: minor
+    disposition: open
+    summary: "Stale contract comment on the Core refusing double. RefusingCustodyStatus is documented as 'Custody's status port under its real rule: staff only. A request-link actor may hand bytes over and may not read what became of them.' A's published G15 fence authorizes the exact active/unrevoked/unexpired link for FindByOperationKeyAsync, so that is no longer custody's real rule. The double itself is still a legitimate refusing double (a revoked or mismatched link is refused), and AReconciliationTheActorMayNotReadLeavesTheRetentionWhereItWas still proves what it claims; only the comment misstates the contract."
+  - id: C07B-R-29
+    severity: minor
+    disposition: fixed
+    summary: "Ownership: 4a92a06e4 committed wave1/c07b-report.md inside the repository tree, a path outside C07's file ownership and outside the seven source/test files the report itself lists. The controller removed it at 0a0e88975 with no code change, and the report now lives in the controller scratchpad. Recorded as a process finding, fixed at the reviewed head."
+  - id: C07B-R-30
+    severity: note
+    disposition: accepted-risk
+    summary: "A link is permanently unusable by its sender after an uncertain hand-over custody never committed. The claim writes unknown before the call, so a crash or a fault between claim and commit leaves a row that TryClaimHandOverAsync will never move again (it only leaves arrived), G15 that returns null for ever, and a GET that re-presents the same key for ever. Reason for accepting: this is A 5560737585 and 5560761330 verbatim - 'null ... does NOT authorize a fresh operation key', 'never a fresh key, never a second RetainAsync' - and the alternative is the duplicate class the whole round exists to close. AnAdapterArgumentExceptionLeavesTheArrivalUncertainAndTheKeyUnchanged asserts this state deliberately. The operator escape hatch is the staff link reissue the session code already relies on ('the Case owner reissues on explicit staff action'): a new link gets a new session and new scoped keys. A timeout-based or staff-driven resolution of a stranded claim belongs to the custody stream, not C07."
+  - id: C07B-R-31
+    severity: note
+    disposition: accepted-risk
+    summary: "The first-insert race is guarded only by the unique index. Two concurrent first POSTs under one key both find no occurrence and both insert; the unique index on (SessionId, OperationKey) fails one commit, which surfaces as DbUpdateException on the page's recoverable filter and becomes the retry message. Safe - the loser never reaches custody, and its retry then finds the row and claims or reconciles - but unasserted. Reason for accepting: the index enforces it at the only level that matters and no test is required to establish a database constraint."
+  - id: C07B-R-32
+    severity: note
+    disposition: accepted-risk
+    summary: "UnscopeOperationKey returns null when the stored key does not carry the link prefix, and the caller maps that to UnresolvedOperationKey = null, which mints a fresh key - the one outcome the round exists to prevent. Unreachable as written, because the same query filters the session by the link the prefix is built from. Reason for accepting: defensive null on an unreachable branch; worth a comment rather than a change."
+```
+
+## What this round changed
+
+Five commits over `4e3d3c803`, reviewed at `0a0e88975` (the controller's removal
+of the in-tree report on top of the merge `37a923067`; code identical to
+`4a92a06e4`).
+
+| Commit | Change |
+| --- | --- |
+| `be71f0eee` | Both custody-status doubles implement G15 `FindByOperationKeyAsync` explicitly, no default fallback. |
+| `f4c79e1ff` | `TryClaimHandOverAsync`, honest `FindAsync`, forward-only `RecordAsync`, identityless recovery by the original key, refusal mapping. |
+| `c35cd2df9` | `RequestUploadPublicView.UnresolvedOperationKey` / `UnscopeOperationKey`; the page's refusal sentence. |
+| `668d934d2` | Regression proofs (a)-(f). |
+| `4a92a06e4` | The correction-round report (removed at `0a0e88975`). |
+
+`git diff --stat 4e3d3c803..4a92a06e4` touches exactly the seven source and test
+files the report lists, plus the report itself. `DocumentCustodyDurabilityTests.cs`,
+DI composition, migrations, `src/Pegasus.Core/Custody/*` and `OperatorLabels.cs`
+are all untouched.
+
+## The three regression classes A named
+
+**1. Atomic claim — satisfied.** `TryClaimHandOverAsync` is one
+`ExecuteUpdateAsync` over `WHERE Id = @id AND CustodyState = 'arrived'` setting
+`unknown`, and `claimed == 1` is the whole decision. It commits on its own
+context before `RetainAsync`. `FindAsync` no longer maps `arrived` to null;
+`ParseCustodyState` reads it as `Unknown`, so a loser sees the arrival it must
+reconcile instead of a null it would hand over against.
+
+There is no path left where two same-key callers both hand over. The production
+caller reuses the occurrence row addressed by `(SessionId, scopedOperationKey)`
+inside its authorizing transaction, and both that index and
+`PublicUploadSessions.RequestUploadLinkId` are unique, so the row `FindAsync`
+returns is always the caller's own occurrence and the CAS is on the right row.
+A Confirmed return followed by a `RecordAsync` failure cannot reopen the
+hand-over either: the row is already `unknown`, and `arrived` is the only state
+the claim will leave, so the retry reconciles. `ARecordThatFailsAfterCustodyAcceptedIsRecoveredByTheOriginalKey`
+proves that over real SQL, ending Confirmed with one `RetainAsync`, one lookup,
+one document and one receipt. The residual is C07B-R-27: the unstaged
+`existing is null` branch reaches custody with no claim.
+
+**2. Monotonic recording — the rule is right, the write is not serialized.**
+`MovesForward` ranks `unknown` 0, `pending` 1, `confirmed` and `failed` both 2,
+so a late Pending or Unknown cannot pull a Confirmed back, `Failed` cannot
+overwrite Confirmed (nor Confirmed overwrite Failed), and the `arrived`
+special case lets any first answer land. Identities are `??=` only, never
+erased, and the Box identity write is now gated on the row's post-update state
+so a blocked transition cannot write remote identities onto a non-confirmed row.
+`ALateRecorderNeverPullsAConfirmedRetentionBack` proves all three late states
+over real SQL and asserts the identities survive. What is missing is atomicity:
+see C07B-R-24.
+
+**3. R-3a — satisfied.** `ReconcileAsync` no longer requires
+`DocumentId`/`DocumentVersionId`; it asks `GetAsync` when it has them and
+`FindByOperationKeyAsync(actor, caseId, existing.OperationKey)` when it does
+not, copies `status.DocumentId`/`VersionId` onto the record, and returns
+`existing` unchanged on a null lookup with the claim intact. The GET side
+re-presents the sender's own unscoped key while any of `arrived`, `unknown` or
+`pending` stands for the link, so no fresh key is minted over an unresolved
+occurrence. No link+hash substitution appears anywhere.
+
+## The remaining dispatch questions
+
+**R-22 abuse path (4).** The failed-then-new-key path cannot re-offer bytes
+custody holds *given A's contract*. `StaffAuthorizationException` records the
+claimed occurrence `failed`, `ExecuteAsync` short-circuits Failed on the same
+key for ever, and only the GET's fresh key admits a new submission - which
+custody will refuse again unless the authority genuinely changed. The safety of
+this rests entirely on A's assertion that the adapter settles authority before
+it commits an accepted intent ("staging alone is not a committed accepted
+intent"), which C07 documents rather than assumes silently. Adapter
+`ArgumentException` is correctly uncertain.
+
+**G15 doubles (6).** `RequireStatusAuthority` is A's fence exactly - staff
+casework, or the exact persisted link with matching Case, `Active`, unrevoked
+and unexpired - and `FindByOperationKeyAsync` answers from
+`DocumentOccurrenceEntity`, the row A says the accepting transaction commits, so
+absence is exactly "nothing committed observed". Both Core doubles implement the
+method explicitly. The defect is that the web double's `GetAsync` was left on
+the old staff-only rule: C07B-R-25.
+
+**The two flagged consequences (7).** A `failed` retention not being re-offered
+under the same key is right and follows A rule 5. Blocking a second file per
+link is A's literal instruction but contradicts plan item 6, and the conflict is
+unrecorded: C07B-R-26.
+
+**Tests (8).** (a)-(f) are all real and none is skipped - there is no `Skip`
+attribute in any of the three test files. The concurrency test's "gate" is a
+`TaskCompletionSource` rendezvous inside the custody double
+(`HandOverEntered` / `HoldHandOver`), which parks the winner inside `RetainAsync`
+so the loser races a genuinely held claim; `HandOverAttempts` is incremented
+before the park, so `Assert.Equal(1, custody.HandOverAttempts)` while the winner
+is held is a real proof that the loser never reached custody. It is a
+determinism device, not a skip, and lane 3 shows it ran on LocalDB. (c) lives in
+`IncomingArtifactCustodyTests` rather than the web tests, which is the right
+home for a store invariant and is disclosed in the notes.
+
+**Ownership (9).** C07 files only, one owner per rule
+(`IncomingArtifactCustodyProgress.MovesForward` is the single monotonic rule and
+the Core double consumes it rather than copying it), no dead code beyond the two
+defensive branches at C07B-R-27 and C07B-R-32. The one violation was the in-tree
+report, C07B-R-29, fixed at the reviewed head.
+
+## Lanes — wave 29 at `0a0e88975`
+
+| Lane | Result | Evidence |
+| --- | --- | --- |
+| 1-build | **PASS** | exit 0, `Build succeeded. 0 Warning(s) 0 Error(s)`. |
+| 2-core | **PASS** | Failed 0, Passed 23, Skipped 0. |
+| 3-integration | **PASS** | Failed 0, Passed 66, Skipped 1 - the pre-existing corpus gate `CustodyOutboxIntegrationTests.AcceptedCaseRetainsEmbeddedPhotographsBesideTheSource`. Nothing in `PublicUploadRetentionWebTests` or `IncomingArtifactCustodyTests` was skipped. |
+| 4-a-owned | **FAIL (4), A-owned — exactly as stated** | Failed 4, Passed 1, all four in `DocumentCustodyDurabilityTests` with `SqlException: Cannot insert duplicate key row in object 'dbo.Principals' with unique index 'IX_Principals_Code'. The duplicate key value is (QDOS).` That file is untouched by C07. No other failure class. |
+| 5-architecture | **PASS** | Failed 0, Passed 100. |
+
+The dispatch's lane condition is met in full: 1, 2, 3 and 5 PASS, and lane 4
+fails only for the stated A-owned seed collision. The lanes do not decide this
+round - all three open majors are behaviour the suite currently asserts as
+correct, or an invariant no test exercises.
+
+## Verdict
+
+**needs-changes.** Head `0a0e88975`. Open: **3 majors** (C07B-R-24, C07B-R-25,
+C07B-R-26), **3 minors** (C07B-R-27, C07B-R-28, plus C07B-R-29 fixed at head),
+3 accepted-risk notes. The three findings A raised - the atomic claim, R-3a and
+the refusal mapping - are all fixed, and the durable claim lifecycle is correct.
+What remains is one real hole in the second half of A's instruction
+(C07B-R-24), one contract the doubles certify wrongly (C07B-R-25), and one
+unrecorded conflict with the plan (C07B-R-26).
