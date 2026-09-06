@@ -128,8 +128,7 @@ public sealed class InspectionAddressChoicesQueries(
             InspectionLocationSourceKind.Claimant,
             query.CaseId,
             projection.Version,
-            namePrefix,
-            nameQualifies);
+            namePrefix);
         AddIfMatches(
             candidates,
             projection.Inspection.RepairerAddress?.Current?.Value,
@@ -137,8 +136,7 @@ public sealed class InspectionAddressChoicesQueries(
             InspectionLocationSourceKind.Repairer,
             query.CaseId,
             projection.Version,
-            namePrefix,
-            nameQualifies);
+            namePrefix);
         AddIfMatches(
             candidates,
             projection.Inspection.StorageLocation?.Current?.Value,
@@ -146,17 +144,27 @@ public sealed class InspectionAddressChoicesQueries(
             InspectionLocationSourceKind.Storage,
             query.CaseId,
             projection.Version,
-            namePrefix,
-            nameQualifies);
+            namePrefix);
 
         if (nameQualifies)
         {
+            // A coarse, case-insensitive SQL-level prefix predicate (the
+            // database's default collation, not the exact NormalizeNamePrefix
+            // rule) plus a deterministic order, applied before the bounded
+            // fetch — otherwise a principal with more than 500 prior cases
+            // gets an arbitrary, unordered 500 and a real prefix match past
+            // that cutoff is silently dropped before it is ever compared.
+            // AddIfMatches below still applies the exact normalized
+            // comparison as the real filter.
+            var rawPrefix = (query.Prefix ?? string.Empty).Trim();
             var priorRows = await context.CaseDataFields.AsNoTracking()
                 .Where(field => field.FieldName == CaseDataFieldNames.InspectionAddress
                     && field.ValueKind == CaseDataCodes.Confirmed
                     && field.CaseId != query.CaseId
                     && field.Snapshot.Case.PrincipalId == principalId
-                    && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment)
+                    && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment
+                    && field.Value.StartsWith(rawPrefix))
+                .OrderByDescending(field => field.ConfirmedAtUtc)
                 .Select(field => new
                 {
                     field.CaseId,
@@ -180,7 +188,6 @@ public sealed class InspectionAddressChoicesQueries(
                     row.CaseId,
                     row.ConfirmedAtUtc.UtcTicks,
                     namePrefix,
-                    nameQualifies,
                     idSeed: row.CaseId);
             }
         }
@@ -229,7 +236,6 @@ public sealed class InspectionAddressChoicesQueries(
         Guid sourceRecordId,
         long sourceVersion,
         string namePrefix,
-        bool nameQualifies,
         Guid? idSeed = null)
     {
         if (string.IsNullOrWhiteSpace(address)
@@ -238,8 +244,12 @@ public sealed class InspectionAddressChoicesQueries(
             return;
         }
 
-        if (nameQualifies
-            && !InspectionLocationMatchPolicy.NormalizeNamePrefix(address).StartsWith(
+        // namePrefix's normalization (collapse interior whitespace) can
+        // never be shorter than postcodePrefix's (remove all whitespace), so
+        // every caller that reaches this point already has a qualifying
+        // namePrefix — SearchAsync's minimum-length gate guarantees it. The
+        // prefix test below is therefore always active, never bypassed.
+        if (!InspectionLocationMatchPolicy.NormalizeNamePrefix(address).StartsWith(
                 namePrefix, StringComparison.Ordinal))
         {
             return;
