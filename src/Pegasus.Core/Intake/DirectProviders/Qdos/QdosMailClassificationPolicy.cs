@@ -20,7 +20,7 @@ namespace Pegasus.Core.Intake;
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 6;
+    public const int Version = 7;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -39,13 +39,13 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         var subject = readResult.TransportEvidence
             .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value ?? string.Empty;
         var bodyTexts = Texts(readResult, IntakeEvidenceSource.EmailBody);
-        var documentTexts = readResult.Content
+        var documentFragments = readResult.Content
             .Where(fragment => fragment.Source
                 is IntakeEvidenceSource.DocumentContent
                 or IntakeEvidenceSource.PdfContent)
             .Where(fragment => !IsNestedMessageContent(fragment))
-            .Select(fragment => fragment.Text)
             .ToArray();
+        var documentTexts = documentFragments.Select(fragment => fragment.Text).ToArray();
 
         var isAutomaticReply = AutomaticReplyRegex().IsMatch(subject);
         var isReplyPrefixed = ReplyPrefixRegex().IsMatch(subject);
@@ -60,11 +60,16 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         // Engineer Triage query" mid-subject is not the tell, exactly as a
         // human sentence mentioning the body phrase is not.
         var hasTriageSubject = TriageSubjectRegex().IsMatch(subject);
-        var hasAttachmentTriage = documentTexts.Any(IsAttachmentTriageLetter);
+        var attachmentTriageCandidates = documentFragments
+            .Where(fragment => IsAttachmentTriageLetter(fragment.Text))
+            .GroupBy(fragment => fragment.Text, StringComparer.Ordinal)
+            .Select(group => string.Join(" + ", group.Select(fragment => fragment.SourceLabel)))
+            .ToArray();
+        var hasAttachmentTriage = attachmentTriageCandidates.Length > 0;
         // One candidate from all accepted tells. Adding a second candidate for the same
         // category would resolve to Ambiguous, so a message carrying both
         // tells would classify worse than one carrying either.
-        var isTriageRequest = hasTriagePhrase || hasTriageSubject || hasAttachmentTriage;
+        var isTriageRequest = hasTriagePhrase || hasTriageSubject;
         var hasAuditTitle = documentTexts.Any(text =>
             text.Contains(AuditNotificationTitle, StringComparison.Ordinal));
         var hasReportPlusAudit = documentTexts.Any(text =>
@@ -139,6 +144,19 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                     MailCategory.TriageRequestSubtype,
                     isReplyContext: isReplyPrefixed),
                 null));
+        }
+
+        // A body/subject tell and the first attached rendering are evidence for the same
+        // request. Further distinct attachment content is a separate candidate.
+        foreach (var attachmentIdentity in attachmentTriageCandidates.Skip(isTriageRequest ? 1 : 0))
+        {
+            candidates.Add(new(
+                MailCategory.Received(
+                    ReceivedMailFamily.PreInstructionEmails,
+                    MailCategory.TriageRequestSubtype,
+                    isReplyContext: isReplyPrefixed),
+                null,
+                attachmentIdentity));
         }
 
         if (hasAuditTitle)
@@ -218,12 +236,22 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
             ? candidate.Category.Name
             : $"{candidate.Category.Name}/{candidate.Category.Subtype}";
         var sameCategoryCount = candidates.Count(item => item.Category == candidate.Category);
-        return sameCategoryCount > 1 && candidate.CaseType is not null
+        if (sameCategoryCount <= 1)
+        {
+            return name;
+        }
+
+        return candidate.CaseType is not null
             ? $"{name}/{candidate.CaseType}"
-            : name;
+            : candidate.Identity is not null
+                ? $"{name}/{candidate.Identity}"
+                : name;
     }
 
-    private sealed record ClassificationCandidate(MailCategory Category, CaseType? CaseType);
+    private sealed record ClassificationCandidate(
+        MailCategory Category,
+        CaseType? CaseType,
+        string? Identity = null);
 
     private static bool IsAttachmentTriageLetter(string text) =>
         text.Contains(TriagePhrase, StringComparison.Ordinal)
@@ -344,13 +372,13 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     private static partial Regex TriageSubjectRegex();
 
     [GeneratedRegex(
-        @"(?is)\binitial\s+assessment\b.{0,100}\b(?:of|as\s+to)\s+whether\b.{0,40}\bthe\s+vehicle\s+is\s+(?!not\b)roadworthy\s+(?:and|and/or)\s+(?!not\b)repairable\b",
+        @"(?im)^[ \t]*Please\s+provide\s+an\s+initial\s+assessment\s+of\s+whether\s+the\s+vehicle\s+is\s+roadworthy\s+(?:and|and/or)\s+repairable\.[ \t]*$",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex InitialAssessmentRequestRegex();
 
     [GeneratedRegex(
-        @"(?i)\b(?<!no\s)(?<!not\s)(?<!no\san\s)(?<!no\sa\s)(?<!not\san\s)(?<!not\sa\s)(?:an?\s+)?official\s+inspection\s+instruction\s+will\s+follow\b",
+        @"(?im)^[ \t]*(?:An?\s+)?official\s+inspection\s+instruction\s+will\s+follow\.[ \t]*$",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex OfficialInspectionWillFollowRegex();

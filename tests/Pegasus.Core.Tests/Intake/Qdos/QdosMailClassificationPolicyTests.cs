@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(6, QdosMailClassificationPolicy.Version);
+        Assert.Equal(7, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -104,6 +104,30 @@ public sealed class QdosMailClassificationPolicyTests
     }
 
     [Fact]
+    public void DistinctTriageLettersRemainAmbiguousCandidates()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage-one.pdf", TriageLetter()),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 2, triage-two.doc",
+                    TriageLetter().Replace("47939/1", "48120/1", StringComparison.Ordinal)
+                        .Replace("AB12 CDE", "XY34 ZZZ", StringComparison.Ordinal))
+            ],
+            [new(IntakeEvidenceSource.Subject, "EREF - RTA")],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Null(result.Category);
+        Assert.Equal(2, result.AmbiguousCandidates.Count);
+        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-one.pdf", StringComparison.Ordinal));
+        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-two.doc", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void UnrelatedDocumentMentionOfTriageTitleDoesNotClassify()
     {
         var result = Classify(document:
@@ -118,6 +142,8 @@ public sealed class QdosMailClassificationPolicyTests
     [InlineData("Please provide an initial assessment of whether the vehicle is not roadworthy and repairable.\nAn official inspection instruction will follow.")]
     [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nAn official inspection instruction will not follow.")]
     [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nNo official inspection instruction will follow.")]
+    [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nWe cannot confirm whether an official inspection instruction will follow.")]
+    [InlineData("It may be possible to provide an initial assessment of whether the vehicle is roadworthy and repairable.\nAn official inspection instruction will follow.")]
     public void NegatedAssessmentOrFollowOnInstructionDoesNotClassify(string request)
     {
         var result = Classify(document:
