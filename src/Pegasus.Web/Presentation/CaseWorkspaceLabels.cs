@@ -93,6 +93,86 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The estimate header's VAT surface (B08): the repairer's status, the
+    /// categories the estimate's percentage is charged on, and the condition
+    /// that gates Use estimate while neither has been recorded. The category
+    /// names are the totals block's own, so the screen never labels the same
+    /// money two ways.
+    /// </summary>
+    public static class EstimateVat
+    {
+        public const string RepairerStatus = "Repairer VAT status";
+        public const string ChargedOn = "VAT charged on";
+        public const string NoCategories = "Nothing";
+        public const string UnknownStatusCondition = "No repairer VAT status recorded";
+
+        /// <summary>
+        /// The four categories of <see cref="EstimateVatCategories.All"/>, in
+        /// the order the screen states them. A fifth category added to Core
+        /// must be added here to appear at all.
+        /// </summary>
+        public static IReadOnlyList<EstimateVatCategories> Categories { get; } =
+        [
+            EstimateVatCategories.Labour,
+            EstimateVatCategories.Parts,
+            EstimateVatCategories.Materials,
+            EstimateVatCategories.Specialist,
+        ];
+
+        public static string StatusLabel(RepairerVatStatus status) => status switch
+        {
+            RepairerVatStatus.Unknown => "Unknown",
+            RepairerVatStatus.Registered => "Registered",
+            RepairerVatStatus.NotRegistered => "Not registered",
+            _ => status.ToString(),
+        };
+
+        public static string CategoryLabel(EstimateVatCategories category) => category switch
+        {
+            EstimateVatCategories.Labour => "Labour",
+            EstimateVatCategories.Parts => OperatorLabels.CaseWorkspace.EngineerSections.Parts,
+            EstimateVatCategories.Materials => EstimateTotals.Materials,
+            EstimateVatCategories.Specialist => EstimateTotals.Specialist,
+            _ => category.ToString(),
+        };
+
+        /// <summary>The charged categories as a value, in the order above.</summary>
+        public static string ChargedLabel(EstimateVatPolicy policy)
+        {
+            ArgumentNullException.ThrowIfNull(policy);
+            var charged = Categories.Where(policy.Charges).Select(CategoryLabel).ToArray();
+            return charged.Length == 0 ? NoCategories : string.Join(" · ", charged);
+        }
+    }
+
+    /// <summary>
+    /// The estimate header's four discounts (B08). Core holds them as
+    /// fractions; the screen states and reads them as percentages, so the
+    /// one conversion lives beside the one set of names.
+    /// </summary>
+    public static class EstimateDiscount
+    {
+        public const string Parts = "Parts discount";
+        public const string Materials = "Materials discount";
+        public const string Specialist = "Specialist discount";
+        public const string Overall = "Overall discount";
+
+        /// <summary>The editor's form label: the name with its unit.</summary>
+        public static string Percent(string label) => label + " %";
+
+        /// <summary>
+        /// The one conversion between Core's fraction and the percentage the
+        /// screen states, so the editor's box and the read-only value can
+        /// never disagree about the same discount.
+        /// </summary>
+        public static string PercentValue(decimal fraction) =>
+            (fraction * 100m).ToString("0.##", CultureInfo.InvariantCulture);
+
+        /// <summary>The read-only value: the percentage with its unit.</summary>
+        public static string Value(decimal fraction) => PercentValue(fraction) + "%";
+    }
+
+    /// <summary>
     /// The report-image preparation surface (B06): the Files section's
     /// per-image controls and the Report section's prepared cards read every
     /// name from here, so the two sections cannot label the same preparation

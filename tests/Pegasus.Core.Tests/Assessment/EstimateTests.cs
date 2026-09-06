@@ -24,7 +24,8 @@ public sealed class EstimateTests
     public void OneSnapshotRatePricesPanelAndPaintHoursAlike()
     {
         var estimate = Estimate(
-            new("Repairer estimate", 3, 40m, 25m, 10m, 17.5m, null),
+            new("Repairer estimate", 3, 40m, 25m, 10m, 17.5m, null,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             Line("new_part", price: 100m, quantity: 2),
             Line("repair", workUnits: 2.5m),
             Line("paint_repair", paintWorkUnits: 1.5m),
@@ -232,7 +233,9 @@ public sealed class EstimateTests
     [Fact]
     public void MakingCurrentIsTheEngineersAcceptanceWithTheTotalsOwnersBasis()
     {
-        var draft = Estimate(new("Draft", 2, 40m, 25m, 0m, 20m, null),
+        var draft = Estimate(
+            new("Draft", 2, 40m, 25m, 0m, 20m, null,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             Line("new_part", price: 100m), Line("repair", workUnits: 2m));
         EstimatePolicy.ValidateSetCurrent(draft, Engineer);
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(draft, User));

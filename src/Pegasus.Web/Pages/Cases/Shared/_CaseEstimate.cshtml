@@ -3,6 +3,8 @@
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @using TotalsLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateTotals
+@using VatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat
+@using DiscountLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateDiscount
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
@@ -137,7 +139,8 @@
                                         </button>
                                     </form>
                                 }
-                                @if (Model.SelectedEstimateCanBeCurrent && estimate is not null)
+                                @if (Model.SelectedEstimateCanBeCurrent && estimate is not null
+                                     && Model.UseEstimateCondition is null)
                                 {
                                     <form method="post" asp-page="/Cases/Details" asp-page-handler="SetCurrentEstimate"
                                           asp-route-id="@caseId" asp-route-section="estimate">
@@ -149,6 +152,15 @@
                                             <span>@EngineerLabels.UseEstimate</span>
                                         </button>
                                     </form>
+                                }
+                                else if (Model.SelectedEstimateCanBeCurrent && Model.UseEstimateCondition is { } useCondition)
+                                {
+                                    <span class="gated" data-condition="@useCondition">
+                                        <button type="button" class="btn" disabled aria-disabled="true">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                            <span>@EngineerLabels.UseEstimate</span>
+                                        </button>
+                                    </span>
                                 }
                                 @if (estimate?.IsCurrent == true)
                                 {
@@ -189,7 +201,48 @@
                                             <label for="estimate-vat">@EngineerLabels.VatPercent</label>
                                             <input id="estimate-vat" name="estimateVatPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@details.VatPercent" />
                                         </div>
+                                        @{ var vatPolicy = details.VatPolicy; var discounts = details.AppliedDiscounts; }
+                                        <div>
+                                            <label for="estimate-vat-status">@VatLabels.RepairerStatus</label>
+                                            <select id="estimate-vat-status" name="estimateVatStatus">
+                                                @foreach (var status in Enum.GetValues<RepairerVatStatus>())
+                                                {
+                                                    <option value="@status" selected="@(vatPolicy.RepairerStatus == status ? "selected" : null)">@VatLabels.StatusLabel(status)</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-parts">@DiscountLabels.Percent(DiscountLabels.Parts)</label>
+                                            <input id="estimate-discount-parts" name="estimateDiscountParts" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Parts)" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-materials">@DiscountLabels.Percent(DiscountLabels.Materials)</label>
+                                            <input id="estimate-discount-materials" name="estimateDiscountMaterials" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Materials)" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-specialist">@DiscountLabels.Percent(DiscountLabels.Specialist)</label>
+                                            <input id="estimate-discount-specialist" name="estimateDiscountSpecialist" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Specialist)" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-overall">@DiscountLabels.Percent(DiscountLabels.Overall)</label>
+                                            <input id="estimate-discount-overall" name="estimateDiscountOverall" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Overall)" />
+                                        </div>
                                     </div>
+                                    <fieldset class="section-gap">
+                                        <legend>@VatLabels.ChargedOn</legend>
+                                        <div class="cluster">
+                                            @foreach (var category in VatLabels.Categories)
+                                            {
+                                                var field = Pegasus.Web.Pages.Cases.DetailsModel.VatCategoryField(category);
+                                                <label class="choice">
+                                                    <input id="@field" name="@field" type="checkbox" value="true"
+                                                           checked="@(vatPolicy.Charges(category) ? "checked" : null)" />
+                                                    <input type="hidden" name="@field" value="false" />
+                                                    <span>@VatLabels.CategoryLabel(category)</span>
+                                                </label>
+                                            }
+                                        </div>
+                                    </fieldset>
                                     @{ var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" }); }
                                     <div class="estimate-table-head">
                                         <h3>@EngineerLabels.PartsAndOperations</h3>
@@ -262,6 +315,12 @@
                                     <div><dt>@EngineerLabels.PaintMaterials</dt><dd>@(details.PaintMaterials is { } paintMaterials ? $"£{paintMaterials.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.OtherCosts</dt><dd>@(details.OtherCosts is { } otherCosts ? $"£{otherCosts.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.Vat</dt><dd>@($"{totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%")</dd></div>
+                                    <div><dt>@VatLabels.RepairerStatus</dt><dd>@VatLabels.StatusLabel(totals.VatPolicy.RepairerStatus)</dd></div>
+                                    <div><dt>@VatLabels.ChargedOn</dt><dd>@VatLabels.ChargedLabel(totals.VatPolicy)</dd></div>
+                                    <div><dt>@DiscountLabels.Parts</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Parts)</dd></div>
+                                    <div><dt>@DiscountLabels.Materials</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Materials)</dd></div>
+                                    <div><dt>@DiscountLabels.Specialist</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Specialist)</dd></div>
+                                    <div><dt>@DiscountLabels.Overall</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Overall)</dd></div>
                                 </dl>
                                 <div class="estimate-bottom">
                                     <div class="estimate-notes"><h3 class="section-label">@EngineerLabels.Notes</h3>@(string.IsNullOrWhiteSpace(details.Notes) ? EngineerLabels.NoneRecorded : details.Notes)</div>

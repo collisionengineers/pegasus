@@ -20,6 +20,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Assessment;
+using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
@@ -290,6 +291,19 @@ public sealed partial class DetailsModel(
         && SelectedEstimate is { IsCurrent: false }
         && (SelectedEstimate.State == RepairSpecificationState.Draft
             || SelectedEstimate.State == RepairSpecificationState.Accepted);
+
+    /// <summary>
+    /// The condition that stops the selected estimate being made Current, or
+    /// null when nothing does. Core owns the refusal
+    /// (<see cref="EstimatePolicy.ValidateSetCurrent"/>) and only a Draft is
+    /// held to it; this names the same condition on the disabled control so
+    /// the screen never presents a button the save would refuse.
+    /// </summary>
+    public string? UseEstimateCondition =>
+        SelectedEstimate is { State: RepairSpecificationState.Draft } draft
+        && draft.Details.VatPolicy.BlocksAcceptance
+            ? EstimateVatLabels.UnknownStatusCondition
+            : null;
 
     public EstimateTotals EditorTotals
     {
@@ -1738,23 +1752,7 @@ public sealed partial class DetailsModel(
                 carried, previous, actor.SubjectId, savedAtUtc);
             return carried with { AmendedBy = amendedBy, AmendedAtUtc = amendedAtUtc };
         }).ToArray();
-        var details = new EstimateDetails(
-            editor.Name ?? string.Empty,
-            editor.RepairDays,
-            editor.LabourRate,
-            editor.PaintMaterials,
-            editor.OtherCosts,
-            editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            editor.Notes,
-            // The screen does not yet edit the discounts or the VAT
-            // categories, so the estimate keeps the ones it records. The rate
-            // card is kept only while the posted rate is still the one it
-            // priced: a retyped rate is the Engineer's own, not the card's.
-            existing?.Details.Discounts,
-            existing?.Details.Vat,
-            existing?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
-                ? card
-                : null);
+        var details = EditorDetailsFrom(editor, existing);
         try
         {
             var saved = await saveEstimate.ExecuteAsync(
@@ -2010,22 +2008,9 @@ public sealed partial class DetailsModel(
             ? Estimates.FirstOrDefault(item => item.SpecificationId == selected)
             : null;
         EditingNewEstimate = estimateId is null;
-        EditorDetails = new EstimateDetails(
-            editor.Name ?? string.Empty,
-            editor.RepairDays,
-            editor.LabourRate,
-            editor.PaintMaterials,
-            editor.OtherCosts,
-            editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            editor.Notes,
-            // Redrawing a row must not change what the totals mean: the
-            // estimate's own discounts, VAT categories and rate card stand,
-            // on the same terms the save applies them.
-            SelectedEstimate?.Details.Discounts,
-            SelectedEstimate?.Details.Vat,
-            SelectedEstimate?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
-                ? card
-                : null);
+        // Redrawing a row must not change what the totals mean: the header
+        // is read back on exactly the terms the save reads it.
+        EditorDetails = EditorDetailsFrom(editor, SelectedEstimate);
         EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null)];
         return Page();
     }
@@ -2038,10 +2023,47 @@ public sealed partial class DetailsModel(
         decimal? OtherCosts,
         decimal? VatPercent,
         string? Notes,
+        RepairerVatStatus VatStatus,
+        EstimateVatCategories VatCategories,
+        EstimateDiscounts Discounts,
         Guid? EstimateId,
         IReadOnlyList<EstimateEditorLine> Rows,
         IReadOnlyList<EstimateLineInput>? Lines,
-        IReadOnlyList<Guid?> ExistingLineIds);
+        IReadOnlyList<Guid?> ExistingLineIds)
+    {
+        /// <summary>
+        /// The posted VAT policy. Categories that differ from the status's
+        /// own defaults are the operator's hand-made override — which is
+        /// also the one thing that lets an Unknown status be made Current,
+        /// because an Unknown status defaults to charging nothing.
+        /// </summary>
+        public EstimateVatPolicy VatPolicy => new(
+            VatStatus,
+            VatCategories,
+            VatCategories != EstimateVatPolicy.DefaultFor(VatStatus));
+    }
+
+    /// <summary>
+    /// The estimate header the editor posted. The rate card is kept only
+    /// while the posted rate is still the one it priced: a retyped rate is
+    /// the Engineer's own, not the card's. Every other header fact — the
+    /// discounts and the VAT policy — is now posted, so nothing is carried
+    /// forward unseen.
+    /// </summary>
+    private static EstimateDetails EditorDetailsFrom(
+        EstimateEditorPost editor, RepairSpecificationVersion? existing) => new(
+        editor.Name ?? string.Empty,
+        editor.RepairDays,
+        editor.LabourRate,
+        editor.PaintMaterials,
+        editor.OtherCosts,
+        editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
+        editor.Notes,
+        editor.Discounts,
+        editor.VatPolicy,
+        existing?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
+            ? card
+            : null);
 
     private EstimateEditorPost ReadEditorPost()
     {
@@ -2058,6 +2080,16 @@ public sealed partial class DetailsModel(
                 : int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
                     ? parsed
                     : -1;
+        // A discount is typed as a percentage and held as a fraction. A blank
+        // box is no discount; anything unreadable stays negative through the
+        // conversion, so EstimatePolicy.ValidateDiscounts' [0,1] rule refuses
+        // it rather than the screen guessing a value.
+        static decimal Fraction(string? value) => (Money(value) ?? 0m) / 100m;
+        // A checked box posts "true" ahead of its hidden "false"; an
+        // unchecked box posts the "false" alone (CaseMutationPageModel's
+        // BooleanFormFields convention), so the first entry is the answer.
+        bool Checked(string field) =>
+            bool.TryParse(form[field].FirstOrDefault(), out var value) && value;
 
         var operations = form["lineOperation"].ToArray();
         var postedLineIds = form["lineId"].ToArray();
@@ -2148,6 +2180,15 @@ public sealed partial class DetailsModel(
             && parsedId != Guid.Empty
             ? parsedId
             : null;
+        var categories = EstimateVatCategories.None;
+        foreach (var category in EstimateVatLabels.Categories)
+        {
+            if (Checked(VatCategoryField(category)))
+            {
+                categories |= category;
+            }
+        }
+
         return new(
             form["estimateName"].ToString(),
             Days(form["estimateRepairDays"].ToString()),
@@ -2156,11 +2197,31 @@ public sealed partial class DetailsModel(
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
             form["estimateNotes"].ToString(),
+            // Enum.TryParse accepts any number, so a posted value that is not
+            // one of the three named states falls back to Unknown rather than
+            // reaching Core as an undefined status.
+            Enum.TryParse<RepairerVatStatus>(form["estimateVatStatus"].ToString(), out var status)
+                && Enum.IsDefined(status)
+                ? status
+                : RepairerVatStatus.Unknown,
+            categories,
+            new(
+                Fraction(form["estimateDiscountParts"].ToString()),
+                Fraction(form["estimateDiscountMaterials"].ToString()),
+                Fraction(form["estimateDiscountSpecialist"].ToString()),
+                Fraction(form["estimateDiscountOverall"].ToString())),
             estimateId,
             rows,
             linesAreValid ? lines : null,
             existingLineIds);
     }
+
+    /// <summary>
+    /// The form field one VAT category is posted under, so the screen and
+    /// the reader never name the same box two different ways.
+    /// </summary>
+    public static string VatCategoryField(EstimateVatCategories category) =>
+        "estimateVat" + category;
 
     /// <summary>
     /// ENG-026: the estimate import. The file is parsed first
