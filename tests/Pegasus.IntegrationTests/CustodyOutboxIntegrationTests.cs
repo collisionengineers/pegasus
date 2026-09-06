@@ -22,6 +22,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
