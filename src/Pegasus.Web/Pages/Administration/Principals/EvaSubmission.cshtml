@@ -1,7 +1,7 @@
 @page "{organizationId:guid}/{principalId:guid}"
 @model Pegasus.Web.Pages.Administration.Principals.EvaSubmissionModel
 @{
-    ViewData["Title"] = "EVA API submission";
+    ViewData["Title"] = "Principal settings";
 }
 
 <a class="back-link" asp-page="Index">
@@ -15,7 +15,7 @@
 {
     <div class="page-heading">
         <div>
-            <h1>EVA API submission for @Model.Principal.Code</h1>
+            <h1>Settings for @Model.Principal.Code</h1>
         </div>
         <div class="page-heading-actions">
             <partial name="Shared/_StatusChip" model="@(Model.Principal.IsActive ? "Active" : "Disabled")" />
@@ -23,15 +23,15 @@
     </div>
 
     <div class="panel form-panel">
-        <form method="post" asp-page-handler="Update"
+        <h2>Manual EVA API submission</h2>
+        @* Automatic EVA submission is retired (EXT-18 item 7): manual
+           remains the only optional, explicit staff action this page offers. *@
+        <form method="post" asp-page-handler="UpdateEva"
               asp-route-organizationId="@Model.Organization.Id"
               asp-route-principalId="@Model.Principal.Id">
             <div asp-validation-summary="All" class="status-card status-card--error" role="alert"></div>
             <input type="hidden" asp-for="ExpectedVersion" />
-            <input type="hidden" asp-for="OperationKey" />
-            @* Two independent settings, so two checkboxes rather than one
-               mode: a principal may submit automatically and offer no button,
-               which one mode could not express. *@
+            <input type="hidden" asp-for="EvaOperationKey" />
             <div>
                 <label>
                     <input asp-for="EvaManualSubmission" type="checkbox" />
@@ -39,19 +39,63 @@
                 </label>
             </div>
             <div>
-                <label>
-                    <input asp-for="EvaAutomaticSubmission" type="checkbox" />
-                    Automatic API submission
-                </label>
-            </div>
-            <div>
-                <label asp-for="Reason">Reason</label>
-                <input asp-for="Reason" autocomplete="off" />
-                <span asp-validation-for="Reason"></span>
+                <label asp-for="EvaReason">Reason</label>
+                <input asp-for="EvaReason" autocomplete="off" />
+                <span asp-validation-for="EvaReason"></span>
             </div>
             <div class="button-row">
-                <button type="submit" class="primary-action">Save settings</button>
+                <button type="submit" class="primary-action">Save EVA setting</button>
             </div>
         </form>
     </div>
+
+    @* EXT-18/S05 correction round 2 (ASSUMPTION 8): this form only renders
+       when IUpdatePrincipalDefaultInspectionLocation is registered — on this
+       branch, until Stream A's registration lands, the constructor
+       dependency is absent and this panel is skipped rather than posting to
+       a handler that would 404. *@
+    @if (Model.DefaultLocationAvailable)
+    {
+    <div class="panel form-panel">
+        <h2>Default inspection location</h2>
+        @* EXT-18 item 6: Image Based Assessment, or one sourced/manual
+           physical address. A change away from a sourced value requires a
+           reason; this never implies physical CE attendance or changes B's
+           separate CE assessment method. *@
+        <form method="post" asp-page-handler="UpdateLocation"
+              asp-route-organizationId="@Model.Organization.Id"
+              asp-route-principalId="@Model.Principal.Id">
+            <div asp-validation-summary="All" class="status-card status-card--error" role="alert"></div>
+            <input type="hidden" asp-for="ExpectedVersion" />
+            <input type="hidden" asp-for="LocationOperationKey" />
+            <div>
+                <label>
+                    <input asp-for="LocationIsImageBasedAssessment" type="checkbox" />
+                    Default to Image Based Assessment
+                </label>
+            </div>
+            <div>
+                <label asp-for="LocationLabel">Location label (optional)</label>
+                <input asp-for="LocationLabel" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="LocationAddress">Address</label>
+                <input asp-for="LocationAddress" autocomplete="off" />
+                <span asp-validation-for="LocationAddress"></span>
+            </div>
+            <div>
+                <label asp-for="LocationPostcode">Postcode (optional)</label>
+                <input asp-for="LocationPostcode" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="LocationReason">Reason</label>
+                <input asp-for="LocationReason" autocomplete="off" />
+                <span asp-validation-for="LocationReason"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save default location</button>
+            </div>
+        </form>
+    </div>
+    }
 }
