@@ -332,3 +332,7 @@ Review `pass` at `f1519a2f9` (`scratch/review-c06`, four rounds; open minors R-2
 ## Checkpoint — C05 round 3 at `eb46b7a7d` (merged `7467190b1`)
 
 R-16 fixed (document-level locator = retained file name via `ThirdPartyReportSourceContext`); R-6 root-caused to an A-owned defect — queued re-evaluation deletes the staged copy at first-pass completion, so the re-claimed pass fails `staged_artifact_integrity_failure` before the reader (handed to A: PR 673 comment 5560823100); test renamed to assert the reading stands and the work item's real failure; replay guard proved against SQL separately (ASSUMPTION 8). R-17/R-18 fixed. Re-review dispatched; wave 28 queued behind wave 27 (C08). C02 slice worktree `v1-intake-c02` (`c02-provenance`) created off `aa3202746`; implementer dispatch next (editors: C07b r3 + C02).
+
+## A's C06 DI patch applied — C head `306db9502`
+
+One A-owned file (`DependencyInjection.cs`: Claim Source store/command/query, `IOrganizationDirectoryQueries`, `IUpdatePrincipalDefaultInspectionLocation`, inspection choices/location ports → one scoped concrete); hash verified; build 0/0; pushed; A told. Queued C06 cleanup (next editor slot): make the directory and default-location dependencies required again, delete `C06AdapterRegistrations`/`WithC06Adapters`, then C06 HTTP/persistence lanes through production registrations. Editors: C07b r3, C02.
