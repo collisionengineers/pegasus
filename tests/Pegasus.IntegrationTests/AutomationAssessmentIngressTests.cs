@@ -850,7 +850,6 @@ public sealed class AutomationAssessmentIngressTests
                     aiJobId = jobId,
                     name = "Claude draft",
                     labourRate = 40,
-                    paintLabourRate = 30,
                     paintMaterials = 25,
                     vatPercent = 20,
                     lines
@@ -871,9 +870,11 @@ public sealed class AutomationAssessmentIngressTests
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
             Assert.Equal(100m, totals.GetProperty("labour").GetDecimal());
-            Assert.Equal(70m, totals.GetProperty("paint").GetDecimal());
-            Assert.Equal(78.08m, totals.GetProperty("vat").GetDecimal());
-            Assert.Equal(468.48m, totals.GetProperty("total").GetDecimal());
+            Assert.Equal(85m, totals.GetProperty("paint").GetDecimal());
+            Assert.Equal(81.08m, totals.GetProperty("vat").GetDecimal());
+            Assert.Equal(486.48m, totals.GetProperty("total").GetDecimal());
+            Assert.Equal(40m, estimate.GetProperty("labourRate").GetDecimal());
+            Assert.False(estimate.TryGetProperty("paintLabourRate", out _));
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
