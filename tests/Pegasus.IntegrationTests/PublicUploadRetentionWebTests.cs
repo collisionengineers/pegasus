@@ -56,6 +56,9 @@ public sealed partial class PublicUploadRetentionWebTests
     private const string RetryMessage =
         "The document could not be retained. Try again using the same upload operation.";
 
+    private const string RefusedMessage =
+        "This document was not accepted. Reload the link and try again.";
+
     [Fact]
     public async Task AConfirmedHandOverOpensTheFixedWindowAndRecordsTheBoxIdentities()
     {
@@ -82,10 +85,13 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal(Evidence.Length, call.ObservedContentLength);
         Assert.Equal(Sha256Hex(Evidence), call.ObservedSha256);
 
-        // The arrival was durable before custody was asked, and it carried the
-        // pre-custody state at that moment — not a Pending custody has not
-        // given, and certainly not a Confirmed one.
-        Assert.Equal("arrived", call.CustodyStateAtHandOver);
+        // The arrival was durable before custody was asked, and by then it was
+        // claimed: the conditional update out of "arrived" had already
+        // committed, which is what stops a second caller of this key offering
+        // the same bytes and what stops a lost result reopening the hand-over.
+        // Not a Pending custody has not given, and certainly not a Confirmed
+        // one.
+        Assert.Equal("unknown", call.CustodyStateAtHandOver);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
@@ -508,10 +514,234 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Single(custody.Calls);
         Assert.Equal(0, custody.StatusCalls);
 
+        // It named no document, so it was asked for by the operation key it
+        // was accepted under. Custody owns up to no committed intent, and the
+        // arrival honestly stays uncertain.
+        Assert.Equal(1, custody.LookupCalls);
+
         await using var after = await CreateContextAsync(factory.Services);
         var occurrence = await after.Set<PublicUploadOccurrenceEntity>().AsNoTracking().SingleAsync();
         Assert.Equal("unknown", occurrence.CustodyState);
         Assert.Equal((0, 0L), await ReadLinkTotalsAsync(after, link.LinkId));
+    }
+
+    /// <summary>
+    /// Two submissions of one operation key arriving at once. Exactly one of
+    /// them may offer the bytes, and the claim - not luck - is what decides
+    /// which: the other never reaches custody, asks about the same key
+    /// instead, and leaves the claim standing when custody has nothing
+    /// committed to own up to yet.
+    /// </summary>
+    [Fact]
+    public async Task TwoSimultaneousSubmissionsOfOneOperationKeyOfferTheBytesOnce()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        custody.HoldHandOver = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var link = await SeedLinkAsync(factory.Services);
+        var key = await ReadOperationKeyAsync(factory, link.Token);
+
+        // The winner is parked inside custody: the claim is taken, and nothing
+        // is committed yet.
+        var winner = PostEvidenceAsync(factory, link.Token, key);
+        await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        var loser = await PostEvidenceAsync(factory, link.Token, key);
+
+        // It never reached custody with the bytes, and it asked by the key
+        // instead - which is the whole difference between one file and two.
+        Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Equal(1, custody.LookupCalls);
+        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(HttpStatusCode.OK, loser.StatusCode);
+        Assert.Contains(RetryMessage, loser.Body, StringComparison.Ordinal);
+
+        // Nothing committed was observed, because the winner has not committed
+        // yet. That leaves the claim exactly as it was, and the page keeps
+        // asking for the same operation key rather than minting one that would
+        // become a second deliberate submission.
+        Assert.Equal("unknown", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
+        Assert.Equal(key, await ReadOperationKeyAsync(factory, link.Token));
+
+        custody.HoldHandOver.SetResult();
+        var confirmed = await winner;
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
+        Assert.Contains(RetainedMessage, confirmed.CompletionBody, StringComparison.Ordinal);
+        Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Single(custody.Calls);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var occurrence = Assert.Single(await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .ToArrayAsync());
+        Assert.Equal("confirmed", occurrence.CustodyState);
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// Custody accepted, and the answer could not be written down. The claim
+    /// taken before the call is what makes that survivable: the arrival stays
+    /// claimed rather than offerable, the retry asks under the original key,
+    /// and the identities custody committed to come back rather than being
+    /// created a second time.
+    /// </summary>
+    [Fact]
+    public async Task ARecordThatFailsAfterCustodyAcceptedIsRecoveredByTheOriginalKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        factory.Services.GetRequiredService<RetentionRecordingFault>().Arm();
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Contains(RetryMessage, first.Body, StringComparison.Ordinal);
+        var call = Assert.Single(custody.Calls);
+        Assert.NotNull(call.VersionId);
+
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var arrival = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync();
+
+            // Claimed, and nothing more: custody's answer never reached it.
+            Assert.Equal("unknown", arrival.CustodyState);
+            Assert.Null(arrival.DocumentVersionId);
+            Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+        }
+
+        // The page is still asking for the same operation key, so the sender's
+        // retry is the same submission.
+        Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
+
+        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
+
+        // Asked, not repeated: one hand-over, and the answer recovered by the
+        // key it was accepted under.
+        Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Equal(1, custody.LookupCalls);
+        Assert.Equal(0, custody.StatusCalls);
+
+        await using var after = await CreateContextAsync(factory.Services);
+        var occurrence = await after.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .SingleAsync();
+        Assert.Equal("confirmed", occurrence.CustodyState);
+        Assert.Equal(call.DocumentId, occurrence.DocumentId);
+        Assert.Equal(call.VersionId, occurrence.DocumentVersionId);
+
+        var version = await after.Set<DocumentVersionEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == occurrence.DocumentVersionId);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+        Assert.Equal($"box-file:{version.Id:N}", version.BoxFileId);
+
+        // One file, once, and one document version - not a second copy of the
+        // bytes custody already held.
+        Assert.Single(await after.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == link.CaseId)
+            .ToArrayAsync());
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(after, link.LinkId));
+    }
+
+    /// <summary>
+    /// Custody declining the authority is a refusal of that attempted
+    /// acceptance, whatever it had read by then. The arrival is closed as
+    /// refused rather than left uncertain, the sender is told so in a sentence
+    /// that discloses nothing, and only then does the page issue a new
+    /// operation key - because only then is a further submission a new
+    /// deliberate one rather than a duplicate.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedHandOverIsRecordedFailedAndTheNextLoadIssuesANewKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.ThrowOnHandOver =
+            new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+        var link = await SeedLinkAsync(factory.Services);
+
+        var refused = await PostEvidenceAsync(factory, link.Token);
+
+        // A plain sentence on a public page, not the 500 an unhandled
+        // authorization fault would be, and not "try the same operation again".
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains(RefusedMessage, refused.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain(RetryMessage, refused.Body, StringComparison.Ordinal);
+        Assert.Equal(1, custody.HandOverAttempts);
+
+        Assert.Equal("failed", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
+
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
+                .AsNoTracking()
+                .Where(item => item.RequestId == link.LinkId)
+                .ToArrayAsync());
+            Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+        }
+
+        // Nothing is outstanding any more, so the next submission is a new one.
+        Assert.NotEqual(refused.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
+
+        custody.ThrowOnHandOver = null;
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var accepted = await PostEvidenceAsync(factory, link.Token);
+
+        Assert.Equal(HttpStatusCode.Redirect, accepted.StatusCode);
+        Assert.NotEqual(refused.OperationKey, accepted.OperationKey);
+        Assert.Equal(2, custody.HandOverAttempts);
+    }
+
+    /// <summary>
+    /// An <see cref="ArgumentException"/> out of the adapter is not a refusal.
+    /// An adapter can raise one after it has committed as easily as before, so
+    /// the arrival stays uncertain, the key stays the sender's, and the retry
+    /// asks rather than offering the bytes a second time.
+    /// </summary>
+    [Fact]
+    public async Task AnAdapterArgumentExceptionLeavesTheArrivalUncertainAndTheKeyUnchanged()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.ThrowOnHandOver = new ArgumentException("the adapter did not like the request");
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Contains(RetryMessage, first.Body, StringComparison.Ordinal);
+        Assert.Equal("unknown", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
+        Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
+
+        custody.ThrowOnHandOver = null;
+        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Contains(RetryMessage, second.Body, StringComparison.Ordinal);
+        Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Equal(1, custody.LookupCalls);
+        Assert.Equal("unknown", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
+
+        await using var context = await CreateContextAsync(factory.Services);
+        Assert.Empty(await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == link.CaseId)
+            .ToArrayAsync());
+        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
     /// <summary>
@@ -592,13 +822,30 @@ public sealed partial class PublicUploadRetentionWebTests
         // The status port is refused too, and by its own rule: Stream A's
         // status read is staff casework only, so the authority that may hand
         // bytes over may not ask what became of them.
+        var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>().GetAsync(
+            status.GetAsync(
                 ActionActor.RequestLink(link.LinkId),
                 link.CaseId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 CancellationToken.None));
+
+        // The operation-key lookup is the read a request link may make - it is
+        // how a sender whose response was lost recovers - and it carries the
+        // same fence the hand-over does, so a link that is not this one is
+        // refused exactly as it is refused bytes.
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            status.FindByOperationKeyAsync(
+                ActionActor.RequestLink(other.LinkId),
+                link.CaseId,
+                $"request:{link.LinkId:N}:{Guid.NewGuid():N}",
+                CancellationToken.None));
+        Assert.Null(await status.FindByOperationKeyAsync(
+            ActionActor.RequestLink(link.LinkId),
+            link.CaseId,
+            $"request:{link.LinkId:N}:{Guid.NewGuid():N}",
+            CancellationToken.None));
 
         // A refusal reaches no store, so there is no arrival and no document
         // against any of the five seeded Cases.
@@ -719,7 +966,13 @@ public sealed partial class PublicUploadRetentionWebTests
             // not finished could never be asked about.
             services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
                 provider.GetRequiredService<RecordingCaseArtifactCustody>());
-            services.AddScoped<IIncomingArtifactRetentionStore, EfPublicUploadRetentionStore>();
+            // The production store, reached through a decorator that is inert
+            // until a test arms it. Recording the result of a hand-over
+            // custody has already answered is the one failure a caller cannot
+            // provoke from outside, and it is exactly the one the claim exists
+            // to survive.
+            services.AddSingleton<RetentionRecordingFault>();
+            services.AddScoped<IIncomingArtifactRetentionStore, FaultInjectingRetentionStore>();
             services.AddScoped<RetainIncomingArtifact>();
         }));
 
@@ -803,6 +1056,33 @@ public sealed partial class PublicUploadRetentionWebTests
         }
 
         return new(response.StatusCode, body, key, completion);
+    }
+
+    /// <summary>
+    /// The operation key the page is currently handing senders. It is the
+    /// whole of whether a retry reconciles an outstanding submission or
+    /// becomes a second one.
+    /// </summary>
+    private static async Task<string> ReadOperationKeyAsync(
+        WebApplicationFactory<Program> factory,
+        string token)
+    {
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var page = await client.GetAsync($"/Uploads/{token}");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        return FieldValue(await page.Content.ReadAsStringAsync(), "OperationKey");
+    }
+
+    private static async Task<string> ReadOccurrenceStateAsync(
+        IServiceProvider services,
+        Guid linkId)
+    {
+        await using var context = await CreateContextAsync(services);
+        return await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.OperationKey.StartsWith($"request:{linkId:N}:"))
+            .Select(item => item.CustodyState)
+            .SingleAsync();
     }
 
     private static string FieldValue(string html, string name)
@@ -894,6 +1174,25 @@ internal sealed class RecordingCaseArtifactCustody(
     /// </summary>
     public int LookupCalls { get; private set; }
 
+    /// <summary>
+    /// How many callers reached <see cref="RetainAsync"/> at all, counted on
+    /// the way in. <see cref="Calls"/> only records hand-overs that finished,
+    /// so it cannot tell a second caller that never arrived from one still
+    /// inside the call.
+    /// </summary>
+    public int HandOverAttempts;
+
+    /// <summary>
+    /// Held open, this parks a hand-over inside custody with the claim taken
+    /// and nothing committed - the exact window a simultaneous caller of the
+    /// same operation key races into.
+    /// </summary>
+    public TaskCompletionSource? HoldHandOver { get; set; }
+
+    /// <summary>Completes once a hand-over is parked on the hold.</summary>
+    public TaskCompletionSource HandOverEntered { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public IReadOnlyList<RecordedCustodyCall> Calls
     {
         get
@@ -910,6 +1209,7 @@ internal sealed class RecordingCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        Interlocked.Increment(ref HandOverAttempts);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var linkId = RequireAuthority(request, context, timeProvider.GetUtcNow());
         var caseId = request.CaseId!.Value;
@@ -925,6 +1225,12 @@ internal sealed class RecordingCaseArtifactCustody(
             .Where(item => item.OperationKey == request.OperationKey)
             .Select(item => item.CustodyState)
             .SingleOrDefaultAsync(cancellationToken);
+
+        if (HoldHandOver is { } hold)
+        {
+            HandOverEntered.TrySetResult();
+            await hold.Task.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+        }
 
         if (ThrowOnHandOver is { } fault)
         {
@@ -1226,6 +1532,52 @@ internal sealed class RecordingCaseArtifactCustody(
 
         return linkId;
     }
+}
+
+/// <summary>
+/// Whether the next retention record should fail. Armed by a test, taken once.
+/// </summary>
+/// <remarks>
+/// A hand-over that returned and could not be written down is the failure the
+/// pre-hand-over claim exists to survive, and nothing a caller does from
+/// outside can provoke it.
+/// </remarks>
+internal sealed class RetentionRecordingFault
+{
+    private int armed;
+
+    public void Arm() => Interlocked.Exchange(ref armed, 1);
+
+    public bool TakeIfArmed() => Interlocked.Exchange(ref armed, 0) == 1;
+}
+
+/// <summary>
+/// The production retention store with that one failure injected. Everything
+/// else - the claim, the reads, the forward-only record - is the real store's,
+/// because those are what the proofs are about.
+/// </summary>
+internal sealed class FaultInjectingRetentionStore(
+    IDbContextFactory<PegasusDbContext> dbContextFactory,
+    RetentionRecordingFault fault) : IIncomingArtifactRetentionStore
+{
+    private readonly EfPublicUploadRetentionStore inner = new(dbContextFactory);
+
+    public Task<RetainedIncomingArtifact?> FindAsync(
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        inner.FindAsync(operationKey, cancellationToken);
+
+    public Task<bool> TryClaimHandOverAsync(
+        Guid occurrenceId,
+        CancellationToken cancellationToken) =>
+        inner.TryClaimHandOverAsync(occurrenceId, cancellationToken);
+
+    public Task RecordAsync(
+        RetainedIncomingArtifact artifact,
+        CancellationToken cancellationToken) =>
+        fault.TakeIfArmed()
+            ? Task.FromException(new TimeoutException("the retention record timed out"))
+            : inner.RecordAsync(artifact, cancellationToken);
 }
 
 /// <summary>What one hand-over actually presented to custody.</summary>
