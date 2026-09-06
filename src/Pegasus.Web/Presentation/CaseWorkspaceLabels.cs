@@ -58,6 +58,22 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The estimate totals block's row labels (B04). The five printed
+    /// components, the net and the gross are what the canonical breakdown
+    /// carries, so the block names them rather than the flat pre-B04 rows;
+    /// Parts and VAT keep the shared labels they already have.
+    /// </summary>
+    public static class EstimateTotals
+    {
+        public const string PanelLabour = "Panel labour";
+        public const string PaintLabour = "Paint labour";
+        public const string Materials = "Materials";
+        public const string Specialist = "Specialist";
+        public const string Net = "Net";
+        public const string Gross = "Gross";
+    }
+
+    /// <summary>
     /// The Report section's generation and delivery surface. Labels only —
     /// values come from the persisted generation and preparation records,
     /// and a Sent claim never appears here because transport observation is

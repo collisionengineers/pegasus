@@ -247,6 +247,50 @@ public sealed class AssessmentReportProjectionTests
         result.Snapshot.Validate();
     }
 
+    /// <summary>
+    /// ENG-039: the report's cost block is the printed breakdown itself, row
+    /// for row, even when the estimate carries discounts and charges VAT on
+    /// only some of its categories. The report never re-derives a figure and
+    /// never reads a flattened projection of one.
+    /// </summary>
+    [Fact]
+    public void TheReportsCostsAreThePrintedBreakdownRowForRow()
+    {
+        var estimate = CurrentEstimate(new EstimateDetails(
+            "Repairer", 2, 45m, null, 60m, 15m, 20m, null,
+            new EstimateDiscounts(0.1m, 0.05m, 0.125m, 0.025m),
+            new EstimateVatPolicy(
+                RepairerVatStatus.NotRegistered,
+                EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+                false),
+            null));
+
+        var costs = AssessmentReportProjection
+            .Project(ReadyInput() with { CurrentEstimate = estimate })
+            .Snapshot!.Costs;
+
+        var totals = EstimateTotals.Compute(estimate);
+        var printed = totals.Printed;
+        Assert.Equal(printed.Parts, costs.Printed.Parts);
+        Assert.Equal(printed.PanelLabour, costs.Printed.PanelLabour);
+        Assert.Equal(printed.PaintLabour, costs.Printed.PaintLabour);
+        Assert.Equal(printed.Materials, costs.Printed.Materials);
+        Assert.Equal(printed.Specialist, costs.Printed.Specialist);
+        Assert.Equal(printed.Net, costs.Printed.Net);
+        Assert.Equal(printed.Vat, costs.Printed.Vat);
+        Assert.Equal(printed.Gross, costs.Total);
+        // The categories the repairer's position charges are the ones taxed:
+        // the panel and paint labour this estimate carries is not.
+        Assert.True(printed.PanelLabour + printed.PaintLabour > 0m);
+        Assert.Equal(
+            decimal.Round(
+                (totals.Raw.Parts + totals.Raw.Materials) * 20m / 100m,
+                2,
+                MidpointRounding.AwayFromZero),
+            costs.Printed.Vat);
+        costs.Validate();
+    }
+
     [Fact]
     public void ThePrintedComponentsReconcileToThePrintedTotal()
     {

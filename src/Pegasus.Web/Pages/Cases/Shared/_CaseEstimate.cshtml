@@ -2,6 +2,7 @@
 @using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
+@using TotalsLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateTotals
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
@@ -252,7 +253,7 @@
                                     </div>
                                     <div class="estimate-bottom">
                                         <div class="estimate-notes"><label for="estimate-notes">@EngineerLabels.EstimateNotes</label><textarea id="estimate-notes" name="estimateNotes" rows="4" maxlength="4000">@details.Notes</textarea></div>
-                                        RenderEstimateTotals(totals);
+                                        @{ RenderEstimateTotals(totals); }
                                     </div>
                                     <div class="button-row section-gap"><button type="submit" class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@EngineerLabels.SaveEstimate</span></button></div>
                                 </form>
@@ -269,7 +270,7 @@
                                 </dl>
                                 <div class="estimate-bottom">
                                     <div class="estimate-notes"><h3 class="section-label">@EngineerLabels.Notes</h3>@(string.IsNullOrWhiteSpace(details.Notes) ? EngineerLabels.NoneRecorded : details.Notes)</div>
-                                    RenderEstimateTotals(totals);
+                                    @{ RenderEstimateTotals(totals); }
                                 </div>
                                 if (estimate is not null)
                                 {
@@ -416,16 +417,24 @@
 }
 
 @functions {
+    /// <summary>
+    /// The canonical printed breakdown (B04): the five components each
+    /// rounded to pence, the net their sum, the gross the net plus the
+    /// printed VAT. Nothing here adds anything up — every figure is the one
+    /// totals owner's own.
+    /// </summary>
     private void RenderEstimateTotals(EstimateTotals totals)
     {
+        var printed = totals.Printed;
         <dl class="estimate-totals">
-            <div><dt>@EngineerLabels.Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Vat</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
-            <div class="estimate-total"><dt>@EngineerLabels.Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Parts</dt><dd class="tabular">&#163;@printed.Parts.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.PanelLabour</dt><dd class="tabular">&#163;@printed.PanelLabour.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.PaintLabour</dt><dd class="tabular">&#163;@printed.PaintLabour.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.Materials</dt><dd class="tabular">&#163;@printed.Materials.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.Specialist</dt><dd class="tabular">&#163;@printed.Specialist.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.Net</dt><dd class="tabular">&#163;@printed.Net.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Vat</dt><dd class="tabular">&#163;@printed.Vat.ToString("N2")</dd></div>
+            <div class="estimate-total"><dt>@TotalsLabels.Gross</dt><dd class="tabular">&#163;@printed.Gross.ToString("N2")</dd></div>
         </dl>
     }
 

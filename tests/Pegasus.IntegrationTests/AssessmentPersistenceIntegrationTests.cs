@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -819,6 +820,317 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(4, (await list.ExecuteAsync(caseId, CancellationToken.None)).Count);
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
+
+    /// <summary>
+    /// B04: the whole canonical estimate model survives the round trip. The
+    /// header keeps its four discounts, the repairer's VAT position and the
+    /// categories that position charges, and the rate card the one rate came
+    /// from; every line keeps the facts the editor never shows - its
+    /// materials, the values the source document stated, the document and
+    /// row it came from, and its amendment attribution. The row's frozen
+    /// breakdown is the one totals owner's own raw and printed figures.
+    /// </summary>
+    [Fact]
+    public async Task AnEstimatesCanonicalHeaderLinesAndBreakdownRoundTrip()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("estimate-canonical-accept");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveEstimate(
+            harness.RepairSpecifications,
+            new EfAiJobStore(harness.Factory, harness.Clock),
+            harness.Clock);
+
+        var rateCardId = Guid.NewGuid();
+        var documentVersionId = Guid.NewGuid();
+        var documentSha = new string('c', 64);
+        var amendedAtUtc = StartUtc.AddHours(2);
+        var origin = new EstimateLineOrigin(
+            "new_part", "Door skin", "P-1234", 1, null, null, 240.00m, 12.50m);
+        var details = new EstimateDetails(
+            "Repairer", 3, 40m, null, 25m, 110m, 20m, "Typed from the repairer's e-mail.",
+            new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m),
+            new EstimateVatPolicy(
+                RepairerVatStatus.NotRegistered,
+                EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+                false),
+            new EstimateRateSnapshot(rateCardId, 7L, 52.50m));
+
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "estimate-canonical-lease");
+        var saved = await save.ExecuteAsync(
+            new(caseId, lease.Version, engineer, "estimate-canonical-save",
+                "Recorded the repairer's estimate.", lease.Token, null, details,
+                [
+                    new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
+                        "confirmed", "official", null, Quantity: 1, Materials: 12.50m,
+                        Origin: origin,
+                        SourceDocumentIdentity: "estimate-import:estimate-canonical-save",
+                        SourceDocumentVersionId: documentVersionId,
+                        SourceDocumentSha256: documentSha,
+                        SourceRowIdentity: "parts:1",
+                        AmendedBy: engineer.SubjectId,
+                        AmendedAtUtc: amendedAtUtc),
+                    new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
+                        "confirmed", "judgement", null),
+                ],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+
+        var read = (await harness.RepairSpecifications.GetVersionAsync(
+            caseId, saved.SpecificationId, CancellationToken.None))!;
+        Assert.Equal(details.Discounts, read.Details.Discounts);
+        Assert.Equal(details.Vat, read.Details.Vat);
+        Assert.Equal(details.Rate, read.Details.Rate);
+        // One rate column: the snapshot's rate is the estimate's labour rate,
+        // never a second stored figure that could disagree with it.
+        Assert.Equal(52.50m, read.Details.LabourRate);
+        Assert.Equal(52.50m, read.Details.HourlyRate);
+        Assert.Equal(
+            "NotRegistered",
+            await harness.Database.ScalarAsync<string>(
+                "SELECT RepairerVatStatus FROM CaseRepairSpecifications "
+                + $"WHERE Id = '{saved.SpecificationId:D}'"));
+
+        var part = read.Lines[0];
+        Assert.Equal(12.50m, part.Materials);
+        Assert.Equal(origin, part.Origin);
+        Assert.Equal("estimate-import:estimate-canonical-save", part.SourceDocumentIdentity);
+        Assert.Equal(documentVersionId, part.SourceDocumentVersionId);
+        Assert.Equal(documentSha, part.SourceDocumentSha256);
+        Assert.Equal("parts:1", part.SourceRowIdentity);
+        Assert.Equal(engineer.SubjectId, part.AmendedBy);
+        Assert.Equal(amendedAtUtc, part.AmendedAtUtc);
+        var labour = read.Lines[1];
+        Assert.Null(labour.Origin);
+        Assert.Null(labour.SourceRowIdentity);
+        Assert.Null(labour.AmendedBy);
+
+        var totals = EstimateTotals.Compute(read);
+        var breakdown = JsonSerializer.Deserialize<EstimateCalculationBreakdown>(
+            await harness.Database.ScalarAsync<string>(
+                "SELECT CalculationBreakdownJson FROM CaseRepairSpecifications "
+                + $"WHERE Id = '{saved.SpecificationId:D}'"),
+            EfRepairSpecificationStore.JsonOptions)!;
+        Assert.Equal(RepairSpecificationPolicy.PolicyVersion, breakdown.CalculationPolicyVersion);
+        Assert.Equal(20m, breakdown.VatPercent);
+        Assert.Equal(totals.Raw, breakdown.Raw);
+        Assert.Equal(totals.Printed, breakdown.Printed);
+        // A repairer who is not VAT registered charges parts and materials
+        // and never labour, so the printed VAT stands on that base alone.
+        Assert.Equal(
+            decimal.Round(
+                (totals.Raw.Parts + totals.Raw.Materials) * 20m / 100m,
+                2,
+                MidpointRounding.AwayFromZero),
+            totals.Printed.Vat);
+    }
+
+    /// <summary>
+    /// An accepted estimate is a frozen report input: it is duplicated to be
+    /// revised, never edited, and the copy's later acceptance leaves the
+    /// original's calculation policy version, its basis and its recorded
+    /// breakdown exactly as they were.
+    /// </summary>
+    [Fact]
+    public async Task AnAcceptedEstimatesBreakdownAndPolicyVersionSurviveALaterRevision()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("estimate-frozen-accept");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var duplicate = new DuplicateEstimate(harness.RepairSpecifications);
+        var setCurrent = new SetCurrentEstimate(
+            harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
+        long version = 0;
+
+        async Task<CaseEditLease> LeaseAsync(string key) =>
+            await harness.AcquireLeaseAsync(caseId, version, engineer, key);
+
+        var saveLease = await LeaseAsync("estimate-frozen-lease-save");
+        var original = await save.ExecuteAsync(
+            new(caseId, saveLease.Version, engineer, "estimate-frozen-save",
+                "Recorded the repairer's estimate.", saveLease.Token, null,
+                new("Repairer", 3, 40m, null, 25m, 0m, 20m, null),
+                [
+                    new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
+                        "confirmed", "official", null, Quantity: 1),
+                    new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
+                        "confirmed", "judgement", null),
+                ],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        version++;
+
+        var useLease = await LeaseAsync("estimate-frozen-lease-use");
+        var accepted = await setCurrent.ExecuteAsync(
+            new(caseId, useLease.Version, engineer, "estimate-frozen-use",
+                "Use the repairer's estimate.", useLease.Token, original.SpecificationId),
+            CancellationToken.None);
+        version++;
+        var acceptedBasis = accepted.CalculationBasis!;
+        var acceptedBreakdown = await ReadBreakdownJsonAsync(harness, original.SpecificationId);
+        Assert.Equal(
+            $"repair-specification/v{RepairSpecificationPolicy.PolicyVersion}",
+            acceptedBasis.PolicyVersion);
+        Assert.Equal(EstimateTotals.Compute(accepted).Printed, acceptedBasis.Printed);
+
+        // Revision is a duplicate with its own figures, made current in turn.
+        var copyLease = await LeaseAsync("estimate-frozen-lease-copy");
+        var copy = await duplicate.ExecuteAsync(
+            new(caseId, copyLease.Version, engineer, "estimate-frozen-duplicate",
+                "Revise the repairer's figures.", copyLease.Token, original.SpecificationId),
+            CancellationToken.None);
+        version++;
+        var editLease = await LeaseAsync("estimate-frozen-lease-edit");
+        await save.ExecuteAsync(
+            new(caseId, editLease.Version, engineer, "estimate-frozen-edit",
+                "Repriced at the agreed rate.", editLease.Token, copy.SpecificationId,
+                copy.Details with { LabourRate = 55m, PaintMaterials = 90m },
+                [
+                    new("new_part", null, "Door skin", null, 310.00m, false, "P-1234", null,
+                        "confirmed", "official", null, Quantity: 1),
+                    new("repair", null, "Repair nearside door", 4m, null, false, null, null,
+                        "confirmed", "judgement", null),
+                ],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        version++;
+        // The edit replaced the copy's whole line list, and the breakdown it
+        // recorded is the calculation over the replacement, not the one the
+        // duplicate started from.
+        var editedCopy = (await harness.RepairSpecifications.GetVersionAsync(
+            caseId, copy.SpecificationId, CancellationToken.None))!;
+        var editedBreakdown = JsonSerializer.Deserialize<EstimateCalculationBreakdown>(
+            await ReadBreakdownJsonAsync(harness, copy.SpecificationId),
+            EfRepairSpecificationStore.JsonOptions)!;
+        Assert.Equal(EstimateTotals.Compute(editedCopy).Raw, editedBreakdown.Raw);
+        Assert.Equal(EstimateTotals.Compute(editedCopy).Printed, editedBreakdown.Printed);
+
+        var useCopyLease = await LeaseAsync("estimate-frozen-lease-use-copy");
+        var revised = await setCurrent.ExecuteAsync(
+            new(caseId, useCopyLease.Version, engineer, "estimate-frozen-use-copy",
+                "Use the revised estimate.", useCopyLease.Token, copy.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.NotEqual(acceptedBasis.Total, revised.CalculationBasis!.Total);
+
+        var reread = (await harness.RepairSpecifications.GetVersionAsync(
+            caseId, original.SpecificationId, CancellationToken.None))!;
+        Assert.Equal(RepairSpecificationState.Accepted, reread.State);
+        Assert.False(reread.IsCurrent);
+        Assert.Equal(acceptedBasis, reread.CalculationBasis);
+        Assert.Equal(
+            acceptedBreakdown,
+            await ReadBreakdownJsonAsync(harness, original.SpecificationId));
+        Assert.Equal(version, (await LeaseAsync("estimate-frozen-lease-final")).Version);
+    }
+
+    /// <summary>
+    /// Unknown is a real recorded state, not a missing value: an estimate
+    /// whose repairer VAT position was never recorded cannot be made Current
+    /// at the store boundary until the position is recorded, or until the
+    /// categories are selected by hand.
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownRepairerVatStatusBlocksUseAsCurrentUntilItOrTheCategoriesAreRecorded()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("estimate-vat-accept");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var setCurrent = new SetCurrentEstimate(
+            harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
+        long version = 0;
+
+        async Task<CaseEditLease> LeaseAsync(string key) =>
+            await harness.AcquireLeaseAsync(caseId, version, engineer, key);
+
+        Task<RepairSpecificationVersion> SaveAsync(
+            CaseEditLease lease, string key, Guid? estimateId, string name, EstimateVatPolicy vat) =>
+            save.ExecuteAsync(
+                new(caseId, lease.Version, engineer, key, "Recorded an estimate.", lease.Token,
+                    estimateId,
+                    new(name, 3, 40m, null, 25m, 0m, 20m, null, null, vat, null),
+                    [
+                        new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
+                            "confirmed", "official", null, Quantity: 1),
+                    ],
+                    new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+                CancellationToken.None);
+
+        var unknownLease = await LeaseAsync("estimate-vat-lease-unknown");
+        var unknown = await SaveAsync(
+            unknownLease, "estimate-vat-save-unknown", null, "Repairer",
+            EstimateVatPolicy.For(RepairerVatStatus.Unknown));
+        version++;
+        Assert.Equal(RepairerVatStatus.Unknown, unknown.Details.VatPolicy.RepairerStatus);
+        Assert.True(unknown.Details.VatPolicy.BlocksAcceptance);
+
+        var blockedLease = await LeaseAsync("estimate-vat-lease-blocked");
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            setCurrent.ExecuteAsync(
+                new(caseId, blockedLease.Version, engineer, "estimate-vat-use-blocked",
+                    "Use the estimate.", blockedLease.Token, unknown.SpecificationId),
+                CancellationToken.None));
+        Assert.Contains("VAT", refusal.Message, StringComparison.Ordinal);
+        // The refusal changed nothing: the estimate is still an unaccepted
+        // Draft and the case still stands at the same version.
+        var stillDraft = (await harness.RepairSpecifications.GetVersionAsync(
+            caseId, unknown.SpecificationId, CancellationToken.None))!;
+        Assert.Equal(RepairSpecificationState.Draft, stillDraft.State);
+        Assert.Null(stillDraft.CalculationBasis);
+
+        // The refusal rolled its own transaction back, so the Engineer still
+        // holds the lease they took to try it. Recording the status on the
+        // same edit unblocks the estimate.
+        var recorded = await SaveAsync(
+            blockedLease, "estimate-vat-save-recorded", unknown.SpecificationId, "Repairer",
+            EstimateVatPolicy.For(RepairerVatStatus.Registered));
+        version++;
+        Assert.Equal(EstimateVatCategories.All, recorded.Details.VatPolicy.Categories);
+        var recordedUseLease = await LeaseAsync("estimate-vat-lease-use-recorded");
+        var current = await setCurrent.ExecuteAsync(
+            new(caseId, recordedUseLease.Version, engineer, "estimate-vat-use-recorded",
+                "Use the estimate.", recordedUseLease.Token, recorded.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.True(current.IsCurrent);
+
+        // So does selecting the categories by hand while the status stays unknown.
+        var overrideLease = await LeaseAsync("estimate-vat-lease-override");
+        var overridden = await SaveAsync(
+            overrideLease, "estimate-vat-save-override", null, "Repairer's own",
+            new EstimateVatPolicy(
+                RepairerVatStatus.Unknown,
+                EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+                true));
+        version++;
+        var reread = (await harness.RepairSpecifications.GetVersionAsync(
+            caseId, overridden.SpecificationId, CancellationToken.None))!;
+        Assert.Equal(RepairerVatStatus.Unknown, reread.Details.Vat!.RepairerStatus);
+        Assert.True(reread.Details.Vat.CategoriesOverridden);
+        Assert.False(reread.Details.Vat.BlocksAcceptance);
+
+        var overrideUseLease = await LeaseAsync("estimate-vat-lease-use-override");
+        var overriddenCurrent = await setCurrent.ExecuteAsync(
+            new(caseId, overrideUseLease.Version, engineer, "estimate-vat-use-override",
+                "Use the Engineer's own estimate.", overrideUseLease.Token,
+                overridden.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.True(overriddenCurrent.IsCurrent);
+        Assert.Equal(version, (await LeaseAsync("estimate-vat-lease-final")).Version);
+    }
+
+    private static Task<string> ReadBreakdownJsonAsync(Harness harness, Guid specificationId) =>
+        harness.Database.ScalarAsync<string>(
+            "SELECT CalculationBreakdownJson FROM CaseRepairSpecifications "
+            + $"WHERE Id = '{specificationId:D}'");
 
     /// <summary>
     /// Stream A review (comments 5560764306/5560667174, one staleness root
