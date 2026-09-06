@@ -689,6 +689,7 @@ if (productionProfile)
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
+    builder.Services.AddScoped<Pegasus.Core.Operations.IStaffReportSend, UnavailableStaffReportSend>();
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
     builder.Services.AddSingleton<LocalApprovedMailboxIdentityResolver>();
     builder.Services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>

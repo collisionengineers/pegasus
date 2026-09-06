@@ -196,6 +196,8 @@ The following boundaries distinguish source capability from live proof:
 - Broad Graph mailbox categorisation, flag/delete/folder mutation and
   unattended sending remain excluded. v1 adds the separately authorized
   staff-initiated draft/send adapter; this branch has not been deployed.
+  `DevelopmentOffline` composes an explicit report-send refusal and no
+  Graph mail transport; it does not simulate a submitted or sent operation.
 - Document Intelligence OCR remains subject to C's qualified-page caller and
   later operator activation evidence.
 - DOC/MSG extraction is implemented by the bounded in-process readers below;
