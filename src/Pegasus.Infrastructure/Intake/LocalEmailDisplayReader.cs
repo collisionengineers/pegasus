@@ -23,14 +23,14 @@ public sealed record LocalEmailDisplay(
     string Subject,
     string Body,
     IReadOnlyList<string> AttachmentNames,
+    IReadOnlyList<string> ReplyToAddresses,
     string? SenderAddress = null,
     string? SenderDisplayName = null,
     IReadOnlyList<string>? ToAddresses = null,
     IReadOnlyList<string>? CcAddresses = null,
     IReadOnlyList<RetainedMailboxAttachment>? Attachments = null,
     string? MessageIdentity = null,
-    string? ThreadIdentity = null,
-    IReadOnlyList<string>? ReplyToAddresses = null);
+    string? ThreadIdentity = null);
 
 /// <summary>
 /// Reads only decoded message display data. It never renders HTML or resolves resources.
@@ -87,6 +87,7 @@ public static partial class LocalEmailDisplayReader
             message.Subject ?? string.Empty,
             body ?? string.Empty,
             attachments.Select(item => item.FileName).ToArray(),
+            replyToAddresses,
             sender?.Address,
             string.IsNullOrWhiteSpace(sender?.Name) ? null : sender!.Name,
             Addresses(message.To),
@@ -95,8 +96,7 @@ public static partial class LocalEmailDisplayReader
             NullIfBlank(message.MessageId),
             // The conversation this message belongs to, as the MIME can express it:
             // the root of its References chain, or itself where it starts one.
-            NullIfBlank(message.References.FirstOrDefault()) ?? NullIfBlank(message.MessageId),
-            replyToAddresses);
+            NullIfBlank(message.References.FirstOrDefault()) ?? NullIfBlank(message.MessageId));
     }
 
     private static string[] Addresses(InternetAddressList list) =>
