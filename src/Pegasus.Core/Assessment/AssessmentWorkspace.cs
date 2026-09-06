@@ -53,6 +53,21 @@ public static class AssessmentAccessPolicy
             && exportedVersion >= access.LatestReviewVersion;
     }
 
+    /// <summary>
+    /// H3 (CASE-047; D02 overriding how D47 was encoded): the report
+    /// generation, preview and delivery journey never depends on an EVA
+    /// export cycle. The workspace opening rule above keeps D11 unchanged;
+    /// this is its state set without the export clause.
+    /// </summary>
+    public static bool CanOpenReports(AssessmentAccessState access)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        return access.State
+            is CaseLifecycleState.ReportPreparation
+                or CaseLifecycleState.PostReport
+                or CaseLifecycleState.PostReportComplete;
+    }
+
     public static bool IsReadOnly(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);

@@ -441,7 +441,10 @@ public sealed class GenerateCaseAssessmentReportDraft(
         var access = await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
             cancellationToken);
-        if (access?.CanOpen != true)
+        // H3: the report journey (preview included) never depends on an EVA
+        // export cycle — the workspace opening rule's state set without its
+        // export clause.
+        if (access is null || !AssessmentAccessPolicy.CanOpenReports(access))
         {
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
         }
