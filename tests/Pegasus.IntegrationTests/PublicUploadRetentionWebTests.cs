@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -70,6 +72,84 @@ public sealed partial class PublicUploadRetentionWebTests
 
     private const string ConflictMessage =
         "This upload operation was already used for different content.";
+
+    [Fact]
+    public async Task RequestCreationNormalizesPersistsAndReplaysRecipientAndReasonExactly()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedLinkAsync(factory.Services, "REQMETA");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(seeded.CaseId, CancellationToken.None));
+        var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(
+                    seeded.CaseId,
+                    workflow.Version,
+                    actor,
+                    $"request-metadata-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+        var operationKey = $"request-metadata:{Guid.NewGuid():N}";
+        var command = new CreateRequestUploadLinkCommand(
+            seeded.CaseId,
+            actor,
+            operationKey,
+            lease.Version,
+            lease.Token,
+            "  recipient@example.com  ",
+            "  Requested photographs  ");
+        var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            create.ExecuteAsync(command with { Recipient = " " }, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            create.ExecuteAsync(command with { Recipient = new string('r', 501) }, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            create.ExecuteAsync(command with { Reason = new string('r', 1001) }, CancellationToken.None));
+
+        var created = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.Equal("recipient@example.com", created.Link.Recipient);
+        Assert.Equal("Requested photographs", created.Link.Reason);
+        var replay = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.True(replay.IsReplay);
+        Assert.Equal(created.Link, replay.Link);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            create.ExecuteAsync(
+                command with { Recipient = "other@example.com" },
+                CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            create.ExecuteAsync(command with { Reason = "Other reason" }, CancellationToken.None));
+
+        await using var context = await CreateContextAsync(scope.ServiceProvider);
+        var stored = await context.Set<RequestUploadLinkEntity>()
+            .SingleAsync(item => item.Id == created.Link.Id);
+        Assert.Equal(created.Link.Recipient, stored.Recipient);
+        Assert.Equal(created.Link.Reason, stored.Reason);
+        var history = await context.ActionHistory.SingleAsync(item =>
+            item.AggregateType == "request_upload_link"
+            && item.CorrelationId == operationKey);
+        var snapshot = JsonNode.Parse(history.AfterJson!)!.AsObject();
+        Assert.Equal(created.Link.Recipient, snapshot["Recipient"]!.GetValue<string>());
+        Assert.Equal(created.Link.Reason, snapshot["Reason"]!.GetValue<string>());
+
+        stored.Recipient = " malformed@example.com ";
+        snapshot["Recipient"] = stored.Recipient;
+        history.AfterJson = snapshot.ToJsonString();
+        await context.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            create.ExecuteAsync(command, CancellationToken.None));
+
+        stored.Recipient = created.Link.Recipient;
+        stored.Reason = " malformed reason ";
+        snapshot["Recipient"] = stored.Recipient;
+        snapshot["Reason"] = stored.Reason;
+        history.AfterJson = snapshot.ToJsonString();
+        await context.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            create.ExecuteAsync(command, CancellationToken.None));
+    }
 
     [Fact]
     public async Task AConfirmedHandOverOpensTheFixedWindowAndRecordsTheBoxIdentities()
@@ -1089,6 +1169,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 CreatedAtUtc = Now,
                 ExpiresAtUtc = Now.AddHours(1),
                 LimitsVersion = LimitsVersion,
+                Recipient = "recipient@example.com",
                 Version = 1,
                 CreateOperationKey = $"request-create:{foreignLinkId:N}"
             });
@@ -1324,6 +1405,7 @@ public sealed partial class PublicUploadRetentionWebTests
             ExpiresAtUtc = expiresAtUtc ?? Now.AddHours(1),
             RevokedAtUtc = revokedAtUtc,
             LimitsVersion = LimitsVersion,
+            Recipient = "recipient@example.com",
             Version = 1,
             CreateOperationKey = $"request-create:{linkId:N}"
         });
