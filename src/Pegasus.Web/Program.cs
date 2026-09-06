@@ -47,6 +47,8 @@ const string DevelopmentOfflineProfile = "DevelopmentOffline";
 const string DevelopmentOfflineAuthenticationScheme = "DevelopmentOffline";
 const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
+const string GlassCallbackRateLimitPolicy = "GlassCallback";
+const int GlassCallbackRequestsPerClientPerMinute = 30;
 const string InitializeDevelopmentArgument = "--initialize-development";
 const string BootstrapProductionAdministratorArgument = "--bootstrap-production-administrator";
 const string BuildDiagnosticsArgument = "--diagnostics-version";
@@ -315,6 +317,10 @@ builder.Services.AddRazorPages()
             "/Uploads/Request",
             model => model.EndpointMetadata.Add(
                 new EnableRateLimitingAttribute(PublicUploadLink.RateLimitPolicy)));
+        options.Conventions.AddPageApplicationModelConvention(
+            "/Integrations/Glass/Callback",
+            model => model.EndpointMetadata.Add(
+                new EnableRateLimitingAttribute(GlassCallbackRateLimitPolicy)));
         // CASE-038: the Case record's section fragment answers on its own
         // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
         // a fragment response is never mistaken for the page itself. The
@@ -363,6 +369,8 @@ builder.Services.AddRateLimiter(options =>
                 ? "automation_rate_limited"
                 : rejectedPath.StartsWithSegments(ProviderApi.BasePath)
                     ? "provider_api_rate_limited"
+                    : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
+                        ? "glass_callback_rate_limited"
                     : rejectedPath.StartsWithSegments("/Uploads")
                         ? "upload_link_rate_limited"
                         : "authentication_rate_limited";
@@ -412,6 +420,17 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = PublicUploadLink.RequestsPerClientPerMinute,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.AddPolicy(
+        GlassCallbackRateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = GlassCallbackRequestsPerClientPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
