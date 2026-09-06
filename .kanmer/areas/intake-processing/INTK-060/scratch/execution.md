@@ -58,3 +58,10 @@ Labelling pass dispatched (Sonnet, read-only): independent expected-candidate se
 ## 11:05Z — G8 merged; C08 paused
 
 - User/A: G8 `b260098a7` published (LondonCalendar `LocalAt`/`TimeAt`, UTC fallback removed, chase scheduling on the shared helper; 18 calendar/chase tests pass on A); at most two implementation editors at a time. Merged G8 `--no-ff` after G7 → C head `4e8be0690`, pushed; merged into idle slices c08/c05; c01/c07 receive it when their slices integrate. C08 implementer stopped before it edited anything (still in the read phase); it resumes read-write when C01 or C07 reports, with the `OperatorLabels` → `LondonCalendar.LocalAt` change added to its brief.
+
+## 12:00Z — C07 and C01 READY_FOR_TESTS; user/A requests
+
+- C07 `447e1c271` (`c07-precase`): T allocator, Triage keyset over G9, PR 671 re-applied (C1–C21, T1/T2/T4–T7), public session policy + typed refusal, `RetainIncomingArtifact` + `EfPublicUploadRetentionStore`, notes/assignment, Provider API assertion. Not delivered: typed-actor Triage mutations (needs A `TriageHistoryEntity.ActorKind` + six out-of-slice files → dedicated slice after C01 merge); read-count test asserts equal reads over 3 vs 6 rows instead of a pinned number. Test wave running (`wave1/c07-tests/`).
+- C01 `1be524f6b` (`c01-retained-analysis`): PR 639/PR-069 port, PR 646 residual + API-level Ambiguous, `AnalyzeRetainedInstruction` + selector + store + Received page panel, A05 metadata/keyset over G9, `PrincipalSourceManifestTests`. Known: corpus drift test will fail (A rebuild); page dependencies optional until A's DI patch; `DownloadIntakeSource.cs` deferred to C02. Test wave queued after C07's.
+- User/A: fix `IntakeWebNegativeTests.AssertNoBusinessPersistenceAsync` baseline (F seeds 15 principals) — dispatched on the C01 slice; A07 minimal C hunks for an atomic common G — dispatched on helper branch `c-a07-dashboard-hunks` (worktree `v1-intake-a07`), C08 told to drop its trim item; A adding `DrainStagedToTerminalAsync` + interceptor hook.
+- Editors active: C08 slice 1 (Sonnet) and the small-fixes implementer (Sonnet) — two, per the rule.
