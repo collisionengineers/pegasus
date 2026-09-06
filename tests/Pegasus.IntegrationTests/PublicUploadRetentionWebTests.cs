@@ -1056,6 +1056,57 @@ public sealed partial class PublicUploadRetentionWebTests
             .ToArrayAsync());
     }
 
+    [Fact]
+    public async Task AnActiveLinkCannotReadAnotherActiveLinksAcceptedVersionOnTheSameCase()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var owner = await SeedLinkAsync(factory.Services, reference: "PUBUP-FENCE");
+        var accepted = await PostEvidenceAsync(factory, owner.Token);
+        Assert.Equal(HttpStatusCode.Redirect, accepted.StatusCode);
+
+        Guid documentId;
+        Guid versionId;
+        var foreignLinkId = Guid.NewGuid();
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var occurrence = await context.Set<DocumentOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync(item => item.OperationKey == accepted.OperationKey);
+            documentId = occurrence.DocumentId;
+            versionId = occurrence.VersionId;
+            context.Set<RequestUploadLinkEntity>().Add(new()
+            {
+                Id = foreignLinkId,
+                CaseId = owner.CaseId,
+                TokenDigest = RequestUploadToken.Create().TokenDigest,
+                Status = RequestUploadStatus.Active,
+                CreatedAtUtc = Now,
+                ExpiresAtUtc = Now.AddHours(1),
+                LimitsVersion = LimitsVersion,
+                Version = 1,
+                CreateOperationKey = $"request-create:{foreignLinkId:N}"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
+        var foreignActor = ActionActor.RequestLink(foreignLinkId);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
+            foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
+            foreignActor, owner.CaseId, accepted.OperationKey, CancellationToken.None));
+
+        var ownResult = await status.GetAsync(
+            ActionActor.RequestLink(owner.LinkId),
+            owner.CaseId,
+            documentId,
+            versionId,
+            CancellationToken.None);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, ownResult.Disposition);
+    }
+
     /// <summary>
     /// Without the retention command there is no custody to reach, so the
     /// submission path refuses before it writes anything at all. It must never
@@ -1718,7 +1769,20 @@ internal sealed class RecordingCaseArtifactCustody(
         // A sender that handed bytes over through this link may find out what
         // became of them; nobody else may.
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        RequireStatusAuthority(actor, caseId, context, timeProvider.GetUtcNow());
+        var linkId = RequireStatusAuthority(actor, caseId, context, timeProvider.GetUtcNow());
+        if (linkId is { } requestLinkId)
+        {
+            var createdBy = $"RequestLink:{requestLinkId:D}";
+            var ownsVersion = await context.Set<DocumentVersionEntity>()
+                .AsNoTracking()
+                .AnyAsync(item => item.Id == versionId
+                    && item.DocumentId == documentId
+                    && item.CreatedBy == createdBy, cancellationToken);
+            if (!ownsVersion)
+            {
+                throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+            }
+        }
         return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
     }
 
@@ -1745,17 +1809,35 @@ internal sealed class RecordingCaseArtifactCustody(
         LookupCalls++;
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        RequireStatusAuthority(actor, caseId, context, timeProvider.GetUtcNow());
+        var linkId = RequireStatusAuthority(actor, caseId, context, timeProvider.GetUtcNow());
 
         // The document occurrence is written inside the transaction that
         // accepts the bytes, so a row here is exactly "custody committed to
         // holding what this key offered" and its absence is exactly "nothing
         // committed has been observed".
-        var intent = await context.Set<DocumentOccurrenceEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
-            .Select(item => new { item.DocumentId, item.VersionId })
-            .SingleOrDefaultAsync(cancellationToken);
+        var intents =
+            from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.VersionId equals version.Id
+            where occurrence.CaseId == caseId && occurrence.OperationKey == operationKey
+            select new { occurrence.DocumentId, occurrence.VersionId, version.CreatedBy };
+        if (linkId is { } requestLinkId)
+        {
+            var createdBy = $"RequestLink:{requestLinkId:D}";
+            intents = intents.Where(item => item.CreatedBy == createdBy);
+        }
+        var intent = await intents.SingleOrDefaultAsync(cancellationToken);
+        if (intent is null && linkId is not null)
+        {
+            var foreignIntentExists = await context.Set<DocumentOccurrenceEntity>()
+                .AsNoTracking()
+                .AnyAsync(item => item.CaseId == caseId && item.OperationKey == operationKey,
+                    cancellationToken);
+            if (foreignIntentExists)
+            {
+                throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+            }
+        }
         return intent is null
             ? null
             : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken);
@@ -1809,7 +1891,7 @@ internal sealed class RecordingCaseArtifactCustody(
     /// exact persisted request link this Case's bytes arrived through, while
     /// that link is active, unrevoked and unexpired.
     /// </summary>
-    private static void RequireStatusAuthority(
+    private static Guid? RequireStatusAuthority(
         ActionActor actor,
         Guid caseId,
         PegasusDbContext context,
@@ -1818,7 +1900,7 @@ internal sealed class RecordingCaseArtifactCustody(
         if (actor.Kind == ActorKind.Staff)
         {
             StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-            return;
+            return null;
         }
         if (actor.Kind != ActorKind.RequestLink
             || !Guid.TryParseExact(actor.SubjectId, "D", out var linkId))
@@ -1837,6 +1919,7 @@ internal sealed class RecordingCaseArtifactCustody(
         {
             throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
         }
+        return linkId;
     }
 
     private static Guid RequireAuthority(
