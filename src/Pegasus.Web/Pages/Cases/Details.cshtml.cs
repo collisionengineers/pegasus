@@ -1080,10 +1080,9 @@ public sealed partial class DetailsModel(
 
         var content = await generatedArtifacts.OpenAsync(
             actor, id, generationId, artifactId, cancellationToken);
-        await using (content)
-        {
-            return File(content.Content, content.MediaType, content.FileName);
-        }
+        // The file result owns and disposes the stream once the body is
+        // written; disposing here would close it before MVC reads it.
+        return File(content.Content, content.MediaType, content.FileName);
     }
 
     /// <summary>
@@ -1280,6 +1279,7 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedVersion,
         ValuationSource source,
         DateOnly date,
         TimeOnly time,
@@ -1304,7 +1304,11 @@ public sealed partial class DetailsModel(
             await saveValuation.ExecuteAsync(
                 new(
                     id,
-                    currentCaseVersion,
+                    // The submitted version travels unchanged: the store
+                    // enforces it against the live case, and a network replay
+                    // must keep the request's original fingerprint rather
+                    // than being rewritten with a newer version.
+                    expectedVersion,
                     actor,
                     operationKey,
                     "Valuation recorded.",
@@ -1389,12 +1393,6 @@ public sealed partial class DetailsModel(
             return RedirectToValuation(id);
         }
 
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
-        {
-            return NotFound();
-        }
-        currentCaseVersion = details.Workflow.Version;
         return null;
     }
 
