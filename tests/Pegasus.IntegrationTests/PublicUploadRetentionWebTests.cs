@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -44,6 +45,14 @@ public sealed partial class PublicUploadRetentionWebTests
     private const string LimitsVersion = "integration-fixture-v1";
     private static readonly byte[] Evidence = "public upload retention evidence"u8.ToArray();
 
+    /// <summary>
+    /// A second, different file. Deliberately a different length as well as a
+    /// different digest, so a slot that took the wrong one is visible in the
+    /// totals and not only in a hash.
+    /// </summary>
+    private static readonly byte[] OtherEvidence =
+        "a second and entirely different public upload"u8.ToArray();
+
     // The three sentences the public page can end on. They are asserted
     // verbatim because which one is shown is the whole of what the sender is
     // told about custody.
@@ -58,6 +67,9 @@ public sealed partial class PublicUploadRetentionWebTests
 
     private const string RefusedMessage =
         "This document was not accepted. Reload the link and try again.";
+
+    private const string ConflictMessage =
+        "This upload operation was already used for different content.";
 
     [Fact]
     public async Task AConfirmedHandOverOpensTheFixedWindowAndRecordsTheBoxIdentities()
@@ -294,17 +306,15 @@ public sealed partial class PublicUploadRetentionWebTests
     /// A Pending arrival is not a dead end, and it is never re-offered either.
     /// The next submission of the same operation key reaches the command
     /// again, which asks custody what became of it instead of sending the
-    /// bytes twice — and is refused, because Stream A's status read is staff
-    /// casework only while the sender acts as a request link. The refusal is
-    /// shown here rather than papered over: the arrival keeps the state
-    /// custody actually gave it, the sender is told it is being stored and
-    /// never that it is retained, and no receipt is invented. Closing the
-    /// public path's own recovery is a handoff to Stream A (a request-link
-    /// status read under the same link rule), recorded on INTK-060
-    /// scratch/c07-notes.
+    /// bytes twice - and the sender may make that read: Stream A's fence for
+    /// both status reads is the one the hand-over already passed, this exact
+    /// active link naming its own Case (PR 673 comments 5560737585 and
+    /// 5561151076). So a sender recovers its own submission, and the
+    /// confirmation lands on the arrival and the version the first hand-over
+    /// created rather than on a second copy of the bytes.
     /// </summary>
     [Fact]
-    public async Task APendingArrivalIsNeverReOfferedAndThePublicSenderCannotReconcileIt()
+    public async Task APendingArrivalIsReconciledByItsOwnSenderAndNeverReOffered()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -315,43 +325,55 @@ public sealed partial class PublicUploadRetentionWebTests
         var first = await PostEvidenceAsync(factory, link.Token);
         Assert.Contains(StoringMessage, first.CompletionBody, StringComparison.Ordinal);
 
-        // Custody finishes storing it between the two submissions. The sender
-        // still cannot be the one to find that out.
+        // Custody finishes storing it between the two submissions, which is
+        // exactly what the sender's own retry now finds out.
         custody.StatusDisposition = CaseArtifactCustodyDisposition.Confirmed;
         var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
 
         Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
-        Assert.Contains(StoringMessage, second.CompletionBody, StringComparison.Ordinal);
-        Assert.DoesNotContain(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
+        Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
 
-        // Asked and refused, not repeated: the bytes were offered exactly once
-        // and the status read was genuinely attempted.
+        // Asked, not repeated: the bytes were offered once, one intent was
+        // ever initiated, and the answer came from the precise read because
+        // the arrival named a document to ask about.
         Assert.Single(custody.Calls);
+        Assert.Equal(1, custody.ProviderInitiations);
         Assert.Equal(1, custody.StatusCalls);
+        Assert.Equal(0, custody.LookupCalls);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
             .AsNoTracking()
             .SingleAsync(item => item.RequestUploadLinkId == link.LinkId);
 
-        // A Pending never opens the fixed window: it is not a confirmed file.
-        Assert.Null(session.StartedAtUtc);
+        // The window opens on the confirmation, not on the Pending that
+        // preceded it.
+        Assert.Equal(Now, session.StartedAtUtc);
+        Assert.Equal(Now.Add(PublicUploadSessionPolicy.Window), session.ExpiresAtUtc);
 
         var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
             .AsNoTracking()
             .SingleAsync(item => item.SessionId == session.Id);
-        Assert.Equal("pending", occurrence.CustodyState);
+        Assert.Equal("confirmed", occurrence.CustodyState);
 
         var version = await context.Set<DocumentVersionEntity>()
             .AsNoTracking()
             .SingleAsync(item => item.Id == occurrence.DocumentVersionId);
-        Assert.Equal(DocumentCustodyStatus.Pending, version.CustodyStatus);
-        Assert.Null(version.BoxFileId);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+        Assert.Equal($"box-file:{version.Id:N}", version.BoxFileId);
 
-        // Nothing custody has not confirmed earns a receipt.
-        Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
+        // The authority the bytes arrived under, which is the link and never a
+        // member of staff.
+        Assert.Equal($"RequestLink:{link.LinkId:D}", version.CreatedBy);
+
+        // A confirmed submission earns its receipt, and one document holds it.
+        Assert.Single(await context.Set<RequestUploadReceiptEntity>()
             .AsNoTracking()
             .Where(item => item.RequestId == link.LinkId)
+            .ToArrayAsync());
+        Assert.Single(await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == link.CaseId)
             .ToArrayAsync());
 
         // One occurrence, counted once, however many times it is submitted.
@@ -464,10 +486,14 @@ public sealed partial class PublicUploadRetentionWebTests
     /// <summary>
     /// A hand-over that fails after custody has the bytes is recorded uncertain
     /// rather than left as it was offered, so the next submission asks about it
-    /// instead of sending custody the same bytes a second time.
+    /// before it does anything else. Custody owns up to nothing - this is the
+    /// crash-before-custody shape, where the claim was taken and no intent
+    /// exists - so the same bytes go under the same key, which is the only
+    /// thing that ever resolves such a claim and is what custody converges on
+    /// one intent (Stream A, PR 673 comment 5561151076).
     /// </summary>
     [Fact]
-    public async Task AThrownHandOverIsRecordedUnknownAndTheNextArrivalNeverRepeatsIt()
+    public async Task AThrownHandOverIsAskedAboutAndThenReOfferedUnderTheSameKeyOnce()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -503,37 +529,54 @@ public sealed partial class PublicUploadRetentionWebTests
             Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
         }
 
-        // Custody would answer now. It is still never offered the bytes again:
-        // an uncertain arrival is asked about, and this one named no document
-        // to ask about, so it honestly stays uncertain.
+        // The page is still asking for the same key, so the retry is the same
+        // submission and not a second one.
+        Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
+
         custody.ThrowOnHandOver = null;
         var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
 
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        Assert.Contains(RetryMessage, second.Body, StringComparison.Ordinal);
-        Assert.Single(custody.Calls);
-        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
 
-        // It named no document, so it was asked for by the operation key it
-        // was accepted under. Custody owns up to no committed intent, and the
-        // arrival honestly stays uncertain.
+        // Asked first - it named no document, so by the operation key it was
+        // accepted under - and only then offered again, under that same key.
         Assert.Equal(1, custody.LookupCalls);
+        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(2, custody.HandOverAttempts);
+        Assert.Equal(
+            [
+                $"request:{link.LinkId:N}:{first.OperationKey}",
+                $"request:{link.LinkId:N}:{first.OperationKey}"
+            ],
+            custody.Calls.Select(item => item.OperationKey));
+
+        // One durable intent and one initiation, which is the invariant - not
+        // one invocation.
+        Assert.Equal(1, custody.ProviderInitiations);
 
         await using var after = await CreateContextAsync(factory.Services);
         var occurrence = await after.Set<PublicUploadOccurrenceEntity>().AsNoTracking().SingleAsync();
-        Assert.Equal("unknown", occurrence.CustodyState);
-        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(after, link.LinkId));
+        Assert.Equal("confirmed", occurrence.CustodyState);
+        Assert.Single(await after.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == link.CaseId)
+            .ToArrayAsync());
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(after, link.LinkId));
     }
 
     /// <summary>
-    /// Two submissions of one operation key arriving at once. Exactly one of
-    /// them may offer the bytes, and the claim - not luck - is what decides
-    /// which: the other never reaches custody, asks about the same key
-    /// instead, and leaves the claim standing when custody has nothing
-    /// committed to own up to yet.
+    /// Two submissions of one operation key arriving at once, with the first
+    /// call still in flight. The claim decides which of them offers the bytes
+    /// first; the other asks by the key, observes nothing committed - which is
+    /// exactly what a call still inside custody looks like - and may then
+    /// offer the same bytes under that same key. What must come of it is one
+    /// durable intent and one initiating write, and custody's serialized
+    /// same-key path is what makes that so rather than the caller's timing
+    /// (Stream A, PR 673 comment 5561151076).
     /// </summary>
     [Fact]
-    public async Task TwoSimultaneousSubmissionsOfOneOperationKeyOfferTheBytesOnce()
+    public async Task TwoSimultaneousSubmissionsOfOneOperationKeyConvergeOnOneIntent()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -543,42 +586,151 @@ public sealed partial class PublicUploadRetentionWebTests
         var link = await SeedLinkAsync(factory.Services);
         var key = await ReadOperationKeyAsync(factory, link.Token);
 
-        // The winner is parked inside custody: the claim is taken, and nothing
-        // is committed yet.
-        var winner = PostEvidenceAsync(factory, link.Token, key);
+        // The first caller is parked inside custody with the claim taken and
+        // nothing committed.
+        var first = PostEvidenceAsync(factory, link.Token, key);
         await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
-        var loser = await PostEvidenceAsync(factory, link.Token, key);
-
-        // It never reached custody with the bytes, and it asked by the key
-        // instead - which is the whole difference between one file and two.
-        Assert.Equal(1, custody.HandOverAttempts);
-        Assert.Equal(1, custody.LookupCalls);
-        Assert.Equal(0, custody.StatusCalls);
-        Assert.Equal(HttpStatusCode.OK, loser.StatusCode);
-        Assert.Contains(RetryMessage, loser.Body, StringComparison.Ordinal);
-
-        // Nothing committed was observed, because the winner has not committed
-        // yet. That leaves the claim exactly as it was, and the page keeps
-        // asking for the same operation key rather than minting one that would
-        // become a second deliberate submission.
+        // The claim is not reopened and the page keeps presenting the same
+        // key, so the retry is this submission again rather than a second
+        // deliberate one.
         Assert.Equal("unknown", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
         Assert.Equal(key, await ReadOperationKeyAsync(factory, link.Token));
 
+        var retry = PostEvidenceAsync(factory, link.Token, key);
+
+        // Waited for rather than assumed: what is proved is convergence, not a
+        // race the test happened to win.
+        await WaitUntilAsync(
+            () => Volatile.Read(ref custody.HandOverAttempts) == 2,
+            "the retry to reach custody under the same key");
+        Assert.Equal(1, custody.LookupCalls);
+        Assert.Equal(0, custody.StatusCalls);
+
         custody.HoldHandOver.SetResult();
-        var confirmed = await winner;
+        var confirmed = await first;
+        var second = await retry;
 
         Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
         Assert.Contains(RetainedMessage, confirmed.CompletionBody, StringComparison.Ordinal);
-        Assert.Equal(1, custody.HandOverAttempts);
-        Assert.Single(custody.Calls);
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+
+        // Two invocations of one key, one intent, one initiating write.
+        Assert.Equal(2, custody.HandOverAttempts);
+        Assert.Equal(1, custody.ProviderInitiations);
 
         await using var context = await CreateContextAsync(factory.Services);
         var occurrence = Assert.Single(await context.Set<PublicUploadOccurrenceEntity>()
             .AsNoTracking()
             .ToArrayAsync());
         Assert.Equal("confirmed", occurrence.CustodyState);
+        Assert.Single(await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == link.CaseId)
+            .ToArrayAsync());
         Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// Plan item 6's additions, under the key rule that protects them. While
+    /// the first file's arrival is unresolved the page keeps presenting its
+    /// key: the same bytes sent under it are that submission again and
+    /// reconcile, and a different file sent under it is the second deliberate
+    /// submission item 6 allows - so it gets its own server-issued key rather
+    /// than the refusal a resolved key would give it. The first key never
+    /// comes to name the second file, and the second file's own retry is a
+    /// retry rather than a third submission, because its key is derived from
+    /// its bytes. That is not a link-and-hash identity standing in for the
+    /// intent (Stream A's caveat, PR 673 comment 5560737585): the root key is
+    /// still the identity, and the digest only tells one file from another
+    /// under it.
+    /// </summary>
+    [Fact]
+    public async Task ASecondDifferentFileUnderAnUnresolvedKeyBecomesItsOwnSubmission()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+
+        // Pending, so the first submission stays unresolved throughout.
+        custody.Disposition = CaseArtifactCustodyDisposition.Pending;
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+        Assert.Contains(StoringMessage, first.CompletionBody, StringComparison.Ordinal);
+        Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
+
+        // The same bytes under the re-presented key: the same submission,
+        // reconciled and never offered again.
+        var again = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.Redirect, again.StatusCode);
+        Assert.Contains(StoringMessage, again.CompletionBody, StringComparison.Ordinal);
+        Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Equal(1, custody.ProviderInitiations);
+        Assert.Equal(1, custody.StatusCalls);
+
+        // A different file under that same key. It is not a replacement and
+        // not a conflict: it is a submission of its own.
+        var second = await PostEvidenceAsync(
+            factory,
+            link.Token,
+            first.OperationKey,
+            OtherEvidence,
+            "estimate.txt");
+
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Contains(StoringMessage, second.CompletionBody, StringComparison.Ordinal);
+        Assert.Equal(2, custody.HandOverAttempts);
+        Assert.Equal(2, custody.ProviderInitiations);
+
+        // And its own retry is a retry, because its key is derived from its
+        // bytes rather than minted afresh.
+        var secondAgain = await PostEvidenceAsync(
+            factory,
+            link.Token,
+            first.OperationKey,
+            OtherEvidence,
+            "estimate.txt");
+
+        Assert.Equal(HttpStatusCode.Redirect, secondAgain.StatusCode);
+        Assert.Equal(2, custody.HandOverAttempts);
+        Assert.Equal(2, custody.ProviderInitiations);
+
+        // The page still presents the first submission's key: it is the one
+        // that is still unresolved, and it was never replaced.
+        Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var arrivals = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.OperationKey.StartsWith($"request:{link.LinkId:N}:"))
+            .OrderBy(item => item.OperationKey)
+            .ToArrayAsync();
+
+        Assert.Equal(2, arrivals.Length);
+
+        // The sender's own key, still naming the first file and its bytes.
+        Assert.Equal($"request:{link.LinkId:N}:{first.OperationKey}", arrivals[0].OperationKey);
+        Assert.Equal(Sha256Hex(Evidence), arrivals[0].Sha256);
+        Assert.Equal(Evidence.Length, arrivals[0].Size);
+
+        // The second file's own key: this root, and these bytes.
+        Assert.Equal(
+            $"request:{link.LinkId:N}:{first.OperationKey}~{Sha256Hex(OtherEvidence)}",
+            arrivals[1].OperationKey);
+        Assert.Equal(Sha256Hex(OtherEvidence), arrivals[1].Sha256);
+        Assert.Equal(OtherEvidence.Length, arrivals[1].Size);
+
+        // Two files accepted, two documents, and the session's totals counting
+        // each exactly once however many times either was sent.
+        Assert.Equal(2, (await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == link.CaseId)
+            .ToArrayAsync()).Length);
+        Assert.Equal(
+            (2, (long)(Evidence.Length + OtherEvidence.Length)),
+            await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
     /// <summary>
@@ -626,9 +778,10 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
         Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
 
-        // Asked, not repeated: one hand-over, and the answer recovered by the
-        // key it was accepted under.
+        // Asked, not repeated: one hand-over, one initiation, and the answer
+        // recovered by the key it was accepted under rather than re-offered.
         Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Equal(1, custody.ProviderInitiations);
         Assert.Equal(1, custody.LookupCalls);
         Assert.Equal(0, custody.StatusCalls);
 
@@ -693,6 +846,20 @@ public sealed partial class PublicUploadRetentionWebTests
             Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
         }
 
+        // A key custody has answered is closed. A different file sent under
+        // it is the conflict it always was - only an unresolved key admits a
+        // second submission - and nothing is offered for it.
+        var conflicting = await PostEvidenceAsync(
+            factory,
+            link.Token,
+            refused.OperationKey,
+            OtherEvidence,
+            "estimate.txt");
+
+        Assert.Equal(HttpStatusCode.OK, conflicting.StatusCode);
+        Assert.Contains(ConflictMessage, conflicting.Body, StringComparison.Ordinal);
+        Assert.Equal(1, custody.HandOverAttempts);
+
         // Nothing is outstanding any more, so the next submission is a new one.
         Assert.NotEqual(refused.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
 
@@ -727,14 +894,18 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal("unknown", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
         Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
 
-        custody.ThrowOnHandOver = null;
+        // The adapter keeps raising it, so the retry ends where the first
+        // attempt did: asked about, offered again under the same key, and
+        // still uncertain rather than closed.
         var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
 
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         Assert.Contains(RetryMessage, second.Body, StringComparison.Ordinal);
-        Assert.Equal(1, custody.HandOverAttempts);
+        Assert.Equal(2, custody.HandOverAttempts);
         Assert.Equal(1, custody.LookupCalls);
+        Assert.Equal(0, custody.ProviderInitiations);
         Assert.Equal("unknown", await ReadOccurrenceStateAsync(factory.Services, link.LinkId));
+        Assert.Equal(first.OperationKey, await ReadOperationKeyAsync(factory, link.Token));
 
         await using var context = await CreateContextAsync(factory.Services);
         Assert.Empty(await context.Set<CaseDocumentEntity>()
@@ -773,6 +944,7 @@ public sealed partial class PublicUploadRetentionWebTests
 
         // Staff rights are not this link's rights, however senior the actor.
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
             link.CaseId,
@@ -780,6 +952,7 @@ public sealed partial class PublicUploadRetentionWebTests
 
         // A request-link actor naming a different persisted link.
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.RequestLink(other.LinkId),
             link.CaseId,
@@ -787,6 +960,7 @@ public sealed partial class PublicUploadRetentionWebTests
 
         // This link, but a Case that is not the one the link row records.
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.RequestLink(link.LinkId),
             other.CaseId,
@@ -796,6 +970,7 @@ public sealed partial class PublicUploadRetentionWebTests
         // fake receipt injected by the helper gets it past the command's own
         // validation, so what refuses it is custody's rule and nothing else.
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.RequestLink(link.LinkId),
             null,
@@ -804,55 +979,77 @@ public sealed partial class PublicUploadRetentionWebTests
         // A link that no longer authorizes anything: revoked, expired, and one
         // that is simply not Active with no revocation to give it away.
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.RequestLink(revoked.LinkId),
             revoked.CaseId,
             revoked.LinkId);
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.RequestLink(expired.LinkId),
             expired.CaseId,
             expired.LinkId);
         await Refuses<StaffAuthorizationException>(
+            factory.Services,
             retention,
             ActionActor.RequestLink(inactive.LinkId),
             inactive.CaseId,
             inactive.LinkId);
 
-        // The status port is refused too, and by its own rule: Stream A's
-        // status read is staff casework only, so the authority that may hand
-        // bytes over may not ask what became of them.
+        // Both status reads carry the hand-over's own fence, so an authority
+        // that may not hand bytes over through this link may not ask what
+        // became of them either - whichever of the two reads it reaches for.
+        // A sender reading its own submission is proved where there is one to
+        // read: APendingArrivalIsReconciledByItsOwnSenderAndNeverReOffered.
         var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             status.GetAsync(
-                ActionActor.RequestLink(link.LinkId),
+                ActionActor.RequestLink(other.LinkId),
                 link.CaseId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 CancellationToken.None));
-
-        // The operation-key lookup is the read a request link may make - it is
-        // how a sender whose response was lost recovers - and it carries the
-        // same fence the hand-over does, so a link that is not this one is
-        // refused exactly as it is refused bytes.
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            status.GetAsync(
+                ActionActor.RequestLink(revoked.LinkId),
+                revoked.CaseId,
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             status.FindByOperationKeyAsync(
                 ActionActor.RequestLink(other.LinkId),
                 link.CaseId,
                 $"request:{link.LinkId:N}:{Guid.NewGuid():N}",
                 CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            status.FindByOperationKeyAsync(
+                ActionActor.RequestLink(revoked.LinkId),
+                revoked.CaseId,
+                $"request:{revoked.LinkId:N}:{Guid.NewGuid():N}",
+                CancellationToken.None));
+
+        // The link's own read is admitted and observes nothing, which is not
+        // permission to start anything: it is the absence a re-offer under the
+        // same key is the answer to.
         Assert.Null(await status.FindByOperationKeyAsync(
             ActionActor.RequestLink(link.LinkId),
             link.CaseId,
             $"request:{link.LinkId:N}:{Guid.NewGuid():N}",
             CancellationToken.None));
 
-        // A refusal reaches no store, so there is no arrival and no document
-        // against any of the five seeded Cases.
+        // A refusal retains nothing against any of the five seeded Cases, and
+        // every arrival it was attempted from is closed as the refusal it got
+        // rather than left uncertain for someone to reconcile.
         Guid[] seeded =
             [link.CaseId, other.CaseId, revoked.CaseId, expired.CaseId, inactive.CaseId];
         await using var context = await CreateContextAsync(factory.Services);
-        Assert.Empty(await context.Set<PublicUploadOccurrenceEntity>().AsNoTracking().ToArrayAsync());
+        var refusedArrivals = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .ToArrayAsync();
+        Assert.Equal(7, refusedArrivals.Length);
+        Assert.All(refusedArrivals, item => Assert.Equal("failed", item.CustodyState));
         Assert.Empty(await context.Set<CaseDocumentEntity>()
             .AsNoTracking()
             .Where(item => seeded.Contains(item.CaseId))
@@ -923,31 +1120,93 @@ public sealed partial class PublicUploadRetentionWebTests
     /// <summary>
     /// The refusal is asserted by exact type, so an incidental validation
     /// failure inside the command cannot stand in for Stream A's authorization
-    /// refusal.
+    /// refusal - and the arrival is staged first, because the command offers
+    /// nothing its store has not committed and a refusal reached any other way
+    /// would prove nothing about custody's rule.
     /// </summary>
     private static async Task Refuses<TException>(
+        IServiceProvider services,
         RetainIncomingArtifact retention,
         ActionActor actor,
         Guid? caseId,
         Guid linkId)
         where TException : Exception
     {
+        var occurrence = await StageArrivalAsync(services, linkId, caseId);
         await using var content = new MemoryStream(Evidence, writable: false);
         await Assert.ThrowsAsync<TException>(() => retention.ExecuteAsync(
             actor,
-            new(
-                Guid.NewGuid(),
-                caseId,
-                // A holding receipt only to satisfy the command's own "Case or
-                // holding" invariant when the Case is deliberately absent.
-                caseId is null ? Guid.NewGuid() : null,
-                $"request:{linkId:N}:{Guid.NewGuid():N}",
-                "evidence.txt",
-                "text/plain",
-                Evidence.Length,
-                Sha256Hex(Evidence)),
+            occurrence,
             content,
             CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Commits one arrival for a link the way the submission path commits it
+    /// before any hand-over, and returns the occurrence a caller would then
+    /// offer. One session per link, reused, because that pair is uniquely
+    /// indexed.
+    /// </summary>
+    private static async Task<IncomingArtifactOccurrence> StageArrivalAsync(
+        IServiceProvider services,
+        Guid linkId,
+        Guid? caseId)
+    {
+        await using var context = await CreateContextAsync(services);
+        var session = await context.Set<PublicUploadSessionEntity>()
+            .SingleOrDefaultAsync(item => item.RequestUploadLinkId == linkId);
+        if (session is null)
+        {
+            session = new()
+            {
+                Id = Guid.NewGuid(),
+                RequestUploadLinkId = linkId,
+                LimitsVersion = LimitsVersion,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            };
+            context.Add(session);
+        }
+
+        var occurrenceId = Guid.NewGuid();
+        var operationKey = $"request:{linkId:N}:{Guid.NewGuid():N}";
+        context.Add(new PublicUploadOccurrenceEntity
+        {
+            Id = occurrenceId,
+            SessionId = session.Id,
+            OperationKey = operationKey,
+            ProposedName = "evidence.txt",
+            MediaType = "text/plain",
+            Size = Evidence.Length,
+            Sha256 = Sha256Hex(Evidence),
+            CustodyState = EfPublicUploadRetentionStore.ArrivedCode
+        });
+        await context.SaveChangesAsync();
+        return new(
+            occurrenceId,
+            caseId,
+            // A holding receipt only to satisfy the command's own "Case or
+            // holding" invariant when the Case is deliberately absent.
+            caseId is null ? Guid.NewGuid() : null,
+            operationKey,
+            "evidence.txt",
+            "text/plain",
+            Evidence.Length,
+            Sha256Hex(Evidence));
+    }
+
+    /// <summary>
+    /// Waits for something another request is doing, so a proof about two
+    /// callers converging is not a race this test happened to win.
+    /// </summary>
+    private static async Task WaitUntilAsync(Func<bool> condition, string what)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (!condition())
+        {
+            Assert.True(DateTimeOffset.UtcNow < deadline, $"Timed out waiting for {what}.");
+            await Task.Delay(10);
+        }
     }
 
     /// <summary>
@@ -1025,7 +1284,9 @@ public sealed partial class PublicUploadRetentionWebTests
     private static async Task<PostedUpload> PostEvidenceAsync(
         WebApplicationFactory<Program> factory,
         string token,
-        string? operationKey = null)
+        string? operationKey = null,
+        byte[]? content = null,
+        string fileName = "evidence.txt")
     {
         using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
         using var page = await client.GetAsync($"/Uploads/{token}");
@@ -1033,14 +1294,14 @@ public sealed partial class PublicUploadRetentionWebTests
         var html = await page.Content.ReadAsStringAsync();
         var key = operationKey ?? FieldValue(html, "OperationKey");
 
-        var file = new ByteArrayContent(Evidence);
+        var file = new ByteArrayContent(content ?? Evidence);
         file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
         using var form = new MultipartFormDataContent
         {
             { new StringContent(FieldValue(html, "__RequestVerificationToken")), "__RequestVerificationToken" },
             { new StringContent(token), "Token" },
             { new StringContent(key), "OperationKey" },
-            { file, "Upload", "evidence.txt" }
+            { file, "Upload", fileName }
         };
         using var response = await client.PostAsync($"/Uploads/{token}", form);
         var body = await response.Content.ReadAsStringAsync();
@@ -1133,10 +1394,26 @@ public sealed partial class PublicUploadRetentionWebTests
 /// and the document occurrence, and returns their identities.
 /// </para>
 /// <para>
-/// The status port carries its own rule, which Stream A did not widen with
-/// the hand-over: a status read is staff casework only. So the reconciliation
-/// a public retry attempts is refused here exactly as it will be refused by
-/// A04, and the tests below show that refusal rather than hiding it.
+/// Both status reads carry the same fence as the hand-over, which is Stream
+/// A's published rule for them (PR 673 comments 5560737585 and 5561151076):
+/// staff casework, or the exact persisted upload link naming its own Case
+/// while that link is active, unrevoked and unexpired. A sender may therefore
+/// find out what became of its own submission, and only its own: another
+/// link, another Case or a revoked link is refused from either read.
+/// </para>
+/// <para>
+/// It also converges a repeated operation key the way A's adapter does. The
+/// intent is written inside the accepting transaction and
+/// <c>DocumentOccurrences</c> is uniquely indexed on Case and operation key,
+/// so a second call under one key returns the intent the first committed and
+/// initiates no storage of its own; <see cref="ProviderInitiations"/> counts
+/// the calls that did initiate it. Same-key calls are serialized here as A's
+/// serializable request-link path serializes them, which is what makes a
+/// delayed first call and its retry converge on one intent rather than two.
+/// One thing it does not model: with
+/// <see cref="CreatesDocumentOccurrence"/> off there is no intent row to
+/// converge on, so that flag belongs only to tests where nothing is
+/// re-offered.
 /// </para>
 /// </remarks>
 internal sealed class RecordingCaseArtifactCustody(
@@ -1168,6 +1445,24 @@ internal sealed class RecordingCaseArtifactCustody(
     public bool CreatesDocumentOccurrence { get; set; } = true;
 
     public int StatusCalls { get; private set; }
+
+    /// <summary>
+    /// How many calls actually created the durable intent and initiated
+    /// storage. A same-key call that finds the intent already committed adds
+    /// nothing to it, so this is the count the one-durable-intent invariant is
+    /// about - <see cref="HandOverAttempts"/> and <see cref="Calls"/> count
+    /// invocations, which A's revised rule no longer bounds at one.
+    /// </summary>
+    public int ProviderInitiations;
+
+    /// <summary>
+    /// One gate per operation key, standing in for the serializable
+    /// request-link path A's adapter commits its intent inside. Without it two
+    /// same-key calls could both find no intent and both create one, which is
+    /// the database's job to prevent and not something a caller can be asked
+    /// to arrange.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> gates = new(StringComparer.Ordinal);
 
     /// <summary>
     /// How many operation-key lookups were attempted, refused ones included.
@@ -1226,39 +1521,104 @@ internal sealed class RecordingCaseArtifactCustody(
             .Select(item => item.CustodyState)
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (HoldHandOver is { } hold)
+        // Everything from here to the commit is what A's serializable path
+        // serializes: the check for an existing intent and the creation of one
+        // are one decision, so two same-key calls cannot both make it.
+        var gate = gates.GetOrAdd(request.OperationKey, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        CaseArtifactCustodyResult result;
+        try
         {
-            HandOverEntered.TrySetResult();
-            await hold.Task.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
-        }
-
-        if (ThrowOnHandOver is { } fault)
-        {
-            // Custody has the bytes and then fails. The call is recorded first,
-            // so a test can prove they were offered exactly once.
-            lock (calls)
+            if (HoldHandOver is { } hold)
             {
-                calls.Add(new(
-                    request.Actor.Kind,
-                    request.Actor.SubjectId,
-                    linkId,
-                    request.CaseId,
-                    request.IntakeReceiptId,
-                    request.OperationKey,
-                    request.OccurrenceIdentity,
-                    request.FileName,
-                    received.Length,
-                    PublicUploadRetentionWebTests.Sha256Hex(received),
-                    handOverState,
-                    null,
-                    null,
-                    null,
-                    null));
+                HandOverEntered.TrySetResult();
+                await hold.Task.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
             }
 
-            throw fault;
+            if (ThrowOnHandOver is { } fault)
+            {
+                // Custody read the bytes and then failed, with nothing
+                // committed. The call is recorded first, so a test can prove
+                // what was offered and what came of it.
+                lock (calls)
+                {
+                    calls.Add(new(
+                        request.Actor.Kind,
+                        request.Actor.SubjectId,
+                        linkId,
+                        request.CaseId,
+                        request.IntakeReceiptId,
+                        request.OperationKey,
+                        request.OccurrenceIdentity,
+                        request.FileName,
+                        received.Length,
+                        PublicUploadRetentionWebTests.Sha256Hex(received),
+                        handOverState,
+                        null,
+                        null,
+                        null,
+                        null));
+                }
+
+                throw fault;
+            }
+
+            // The intent this operation key already has, if the accepting
+            // transaction has committed one. A repeated key is answered from
+            // it and initiates no storage of its own.
+            var committed = await context.Set<DocumentOccurrenceEntity>()
+                .AsNoTracking()
+                .Where(item => item.CaseId == caseId
+                    && item.OperationKey == request.OperationKey)
+                .Select(item => new { item.DocumentId, item.VersionId })
+                .SingleOrDefaultAsync(cancellationToken);
+            result = committed is not null
+                ? await ReadCommittedIntentAsync(
+                    committed.DocumentId,
+                    committed.VersionId,
+                    cancellationToken)
+                : await InitiateAsync(context, request, caseId, received, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
         }
 
+        lock (calls)
+        {
+            calls.Add(new(
+                request.Actor.Kind,
+                request.Actor.SubjectId,
+                linkId,
+                request.CaseId,
+                request.IntakeReceiptId,
+                request.OperationKey,
+                request.OccurrenceIdentity,
+                request.FileName,
+                received.Length,
+                PublicUploadRetentionWebTests.Sha256Hex(received),
+                handOverState,
+                result.DocumentId,
+                result.VersionId,
+                result.BoxFileId,
+                result.BoxVersionId));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The accepting transaction: the one call under an operation key that
+    /// creates the document, the version and the intent, and the only one that
+    /// initiates storage for it.
+    /// </summary>
+    private async Task<CaseArtifactCustodyResult> InitiateAsync(
+        PegasusDbContext context,
+        CaseArtifactCustodyRequest request,
+        Guid caseId,
+        byte[] received,
+        CancellationToken cancellationToken)
+    {
         var confirmed = Disposition == CaseArtifactCustodyDisposition.Confirmed;
         var accepted = confirmed || Disposition == CaseArtifactCustodyDisposition.Pending;
         Guid? documentId = null;
@@ -1296,7 +1656,9 @@ internal sealed class RecordingCaseArtifactCustody(
                     ? DocumentCustodyStatus.Confirmed
                     : DocumentCustodyStatus.Pending,
                 CreatedAtUtc = timeProvider.GetUtcNow(),
-                CreatedBy = "request-upload",
+                // The authority the bytes arrived under, which for this path
+                // is the upload link itself and never a member of staff.
+                CreatedBy = $"RequestLink:{request.Actor.SubjectId}",
                 IsCurrent = true
             });
             if (CreatesDocumentOccurrence)
@@ -1317,26 +1679,7 @@ internal sealed class RecordingCaseArtifactCustody(
             }
 
             await context.SaveChangesAsync(cancellationToken);
-        }
-
-        lock (calls)
-        {
-            calls.Add(new(
-                request.Actor.Kind,
-                request.Actor.SubjectId,
-                linkId,
-                request.CaseId,
-                request.IntakeReceiptId,
-                request.OperationKey,
-                request.OccurrenceIdentity,
-                request.FileName,
-                received.Length,
-                PublicUploadRetentionWebTests.Sha256Hex(received),
-                handOverState,
-                documentId,
-                versionId,
-                boxFileId,
-                boxVersionId));
+            Interlocked.Increment(ref ProviderInitiations);
         }
 
         return new(
@@ -1369,12 +1712,13 @@ internal sealed class RecordingCaseArtifactCustody(
         // attempted and refused rather than quietly skipped.
         StatusCalls++;
 
-        // Stream A's rule for the status read, unchanged by A04's request-link
-        // fix to RetainAsync (PR 673 comment 5560061438): the status read is
-        // staff casework only. The public sender acts as a request link, so
-        // its own retry is refused here - see the handoff recorded on
-        // INTK-060 scratch/c07-notes.
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        // The same fence as the other status read and as the hand-over: staff
+        // casework, or the exact active, unrevoked and unexpired link naming
+        // its own Case (Stream A, PR 673 comments 5560737585 and 5561151076).
+        // A sender that handed bytes over through this link may find out what
+        // became of them; nobody else may.
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        RequireStatusAuthority(actor, caseId, context, timeProvider.GetUtcNow());
         return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
     }
 

@@ -149,8 +149,16 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(occurrence.OperationKey, reconciled.OperationKey);
     }
 
+    /// <summary>
+    /// An uncertain hand-over custody owns up to nothing for is offered again
+    /// under the same key, which is the only way a claim taken by a process
+    /// that then died is ever resolved. It is asked about first, every time,
+    /// and never under a new key: what custody converges is one repeated key,
+    /// so a fresh one would be the second file (Stream A, PR 673 comment
+    /// 5561151076).
+    /// </summary>
     [Fact]
-    public async Task AnUncertainHandOverWithNothingToAskAboutStaysUncertain()
+    public async Task AnUncertainHandOverNothingIsObservedForIsReOfferedUnderTheSameKey()
     {
         var custody = new RecordingCustody(new(
             CaseArtifactCustodyDisposition.Unknown,
@@ -166,11 +174,14 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(IncomingArtifactCustodyState.Unknown, second.State);
 
         // Nothing precise to ask about, so it is asked for by its operation
-        // key; custody owns up to no committed intent, and the retention stays
-        // uncertain rather than being offered again.
+        // key - and only then, custody owning up to nothing, offered again
+        // under that same key.
         Assert.Equal(0, status.Calls);
         Assert.Equal(1, status.LookupCalls);
-        Assert.Equal(1, custody.Calls);
+        Assert.Equal(2, custody.Calls);
+        Assert.Equal(
+            [occurrence.OperationKey, occurrence.OperationKey],
+            custody.Requests.Select(request => request.OperationKey));
     }
 
     [Fact]
@@ -245,10 +256,11 @@ public sealed class RetainIncomingArtifactTests
     /// <see cref="IncomingArtifactCustodyState.Unknown"/> exists for: custody
     /// may already hold the bytes. It has to be recorded as uncertain rather
     /// than left in the state it was offered from, so the next attempt asks
-    /// about it instead of offering the same bytes a second time.
+    /// about it before it does anything else - and offers the same bytes under
+    /// the same key only because custody owned up to nothing.
     /// </summary>
     [Fact]
-    public async Task AThrownHandOverIsRecordedUncertainAndTheBytesAreNeverOfferedAgain()
+    public async Task AThrownHandOverIsRecordedUncertainAndAskedAboutBeforeItIsOfferedAgain()
     {
         var custody = new ThrowingCustody(new TimeoutException("the custody call timed out"));
         var store = new RecordingStore();
@@ -265,15 +277,16 @@ public sealed class RetainIncomingArtifactTests
         Assert.Null(uncertain.BoxFileId);
         Assert.Equal(uncertain, Assert.Single(store.Recorded));
 
-        // The retry asks rather than repeats. There is nothing to ask with -
-        // custody never named a document - so it honestly stays uncertain, and
-        // the bytes are still offered exactly once.
+        // The retry asks first. There is nothing precise to ask with - custody
+        // never named a document - so it asks by the key, and only a lookup
+        // that observes nothing lets the same bytes go under the same key.
         var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
-        Assert.Equal(1, custody.Calls);
+        Assert.Equal(2, custody.Calls);
         Assert.Equal(0, status.Calls);
         Assert.Equal(1, status.LookupCalls);
+        Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
     }
 
     /// <summary>
@@ -364,18 +377,21 @@ public sealed class RetainIncomingArtifactTests
         var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
-        Assert.Equal(1, custody.Calls);
+
+        // Asked first, then offered again under the same key: an uncertainty
+        // is not a refusal, and a refusal is the only thing that closes a key.
+        Assert.Equal(2, custody.Calls);
         Assert.Equal(1, status.LookupCalls);
     }
 
     /// <summary>
-    /// One arrival, one hand-over. The claim is what decides which caller
-    /// offers the bytes, so a caller that does not hold it never reaches
-    /// custody - it asks about the same operation key, and a lookup that
-    /// observes nothing committed leaves the claim exactly where it was.
+    /// A caller that does not hold the claim asks before it offers anything,
+    /// and what it may offer is bounded to the one thing that cannot make a
+    /// second file: the same bytes under the same operation key. A committed
+    /// intent it finds is reconciled and never re-offered.
     /// </summary>
     [Fact]
-    public async Task ACallerThatDoesNotWinTheClaimAsksInsteadOfOffering()
+    public async Task ACallerThatDoesNotWinTheClaimAsksBeforeItOffersAnything()
     {
         var custody = new RecordingCustody(Confirmed());
         var store = new RecordingStore();
@@ -385,18 +401,93 @@ public sealed class RetainIncomingArtifactTests
 
         // The winner takes the claim and is still inside its hand-over.
         Assert.True(await store.TryClaimHandOverAsync(occurrence.OccurrenceId, CancellationToken.None));
+        status.Committed[occurrence.OperationKey] = Confirmed();
 
         var lost = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
+        // It asked by the original key and custody owned up to the intent, so
+        // the bytes were never offered a second time.
         Assert.Equal(0, custody.Calls);
         Assert.Equal(1, status.LookupCalls);
         Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, lost.State);
+        Assert.Equal(DocumentId, lost.DocumentId);
+    }
 
-        // Nothing committed was observed, which is exactly what a winner still
-        // in flight looks like. The claim stands and nothing is recorded over
-        // it.
-        Assert.Equal(IncomingArtifactCustodyState.Unknown, lost.State);
+    /// <summary>
+    /// The claim that was taken and never used: a process wins it and dies
+    /// before it makes the call, so no intent exists and nothing ever will
+    /// unless someone offers the bytes again. The claim is not reopened - the
+    /// arrival stays claimed - and the offer is the same bytes under the same
+    /// key, which is what custody converges on one intent (Stream A, PR 673
+    /// comment 5561151076).
+    /// </summary>
+    [Fact]
+    public async Task AClaimNothingWasEverOfferedUnderIsResolvedByReOfferingTheSameBytes()
+    {
+        var custody = new RecordingCustody(Confirmed());
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed());
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Staged(store);
+
+        // The claim is taken and the call is never made.
+        Assert.True(await store.TryClaimHandOverAsync(occurrence.OccurrenceId, CancellationToken.None));
+
+        var resolved = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        // Asked first, observed nothing, then offered - under the original key
+        // and only it.
+        Assert.Equal(1, status.LookupCalls);
+        Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
+        Assert.Equal(
+            occurrence.OperationKey,
+            Assert.Single(custody.Requests).OperationKey);
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, resolved.State);
+        Assert.Equal(DocumentId, resolved.DocumentId);
+        Assert.Equal(resolved, Assert.Single(store.Recorded));
+    }
+
+    /// <summary>
+    /// An operation key names one file. Bytes that are not the ones its
+    /// arrival was committed with are a different submission, and offering
+    /// them under this key would make custody's own same-key convergence
+    /// return the wrong document - so they are refused before a claim is
+    /// touched and before custody is asked anything.
+    /// </summary>
+    [Fact]
+    public async Task BytesThatAreNotTheArrivalsAreRefusedBeforeCustodyIsAsked()
+    {
+        var custody = new RecordingCustody(Confirmed());
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed());
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Staged(store, Occurrence(sha256: "aaaa"));
+
+        await Assert.ThrowsAsync<HandOverContentMismatchException>(() =>
+            command.ExecuteAsync(
+                PublicActor(),
+                occurrence with { Sha256 = "bbbb" },
+                new MemoryStream([2])));
+        await Assert.ThrowsAsync<HandOverContentMismatchException>(() =>
+            command.ExecuteAsync(
+                PublicActor(),
+                occurrence with { ContentLength = 2048 },
+                new MemoryStream([1])));
+
+        Assert.Equal(0, custody.Calls);
+        Assert.Equal(0, status.LookupCalls);
         Assert.Empty(store.Recorded);
+
+        // The arrival is untouched, so the file it does name can still be
+        // offered under it.
+        var retained = await command.ExecuteAsync(
+            PublicActor(),
+            occurrence,
+            new MemoryStream([1]));
+
+        Assert.True(retained.IsConfirmed);
+        Assert.Equal(1, custody.Calls);
     }
 
     /// <summary>
@@ -704,7 +795,11 @@ public sealed class RetainIncomingArtifactTests
                 occurrence.OccurrenceId,
                 occurrence.OperationKey,
                 IncomingArtifactCustodyState.Unknown,
-                occurrence.CaseId);
+                occurrence.CaseId,
+                // The validated bytes, as a real store commits them: what a
+                // retry under this key has to offer again to be a retry.
+                Sha256: occurrence.Sha256,
+                ContentLength: occurrence.ContentLength);
             unclaimed.Add(occurrence.OccurrenceId);
         }
 

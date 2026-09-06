@@ -326,11 +326,10 @@ public sealed class RetainIncomingArtifact(
 
         // Unknown is both the arrival nobody has offered yet and the hand-over
         // whose outcome was lost, because from here they are the same thing:
-        // custody may hold these bytes. Exactly one caller may find out which
-        // by offering them, and the store's conditional claim - committed
-        // before the possibly accepting call - is what decides which caller
-        // that is. Anyone else asks about the same operation key instead, and
-        // never reaches custody with bytes.
+        // custody may hold these bytes. The store's conditional claim -
+        // committed before the possibly accepting call - decides who offers
+        // them first, and anyone else asks about the same operation key
+        // before it does anything at all.
         if (!await store.TryClaimHandOverAsync(occurrence.OccurrenceId, cancellationToken))
         {
             if (await ReconcileAsync(actor, existing, cancellationToken) is { } asked)
