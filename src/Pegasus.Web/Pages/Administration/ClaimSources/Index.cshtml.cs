@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
@@ -46,15 +47,6 @@ public sealed class IndexModel(
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
-    // C06 review R-14: minted alongside OperationKey and bound as a hidden
-    // field so a replayed create POST (same OperationKey, e.g. a retried
-    // submission) carries the same id too — the store's idempotent-receipt
-    // replay is keyed on OperationKey but its request hash includes Id, so a
-    // freshly-minted Guid.NewGuid() per request would make every retry an
-    // OperationConflict instead of the intended replay of the original create.
-    [BindProperty]
-    public Guid NewClaimSourceId { get; set; } = Guid.NewGuid();
-
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -85,7 +77,7 @@ public sealed class IndexModel(
                 await claimSourceAdministration.SaveAsync(
                     new(
                         actor,
-                        NewClaimSourceId,
+                        DeriveClaimSourceId(OperationKey),
                         ExpectedVersion: 0,
                         Name,
                         ContactName,
@@ -114,9 +106,30 @@ public sealed class IndexModel(
         }
 
         OperationKey = NewOperationKey();
-        NewClaimSourceId = Guid.NewGuid();
         await LoadAsync(actor, cancellationToken);
         return Page();
+    }
+
+    // C06 review R-18: the id used to be a client-bound hidden field
+    // (NewClaimSourceId) minted alongside OperationKey so a replayed create
+    // POST carried the same id — but a client-chosen id let a create POST
+    // silently overwrite an unrelated, already-existing Version = 0 claim
+    // source when it named that row's id under a fresh operation key.
+    // Deriving the id from the (validated, Guid-shaped) operation key
+    // instead removes client control of it entirely while keeping the same
+    // replay property: the same OperationKey always derives the same id, so
+    // a genuine retry still reaches the store's idempotent-receipt replay
+    // for the same row, and a fresh operation key derives an id no create
+    // has ever used before.
+    private static Guid DeriveClaimSourceId(string operationKey)
+    {
+        var operationId = Guid.ParseExact(operationKey, "N");
+        var discriminator = "claim_source_id"u8;
+        var material = new byte[16 + discriminator.Length];
+        operationId.TryWriteBytes(material);
+        discriminator.CopyTo(material.AsSpan(16));
+        var hash = SHA256.HashData(material);
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)

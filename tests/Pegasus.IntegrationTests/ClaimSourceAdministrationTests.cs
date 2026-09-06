@@ -221,6 +221,62 @@ public sealed partial class ClaimSourceAdministrationTests
                 $"SELECT COUNT(*) FROM ClaimSources WHERE Id = '{claimSourceId:D}' AND Notes = 'First edit' AND Version = 1;"));
     }
 
+    /// <summary>
+    /// C06 review R-18: the create id used to be a client-bound hidden field
+    /// minted alongside OperationKey, so a create POST naming an existing
+    /// row's id under a fresh (never-before-used) operation key silently
+    /// overwrote it via the store's create-or-update branch. The id is now
+    /// derived from the (server-validated) operation key instead, so the
+    /// same operation key always derives the same id — this is the
+    /// regression guard for that: replaying a create with the identical
+    /// operation key and payload must reach the store's idempotent-receipt
+    /// replay for the one row it already created, never a second row and
+    /// never an attempt to create at an id anything else already owns.
+    /// </summary>
+    [Fact]
+    public async Task CreateReplayWithTheSameOperationKeyNeverCreatesASecondRow()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var host = factory.WithC06Adapters();
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var indexGet = await client.GetAsync("/Administration/ClaimSources");
+        var indexHtml = await indexGet.Content.ReadAsStringAsync();
+        indexGet.EnsureSuccessStatusCode();
+        var createForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(indexHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(indexHtml, "OperationKey"),
+            ["Reason"] = InputValue(indexHtml, "Reason"),
+            ["Name"] = "Replayed Claim Source",
+            ["ContactName"] = "Robin Example",
+            ["Telephone"] = "01234 000333",
+            ["Email"] = "robin@claimsource.example",
+            ["Notes"] = "Created for the replay proof"
+        };
+        using var firstCreatePost = await client.PostAsync(
+            "/Administration/ClaimSources?handler=Create",
+            new FormUrlEncodedContent(createForm));
+        Assert.Equal(HttpStatusCode.Redirect, firstCreatePost.StatusCode);
+
+        // Same __RequestVerificationToken and OperationKey, same payload —
+        // exactly what a resubmitted (e.g. double-clicked or retried)
+        // request looks like.
+        using var replayCreatePost = await client.PostAsync(
+            "/Administration/ClaimSources?handler=Create",
+            new FormUrlEncodedContent(createForm));
+        Assert.Equal(HttpStatusCode.Redirect, replayCreatePost.StatusCode);
+
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM ClaimSources WHERE Name = 'Replayed Claim Source';"));
+    }
+
     [Fact]
     public async Task DirectClaimSourceRoutesDenyNonAdministratorSession()
     {
