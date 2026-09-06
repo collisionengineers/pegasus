@@ -316,3 +316,11 @@ G15 `9297cee60` (`ICaseArtifactCustodyStatus.FindByOperationKeyAsync`, null = no
 ## Checkpoint — C08 round 2 at `6690a33cc` (merged G15 → `df03ccd4e`)
 
 Compose test posts the rendered OperationKey; preview 404 root cause was the test's own `queue=all` (invalid queue value → Index 404 before Preview), fixed with a real queue key; B's `case-workspace.css` link in `_Layout.cshtml`; `OperatorLabels.CaseWorkspace.{Recipient,Reason,Content,RecordChase}`. Wave 27 queued behind wave 26 (C06). C07 caller round 3 dispatched (Opus): G15 doubles, atomic arrived→unknown claim, monotonic confirmation, original-key reconciliation, refusal mapping, R-18, six regression tests. Editors: C05 r3, C07b r3.
+
+## A: G15 adapter published (`58cf07ecb` on task/pegasus-v1-platform; combined host supplies it, no C import)
+
+Exact-link `GetAsync` and `FindByOperationKeyAsync` include live-link authority and accepted-creator provenance in one query; other active links on the same Case see nothing; lookup does no provider/content access; strengthened provider-write-failure test proves the original-key lookup returns the committed Pending intent with exact identities after an IOException. A confirms C's original-key claim/recovery/monotonic-recording changes remain necessary — all in the running C07 caller round 3.
+
+## Wave 26 (C06 `f1519a2f9`): all six lanes PASS
+
+Build 0/0, core 61, integration 38, host 118, browser 2, architecture 100. C06 re-review binds on it. Wave 27 (C08 `df03ccd4e`) launched.
