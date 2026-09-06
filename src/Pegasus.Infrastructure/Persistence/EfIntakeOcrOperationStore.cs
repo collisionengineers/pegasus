@@ -67,7 +67,7 @@ public sealed class EfIntakeOcrOperationStore(
         if (existing is not null)
         {
             if (existing.Id != operationId
-                || !string.Equals(existing.SourceSha256, request.SourceSha256, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(existing.SourceSha256.TrimEnd(), request.SourceSha256, StringComparison.OrdinalIgnoreCase)
                 || existing.DocumentVersionId != request.DocumentVersionId
                 || existing.IntakeAssetId != request.IntakeAssetId
                 || !Pages(existing.QualifiedPagesJson).SequenceEqual(pages))
@@ -261,13 +261,13 @@ public sealed class EfIntakeOcrOperationStore(
             envelope.IntakeReceiptId,
             entity.DocumentVersionId,
             entity.IntakeAssetId,
-            entity.SourceSha256,
+            entity.SourceSha256.TrimEnd(),
             envelope.Pages,
             entity.OperationKey,
             Enum.Parse<IntakeOcrState>(entity.State),
             entity.Version,
             entity.ProviderOperationId,
-            entity.ResponseSha256,
+            entity.ResponseSha256?.TrimEnd(),
             entity.LastError,
             entity.RetryAtUtc,
             envelope.AttemptCount,
