@@ -130,3 +130,38 @@ Build gate after both fixture fixes:
 Warning(s), 0 Error(s) (first attempt hit MSB3027 on `Pegasus.Core.dll`; one
 `dotnet build-server shutdown` plus retry succeeded per the controller's
 override).
+
+## Post-DI cleanup (c06-directory)
+
+ASSUMPTION 6 CLOSED — Stream A's registration for `IOrganizationDirectoryQueries` (and
+`IClaimSourceAdministration`/`IClaimSourceQueries`) landed at `306db9502` in
+`src/Pegasus.Infrastructure/DependencyInjection.cs`. Removed C06's temporary bridges:
+
+- `InspectionAddressChoicesQueries`: `directory` constructor parameter is required again
+  (`directory ?? throw new ArgumentNullException(...)`); removed the "absent directory
+  contributes nothing" branch in `SearchAsync` and the bridge remark on the class.
+- Deleted `tests/Pegasus.IntegrationTests/C06AdapterRegistrations.cs` (`WithC06Adapters`)
+  and every call to it — `ClaimSourceAdministrationTests`, `OrganizationDirectoryPersistenceTests`,
+  `OrganizationDirectoryWebTests`, `OrganizationAdministrationWebTests`,
+  `InspectionAddressSuggestionTests` — those tests now run against the plain
+  `IntakeWebApplicationFactory` (production composition).
+- Deleted the bridge-proof tests whose premise is gone: `PrincipalsIndexStillRendersWhenNoC06RegistrationsArePresent`,
+  `EvaSubmissionPageRendersWithoutDefaultLocationFormWhenNoC06RegistrationsArePresent`
+  (both in `OrganizationDirectoryWebTests.cs`), and
+  `SearchWithNoDirectoryStillReturnsTheOtherSourcesAndInventsNoDirectoryRow`
+  (`InspectionAddressSuggestionTests.cs`, constructing `InspectionAddressChoicesQueries`
+  with only the context-factory argument — no longer compiles once `directory` is required).
+  Kept every behavioural assertion.
+
+ASSUMPTION 8 CLOSED — Stream A's registration for `IUpdatePrincipalDefaultInspectionLocation`
+landed at the same `306db9502`. Removed C06's bridge in `EvaSubmission.cshtml.cs`:
+
+- Constructor parameter is required again (no more `?` / default `null`).
+- Removed `DefaultLocationAvailable` and the `OnPostUpdateLocationAsync` 404 branch for the
+  unregistered case.
+- `EvaSubmission.cshtml`: the default-location form now always renders (no
+  `@if (Model.DefaultLocationAvailable)` gate).
+
+Build gate: `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0,
+0 warnings, 0 errors. Commits on `c06-directory` (HEAD `fea0c0e78`), stopping at
+READY_FOR_TESTS per the controller's dispatch — no push, no PR, no `dotnet test` run here.
