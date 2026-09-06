@@ -146,8 +146,17 @@ public sealed class EfCaseReportDeliveryPreparationStore(
     {
         CaseReportDeliveryPolicy.RequireStaff(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var row = await Rows(context, caseId)
-            .SingleOrDefaultAsync(item => item.Intent.Id == preparationId, cancellationToken)
+        // The caller's own predicate stays inside the translatable query —
+        // composing it over the Row projection would force client evaluation.
+        var row = await (
+                from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
+                join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                    on intent.GenerationId equals generation.Id
+                join workflow in context.CaseWorkflows.AsNoTracking()
+                    on generation.CaseId equals workflow.CaseId
+                where generation.CaseId == caseId && intent.Id == preparationId
+                select new Row(intent, generation, workflow.Version))
+            .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : await MapAsync(context, row, cancellationToken).ConfigureAwait(false);
     }
@@ -157,22 +166,19 @@ public sealed class EfCaseReportDeliveryPreparationStore(
     {
         CaseReportDeliveryPolicy.RequireStaff(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var row = await Rows(context, caseId)
-            .Where(item => item.Generation.SupersededById == null)
-            .OrderByDescending(item => item.Intent.PreparedAtUtc)
+        var row = await (
+                from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
+                join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                    on intent.GenerationId equals generation.Id
+                join workflow in context.CaseWorkflows.AsNoTracking()
+                    on generation.CaseId equals workflow.CaseId
+                where generation.CaseId == caseId && generation.SupersededById == null
+                orderby intent.PreparedAtUtc descending
+                select new Row(intent, generation, workflow.Version))
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : await MapAsync(context, row, cancellationToken).ConfigureAwait(false);
     }
-
-    private static IQueryable<Row> Rows(PegasusDbContext context, Guid caseId) =>
-        from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
-        join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
-            on intent.GenerationId equals generation.Id
-        join workflow in context.CaseWorkflows.AsNoTracking()
-            on generation.CaseId equals workflow.CaseId
-        where generation.CaseId == caseId
-        select new Row(intent, generation, workflow.Version);
 
     private static async Task<CaseReportDeliveryPreparationRecord> MapAsync(
         PegasusDbContext context, Row row, CancellationToken cancellationToken)
