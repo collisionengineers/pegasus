@@ -162,7 +162,7 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         var budget = (float)AssessmentReportRenderPolicy.RenderTimeout.TotalMilliseconds;
         await using var page = await activeBrowser.NewPageAsync().ConfigureAwait(false);
         page.SetDefaultTimeout(budget);
-        cancellationToken.Register(() => _ = page.CloseAsync());
+        await using var cancellation = cancellationToken.Register(() => _ = page.CloseAsync());
         await page.SetContentAsync(
             html,
             new PageSetContentOptions { WaitUntil = WaitUntilState.Load, Timeout = budget })
