@@ -114,3 +114,11 @@ The C01 review agent was killed by the API session limit; other running agents (
 - All agents died at ~13:50Z. Slice heads: c01 `ea4848acd`, c07 `7000842ed`, c08 `c64d9cf83`, c05 WIP `815385cda` (three draft Core files committed as wip), c06 `f2b99b5ce` (no edits). Wave 3 had only started its build; the C01/C07 reviews produced no attestation.
 - G12 `c4d09b6e8` merged → C head `ab9f3fcd8`, pushed. C07 and C01 resumed to merge G12 and resolve their typed-actor conflicts in-stream; then a combined runner wave (C07 lanes incl. the concurrency proof twice, C01 lanes), then the two reviews, then C05/C06 resume. Running at low priority; one runner and at most two editors.
 - Baseline (e5c9b1f43) whole-solution: 33 integration failures mapped to owners on PLAT-075 notes; the C-owned ones are addressed by C07 (Triage), C01 (negative tests) and C06 (organization administration).
+
+## Wave 4 — C01 at `9b4dd1ef2` (G12 merged, no conflicts)
+
+build PASS; Core 108/108; Architecture 100/100; integration 95/96 — the single failure is `ProviderApiSubmissionTests.ADeclaredTriageOpensATriageAndAllocatesNoCase`, which needs C07's Triage allocator (Sequence = 0 on this slice) and is expected to clear at integration. C01 is integration-ready pending its independent review (running) and the corpus rebuild on A.
+
+## C07 at `b46a07452` — G12 merged and resolved in-stream
+
+Conflicts resolved in `EfTriageStore.cs` (usings) and `Pages/Triage/Details.cshtml.cs` (explicit engineer choice with the typed actor); `AddTriageNoteRequest.Actor` typed and hashed with kind+subject; `ValidateNote` through G12's `ValidateActorAndOperation`; A-owned G12 files untouched. Two fixes found in the merge review: Triage note bound now 500 (one constant, matches `TriageHistory.Reason`), and `ICaseEngineerChoices` (registered by G10) is a required dependency of the assignment picker. Still A handoffs: `IAddTriageNote`, `IListTriagePage` registrations. Wave 5 dispatched (incl. the concurrency proof twice and the G12-touched suites). Deviation 3 (typed actors) closed.
