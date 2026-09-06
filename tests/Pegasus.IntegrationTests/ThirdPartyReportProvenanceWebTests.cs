@@ -10,6 +10,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -235,28 +236,36 @@ public sealed class ThirdPartyReportProvenanceWebTests
     /// <summary>
     /// A staff re-evaluation of a receipt whose reading is already recorded
     /// leaves that reading exactly as it was: the same rows, the same
-    /// identifiers, no second set of candidates.
+    /// identifiers, no second set of candidates — and it gets there by actually
+    /// reading the source again, not by failing before it reaches the reader.
     ///
-    /// It also names why, because the previous round's version of this case
-    /// asserted a second reading that never happens. The re-evaluation command
-    /// puts the completed work item back to Pending and the Worker's dispatcher
-    /// claims it — but a completed receipt's staged copy has already been
-    /// reclaimed (<c>ProcessQueuedIntake</c> deletes it once the evaluation is
-    /// durably recorded, and <c>IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync</c>
-    /// says so in as many words), so the re-claimed pass fails on the staged
-    /// artifact before intake runs at all. Nothing about the report reading is
-    /// reached, which is why exactly one pass tags a third-party outcome.
+    /// This is the retargeted case. The earlier round pinned the outcome of a
+    /// gap: the re-claimed pass read the staged copy, which a completed receipt
+    /// no longer has, so it failed with <c>staged_artifact_integrity_failure</c>
+    /// before intake ran at all, and only one pass ever tagged a third-party
+    /// outcome (recorded on the ticket as ASSUMPTION 8). Stream A closed that
+    /// gap in the durable intake path (INTK-027): a queued re-evaluation now
+    /// re-reads the exact retained source through
+    /// <see cref="IReadLogicalDocumentVersion"/>, by identity, against the
+    /// recorded hash and length. So the pass completes, reads the report again,
+    /// and the store refuses the second write under the same asset-derived
+    /// operation key — the conflict <c>ProcessIntake</c> reports as
+    /// <c>recorded_reading_stands</c>. Two outcomes, in that order, one set of
+    /// candidate rows.
     ///
-    /// That gap is in the durable intake path, not in this slice's files; it is
-    /// recorded on the ticket (ASSUMPTION 8) rather than worked around here.
-    /// What C05 owns is proved either way: the recorded reading is undisturbed,
-    /// and the outcome tag makes a swallowed failure impossible to mistake for
-    /// a silent success.
+    /// The reader is the one thing here that is not the production object.
+    /// Standalone C composes no concrete reader — A04's adapters are A-owned
+    /// and are supplied by the combined host — so this test registers a C-owned
+    /// double that serves the retained source's exact bytes for this receipt's
+    /// logical version and refuses anything else, and asserts what the pass
+    /// asked it for. That is qualified boundary proof: it does not make C carry
+    /// A04's adapters, and no production fallback stands behind it. A's own
+    /// tests prove the real local reader and the Box/cache Worker path.
     /// </summary>
     [ReferencePackFact]
     public async Task AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas()
     {
-        var (bytes, _) = ReadOriginal(ReportName);
+        var (bytes, hash) = ReadOriginal(ReportName);
 
         // Every outcome is kept with the receipt it belongs to.
         // ActivitySource.AddActivityListener is process-global, so a collection
@@ -280,7 +289,12 @@ public sealed class ThirdPartyReportProvenanceWebTests
         };
         ActivitySource.AddActivityListener(listener);
         using var factory = new IntakeWebApplicationFactory();
-        using var host = WithSourceCandidates(factory);
+
+        // Armed below, once retention has given the source the identity, hash
+        // and length the queued pass will ask for. Until then it refuses, so
+        // the first pass cannot quietly read through it.
+        var retainedReader = new RecordingLogicalDocumentVersionReader();
+        using var host = WithSourceCandidates(factory, retainedReader);
         using var client = host.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -299,13 +313,18 @@ public sealed class ThirdPartyReportProvenanceWebTests
 
         await using var scope = host.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
-            .GetAsync(receiptId, CancellationToken.None);
+        var receiptQueries = services.GetRequiredService<IIntakeReceiptQueries>();
+        var receipt = await receiptQueries.GetAsync(receiptId, CancellationToken.None);
         var assetId = IntakeFileIdentity.SourceAsset(receipt!)!.Id;
         var queries = services.GetRequiredService<ISourceCandidateQueries>();
         var first = await queries.GetAsync(
             StaffActor(), receiptId, null, assetId, CancellationToken.None);
         Assert.NotEmpty(first);
+
+        // The first pass read the staged copy it was handed, so nothing has
+        // asked the logical reader anything yet. Asserted, because everything
+        // below is about the one request that follows.
+        Assert.Empty(retainedReader.Requests);
 
         // Re-evaluate the retained source. The command queues the work; the
         // dispatcher below stands in for the Worker timer and runs the pass
@@ -317,6 +336,25 @@ public sealed class ThirdPartyReportProvenanceWebTests
                 StaffActor(),
                 $"reevaluate:{receiptId:N}",
                 "Re-reading the retained third-party report."));
+
+        // What the queued pass must re-read, taken from the receipt as it
+        // stands now — the same asset, still holding the bytes this test
+        // uploaded, which is what makes serving them here "the exact retained
+        // source" rather than a convenient stand-in.
+        var reevaluated = await receiptQueries.GetAsync(receiptId, CancellationToken.None);
+        var retained = IntakeFileIdentity.SourceAsset(reevaluated!)!;
+        Assert.Equal(assetId, retained.Id);
+        Assert.Equal(hash, retained.ContentHash, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(bytes.LongLength, retained.ContentLength);
+        retainedReader.Serve(new(
+            retained.Id,
+            reevaluated!.CurrentCaseId,
+            reevaluated.Id,
+            retained.ContentHash,
+            retained.FileName,
+            retained.MediaType,
+            bytes));
+
         var dispatcher = new DispatchPendingIntakeWork(
             services.GetRequiredService<IIntakeWorkStore>(),
             new IntakeWebDriver.ImmediateIntakeWorkEnqueuer(
@@ -324,33 +362,50 @@ public sealed class ThirdPartyReportProvenanceWebTests
             services.GetRequiredService<TimeProvider>());
         Assert.Equal(1, await dispatcher.ExecuteAsync(1, CancellationToken.None));
 
-        var second = await queries.GetAsync(
-            StaffActor(), receiptId, null, assetId, CancellationToken.None);
-        Assert.Equal(first.Count, second.Count);
-        Assert.Equal(
-            first.Select(row => row.Id).OrderBy(id => id),
-            second.Select(row => row.Id).OrderBy(id => id));
+        // The pass re-read the retained source through the port, once, by
+        // identity: no storage key, the receipt's own logical version, and the
+        // recorded hash and length as the expectation. A double that had been
+        // asked for anything else would have refused instead of serving.
+        var asked = Assert.Single(retainedReader.Requests);
+        Assert.Null(asked.DocumentId);
+        Assert.Null(asked.VersionId);
+        Assert.Equal(retained.Id, asked.IntakeAssetId);
+        Assert.Equal(reevaluated.CurrentCaseId, asked.CaseId);
+        Assert.Equal(receiptId, asked.IntakeReceiptId);
+        Assert.Equal(retained.ContentHash, asked.ExpectedSha256, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(retained.ContentLength, asked.ExpectedContentLength);
 
-        // Where the queued pass stopped, read from the durable work item rather
-        // than inferred: it failed on the staged artifact, so it never reached
-        // the reader, the third-party gate or the analysis store.
+        // Where the queued pass got to, read from the durable work item rather
+        // than inferred: it completed, so it reached the reader, the
+        // third-party gate and the analysis store.
         var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
             .FindStagedReceiptIdForReceiptAsync(receiptId, CancellationToken.None);
         var status = await services.GetRequiredService<IQueuedIntakeStatusQueries>()
             .GetAsync(stagedReceiptId!.Value, CancellationToken.None);
-        Assert.Equal(QueuedIntakeStatusKind.Failed, status!.Status);
-        Assert.Equal("staged_artifact_integrity_failure", status.FailureCode);
+        Assert.Equal(QueuedIntakeStatusKind.Complete, status!.Status);
+        Assert.Null(status.FailureCode);
 
-        // So exactly one pass reads this source, and it says what it did with
-        // the reading. A swallowed failure, or a pass that never reached the
-        // reader, would leave the same rows behind; the outcome is what tells
-        // those apart, and the whole observed sequence is asserted rather than
-        // its length.
+        // Two passes read this source and each says what it did with the
+        // reading: the first recorded it, the second found the recorded reading
+        // standing and left it alone. A swallowed failure, or a pass that never
+        // reached the reader, would leave the same rows behind; the outcome is
+        // what tells those apart, so the whole observed sequence is asserted
+        // rather than its length.
         var recorded = outcomes
             .Where(entry => entry.Receipt == receiptId)
             .Select(entry => entry.Outcome)
             .ToList();
-        Assert.Equal("recorded", Assert.Single(recorded));
+        string[] expected = ["recorded", "recorded_reading_stands"];
+        Assert.Equal(expected, recorded);
+
+        // And the reading itself is untouched: one candidate set, the same rows
+        // with the same identifiers, value for value.
+        var second = await queries.GetAsync(
+            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        Assert.Equal(first.Count, second.Count);
+        Assert.Equal(
+            first.OrderBy(row => row.Id),
+            second.OrderBy(row => row.Id));
     }
 
     /// <summary>
@@ -457,9 +512,18 @@ public sealed class ThirdPartyReportProvenanceWebTests
     /// These registrations are Stream A's to add to <c>DependencyInjection.cs</c>
     /// under C-F02; until they land, the store resolves only here, and
     /// <c>ProcessIntake</c>'s optional dependency stays null in production.
+    ///
+    /// The logical-document reader is A04's port, which standalone C composes
+    /// nowhere: A owns the concrete adapters and the combined host supplies
+    /// them. A test that does not re-read a retained source therefore gets a
+    /// reader that refuses everything, so a scenario that quietly began to
+    /// depend on one fails by name; a test whose scenario does re-read passes
+    /// the double it means to exercise, and that double is qualified boundary
+    /// proof rather than a claim that C carries A04's adapters.
     /// </summary>
     private static WebApplicationFactory<Program> WithSourceCandidates(
-        IntakeWebApplicationFactory factory) =>
+        IntakeWebApplicationFactory factory,
+        IReadLogicalDocumentVersion? retainedReader = null) =>
         factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             services.AddScoped<EfRetainedInstructionAnalysisStore>();
@@ -470,7 +534,8 @@ public sealed class ThirdPartyReportProvenanceWebTests
             services.AddScoped<IGetLatestRetainedInstructionAnalysis,
                 GetLatestRetainedInstructionAnalysis>();
             services.AddScoped<InstructionExtractionPolicySelector>();
-            services.AddScoped<IReadLogicalDocumentVersion, UnopenedDocumentReader>();
+            services.AddSingleton<IReadLogicalDocumentVersion>(
+                retainedReader ?? RecordingLogicalDocumentVersionReader.Refusing());
             services.AddScoped<AnalyzeRetainedInstruction>();
         }));
 
@@ -502,21 +567,5 @@ public sealed class ThirdPartyReportProvenanceWebTests
         }
 
         throw new FileNotFoundException($"The pack inventory does not list {name}.");
-    }
-
-    /// <summary>
-    /// A document reader that refuses to open anything. The Received screen
-    /// needs the analysis command composed before it will show a recorded
-    /// analysis, but reading this receipt's candidates never opens a document:
-    /// they were recorded at retention. A reader that returned bytes here
-    /// would be pretending to do work this test does not exercise.
-    /// </summary>
-    private sealed class UnopenedDocumentReader : IReadLogicalDocumentVersion
-    {
-        public Task<LogicalDocumentContent> OpenAsync(
-            ReadLogicalDocumentVersionRequest request,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException(
-                "This test reads candidates recorded at retention and opens no document.");
     }
 }

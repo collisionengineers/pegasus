@@ -426,6 +426,7 @@ public sealed class QdosAllocationRecoveryTests
             useIntegrationTestAuthentication: true,
             initializeDevelopmentOffline: false,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.DisableQdosAsync(factory.Services);
         var email = IntakeTestEvidence.CreateEmail(
             "qdos-allocation-redelivery.eml",
             "QDOS instruction\r\nClaimant Name: Redelivery Claimant\r\nClaim Number: RED-1\r\nVehicle Registration: AB12 CDE");
@@ -608,6 +609,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
             spy,
             clock,
+            services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             services.GetService<IImageIntakeAutomation>());
 
         // First pass: processes to a definitive receipt, but the automatic
@@ -761,6 +763,7 @@ public sealed class QdosAllocationRecoveryTests
             providerAssociationStore,
             allocateIntake,
             clock,
+            services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             automaticMailCaseAssociation: automaticMailCaseAssociation);
 
     private sealed class RecordingProviderAssociationStore(List<string> events)
@@ -1411,6 +1414,7 @@ public sealed class IntakeAllocationConsumerTests
             useIntegrationTestAuthentication: true,
             initializeDevelopmentOffline: false,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.DisableQdosAsync(factory.Services);
         var email = IntakeTestEvidence.CreateEmail(
             "triage-allocation-independence.eml",
             "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-ALLOC\r\nVehicle Registration: AB12 CDE");
@@ -1645,17 +1649,24 @@ internal static class AllocationTestData
         string code,
         bool isActive = true)
     {
+        await using var scope = services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await factory.CreateDbContextAsync();
         if (code == QdosPrincipal.Code && isActive)
         {
-            return (await SeededPrincipals.QdosAsync(services)).SequenceLineageId;
+            var principal = await context.Principals.SingleAsync(item => item.Code == QdosPrincipal.Code);
+            if (!principal.IsActive)
+            {
+                principal.IsActive = true;
+                await context.SaveChangesAsync();
+            }
+
+            return (await SeededPrincipals.QdosAsync(context)).SequenceLineageId;
         }
 
         var organizationId = Guid.NewGuid();
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
-        await using var scope = services.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await factory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Recovery provider {code}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
@@ -1668,6 +1679,16 @@ internal static class AllocationTestData
                 ({principalId}, {organizationId}, {code}, {lineageId}, NULL, NULL, {isActive}, {0L})
             """);
         return lineageId;
+    }
+
+    public static async Task DisableQdosAsync(IServiceProvider services)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await factory.CreateDbContextAsync();
+        var principal = await context.Principals.SingleAsync(item => item.Code == QdosPrincipal.Code);
+        principal.IsActive = false;
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
