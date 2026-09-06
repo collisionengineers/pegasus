@@ -23,7 +23,7 @@ public sealed class AxInstructionExtractionPolicy
         new("Vehicle registration", ["VRM"], IsValidTyped: InstructionFieldEngine.IsUkRegistration,
             CanonicalValue: InstructionFieldEngine.NormalizeRegistration, PartyRole: "claimant"),
         new("Vehicle make", ["Vehicle"], AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel,
-            PartyRole: "claimant"),
+            GuardedPrefixes: ["his"], PartyRole: "claimant"),
         new("Vehicle model", ["Model"], IsRequired: false,
             AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel, PartyRole: "claimant"),
         new("Incident date", ["Accident Date"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
