@@ -15,6 +15,7 @@ public sealed class AxInstructionExtractionPolicy
     private const string DeadlineField = "Report deadline";
     private const string RepairerAddressField = "Repairer address";
     private const string RepairerTelephoneField = "Repairer telephone";
+    private const char ProtectedNarrativeHyphen = '\u2011';
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
@@ -37,7 +38,8 @@ public sealed class AxInstructionExtractionPolicy
             ["Accident circumstances"],
             IsRequired: false,
             PartyRole: "claimant",
-            PrefersLatestFragment: true),
+            PrefersLatestFragment: true,
+            CanonicalValue: RestoreNarrativeHyphens),
         new("VAT status", ["VAT Registered"], IsRequired: false, PartyRole: "claimant"),
         new("Repairer name", ["Repairer name"], IsRequired: false, PartyRole: "repairer"),
         new(RepairerAddressField, [RepairerAddressField], IsRequired: false, PartyRole: "repairer"),
@@ -66,7 +68,12 @@ public sealed class AxInstructionExtractionPolicy
             throw new ArgumentException("The established principal is not AX.", nameof(principalContext));
 
         var scoped = readResult.Content.SelectMany(Scope).ToArray();
-        var (fields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(scoped, Definitions, Cache, processedAtUtc);
+        var (extractedFields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
+            scoped,
+            Definitions,
+            Cache,
+            processedAtUtc);
+        var fields = extractedFields.Select(RestoreNarrativeHyphens).ToArray();
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode,
             InstructionFieldEngine.TypedString(values["Claimant name"], 300),
@@ -104,7 +111,13 @@ public sealed class AxInstructionExtractionPolicy
         if (deadline is not null && DateToken(deadline) is { } deadlineDate)
             yield return fragment with { Text = $"{DeadlineField}: {deadlineDate}" };
         if (Circumstances(text[client..clientEnd]) is { } circumstances)
-            yield return fragment with { Text = $"Accident circumstances: {circumstances}" };
+            yield return fragment with
+            {
+                // A narrative separator such as "vehicle - Third Party" is not
+                // a field label. Protect it only in this synthesized fragment so
+                // the shared flattened-label boundary cannot cut the sentence.
+                Text = $"Accident circumstances: {ProtectNarrativeHyphens(circumstances)}"
+            };
         if (bodyshop >= 0)
         {
             var end = NextSection(text.Length, bodyshop, client, thirdParty);
@@ -178,4 +191,26 @@ public sealed class AxInstructionExtractionPolicy
         .Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)
         .Select(token => token.Trim(':'))
         .FirstOrDefault(token => InstructionFieldEngine.ParseDate(token) is not null);
+
+    private static string ProtectNarrativeHyphens(string value) =>
+        value.Replace(" - ", $" {ProtectedNarrativeHyphen} ", StringComparison.Ordinal);
+
+    private static string? RestoreNarrativeHyphens(string value) =>
+        value.Replace(ProtectedNarrativeHyphen, '-');
+
+    private static InstructionReviewField RestoreNarrativeHyphens(InstructionReviewField field)
+    {
+        if (!string.Equals(field.Name, "Accident circumstances", StringComparison.Ordinal))
+            return field;
+
+        return field with
+        {
+            SuggestedValue = field.SuggestedValue is null ? null : RestoreNarrativeHyphens(field.SuggestedValue),
+            Candidates = field.Candidates.Select(candidate => candidate with
+            {
+                Value = RestoreNarrativeHyphens(candidate.Value)!,
+                RawValue = candidate.RawValue is null ? null : RestoreNarrativeHyphens(candidate.RawValue)
+            }).ToArray()
+        };
+    }
 }
