@@ -70,6 +70,7 @@ public sealed class SblInstructionExtractionPolicyTests
         Assert.Null(draft.VehicleModel);
         Assert.Null(draft.VehicleMileage);
         Assert.Equal("7 Rue de Lyon, 75012 Paris, France", draft.InspectionAddress);
+        Assert.Null(Field(result, "Hire out date").SuggestedValue);
     }
 
     [Fact]
@@ -111,6 +112,20 @@ public sealed class SblInstructionExtractionPolicyTests
         Assert.Equal("Alex One", Field(result, "Driver").SuggestedValue);
         Assert.Equal("claimant", new SblInstructionExtractionPolicy().FieldRoles["Claimant name"].PartyRole);
         Assert.Equal("driver", new SblInstructionExtractionPolicy().FieldRoles["Driver"].PartyRole);
+    }
+
+    [Fact]
+    public void CircumstancesRetainTheRecordedCurlyApostrophe()
+    {
+        var result = Extract(Template("""
+            Vehicle Make: Toyota Prius
+            Registration: AB12 CDE
+            Incident Circumstances: Client’s vehicle was parked.
+            Agreed Value:
+            """));
+
+        Assert.Equal("Client’s vehicle was parked.",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
     }
 
     [Fact]
