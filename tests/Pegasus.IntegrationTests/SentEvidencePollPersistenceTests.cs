@@ -135,8 +135,11 @@ public sealed class SentEvidencePollPersistenceTests
             ["<different-request@example.test>"],
             20,
             default));
+        // The resumed claim is a real due claim: the completing store
+        // schedules the next run a minute out, so the fixture asks past that
+        // delay instead of inside it.
         var resumed = Assert.IsType<ApprovedSentPollLease>(
-            await store.ClaimAsync(nowUtc.AddMinutes(1).AddSeconds(1), TimeSpan.FromMinutes(1), default));
+            await store.ClaimAsync(nowUtc.AddMinutes(2), TimeSpan.FromMinutes(1), default));
         Assert.Equal(terminalItem.NextCursor, resumed.Cursor);
     }
 
@@ -308,12 +311,16 @@ public sealed class SentEvidencePollPersistenceTests
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
+        // The completing poll schedules the next claim a minute out and the
+        // fixture clock is fixed, so make this mailbox due again for the
+        // replay: a real due claim, never a weakened idempotency assertion.
+        await factory.Database.ExecuteAsync(
+            "UPDATE ApprovedSentPollStates SET DueAtUtc = DATEADD(minute, -1, DueAtUtc) WHERE MailboxId = 'instructions'");
         var replay = await poll.ExecuteAsync(
             1,
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
-
         Assert.Equal(1, first.TriageResponsesRecorded);
         Assert.Equal(1, replay.TriageResponsesRecorded);
         Assert.Equal(

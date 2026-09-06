@@ -252,6 +252,10 @@ public sealed class CaseWorkflowPersistenceTests
         var worker = ActionActor.SystemWorker("sent-evidence-poll");
 
         var first = await poll.ExecuteAsync(1, 10, worker, default);
+        // The completing poll schedules the next claim a minute out; the
+        // replay below must be a real due claim, so the fixture clock moves
+        // past that delay first.
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(2));
         var replay = await poll.ExecuteAsync(1, 10, worker, default);
 
         Assert.Equal(first, replay);
