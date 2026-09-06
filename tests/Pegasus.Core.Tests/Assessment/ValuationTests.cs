@@ -24,7 +24,7 @@ public sealed class ValuationTests
         Assert.False(ValuationSources.IsSupported((ValuationSource)99));
         Assert.Equal(
             [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue,
-                ValuationSource.AiMarketResearch],
+                ValuationSource.AiMarketResearch, ValuationSource.Brego, ValuationSource.SuperCap],
             Enum.GetValues<ValuationSource>());
     }
 
