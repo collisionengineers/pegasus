@@ -100,7 +100,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         string text;
         try
         {
-            text = PassiveRtfText.Extract(bytes.Span, issues, cancellationToken);
+            text = PassiveRtfText.Extract(
+                bytes.Span, issues, preserveTableControls: true, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -118,7 +119,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
                 result);
         }
 
-        result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
+        var readableText = text
+            .Replace(PassiveRtfText.TableRowStart.ToString(), string.Empty, StringComparison.Ordinal)
+            .Replace(PassiveRtfText.TableCellBoundary, '\t')
+            .Replace(PassiveRtfText.TableRowEnd.ToString(), Environment.NewLine, StringComparison.Ordinal);
+        result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, readableText));
         AddRtfTableCells(text, sourceLabel, result);
         result.Issues.Add(new(
             "doc-rtf-engine",
@@ -139,12 +144,21 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
     private static void AddRtfTableCells(string text, string sourceLabel, ReadAccumulator result)
     {
         var row = 0;
-        foreach (var line in text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+        var cursor = 0;
+        while (cursor < text.Length)
         {
-            if (!line.Contains('\t'))
+            var start = text.IndexOf(PassiveRtfText.TableRowStart, cursor);
+            if (start < 0)
+                break;
+            var end = text.IndexOf(PassiveRtfText.TableRowEnd, start + 1);
+            if (end < 0)
+                break;
+            cursor = end + 1;
+            var encodedRow = text[(start + 1)..end];
+            if (!encodedRow.Contains(PassiveRtfText.TableCellBoundary))
                 continue;
             row++;
-            var cells = line.TrimEnd('\r').Split('\t');
+            var cells = encodedRow.Split(PassiveRtfText.TableCellBoundary);
             for (var column = 0; column < cells.Length; column++)
             {
                 var value = cells[column].Trim();
