@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -278,5 +279,66 @@ public sealed class UnidentifiedPersistenceTests
         Assert.Contains(nameof(IUnidentifiedStore.ReopenAsync), declared);
         Assert.Contains(nameof(IUnidentifiedStore.ListResolutionsToRecheckAsync), declared);
         Assert.Contains(nameof(IUnidentifiedStore.MarkResolutionRecheckedAsync), declared);
+    }
+
+    /// <summary>
+    /// Keyset continuation over the Unidentified queue, against real SQL. The
+    /// queue is oldest-first and moves constantly, so the pages must partition
+    /// it exactly however small the page is.
+    /// </summary>
+    [Fact]
+    public async Task TheUnidentifiedQueuePagesDeterministicallyByCursor()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+
+        for (var index = 0; index < 5; index++)
+        {
+            var receiptId = await StoreReceiptAsync(
+                services.GetRequiredService<IIntakeReceiptStore>(),
+                IntakeSourceChannel.ManualUpload,
+                "application/pdf",
+                $"cursor-{index}.pdf");
+            await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(receiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "Retained for staff sorting.",
+                    ActionActor.SystemWorker("intake-processing"),
+                    $"unidentified-cursor-{index}",
+                    CreatedAtUtc.AddMinutes(index)),
+                CancellationToken.None);
+        }
+
+        var whole = await store.ListQueueAsync(null, CancellationToken.None);
+        Assert.Equal(5, whole.Count);
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var list = new ListUnidentifiedQueueByCursor(
+            store,
+            new IntakeStablePersistenceTests.FakeCursorProtector());
+
+        foreach (var pageSize in new[] { 1, 2, 5 })
+        {
+            var seen = new List<Guid>();
+            string? cursor = null;
+            var pages = 0;
+            do
+            {
+                var page = await list.ExecuteAsync(new(actor, null, cursor, pageSize));
+                Assert.True(page.Items.Count <= pageSize);
+                seen.AddRange(page.Items.Select(item => item.Id));
+                cursor = page.NextCursor;
+                pages++;
+                Assert.True(pages <= 10, "The continuation did not terminate.");
+            }
+            while (cursor is not null);
+
+            Assert.Equal(whole.Select(row => row.Id), seen);
+            Assert.Equal(seen.Count, seen.Distinct().Count());
+        }
     }
 }
