@@ -71,16 +71,17 @@ shape is `<KIND>-<number>-<slug>.md` with the kind prefix included
 (`PRD-001-…`, `FRD-014-…`, `ADR-0009-…`), zero-padded and monotonic per kind
 — but the width varies by repo, so copy the neighbours rather than the example.
 
-Also here: `docs/contributing/doc-structure.md`, the descriptive mirror of the
-board's document model — never authoritative; `board.yml` is the source of
-truth, and this file is regenerated from it.
+A repository may have a generated mirror of its document model. Use its own
+canonical navigation and resolved `get_doc_gates` model; do not assume a
+foreign repository path, npm command or raw board.yml profile is authoritative.
 
-## The link-or-create rule (gate: leaving Backlog)
-Before a ticket leaves Backlog it must either:
-- **link** an existing governing doc — `link_doc <id> <path>` using the real path from the board's globs; or
-- **create** the doc first (author it here via the `prd`/`frd`/`adr` templates), then link it; or
-- set **`docs_todo`** when the doc is genuinely still to be written (imports, spikes) — a tracked debt that `kanmer-groom` surfaces.
+## Governing-document requirements
 
+Call `get_doc_gates <id>` for the current profile before crossing a stage
+boundary. Link existing governing documents through `link_doc`, or author and
+link a required new document. Record genuine outstanding document work as
+`docs_todo`. Do not invent a fixed Backlog gate or assume every profile needs
+the same documents.
 ## Authoring rules
 A **plan** must state how it meets each linked PRD/FRD/ADR — or, with explicit
 user authorization, how it *modifies* one, or why a *new* ADR is created for a
@@ -107,7 +108,6 @@ and materialise the `/docs/` tree + `doc-structure.md` before seeding the backlo
 ---
 
 **No successor — control returns to the caller.** Three call it:
-`kanmer-tickets` or `kanmer-research` when a ticket needs a governing doc before
-it can leave Backlog, `kanmer-plan` when the plan introduces a design decision
+`kanmer-tickets` or `kanmer-research` when a ticket needs a governing doc, `kanmer-plan` when the plan introduces a design decision
 that deserves an ADR, and `kanmer-setup` in bulk on a greenfield board. Each
 resumes where it left off once the document exists and is linked.

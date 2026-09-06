@@ -1,4 +1,4 @@
-# FRD-11: Reports, correspondence, and reviewed proposals
+﻿# FRD-11: Reports, correspondence, and reviewed proposals
 > Owner capabilities: RPT, AI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Reports, correspondence, and reviewed proposals
@@ -97,6 +97,16 @@ issue, sending, external receipt, durable report-reference allocation, or
 correction custody. Human approval remains required before issue; the durable
 trigger, immutable reference/version and custody workflow is separately owned.
 
+A generation freezes an immutable snapshot of the Case version, signatory
+account and signature digest, Current estimate identity/version and breakdown,
+accepted Engineer value and applied valuation identity, content switches,
+report date or override, narrative, fee, source documents with Box identities,
+and prepared-image role, order, rotation and crop. Report and fee note are
+separately addressable generated artifacts through custody. Relevant accepted
+fact changes mark a generation stale; notes and recipient edits do not. A
+ready generation records ActionHistory `case_report_generation_ready`.
+Preview creates neither an artifact nor Sent evidence.
+
 ### Report-draft entry point
 
 The renderer boundary above is reachable from one operator action (DELIV-012):
@@ -115,10 +125,9 @@ Settlement, Report — are always viewable (D30, 2026-09-02). They are editable
 in `Report preparation` and `Post report` (displayed "With Engineer") under
 the Case edit lease, and read-only in `Post-report complete` and the other
 terminal outcomes; the former D11 access rule is now this read-only rule.
-Report generation still requires the Case to have entered `Report
-preparation` with a successful EVA export or submission for the current
-Review cycle; returning to Review for corrected case data starts a new cycle
-and requires a fresh export before generation is offered again.
+Report generation does not depend on an EVA export or submission. EVA is
+optional and never gates report readiness; its hand-off and report preparation
+remain separate workflows.
 
 **Fee note preview.** The Report section renders a fee note preview from the
 agreed fee and the description lines recorded on the Case (D42, 2026-09-02).
@@ -157,13 +166,12 @@ source hashes
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)).
 Allocated to [[ENG-031]]; not delivered.
 
-**Repair-cost figures.** The accepted derivation is D17 (2026-09-01):
-non-paint labour is the estimate version's normalized non-paint hours
-multiplied by the rate held on the labour-rate card that version selected;
-paint labour, paint materials, parts and other costs are explicit amounts on
-the version; the version's own VAT percentage applies to the whole subtotal.
+**Repair-cost figures.** One labour-rate-card snapshot prices both panel and
+paint hours. Parts, materials and specialist costs remain explicit estimate
+amounts. The selected estimate's VAT categories and its own VAT percentage
+determine the taxable base.
 Multiple global, versioned labour-rate cards exist as Administrator-managed
-configuration (id, name, non-paint hourly rate, enabled state, actor,
+configuration (id, name, panel-and-paint hourly rate, enabled state, actor,
 timestamps); staff select one card for every new or amended estimate version,
 and a report version records the card version it used. Disabling a card blocks
 future selection without changing history. Normalized imported and manual
@@ -304,25 +312,24 @@ so stopping automation also stops the ledger.
 
 ### Estimate VAT on the rendered report
 
-Each estimate carries its own VAT percentage, entered freely on the estimate
-(D9). For the rendered assessment report, the Current estimate's VAT
-percentage replaces the built-in repairer-VAT-registered rule; that rule
-applies only when no Current estimate exists. The figures are computed once
-by `Pegasus.Core`:
+Each estimate has its own VAT percentage, defaulting to 20, and selected VAT
+categories. `Unknown` repairer VAT blocks Use as Current until staff record an
+explicit status or explicit categories. For a rendered report, VAT is
+`Taxable × VatPercent / 100`, where Taxable is the selected discounted Labour,
+Parts, Materials and Specialist categories. `Pegasus.Core` computes each
+printed component independently; printed Net is their sum and printed Gross is
+printed Net plus printed VAT. No residual penny moves between components.
 
 | Figure | Rule |
 | --- | --- |
 | Parts | Explicit part prices × quantity |
-| Labour | Normalized non-paint hours × the non-paint hourly rate of the labour-rate card the estimate version selected (D17) |
-| Paint | Explicit paint labour plus explicit paint materials |
-| Other | Explicit other costs |
-| Subtotal | Parts + Labour + Paint + Other |
-| VAT | Subtotal × VAT % |
-| Total | Subtotal + VAT |
+| Labour | Panel and paint hours × the selected labour-rate-card rate |
+| Parts, materials and specialist | Explicit estimate amounts, discounted where selected |
+| Taxable | Selected discounted Labour, Parts, Materials and Specialist categories |
+| VAT | Taxable × VAT % |
+| Net / Gross | Sum of independently rounded printed components / Net + printed VAT |
 
-The labour-rate card prices non-paint labour only; paint labour, paint
-materials, parts and other costs are explicit amounts carried on the estimate
-version by whichever route supplied it, and are never derived from the card. No comparison figure between an imported provider version and
+No comparison figure between an imported provider version and
 an assessed version, and no savings figure, is computed or rendered (D17).
 Normalized provider and manual estimates are editable records; their retained
 raw source evidence and hashes are immutable. Every direct change follows the

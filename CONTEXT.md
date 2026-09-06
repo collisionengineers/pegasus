@@ -49,16 +49,19 @@ One Case in which Collision Engineers completes its standard Inspection and then
 _Avoid_: Combined report, two-spec Inspection
 
 **Triage**:
-A distinct staff workflow for a recorded matter requiring a finding and, where applicable, exact reply-chain Sent evidence.
+A distinct pre-Case staff workflow requiring a finding and, where applicable,
+exact reply-chain Sent evidence. Its global increasing `T-00001` reference has
+no yearly or Principal reset and is never reused. Formal instructions create a
+normal Case/PO and link the Triage; Triage itself allocates neither.
 _Avoid_: Inbox sorting, generic sorting
 
-**Needs sorting**:
+**Unidentified**:
 A safe pre-case routing state for persisted material that cannot yet progress: unclassifiable email, and recorded Triage material awaiting a vehicle registration. It is never a pre-Case Image intake or `Not ready`.
 _Avoid_: Triage, Blocked intake
 
 **Blocked intake**:
 A pre-Case failure boundary where required processing, identity, limits, custody, or evidence is incomplete or unsafe.
-_Avoid_: Needs sorting, Triage
+_Avoid_: Unidentified, Triage
 
 **Held**:
 A nonterminal Case state that pauses progression and recurring chasers pending a named staff resolution. A cancellation message creates `Held pending staff decision`; it does not itself cancel the Case.
@@ -93,12 +96,12 @@ The Operations activity count of `First sent to Engineer` proxy events within th
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:
-The Operations metric for instructed Cases created since Europe/London midnight, including Cases later closed that day and excluding Image intakes, Triage, `Needs sorting`, and `Blocked intake`.
+The Operations metric for instructed Cases created since Europe/London midnight, including Cases later closed that day and excluding Image intakes, Triage, `Unidentified`, and `Blocked intake`.
 _Avoid_: In today, Due today, received today
 
 **Not ready**:
 A created Case state for an instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`; pre-Case Image intake is not a Case state.
-_Avoid_: Needs sorting, Blocked intake
+_Avoid_: Unidentified, Blocked intake
 
 **Review**:
 A Case state in which staff manually review its readiness and accepted evidence before Engineer-queue eligibility or direct Engineer assignment.

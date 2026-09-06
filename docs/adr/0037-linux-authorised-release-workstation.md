@@ -2,7 +2,7 @@
 id: ADR-0037
 status: accepted
 date: 2026-09-04
-supersedes: []
+supersedes: [ADR-0007]
 superseded_by: []
 related_capabilities: [OPS-10, OPS-24]
 related_frd: []

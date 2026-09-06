@@ -3,14 +3,16 @@ id: ADR-0004
 status: accepted
 date: 2026-07-23
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0011]
 related_capabilities: []
 related_frd: [frd-09, frd-10]
 tags: [auth, api, mcp]
 ---
 # ADR-0004: Provider API and staff MCP authentication
 
-- Status: Accepted
+- Status: Accepted for the provider API. Its staff-MCP authentication clauses
+  are superseded by [ADR-0011](0011-restrict-mcp-to-automation-actor.md);
+  `superseded_by` records that partial relationship.
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
 

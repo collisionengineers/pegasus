@@ -121,10 +121,12 @@ Every submission records its outcome, and the four outcomes stay distinct:
 | Succeeded | EVA accepted the instruction and returned its identifiers | no |
 | Rejected | EVA refused it and said why | no — the same payload will be refused again |
 | Partial | EVA accepted it but returned no identifier | no — the case did reach EVA |
-| Unknown | delivery could not be determined | yes, with backoff, to an attempt cap |
+| Unknown | delivery could not be determined | no automatic retry; retain uncertainty and require explicit staff re-send |
 
-Only `Unknown` is retried, because it is the only outcome where the case may
-not have reached EVA. Both EVA identifiers are retained: the response
+An `Unknown` result may already have reached EVA and is never retried
+automatically. It is terminal; staff review the retained attempt before an
+explicit re-send.
+Both EVA identifiers are retained: the response
 identifier and the File Reference EVA embeds in its message text, which is what
 an operator quotes.
 
@@ -146,7 +148,9 @@ post-delivery re-check — still records the submission and its action
 history, since the delivery already happened and must not be lost, but
 likewise leaves the Case in `Review`. A re-send from `With Engineer` does not
 change state or version. Automatic submission remains a once-only `Review`
-action.
+action. D47's first-send transition remains one route into report preparation;
+explicit Start Case Work or assignment is the other route, and neither requires
+EVA delivery.
 
 Values EVA's instruction model has no field for — the inspection date and the
 mileage — are sent as labelled lines in the instruction's note rather than
