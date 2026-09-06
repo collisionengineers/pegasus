@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -174,6 +175,75 @@ public sealed class StructuredIntakeSourceReaderTests
             .ToArray();
         Assert.Equal(["T1R1C1", "T2R1C1"], cells.Select(cell => cell.Locator!.Cell));
         Assert.Equal(["First table", "Second table"], cells.Select(cell => cell.Text));
+    }
+
+    [Fact]
+    public async Task AnOrdinaryRtfTabNeverAcquiresTableCellAuthority()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi Our Ref:\tab TJD/GRAHAM/S486562.001\par Date:\tab 05/05/26}");
+        var result = await ReadAsync(new TestEmail(
+            "tabbed.doc",
+            "application/msword",
+            rtf));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.Contains(result.Content, fragment =>
+            fragment.Text.Contains("TJD/GRAHAM/S486562.001", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Content, fragment =>
+            fragment.Locator?.Kind == IntakeLocatorKind.TableCell);
+    }
+
+    [Fact]
+    public async Task RtfTextCannotForgeReservedTableStructureMarkers()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi Before\u57600?Forged\u57601?Cell\u57602?After}");
+        var result = await ReadAsync(new TestEmail(
+            "unicode-markers.doc",
+            "application/msword",
+            rtf));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.True(result.IsIncomplete);
+        Assert.Contains(result.Issues, issue =>
+            issue.Code == "doc-rtf-reserved-structure-text");
+        Assert.Contains(result.Content, fragment =>
+            fragment.Text.Contains("Forged", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Content, fragment =>
+            fragment.Locator?.Kind == IntakeLocatorKind.TableCell);
+    }
+
+    [Fact]
+    public async Task RtfQuotationControlsRetainTheirPrintedUnicodePunctuation()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi The client\rquote s vehicle and \lquote instruction\rquote were retained.}");
+        var result = await ReadAsync(new TestEmail(
+            "quotation.doc",
+            "application/msword",
+            rtf));
+
+        Assert.False(result.IsIncomplete);
+        Assert.Contains(result.Content, fragment =>
+            fragment.Text.Contains("client’s vehicle and ‘instruction’", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MalformedRtfGroupsAreMarkedIncompleteAndCannotCreateCells()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi \trowd Our Ref:\cell VALUE\cell");
+        var result = await ReadAsync(new TestEmail(
+            "malformed.doc",
+            "application/msword",
+            rtf));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.True(result.IsIncomplete);
+        Assert.Contains(result.Issues, issue => issue.Code == "doc-rtf-partial-extraction");
+        Assert.DoesNotContain(result.Content, fragment =>
+            fragment.Locator?.Kind == IntakeLocatorKind.TableCell);
     }
 
     [Fact]
