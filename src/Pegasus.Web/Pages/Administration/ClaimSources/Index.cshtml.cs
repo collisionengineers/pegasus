@@ -46,6 +46,15 @@ public sealed class IndexModel(
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
+    // C06 review R-14: minted alongside OperationKey and bound as a hidden
+    // field so a replayed create POST (same OperationKey, e.g. a retried
+    // submission) carries the same id too — the store's idempotent-receipt
+    // replay is keyed on OperationKey but its request hash includes Id, so a
+    // freshly-minted Guid.NewGuid() per request would make every retry an
+    // OperationConflict instead of the intended replay of the original create.
+    [BindProperty]
+    public Guid NewClaimSourceId { get; set; } = Guid.NewGuid();
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -76,7 +85,7 @@ public sealed class IndexModel(
                 await claimSourceAdministration.SaveAsync(
                     new(
                         actor,
-                        Guid.NewGuid(),
+                        NewClaimSourceId,
                         ExpectedVersion: 0,
                         Name,
                         ContactName,
@@ -105,6 +114,7 @@ public sealed class IndexModel(
         }
 
         OperationKey = NewOperationKey();
+        NewClaimSourceId = Guid.NewGuid();
         await LoadAsync(actor, cancellationToken);
         return Page();
     }
