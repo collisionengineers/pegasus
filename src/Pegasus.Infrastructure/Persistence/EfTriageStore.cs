@@ -14,6 +14,13 @@ public sealed class EfTriageStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null) : ITriageStore
 {
+    /// <summary>
+    /// The single seeded <c>TriageSequences</c> row. The Triage reference
+    /// sequence is global, so there is exactly one counter and it is never
+    /// partitioned by principal, vehicle or year.
+    /// </summary>
+    private const int TriageSequenceRowId = 1;
+
 
     public async Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
@@ -89,9 +96,20 @@ public sealed class EfTriageStore(
         }
 
         var now = UtcNow();
+        var principalId = await ResolveEstablishedPrincipalAsync(
+            context,
+            request.Origin.ReceiptId,
+            cancellationToken);
+        // Allocated last, so the counter row's update lock is the final lock
+        // this transaction takes and concurrent creations queue on it instead
+        // of deadlocking against each other's Triage range locks.
+        var allocatedSequence = await AllocateSequenceAsync(context, cancellationToken);
         var entity = new TriageEntity
         {
             Id = Guid.NewGuid(),
+            Sequence = allocatedSequence,
+            Reference = TriageReferenceFormat.Format(allocatedSequence),
+            PrincipalId = principalId,
             OriginReceiptId = request.Origin.ReceiptId,
             SourceChannel = sourceChannel,
             ExternalReceiptToken = sourceToken,
@@ -116,6 +134,65 @@ public sealed class EfTriageStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
+    }
+
+    /// <summary>
+    /// Takes the next global Triage sequence from the one <c>TriageSequences</c>
+    /// row inside the caller's transaction. The row is read under an update
+    /// lock held to commit, so concurrent creations queue on it and each leaves
+    /// with its own number rather than deadlocking on a shared read. A number
+    /// taken by a transaction that later rolls back is never handed out again:
+    /// the sequence only moves forward, references are never reused, and gaps
+    /// are an expected consequence.
+    /// </summary>
+    private static async Task<long> AllocateSequenceAsync(
+        PegasusDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var sequences = context.Set<TriageSequenceEntity>();
+        var sequence = context.Database.IsSqlServer()
+            ? await sequences
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [TriageSequences] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [Id] = {TriageSequenceRowId}
+                """)
+                .SingleAsync(cancellationToken)
+            : await sequences.SingleAsync(
+                item => item.Id == TriageSequenceRowId,
+                cancellationToken);
+        return checked(++sequence.LastAllocatedSequence);
+    }
+
+    /// <summary>
+    /// The principal the receipt already established, taken from the
+    /// originating instruction draft's suggested principal code and accepted
+    /// only when it resolves to exactly one active principal. Anything else —
+    /// no draft, no code, an unknown code, a deactivated principal — leaves the
+    /// Triage without one, which the operator sees as `Not known`. Nothing is
+    /// inferred from the vehicle registration or from a later linked Case.
+    /// </summary>
+    private static async Task<Guid?> ResolveEstablishedPrincipalAsync(
+        PegasusDbContext context,
+        Guid originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var suggestedCode = await context.InstructionDrafts.AsNoTracking()
+            .Where(draft => draft.IntakeReceiptId == originReceiptId)
+            .Select(draft => draft.SuggestedPrincipalCode)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(suggestedCode))
+        {
+            return null;
+        }
+
+        var code = suggestedCode.Trim();
+        var candidates = await context.Principals.AsNoTracking()
+            .Where(principal => principal.Code == code && principal.IsActive)
+            .Select(principal => principal.Id)
+            .Take(2)
+            .ToArrayAsync(cancellationToken);
+        return candidates.Length == 1 ? candidates[0] : null;
     }
 
     public async Task<TriageRecord> AssignAsync(AssignTriageRequest request, CancellationToken cancellationToken)
@@ -499,10 +576,12 @@ public sealed class EfTriageStore(
         row.Item.LinkedCaseId,
         row.Item.CreatedAtUtc,
         row.Item.Version,
-        row.Reference,
-        row.Provider);
+        row.Item.Reference,
+        row.Provider,
+        row.ClaimNumber,
+        row.Item.PrincipalId);
 
-    private sealed record TriageWithDraftRow(TriageEntity Item, string? Reference, string? Provider);
+    private sealed record TriageWithDraftRow(TriageEntity Item, string? ClaimNumber, string? Provider);
 
     public async Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -512,23 +591,37 @@ public sealed class EfTriageStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Triage.AsNoTracking()
+        // The principal code comes out of this one read as a LEFT JOIN through
+        // the foreign key rather than a follow-up lookup, so the detail read
+        // stays a single round trip whether or not a principal is recorded.
+        var row = await context.Triage.AsNoTracking()
             .Include(item => item.Findings)
             .Include(item => item.ResponseEvidenceLinks)
             .Include(item => item.History)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (entity is null)
+            .Where(item => item.Id == id)
+            .Select(item => new
+            {
+                Item = item,
+                PrincipalCode = context.Principals
+                    .Where(principal => principal.Id == item.PrincipalId)
+                    .Select(principal => principal.Code)
+                    .FirstOrDefault()
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (row is null)
         {
             return null;
         }
 
+        var entity = row.Item;
         return new(
             Map(entity),
             entity.CreatedAtUtc,
             entity.Findings.OrderBy(item => item.RecordedAtUtc).ThenBy(item => item.Id).Select(Map).ToArray(),
             entity.ResponseEvidenceLinks.OrderBy(item => item.LinkedAtUtc).ThenBy(item => item.SentEvidenceId).Select(Map).ToArray(),
             entity.History.OrderBy(item => item.AfterVersion).ThenBy(item => item.Id).Select(Map).ToArray(),
-            Array.Empty<TriageResponseEvidenceCandidate>());
+            Array.Empty<TriageResponseEvidenceCandidate>(),
+            row.PrincipalCode);
     }
 
     public async Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
@@ -1247,7 +1340,9 @@ public sealed class EfTriageStore(
         ParseState(entity.State),
         entity.AssigneeId,
         entity.LinkedCaseId,
-        entity.Version);
+        entity.Version,
+        entity.Reference,
+        entity.PrincipalId);
 
     private static TriageFinding Map(TriageFindingEntity entity) => new(
         entity.Id,

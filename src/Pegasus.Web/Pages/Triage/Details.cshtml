@@ -3,9 +3,12 @@
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Triage.DetailsModel
 @{
-    ViewData["Title"] = $"Triage {Model.Triage.Record.NormalizedVehicleRegistration}";
-
     var record = Model.Triage.Record;
+    // The Triage now has a permanent reference of its own, so the page is
+    // titled by it rather than by the vehicle registration.
+    var reference = record.Reference ?? record.NormalizedVehicleRegistration;
+    ViewData["Title"] = $"Triage {reference}";
+
     var mutable = record.State is not (TriageState.Completed or TriageState.Cancelled);
     // The one condition that gates completion, stated once so the control and
     // its wording cannot drift apart.
@@ -27,7 +30,7 @@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Triage</p>
-        <h1>@record.NormalizedVehicleRegistration</h1>
+        <h1>@reference</h1>
     </div>
     <div class="page-actions">
         <a class="btn" asp-page="/Cases/Index" asp-route-tab="triage">
@@ -53,7 +56,7 @@
 
 <article class="record">
     <header class="record-head">
-        <strong>@record.NormalizedVehicleRegistration</strong>
+        <strong>@reference</strong>
         <span class="record-identity">
             <span>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</span>
             <span>Opened @OperatorLabels.OfficeDate(Model.Triage.CreatedAtUtc)</span>
@@ -230,6 +233,18 @@
                 <div class="panel-head"><h2 id="triage-source-title">Source</h2></div>
                 <div class="panel-body stack">
                     <div class="definition-list">
+                        <dl class="definition">
+                            <dt>@OperatorLabels.TriageReference</dt>
+                            <dd>@reference</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Registration</dt>
+                            <dd>@record.NormalizedVehicleRegistration</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>@OperatorLabels.Principal</dt>
+                            <dd>@(Model.Triage.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</dd>
+                        </dl>
                         <dl class="definition">
                             <dt>Material</dt>
                             <dd>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</dd>

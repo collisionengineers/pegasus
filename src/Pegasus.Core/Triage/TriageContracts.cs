@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
@@ -23,6 +25,61 @@ public enum AssessmentFinding
 {
     Repairable,
     TotalLoss
+}
+
+/// <summary>
+/// The permanent Triage reference: `T-` followed by the global allocation
+/// sequence zero-padded to five digits, expanding past `T-99999` without
+/// reuse. The sequence is global — not per principal, per vehicle or per year
+/// — so a reference identifies exactly one Triage for the life of the system.
+/// It is allocated once at creation, is never reset and is never reused, so a
+/// number consumed by a failed creation simply leaves a gap.
+/// </summary>
+public static class TriageReferenceFormat
+{
+    public const string Prefix = "T-";
+
+    private static readonly Regex Canonical = new(
+        "^T-[0-9]{5,}$",
+        RegexOptions.CultureInvariant);
+
+    public static string Format(long sequence)
+    {
+        if (sequence <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence),
+                "A Triage reference sequence starts at 1.");
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Prefix}{sequence:00000}");
+    }
+
+    public static bool TryParse(string? value, out long sequence)
+    {
+        sequence = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var candidate = value.Trim();
+        if (!Canonical.IsMatch(candidate)
+            || !long.TryParse(
+                candidate.AsSpan(Prefix.Length),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out sequence)
+            || sequence <= 0)
+        {
+            sequence = 0;
+            return false;
+        }
+
+        return true;
+    }
 }
 
 public sealed record TriageOrigin(
@@ -270,6 +327,19 @@ public sealed record TriageHistoryEntry(
     public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
 }
 
+/// <summary>
+/// A Triage queue row. <see cref="Reference"/> is the Triage's own permanent
+/// T reference; <see cref="ClaimNumber"/> is the originating instruction
+/// draft's provider claim number, which is a fact about the sender and not an
+/// identifier of this Triage. The two were the same field before the T
+/// reference existed.
+/// </summary>
+/// <remarks>
+/// Every persisted Triage carries a reference, so <see cref="Reference"/> is
+/// only nullable to keep the two out-of-stream in-memory test fixtures that
+/// still pass <c>Reference: null</c> compiling; tightening it to a required
+/// member is a follow-up on those fixtures' owner.
+/// </remarks>
 public sealed record TriageSummary(
     Guid Id,
     string NormalizedVehicleRegistration,
@@ -279,7 +349,9 @@ public sealed record TriageSummary(
     DateTimeOffset CreatedAtUtc,
     long Version,
     string? Reference,
-    string? Provider);
+    string? Provider,
+    string? ClaimNumber = null,
+    Guid? PrincipalId = null);
 
 public sealed record TriageDetail(
     TriageRecord Record,
@@ -287,7 +359,13 @@ public sealed record TriageDetail(
     IReadOnlyList<TriageFinding> Findings,
     IReadOnlyList<TriageResponseEvidenceLink> ResponseEvidence,
     IReadOnlyList<TriageHistoryEntry> History,
-    IReadOnlyList<TriageResponseEvidenceCandidate> ResponseEvidenceCandidates);
+    IReadOnlyList<TriageResponseEvidenceCandidate> ResponseEvidenceCandidates,
+    /// <summary>
+    /// The code of the principal the originating receipt established, read in
+    /// the same round trip as the record. Null is the operator-visible
+    /// `Not known` state.
+    /// </summary>
+    string? PrincipalCode = null);
 
 public interface ITriageQueries
 {
