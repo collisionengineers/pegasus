@@ -23,10 +23,10 @@
 }
 
 <div class="split-main">
-    <section aria-labelledby="current-claim-sources-heading">
-        <h2 id="current-claim-sources-heading" class="section-label">Current claim sources</h2>
-        @if (Model.ClaimSources.Count > 0)
-        {
+    @if (Model.ClaimSources.Count > 0)
+    {
+        <section aria-labelledby="current-claim-sources-heading">
+            <h2 id="current-claim-sources-heading" class="section-label">Current claim sources</h2>
             <div class="table-wrap">
                 <table>
                     <caption class="vh">Claim sources and their contact details</caption>
@@ -57,8 +57,8 @@
                     </tbody>
                 </table>
             </div>
-        }
-    </section>
+        </section>
+    }
 
     <section aria-labelledby="create-claim-source-heading">
         <h2 id="create-claim-source-heading" class="section-label">Create claim source</h2>
