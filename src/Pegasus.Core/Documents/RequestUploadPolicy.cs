@@ -47,7 +47,21 @@ public enum RequestUploadDecision
     /// <see cref="InvalidFile"/> / <see cref="LimitExceeded"/> would blame a
     /// file that policy had already accepted.
     /// </remarks>
-    NotRetained
+    NotRetained,
+
+    /// <summary>
+    /// Custody took the bytes durably but has not confirmed them yet. The
+    /// submission stands and must not be sent again, so this is not a refusal;
+    /// it is also not <see cref="Accepted"/>, because nothing may tell the
+    /// sender their document is retained before custody has said it is.
+    /// </summary>
+    /// <remarks>
+    /// The store, not the policy, decides this: it is what a Pending custody
+    /// disposition becomes. Keeping it out of <see cref="Accepted"/> is what
+    /// stops the one surface that speaks to the sender making a claim about
+    /// custody that custody has not made.
+    /// </remarks>
+    AcceptedPending
 }
 
 public sealed class RequestUploadLimits

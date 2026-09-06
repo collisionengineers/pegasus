@@ -410,8 +410,10 @@ internal sealed class EfDocumentRequestStore(
                 MediaType = command.File.MediaType.Trim(),
                 Size = command.File.Content.Length,
                 Sha256 = authorization.ContentHash!,
-                CustodyState = EfPublicUploadRetentionStore.ToCode(
-                    IncomingArtifactCustodyState.Pending)
+                // Not a custody state: the bytes have not been offered yet.
+                // A distinct code is what lets the accepted totals count an
+                // occurrence exactly once, when custody first accepts it.
+                CustodyState = EfPublicUploadRetentionStore.ArrivedCode
             };
             context.Add(occurrence);
         }
@@ -442,15 +444,24 @@ internal sealed class EfDocumentRequestStore(
     }
 
     /// <summary>
-    /// Records what an accepted hand-over changed: the receipt, the link's
-    /// accepted totals, and — for a confirmed file — the fixed submission
+    /// Records what an accepted hand-over changed: the link's accepted totals,
+    /// and — for a confirmed file — its receipt and the fixed submission
     /// window.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This runs after custody has answered because a receipt cannot name the
     /// document version before one exists. The occurrence committed before the
     /// hand-over is what makes a retry safe in the meantime, so nothing here
     /// is load-bearing for replay.
+    /// </para>
+    /// <para>
+    /// Only a confirmed hand-over earns a receipt. A receipt refuses every
+    /// later submission of its operation key as a replay, which is right for a
+    /// file custody holds and wrong for one it has not finished: a receipted
+    /// Pending could never be asked about again, and would render as being
+    /// stored for ever.
+    /// </para>
     /// </remarks>
     private async Task<UploadToRequestResult> RecordAcceptedAsync(
         AcceptedArrival arrival,
@@ -460,8 +471,7 @@ internal sealed class EfDocumentRequestStore(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var link = await context.Set<RequestUploadLinkEntity>()
-            .SingleAsync(value => value.Id == arrival.LinkId, cancellationToken);
+        var link = await LockLinkAsync(context, arrival.LinkId, cancellationToken);
         var receipt = await context.Set<RequestUploadReceiptEntity>()
             .SingleOrDefaultAsync(
                 value => value.RequestId == arrival.LinkId
@@ -469,39 +479,39 @@ internal sealed class EfDocumentRequestStore(
                 cancellationToken);
         if (receipt is not null)
         {
-            // A concurrent request completed this same operation first.
+            // A concurrent request confirmed this same operation first.
             return new(RequestUploadDecision.Replay, receipt.Id, true);
         }
 
         var now = timeProvider.GetUtcNow();
-
-        // The receipt's occurrence column is a foreign key into the document
-        // occurrences custody owns, so it is filled from the occurrence custody
-        // created for this version. An adapter that creates none leaves nothing
-        // valid to point at, and the public occurrence row stays the durable
-        // record of the arrival.
-        var documentOccurrenceId = await context.Set<DocumentOccurrenceEntity>()
-            .Where(value => value.VersionId == versionId)
-            .OrderBy(value => value.RecordedAtUtc)
-            .Select(value => (Guid?)value.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        var receiptId = Guid.NewGuid();
-        if (documentOccurrenceId is { } documentOccurrence)
-        {
-            context.Add(new RequestUploadReceiptEntity
-            {
-                Id = receiptId,
-                RequestId = arrival.LinkId,
-                OccurrenceId = documentOccurrence,
-                VersionId = versionId,
-                OperationKey = arrival.SenderOperationKey,
-                ContentHash = arrival.Sha256,
-                ReceivedAtUtc = now
-            });
-        }
-
+        Guid? receiptId = null;
         if (isConfirmed)
         {
+            // The receipt's occurrence column is a foreign key into the
+            // document occurrences custody owns, so it is filled from the
+            // occurrence custody created for this version. An adapter that
+            // creates none leaves nothing valid to point at, and the public
+            // occurrence row stays the durable record of the arrival.
+            var documentOccurrenceId = await context.Set<DocumentOccurrenceEntity>()
+                .Where(value => value.VersionId == versionId)
+                .OrderBy(value => value.RecordedAtUtc)
+                .Select(value => (Guid?)value.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (documentOccurrenceId is { } documentOccurrence)
+            {
+                receiptId = Guid.NewGuid();
+                context.Add(new RequestUploadReceiptEntity
+                {
+                    Id = receiptId.Value,
+                    RequestId = arrival.LinkId,
+                    OccurrenceId = documentOccurrence,
+                    VersionId = versionId,
+                    OperationKey = arrival.SenderOperationKey,
+                    ContentHash = arrival.Sha256,
+                    ReceivedAtUtc = now
+                });
+            }
+
             var session = await context.Set<PublicUploadSessionEntity>()
                 .SingleAsync(value => value.Id == arrival.SessionId, cancellationToken);
             var started = PublicUploadSessionPolicy.Start(
@@ -513,23 +523,124 @@ internal sealed class EfDocumentRequestStore(
             session.Version = started.Version;
         }
 
-        link.AcceptedFileCount = checked(link.AcceptedFileCount + 1);
-        link.AcceptedByteCount = checked(link.AcceptedByteCount + arrival.ContentLength);
-        link.Version = checked(link.Version + 1);
-        if (link.AcceptedFileCount >= uploadLimits.MaximumFileCount
-            || link.AcceptedByteCount >= uploadLimits.MaximumRequestBytes)
-        {
-            link.Status = RequestUploadStatus.Exhausted;
-        }
-
-        var workflow = await RequireWorkflowAsync(context, link.CaseId, cancellationToken);
-        CaseMutationGuard.Complete(workflow);
+        await ApplyAcceptedTotalsAsync(context, link, arrival.SessionId, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
-            RequestUploadDecision.Accepted,
-            documentOccurrenceId is null ? null : receiptId,
+            isConfirmed
+                ? RequestUploadDecision.Accepted
+                : RequestUploadDecision.AcceptedPending,
+            receiptId,
             false);
+    }
+
+    /// <summary>
+    /// Sets the link's accepted totals to what its session's occurrences hold,
+    /// and exhausts the link when they reach a limit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The totals are derived rather than incremented, because the committed
+    /// occurrence — not the receipt — is what says a file was accepted, and it
+    /// says it exactly once however many times the same operation key is sent.
+    /// An arrival still being offered carries
+    /// <see cref="EfPublicUploadRetentionStore.ArrivedCode"/> and is not one of
+    /// them, so nothing is counted before custody answers.
+    /// </para>
+    /// <para>
+    /// A replay changes nothing and therefore bumps nothing. When the totals do
+    /// change, the Case workflow is completed only if the Case would still
+    /// accept an edit: custody already holds the bytes, so the arrival must be
+    /// recorded either way, but a Case archived or moved terminal during the
+    /// hand-over does not have its version bumped and its edit lease cleared on
+    /// the strength of one.
+    /// </para>
+    /// </remarks>
+    private async Task ApplyAcceptedTotalsAsync(
+        PegasusDbContext context,
+        RequestUploadLinkEntity link,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var totals = await context.Set<PublicUploadOccurrenceEntity>()
+            .Where(value => value.SessionId == sessionId
+                && (value.CustodyState == EfPublicUploadRetentionStore.ConfirmedCode
+                    || value.CustodyState == EfPublicUploadRetentionStore.PendingCode))
+            .GroupBy(value => value.SessionId)
+            .Select(group => new
+            {
+                FileCount = group.Count(),
+                ByteCount = group.Sum(value => value.Size)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        var fileCount = totals?.FileCount ?? 0;
+        var byteCount = totals?.ByteCount ?? 0;
+        var changed = fileCount != link.AcceptedFileCount
+            || byteCount != link.AcceptedByteCount;
+        link.AcceptedFileCount = fileCount;
+        link.AcceptedByteCount = byteCount;
+        if (fileCount >= uploadLimits.MaximumFileCount
+            || byteCount >= uploadLimits.MaximumRequestBytes)
+        {
+            changed = changed || link.Status != RequestUploadStatus.Exhausted;
+            link.Status = RequestUploadStatus.Exhausted;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        link.Version = checked(link.Version + 1);
+        var workflow = await RequireWorkflowAsync(context, link.CaseId, cancellationToken);
+        if (IsMutable(workflow))
+        {
+            CaseMutationGuard.Complete(workflow);
+        }
+    }
+
+    /// <summary>
+    /// Reads the link for update. Its accepted totals are derived from the
+    /// session's occurrences, so two accepted arrivals must not compute them
+    /// against different committed sets. The update lock is the same idiom the
+    /// Triage sequence allocation uses, and it is the first lock this
+    /// transaction takes, so concurrent submissions queue on the link rather
+    /// than deadlocking against each other.
+    /// </summary>
+    private static async Task<RequestUploadLinkEntity> LockLinkAsync(
+        PegasusDbContext context,
+        Guid linkId,
+        CancellationToken cancellationToken)
+    {
+        var links = context.Set<RequestUploadLinkEntity>();
+        return context.Database.IsSqlServer()
+            ? await links
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [RequestUploadLinks] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [Id] = {linkId}
+                """)
+                .SingleAsync(cancellationToken)
+            : await links.SingleAsync(value => value.Id == linkId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Whether the Case would still accept an edit. Asked, rather than
+    /// asserted, because the caller has to record an arrival custody already
+    /// holds even when the answer is no.
+    /// </summary>
+    private static bool IsMutable(CaseWorkflowEntity workflow)
+    {
+        try
+        {
+            ArchivedCaseGuard.RequireMutable(workflow);
+            return true;
+        }
+        catch (Exception exception)
+            when (exception is CaseArchivedException or CaseTerminalMutationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -785,6 +896,21 @@ internal sealed class EfDocumentRequestStore(
 internal sealed class EfPublicUploadRetentionStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory) : IIncomingArtifactRetentionStore
 {
+    /// <summary>
+    /// The state of an arrival that has been committed but not yet offered to
+    /// custody. It is deliberately not one of the four custody states: custody
+    /// has said nothing about it, so <see cref="FindAsync"/> reports no
+    /// retention for it and the accepted totals do not count it. It is what
+    /// separates "we have not asked yet" from "custody answered Pending",
+    /// which the same code for both could not.
+    /// </summary>
+    internal const string ArrivedCode = "arrived";
+
+    internal const string PendingCode = "pending";
+    internal const string ConfirmedCode = "confirmed";
+    internal const string FailedCode = "failed";
+    internal const string UnknownCode = "unknown";
+
     public static string ScopeOperationKey(Guid requestUploadLinkId, string operationKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
@@ -823,17 +949,24 @@ internal sealed class EfPublicUploadRetentionStore(
                     .FirstOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
-        return row is null
-            ? null
-            : new(
-                row.Id,
-                row.OperationKey,
-                ParseCustodyState(row.CustodyState),
-                row.CaseId,
-                row.DocumentId,
-                row.DocumentVersionId,
-                row.Remote?.BoxFileId,
-                row.Remote?.BoxVersionId);
+        if (row is null
+            || string.Equals(row.CustodyState, ArrivedCode, StringComparison.Ordinal))
+        {
+            // Committed, but never offered: there is no retention to return, so
+            // the bytes are handed over for the first time rather than asked
+            // about.
+            return null;
+        }
+
+        return new(
+            row.Id,
+            row.OperationKey,
+            ParseCustodyState(row.CustodyState),
+            row.CaseId,
+            row.DocumentId,
+            row.DocumentVersionId,
+            row.Remote?.BoxFileId,
+            row.Remote?.BoxVersionId);
     }
 
     public async Task RecordAsync(
@@ -873,20 +1006,22 @@ internal sealed class EfPublicUploadRetentionStore(
 
     internal static string ToCode(IncomingArtifactCustodyState state) => state switch
     {
-        IncomingArtifactCustodyState.Pending => "pending",
-        IncomingArtifactCustodyState.Confirmed => "confirmed",
-        IncomingArtifactCustodyState.Failed => "failed",
-        IncomingArtifactCustodyState.Unknown => "unknown",
+        IncomingArtifactCustodyState.Pending => PendingCode,
+        IncomingArtifactCustodyState.Confirmed => ConfirmedCode,
+        IncomingArtifactCustodyState.Failed => FailedCode,
+        IncomingArtifactCustodyState.Unknown => UnknownCode,
         _ => throw new ArgumentOutOfRangeException(nameof(state))
     };
 
     internal static IncomingArtifactCustodyState ParseCustodyState(string value) => value switch
     {
-        "pending" => IncomingArtifactCustodyState.Pending,
-        "confirmed" => IncomingArtifactCustodyState.Confirmed,
-        "failed" => IncomingArtifactCustodyState.Failed,
-        "unknown" => IncomingArtifactCustodyState.Unknown,
-        // An unrecognised stored state is never read as success.
+        PendingCode => IncomingArtifactCustodyState.Pending,
+        ConfirmedCode => IncomingArtifactCustodyState.Confirmed,
+        FailedCode => IncomingArtifactCustodyState.Failed,
+        UnknownCode => IncomingArtifactCustodyState.Unknown,
+        // An unrecognised stored state is never read as success. The
+        // pre-custody ArrivedCode is one of those: it is not an answer custody
+        // gave, and FindAsync never brings it here.
         _ => throw new InvalidOperationException(
             $"The retained occurrence custody state '{value}' is not recognized.")
     };
