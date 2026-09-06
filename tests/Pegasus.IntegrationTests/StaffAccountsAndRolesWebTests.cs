@@ -12,10 +12,8 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-027: Staff accounts, staff roles and the access review are one
-/// administration area. These tests pin the fold itself — that the single
-/// page still reaches every Core use case the three superseded pages reached,
-/// and that no capability was dropped on the way.
+/// Staff account and role administration reaches the current Core actions
+/// through one administration area, including session and credential changes.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed partial class StaffAccountsAndRolesWebTests

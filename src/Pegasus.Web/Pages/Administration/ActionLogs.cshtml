@@ -6,14 +6,16 @@
 <div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
 <section class="panel"><div class="panel-head"><h2>Action logs</h2></div><div class="panel-body">
 <form method="get" class="stack"><div class="grid grid-2">
+<div class="field"><label for="search">Search</label><input id="search" asp-for="Search" /></div>
+<div class="field"><label for="area">Area</label><input id="area" asp-for="Area" /></div>
 <div class="field"><label for="from">From</label><input id="from" asp-for="From" type="datetime-local" /></div>
 <div class="field"><label for="to">To</label><input id="to" asp-for="To" type="datetime-local" /></div>
 <div class="field"><label for="actor">Actor</label><input id="actor" name="Actor" value="@Model.Actor" /></div>
-<div class="field"><label for="event">Action</label><input id="event" name="EventKind" value="@Model.EventKind" /></div>
-<div class="field"><label for="record">Record</label><input id="record" name="AggregateType" value="@Model.AggregateType" /></div>
-<div class="field"><label for="result">Result</label><input id="result" name="Outcome" value="@Model.Outcome" /></div>
+<div class="field"><label for="operation">Operation</label><input id="operation" asp-for="Operation" /></div>
+<div class="field"><label for="record">Record</label><input id="record" asp-for="Record" /></div>
+<div class="field"><label for="result">Result</label><input id="result" name="Result" value="@Model.ResultFilter" /></div>
 <div class="field"><label for="correlation">Correlation</label><input id="correlation" name="CorrelationId" value="@Model.CorrelationId" /></div>
 </div><button class="btn btn--primary" type="submit">Filter</button></form>
-@if (Model.Result.Rows.Count > 0) { <div class="table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Area</th><th>Action</th><th>Reference</th><th>Result</th></tr></thead><tbody>@foreach (var row in Model.Result.Rows) { <tr><td>@row.OccurredAtUtc.ToString("u")</td><td>@row.ActorSubjectId</td><td>@row.AggregateType</td><td>@row.EventKind</td><td>@row.AggregateId</td><td>@row.Outcome</td></tr> }</tbody></table></div> }
+@if (Model.Result.Rows.Count > 0) { <div class="table-wrap"><table><thead><tr><th><a href="@Model.SortUrl">Time @(Model.OldestFirst ? "↑" : "↓")</a></th><th>Actor</th><th>Area</th><th>Action</th><th>Reference</th><th>Result</th></tr></thead><tbody>@foreach (var row in Model.Result.Rows) { <tr><td>@row.OccurredAtUtc.ToString("u")</td><td>@row.Actor</td><td>@row.Area</td><td>@row.Operation</td><td>@row.Reference</td><td>@row.Result</td></tr> }</tbody></table></div> }
 @if (Model.Result.HasMore) { <a href="@Model.NextPageUrl">Next</a> }
 </div></section></div></div>

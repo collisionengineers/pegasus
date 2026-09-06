@@ -42,6 +42,11 @@ The staged-artifact reconciliation function resumes Pending custody by its
 durable logical version. Box remains the durable content owner; the SQL-indexed
 Azure cache validates hashes and expires after 24 hours idle.
 
+Request-link custody checks the current upload-link identity and Case binding.
+A short SQL transaction orders revocation against the Pending custody intent;
+provider storage runs after that acceptance commit. Worker retention uses its
+system-work right, while custody reads retain their staff/automation boundary.
+
 The `/mcp` adapters use persistent signing/encryption certificates and separate
 grant attribution. Authorized metadata precedes content reads; large documents
 use the same bearer-scoped exact-version streaming route. The source tool
@@ -51,7 +56,10 @@ its combined caller validation remains pending. Discovery, working domain
 composition and real external-client acceptance remain distinct.
 
 Administration adds Action Logs, AI Jobs, Reports and Health over existing
-Core query owners. Source wiring and local validation do not establish that
+Core query owners. Action Logs combines permanent action history and security
+events in one SQL-paged projection with search, area, actor, operation, record,
+result, correlation and time filters plus chronological sorting.
+Source wiring and local validation do not establish that
 these pages, certificates or provider integrations are deployed.
 
 Pegasus is a four-project modular monolith:
