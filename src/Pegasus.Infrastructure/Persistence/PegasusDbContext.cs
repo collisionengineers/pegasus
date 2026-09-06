@@ -79,6 +79,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
     internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();
     internal DbSet<ProviderSubmissionEntity> ProviderSubmissions => Set<ProviderSubmissionEntity>();
+    internal DbSet<LabourRateCardEntity> LabourRateCards => Set<LabourRateCardEntity>();
 
 
     internal DbSet<IntakeReceiptEntity> IntakeReceipts => Set<IntakeReceiptEntity>();
