@@ -104,3 +104,7 @@ G11 retires the dashboard activity projections (carrying C's A07 hunks and the c
 - C01 round 1 `ea4848acd` (G10/G11 merged; ambiguous Provider API fixture seeds a genuine duplicate index row; whole-receipt assertion narrowed; `not_ready` was C's fixture spelling into `CaseWorkflows.State`): wave appended after C07's; independent review running.
 - C06 relaunched (merges the C branch first); C05 running. Editors: C05 + C06.
 - G12 (typed actor, atomic) pending from A; C07 resolves the Triage conflicts in-stream after the merge.
+
+## 13:50Z — session rate limit hit again (resets 15:30Z)
+
+The C01 review agent was killed by the API session limit; other running agents (C07 review, wave 3 runner, C05, C06) may follow. On reset: check each slice worktree's commits and each agent's last state, relaunch the reviews and the runner wave from the recorded heads (C07 `7000842ed`, C01 `ea4848acd`), and resume C05/C06 from their uncommitted work.
