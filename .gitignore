@@ -2,6 +2,7 @@
 /corpus/
 **/emailevallocal/
 /tests/Pegasus-Test-Logs/
+/t2fix.log
 # Local secrets and environment state
 .env
 .env.*
