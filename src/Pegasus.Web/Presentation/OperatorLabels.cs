@@ -1567,6 +1567,13 @@ public static class OperatorLabels
             "EVA API submission is not enabled for this principal.";
         // end CASE-040
 
+        // C08 labels batch: Stream B's documents/chase port (INTK-060 C08).
+        public const string Recipient = "Recipient";
+        public const string Reason = "Reason";
+        public const string Content = "Content";
+        public const string RecordChase = "Record chase";
+        // end C08 labels batch
+
         // ENG-034: the Engineer sections moved from the retired Assessment
         // page. Keep this block together so the parallel Case lanes can merge
         // their own vocabulary without interleaving it.
