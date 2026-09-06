@@ -641,3 +641,107 @@ submission uses the new key the GET then mints. And while an `arrived`,
 `unknown` or `pending` occurrence stands for a link, the page presents that
 occurrence's key, so a second file cannot be started through the link until the
 first resolves. Both follow directly from A's binding instructions.
+
+## DECISION (C07 caller, correction round 4) — a second, different file under an unresolved key
+
+**Finding it resolves:** C07B-R-26. Plan item 6 says "Additions and explicit
+replacements addressed by server-issued occurrence ID are allowed until explicit
+replay-safe finalization or expiry". Round 3 made the GET re-present an
+unresolved occurrence's key for the whole link, and a POST of *different* bytes
+under that key was refused `OperationConflict` — so no second file could be
+added through a link until the first resolved. The conflict with item 6 was
+unrecorded; this records and closes it.
+
+**Decision.** The GET still re-presents the unresolved occurrence's key. On
+POST, the posted bytes decide which submission this is:
+
+- digest equals the unresolved occurrence's `Sha256` → the same intent. It
+  reconciles under the original key: no second `RetainAsync`, no new
+  occurrence.
+- digest differs → a new deliberate submission. It gets its own arrival under
+  its own server-issued key, `{root}~{sha256}` minted by
+  `RequestUploadOperationKey.ForContent`, and the session's limits apply to it
+  like any other file. The original key keeps naming the first file, and the
+  GET keeps presenting it (a root sorts before any key derived from it).
+- the occurrence is already resolved (`confirmed` or `failed`) → the key is
+  closed and a different file under it stays `OperationConflict`.
+
+Derivation is always from the root, never from a derived key, so a key carries
+at most one digest and is bounded at 97 characters.
+
+**Why this is not link+hash as identity.** Stream A, PR 673 comment
+5560737585: *"Do not use link+hash as a substitute for the original intent
+identity across distinct deliberate submissions."* Nothing here substitutes it.
+The root key remains the intent identity — it is what the GET presents, what a
+retry reconciles, and what custody is asked about. The digest enters only to
+tell one file from another *under that root*, which is the opposite of
+collapsing two deliberate submissions onto one identity: it is what keeps them
+apart while making the second one's own retry a retry rather than a third file.
+
+**Proof.** `ASecondDifferentFileUnderAnUnresolvedKeyBecomesItsOwnSubmission`
+(real SQL): same bytes reconcile with one initiation; a different file gets the
+derived key and its own arrival; that file sent again is its own retry;
+`ARefusedHandOverIsRecordedFailedAndTheNextLoadIssuesANewKey` proves the closed
+key still conflicts.
+
+**Bounded consequence, accepted:** on a link already exhausted by earlier
+accepted files, a POST of a different file under the re-presented key is
+refused `LimitExceeded` before the derivation is reached. That is a true
+statement about the link and never a duplicate.
+
+## DECISION (C07 caller, correction round 4) — the same-key re-offer replaces "one RetainAsync"
+
+**Authority:** Stream A, PR 673 comment **5561151076**, which supersedes its
+earlier one-invocation rule from 5560761330: *"after that A fix is published, C
+may retry an identityless Unknown with G15-null using the SAME original scoped
+operation key and freshly supplied identical validated bytes. Never a fresh
+key. … This supersedes A's earlier overly strict one-Retain-invocation rule;
+the required invariant is one durable intent/provider initiation, with
+restart/retry liveness."*
+
+**Why the rule had to change.** The one-shot claim (`arrived → unknown`)
+committed before the call is what stops two callers offering one arrival, but a
+process that died between the claim and the call left no intent for
+`FindByOperationKeyAsync` to find and no state the claim would ever leave — the
+stranded claim recorded as C07B-R-30 accepted-risk in round 3. A is making a
+same-key `RetainAsync` after a committed intent return that intent without a
+second provider write, so a re-offer is safe.
+
+**Decision, as implemented in `RetainIncomingArtifact`:**
+
+1. A hand-over is refused outright when its operation key names no committed
+   arrival (`UnclaimedHandOverException`, C07B-R-27) or when the bytes offered
+   are not the ones the arrival was validated with
+   (`HandOverContentMismatchException`, A's item (i) — digest and length, from
+   the `Sha256`/`ContentLength` the store now reports on `FindAsync`).
+2. `Confirmed`/`Failed` still return the recorded retention. `Pending` is still
+   only ever asked about, whatever the lookup sees: custody's own word that it
+   has the bytes is never re-offered.
+3. An `Unknown` arrival is claimed; the claim winner offers the bytes. A caller
+   that loses the claim asks first, and only if the record names no document
+   *and* `FindByOperationKeyAsync` observed nothing committed does it offer the
+   same bytes under the same original key. A found intent reconciles without a
+   re-offer. No path mints a fresh key, and the claim is never reopened.
+4. "Nothing was observed" means the question was put and answered. Without a
+   status port, without a Case, or when the read itself is refused, the
+   retention keeps its state and nothing is re-offered.
+
+**Proof.** Core: `AClaimNothingWasEverOfferedUnderIsResolvedByReOfferingTheSameBytes`,
+`ACallerThatDoesNotWinTheClaimAsksBeforeItOffersAnything`,
+`AnUncertainHandOverNothingIsObservedForIsReOfferedUnderTheSameKey`,
+`AThrownHandOverIsRecordedUncertainAndAskedAboutBeforeItIsOfferedAgain`,
+`BytesThatAreNotTheArrivalsAreRefusedBeforeCustodyIsAsked`. Real SQL:
+`AThrownHandOverIsAskedAboutAndThenReOfferedUnderTheSameKeyOnce` (A's (g),
+crash-before-custody) and
+`TwoSimultaneousSubmissionsOfOneOperationKeyConvergeOnOneIntent` (A's (h),
+delayed first call) — each asserting `ProviderInitiations == 1` against two
+invocations, the counter the double increments only in the transaction that
+creates the intent.
+
+**Where A's (i) is proved, and why not at the web level.** "Differing bytes
+under an unresolved key → refused, no `RetainAsync`" is the command's rule and
+is proved there (`BytesThatAreNotTheArrivalsAreRefusedBeforeCustodyIsAsked`).
+The public page never presents that case to the command, because C07B-R-26
+gives a different file its own key before the command is reached. Both rules
+hold together: the unresolved key is never offered other bytes, and a genuinely
+different file is never refused for being different.
