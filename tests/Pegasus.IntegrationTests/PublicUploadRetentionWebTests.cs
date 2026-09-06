@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,8 +117,10 @@ public sealed partial class PublicUploadRetentionWebTests
             item.AggregateType == "request_upload_link"
             && item.CorrelationId == operationKey);
         var snapshot = JsonNode.Parse(history.AfterJson!)!.AsObject();
-        Assert.Null(snapshot["Recipient"]);
-        Assert.Null(snapshot["Reason"]);
+        Assert.True(snapshot.ContainsKey("recipient"));
+        Assert.True(snapshot.ContainsKey("reason"));
+        Assert.Null(snapshot["recipient"]);
+        Assert.Null(snapshot["reason"]);
     }
 
     [Fact]
@@ -180,11 +183,11 @@ public sealed partial class PublicUploadRetentionWebTests
             item.AggregateType == "request_upload_link"
             && item.CorrelationId == operationKey);
         var snapshot = JsonNode.Parse(history.AfterJson!)!.AsObject();
-        Assert.Equal(created.Link.Recipient, snapshot["Recipient"]!.GetValue<string>());
-        Assert.Equal(created.Link.Reason, snapshot["Reason"]!.GetValue<string>());
+        Assert.Equal(created.Link.Recipient, snapshot["recipient"]!.GetValue<string>());
+        Assert.Equal(created.Link.Reason, snapshot["reason"]!.GetValue<string>());
 
         stored.Recipient = " malformed@example.com ";
-        snapshot["Recipient"] = stored.Recipient;
+        snapshot["recipient"] = stored.Recipient;
         history.AfterJson = snapshot.ToJsonString();
         await context.SaveChangesAsync();
         await Assert.ThrowsAsync<InvalidDataException>(() =>
@@ -192,8 +195,8 @@ public sealed partial class PublicUploadRetentionWebTests
 
         stored.Recipient = created.Link.Recipient;
         stored.Reason = " malformed reason ";
-        snapshot["Recipient"] = stored.Recipient;
-        snapshot["Reason"] = stored.Reason;
+        snapshot["recipient"] = stored.Recipient;
+        snapshot["reason"] = stored.Reason;
         history.AfterJson = snapshot.ToJsonString();
         await context.SaveChangesAsync();
         await Assert.ThrowsAsync<InvalidDataException>(() =>
@@ -1249,17 +1252,27 @@ public sealed partial class PublicUploadRetentionWebTests
     }
 
     /// <summary>
-    /// Without the retention command there is no custody to reach, so the
-    /// submission path refuses before it writes anything at all. It must never
-    /// fall back to recording an arrival it cannot retain.
+    /// Without accepted upload limits the public surface is deliberately
+    /// absent and refuses before reading or recording an arrival.
     /// </summary>
     [Fact]
-    public async Task WithoutTheRetentionCommandTheSubmissionRefusesAndWritesNothing()
+    public async Task WithoutAcceptedLimitsTheSubmissionRefusesAndWritesNothing()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.UseSetting("DocumentRequests:AcceptedLimitsVersion", string.Empty));
         var link = await SeedLinkAsync(factory.Services);
 
-        var result = await PostEvidenceAsync(factory, link.Token);
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var file = new ByteArrayContent(Evidence);
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(link.Token), "Token" },
+            { new StringContent($"unconfigured-limits:{Guid.NewGuid():N}"), "OperationKey" },
+            { file, "Upload", "evidence.txt" }
+        };
+        using var result = await client.PostAsync($"/Uploads/{link.Token}", form);
 
         Assert.Equal(HttpStatusCode.NotFound, result.StatusCode);
         await using var context = await CreateContextAsync(factory.Services);
