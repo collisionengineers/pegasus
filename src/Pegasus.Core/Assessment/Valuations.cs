@@ -11,6 +11,8 @@ public enum ValuationSource
     Cazana,
     EngineersValue,
     AiMarketResearch,
+    Brego,
+    SuperCap,
 }
 
 /// <summary>

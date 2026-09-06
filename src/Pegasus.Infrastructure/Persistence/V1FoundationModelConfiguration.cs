@@ -33,7 +33,9 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<ValuationPresetEntity>(e =>
         {
-            e.ToTable("ValuationPresets"); e.HasKey(x => x.Id); e.Property(x => x.SuggestedAmount).HasPrecision(18, 2);
+            e.ToTable("ValuationPresets"); e.HasKey(x => x.Id); e.HasIndex(x => x.Label).IsUnique();
+            e.Property(x => x.Label).HasMaxLength(200); e.Property(x => x.UpdatedBy).HasMaxLength(200);
+            e.Property(x => x.SuggestedAmount).HasPrecision(18, 2);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             e.HasData(
                 new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f001"), Label="Tow bar", SuggestedAmount=300m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f101") },
@@ -52,6 +54,7 @@ internal static class V1FoundationModelConfiguration
         builder.Entity<AppliedValuationSnapshotEntity>(e =>
         {
             e.ToTable("AppliedValuationSnapshots"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.CaseId, x.SnapshotHash }).IsUnique();
+            e.HasIndex(x => new { x.CaseId, x.AcceptedAtUtc });
             e.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.AcceptedEngineerValue).HasPrecision(18, 2);
         });
         builder.Entity<GlassRepairEstimateSessionEntity>(e =>
@@ -69,7 +72,7 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<GeneratedCaseArtifactEntity>(e =>
         {
-            e.ToTable("GeneratedCaseArtifacts", t => t.HasCheckConstraint("CK_GeneratedCaseArtifacts_Custody", "([State] = 'Confirmed' AND [VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL) OR ([State] <> 'Confirmed' AND [VersionId] IS NULL)")); e.HasKey(x => x.Id); e.HasIndex(x => new { x.GenerationId, x.Kind }).IsUnique();
+            e.ToTable("GeneratedCaseArtifacts", t => t.HasCheckConstraint("CK_GeneratedCaseArtifacts_Custody", "[State] <> 'Confirmed' OR ([VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL)")); e.HasKey(x => x.Id); e.HasIndex(x => new { x.GenerationId, x.Kind }).IsUnique();
             e.HasIndex(x => x.OperationKey).IsUnique(); e.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength();
         });
         builder.Entity<CaseReportDeliveryIntentEntity>(e =>

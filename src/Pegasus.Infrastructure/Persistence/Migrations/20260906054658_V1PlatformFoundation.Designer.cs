@@ -755,6 +755,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("CaseId", "SnapshotHash")
                         .IsUnique();
 
+                    b.HasIndex("CaseId", "AcceptedAtUtc");
+
                     b.ToTable("AppliedValuationSnapshots", (string)null);
                 });
 
@@ -2835,7 +2837,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseValuations_RetailValue", "[RetailValue] >= 0");
 
-                            t.HasCheckConstraint("CK_CaseValuations_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch')");
+                            t.HasCheckConstraint("CK_CaseValuations_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch', 'Brego', 'SuperCap')");
 
                             t.HasCheckConstraint("CK_CaseValuations_TradeValue", "[TradeValue] >= 0");
                         });
@@ -3759,7 +3761,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("GeneratedCaseArtifacts", null, t =>
                         {
-                            t.HasCheckConstraint("CK_GeneratedCaseArtifacts_Custody", "([State] = 'Confirmed' AND [VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL) OR ([State] <> 'Confirmed' AND [VersionId] IS NULL)");
+                            t.HasCheckConstraint("CK_GeneratedCaseArtifacts_Custody", "[State] <> 'Confirmed' OR ([VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL)");
                         });
                 });
 
@@ -7429,7 +7431,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Label")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal>("SuggestedAmount")
                         .HasPrecision(18, 2)
@@ -7440,13 +7443,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("UpdatedBy")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Label")
+                        .IsUnique();
 
                     b.ToTable("ValuationPresets", (string)null);
 
