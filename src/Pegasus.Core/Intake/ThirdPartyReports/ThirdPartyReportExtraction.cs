@@ -749,7 +749,7 @@ public static class ThirdPartyReportExtraction
         string documentRole)
     {
         var findings = ThirdPartyReportValidation.Check(selection, candidate, rows, requiresOcr);
-        rows.AddRange(FindingRows(findings, context, documentRole, selection.Issuer));
+        rows.AddRange(FindingRows(findings, context, documentRole, selection.Issuer, rows));
         return new(selection, candidate, rows, findings);
     }
 
@@ -761,20 +761,19 @@ public static class ThirdPartyReportExtraction
     /// finding rules rather than the extraction rules — a later change to the
     /// arithmetic is then distinguishable from a later change to the reading.
     /// </summary>
-    private static IEnumerable<SourceFieldCandidate> FindingRows(
+    private static List<SourceFieldCandidate> FindingRows(
         IReadOnlyList<ThirdPartyReportFinding> findings,
         ThirdPartyReportSourceContext context,
         string documentRole,
-        SourceFieldCandidate issuer)
+        SourceFieldCandidate issuer,
+        IReadOnlyList<SourceFieldCandidate> rows)
     {
-        foreach (var finding in findings)
+        var findingRows = new List<SourceFieldCandidate>(findings.Count);
+        for (var ordinal = 0; ordinal < findings.Count; ordinal++)
         {
-            // The locator of the rows the finding compared, so an operator
-            // opens the page the contradiction is printed on. Where a finding
-            // has no evidence row of its own, the issuer row's locator is the
-            // honest fallback: it is the page the document was identified from.
-            var locator = finding.Evidence.Count > 0 ? finding.Evidence[0] : issuer;
-            yield return ThirdPartySourceCandidates.Create(
+            var finding = findings[ordinal];
+            var locator = Locator(finding, issuer, rows);
+            findingRows.Add(ThirdPartySourceCandidates.Create(
                 context,
                 F.Finding(finding.Code),
                 documentRole,
@@ -785,9 +784,43 @@ public static class ThirdPartyReportExtraction
                 policyVersion: ThirdPartyReportValidation.PolicyVersion,
                 disposition: FindingDisposition(finding.Kind),
                 referenceRole: FindingRole(finding),
-                region: "finding");
+                region: "finding",
+                // Two findings that share a code, a role, a page, a message and
+                // a disposition would otherwise derive one identifier and
+                // collide on the way to storage, losing the whole analysis
+                // rather than the duplicate. The position in the raised order
+                // is what tells them apart, so it is part of the key.
+                ordinal: ordinal + 1));
         }
+
+        return findingRows;
     }
+
+    /// <summary>
+    /// The row whose locator a finding is filed under: the first row it
+    /// compared that names its source, then the issuer row, then the first row
+    /// of this document that names one.
+    ///
+    /// The fallbacks are not defensive padding. A source with no readable page
+    /// matches no document signature, so its issuer row is built with no
+    /// signature evidence and carries no page and no label at all
+    /// (<c>ThirdPartyReportProfiles.Verdict</c>) — and that is exactly the
+    /// source whose only findings are "this needs OCR" and "a person must check
+    /// these pages". Filing those against the issuer row would persist a
+    /// statement about a document that names no part of it. The scan-only page
+    /// rows the same reading produced do name one, so they are the honest
+    /// locator.
+    /// </summary>
+    private static SourceFieldCandidate Locator(
+        ThirdPartyReportFinding finding,
+        SourceFieldCandidate issuer,
+        IReadOnlyList<SourceFieldCandidate> rows) =>
+        finding.Evidence.FirstOrDefault(Locates)
+        ?? (Locates(issuer) ? issuer : rows.FirstOrDefault(Locates))
+        ?? issuer;
+
+    /// <summary>Whether a row names the source it was read from.</summary>
+    private static bool Locates(SourceFieldCandidate row) => row.SourceLabel.Length > 0;
 
     /// <summary>
     /// What the operator must do with a finding, expressed in the only
@@ -1296,14 +1329,23 @@ public static class ThirdPartyReportAnalysis
 
     /// <summary>
     /// Whether this source is one the report reader has anything to say about:
-    /// at least one document signature matched. A document with readable text
-    /// and no signature is left entirely alone — writing an empty analysis for
-    /// every unrelated attachment would bury the ones that matter.
+    /// at least one document signature matched, or the reading raised a finding
+    /// about the source itself.
+    ///
+    /// A document with readable text and no signature is left entirely alone —
+    /// writing an empty analysis for every unrelated attachment would bury the
+    /// ones that matter, and such a reading raises no finding either. A
+    /// scan-only source is the case that exception does not cover: it matches
+    /// no signature precisely because its text could not be read, and "a person
+    /// must check page 3 against the original" is a positive statement about
+    /// the retained bytes, not silence about them. Discarding it at this gate
+    /// would compute the John R Bell page rows and then throw them away
+    /// (C05-R-11).
     /// </summary>
-    public static bool IsRecordable(ThirdPartyReportSelection selection)
+    public static bool IsRecordable(ThirdPartyReportExtractionResult result)
     {
-        ArgumentNullException.ThrowIfNull(selection);
-        return selection.Matches.Count > 0;
+        ArgumentNullException.ThrowIfNull(result);
+        return result.Selection.Matches.Count > 0 || result.Findings.Count > 0;
     }
 
     /// <summary>
@@ -1314,7 +1356,12 @@ public static class ThirdPartyReportAnalysis
     /// explicit non-report role is
     /// <see cref="RetainedInstructionAnalysisOutcome.NoProfile"/> — the
     /// document was read and is genuinely not a report, which is the answer
-    /// the negative cases need rather than an invented verdict.
+    /// the negative cases need rather than an invented verdict. A scan-only
+    /// source is <see cref="RetainedInstructionAnalysisOutcome.NoProfile"/> for
+    /// the same literal reason (no signature matched its unreadable text) and
+    /// not <see cref="RetainedInstructionAnalysisOutcome.SourceUnavailable"/>,
+    /// which belongs to bytes that could not be opened at all; the page rows it
+    /// records are what say a person must read the original.
     /// </summary>
     public static RetainedInstructionAnalysisOutcome Outcome(ThirdPartyReportSelection selection)
     {
