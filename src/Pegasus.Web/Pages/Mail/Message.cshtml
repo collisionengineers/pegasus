@@ -199,31 +199,6 @@
         }
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
 
-        @if (Model.CorrespondenceOperation is { } correspondenceOperation)
-        {
-            <section class="panel section-gap" aria-labelledby="correspondence-status-title">
-                <div class="panel-head"><h2 id="correspondence-status-title">Send status</h2></div>
-                <div class="panel-body fact-grid">
-                    <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(correspondenceOperation.State)</dd></dl>
-                    @if (correspondenceOperation.State == Pegasus.Core.Operations.StaffMailState.Unknown)
-                    {
-                        <form method="post" asp-page-handler="ReconcileCorrespondence" asp-route-id="@summary.Id"
-                              asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-                              asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                              asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                              asp-route-sort="@(Model.OldestFirst ? "oldest" : null)">
-                            <input type="hidden" name="operationId" value="@correspondenceOperation.Id" />
-                            <input type="hidden" name="expectedOperationVersion" value="@correspondenceOperation.Version" />
-                            <button type="submit" class="btn">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                                <span>@OperatorLabels.StaffMail.Reconcile</span>
-                            </button>
-                        </form>
-                    }
-                </div>
-            </section>
-        }
-
         @if (Model.CanCorrespond && Model.CorrespondenceMode is { } correspondenceMode)
         {
             var handler = correspondenceMode switch
