@@ -11,13 +11,12 @@ public sealed partial class QdosInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile
 {
     public const string Key = "qdos_instruction";
-    // ENG-015 changed three extraction rules -- the bare `Date` label, the
-    // labelled damage-area synthesis, and inspection-date fragment precedence.
+    // ENG-015 changed the bare `Date` label and inspection-date fragment precedence.
     // The version is persisted as each extracted fact's provenance, so facts
     // read before and after must stay distinguishable for audit and
     // re-evaluation. Bumped for the same reason as v3 (letter shapes),
     // v4 (INTK-025), v5 (INTK-028) and v6 (INTK-033).
-    public const int Version = 7;
+    public const int Version = 8;
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
@@ -157,14 +156,6 @@ public sealed partial class QdosInstructionExtractionPolicy
         new(FieldDefinitions);
 
     /// <summary>
-    /// Makes written as two words, so a combined vehicle description splits
-    /// on the right boundary. Deterministic and deliberately small.
-    /// </summary>
-    private static readonly string[] TwoWordMakes =
-    [
-        "LAND ROVER", "ALFA ROMEO", "ASTON MARTIN", "MERCEDES BENZ", "ROLLS ROYCE"
-    ];
-
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
         DateTimeOffset processedAtUtc,
@@ -202,8 +193,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             FieldDefinitions,
             FieldRegexCache,
             processedAtUtc);
-        fields = DeriveVehicleFields(fields, out var derivedNames);
-        fields = WithLabelledDamageArea(fields, readResult.Content);
+        fields = DeriveVehicleRegistration(fields, out var derivedNames);
         missingFields = missingFields.Where(name => !derivedNames.Contains(name)).ToArray();
         evidence.AddRange(fieldEvidence);
         var draft = CreateInstructionDraft(fields, principalContext.PrincipalCode);
@@ -489,118 +479,6 @@ public sealed partial class QdosInstructionExtractionPolicy
     }
 
     /// <summary>
-    /// Fills empty make/model/registration fields from a combined vehicle
-    /// description ("PEUGEOT RCZ GT THP 156", possibly ending in the
-    /// registration), carrying the description candidate's own provenance so
-    /// the acceptance write still names a real source.
-    /// </summary>
-    /// <summary>
-    /// Appends the letter's damage area to the accident circumstances, under
-    /// its own label and below a blank line (ENG-015, operator direction):
-    ///
-    /// <code>
-    /// &lt;circumstances prose, when the letter has any&gt;
-    ///
-    /// Damage Area: &lt;damage area&gt;
-    /// </code>
-    ///
-    /// The QDOS audit letters carry no prose, so the value is usually the
-    /// labelled damage area alone, with no leading blank line.
-    ///
-    /// This runs after the neutral engine rather than inside it because the
-    /// engine collapses every whitespace run in a value — a deliberate rule
-    /// for single-line fields that a two-part value cannot pass through.
-    /// <see cref="DeriveVehicleFields"/> adjusts a field after extraction the
-    /// same way.
-    /// </summary>
-    private static IReadOnlyList<InstructionReviewField> WithLabelledDamageArea(
-        IReadOnlyList<InstructionReviewField> fields,
-        IReadOnlyList<IntakeContentFragment> content)
-    {
-        var damageArea = content
-            .Select(DamageArea)
-            .FirstOrDefault(value => value is not null);
-        if (damageArea is null)
-        {
-            return fields;
-        }
-
-        var labelled = $"{DamageAreaLabel}{damageArea}";
-        return fields
-            .Select(field =>
-            {
-                if (field.Name != "Accident circumstances" || field.HasConflict)
-                {
-                    return field;
-                }
-
-                var prose = field.SuggestedValue;
-                var combined = string.IsNullOrWhiteSpace(prose)
-                    ? labelled
-                    : $"{prose}\n\n{labelled}";
-                return field with
-                {
-                    SuggestedValue = combined,
-                    Candidates = field.Candidates.Count == 0
-                        ? [new(combined, IntakeEvidenceSource.PdfContent, DamageAreaSourceLabel)]
-                        : [.. field.Candidates.Select((candidate, index) => index == 0
-                            ? candidate with { Value = combined }
-                            : candidate)]
-                };
-            })
-            .ToArray();
-    }
-
-    /// <summary>
-    /// The letter writes the damage area as one row — "Damage Area - Rear:
-    /// Moderate" — and the block ends at the third-party rows. Returns the text
-    /// after the label, or null when the fragment has no damage-area row.
-    /// </summary>
-    private static string? DamageArea(IntakeContentFragment fragment)
-    {
-        var lines = SplitLines(fragment.Text);
-        var index = Array.FindIndex(lines, line =>
-            DamageAreaRowRegex().IsMatch(line));
-        if (index < 0)
-        {
-            return null;
-        }
-
-        // The description is a block, not a line: the letters wrap it across
-        // physical rows mid-sentence ("...rear wheel arch is / damaged."), so
-        // taking only the first row cuts the sentence in half. Read on until the
-        // next block starts.
-        var block = new List<string>();
-        var inline = DamageAreaRowRegex().Replace(lines[index], string.Empty).Trim();
-        if (inline.Length > 0)
-        {
-            block.Add(inline);
-        }
-
-        // A wrapped description continues on the rows immediately beneath the
-        // label. When the label sat alone, its value starts after the blank rows.
-        var rest = lines.Skip(index + 1);
-        if (block.Count == 0)
-        {
-            rest = rest.SkipWhile(line => line.Length == 0);
-        }
-
-        foreach (var line in rest)
-        {
-            if (line.Length == 0 || DamageAreaStopRegex().IsMatch(line))
-            {
-                break;
-            }
-
-            block.Add(line);
-        }
-
-        return block.Count == 0 ? null : string.Join('\n', block);
-    }
-
-    private const string DamageAreaLabel = "Damage Area: ";
-    private const string DamageAreaSourceLabel = "damage area";
-
     [GeneratedRegex(ReportColumnCutPattern, RegexOptions.CultureInvariant, 100)]
     private static partial Regex ReportColumnCutRegex();
 
@@ -634,19 +512,12 @@ public sealed partial class QdosInstructionExtractionPolicy
     [GeneratedRegex(@"\bVehicle(?!\s+Registration\b)[:.]?\s+([^,()]+)", RegexOptions.IgnoreCase, 100)]
     private static partial Regex SubjectVehicleRegex();
 
-    [GeneratedRegex(
-        @"^\s*damage\s+area\s*[-:]?\s*",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
-    private static partial Regex DamageAreaRowRegex();
-
-    [GeneratedRegex(
-        @"^(?:pre-existing damage|tp |if you need)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        100)]
-    private static partial Regex DamageAreaStopRegex();
-
-    private static IReadOnlyList<InstructionReviewField> DeriveVehicleFields(
+    /// <summary>
+    /// Fills an empty registration from a valid terminal registration in the
+    /// combined vehicle description. The description itself stays whole and
+    /// is never split into guessed make/model values.
+    /// </summary>
+    private static IReadOnlyList<InstructionReviewField> DeriveVehicleRegistration(
         IReadOnlyList<InstructionReviewField> fields,
         out HashSet<string> derivedNames)
     {
@@ -671,33 +542,14 @@ public sealed partial class QdosInstructionExtractionPolicy
                 string.Concat(tokens[^2], tokens[^1])))
         {
             registration = $"{tokens[^2]} {tokens[^1]}";
-            tokens.RemoveRange(tokens.Count - 2, 2);
         }
         else if (tokens.Count >= 1
             && InstructionFieldEngine.IsUkRegistration(tokens[^1]))
         {
             registration = tokens[^1];
-            tokens.RemoveAt(tokens.Count - 1);
-        }
-
-        string? make = null;
-        string? model = null;
-        if (tokens.Count > 0)
-        {
-            var upper = string.Join(' ', tokens).ToUpperInvariant();
-            var twoWord = TwoWordMakes.FirstOrDefault(candidate =>
-                upper.StartsWith(candidate + " ", StringComparison.Ordinal)
-                || string.Equals(upper, candidate, StringComparison.Ordinal));
-            var makeWordCount = twoWord is null ? 1 : 2;
-            make = string.Join(' ', tokens.Take(makeWordCount));
-            model = tokens.Count > makeWordCount
-                ? string.Join(' ', tokens.Skip(makeWordCount))
-                : null;
         }
 
         var updated = fields.ToList();
-        Fill(updated, derivedNames, "Vehicle make", make, origin);
-        Fill(updated, derivedNames, "Vehicle model", model, origin);
         Fill(updated, derivedNames, "Vehicle registration", registration, origin);
         return updated;
 
