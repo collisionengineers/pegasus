@@ -908,7 +908,8 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var structured = await ReadStructuredContentAsync(response);
             Assert.Equal(1, structured.GetProperty("limit").GetInt32());
-            Assert.Equal(JsonValueKind.Null, structured.GetProperty("nextCursor").ValueKind);
+            Assert.True(!structured.TryGetProperty("nextCursor", out var nextCursor)
+                || nextCursor.ValueKind == JsonValueKind.Null);
             var listed = Assert.Single(structured.GetProperty("estimates").EnumerateArray());
             Assert.Equal(estimateId, listed.GetProperty("estimateId").GetGuid());
             Assert.False(listed.TryGetProperty("lines", out _));

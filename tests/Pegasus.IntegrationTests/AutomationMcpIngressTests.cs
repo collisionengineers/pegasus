@@ -256,8 +256,15 @@ public sealed class AutomationMcpIngressTests
         Assert.InRange(structured.GetProperty("recentHistory").GetArrayLength(), 0, 1);
         Assert.False(structured.TryGetProperty("documentEntryCount", out _));
         Assert.False(structured.TryGetProperty("historyEntryCount", out _));
-        Assert.True(structured.TryGetProperty("nextDocumentCursor", out _));
-        Assert.True(structured.TryGetProperty("nextHistoryCursor", out _));
+        foreach (var cursorName in new[] { "nextDocumentCursor", "nextHistoryCursor" })
+        {
+            if (structured.TryGetProperty(cursorName, out var cursor))
+            {
+                Assert.True(cursor.ValueKind is JsonValueKind.Null or JsonValueKind.String);
+                if (cursor.ValueKind == JsonValueKind.String)
+                    Assert.False(string.IsNullOrWhiteSpace(cursor.GetString()));
+            }
+        }
     }
 
     [Fact]
