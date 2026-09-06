@@ -15,6 +15,12 @@ public sealed class EfTriageStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null) : ITriageStore
 {
+    /// <summary>
+    /// The single seeded <c>TriageSequences</c> row. The Triage reference
+    /// sequence is global, so there is exactly one counter and it is never
+    /// partitioned by principal, vehicle or year.
+    /// </summary>
+    private const int TriageSequenceRowId = 1;
 
     public async Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
@@ -33,9 +39,33 @@ public sealed class EfTriageStore(
         var requestHash = Hash(
             $"create|{request.Origin.ReceiptId:N}|{sourceChannel}|{sourceToken}|{sourceHash}|{request.Origin.EvaluationRevisionId:N}|{vrm}|{acceptedMatch.Source}|{acceptedMatch.Strength}|{acceptedMatch.Finding}|{matcherKey}|{acceptedMatch.MatcherVersion}|{matchSignal}|{acceptedMatch.Detail.Trim()}|{actor.Kind}|{actor.SubjectId}");
 
+        // The replay probe runs before the transaction, holding nothing: a
+        // retry of a committed creation returns its original reference without
+        // ever reaching the counter, so a replay can never consume a number.
+        await using (var probeContext = await contextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            var committed = await FindReplayAsync(probeContext, operationKey, cancellationToken);
+            if (committed is not null)
+            {
+                EnsureReplay(committed, "triage_created", requestHash);
+                return await MapReplayAsync(probeContext, committed, cancellationToken);
+            }
+        }
+
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
+        // The counter is the FIRST lock this transaction takes, before any
+        // read or write of a Triage row. Every creator therefore queues on the
+        // one counter row while holding nothing else, so two creators can
+        // never each hold Triage locks while waiting for the counter — which
+        // is the cycle that deadlocked when the counter was taken last.
+        var allocatedSequence = await AllocateSequenceAsync(context, cancellationToken);
+
+        // Re-probed under the counter, because a creation with this operation
+        // key may have committed between the probe above and this lock. The
+        // number just taken is discarded with the transaction, so this costs
+        // nothing.
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
@@ -93,6 +123,8 @@ public sealed class EfTriageStore(
         var entity = new TriageEntity
         {
             Id = Guid.NewGuid(),
+            Sequence = allocatedSequence,
+            Reference = TriageReferenceFormat.Format(allocatedSequence),
             OriginReceiptId = request.Origin.ReceiptId,
             SourceChannel = sourceChannel,
             ExternalReceiptToken = sourceToken,
@@ -117,6 +149,47 @@ public sealed class EfTriageStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
+    }
+
+    /// <summary>
+    /// Takes the next global Triage sequence from the one <c>TriageSequences</c>
+    /// row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This must be the first statement of the enclosing transaction. The row
+    /// is read under an update lock held to commit, so it is the single point
+    /// every creator serializes on; taking it while already holding Triage
+    /// locks is what produced a deadlock cycle, and taking it first is what
+    /// removes the cycle rather than merely making it rarer.
+    /// </para>
+    /// <para>
+    /// The increment is pending until the caller saves, so a transaction that
+    /// returns early or fails releases the number rather than burning it. A
+    /// number lost to a committed-then-failed sequence of events simply leaves
+    /// a gap: the counter only moves forward and a reference is never reused.
+    /// The unique indexes on <c>Triage.Sequence</c> and <c>Triage.Reference</c>
+    /// remain the backstop — a duplicate would surface as a violation, never
+    /// as a silently reused reference.
+    /// </para>
+    /// </remarks>
+    private static async Task<long> AllocateSequenceAsync(
+        PegasusDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var sequences = context.Set<TriageSequenceEntity>();
+        var sequence = context.Database.IsSqlServer()
+            ? await sequences
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [TriageSequences] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [Id] = {TriageSequenceRowId}
+                """)
+                .SingleAsync(cancellationToken)
+            : await sequences.SingleAsync(
+                item => item.Id == TriageSequenceRowId,
+                cancellationToken);
+        return checked(++sequence.LastAllocatedSequence);
     }
 
     public async Task<TriageRecord> AssignAsync(AssignTriageRequest request, CancellationToken cancellationToken)
@@ -1249,7 +1322,8 @@ public sealed class EfTriageStore(
         ParseState(entity.State),
         entity.AssigneeId,
         entity.LinkedCaseId,
-        entity.Version);
+        entity.Version,
+        entity.Reference);
 
     private static TriageFinding Map(TriageFindingEntity entity) => new(
         entity.Id,
