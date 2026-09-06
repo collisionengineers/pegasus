@@ -49,6 +49,7 @@ internal sealed class ApprovedMailboxSubscriptionEntity
     public required string Resource { get; set; }
     public DateTimeOffset ExpiresAtUtc { get; set; }
     public required string LifecycleState { get; set; }
+    public long Generation { get; set; }
     public DateTimeOffset? LastMaintainedAtUtc { get; set; }
     public string? LastMaintenanceFailureCode { get; set; }
 }

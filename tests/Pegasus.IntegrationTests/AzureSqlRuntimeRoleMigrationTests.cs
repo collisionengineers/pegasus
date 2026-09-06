@@ -217,6 +217,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         GlassRepairEstimateSessions
         IntakeOcrOperations
         IntakeSourceCandidates
+        LabourRateCards
         OrganizationDirectoryEntries
         PublicUploadOccurrences
         PublicUploadSessions
@@ -237,6 +238,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
         IntakeOcrOperations:SELECT
         IntakeSourceCandidates:SELECT
+        LabourRateCards:SELECT,INSERT,UPDATE
         OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
         PublicUploadOccurrences:SELECT,INSERT
         PublicUploadSessions:SELECT,INSERT,UPDATE
@@ -248,7 +250,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     private const string FoundationWorkerGrantSpec = """
-        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
         IntakeOcrOperations:SELECT,INSERT,UPDATE
         IntakeSourceCandidates:SELECT,INSERT
         RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
@@ -583,6 +585,12 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await context.Database.MigrateAsync();
 
         var tables = ParseLines(FoundationTableSpec);
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM [dbo].[ApprovedMailboxes] WHERE [State] = N'Approved' AND [MailboxGeneration] <> 1"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.check_constraints WHERE [name] = N'CK_ApprovedMailboxes_MailboxGeneration' AND [is_disabled] = 0 AND [is_not_trusted] = 0"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE [object_id] = OBJECT_ID(N'[dbo].[DocumentVersions]') AND [name] = N'PendingContentStorageKey' AND [max_length] = 400 AND [is_nullable] = 1"));
         Assert.Equal(
             tables,
             await ReadValuesAsync(
@@ -608,10 +616,34 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .ToArray());
         foreach (var role in new[] { WebRole, WorkerRole })
         {
-            Assert.Equal(tables, (await ReadDeniedDeleteTablesAsync(database, role))
+            var expectedDeniedTables = role == WorkerRole
+                ? tables.Where(table => table != "DocumentContentCacheEntries").ToArray()
+                : tables;
+            Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
                 .Where(tables.Contains)
                 .ToArray());
         }
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*)
+            FROM (
+                SELECT indexDefinition.object_id, indexDefinition.index_id
+                FROM sys.indexes AS indexDefinition
+                INNER JOIN sys.tables AS tableDefinition
+                    ON tableDefinition.object_id = indexDefinition.object_id
+                INNER JOIN sys.index_columns AS indexColumn
+                    ON indexColumn.object_id = indexDefinition.object_id
+                   AND indexColumn.index_id = indexDefinition.index_id
+                   AND indexColumn.key_ordinal > 0
+                INNER JOIN sys.columns AS columnDefinition
+                    ON columnDefinition.object_id = indexColumn.object_id
+                   AND columnDefinition.column_id = indexColumn.column_id
+                WHERE tableDefinition.name IN ({string.Join(", ", tables.Select(table => $"N'{table}'"))})
+                GROUP BY indexDefinition.object_id, indexDefinition.index_id, indexDefinition.[type]
+                HAVING SUM(columnDefinition.max_length) >
+                    CASE WHEN indexDefinition.[type] = 1 THEN 900 ELSE 1700 END
+            ) AS oversizedIndex
+            """));
     }
 
     [Fact]
@@ -880,6 +912,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             UPDATE [dbo].[TriageSequences]
             SET [LastAllocatedSequence] = 1
             WHERE [Id] = 1;
+            DELETE FROM [dbo].[DocumentContentCacheEntries]
+            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
             """);
 
@@ -929,6 +963,26 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await context.Database.MigrateAsync(PreviousMigration);
 
         Assert.Equal(before, await ReadPermissionSnapshotAsync(database));
+    }
+
+    [Fact]
+    public async Task V1FoundationCanDowngradeAndReapplyItsCurrentSchema()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(useTemplate: false);
+        await using var context = await database.CreateContextAsync();
+        Assert.False(context.Database.HasPendingModelChanges());
+
+        await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN ('ValuationPresets', 'AppliedValuationSnapshots')"));
+
+        await context.Database.MigrateAsync();
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc')"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_ValuationPresets_Label' AND is_unique = 1 AND has_filter = 0"));
     }
 
     [Fact]
