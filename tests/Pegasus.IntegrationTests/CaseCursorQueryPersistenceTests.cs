@@ -186,7 +186,7 @@ public sealed class CaseCursorQueryPersistenceTests
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "DOCS");
         var caseId = await SeedCaseAsync(database, principalId, lineageId, "DOCS31001", 1, BaseUtcNow);
-        var documentIds = new List<Guid>();
+        var occurrenceIds = new List<Guid>();
         await using (var context = await database.CreateContextAsync())
         {
             for (var i = 0; i < 5; i++)
@@ -194,7 +194,7 @@ public sealed class CaseCursorQueryPersistenceTests
                 var documentId = Guid.NewGuid();
                 var versionId = Guid.NewGuid();
                 var occurrenceId = Guid.NewGuid();
-                documentIds.Add(documentId);
+                occurrenceIds.Add(occurrenceId);
                 context.AddRange(
                     new CaseDocumentEntity
                     {
@@ -240,11 +240,112 @@ public sealed class CaseCursorQueryPersistenceTests
 
         var (seen, pages) = await DrainAsync(
             cursor => list.ExecuteAsync(new(actor, caseId, cursor, 2), CancellationToken.None),
-            item => item.Id);
+            item => item.Occurrence.Id);
 
+        // The page unit is the occurrence: one row per occurrence, newest
+        // first, id tie-break — 5 occurrences at limit 2 is three pages with
+        // every occurrence seen exactly once.
         Assert.Equal(3, pages);
         Assert.Equal(seen.Count, seen.Distinct().Count());
-        Assert.Equal(documentIds.ToHashSet(), seen.ToHashSet());
+        Assert.Equal(occurrenceIds.ToHashSet(), seen.ToHashSet());
+    }
+
+    /// <summary>
+    /// CASE-047, Stream A MCP review: the regression behind the occurrence
+    /// page unit — one document carrying more occurrences than the caller's
+    /// limit. A document-unit page would return that document once with a
+    /// single occurrence and lose the rest; the occurrence-unit page
+    /// enumerates every occurrence exactly once, each paired with the exact
+    /// version it names, newest first, and terminates.
+    /// </summary>
+    [Fact]
+    public async Task ADocumentWithMoreOccurrencesThanTheLimitEnumeratesEveryOccurrence()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "OCCR");
+        var caseId = await SeedCaseAsync(database, principalId, lineageId, "OCCR31001", 1, BaseUtcNow);
+        var documentId = Guid.NewGuid();
+        var expected = new List<(Guid OccurrenceId, Guid VersionId, DateTimeOffset RecordedAtUtc)>();
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.Add(new CaseDocumentEntity
+            {
+                Id = documentId,
+                CaseId = caseId,
+                Ordinal = 0,
+                SourceOccurrenceIdentity = $"cursor-occ:{documentId:N}"
+            });
+            for (var i = 0; i < 5; i++)
+            {
+                var versionId = Guid.NewGuid();
+                var occurrenceId = Guid.NewGuid();
+                var recordedAtUtc = BaseUtcNow.AddMinutes(-i);
+                expected.Add((occurrenceId, versionId, recordedAtUtc));
+                context.AddRange(
+                    new DocumentVersionEntity
+                    {
+                        Id = versionId,
+                        DocumentId = documentId,
+                        Version = i + 1,
+                        FileName = $"doc-v{i + 1}.pdf",
+                        MediaType = "application/pdf",
+                        ContentLength = 1 + i,
+                        Sha256 = new string((char)('a' + i), 64),
+                        CustodyStatus = DocumentCustodyStatus.Confirmed,
+                        CreatedAtUtc = recordedAtUtc,
+                        CreatedBy = "Staff:test",
+                        IsCurrent = i == 4
+                    },
+                    new DocumentOccurrenceEntity
+                    {
+                        Id = occurrenceId,
+                        CaseId = caseId,
+                        DocumentId = documentId,
+                        VersionId = versionId,
+                        SemanticRole = DocumentSemanticRole.Image,
+                        Source = DocumentSource.StaffUpload,
+                        SourceOccurrenceIdentity = $"cursor-occ:{documentId:N}:{i}",
+                        RecordedAtUtc = recordedAtUtc,
+                        OperationKey = $"seed-occ:{occurrenceId:N}"
+                    });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var list = new ListCaseDocumentsByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
+
+        // Limit 1 — the exact shape of the reported loss: one document,
+        // many occurrences, a page that cannot hold them.
+        var (seen, pages) = await DrainAsync(
+            cursor => list.ExecuteAsync(new(actor, caseId, cursor, 1), CancellationToken.None),
+            item => item.Occurrence.Id);
+
+        Assert.Equal(5, pages);
+        Assert.Equal(5, seen.Count);
+        Assert.Equal(seen.Count, seen.Distinct().Count());
+        Assert.Equal(expected.Select(row => row.OccurrenceId).ToHashSet(), seen.ToHashSet());
+
+        var items = new List<CaseDocumentPageItem>();
+        string? cursor = null;
+        do
+        {
+            var page = await list.ExecuteAsync(new(actor, caseId, cursor, 1), CancellationToken.None);
+            items.AddRange(page.Items);
+            cursor = page.NextCursor;
+        }
+        while (cursor is not null);
+
+        // Newest first, every item is one occurrence of the same document
+        // paired with the exact version that occurrence names — a
+        // flatten-and-take-first consumer loses nothing.
+        Assert.Equal(
+            expected.OrderByDescending(row => row.RecordedAtUtc).Select(row => row.OccurrenceId).ToArray(),
+            items.Select(item => item.Occurrence.Id).ToArray());
+        Assert.All(items, item => Assert.Equal(documentId, item.Occurrence.DocumentId));
+        Assert.All(items, item => Assert.Equal(item.Occurrence.VersionId, item.Version.Id));
     }
 
     [Fact]

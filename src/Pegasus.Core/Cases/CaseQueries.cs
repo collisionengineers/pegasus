@@ -232,12 +232,15 @@ public interface ICaseQueryStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// A case's documents, newest occurrence first then document id
-    /// (CASE-047). <paramref name="afterRecordedAtUtc"/>/<paramref
-    /// name="afterId"/> are the decoded cursor's sort position, both null on
-    /// the first page.
+    /// A case's document occurrences, newest recorded first then occurrence
+    /// id (CASE-047, Stream A MCP review). The row unit is the occurrence —
+    /// not the document — so a document carrying more occurrences than the
+    /// caller's limit still enumerates every one of them across consecutive
+    /// pages; a document-unit page cannot split one document's occurrences.
+    /// <paramref name="afterRecordedAtUtc"/>/<paramref name="afterId"/> are
+    /// the decoded cursor's sort position, both null on the first page.
     /// </summary>
-    Task<IReadOnlyList<CaseDocument>> ListDocumentsByCursorAsync(
+    Task<IReadOnlyList<CaseDocumentPageItem>> ListDocumentsByCursorAsync(
         Guid caseId,
         DateTimeOffset? afterRecordedAtUtc,
         Guid? afterId,
@@ -654,9 +657,22 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector 
 /// </summary>
 public sealed record CaseListCursorQuery(ActionActor Actor, Guid CaseId, string? Cursor = null, int? Limit = null);
 
+/// <summary>
+/// One row of the cursor-paged case document list (CASE-047, Stream A MCP
+/// review): a single occurrence paired with exactly the version it names.
+/// A host that flattens a page item-for-item can never lose occurrences the
+/// way a document-unit page does when one document carries more occurrences
+/// than the limit — the occurrence is the page unit, so the version a host
+/// shows beside it is the one that occurrence itself names, never "the
+/// current one of the document".
+/// </summary>
+public sealed record CaseDocumentPageItem(
+    DocumentOccurrence Occurrence,
+    DocumentVersion Version);
+
 public interface IListCaseDocumentsByCursor
 {
-    Task<CursorPage<CaseDocument>> ExecuteAsync(
+    Task<CursorPage<CaseDocumentPageItem>> ExecuteAsync(
         CaseListCursorQuery query,
         CancellationToken cancellationToken);
 }
@@ -671,7 +687,7 @@ public interface IListCaseHistoryByCursor
 /// <summary>
 /// Applies the same actor boundary <see cref="GetCase"/> applies
 /// (<see cref="StaffAccessRight.PerformCasework"/>) before reading a case's
-/// documents, newest occurrence first then document id.
+/// documents, newest occurrence first then occurrence id.
 /// </summary>
 public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store, ICursorProtector protector)
     : IListCaseDocumentsByCursor
@@ -679,7 +695,7 @@ public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store, ICursorProt
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
 
-    public async Task<CursorPage<CaseDocument>> ExecuteAsync(
+    public async Task<CursorPage<CaseDocumentPageItem>> ExecuteAsync(
         CaseListCursorQuery query,
         CancellationToken cancellationToken)
     {
@@ -709,14 +725,9 @@ public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store, ICursorProt
             limit,
             _protector,
             scope,
-            document => CursorPaging.EncodeUtcTimestamp(NewestOccurrence(document)),
-            document => document.Id);
+            item => CursorPaging.EncodeUtcTimestamp(item.Occurrence.RecordedAtUtc),
+            item => item.Occurrence.Id);
     }
-
-    private static DateTimeOffset NewestOccurrence(CaseDocument document) =>
-        document.Occurrences.Count == 0
-            ? DateTimeOffset.MinValue
-            : document.Occurrences.Max(occurrence => occurrence.RecordedAtUtc);
 }
 
 /// <summary>
