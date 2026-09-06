@@ -46,6 +46,17 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Notes section's manual-chase form (PR 670 port): a chase names
+    /// who was chased and what was said; the time is the server's.
+    /// </summary>
+    public static class Chase
+    {
+        public const string Recipient = "Recipient";
+        public const string Content = "Content";
+        public const string RecordChase = "Record chase";
+    }
+
+    /// <summary>
     /// The Report section's generation and delivery surface. Labels only —
     /// values come from the persisted generation and preparation records,
     /// and a Sent claim never appears here because transport observation is
