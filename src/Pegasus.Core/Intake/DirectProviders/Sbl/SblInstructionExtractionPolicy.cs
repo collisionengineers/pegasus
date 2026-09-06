@@ -12,6 +12,8 @@ public sealed partial class SblInstructionExtractionPolicy
     public const string DocumentProfileKeyValue = "sbl_instruction_document";
     public const int DocumentProfileVersionValue = 1;
     private const char ProtectedRightApostrophe = '\uE000';
+    private const string HireDateEngineField = "SBL validated hire commencement";
+    private const string HireDatePublicField = "Hire out date";
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
@@ -48,7 +50,7 @@ public sealed partial class SblInstructionExtractionPolicy
         new("Repairer email", ["Repairer email"], IsRequired: false, PartyRole: "repairer"),
         new("Agreed labour rate", ["Agreed labour rate"], IsRequired: false, PartyRole: "repairer-rate"),
         new("Hire company", ["Hire company"], IsRequired: false, PartyRole: "hire"),
-        new("Hire out date", ["Hire out date"], IsRequired: false,
+        new(HireDateEngineField, [HireDateEngineField], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "hire")
     ];
@@ -62,10 +64,7 @@ public sealed partial class SblInstructionExtractionPolicy
         InstructionDocumentSignature.InstructionRole,
         ["Smart Business Link", "Registration:", "Vehicle Make:"],
         ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"]);
-    public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = Definitions.ToDictionary(
-        definition => definition.Name,
-        definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole),
-        StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = BuildFieldRoles();
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
@@ -82,7 +81,7 @@ public sealed partial class SblInstructionExtractionPolicy
         var scoped = readResult.Content.SelectMany(InstructionFields).ToArray();
         var (extractedFields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
             scoped, Definitions, Cache, processedAtUtc);
-        var fields = extractedFields.Select(NormalizeField).ToArray();
+        var fields = extractedFields.Select(NormalizeField).Select(PublicField).ToArray();
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(
             SupportedPrincipalCode,
@@ -101,7 +100,7 @@ public sealed partial class SblInstructionExtractionPolicy
             InstructionFieldEngine.TypedString(values["VAT status"], 100),
             null,
             null);
-        var evidence = new List<IntakeEvidence>(fieldEvidence)
+        var evidence = new List<IntakeEvidence>(fieldEvidence.Select(PublicEvidence))
         {
             new(
                 IntakeEvidenceSource.Sender,
@@ -165,7 +164,7 @@ public sealed partial class SblInstructionExtractionPolicy
             {
                 Text = string.Join(
                     Environment.NewLine,
-                    hireOutDates.Select(value => $"Hire out date: {value}"))
+                    hireOutDates.Select(value => $"{HireDateEngineField}: {value}"))
             };
     }
 
@@ -269,6 +268,28 @@ public sealed partial class SblInstructionExtractionPolicy
                 RawValue = candidate.RawValue is null ? null : RestoreApostrophe(candidate.RawValue)
             }).ToArray()
         };
+    }
+
+    private static InstructionReviewField PublicField(InstructionReviewField field) =>
+        string.Equals(field.Name, HireDateEngineField, StringComparison.Ordinal)
+            ? field with { Name = HireDatePublicField }
+            : field;
+
+    private static IntakeEvidence PublicEvidence(IntakeEvidence evidence) =>
+        string.Equals(evidence.Signal, HireDateEngineField, StringComparison.Ordinal)
+            ? evidence with { Signal = HireDatePublicField }
+            : evidence;
+
+    private static Dictionary<string, InstructionFieldRole> BuildFieldRoles()
+    {
+        var roles = Definitions
+            .Where(definition => definition.Name != HireDateEngineField)
+            .ToDictionary(
+                definition => definition.Name,
+                definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole),
+                StringComparer.Ordinal);
+        roles.Add(HireDatePublicField, new("hire", null));
+        return roles;
     }
 
     [GeneratedRegex(@"(?im)^\s*URGENT\s+NEW\s+INSTRUCTION\s*$|^\s*From\s*:\s*Smart\s+Business\s+Link\s*$", RegexOptions.CultureInvariant, 100)]
