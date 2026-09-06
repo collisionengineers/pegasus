@@ -80,3 +80,60 @@ ASSUMPTIONS 1 and 2 stand, and both are now evidenced rather than reasoned:
   nothing under the production engine and the failure is silent; (b) normalize all whitespace
   before matching — rejected, it destroys the column boundary the existing instruction
   extractor also relies on to bound a flattened table cell.
+
+## C05 (Core slice) — correction round 1: two more assumptions
+
+- [ ] ASSUMPTION 6 (implementer, correction round 1): a reconciliation finding is persisted as
+  its own `SourceFieldCandidate` row under a `finding.` field namespace — raw text is the
+  finding's own statement including the printed values it compared, normalized value is the
+  stable finding code, the locator is the one the compared rows carry, the disposition is
+  `Conflicting` for a printed contradiction and `Ambiguous` for every other finding (never
+  `Usable`, because a finding is not a value), and the policy version is
+  `ThirdPartyReportValidation.PolicyVersion` rather than the extraction profile version —
+  because `ThirdPartyReportExtractionResult.Findings` reached no store, query or screen at
+  all (C05-R-1), `IntakeSourceCandidateEntity` has no findings column, and the frozen
+  `ThirdPartyReportContracts.cs` may not change. The existing field keys are reused rather
+  than renamed: the dispatch's illustrative `finding.labour-hours-times-rate` becomes
+  `finding.labour-hours-rate-mismatch`, `finding.supplement-without-base` becomes
+  `finding.supplement-without-proved-base` and `finding.net-derived-from-parts` becomes
+  `finding.net-not-printed`, because `ThirdPartyFindingCodes` is already stated to be part
+  of the contract with the Case UI and the corpus regression, and two spellings of one code
+  would be worse than an imperfect one. Nothing writes a repaired number into any source
+  candidate: the Montgomery rows still read 26.20, 90.00 and 1,582.20 beside the row that
+  says they do not multiply out, and a corpus test asserts no `estimate.labour.amount` row
+  holds 2358.00. ALTERNATIVE NOT TAKEN: a findings table or a findings column on the
+  analysis row, added by A under C-F02, with a typed finding record and its own query. It is
+  the better long-term shape — a finding would then carry its kind, its evidence row ids and
+  its policy version as typed fields instead of as a namespaced field name — but it needs an
+  A-owned entity, migration and DI change that C05 may not make, and taking it now would
+  have left the findings unpersisted for another whole slice. The `finding.` namespace is
+  forward-compatible with it: `ThirdPartyReportFields.IsFinding` is the one predicate a
+  later migration reads to move these rows onto a typed table.
+  Other alternatives: (a) leave the findings computed and discarded and only declare the gap
+  in the report — rejected, the dispatch forbids accepting the major with a reason, and a
+  reconciliation nothing can read is the same as one that never ran; (b) widen
+  `SourceFieldCandidate` — rejected, it is a shared C-owned contract that C01 and the
+  instruction reader also write, and a finding needs no new column to be recorded honestly.
+
+- [ ] ASSUMPTION 7 (implementer, correction round 1): the persisted finding rows are shown on
+  the Received screen by the markup that already renders every source candidate, and NO
+  "Finding" chip or label was added — because the two Web files the dispatch names as C05's
+  (`Pages/Shared/_Provenance.cshtml`, `Pages/Shared/_EvidenceViewer.cshtml`) do not render
+  candidate rows at all: `_Provenance.cshtml` renders one provenance icon for a
+  `CaseDataSource`, and `_EvidenceViewer.cshtml` is the image/PDF overlay. The only place a
+  source candidate is rendered is `src/Pegasus.Web/Pages/Intake/Details.cshtml:627-641`,
+  which the plan assigns to C04, and `OperatorLabels` is assigned to C08 — neither is in
+  "### C05 files", so editing them would breach the ownership rule the dispatch states in
+  the same paragraph. What ships instead is honest and visible: each finding renders as
+  `finding.<code>: <the finding's statement, with both printed values>` with its
+  operator-worded disposition ("Conflicting statements" / "Ambiguous") and its source label
+  and page, and the web test asserts that exact text is in the served HTML. HANDOFF: C04
+  should branch on `ThirdPartyReportFields.IsFinding(candidate.Field)` in the retained
+  analysis list and render a chip; C08 should add the one label
+  (`OperatorLabels.SourceCandidateKind` or similar) it reads from. Both are one-line
+  additions and neither needs a CSS class that does not already exist.
+  Alternatives: (a) edit `Details.cshtml` and `OperatorLabels.cs` anyway — rejected, they
+  belong to two other slices whose reviews diff those files, and C05's ownership was the
+  one thing this review graded PASS; (b) report the whole slice BLOCKED over the chip —
+  rejected, the major's substance (findings reach storage and the provenance surface) is
+  fully deliverable inside C05's files, and stopping would have left it undelivered too.
