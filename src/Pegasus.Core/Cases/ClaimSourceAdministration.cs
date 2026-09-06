@@ -81,6 +81,16 @@ public static class ClaimSourceAdministrationPolicy
         };
     }
 
+    /// <summary>
+    /// Reserved and unreachable today (C06 review R-12): <see cref="Normalize"/>'s
+    /// single create-or-update <see cref="SaveClaimSourceRequest"/> shape
+    /// (assumption 1) means the store never looks a claim source up before
+    /// deciding whether to create or update it, so nothing currently calls
+    /// this. Kept — with <see cref="ClaimSourceAdministrationError.ClaimSourceNotFound"/> —
+    /// for the page models' error-message mapping and for a future store
+    /// path (e.g. an explicit edit-only command) that does look one up
+    /// first.
+    /// </summary>
     public static void RequireFound(bool found)
     {
         if (!found)
