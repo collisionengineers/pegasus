@@ -172,6 +172,53 @@ public sealed class CaseArtifactCustodyRecoveryTests
     }
 
     [Fact]
+    public async Task ConcurrentRequestLinkReplayReturnsTheSamePendingIntentWithoutASecondProviderWrite()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var linkId = Guid.NewGuid();
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new RequestUploadLinkEntity
+            {
+                Id = linkId,
+                CaseId = caseId,
+                TokenDigest = new string('E', 64),
+                Status = RequestUploadStatus.Active,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
+                LimitsVersion = "test",
+                Version = 1,
+                CreateOperationKey = $"request:{linkId:N}"
+            });
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var provider = new BlockingContentStore();
+        var custody = new EfCaseArtifactCustody(
+            factory, provider, new MemoryArtifactStore(), TimeProvider.System);
+        var actor = ActionActor.RequestLink(linkId);
+        var bytes = "concurrent request evidence"u8.ToArray();
+        var request = ArtifactRequest(actor, caseId, bytes);
+
+        var firstTask = custody.RetainAsync(request, CancellationToken.None);
+        await provider.WriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var replay = await custody.RetainAsync(
+            request with { Content = new MemoryStream(bytes, writable: false) },
+            CancellationToken.None);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Pending, replay.Disposition);
+        Assert.Equal(1, provider.WriteCount);
+        provider.ReleaseWrite.SetResult();
+        var confirmed = await firstTask;
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, confirmed.Disposition);
+        Assert.Equal(replay.DocumentId, confirmed.DocumentId);
+        Assert.Equal(replay.VersionId, confirmed.VersionId);
+        Assert.Equal(1, provider.WriteCount);
+    }
+
+    [Fact]
     public async Task StatusPreservesFailedCustodyDisposition()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -661,6 +708,34 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class BlockingContentStore : IDocumentContentStore
+    {
+        public int WriteCount { get; private set; }
+        public TaskCompletionSource WriteEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseWrite { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
+            string expectedSha256, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            WriteEntered.SetResult();
+            await ReleaseWrite.Task.WaitAsync(cancellationToken);
+            return new(DocumentContentWriteDisposition.Created, "box-file", "box-version");
+        }
+
+        public Task StoreAsync(Guid caseId, string caseReference, Guid versionId,
+            ReadOnlyMemory<byte> content, string expectedSha256,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId,
+            string expectedSha256, long expectedLength,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class MemoryArtifactStore : IIntakeArtifactStore

@@ -56,6 +56,8 @@ system-work right. Custody status reads also admit the exact active upload link
 for its own accepted artifacts. The status lookup can recover logical identities
 by the original operation key after a lost response; an absent row does not
 prove that an in-flight acceptance cannot commit or permit a new operation key.
+Matching Pending or Failed retention replays return the existing intent without
+another provider write; accepted Pending work remains owned by reconciliation.
 
 The `/mcp` adapters use persistent signing/encryption certificates and separate
 grant attribution. Authorized metadata precedes content reads; large documents

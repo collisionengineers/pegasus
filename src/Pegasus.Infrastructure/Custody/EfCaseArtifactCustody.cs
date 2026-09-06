@@ -246,6 +246,13 @@ internal sealed class EfCaseArtifactCustody(
                     await requestLinkTransaction.CommitAsync(cancellationToken);
                 return Confirmed(existing.Version);
             }
+            if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
+                or DocumentCustodyStatus.Failed)
+            {
+                if (requestLinkTransaction is not null)
+                    await requestLinkTransaction.CommitAsync(cancellationToken);
+                return Status(existing.Version);
+            }
         }
 
         var caseEntity = await db.Cases.AsNoTracking()
