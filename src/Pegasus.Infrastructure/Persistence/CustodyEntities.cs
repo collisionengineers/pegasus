@@ -19,6 +19,9 @@ internal sealed class DocumentVersionEntity
     public string MediaType { get; set; } = string.Empty;
     public long ContentLength { get; set; }
     public string Sha256 { get; set; } = string.Empty;
+    public string? BoxFileId { get; set; }
+    public string? BoxVersionId { get; set; }
+    public string? PendingContentStorageKey { get; set; }
     public DocumentCustodyStatus CustodyStatus { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;

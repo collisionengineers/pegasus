@@ -3,7 +3,7 @@ namespace Pegasus.Core.Assessment;
 public sealed record ImportRawEstimateRequest(
     Pegasus.Core.Identity.ActionActor Actor, Guid CaseId, long ExpectedCaseVersion,
     string LeaseToken, Guid DocumentId, Guid DocumentVersionId, string Sha256,
-    RepairSpecificationSourceRoute Route, string OperationKey);
+    RepairSpecificationSourceRoute Route, string OperationKey, string Name);
 
 public interface IImportRawEstimate
 {
