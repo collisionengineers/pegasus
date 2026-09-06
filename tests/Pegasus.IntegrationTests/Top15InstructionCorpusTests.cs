@@ -85,6 +85,19 @@ public sealed class Top15InstructionCorpusTests
         ExpectedIdentity Identity,
         NeighbouringValue[] Negatives);
 
+    private sealed record FwExpectation(
+        string PackRelativePath,
+        string Sha256,
+        string Claimant,
+        string Reference,
+        string Registration,
+        string Vehicle,
+        DateOnly IncidentDate,
+        DateOnly InstructionDate,
+        string AccidentLocation,
+        string? InspectionLocation,
+        string Circumstances);
+
     private const string CorpusRoot = "principal-docs/original-mapper-instruction-corpus";
 
     /// <summary>
@@ -241,11 +254,99 @@ public sealed class Top15InstructionCorpusTests
             [
                 new("Claim number", "LN92101512821", "Insurer Policy No."),
                 new(null, "02/04/2026", "Hire Out Date.")
+            ]),
+        new(
+            "FW",
+            $"{CorpusRoot}/FW 01.msg",
+            "448cb639dffea48acb76c3cc68d3457028e7c600c06caa4e166d236266503512",
+            new("Mr Dan-gabriel Ilie", "29679-01", "BA69UMG", new(2026, 5, 5), new(2026, 5, 6)),
+            [
+                new("Claimant name", "MrMartin", "Third Party Name."),
+                new("Vehicle registration", "FG19VFL", "Third Party Reg."),
+                new("Vehicle make", "Ford TRANSIT CONNECT", "The third party's vehicle.")
+            ]),
+        new(
+            "FW",
+            $"{CorpusRoot}/FW 02.msg",
+            "db2572722d94ead8f15337368eec36ea6cfaa72f1a62f1d07bb6fbfc7f8e4d50",
+            new("Catalin Anghelache", "29626-01", "KS21JUW", new(2026, 4, 15), new(2026, 5, 6)),
+            [
+                new("Vehicle registration", "RE71KFD", "Third Party Reg."),
+                new("Vehicle make", "Ford TRANSIT CONNECT", "The third party's vehicle.")
+            ]),
+        new(
+            "FW",
+            $"{CorpusRoot}/FW 03.msg",
+            "34e712ed176dc36135ed4e55badea0ff3c9897a8ea6d25fbad976e590223e45f",
+            new("Mr Mohammed Zafran", "29667-01", "RX66FLG", new(2026, 4, 30), new(2026, 5, 6)),
+            [
+                new("Vehicle registration", "VO69MKZ", "Third Party Reg."),
+                new("Vehicle make", "Mercedes-Benz GLA", "The third party's vehicle.")
+            ]),
+        new(
+            "FW",
+            $"{CorpusRoot}/FW 04.msg",
+            "071dd9a8f16c16b368d52742848fae65fb1d79912e176a4abc49163a76b724d1",
+            new("Mr Mebrahtom Debesay", "29680-01", "KP22LRL", new(2026, 5, 5), new(2026, 5, 6)),
+            [
+                new("Vehicle registration", "BG06UYX", "Third Party Reg."),
+                new("Vehicle make", "Ford KA COLLECTION", "The third party's vehicle.")
+            ]),
+        new(
+            "FW",
+            $"{CorpusRoot}/FW 05.msg",
+            "cd6df4397aec439baa5223bb549a4e0579ab9e6c09fc935e5159f3ac10a5bfa3",
+            new("Mr Yunus Mohammed Abdul Amin", "29674-01", "RE05XEX", new(2026, 5, 4), new(2026, 5, 5)),
+            [
+                new("Claimant name", "Asaad", "Third Party Name."),
+                new("Vehicle registration", "AP10FBF", "Third Party Reg."),
+                new("Vehicle make", "Toyota VERSO", "The third party's vehicle.")
             ])
     ];
 
+    private static readonly FwExpectation[] FwExpectations =
+    [
+        new(
+            $"{CorpusRoot}/FW 01.msg",
+            "448cb639dffea48acb76c3cc68d3457028e7c600c06caa4e166d236266503512",
+            "Mr Dan-gabriel Ilie", "29679-01", "BA69UMG", "Toyota PRIUS",
+            new(2026, 5, 5), new(2026, 5, 6), "Ashby Rd B5493 Near Kings Ln",
+            "Somstar Recovery & Storage Land Of Rea Street & Moseley Street Birmingham B5 6JX 07462530375",
+            "Our Client Was Travelling Along The Main Road Behind The Third Party 2 Vehicle. FH61EDO Who Slowed Due To A Broken Down Vehicle On The Left Hand Side And Oncoming Vehicles. Our Client Slowed , The Third Party Came From Behind, Hit Our Client In The Rear Which Shunted Our Client Into The Third Party 2 Vehicle. The Vehicle Front Reg: FH61EDO"),
+        new(
+            $"{CorpusRoot}/FW 02.msg",
+            "db2572722d94ead8f15337368eec36ea6cfaa72f1a62f1d07bb6fbfc7f8e4d50",
+            "Catalin Anghelache", "29626-01", "KS21JUW", "Mercedes-Benz E 220 AMG LNE NGT ED PRM + D A",
+            new(2026, 4, 15), new(2026, 5, 6), "A3", null,
+            "On April 15, 2026, I Was Traveling From Guildford To Gatwick. On The A3 - Junction 10 / Cobham - Wisley M25. There Are Two Lanes Allocated To Gatwick At Junction 10. At The Time Of The Incident, I Was In The Right-hand Lane In The Direction Of Travel. I Also Note That There Are Three Traffic Lights In The Same Direction. After The Second Traffic Light Changed Color To Green, I Continued Moving Forward At A Speed Of Approximately 5 Miles / H Because I Noticed That The Last Traffic Light Was Red. At That Moment, I Noticed That A Mini Van Appeared On My Left And Suddenly Entered In Front Of Me. My Only Reaction Was To Move My Car To The Right And Apply The Brakes. I Must Say That The Other Driver Not Only Had A Much Higher Speed But Also Did Not Signal His Intention To Change Direction. If I Hadn't Had The Presence Of Mind To Pull The Steering Wheel To The Right And Apply The Brake, I Think The Damage Would Have Been Greater."),
+        new(
+            $"{CorpusRoot}/FW 03.msg",
+            "34e712ed176dc36135ed4e55badea0ff3c9897a8ea6d25fbad976e590223e45f",
+            "Mr Mohammed Zafran", "29667-01", "RX66FLG", "Toyota PRIUS",
+            new(2026, 4, 30), new(2026, 5, 6), "Soho Avenue, Brimingham", null,
+            "Our Client Stopped behind a Vehicle in traffic when tp reversed and hit Our Clients Vehicle on the Front Driverside he reversed as he went over the lane for opposite traffic"),
+        new(
+            $"{CorpusRoot}/FW 04.msg",
+            "071dd9a8f16c16b368d52742848fae65fb1d79912e176a4abc49163a76b724d1",
+            "Mr Mebrahtom Debesay", "29680-01", "KP22LRL", "Toyota COROLLA DESIGN HEV CVT",
+            new(2026, 5, 5), new(2026, 5, 6), "Water Orton Lane",
+            "Somstar Recovery & Storage Land Of Rea Street & Moseley Street Birmingham B5 6JX 07462530375",
+            "Our Client Was Driving In Their Lane When They Saw Another Vehicle Attempting To Overtake A Stationary Bus And And Move Into Their Path. Our Client Slowed Down And Came To A Stop To Avoid A Collision. However, Tp Continued Driving In Our Client's Lane And Hit Our Client's Vehicle Head On. Dashcam Footage Available."),
+        new(
+            $"{CorpusRoot}/FW 05.msg",
+            "cd6df4397aec439baa5223bb549a4e0579ab9e6c09fc935e5159f3ac10a5bfa3",
+            "Mr Yunus Mohammed Abdul Amin", "29674-01", "RE05XEX", "Honda CIVIC TYPE R",
+            new(2026, 5, 4), new(2026, 5, 5), "Lancefield St",
+            "Somstar Recovery & Storage Land Of Rea Street & Moseley Street Birmingham B5 6JX 07462530375",
+            "Our Clients Vehicle Was Parked On Lancefield St When Tp Drove By And Hit His Rear Passenger Side On Our Clients Front Side Causing Damage To The Vehicle And Client Seen The Whole Thing As He Was Not Far From The Vehicle")
+    ];
+
     private static IInstructionExtractionPolicy[] Policies() =>
-        [new QdosInstructionExtractionPolicy(), new PchInstructionExtractionPolicy()];
+        [
+            new QdosInstructionExtractionPolicy(),
+            new PchInstructionExtractionPolicy(),
+            new FwInstructionExtractionPolicy()
+        ];
 
     [ReferencePackFact]
     public async Task EveryLabelledOriginalSelectsItsProfileAndMisidentifiesNothing()
@@ -357,6 +458,53 @@ public sealed class Top15InstructionCorpusTests
             readable > 0,
             "No labelled original could be read completely, so nothing was measured.");
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [ReferencePackFact]
+    public async Task FairwayOriginalsProduceExactCurrentInstructionFields()
+    {
+        var root = PackRoot();
+        var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
+        var policy = new FwInstructionExtractionPolicy();
+        var selector = new InstructionExtractionPolicySelector([policy]);
+
+        foreach (var expectation in FwExpectations)
+        {
+            var absolute = Path.Combine(
+                root,
+                expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            var bytes = await File.ReadAllBytesAsync(absolute);
+            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            Assert.Equal(expectation.Sha256, sha256);
+
+            var read = await reader.ReadAsync(
+                Source(bytes, Path.GetFileName(absolute), sha256),
+                CancellationToken.None);
+            Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
+            Assert.False(read.IsIncomplete);
+            var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
+            Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+
+            var result = policy.Extract(
+                read,
+                ProcessedAtUtc,
+                new("FW", policy.DocumentProfileKey, policy.DocumentProfileVersion));
+            var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+            Assert.Equal(expectation.Claimant, draft.ClaimantName);
+            Assert.Equal(expectation.Reference, draft.ClaimNumber);
+            Assert.Equal(expectation.Registration, draft.VehicleRegistration);
+            Assert.Equal(expectation.Vehicle, draft.VehicleMake);
+            Assert.Equal(expectation.IncidentDate, draft.DateOfIncident);
+            Assert.Equal(expectation.InstructionDate, draft.InstructionDate);
+            Assert.Equal(
+                expectation.AccidentLocation,
+                Assert.Single(result.Fields, field => field.Name == "Accident location").SuggestedValue);
+            Assert.Equal(expectation.InspectionLocation, draft.InspectionAddress);
+            Assert.Equal(expectation.Circumstances, draft.AccidentCircumstances);
+            Assert.DoesNotContain(result.Fields, field => field.HasConflict);
+            Assert.All(result.Fields.SelectMany(field => field.Candidates), candidate =>
+                Assert.Contains("message body", candidate.SourceLabel, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     /// <summary>
