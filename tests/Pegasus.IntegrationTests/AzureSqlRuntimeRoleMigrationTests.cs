@@ -589,6 +589,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             "SELECT COUNT(*) FROM [dbo].[ApprovedMailboxes] WHERE [State] = N'Approved' AND [MailboxGeneration] <> 1"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.check_constraints WHERE [name] = N'CK_ApprovedMailboxes_MailboxGeneration' AND [is_disabled] = 0 AND [is_not_trusted] = 0"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE [object_id] = OBJECT_ID(N'[dbo].[DocumentVersions]') AND [name] = N'PendingContentStorageKey' AND [max_length] = 400 AND [is_nullable] = 1"));
         Assert.Equal(
             tables,
             await ReadValuesAsync(
