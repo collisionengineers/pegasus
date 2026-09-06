@@ -212,3 +212,7 @@ Wave 16 build failed: the reverted A-owned `DocumentCustodyDurabilityTests.cs` s
 ## C06 review at `556a26b1a`: needs-changes (2 blockers, 3 majors, 10 minors)
 
 Blockers = the two wave-15 failures (EvaSubmission required dependency; two non-nullable Reason/OperationKey pairs invalidating ModelState). Majors: default-location history written with `before: null`; item 6 untested (QDOS→IBA unasserted); unordered `.Take(500)` before in-memory prefix filter. Forwarded to the running round-2 implementer to fold in; wave + targeted re-review follow. Wave 18 (C07 caller `6c8b945bd`): build/core 11/architecture PASS, integration 58/60 with the only failures A-owned durability seeds; C07b review pending.
+
+## C07 caller review at `6c8b945bd`: needs-changes (4 majors, 4 minors)
+
+R-1 replay can double-count link counters when no receipt is written; R-2 Pending hand-over writes a receipt so later submissions are refused as Replay and nothing sweeps Pending; R-3 a thrown hand-over leaves the arrival `pending` (must be `unknown`) so bytes may be re-offered; R-4 Pending renders upload success. Controller accommodation `6c8b945bd` judged correct and minimal; A-owned lane failures confirmed as the seeded-QDOS collision only. Correction round queued (next free editor slot, ahead of C08).
