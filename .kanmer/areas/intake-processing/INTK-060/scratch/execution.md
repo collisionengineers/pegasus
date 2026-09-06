@@ -77,3 +77,7 @@ Labelling pass dispatched (Sonnet, read-only): independent expected-candidate se
 - Small fixes: A07 hunk branch `task/pegasus-v1-c-a07-hunks` = `c40b9d6e8` + `2855d4a97` pushed; c01 gained `e80862f37` (negative-test baseline from the seeded estate) and `fea61abb8` (QDOS seed dedupe in `LayoutIntegrityTests`, `DocumentCustodyDurabilityTests`, `MailWorkspaceWebTests`).
 - Wave 2 runner dispatched (sequential): C07 attempt 2 focused lanes; A07 branch dashboard/corpus lanes; C01 focused lanes (+ negative/custody/mail suites); baseline whole-solution on the unmodified C head `0840c33a5` to separate foundation-inherited failures from slice regressions.
 - Typed-actor helper implementer (Opus) dispatched on `c-typed-actor-hunks` at the G9 boundary. Editors: C08 + typed-actor = 2.
+
+## 12:05Z — C08 slice 1 READY_FOR_TESTS (`32f9f3ee1`)
+
+Items 1,2,3,5,7,8 delivered; item 4 dropped (A07 hunk branch instead); item 6 partial: Compose/New done, Reply/ReplyAll/Forward blocked on A-owned `RetainedMailDetail` lacking the immutable Graph identity and on a mailbox generation/send-enabled query (both requested from A for the next G). Correction requested: `RailCountsPageFilter` must resolve `IGetAttentionRows` optionally until A's DI patch, otherwise every authenticated page test fails on the standalone branch. C08 wave queued after wave 2. Snapshot/catalogue changes handed to A (`/Inbox/Compose` entry).
