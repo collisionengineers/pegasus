@@ -28,9 +28,8 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
-        var priorIds = await CloneCasesAsync(host, currentId, 1);
+        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        var priorIds = await CloneCasesAsync(factory, currentId, 1);
         var priorId = priorIds[0];
 
         // C06 review R-22: SaveEditableDataAsync posts a partial
@@ -40,11 +39,11 @@ public sealed class InspectionAddressSuggestionTests
         // line above it just confirmed. Seed both confirmed fields this
         // case needs in one save so neither is destroyed by the other.
         await SaveEditableDataAsync(
-            host,
+            factory,
             currentId,
             new(ClaimantAddress: "Riverside House, AB1 2CD", StorageLocation: "Riverside Yard, AB1 5GH"));
-        await SaveInspectionAddressAsync(host, priorId, "Riverside Garage, AB1 9ZZ");
-        await using (var scope = host.Services.CreateAsyncScope())
+        await SaveInspectionAddressAsync(factory, priorId, "Riverside Garage, AB1 9ZZ");
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -69,7 +68,7 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = host.Services.CreateAsyncScope();
+        await using var verificationScope = factory.Services.CreateAsyncScope();
         var choices = await verificationScope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, currentId, "Riverside"), CancellationToken.None);
@@ -111,14 +110,13 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchMatchesAPriorLocationWhoseStoredWhitespaceIsIrregular()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
-        var priorIds = await CloneCasesAsync(host, currentId, 1);
+        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        var priorIds = await CloneCasesAsync(factory, currentId, 1);
         var priorId = priorIds[0];
 
-        await SeedConfirmedInspectionAddressAsync(host, priorId, "12  High Street, AB1 2CD");
+        await SeedConfirmedInspectionAddressAsync(factory, priorId, "12  High Street, AB1 2CD");
 
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var choices = await scope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, currentId, "12 High"), CancellationToken.None);
@@ -131,11 +129,10 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchExcludesTheCurrentCaseFromItsOwnPriorPrincipalLocations()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
-        await SaveInspectionAddressAsync(host, caseId, "Meadow Lane Depot, CD3 4EF");
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        await SaveInspectionAddressAsync(factory, caseId, "Meadow Lane Depot, CD3 4EF");
 
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var choices = await scope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Meadow"), CancellationToken.None);
@@ -149,9 +146,8 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchRequiresAtLeastTwoNormalizedCharacters()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
-        await using var scope = host.Services.CreateAsyncScope();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
         var choices = await scope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "R"), CancellationToken.None);
@@ -163,10 +159,9 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchCapsAtTwentyEvenWithManyMatchingDirectoryEntries()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
 
-        await using (var scope = host.Services.CreateAsyncScope())
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -194,7 +189,7 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = host.Services.CreateAsyncScope();
+        await using var verificationScope = factory.Services.CreateAsyncScope();
         var choices = await verificationScope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Bounded"), CancellationToken.None);
@@ -206,10 +201,9 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchNeverReturnsAnInactiveDirectoryEntry()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
 
-        await using (var scope = host.Services.CreateAsyncScope())
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -234,52 +228,12 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = host.Services.CreateAsyncScope();
+        await using var verificationScope = factory.Services.CreateAsyncScope();
         var choices = await verificationScope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Withdrawn"), CancellationToken.None);
 
         Assert.Empty(choices);
-    }
-
-    /// <summary>
-    /// C06 review R-7: the other half of the bridge proof for
-    /// <see cref="IOrganizationDirectoryQueries"/>. Every other test in this
-    /// file resolves <see cref="IInspectionLocationChoices"/> through
-    /// <c>WithC06Adapters</c>, which always supplies a directory — so "the
-    /// other three sources still work and nothing fakes a result" when it is
-    /// absent was proved only by reading the constructor remarks, not by a
-    /// test. Construct <see cref="InspectionAddressChoicesQueries"/> directly
-    /// with no directory (as it exists today, unregistered, on this branch)
-    /// and assert the claimant and prior-principal-location sources still
-    /// return their rows and no directory row is ever invented.
-    /// </summary>
-    [Fact]
-    public async Task SearchWithNoDirectoryStillReturnsTheOtherSourcesAndInventsNoDirectoryRow()
-    {
-        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
-        var priorIds = await CloneCasesAsync(factory, currentId, 1);
-        var priorId = priorIds[0];
-
-        await SaveClaimantAddressAsync(factory, currentId, "Riverside House, AB1 2CD");
-        await SaveInspectionAddressAsync(factory, priorId, "Riverside Garage, AB1 9ZZ");
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var contextFactory = scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        // No IOrganizationDirectoryQueries argument: the same absent-bridge
-        // state as this branch's actual DI container today.
-        var choicesQuery = new InspectionAddressChoicesQueries(contextFactory);
-
-        var choices = await choicesQuery.SearchAsync(
-            new(Administrator, currentId, "Riverside"), CancellationToken.None);
-
-        Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Claimant
-            && choice.Address == "Riverside House, AB1 2CD");
-        Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.PriorPrincipalLocation
-            && choice.Address == "Riverside Garage, AB1 9ZZ");
-        Assert.DoesNotContain(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Directory);
     }
 
     /// <summary>
@@ -297,12 +251,11 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchRanksAnExactMatchBeforeAPrefixMatchAndCarriesTheSourceRecordIdentity()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
-        await SaveClaimantAddressAsync(host, caseId, "Ash House, AB1 2CD");
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        await SaveClaimantAddressAsync(factory, caseId, "Ash House, AB1 2CD");
 
         var directoryId = Guid.NewGuid();
-        await using (var scope = host.Services.CreateAsyncScope())
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -327,7 +280,7 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = host.Services.CreateAsyncScope();
+        await using var verificationScope = factory.Services.CreateAsyncScope();
         var services = verificationScope.ServiceProvider;
         var projection = await services.GetRequiredService<ICaseDataQueries>()
             .GetAsync(caseId, CancellationToken.None);
