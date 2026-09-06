@@ -195,6 +195,115 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
+    public async Task ActionLogsUnifiesSecurityEventsAndFiltersTheDisplayedReference()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.Add(new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = "case-reference",
+                EventKind = "case_saved",
+                ActorKind = "Staff",
+                ActorSubjectId = "action-actor",
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(-1),
+                Outcome = "Succeeded",
+                CorrelationId = "action-correlation"
+            });
+            context.SecurityEvents.Add(new SecurityEventEntity
+            {
+                Id = Guid.NewGuid(),
+                Type = "SignInFailed",
+                SubjectId = "security-subject",
+                OccurredAtUtc = now,
+                Outcome = "Denied",
+                CorrelationId = "security-correlation",
+                ReasonCode = "invalid_credentials"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var security = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security&Record=security-subject");
+        Assert.Contains("SignInFailed", security, StringComparison.Ordinal);
+        Assert.Contains("security-subject", security, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-reference", security, StringComparison.Ordinal);
+
+        var action = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Record=case-reference");
+        Assert.Contains("case_saved", action, StringComparison.Ordinal);
+        Assert.Contains("case-reference", action, StringComparison.Ordinal);
+        Assert.DoesNotContain("security-subject", action, StringComparison.Ordinal);
+
+        var oldest = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Sort=oldest");
+        Assert.True(
+            oldest.IndexOf("case-reference", StringComparison.Ordinal)
+            < oldest.IndexOf("security-subject", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ActionLogsPagesACombinedSqlResultSet()
+    {
+        const string actor = "combined-page-actor";
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            for (var index = 0; index < 51; index++)
+            {
+                var occurredAt = now.AddMinutes(-index);
+                context.ActionHistory.Add(new ActionHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    AggregateType = "Case",
+                    AggregateId = $"combined-action-{index:000}",
+                    EventKind = "case_saved",
+                    ActorKind = "Staff",
+                    ActorSubjectId = actor,
+                    ActorRolesJson = "[]",
+                    OccurredAtUtc = occurredAt,
+                    Outcome = "Succeeded",
+                    CorrelationId = $"combined-action-{index:000}"
+                });
+                context.SecurityEvents.Add(new SecurityEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Type = $"SignInFailed{index:000}",
+                    SubjectId = actor,
+                    OccurredAtUtc = occurredAt.AddSeconds(-30),
+                    Outcome = "Denied",
+                    CorrelationId = $"combined-security-{index:000}",
+                    ReasonCode = "invalid_credentials"
+                });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+        var page = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+
+        Assert.Contains("combined-action-050", page, StringComparison.Ordinal);
+        Assert.Contains("SignInFailed050", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("page=4", page, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task OldCasesSearchLinksRedirectToSearchWithTheirValuesIntact()
     {
         using var factory = new IntakeWebApplicationFactory();
