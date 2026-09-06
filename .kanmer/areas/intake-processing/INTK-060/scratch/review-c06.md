@@ -902,3 +902,262 @@ call — use `if (status != Redirect) { Assert.Fail($"…"); }` instead.
    into acceptance), and the `AdministrationPageModel.cs` deviation is not
    recorded (C06-R-23). C06-R-25 shows the pass did not sweep the two new test
    helpers.
+
+---
+kind: review-attestation
+verdict: pass
+supersedes: C06 review attestation (round 3, superseding) — head dc24438e2
+ticket: INTK-060
+slice: C06 — current principal, organization and address directory
+pr: "none — controller override: this slice head is reviewed in its worktree, not through a PR"
+head_sha: "f1519a2f9a804018333dbca2ff5a5fd020fc9a98"
+head: f1519a2f9
+correction_diff: git diff dc24438e2..f1519a2f9 (2 commits: 99985b6af, f1519a2f9;
+  1 file, 58 insertions, 6 deletions, tests only)
+slice_diff: git diff 930440465..f1519a2f9 (27 first-parent C06 commits,
+  30a5196c5 … f1519a2f9)
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c06
+branch: c06-directory
+review_round: 4 (targeted re-review of C06-R-21…R-25 plus a whole-slice sanity pass)
+independent: true
+reviewer: "pegasus-reviewer (not the implementer)"
+plan_hash: "62649b22a7e43d77"
+ticket_updated: "2026-09-06T17:00:35.239Z"
+board_sha: "c1949355149d977c70d7dea5df45690709a9ff1b"
+expected_reviewers: []
+threads_snapshot: []
+ownership: PASS with one recorded deviation (C06-R-23, now disclosed)
+frozen_signatures: PASS
+stop_conditions: none tripped
+evidence_binding: worktree HEAD f1519a2f9, tree clean (0 modified paths); head
+  committed 2026-09-06T17:47:36+01:00, Release binaries written
+  2026-09-06T17:49:29+01:00, wave 26 started 2026-09-06T17:57:19+01:00 and ran
+  lanes 2-6 --no-build against those binaries
+lanes_seen:
+  - {lane: 1-build, exit: 0, result: PASS, summary: "Build succeeded. 0 Warning(s), 0 Error(s)"}
+  - {lane: 2-core, exit: 0, result: PASS, summary: "Failed 0, Passed 61, Total 61"}
+  - {lane: 3-integration, exit: 0, result: PASS, summary: "Failed 0, Passed 38, Total 38"}
+  - {lane: 4-host, exit: 0, result: PASS, summary: "Failed 0, Passed 118, Total 118"}
+  - {lane: 5-browser, exit: 0, result: PASS, summary: "Failed 0, Passed 2, Total 2"}
+  - {lane: 6-architecture, exit: 0, result: PASS, summary: "Failed 0, Passed 100, Total 100"}
+findings:
+  - {id: C06-R-21, severity: blocker, disposition: fixed, summary: "the irregular-whitespace regression test seeded through ISaveCase, which collapses whitespace on write; now seeded at row level the way the intake-acceptance path leaves it (f1519a2f9)"}
+  - {id: C06-R-22, severity: blocker, disposition: fixed, summary: "the second partial save deleted the just-confirmed claimant address; Storage and claimant are now seeded in one save and all four union assertions are intact (99985b6af)"}
+  - {id: C06-R-23, severity: minor, disposition: fixed, summary: "the AdministrationPageModel.cs edit outside the C06 files map is now disclosed verbatim as a scope deviation on scratch/c06-notes and in the report"}
+  - {id: C06-R-24, severity: minor, disposition: accepted-risk, summary: "the SQL pre-filter is still narrower than NormalizeNamePrefix (NBSP and other Unicode whitespace) and non-sargable", reason: "the preferred remedy is a persisted normalized column needing an A-owned migration, out of scope for a C-side correction round; the consequence is a suggestion that is not offered, never lost or mis-saved data; recorded on scratch/c06-notes as a tracked A handoff"}
+  - {id: C06-R-25, severity: minor, disposition: accepted-risk, summary: "DescribeValidationErrorsAsync and its regexes are duplicated across two test files and the failure message is built on every passing assertion", reason: "test-only, follows the file's own InputTagRegex precedent, and moving it to IntakeWebTestSupport touches two further files outside this round's named scope; recorded on scratch/c06-notes for the next simplification pass"}
+  - {id: C06-R-26, severity: note, disposition: accepted-risk, summary: "SaveClaimantAddressAsync and SaveInspectionAddressAsync remain partial-record helpers, so two of them called in sequence on one case would still delete the earlier confirmed field", reason: "no live instance remains, and the comment at InspectionAddressSuggestionTests.cs:36-41 warns the next author in the exact terms of the mechanism; the merge fix stays available if a third caller needs it"}
+  - {id: C06-R-27, severity: note, disposition: accepted-risk, summary: "the R-21 seed writes UpsertConfirmed's fallback provenance triple, while a real accepted row usually inherits the underlying suggestion row's intake_evidence provenance", reason: "the prior-location query filters only on FieldName, ValueKind, CaseId, PrincipalId and Value and never reads provenance, so the fidelity gap cannot affect the behaviour under test"}
+skill_sha256:
+  - {file: "C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c06/.agents/skills/kanmer-review/SKILL.md", sha256: "5426f2e193a5aca413df78d2b8eb36f3de2903d00f3f574a409733d181e73e44"}
+  - {file: "C:/Users/PGUSER/documents/github/pegasus/.agents/skills/kanmer-review/SKILL.md", sha256: "addf26c9981cefa755a9db3a1ee06383432230708641b076ee336d64a1096741"}
+---
+
+# C06 review attestation (round 4, superseding) — head f1519a2f9
+
+Verdict is `pass`. Both round-3 blockers are genuinely fixed, and both
+fixes are test-only: the two commits over `dc24438e2` touch one file,
+`tests/Pegasus.IntegrationTests/InspectionAddressSuggestionTests.cs`
+(58 insertions, 6 deletions). No production line moved this round, which is the
+right shape — round 3's production fixes for R-17 and R-19 were already correct,
+and this review re-confirmed that before accepting the fixture changes.
+
+## C06-R-21 — FIXED (`f1519a2f9`)
+
+Verified in four steps rather than taking the report's word:
+
+1. **The premise is true.** `CaseDataOperations.Text` is
+   `string.Join(' ', value.Split((char[]?)null, RemoveEmptyEntries))` — every
+   whitespace run collapses on write, and `Normalize` routes `InspectionAddress`
+   through it (`CaseDataOperations.cs:153`, `:256-267`). `ISaveCase` genuinely
+   cannot produce the stored state this test needs.
+2. **The seed is legal and cannot collide.** `CaseDataFields` has primary key
+   `(CaseId, FieldName, ValueKind)` and check constraints on `ValueKind`,
+   `ValueType`, `SourceKind`, `PolicyVersion > 0` and the confirmed-row
+   `ConfirmedByActor`/`ConfirmedAtUtc` pair
+   (`CaseDataModelConfiguration.cs:39-77`). The seeded row satisfies every one.
+   `CloneCasesAsync` copies the case, the snapshot and the workflow but **no**
+   `CaseDataFields` rows, so the prior case holds no confirmed
+   `inspection_address` row for the `Add` to conflict with. Setting `CaseId`
+   alone is correct: `CaseId` *is* the snapshot foreign key
+   (`HasForeignKey(item => item.CaseId)`), so no navigation assignment is needed.
+3. **It mirrors the intake-acceptance path.**
+   `CaseDataSnapshotFactory.AddResolvedInspection` (`:295-364`) writes the
+   resolved value through `UpsertConfirmed` with `SourceKind = case_acceptance`
+   for `InspectionAddressResolutionState.Accepted`, `addressLabel =
+   "accepted inspection address"`, `PolicyKey`/`PolicyVersion` from
+   `Ext18InspectionAddressPolicy`, and `SourceIdentity =
+   snapshot.OriginIntakeReceiptId.ToString("D")` — the same six values the helper
+   writes — and `Ext18InspectionAddressPolicy.Evaluate` only `Trim()`s the
+   candidate (`:47-56`), so irregular interior whitespace really does survive
+   that path into the row.
+4. **The assertion is the right one.** `AddIfMatches`
+   (`InspectionAddressChoicesQueries.cs:245-282`) passes the raw `address`
+   argument straight into both `Label` and `Address`; `NormalizeNamePrefix` is
+   applied only inside the `StartsWith` test at `:266-269`. So
+   `choice.Address == "12  High Street, AB1 2CD"` asserts the stored value
+   verbatim, and the doubled space is what makes the test meaningful. The SQL
+   pre-filter collapses `"12  High Street…"` to `"12 High Street…"` and compares
+   it against the uppercased `namePrefix` `"12 HIGH"` under the database's
+   case-insensitive collation; `AddIfMatches` then re-applies the exact rule —
+   which is precisely the R-17 behaviour under proof.
+
+The `<remarks>` block on the test and the `<summary>` on the helper both name
+`Ext18InspectionAddressPolicy` and `CaseDataOperations.Text` as the reason
+`ISaveCase` cannot be used, as round 3 asked.
+
+## C06-R-22 — FIXED (`99985b6af`)
+
+`EfCaseDataStore.SetConfirmed` (`:369-388`) removes the confirmed row whenever
+the incoming value is `null`, so the root cause round 3 pinned is real. The fix
+seeds `ClaimantAddress` and `StorageLocation` in one `SaveEditableDataAsync`
+call (`InspectionAddressSuggestionTests.cs:42-45`), and the now-unused
+`SaveStorageLocationAsync` helper is removed rather than left dead.
+
+All four union assertions are intact and unmodified — Claimant (`:77-78`),
+Storage (`:82-83`), PriorPrincipalLocation (`:84-85`), Directory (`:86-87`) —
+plus the `<= 20` cap and the `DistinctBy(Id)` assertions (`:88-89`). Nothing was
+weakened to make the lane pass. The prior case's inspection address is still
+saved separately (`:46`), which is safe: it is a different case, so no
+destructive second save on a single case remains anywhere in the file.
+
+The implementer took the review's smaller option (seed both in one save) over
+its stated "better fix" (make `SaveEditableDataAsync` merge onto `current.Data`)
+and recorded that choice with its reason on `scratch/c06-notes`. Sound for a
+correction round: the merge would change behaviour for every caller of all three
+save helpers.
+
+## C06-R-23 — CLOSED
+
+The deviation is now disclosed in both required places. `scratch/c06-notes`
+carries the verbatim line **"DEVIATION — `AdministrationPageModel.cs` was edited
+outside the C06 files map in round 3 (commit `9710ef998`), authorized by the
+round-2 review's C06-R-16 fix option 1, behaviour-neutral, not reverted"**, and
+the report's `## Correction round 4` repeats it. No code change was asked for
+and none was made.
+
+## C06-R-24, C06-R-25 — open, dispositioned `accepted-risk`
+
+Both deferrals are sound and correctly scoped:
+
+- **R-24** (the SQL pre-filter is still narrower than `NormalizeNamePrefix` for
+  NBSP and the other Unicode whitespace classes, and is non-sargable). The
+  review's own preferred remedy is a persisted normalized column, which needs an
+  A-owned migration — genuinely outside a C-side correction round. The
+  consequence is bounded: a prior address stored with an NBSP is dropped from
+  *suggestions*; nothing is lost, mis-saved or mis-attributed. It must travel to
+  A as a named handoff rather than evaporate, which `scratch/c06-notes` records.
+- **R-25** (duplicated `DescribeValidationErrorsAsync` and eagerly built failure
+  messages) is test-only, follows the file's own `InputTagRegex` precedent, and
+  touching two further test files was outside this round's named scope.
+
+## C06-R-26 — NOTE (new, non-blocking, `accepted-risk`)
+
+`SaveClaimantAddressAsync` and `SaveInspectionAddressAsync` remain partial-record
+helpers, so a future fixture calling two of them in sequence against one case
+will still silently delete the earlier confirmed field — the R-22 trap, left
+armed for the next author. No live instance remains, and the comment at
+`InspectionAddressSuggestionTests.cs:36-41` warns the next reader in the exact
+terms of the mechanism, which is why this is a note and not a minor. The merge
+fix stays available if a third caller ever needs it.
+
+## C06-R-27 — NOTE (new, non-blocking, `accepted-risk`)
+
+A fidelity nit in the R-21 seed. `UpsertConfirmed` prefers the provenance of a
+matching underlying `fact`/`suggestion` row (`underlying?.SourceKind ??
+fallbackSourceKind`, `CaseDataSnapshotFactory.cs:477-481`), and the accepted
+path normally *has* one, because `AddExtractedValue` writes the suggested
+inspection address first (`:244-258`). A real accepted row therefore usually
+carries the extraction's `intake_evidence` provenance rather than the
+`case_acceptance` / `"accepted inspection address"` / Ext18 fallback triple the
+seed writes; the helper mirrors the less common branch. It changes nothing under
+test — the prior-location query filters only on `FieldName`, `ValueKind`,
+`CaseId`, `PrincipalId` and `Value` (`InspectionAddressChoicesQueries.cs:166-176`)
+and never reads provenance — so no action is required.
+
+## Whole-slice sanity pass — `git diff 930440465..f1519a2f9`
+
+This is expected to be the final C06 head, so ownership and contract checks were
+re-run over the whole slice rather than the round-4 delta.
+
+**Ownership — PASS with the one recorded deviation.** The two-dot stat over that
+range shows 73 files, but most arrive on the shared branch. The C06-authored set
+is the 27 first-parent non-merge commits from `30a5196c5` to `f1519a2f9`, and it
+touches exactly 27 files. Every one is inside "### C06 files" or is a new C06
+test file (`C06AdapterRegistrations.cs`, `OrganizationDirectoryWebTests.cs`,
+`OrganizationDirectoryPersistenceTests.cs`, `ClaimSourceAdministrationTests.cs`,
+`InspectionAddressSuggestionTests.cs`, and the two new Core test files), except
+`src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs` — the disclosed
+C06-R-23 deviation.
+
+Verified by explicit ancestry probe (`git merge-base --is-ancestor …
+task/pegasus-v1-intake`) that `f81932aa0` (Triage/Details), `15518699c`
+(Operations/Index, OperatorLabels), `d9c6e6ed2`, `d2b50f46e` and `2b6b5ed37` are
+all shared-branch commits that entered through the four merges, not C06 edits.
+Their files (`Pages/Triage/*`, `Pages/Operations/*`,
+`Presentation/OperatorLabels.cs`, `MultiFormatGenuineCorpusWebTests.cs`, the
+corpus and reference-data blobs) are correctly absent from the C06-authored set.
+
+**No A-owned edit.** `Persistence/DependencyInjection.cs`,
+`Persistence/Migrations/**`, `*ModelSnapshot*`, `V1FoundationEntities.cs`,
+`V1FoundationModelConfiguration.cs`, `CaseDataEntities.cs`,
+`CaseDataModelConfiguration.cs`, `Program.cs`, every `.csproj` and
+`Pegasus.slnx` appear in no C06 commit. `.worktrees/kanmer` and `kanmer-board`
+untouched; no package added.
+
+**Frozen contracts — PASS.** Over the whole range,
+`src/Pegasus.Core/Cases/OrganizationDirectory.cs` (+79) and
+`src/Pegasus.Core/Cases/ClaimSourceAdministration.cs` (+132) are **purely
+additive** — zero deleted lines in either — so `OrganizationDirectoryRecord`,
+`OrganizationDirectoryQuery`, `IOrganizationDirectoryQueries`,
+`ClaimSourceRecord`, `IClaimSourceAdministration` and `IClaimSourceQueries` are
+byte-identical to `930440465`.
+`src/Pegasus.Core/Address/InspectionAddressResolution.cs` is not modified at
+all. The 20-row cap still lives once, in
+`InspectionLocationMatchPolicy.MaximumResultLimit`, with `ClampLimit` the only
+caller-facing door.
+
+**`EvaAutomaticSubmission` not reintroduced.** No C06 surface reads or offers
+it: `PlanPrincipalEvaSubmissionUpdate` forces it false and counts a persisted
+`true` as a change (`OrganizationAdministration.cs:648-655`), the two
+construction sites pass `false` (`:430`, `:482`), and the settings page states
+the retirement in both the page model and the view. The remaining references are
+the B-owned `Eva/*` files, the A-owned entity and migration column, and the two
+request records on `CaseContracts.cs` that C06-R-11 already handed to B.
+
+**The fifteen seeded principals test is present and intact.**
+`FreshDatabaseSeedsExactlyTheFifteenFrozenPrincipalsOnce` in
+`tests/Pegasus.IntegrationTests/OrganizationAdministrationPersistenceTests.cs`
+still asserts `Assert.Equal(15, seeded.Count)` (`:468`), exactly one row per
+frozen id with its exact code, and the no-`HDUK`-principal rule. Untouched by
+rounds 3 and 4.
+
+## The three review questions
+
+1. **Did the plan miss anything the ticket implies?** Nothing new. The round-1
+   answer stands, and the three accepted deferrals (C06-R-6 suggestion picker,
+   C06-R-11 `CaseContracts.cs` handoff to B, C06-R-15 directory writer) are
+   unchanged and still correctly recorded.
+2. **Did the implementation miss anything in the plan?** No. With R-21 fixed,
+   the "prefix matches survive irregular stored whitespace" behaviour R-17
+   introduced is now actually proven rather than asserted against a value the
+   write path had already collapsed, and the union's Claimant coverage is
+   restored. Every plan output has a caller and a test.
+3. **Did the simplification pass run with honest dispositions?** Yes this round.
+   The report no longer claims a passing test that failed: the R-17 row is
+   superseded by an explicit fixture-defect account, both blockers name their
+   commit, and the two deferrals say plainly that they are deferred and why. The
+   R-22 entry volunteers that it took the smaller of the two offered options and
+   gives its reason. The one honest gap left is R-25 itself — the pass still has
+   not swept the duplicated test helper — and it is now recorded as such rather
+   than described as done.
+
+## Confirmed unchanged from rounds 1-3
+
+Frozen seeded-principal assertions, the seeded-estate fixes, the item 3-5
+matching rules (two-character minimum, cap 20 with no caller override,
+exact-before-prefix through the single `InspectionLocationMatchPolicy.IsExactMatch`
+owner, `DistinctBy(Id)` dedupe, four local sources, `Active` filter, full source
+triple), item 6's store behaviour including the `before` snapshot, item 7 on
+every C surface, and item 8's Administrator-only, versioned, reasoned,
+idempotent writes. No production file changed since `dc24438e2`.
