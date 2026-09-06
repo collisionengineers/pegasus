@@ -13,7 +13,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class TestUiFocusedRenderTests
 {
     [Fact]
-    public async Task AccountEditAndEmptyAccountStatesRenderThroughRazor()
+    public async Task AccountConfirmationAndEmptyAccountStatesRenderThroughRazor()
     {
         using (var populatedFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true))
         {
@@ -24,9 +24,9 @@ public sealed class TestUiFocusedRenderTests
                 accountId = users.Users.Select(user => user.Id).First();
             }
             using var client = IntakeWebDriver.CreateClient(populatedFactory);
-            using var edit = await client.GetAsync($"/Administration/Accounts/Edit/{accountId:D}");
-            edit.EnsureSuccessStatusCode();
-            Assert.Contains("Manage ", await edit.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            using var confirm = await client.GetAsync($"/Administration/Accounts/Confirm/Disable/{accountId:D}");
+            confirm.EnsureSuccessStatusCode();
+            Assert.Contains("Disable account", await confirm.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         }
 
         using var emptyFactory = new IntakeWebApplicationFactory(
