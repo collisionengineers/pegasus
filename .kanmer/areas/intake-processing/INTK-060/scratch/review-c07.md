@@ -395,3 +395,226 @@ keyset continuation, the PR 671 re-application with all five disposition correct
 the public session policy, the `RetainIncomingArtifact` invariants, the typed actors
 through every command, the note bound and the explicit assignment all verify in code.
 The two integration failures are A-owned and reproduce on the unmodified baseline.
+
+---
+verdict: needs-changes
+independent: true
+head: 2ba5e4e21d30a09047b854c549db4af3685e0e7c
+reviewed_at: 2026-09-06T14:34:00Z
+supersedes: "attestation at b46a07452c41b9636158a50f668274e1e7d17e3f (2026-09-06T14:10:00Z)"
+slice: C07 (owner ticket INTK-060, three-owner/three-PR exception — no per-slice PR)
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c07
+branch: c07-precase
+re_review_diff: b46a07452..2ba5e4e21 (4 files, +266/-12)
+ownership_check: PASS — no A-owned file changed, in this round or cumulatively
+prior_findings: 8 raised at b46a07452 — all 8 correctly dispositioned (4 fixed, 4 accepted with reasons)
+new_findings: 1 (C07-R-9, major)
+tests_cited:
+  - "wave7-tests/1-build.md: dotnet build ./Pegasus.slnx --configuration Release --no-restore — exit 0, PASS, 0 warnings 0 errors"
+  - "wave7-tests/2-core.md: Core.Tests filtered — exit 0, PASS, 207/207, 112 ms"
+  - "wave7-tests/3-integration.log + .exit: exit 1, FAIL, 68 passed / 4 failed of 72; all four failures are the new IncomingArtifactCustodyTests, all at IncomingArtifactCustodyTests.cs:146"
+findings:
+  - id: C07-R-9
+    severity: major
+    status: open
+    file: tests/Pegasus.IntegrationTests/IncomingArtifactCustodyTests.cs:36,90,146
+    statement: >
+      C07-R-2's closure proof does not execute. All four new tests —
+      APendingRecordAfterAConfirmedOneLeavesTheRemoteIdentitiesIntact and the three
+      ANonConfirmedRecordNeverWritesARemoteIdentity theory cases — fail in the fixture
+      before reaching a single assertion, with
+      "System.InvalidOperationException : Cannot resolve scoped service
+      'Pegasus.Core.Intake.IIntakeReceiptStore' from root provider."
+      Both test methods call SeedSessionAsync(factory.Services) at :36 and :90, passing the
+      root provider; SeedSessionAsync then hands it to
+      TriageQueuesWebTests.StoreMinimalReceiptAsync at :146, which resolves the scoped
+      IIntakeReceiptStore at TriageQueuesWebTests.cs:932. Every sibling suite opens a scope
+      first ("await using var scope = factory.Services.CreateAsyncScope(); var services =
+      scope.ServiceProvider;"); this file is the only place in the project that resolves
+      from the root, and ImageIntakeTestData.SeedCaseAsync only survives it because it
+      opens its own scope internally. Consequences: the C07-R-2 fix is verified by reading
+      but has no executing proof, so the report's "real-SQL proof" claim is not yet true;
+      EfPublicUploadRetentionStore.FindAsync's new single-subquery form and
+      ScopeOperationKey's "first caller" (both C07-R-8) are likewise unexercised; and the
+      integration lane's failures are now C-owned, where at b46a07452 the only two were
+      A-owned and reproduced on the baseline.
+    required_disposition: >
+      Open a scope for the seeding. Either pass scope.ServiceProvider from both test
+      methods, or — cleaner, since SeedSessionAsync already owns its own context — wrap the
+      receipt seed inside it: "await using var seedScope = services.CreateAsyncScope();"
+      then "TriageQueuesWebTests.StoreMinimalReceiptAsync(seedScope.ServiceProvider,
+      "incoming-artifact-custody.pdf")". While there, resolve
+      IDbContextFactory<PegasusDbContext> at :38 and :92 through the same scope rather than
+      the root provider, matching the rest of the suite. Then re-run the integration lane:
+      the expected result is 4 more passing tests and only the two A-owned baseline
+      failures remaining.
+  - id: C07-R-1
+    severity: major
+    status: closed
+    file: src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs:634-661
+    statement: >
+      Required the missing UPDATE grant on [dbo].[PublicUploadOccurrences] to be stated as
+      an A handoff. Closed, and answered more completely than asked.
+    verification: >
+      INTK-060 scratch/c07-notes now carries "OPEN QUESTION 1 (C07-R-1)" as an unchecked
+      item with the exact statement "GRANT UPDATE ON OBJECT::[dbo].[PublicUploadOccurrences]
+      TO [pegasus_web_runtime_role];", and the report's Correction round 3 repeats it with
+      the grant evidence quoted from 20260906054658_V1PlatformFoundation.cs:1319-1320. The
+      worker-role grant is correctly left conditional on where A registers the Unknown
+      reconciliation caller rather than guessed at. The added claim that DocumentVersions
+      needs nothing is true and I checked it: 20260729199000_RuntimeRoleReconciliation.cs
+      carries ("DocumentVersions", "SELECT, INSERT, UPDATE") in WebGrants at :126 and in
+      WorkerGrants at :232 (the report cites :230; the entry is at :232 — a citation slip,
+      not a wrong claim). No migration was touched.
+  - id: C07-R-2
+    severity: major
+    status: closed
+    file: src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs:644-661
+    statement: RecordAsync nulled a document version's Box identities on every non-Confirmed disposition.
+    verification: >
+      Fixed at 9037b11a2, and fixed more strongly than my required disposition. The whole
+      assignment block is now guarded on
+      "artifact.State == IncomingArtifactCustodyState.Confirmed && artifact.DocumentVersionId
+      is { } versionId", and inside it the writes are
+      "version.BoxFileId = artifact.BoxFileId ?? version.BoxFileId" — so it never assigns
+      null, and a Confirmed record that arrives without an identity also cannot erase one.
+      The comment now states the shared-version reasoning. The report owns the defect
+      plainly. The proof is written but does not run: see C07-R-9.
+  - id: C07-R-3
+    severity: minor
+    status: closed
+    file: src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs:536-545
+    statement: PR 671 disposition flag C11(a) — reusing LifecycleVersion as the principal-write token — was undispositioned.
+    verification: >
+      Recorded, in the place I asked for it: a new <remarks> block on SetPrincipalAsync
+      states one Image Intake, one optimistic token; that a principal save does invalidate a
+      concurrently-open Merge or Close form and that this is the intended trade, because a
+      second token would let two staff members write the same record each believing they held
+      the current version; and that a same-value re-submission leaves the version alone, so
+      only a genuine change can invalidate a form. Mirrored as "DECISION (C07-R-3)" in
+      INTK-060 scratch/c07-notes.
+  - id: C07-R-4
+    severity: minor
+    status: accepted
+    file: tests/Pegasus.IntegrationTests/PublicUploadSessionTests.cs:8-24
+    verification: >
+      Accepted and now stated as deliberate in the suite's own remarks: the plan names this
+      path, the runner filter reads it from this project, tests/Pegasus.Core.Tests/Documents/
+      is outside the slice's file scope (M5), and it moves with its filter when the accept
+      path is wired (A04). That is the honest disposition; nothing further is owed.
+  - id: C07-R-5
+    severity: minor
+    status: accepted
+    verification: >
+      Accepted as a residual and recorded as an unchecked item in INTK-060 scratch/c07-notes
+      ("Prove the T reference survives ILinkTriageCase, with plan item 3"), assigned to the
+      slice that owns the formal-instruction path. The safety argument is restated correctly.
+  - id: C07-R-6
+    severity: minor
+    status: accepted
+    verification: >
+      Accepted as documented, with a reason I agree with: packing the sequence into the
+      opaque sort key is the right fix but changes the cursor payload, and making that change
+      on a seam with no production caller and no ability to run a test is how a silent paging
+      bug ships. Revisit when the Cases triage tab moves onto IListTriagePage.
+  - id: C07-R-7
+    severity: nit
+    status: accepted
+    verification: >
+      Accepted as deviation 4, no change, and the residual I named — a constant extra read
+      per request would still pass — is restated plainly rather than smoothed over.
+  - id: C07-R-8
+    severity: nit
+    status: closed
+    file: src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs:609-628
+    statement: Two subqueries over DocumentVersionEntity for identities on the same row; ScopeOperationKey had no caller.
+    verification: >
+      FindAsync now uses one subquery projecting both identities into an anonymous row, read
+      back as "row.Remote?.BoxFileId" / "row.Remote?.BoxVersionId". Behaviour-preserving at
+      both edges — a null DocumentVersionId and a matched version with null identities both
+      still yield null — and it mirrors the existing house idiom "row.Association?.IsActive"
+      at EfImageIntakeStore.cs:969-993. ScopeOperationKey gains its first caller in
+      IncomingArtifactCustodyTests, which also pins the scoping format the accept path must
+      use; that caller does not currently execute (C07-R-9).
+  - id: C07-R-0
+    severity: nit
+    status: closed
+    statement: files_touched omitted four PR 671 files.
+    verification: >
+      Corrected in the report with an accurate explanation — they arrived on the WIP
+      carry-over commit rather than one of the implementer's own, and all four are C-owned.
+---
+
+# C07 superseding attestation — INTK-060 slice C07, head `2ba5e4e21`
+
+This replaces my attestation at `b46a07452`. Targeted re-review of the dispositions only,
+per the coordinator's request. Read-only: I made no edit, ran no test, pushed nothing,
+opened and merged no PR, and moved no ticket. No `get_execution_packet`, `gh pr view`,
+`gh pr merge`, `move_item`, `update_item` or `set_ticket_doc` call was made; my only
+Kanmer write is this attestation on INTK-060 `scratch/review-c07`. I remain independent
+of the implementer.
+
+## Scope of the re-review
+
+`git rev-parse HEAD` = `2ba5e4e21d30a09047b854c549db4af3685e0e7c` on `c07-precase`.
+`git diff b46a07452..2ba5e4e21 --stat` is four files, +266/-12, over two commits:
+`9037b11a2` (the major) and `2ba5e4e21` (the minors). The A-owned filter over
+`git diff --name-only b46a07452..2ba5e4e21` returns nothing — ownership still PASS, and no
+migration was touched, which is what C07-R-1 required.
+
+## All eight prior findings are correctly dispositioned
+
+Four fixed — R-2 and R-3 as I required, R-8 and the `files_touched` omission as noted.
+Four accepted with reasons that hold up, and each accepted residual is recorded on the
+ticket rather than only in a report: R-4 as a stated-deliberate note in the suite's own
+remarks, R-5 as an unchecked follow-up item, R-6 and R-7 with their trade-offs named. The
+R-1 statement is exact and goes further than I asked, verifying that `DocumentVersions` is
+already granted for both roles and correctly leaving the worker grant conditional on where
+A registers the reconciliation caller instead of guessing. The R-2 fix is stronger than my
+required disposition: guarding on `Confirmed` *and* coalescing with `?? version.BoxFileId`
+means it can neither assert an unproven identity nor erase a true one. The report's
+`## Correction round 3` owns the defect without hedging, and the added
+`## Simplification pass` is a real pass over the slice's own diff with two named residuals
+and one thing deliberately not done — not a checklist.
+
+**Behaviourally, this head is strictly better than `b46a07452`.** The production change is
+correct on reading, and it replaces code that was actively destructive.
+
+## One new major: the closure proof does not run
+
+Wave 7's build is green (0 warnings, 0 errors) and Core is 207/207 in 112 ms. The
+integration lane is exit 1 with 68 passed / 4 failed of 72, and **all four failures are the
+new `IncomingArtifactCustodyTests`** — the file that exists to close C07-R-2. Every one of
+them dies in the fixture at `IncomingArtifactCustodyTests.cs:146` with
+
+```
+System.InvalidOperationException : Cannot resolve scoped service
+'Pegasus.Core.Intake.IIntakeReceiptStore' from root provider.
+```
+
+`SeedSessionAsync(factory.Services)` at `:36` and `:90` passes the **root** provider, and
+`SeedSessionAsync` hands it to `TriageQueuesWebTests.StoreMinimalReceiptAsync`, which
+resolves the scoped `IIntakeReceiptStore` at `TriageQueuesWebTests.cs:932`. Every sibling
+suite opens `factory.Services.CreateAsyncScope()` first; this file is the only place in the
+project that resolves from the root, and `ImageIntakeTestData.SeedCaseAsync` only survives
+the same argument because it opens its own scope internally — which is exactly why the
+pattern looks like it should work.
+
+So no assertion in either test ever executes. The R-2 fix is verified by reading but
+unproven by running, the report's "real-SQL proof" claim is not yet true, R-8's new
+`FindAsync` shape and `ScopeOperationKey`'s first caller are unexercised for the same
+reason, and the integration lane's failures are now C-owned where at `b46a07452` the only
+two were A-owned and reproduced on the unmodified baseline. A test that never reaches its
+assertions is not evidence, so this cannot be signed off as `pass` on the strength of my
+reading alone — the whole point of the new file is that the invariant is proved against
+real SQL. The fix is one scope; see C07-R-9's required disposition.
+
+## Verdict
+
+**needs-changes**, on C07-R-9 alone. Everything I raised at `b46a07452` is closed or
+honestly accepted, and the two majors that produced the previous verdict are genuinely
+resolved in the code. What remains is a fixture defect in the new test file: open a scope
+for the seeding, resolve the context factory through it, and re-run the integration lane.
+The expected result is four more passing tests and only the two A-owned baseline failures
+(`ConcurrencyTokenPersistenceTests.cs:206` and `QdosAllocationRecoveryTests.cs:1446`)
+remaining — at which point this slice passes.
