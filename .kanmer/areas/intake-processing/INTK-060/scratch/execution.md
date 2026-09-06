@@ -288,3 +288,7 @@ R-12 (uncertainty by Core semantics; `System.Net.Http` gone from the built Core 
 ## Checkpoint — GitHub relays and C06 round 4
 
 Board sync paused for A: C07 status-read contract gap + two options posted as PR 673 comment 5560698342. B handoff (comment 5560632798) answered in comment 5560702xxx: `_Layout.cshtml` `case-workspace.css` link goes into C08's next shell commit; Case-vehicle labels stay B-owned; documents/chase `RequestUploadPolicy` Recipient/Reason + labels to be answered from the CASE-047 B01 table with the C07 slice. C06 round 4 at `f1519a2f9` (fixture fixes only; R-23 disclosed; R-24/R-25 deferred); re-review dispatched; wave 26 queued behind wave 24 (C08) and wave 25 (C07 caller) on LocalDB. Editors: C05 r3 only; C08 round 2 (B's stylesheet link + wave-24 findings) next.
+
+## B01 C handoff (PR 670) queued as C07 follow-up
+
+F carries `RequestUploadLinkEntity.Recipient/Reason`; C owes `CreateRequestUploadLinkCommand`/`RequestUploadLink` Recipient (required ≤500) / Reason (optional ≤1000), `NormalizeCreate`, store replay-snapshot compare + projections, and `OperatorLabels.CaseWorkspace.{Recipient,Reason,Content,RecordChase}` (C08 labels batch). Shapes posted to B on PR 673; the policy/store half lands as the next C07 commit set after the retention-caller slice integrates (same files). `IntakePersistenceIntegrationTests` migration-list item is moot under the single v1 migration.
