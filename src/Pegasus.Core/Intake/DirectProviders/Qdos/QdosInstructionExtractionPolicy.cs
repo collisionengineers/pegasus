@@ -692,7 +692,10 @@ public sealed partial class QdosInstructionExtractionPolicy
             }
 
             var cut = ColumnCutRegex().Split(line, 2)[0].Trim();
-            if (cut.Length > 0)
+            // A row that is only the next column's label, left behind by the
+            // cut, states nothing about this party and is skipped rather than
+            // ending the block: the address rows continue beneath it.
+            if (cut.Length > 0 && !cut.EndsWith(':'))
             {
                 block.Add(cut);
             }
