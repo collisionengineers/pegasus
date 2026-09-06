@@ -5,6 +5,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
@@ -26,6 +27,8 @@ public sealed class MessageModel(
     MoveRetainedMailFolder moveRetainedMailFolder,
     IUploadCaseDecision caseDecision,
     IGetCase getCase,
+    IStaffMailSend staffMailSend,
+    IApprovedMailboxStore approvedMailboxes,
     IGetIntake getIntake,
     IAcquireCaseEditLease acquireCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
@@ -110,6 +113,30 @@ public sealed class MessageModel(
     [BindProperty]
     public string? MoveOperationKey { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "compose")]
+    public string? CorrespondenceMode { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "mailOperationId")]
+    public Guid? CorrespondenceOperationId { get; set; }
+
+    [BindProperty]
+    public long ExpectedCorrespondenceCaseVersion { get; set; }
+
+    [BindProperty]
+    public string? CorrespondenceTo { get; set; }
+
+    [BindProperty]
+    public string? CorrespondenceCc { get; set; }
+
+    [BindProperty]
+    public string? CorrespondenceSubject { get; set; }
+
+    [BindProperty]
+    public string? CorrespondenceBody { get; set; }
+
+    [BindProperty]
+    public string CorrespondenceOperationKey { get; set; } = NewOperationKey();
+
     [TempData]
     public string? ClassificationNotice { get; set; }
 
@@ -121,6 +148,9 @@ public sealed class MessageModel(
 
     [TempData]
     public string? QueryResponseNotice { get; set; }
+
+    [TempData]
+    public string? CorrespondenceNotice { get; set; }
 
     public RetainedMailDetail Detail { get; private set; } = null!;
 
@@ -182,6 +212,20 @@ public sealed class MessageModel(
     /// </summary>
     public bool OutsideListScope { get; private set; }
 
+    public ApprovedMailbox? CorrespondenceMailbox { get; private set; }
+
+    public CaseDetails? CorrespondenceCase { get; private set; }
+
+    public bool CorrespondenceSendBlocked { get; private set; }
+
+    public StaffMailOperation? CorrespondenceOperation { get; private set; }
+
+    public bool CanCorrespond => !CorrespondenceSendBlocked
+        && CorrespondenceMailbox is not null
+        && CorrespondenceCase is not null;
+
+    public bool CanReply => CanCorrespond && ReplyRecipients(Detail).To.Length > 0;
+
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         CancellationToken cancellationToken)
@@ -192,6 +236,11 @@ public sealed class MessageModel(
         }
 
         if (!TryParseListContext(out var listFolder))
+        {
+            return NotFound();
+        }
+        if (CorrespondenceMode is not null
+            && !TryComposeMode(CorrespondenceMode, out _))
         {
             return NotFound();
         }
@@ -222,7 +271,53 @@ public sealed class MessageModel(
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
+        await LoadRetainedOperationAsync(actor, cancellationToken);
+        if (!await LoadCorrespondenceContextAsync(actor, initializeForm: true, cancellationToken))
+        {
+            CorrespondenceMode = null;
+        }
         return Page();
+    }
+
+    public Task<IActionResult> OnPostReplyAsync(Guid id, CancellationToken cancellationToken) =>
+        SendCorrespondenceAsync(id, StaffMailComposeMode.Reply, cancellationToken);
+
+    public Task<IActionResult> OnPostReplyAllAsync(Guid id, CancellationToken cancellationToken) =>
+        SendCorrespondenceAsync(id, StaffMailComposeMode.ReplyAll, cancellationToken);
+
+    public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
+        SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
+
+    public async Task<IActionResult> OnPostReconcileCorrespondenceAsync(
+        Guid id,
+        Guid mailOperationId,
+        long expectedOperationVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+            return Forbid();
+        try
+        {
+            await staffMailSend.ReconcileAsync(
+                actor, mailOperationId, expectedOperationVersion, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        return RedirectToPage(new
+        {
+            id,
+            mailbox = MailboxFilter,
+            folder = FolderRouteValue,
+            pageNumber = PageRouteValue,
+            search = SearchTerm,
+            queue = QueueFilter,
+            unread = UnreadOnly ? "true" : null,
+            sort = OldestFirst ? "oldest" : null,
+            compose = CorrespondenceMode,
+            mailOperationId
+        });
     }
 
     public async Task<IActionResult> OnPostCreateQueryResponseAsync(
@@ -679,7 +774,314 @@ public sealed class MessageModel(
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
+        await LoadRetainedOperationAsync(actor, cancellationToken);
+        await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken);
         return Page();
+    }
+
+    private async Task<IActionResult> SendCorrespondenceAsync(
+        Guid id,
+        StaffMailComposeMode mode,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+            return Forbid();
+        if (!TryParseListContext(out _))
+            return NotFound();
+
+        CorrespondenceMode = ModeCode(mode);
+        try
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        RetainedMailDetail? detail;
+        try
+        {
+            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
+        if (detail is null)
+            return NotFound();
+        Detail = detail;
+
+        await LoadRetainedOperationAsync(actor, cancellationToken);
+        if (CorrespondenceSendBlocked)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The existing correspondence operation must finish or be resolved before another action.");
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        if (!await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken))
+        {
+            ModelState.AddModelError(string.Empty, "Correspondence is unavailable for this message.");
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        if (CorrespondenceCase!.Workflow.Version != ExpectedCorrespondenceCaseVersion)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The Case changed after this message was opened. Review it and try again.");
+        }
+        if (string.IsNullOrWhiteSpace(CorrespondenceSubject))
+            ModelState.AddModelError(nameof(CorrespondenceSubject), "A subject is required.");
+        if (string.IsNullOrWhiteSpace(CorrespondenceBody))
+            ModelState.AddModelError(nameof(CorrespondenceBody), "A message is required.");
+        if (!IsRetainedOperationKey(CorrespondenceOperationKey, detail.Summary.Id))
+        {
+            ModelState.AddModelError(
+                nameof(CorrespondenceOperationKey),
+                "The send operation has expired. Reload the message and try again.");
+        }
+
+        var (to, cc) = mode switch
+        {
+            StaffMailComposeMode.Reply => ReplyRecipients(detail),
+            StaffMailComposeMode.ReplyAll => ReplyAllRecipients(detail, CorrespondenceMailbox!.Address),
+            StaffMailComposeMode.Forward => (
+                ParseRecipients(CorrespondenceTo),
+                ParseRecipients(CorrespondenceCc)),
+            _ => ([], [])
+        };
+        if (to.Length == 0)
+            ModelState.AddModelError(nameof(CorrespondenceTo), "At least one recipient is required.");
+        if (to.Concat(cc).Any(recipient => !IsMailboxAddress(recipient.Address)))
+            ModelState.AddModelError(nameof(CorrespondenceTo), "Enter valid recipient addresses.");
+
+        if (!ModelState.IsValid)
+            return await ReloadAsync(actor, id, cancellationToken);
+
+        var original = new StaffMailOriginalMessage(
+            detail.Summary.Id,
+            detail.Summary.MailboxId,
+            detail.ImmutableMessageId,
+            detail.InternetMessageId,
+            detail.ConversationId);
+        try
+        {
+            var operation = await staffMailSend.SendAsync(
+                new(
+                    actor,
+                    CorrespondenceMailbox!.Id,
+                    CorrespondenceMailbox.Generation,
+                    StaffMailPurpose.GeneralCorrespondence,
+                    CorrespondenceCase.Summary.CaseId,
+                    CorrespondenceCase.Workflow.Version,
+                    mode,
+                    original,
+                    to,
+                    cc,
+                    CorrespondenceSubject!.Trim(),
+                    CorrespondenceBody!.Trim(),
+                    Attachments: [],
+                    CorrespondenceOperationKey.Trim()),
+                cancellationToken);
+            CorrespondenceOperation = operation;
+            if (operation.State == StaffMailState.Sent)
+                CorrespondenceNotice = "Correspondence sent.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        return RedirectToPage(new
+        {
+            id,
+            mailbox = MailboxFilter,
+            folder = FolderRouteValue,
+            pageNumber = PageRouteValue,
+            search = SearchTerm,
+            queue = QueueFilter,
+            unread = UnreadOnly ? "true" : null,
+            sort = OldestFirst ? "oldest" : null,
+            compose = ModeCode(mode),
+            mailOperationId = CorrespondenceOperation?.Id
+        });
+    }
+
+    private async Task<bool> LoadCorrespondenceContextAsync(
+        ActionActor actor,
+        bool initializeForm,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(Detail.ImmutableMessageId)
+            || Detail.Summary.Id == Guid.Empty
+            || Detail.Summary.MailboxId == Guid.Empty
+            || Detail.Summary.CaseId is not { } caseId
+            || caseId == Guid.Empty)
+        {
+            return false;
+        }
+
+        CorrespondenceCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
+        if (CorrespondenceCase is null || CorrespondenceCase.Workflow.Version <= 0)
+            return false;
+
+        var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
+        CorrespondenceMailbox = mailboxes.SingleOrDefault(item =>
+            item.Id == Detail.Summary.MailboxId
+            && item.State == ApprovedMailboxState.Approved
+            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+            && item.Generation > 0);
+        if (CorrespondenceMailbox is null)
+            return false;
+
+        var mode = StaffMailComposeMode.New;
+        if (CorrespondenceMode is not null
+            && !TryComposeMode(CorrespondenceMode, out mode))
+        {
+            return false;
+        }
+        if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+            && ReplyRecipients(Detail).To.Length == 0)
+        {
+            return false;
+        }
+        if (initializeForm && CorrespondenceMode is not null)
+        {
+            ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
+            CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
+            CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
+            var recipients = mode switch
+            {
+                StaffMailComposeMode.Reply => ReplyRecipients(Detail),
+                StaffMailComposeMode.ReplyAll => ReplyAllRecipients(Detail, CorrespondenceMailbox.Address),
+                _ => ([], [])
+            };
+            CorrespondenceTo = string.Join("; ", recipients.Item1.Select(item => item.Address));
+            CorrespondenceCc = string.Join("; ", recipients.Item2.Select(item => item.Address));
+        }
+        return true;
+    }
+
+    private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
+        RetainedMailDetail detail) =>
+        (ParseRecipients(detail.ReplyToAddresses), []);
+
+    private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyAllRecipients(
+        RetainedMailDetail detail,
+        string ownAddress)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ownAddress };
+        var to = new List<StaffMailRecipient>();
+        var cc = new List<StaffMailRecipient>();
+        AddUnique(to, ParseRecipients(detail.ReplyToAddresses), seen);
+        AddUnique(to, detail.ToAddresses.Select(AddressRecipient), seen);
+        AddUnique(cc, detail.CcAddresses.Select(AddressRecipient), seen);
+        return ([.. to], [.. cc]);
+    }
+
+    private static void AddUnique(
+        List<StaffMailRecipient> target,
+        IEnumerable<StaffMailRecipient> candidates,
+        HashSet<string> seen)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (seen.Add(candidate.Address))
+                target.Add(candidate);
+        }
+    }
+
+    private static StaffMailRecipient AddressRecipient(string address) =>
+        new(address.Trim(), DisplayName: null);
+
+    private static StaffMailRecipient[] ParseRecipients(string? value) =>
+        (value ?? string.Empty)
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(AddressRecipient)
+            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static StaffMailRecipient[] ParseRecipients(IReadOnlyList<string>? values) =>
+        (values ?? [])
+            .SelectMany(ParseRecipients)
+            .Where(item => IsMailboxAddress(item.Address))
+            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static bool IsMailboxAddress(string value) =>
+        System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
+        && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
+
+    private static string SubjectFor(StaffMailComposeMode mode, string? subject)
+    {
+        var value = subject?.Trim() ?? string.Empty;
+        return mode switch
+        {
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+                when value.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) => value,
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll => $"Re: {value}".TrimEnd(),
+            StaffMailComposeMode.Forward when value.StartsWith("Fwd:", StringComparison.OrdinalIgnoreCase) => value,
+            StaffMailComposeMode.Forward => $"Fwd: {value}".TrimEnd(),
+            _ => value
+        };
+    }
+
+    private static bool TryComposeMode(string value, out StaffMailComposeMode mode)
+    {
+        mode = value switch
+        {
+            "reply" => StaffMailComposeMode.Reply,
+            "reply-all" => StaffMailComposeMode.ReplyAll,
+            "forward" => StaffMailComposeMode.Forward,
+            _ => StaffMailComposeMode.New
+        };
+        return mode != StaffMailComposeMode.New;
+    }
+
+    private static string ModeCode(StaffMailComposeMode mode) => mode switch
+    {
+        StaffMailComposeMode.Reply => "reply",
+        StaffMailComposeMode.ReplyAll => "reply-all",
+        StaffMailComposeMode.Forward => "forward",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode))
+    };
+
+    private async Task LoadRetainedOperationAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        CorrespondenceOperation = await staffMailSend.GetLatestForOriginalAsync(
+            actor,
+            Detail.Summary.Id,
+            cancellationToken);
+        CorrespondenceSendBlocked = CorrespondenceOperation is not null
+            && CorrespondenceOperation.State is not StaffMailState.Sent
+                and not StaffMailState.Failed
+                and not StaffMailState.Cancelled;
+        CorrespondenceOperationId = CorrespondenceOperation?.Id;
+    }
+
+    private static string NewRetainedOperationKey(Guid retainedMessageId) =>
+        $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";
+
+    private static bool IsRetainedOperationKey(string? value, Guid retainedMessageId)
+    {
+        var prefix = $"retained:{retainedMessageId:N}:";
+        return value is not null
+            && value.StartsWith(prefix, StringComparison.Ordinal)
+            && Guid.TryParseExact(value[prefix.Length..], "N", out _);
     }
 
     private async Task LoadAiJobContextAsync(CancellationToken cancellationToken)
