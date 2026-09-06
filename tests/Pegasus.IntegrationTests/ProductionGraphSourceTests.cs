@@ -246,6 +246,74 @@ public sealed class ProductionGraphSourceTests
     }
 
     [Fact]
+    public async Task AttachmentMimeSizeBoundaryIsExactAndAlwaysResetsContentStream()
+    {
+        var graphWrites = 0;
+        var options = Options();
+        var mailboxId = Guid.NewGuid();
+        var operationId = Guid.NewGuid();
+        var command = StaffCommand(operationId) with
+        {
+            ApprovedMailboxId = mailboxId,
+            ExpectedMailboxGeneration = 9
+        };
+        var operation = Operation(operationId) with
+        {
+            ApprovedMailboxId = mailboxId,
+            MailboxGeneration = 9
+        };
+        var bytes = Enumerable.Range(0, 4096).Select(value => (byte)(value % 251)).ToArray();
+        var attachment = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.LongLength, "evidence.bin", "application/octet-stream");
+        await using var content = new MemoryStream(bytes, writable: false);
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ =>
+                {
+                    graphWrites++;
+                    return Response(HttpStatusCode.OK, "{}");
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        long lower = 0;
+        long upper = 64 * 1024;
+        while (lower < upper)
+        {
+            var candidate = lower + ((upper - lower) / 2);
+            content.Position = 137;
+            try
+            {
+                await sender.ValidateEncodedSizeAsync(
+                    new(mailboxId, "mailbox-id", 9, candidate), operation, command,
+                    [new(attachment, content)], CancellationToken.None);
+                upper = candidate;
+            }
+            catch (InvalidDataException)
+            {
+                lower = candidate + 1;
+            }
+            Assert.Equal(0, content.Position);
+        }
+        var exactSize = lower;
+
+        content.Position = 211;
+        await sender.ValidateEncodedSizeAsync(
+            new(mailboxId, "mailbox-id", 9, exactSize), operation, command,
+            [new(attachment, content)], CancellationToken.None);
+        Assert.Equal(0, content.Position);
+
+        content.Position = 307;
+        await Assert.ThrowsAsync<InvalidDataException>(() => sender.ValidateEncodedSizeAsync(
+            new(mailboxId, "mailbox-id", 9, exactSize - 1), operation, command,
+            [new(attachment, content)], CancellationToken.None));
+        Assert.Equal(0, content.Position);
+        Assert.Equal(0, graphWrites);
+    }
+
+    [Fact]
     public async Task DraftReconciliationRejectsOversizedGraphJson()
     {
         var options = Options();

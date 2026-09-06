@@ -22,14 +22,65 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         Validate(request);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        await RequireRetainAuthorizationAsync(request, cancellationToken);
         var bytes = await ReadVerifiedAsync(request, cancellationToken);
+        await RequireRetainAuthorizationAsync(request, cancellationToken);
         var pendingKey = request.CaseId is not null
             ? await intakeArtifactStore.StoreAsync(request.Sha256, bytes, cancellationToken)
             : null;
         return request.CaseId is { } caseId
             ? await RetainCaseAsync(caseId, request, bytes, pendingKey!, cancellationToken)
             : await RetainHoldingAsync(request, bytes, cancellationToken);
+    }
+
+    private async Task RequireRetainAuthorizationAsync(
+        CaseArtifactCustodyRequest request,
+        CancellationToken cancellationToken)
+    {
+        switch (request.Actor.Kind)
+        {
+            case ActorKind.Staff:
+            case ActorKind.Automation:
+                StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+                return;
+            case ActorKind.SystemWorker:
+                StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
+                return;
+            case ActorKind.RequestLink:
+                StaffAuthorization.Require(request.Actor, StaffAccessRight.SubmitRequestUpload);
+                if (request.CaseId is not { } caseId
+                    || !Guid.TryParse(request.Actor.SubjectId, out var requestLinkId)
+                    || requestLinkId == Guid.Empty)
+                {
+                    throw new UnauthorizedAccessException("The request-upload custody authority is unavailable.");
+                }
+                await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
+                {
+                    await RequireRequestLinkAuthorityAsync(
+                        db, requestLinkId, caseId, cancellationToken);
+                }
+                return;
+            default:
+                throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+        }
+    }
+
+    private async Task RequireRequestLinkAuthorityAsync(
+        PegasusDbContext db,
+        Guid requestLinkId,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var nowUtc = timeProvider.GetUtcNow();
+        var authorized = await db.Set<RequestUploadLinkEntity>().AsNoTracking()
+            .AnyAsync(value => value.Id == requestLinkId
+                && value.CaseId == caseId
+                && value.Status == RequestUploadStatus.Active
+                && value.RevokedAtUtc == null
+                && value.ExpiresAtUtc > nowUtc,
+                cancellationToken);
+        if (!authorized)
+            throw new UnauthorizedAccessException("The request-upload custody authority is unavailable.");
     }
 
     public async Task<CaseArtifactCustodyResult> GetAsync(
@@ -72,6 +123,15 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var requestLinkTransaction = request.Actor.Kind == ActorKind.RequestLink
+            ? await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, cancellationToken)
+            : null;
+        if (request.Actor.Kind == ActorKind.RequestLink)
+        {
+            await RequireRequestLinkAuthorityAsync(
+                db, Guid.Parse(request.Actor.SubjectId), caseId, cancellationToken);
+        }
         var existing = await (
             from persistedOccurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join persistedVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
@@ -90,6 +150,8 @@ internal sealed class EfCaseArtifactCustody(
             if (existing.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
             {
                 RequireConfirmed(existing.Version, documentContentStore is BoxDocumentContentStore);
+                if (requestLinkTransaction is not null)
+                    await requestLinkTransaction.CommitAsync(cancellationToken);
                 return Confirmed(existing.Version);
             }
         }
@@ -151,6 +213,8 @@ internal sealed class EfCaseArtifactCustody(
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
         }
+        if (requestLinkTransaction is not null)
+            await requestLinkTransaction.CommitAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(caseEntity.CustodyRootRemoteId))
         {
             return Pending(version, "case_custody_pending");
