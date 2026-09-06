@@ -287,7 +287,15 @@ public sealed record EstimateLineInput(
     string? EvidenceLabel,
     string? Justification,
     decimal? PaintWorkUnits = null,
-    int? Quantity = null);
+    int? Quantity = null,
+    decimal? Materials = null,
+    EstimateLineOrigin? Origin = null,
+    string? SourceDocumentIdentity = null,
+    Guid? SourceDocumentVersionId = null,
+    string? SourceDocumentSha256 = null,
+    string? SourceRowIdentity = null,
+    string? AmendedBy = null,
+    DateTimeOffset? AmendedAtUtc = null);
 
 public sealed record CaseEstimateLineRecord(
     Guid Id,
@@ -309,7 +317,15 @@ public sealed record CaseEstimateLineRecord(
     string? ConfirmedBy,
     DateTimeOffset? ConfirmedAtUtc,
     decimal? PaintWorkUnits = null,
-    int? Quantity = null)
+    int? Quantity = null,
+    decimal? Materials = null,
+    EstimateLineOrigin? Origin = null,
+    string? SourceDocumentIdentity = null,
+    Guid? SourceDocumentVersionId = null,
+    string? SourceDocumentSha256 = null,
+    string? SourceRowIdentity = null,
+    string? AmendedBy = null,
+    DateTimeOffset? AmendedAtUtc = null)
 {
     public bool IsConfirmed => ConfirmedBy is not null;
 }

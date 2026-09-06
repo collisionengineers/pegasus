@@ -232,9 +232,12 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(totals.Paint, costs.PaintMaterials);
         Assert.Equal(totals.Other, costs.SpecialistOther);
         Assert.Equal(totals.Subtotal, costs.Subtotal);
-        // 5 % from the estimate, not the built-in 20 % rule.
+        // 5 % from the estimate, not the built-in 20 % rule, and charged on
+        // the unrounded taxable base rather than on the printed net (B04).
         Assert.Equal(totals.Vat, costs.Vat);
-        Assert.Equal(decimal.Round(totals.Subtotal * 0.05m, 2), costs.Vat);
+        Assert.Equal(
+            decimal.Round(totals.Raw.Taxable * 0.05m, 2, MidpointRounding.AwayFromZero),
+            costs.Vat);
         Assert.Equal(totals.Total, costs.Total);
         Assert.Equal(["Bonnet"], result.Snapshot.NewParts);
         Assert.Equal(["Repair wing"], result.Snapshot.Repairs);

@@ -15,16 +15,25 @@ namespace Pegasus.Infrastructure.Assessment;
 /// {
 ///   "schema": "pegasus-estimate/1",
 ///   "sourceVersion": "string, required — the producing system's own version or reference",
+///   "provider": "string, optional — names the producing system",
+///   "totals": {                // optional; the document's own printed totals
+///     "parts": 299.80, "panelWorkUnits": 4.7, "paintWorkUnits": 3.2,
+///     "materials": 75.60, "specialist": 245.00,
+///     "net": 952.28, "vat": 190.46, "gross": 1142.74
+///   },
 ///   "lines": [
 ///     {
-///       "operation": "Replace | Repair | R&amp;I | Paint | Other",   // or "type": one of EstimateLineCodes.Types
+///       "operation": "Replace | Repair | R&amp;I | Paint | Blend | Specialist | Other",
+///                               // or "type": one of EstimateLineCodes.Types
 ///       "description": "string, required",
 ///       "partNumber": "string, optional",
 ///       "guideCode": "string, optional",
+///       "rowId": "string, optional — the row's identity in the source system",
 ///       "quantity": 1,          // optional integer ≥ 1
-///       "labourHours": 1.5,     // optional, steps of 0.1
-///       "paintHours": 0.5,      // optional, steps of 0.1
-///       "price": 120.00         // optional, two decimal places; omit for an unpriced part
+///       "labourHours": 1.5,     // optional, the provider's own time precision
+///       "paintHours": 0.5,      // optional, the provider's own time precision
+///       "price": 120.00,        // optional, two decimal places; omit for an unpriced part
+///       "materials": 45.60      // optional, two decimal places
 ///     }
 ///   ]
 /// }
@@ -35,12 +44,19 @@ namespace Pegasus.Infrastructure.Assessment;
 /// <see cref="EstimateParseRejectedException"/>. Line status and evidence
 /// label are not part of the document — an imported line is
 /// <c>estimated</c> from a <c>reference</c> source until an Engineer
-/// confirms it.
+/// confirms it. <c>totals</c> is reconciliation evidence only: Pegasus costs
+/// the estimate from its own rows and retains a disagreeing document total
+/// beside the calculation rather than adopting it.
 /// </summary>
 public sealed class JsonEstimateParser : IEstimateDocumentParser
 {
     public const string Schema = "pegasus-estimate/1";
+
+    /// <summary>Titles the Draft an import of this document lands as.</summary>
+    public const string DefaultProviderName = "Estimate";
+
     private const int MaximumLines = AssessmentPolicy.MaximumEstimateLines;
+    private const int MoneyDecimals = 2;
 
     public RepairSpecificationSourceRoute Route => RepairSpecificationSourceRoute.Json;
 
@@ -90,8 +106,34 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
                 position++;
                 parsed.Add(ParseLine(line, position));
             }
-            return new ParsedEstimate(sourceVersion, parsed);
+            return new ParsedEstimate(
+                sourceVersion,
+                parsed,
+                OptionalText(root, "provider", 100) ?? DefaultProviderName,
+                ParseTotals(root));
         }
+    }
+
+    /// <summary>
+    /// The document's own printed totals, when it states them. They are
+    /// evidence beside the calculation and never replace it, so an absent
+    /// or partial block is normal rather than a rejection.
+    /// </summary>
+    private static EstimateSourceTotals? ParseTotals(JsonElement root)
+    {
+        if (!root.TryGetProperty("totals", out var totals) || totals.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+        return new(
+            OptionalDecimal(totals, "parts", MoneyDecimals, 0),
+            OptionalDecimal(totals, "panelWorkUnits", EstimatePolicy.WorkUnitDecimals, 0),
+            OptionalDecimal(totals, "paintWorkUnits", EstimatePolicy.WorkUnitDecimals, 0),
+            OptionalDecimal(totals, "materials", MoneyDecimals, 0),
+            OptionalDecimal(totals, "specialist", MoneyDecimals, 0),
+            OptionalDecimal(totals, "net", MoneyDecimals, 0),
+            OptionalDecimal(totals, "vat", MoneyDecimals, 0),
+            OptionalDecimal(totals, "gross", MoneyDecimals, 0));
     }
 
     private static EstimateLineInput ParseLine(JsonElement line, int position)
@@ -103,12 +145,12 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
         var type = LineType(line, position);
         var description = OptionalText(line, "description", 300)
             ?? throw Reject(position, "has no description");
-        var price = OptionalDecimal(line, "price", 2, position);
+        var price = OptionalDecimal(line, "price", MoneyDecimals, position);
         return new EstimateLineInput(
             type,
             OptionalText(line, "guideCode", 50),
             description,
-            OptionalDecimal(line, "labourHours", 1, position),
+            Hours(line, "labourHours", position),
             price,
             Unpriced: price is null && type == "new_part",
             OptionalText(line, "partNumber", 100),
@@ -116,8 +158,10 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
             Status: "estimated",
             EvidenceLabel: "reference",
             Justification: null,
-            PaintWorkUnits: OptionalDecimal(line, "paintHours", 1, position),
-            Quantity: OptionalQuantity(line, position));
+            PaintWorkUnits: Hours(line, "paintHours", position),
+            Quantity: OptionalQuantity(line, position),
+            Materials: OptionalDecimal(line, "materials", MoneyDecimals, position),
+            SourceRowIdentity: OptionalText(line, "rowId", 100));
     }
 
     private static string LineType(JsonElement line, int position)
@@ -164,9 +208,21 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
         if (value.ValueKind != JsonValueKind.Number || !value.TryGetDecimal(out var number)
             || number < 0 || decimal.Round(number, decimals) != number)
         {
-            throw Reject(position, $"has an unreadable {name} (non-negative, {decimals} decimal place{(decimals == 1 ? "" : "s")})");
+            throw Reject(position, $"has an unreadable {name} (non-negative, {decimals} decimal places)");
         }
         return number;
+    }
+
+    /// <summary>
+    /// Hours at the provider's own precision, bounded by the one estimate
+    /// rule so a document can never state a figure the estimate cannot hold.
+    /// </summary>
+    private static decimal? Hours(JsonElement element, string name, int position)
+    {
+        var value = OptionalDecimal(element, name, EstimatePolicy.WorkUnitDecimals, position);
+        return value is null || value <= EstimatePolicy.MaximumLineWorkUnits
+            ? value
+            : throw Reject(position, $"states a {name} beyond {EstimatePolicy.MaximumLineWorkUnits} hours");
     }
 
     private static int? OptionalQuantity(JsonElement element, int position)
@@ -180,6 +236,9 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
             : throw Reject(position, "has a quantity that is not a whole number of at least one");
     }
 
+    /// <summary>Position zero names the document's own totals block, which sits above the lines.</summary>
     private static EstimateParseRejectedException Reject(int position, string problem) => new(
-        string.Create(CultureInfo.InvariantCulture, $"Line {position} {problem}, so nothing was imported."));
+        position > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"Line {position} {problem}, so nothing was imported.")
+            : $"The document's printed totals block {problem}, so nothing was imported.");
 }

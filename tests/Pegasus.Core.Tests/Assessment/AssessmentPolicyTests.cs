@@ -305,14 +305,18 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void EstimateLinesValidateTypeStepAndUnpricedRules()
+    public void EstimateLinesValidateTypePrecisionAndUnpricedRules()
     {
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(lines: [Line("unknown_type")])));
+        // Hours are kept at the provider's own precision (B04): a quarter of
+        // an hour is a real time, a seventh decimal place is not.
+        AssessmentPolicy.ValidateAndNormalize(
+            Request(lines: [Line("repair") with { WorkUnits = 1.25m }]));
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(lines: [Line("repair") with { WorkUnits = 1.25m }])));
+                Request(lines: [Line("repair") with { WorkUnits = 1.2345678m }])));
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(lines: [Line("new_part") with { Unpriced = true, Price = 10m }])));

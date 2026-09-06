@@ -569,20 +569,10 @@ public static class AssessmentPolicy
                     "Every estimate line requires a recognized line type.",
                     nameof(lines));
             }
-            if (line.WorkUnits is { } workUnits
-                && (workUnits < 0 || decimal.Round(workUnits, 1) != workUnits))
-            {
-                throw new ArgumentException(
-                    "Estimate work units must be non-negative in steps of 0.1.",
-                    nameof(lines));
-            }
-            if (line.PaintWorkUnits is { } paintWorkUnits
-                && (paintWorkUnits < 0 || decimal.Round(paintWorkUnits, 1) != paintWorkUnits))
-            {
-                throw new ArgumentException(
-                    "Estimate paint work units must be non-negative in steps of 0.1.",
-                    nameof(lines));
-            }
+            // Hours and row materials are estimate money: EstimatePolicy owns
+            // that rule so a provider's own time precision is kept, not
+            // rounded to the editor's step (B04).
+            EstimatePolicy.ValidateLineAmounts(line);
             if (line.Quantity is { } quantity && quantity < 1)
             {
                 throw new ArgumentException(
