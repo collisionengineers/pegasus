@@ -909,6 +909,7 @@ public sealed class StaffCorrespondenceWebTests
         {
             await TestMailboxId.EnsureApprovedAsync(
                 context, mailboxGraphId, mailboxAddress, NowUtc.AddDays(-1));
+            await context.SaveChangesAsync();
             var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
             mailbox.AllowSentEvidence = true;
             mailbox.AllowStaffSend = true;
