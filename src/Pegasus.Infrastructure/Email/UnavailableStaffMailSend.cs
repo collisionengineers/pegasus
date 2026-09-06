@@ -27,6 +27,16 @@ public sealed class UnavailableStaffMailSend : IStaffMailSend
         return Task.FromException<StaffMailOperation?>(Unavailable());
     }
 
+    public Task<StaffMailOperation?> GetLatestForOriginalAsync(
+        ActionActor actor,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<StaffMailOperation?>(null);
+    }
+
     public Task<StaffMailOperation> ReconcileAsync(
         ActionActor actor,
         Guid operationId,

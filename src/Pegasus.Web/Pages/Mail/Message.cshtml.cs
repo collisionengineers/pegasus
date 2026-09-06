@@ -271,14 +271,7 @@ public sealed class MessageModel(
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
-        if (CorrespondenceOperationId is { } operationId)
-        {
-            CorrespondenceOperation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
-            CorrespondenceSendBlocked = CorrespondenceOperation is not null
-                && CorrespondenceOperation.State is not StaffMailState.Sent
-                    and not StaffMailState.Failed
-                    and not StaffMailState.Cancelled;
-        }
+        await LoadRetainedOperationAsync(actor, cancellationToken);
         if (!await LoadCorrespondenceContextAsync(actor, initializeForm: true, cancellationToken))
         {
             CorrespondenceMode = null;
@@ -781,6 +774,7 @@ public sealed class MessageModel(
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
+        await LoadRetainedOperationAsync(actor, cancellationToken);
         await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken);
         return Page();
     }
@@ -822,6 +816,15 @@ public sealed class MessageModel(
             return NotFound();
         Detail = detail;
 
+        await LoadRetainedOperationAsync(actor, cancellationToken);
+        if (CorrespondenceSendBlocked)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The existing correspondence operation must finish or be resolved before another action.");
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
         if (!await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken))
         {
             ModelState.AddModelError(string.Empty, "Correspondence is unavailable for this message.");
@@ -838,11 +841,7 @@ public sealed class MessageModel(
             ModelState.AddModelError(nameof(CorrespondenceSubject), "A subject is required.");
         if (string.IsNullOrWhiteSpace(CorrespondenceBody))
             ModelState.AddModelError(nameof(CorrespondenceBody), "A message is required.");
-        if (string.IsNullOrWhiteSpace(CorrespondenceOperationKey)
-            || !string.Equals(
-                CorrespondenceOperationKey.Trim(),
-                RetainedOperationKey(detail.Summary.Id),
-                StringComparison.Ordinal))
+        if (!IsRetainedOperationKey(CorrespondenceOperationKey, detail.Summary.Id))
         {
             ModelState.AddModelError(
                 nameof(CorrespondenceOperationKey),
@@ -961,7 +960,7 @@ public sealed class MessageModel(
         if (initializeForm && CorrespondenceMode is not null)
         {
             ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
-            CorrespondenceOperationKey = RetainedOperationKey(Detail.Summary.Id);
+            CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
             CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
             var recipients = mode switch
             {
@@ -1059,8 +1058,31 @@ public sealed class MessageModel(
         _ => throw new ArgumentOutOfRangeException(nameof(mode))
     };
 
-    private static string RetainedOperationKey(Guid retainedMessageId) =>
-        $"retained-correspondence:{retainedMessageId:N}";
+    private async Task LoadRetainedOperationAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        CorrespondenceOperation = await staffMailSend.GetLatestForOriginalAsync(
+            actor,
+            Detail.Summary.Id,
+            cancellationToken);
+        CorrespondenceSendBlocked = CorrespondenceOperation is not null
+            && CorrespondenceOperation.State is not StaffMailState.Sent
+                and not StaffMailState.Failed
+                and not StaffMailState.Cancelled;
+        CorrespondenceOperationId = CorrespondenceOperation?.Id;
+    }
+
+    private static string NewRetainedOperationKey(Guid retainedMessageId) =>
+        $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";
+
+    private static bool IsRetainedOperationKey(string? value, Guid retainedMessageId)
+    {
+        var prefix = $"retained:{retainedMessageId:N}:";
+        return value is not null
+            && value.StartsWith(prefix, StringComparison.Ordinal)
+            && Guid.TryParseExact(value[prefix.Length..], "N", out _);
+    }
 
     private async Task LoadAiJobContextAsync(CancellationToken cancellationToken)
     {
