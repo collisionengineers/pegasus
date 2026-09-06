@@ -245,3 +245,47 @@ Commits (HEAD 8c5351296..6690a33cc):
 
 Reported READY_FOR_TESTS to controller; no push, no PR, no dotnet test run (build-only per
 controller override).
+
+## Correction round 3
+
+Controller override run (no execution packet; only `append_scratch` on
+`c08-notes`; no push/PR/local test-runner call; build-only). Worktree
+`../pegasus-worktrees/v1-intake-c08`, branch `c08-shell`. Starting HEAD
+`df03ccd4e`. Merged `task/pegasus-v1-intake` first (C head expected/actual
+`2c1a9d8a1`, no conflicts, merge commit `e1f8850ee`). Head after this round
+`86e8659f5`.
+
+M4 assertions passed: toplevel = worktree; both `--git-common-dir` values
+name the primary `.git`; branch = `c08-shell`; HEAD matched `df03ccd4e`
+before starting.
+
+Wave 27 item (146/147, one failure):
+`MailWorkspaceWebTests.OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts`
+— list GET 404'd because the test drove `sort=asc`. `TryParseSort`
+(`src/Pegasus.Web/Pages/Mail/Index.cshtml.cs:623`) accepts only the absent
+value (newest) or the literal `"oldest"`; `"asc"` is not one of them, so
+`OnGetAsync` (line 107) returns `NotFound` before Preview is ever reached.
+Production parsing is deliberate and untouched.
+
+`TryParseUnread` (line 642) already accepted the test's `unread=true` for
+`folder=inbox` — no change needed there.
+
+Confirmed the page's own emitted vocabulary two ways: (1) `Index.cshtml`
+rows/links (lines 118-425) and `RefreshFields` (`Index.cshtml.cs:363-364`)
+build `["unread"] = UnreadOnly ? "true" : null` and
+`["sort"] = OldestFirst ? "oldest" : null`; (2) an existing sibling test,
+`ScopingAndPagingCarryTheMailboxFolderAndPageForward`, already asserts the
+rendered markup contains `"unread=true&amp;sort=oldest&amp;pageNumber=2"`,
+proving this exact pair round-trips today.
+
+Fix: changed the failing test's query string from `sort=asc` to
+`sort=oldest`, and added an assertion that the rendered list page's own
+row-title link contains `unread=true&amp;sort=oldest` (round-trips the
+page's vocabulary rather than a guessed one). No production file touched.
+Commit `86e8659f5` — "fix(tests): match the page's sort=oldest vocabulary,
+not sort=asc (INTK-060 C08)".
+
+Build: `dotnet build ./Pegasus.slnx --configuration Release --no-restore` —
+exit 0, 0 warnings, 0 errors.
+
+No deviations, no new assumptions this round. READY_FOR_TESTS.
