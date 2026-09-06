@@ -1748,7 +1748,7 @@ public sealed partial class DetailsModel(
             // Amendment attribution is the one carried fact that must not be
             // preserved blindly: a line whose editable values moved was
             // amended by this operator, now.
-            var (amendedBy, amendedAtUtc) = EstimateLineAmendment.Stamp(
+            var (amendedBy, amendedAtUtc) = EstimatePolicy.StampAmendment(
                 carried, previous, actor.SubjectId, savedAtUtc);
             return carried with { AmendedBy = amendedBy, AmendedAtUtc = amendedAtUtc };
         }).ToArray();
@@ -2697,46 +2697,3 @@ public sealed record EstimateEditorLine(
     string? PartPounds,
     Guid? ExistingLineId = null);
 
-/// <summary>
-/// Amendment attribution for one saved estimate line. The Case estimate
-/// editor replaces the whole line collection on save, so a line that came
-/// back unchanged keeps the attribution it already carried, while a line
-/// whose editable values moved names the operator who moved them and when.
-/// </summary>
-internal static class EstimateLineAmendment
-{
-    /// <summary>
-    /// The attribution the saved line carries: <paramref name="actor"/> and
-    /// <paramref name="amendedAtUtc"/> when any editable value differs from
-    /// the loaded line, the line's prior stamp when none does.
-    /// </summary>
-    internal static (string? AmendedBy, DateTimeOffset? AmendedAtUtc) Stamp(
-        EstimateLineInput saved,
-        CaseEstimateLineRecord loaded,
-        string actor,
-        DateTimeOffset amendedAtUtc)
-    {
-        ArgumentNullException.ThrowIfNull(saved);
-        ArgumentNullException.ThrowIfNull(loaded);
-        return IsUnchanged(saved, loaded)
-            ? (loaded.AmendedBy, loaded.AmendedAtUtc)
-            : (actor, amendedAtUtc);
-    }
-
-    /// <summary>
-    /// The eight values the editor lets an operator change. The operation is
-    /// compared in the editor's own vocabulary, because the screen offers no
-    /// finer choice than <see cref="EstimateOperation"/>: an imported
-    /// <c>paint_new</c> line the operator never touched comes back as
-    /// <c>paint_repair</c>, and that is not an amendment.
-    /// </summary>
-    internal static bool IsUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded) =>
-        EstimateOperations.FromLineType(saved.Type) == EstimateOperations.FromLineType(loaded.Type)
-        && string.Equals(saved.Description, loaded.Description, StringComparison.Ordinal)
-        && string.Equals(saved.PartNumber, loaded.PartNumber, StringComparison.Ordinal)
-        && saved.Quantity == loaded.Quantity
-        && saved.WorkUnits == loaded.WorkUnits
-        && saved.PaintWorkUnits == loaded.PaintWorkUnits
-        && saved.Materials == loaded.Materials
-        && saved.Price == loaded.Price;
-}
