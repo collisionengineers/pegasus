@@ -170,13 +170,26 @@ public sealed class GetLatestRetainedInstructionAnalysis(
     }
 }
 
+/// <summary>
+/// The analysis command as its callers need it. Automatic re-analysis after an
+/// OCR reading depends on the behaviour, not on the class, so the OCR path can
+/// be exercised without standing up a reader, a selector and a store it has no
+/// business knowing about.
+/// </summary>
+public interface IAnalyzeRetainedInstruction
+{
+    Task<AnalyzeRetainedInstructionResult> ExecuteAsync(
+        AnalyzeRetainedInstructionRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class AnalyzeRetainedInstruction(
     IIntakeReceiptQueries receiptQueries,
     IReadLogicalDocumentVersion documentReader,
     IIntakeSourceReader sourceReader,
     InstructionExtractionPolicySelector selector,
     IRetainedInstructionAnalysisStore store,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : IAnalyzeRetainedInstruction
 {
     /// <summary>
     /// The field name a matching document's proposed principal is recorded
