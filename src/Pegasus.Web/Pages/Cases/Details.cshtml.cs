@@ -1501,6 +1501,21 @@ public sealed partial class DetailsModel(
                     Status = previous.Status,
                     EvidenceLabel = previous.EvidenceLabel,
                     Justification = previous.Justification,
+                    // The screen edits operation, description, part number,
+                    // quantity, hours and the part amount. Every other
+                    // recorded fact on the line — its materials, the values
+                    // the source document stated, the document and row it
+                    // came from and any amendment attribution — is carried
+                    // forward, because a save that dropped them would erase
+                    // evidence the editor never showed.
+                    Materials = previous.Materials,
+                    Origin = previous.Origin,
+                    SourceDocumentIdentity = previous.SourceDocumentIdentity,
+                    SourceDocumentVersionId = previous.SourceDocumentVersionId,
+                    SourceDocumentSha256 = previous.SourceDocumentSha256,
+                    SourceRowIdentity = previous.SourceRowIdentity,
+                    AmendedBy = previous.AmendedBy,
+                    AmendedAtUtc = previous.AmendedAtUtc,
                 }
                 : line).ToArray();
         var details = new EstimateDetails(
@@ -1511,7 +1526,16 @@ public sealed partial class DetailsModel(
             editor.PaintMaterials,
             editor.OtherCosts,
             editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            editor.Notes);
+            editor.Notes,
+            // The screen does not yet edit the discounts or the VAT
+            // categories, so the estimate keeps the ones it records. The rate
+            // card is kept only while the posted rate is still the one it
+            // priced: a retyped rate is the Engineer's own, not the card's.
+            existing?.Details.Discounts,
+            existing?.Details.Vat,
+            existing?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
+                ? card
+                : null);
         try
         {
             var saved = await saveEstimate.ExecuteAsync(
@@ -1775,7 +1799,15 @@ public sealed partial class DetailsModel(
             editor.PaintMaterials,
             editor.OtherCosts,
             editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            editor.Notes);
+            editor.Notes,
+            // Redrawing a row must not change what the totals mean: the
+            // estimate's own discounts, VAT categories and rate card stand,
+            // on the same terms the save applies them.
+            SelectedEstimate?.Details.Discounts,
+            SelectedEstimate?.Details.Vat,
+            SelectedEstimate?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
+                ? card
+                : null);
         EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null)];
         return Page();
     }
