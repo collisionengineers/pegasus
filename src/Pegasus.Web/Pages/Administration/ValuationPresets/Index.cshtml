@@ -1,0 +1,113 @@
+@page
+@using System.Globalization
+@using Pegasus.Core.Assessment
+@using Pegasus.Web.Pages.Administration.ValuationPresets
+@model Pegasus.Web.Pages.Administration.ValuationPresets.IndexModel
+@{
+    ViewData["Title"] = ValuationPresetLabels.Title;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "valuation-presets";
+    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
+    var labelLimit = ValuationCalculationPolicy.MaximumAdditionLabelLength;
+}
+
+<partial name="Shared/_PageHeader" />
+
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <partial name="Shared/_ErrorSummary" />
+
+        <section class="panel" aria-labelledby="valuation-presets-title">
+            <div class="panel-head">
+                <h2 id="valuation-presets-title">@ValuationPresetLabels.Title</h2>
+                <span class="muted">@Model.Presets.Count</span>
+            </div>
+            @if (Model.Presets.Count > 0)
+            {
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">@ValuationPresetLabels.Title</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">@ValuationPresetLabels.PresetLabel</th>
+                                <th scope="col">@ValuationPresetLabels.Amount</th>
+                                <th scope="col">@ValuationPresetLabels.State</th>
+                                <th scope="col">@ValuationPresetLabels.Version</th>
+                                <th scope="col">@ValuationPresetLabels.Change</th>
+                                <th scope="col">@ValuationPresetLabels.Save</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var preset in Model.Presets)
+                        {
+                            var presetId = preset.Id.ToString("D");
+                            var rowForm = "preset-" + presetId;
+                            var labelField = rowForm + "-label";
+                            var amountField = rowForm + "-amount";
+                            var reasonField = rowForm + "-reason";
+                            <tr>
+                                <td>@preset.Label</td>
+                                <td class="tabular">@ValuationCalculationPolicy.FormatMoney(preset.SuggestedAmount)</td>
+                                <td>
+                                    <partial name="Shared/_StatusChip" model="@ValuationPresetLabels.StateName(preset.Active)" />
+                                </td>
+                                <td class="tabular">@preset.Version</td>
+                                <td>
+                                    <form id="@rowForm" method="post" asp-page-handler="Save" class="field">
+                                        <input type="hidden" name="presetId" value="@presetId" />
+                                        <input type="hidden" name="expectedVersion" value="@preset.Version" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <label class="req" for="@labelField">@ValuationPresetLabels.PresetLabel</label>
+                                        <input id="@labelField" name="label" value="@preset.Label"
+                                               required maxlength="@labelLimit" />
+                                        <label class="req" for="@amountField">@ValuationPresetLabels.Amount</label>
+                                        <input id="@amountField" name="amount" type="number" step="0.01" min="0" required
+                                               value="@preset.SuggestedAmount.ToString("0.00", CultureInfo.InvariantCulture)" />
+                                        <label class="req" for="@reasonField">@ValuationPresetLabels.Reason</label>
+                                        <input id="@reasonField" name="reason" required maxlength="1000"
+                                               value="@(Model.RowPresetId == preset.Id ? Model.RowReason : string.Empty)" />
+                                    </form>
+                                </td>
+                                <td>
+                                    <button type="submit" form="@rowForm" class="btn"
+                                            name="active" value="@(preset.Active ? "true" : "false")">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                        <span>@ValuationPresetLabels.Save</span>
+                                    </button>
+                                    <button type="submit" form="@rowForm" class="btn"
+                                            name="active" value="@(preset.Active ? "false" : "true")">
+                                        <span>@(preset.Active ? ValuationPresetLabels.Disable : ValuationPresetLabels.Enable)</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="panel" aria-labelledby="valuation-preset-create-title">
+            <div class="panel-head">
+                <h2 id="valuation-preset-create-title">@ValuationPresetLabels.Create</h2>
+            </div>
+            <form method="post" asp-page-handler="Create" class="field">
+                <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
+                <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
+                <label class="req" for="create-label">@ValuationPresetLabels.PresetLabel</label>
+                <input id="create-label" name="label" required maxlength="@labelLimit"
+                       value="@Model.CreateLabel" />
+                <label class="req" for="create-amount">@ValuationPresetLabels.Amount</label>
+                <input id="create-amount" name="amount" type="number" step="0.01" min="0" required
+                       value="@(Model.CreateAmount?.ToString("0.00", CultureInfo.InvariantCulture))" />
+                <label class="req" for="create-reason">@ValuationPresetLabels.Reason</label>
+                <input id="create-reason" name="reason" required maxlength="1000" value="@Model.CreateReason" />
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>@ValuationPresetLabels.Create</span>
+                </button>
+            </form>
+        </section>
+    </div>
+</div>
