@@ -366,6 +366,29 @@ public interface IUnidentifiedStore
             new NotSupportedException("Recording an Unidentified resolution recheck is not available."));
 
     /// <summary>
+    /// One keyset page of the Unidentified queue: strictly after
+    /// <paramref name="after"/> in (CreatedAtUtc, Id) order, or from the head
+    /// when it is null. Oldest-first, as the queue itself is.
+    ///
+    /// The queue moves constantly — every processing pass can register a row
+    /// and every sweep can resolve one — so an offset page is exactly where a
+    /// connector loses rows without knowing it. The sort key plus the id names
+    /// a row rather than a position.
+    ///
+    /// Default: unsupported. An in-memory double has no stable ordering to
+    /// continue from, and inventing one would make a test pass over a
+    /// continuation the real store might not produce.
+    /// </summary>
+    Task<KeysetPage<UnidentifiedQueueRow>> ListQueueByCursorAsync(
+        UnidentifiedMediaKind? mediaKind,
+        KeysetPosition? after,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<KeysetPage<UnidentifiedQueueRow>>(
+            new NotSupportedException(
+                "This Unidentified store does not support keyset continuation."));
+
+    /// <summary>
     /// The Queues page's Unidentified tab: open items oldest-first, each
     /// carrying enough of the origin receipt to answer what it is without a
     /// second lookup. <paramref name="mediaKind"/> narrows to one of the
@@ -577,3 +600,70 @@ public sealed class UnidentifiedResolutionTargetNotFoundException(
     : ArgumentException(
         $"No {targetKind} destination exists for target '{targetId}'.",
         nameof(ResolveUnidentifiedRequest.TargetId));
+
+public sealed record ListUnidentifiedQueueByCursorQuery(
+    ActionActor Actor,
+    UnidentifiedMediaKind? MediaKind,
+    string? Cursor,
+    int? Limit);
+
+public interface IListUnidentifiedQueueByCursor
+{
+    Task<CursorPage<UnidentifiedQueueRow>> ExecuteAsync(
+        ListUnidentifiedQueueByCursorQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Stable continuation over the Unidentified queue, on the shared cursor
+/// contract. The scope binds the cursor to this query, this actor, this media
+/// filter and this order, so a cursor cannot be replayed against the received
+/// list, another operator's view, or a different tab of the same page.
+/// </summary>
+public sealed class ListUnidentifiedQueueByCursor(
+    IUnidentifiedStore store,
+    ICursorProtector cursorProtector) : IListUnidentifiedQueueByCursor
+{
+    public const string QueryName = "intake.unidentified.queue";
+
+    public const string OrderName = "created-asc,id-asc";
+
+    public async Task<CursorPage<UnidentifiedQueueRow>> ExecuteAsync(
+        ListUnidentifiedQueueByCursorQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.MediaKind is { } mediaKind && !Enum.IsDefined(mediaKind))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(query),
+                "The media kind is not recognized.");
+        }
+
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var scope = CursorPaging.CreateScope(
+            QueryName,
+            query.Actor,
+            query.MediaKind?.ToString(),
+            OrderName);
+
+        KeysetPosition? after = null;
+        if (!string.IsNullOrWhiteSpace(query.Cursor))
+        {
+            var (sortKey, id) = cursorProtector.Unprotect(query.Cursor, scope);
+            after = new(CursorPaging.DecodeUtcTimestamp(sortKey), id);
+        }
+
+        var page = await store.ListQueueByCursorAsync(
+            query.MediaKind, after, limit, cancellationToken);
+        return new(
+            page.Items,
+            page.Next is { } next
+                ? cursorProtector.Protect(
+                    scope,
+                    CursorPaging.EncodeUtcTimestamp(next.SortKey),
+                    next.Id)
+                : null);
+    }
+}

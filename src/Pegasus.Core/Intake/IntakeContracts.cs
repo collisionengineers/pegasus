@@ -734,6 +734,25 @@ public interface IIntakeReceiptQueries
     /// was the cap: at twenty-five a page exactly four pages existed however much
     /// had been received, and everything older was unreachable.
     /// </remarks>
+    /// <summary>
+    /// One keyset page of received items, newest first: strictly after
+    /// <paramref name="after"/> in (ReceivedAtUtc DESC, Id DESC) order, or from
+    /// the newest row when it is null.
+    ///
+    /// Offset paging cannot be made stable here. A receipt arriving while a
+    /// connector reads page after page shifts every later row by one, so a row
+    /// is silently skipped; a receipt resolved out of the filter shifts them
+    /// back and a row is delivered twice. The sort key plus the id names an
+    /// exact row instead of a position in a list that moves.
+    /// </summary>
+    Task<KeysetPage<IntakeReceiptSummary>> ListByCursorAsync(
+        IntakeDecision? decision,
+        KeysetPosition? after,
+        int limit,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "This intake receipt query does not support keyset continuation.");
+
     Task<IntakeListPage> ListAsync(
         IntakeDecision? decision,
         int page,
