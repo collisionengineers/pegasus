@@ -67,7 +67,7 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<CaseReportGenerationEntity>(e =>
         {
-            e.ToTable("CaseReportGenerations"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.CaseId, x.SnapshotHash }).IsUnique();
+            e.ToTable("CaseReportGenerations"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.CaseId, x.SnapshotHash }).IsUnique().HasFilter("[State] <> N'Stale'");
             e.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength();
         });
         builder.Entity<GeneratedCaseArtifactEntity>(e =>
