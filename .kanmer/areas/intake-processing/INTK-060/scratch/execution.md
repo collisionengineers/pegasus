@@ -468,3 +468,11 @@ PR 673 takeover/status posted as comment 5561608677. C07b has no round-4 attesta
 Replacement controller integrated independently reviewed C07b custody/public-upload caller slice: helper 348cb07d9d7bc3e14a01f75f96e34882e2c10f71 (review PASS; focused Integration 36/36 PASS) merged with --no-ff into Stream C owner head 9e1565a30dd4492e35a00c8900b01a03668c14ac, build 0/0, pushed to PR #673. Architecture remains 98/100 due A-owned missing IReadLogicalDocumentVersion Worker composition; handed to PR #674 comment 5561776928. No merge/deploy/live writes.
 
 - 2026-09-06T20:48:15.018Z lease-phase implementing → running-command (lease 40f03659-6845-4f20-b1cc-cfd09686ec00 rev 42; expires 2026-09-06T21:33:15.012Z)
+
+## Replacement-controller progress 2026-09-06 20:50Z
+
+- C07/C-B01 reviewed helper published at bbda5b38acc52d4649b87853313408e998657b43. Boundary semantics match A; Recipient required <=500, Reason optional <=1000. A durability blob b1f463047 retained. Standalone/combined run awaits A-owned EfCaseArtifactCustody and A-owned durability conflict resolution requested on PR 674.
+- C08 reviewed/tested helper published through 1c50286d3a71e872f95e1788f505945e49855a1e: palette idempotence 2 browser PASS, notification cap 2 Core PASS, mail round-trip 1 PASS after correcting the test anchor extraction, capability truth table 3 PASS. Reply modes still await A retained-message identity projection.
+- C03 AX/FW reviewed/tested at d0937813e9621e4d62a012d9304cecee74e8cd95: Core 11 PASS including AX02; FW genuine five-source matrix 1 PASS/no skip. QCL is next bounded implementation.
+- C06 zero-state delta remains reviewed and Release-build clean at refreshed head 49fabcb9da9667fdd9f4db8e8c425e7430dbc7fa. Required snapshot capture failed before generation (122/129) solely because the same A custody adapter is absent; no generated changes.
+- PRs 672/673/674 remain open/unmerged. No deployment, mailbox/provider write, or mail send occurred.
