@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Manage staff account · Pegasus</title>
+    <title>Force logout · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -157,63 +157,38 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="administration-accounts--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Staff accounts
-</a>
-
-    <div class="page-heading">
-        <div>
-            <h1>Manage development-offline-administrator</h1>
-        </div>
-        <div class="page-heading-actions">
-            <span class="status status--navy">Enabled</span>
-
-        </div>
+<header class="page-header">
+    <div class="page-title">
+            <p class="eyebrow">Administration</p>
+        <h1>Force logout</h1>
     </div>
-    <div class="split-main">
-        <section aria-labelledby="account-detail-heading">
-            <h2 id="account-detail-heading" class="section-label">Account detail</h2>
-            <div class="panel">
-                <dl class="detail-list">
-                    <div>
-                        <dt>Status</dt>
-                        <dd>Enabled</dd>
-                    </div>
-                    <div>
-                        <dt>First password change</dt>
-                        <dd>Complete</dd>
-                    </div>
-                    <div>
-                        <dt>Last access review</dt>
-                        <dd>
-                                <span class="empty-state">Not recorded</span>
-                        </dd>
-                    </div>
-                </dl>
+</header>
+
+
+<section class="panel" aria-labelledby="account-action-title">
+    <div class="panel-head">
+        <h2 id="account-action-title">Force logout</h2>
+    </div>
+    <div class="panel-body">
+        <dl class="detail-list"><div><dt>Account</dt><dd>development-offline-administrator</dd></div></dl>
+        <form method="post" class="stack" action="administration-accounts--default.html">
+            <input type="hidden" name="staffId" value="test-ui-guid-1" />
+            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+            <div class="field field--narrow">
+                <label class="req" for="confirm-reason">Reason</label>
+                <textarea id="confirm-reason" name="reason" rows="3" required
+                          maxlength="1000"></textarea>
             </div>
-        </section>
-
-        <section aria-labelledby="account-action-heading">
-            <h2 id="account-action-heading" class="section-label">Account action</h2>
-                <div class="panel form-panel form-panel--wide">
-                    <form method="post" action="administration-account-edit--default.html">
-
-                        <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-                        <div>
-                            <label for="Reason">Reason</label>
-                            <textarea rows="3" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 1000." data-val-length-max="1000" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" maxlength="1000" name="Reason">
-</textarea>
-                            <span class="field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" class="primary-action">Disable account</button>
-                        </div>
-                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                    <p class="empty-state">Disabling revokes existing browser sessions; the account is retained permanently.</p>
-                </div>
-        </section>
+            <div>
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Confirm</span>
+                </button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
     </div>
+</section>
+
 
                 </div>
             </main>

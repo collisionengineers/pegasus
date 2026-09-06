@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Review account · Pegasus</title>
+    <title>AI jobs · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -156,37 +156,36 @@
                   data-workspace-href=""
                   data-workspace-label="">
                 <div class="content">
-
-<header class="page-header">
+                    <header class="page-header">
     <div class="page-title">
             <p class="eyebrow">Administration</p>
-        <h1>Review account</h1>
+        <h1>AI jobs</h1>
     </div>
 </header>
 
-
-<section class="panel" aria-labelledby="account-action-title">
-    <div class="panel-head">
-        <h2 id="account-action-title">Review account</h2>
-    </div>
-    <div class="panel-body">
-        <form method="post" class="stack" action="administration-accounts--default.html">
-            <input type="hidden" name="staffId" value="test-ui-guid-1" />
-            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-            <div class="field field--narrow">
-                <label class="req" for="confirm-reason">Reason</label>
-                <textarea id="confirm-reason" name="reason" rows="3" required
-                          maxlength="1000"></textarea>
-            </div>
-            <div>
-                <button type="submit" class="btn btn--primary">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                    <span>Confirm</span>
-                </button>
-            </div>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-    </div>
-</section>
+<div class="admin-layout"><nav class="admin-nav panel" aria-label="Administration areas">
+    <a href="administration-accounts--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+    </a>
+    <a href="administration-principals--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Principals</span>
+    </a>
+    <a href="administration-configuration--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+    </a>
+    <a href="administration-mailboxes--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+    </a>
+</nav>
+<div class="stack">
+<section class="panel"><div class="panel-head"><h2>AI jobs</h2><span class="muted">0 active · 0 failed · Unavailable</span></div>
+<div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Job</th><th>Subject</th><th>Created</th><th>State</th><th>Action</th></tr></thead><tbody>
+</tbody></table></div></div></section>
+</div></div>
 
                 </div>
             </main>

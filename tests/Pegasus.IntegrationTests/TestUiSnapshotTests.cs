@@ -22,10 +22,12 @@ public sealed partial class TestUiSnapshotTests
             ["sign-in--signed-out"] = new("You are signed out"),
             ["administration-accounts--empty"] = new("No staff accounts are available."),
             ["administration-configuration--default"] = new("Workflow configuration"),
-            // The Disable branch is the one that renders the consequence
-            // notice; every other operation falls to the review state.
-            ["administration-account-confirm--disable"] =
-                new("Disabling revokes existing browser sessions"),
+            ["administration-account-confirm--disable"] = new("Disable account"),
+            ["administration-account-confirm--enable"] = new("Enable account"),
+            ["administration-account-confirm--delete"] = new("Delete account"),
+            ["administration-account-confirm--force-logout"] = new("Force logout"),
+            ["administration-account-confirm--reset-password"] = new("Reset password"),
+            ["administration-account-confirm--clear-lease"] = new("Clear case edit hold"),
             ["administration-principal-eva-submission--default"] = new(
                 "EVA API submission for WEBP", "We could not complete that request"),
             ["case-details--default"] = new(
