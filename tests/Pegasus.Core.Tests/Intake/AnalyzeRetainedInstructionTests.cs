@@ -312,11 +312,37 @@ public sealed class AnalyzeRetainedInstructionTests
     {
         var json = AnalyzeRetainedInstruction.LocatorJson("instruction.pdf, page 2", 2);
 
-        Assert.Equal(("instruction.pdf, page 2", 2), AnalyzeRetainedInstruction.ReadLocator(json));
-        Assert.Equal(
-            ("message body", null),
-            AnalyzeRetainedInstruction.ReadLocator(
-                AnalyzeRetainedInstruction.LocatorJson("message body", null)));
+        var (pageLabel, pageNumber, pageLocator) = AnalyzeRetainedInstruction.ReadLocator(json);
+        Assert.Equal("instruction.pdf, page 2", pageLabel);
+        Assert.Equal(2, pageNumber);
+        Assert.Equal(IntakeSourceLocator.ForPage(2), pageLocator);
+
+        var (bodyLabel, bodyPage, bodyLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("message body", null));
+        Assert.Equal("message body", bodyLabel);
+        Assert.Null(bodyPage);
+        Assert.Null(bodyLocator);
+
+        // A structured locator survives the round trip whole: the cell, the form
+        // field, the region and the message part are the provenance, and a store
+        // that dropped any of them would leave a candidate unlocatable.
+        var cell = IntakeSourceLocator.ForCell(2, 3, 4, page: 5, occurrence: 1);
+        var (cellLabel, cellPage, cellLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("instruction.docx, table 2 row 3 column 4", null, cell));
+        Assert.Equal("instruction.docx, table 2 row 3 column 4", cellLabel);
+        Assert.Equal(5, cellPage);
+        Assert.Equal(cell, cellLocator);
+        Assert.Equal("T2R3C4", cellLocator!.Cell);
+
+        var formField = IntakeSourceLocator.ForFormField("ClaimNumber", page: 1, region: "10.00,20.00,30.00,40.00");
+        var (_, _, formLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("instruction.pdf, form field ClaimNumber", null, formField));
+        Assert.Equal(formField, formLocator);
+
+        var quoted = IntakeSourceLocator.ForMessagePart(IntakeMessagePart.QuotedHistory, "chars 120-400");
+        var (_, _, quotedLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("message, quoted history", null, quoted));
+        Assert.Equal(quoted, quotedLocator);
     }
 
     private sealed class Harness
