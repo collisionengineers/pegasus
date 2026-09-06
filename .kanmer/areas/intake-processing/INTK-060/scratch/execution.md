@@ -328,3 +328,7 @@ Build 0/0, core 61, integration 38, host 118, browser 2, architecture 100. C06 r
 ## C06 integrated — C head `aa3202746`
 
 Review `pass` at `f1519a2f9` (`scratch/review-c06`, four rounds; open minors R-24/R-25 accepted-risk with reasons). Merged `--no-ff`, build 0/0, pushed; DI list + routes posted to A/B on PR 673. Residual for C06 closure: A's real registrations (then bridges revert to required), catalogue routes, R-24 (needs an A migration), B's picker consumption.
+
+## Checkpoint — C05 round 3 at `eb46b7a7d` (merged `7467190b1`)
+
+R-16 fixed (document-level locator = retained file name via `ThirdPartyReportSourceContext`); R-6 root-caused to an A-owned defect — queued re-evaluation deletes the staged copy at first-pass completion, so the re-claimed pass fails `staged_artifact_integrity_failure` before the reader (handed to A: PR 673 comment 5560823100); test renamed to assert the reading stands and the work item's real failure; replay guard proved against SQL separately (ASSUMPTION 8). R-17/R-18 fixed. Re-review dispatched; wave 28 queued behind wave 27 (C08). C02 slice worktree `v1-intake-c02` (`c02-provenance`) created off `aa3202746`; implementer dispatch next (editors: C07b r3 + C02).
