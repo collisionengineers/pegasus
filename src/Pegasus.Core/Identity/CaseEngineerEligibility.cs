@@ -11,3 +11,12 @@ public interface ICaseEngineerEligibility
         Guid staffId,
         CancellationToken cancellationToken);
 }
+
+public sealed record CaseEngineerChoice(Guid StaffId, string DisplayName);
+
+public interface ICaseEngineerChoices
+{
+    Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken);
+}
