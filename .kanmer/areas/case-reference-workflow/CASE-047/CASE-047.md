@@ -11,14 +11,14 @@ stageEntered:
 taken_at: '2026-09-06T05:58:38.228Z'
 branch: task/pegasus-v1-casework
 worktree: ../pegasus-worktrees/v1-casework
-claim_expires_at: '2026-09-06T06:28:38.228Z'
+claim_expires_at: '2026-09-06T06:32:46.721Z'
 claim_controller: claude-fable-b
 lease_id: 715d1480-9946-467e-b177-9b167c73ee94
-lease_revision: 1
+lease_revision: 2
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus-worktrees\v1-casework'
 lease_provider: claude-code
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-06T05:58:38.228Z'
+lease_heartbeat_at: '2026-09-06T06:02:46.721Z'
 labels:
   - pegasus-v1
   - stream-b
@@ -27,7 +27,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-09-06T05:33:42.471Z'
-updated: '2026-09-06T05:58:38.228Z'
+updated: '2026-09-06T06:02:46.721Z'
 ---
 
 ## What
