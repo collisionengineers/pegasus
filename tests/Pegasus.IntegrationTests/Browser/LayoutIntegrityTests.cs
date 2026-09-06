@@ -309,7 +309,7 @@ public sealed class LayoutIntegrityTests
                 "case-record-layout",
                 new(IntakeSourceChannel.ManualUpload, $"case-record-layout:{Guid.NewGuid():N}")),
             CancellationToken.None);
-        await SeedPrincipalAsync(scoped);
+        await SeedPrincipalAsync(scoped, now);
         await SetPrincipalInspectionModeAsync(scoped, principalInspectionMode);
         var accepted = await scoped.GetRequiredService<IAcceptIntake>().ExecuteAsync(
             new(
@@ -325,13 +325,30 @@ public sealed class LayoutIntegrityTests
         return accepted.Identity.CaseId;
     }
 
-    /// <summary>
-    /// QDOS is one of the shared foundation migration's seeded principals, so
-    /// this resolves the seed rather than inserting a second one of its own
-    /// (INTK-060).
-    /// </summary>
-    private static async Task SeedPrincipalAsync(IServiceProvider services) =>
-        await SeededPrincipals.QdosAsync(services);
+    private static async Task SeedPrincipalAsync(IServiceProvider services, DateTimeOffset now)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        if (await context.Principals.AnyAsync(
+                item => item.Code == QdosPrincipal.Code && item.IsActive,
+                CancellationToken.None))
+        {
+            return;
+        }
+
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Case record layout provider"}, {0L})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO OrganizationRoles (OrganizationId, Role) VALUES ({organizationId}, {"work_provider"})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({Guid.NewGuid()}, {organizationId}, {QdosPrincipal.Code}, {lineageId}, {true}, {0L})");
+        await transaction.CommitAsync();
+    }
 
     /// <summary>
     /// Sets QDOS's inspection-mode setting explicitly (mirrors
