@@ -95,7 +95,7 @@ public sealed record ThirdPartyReportDeclaration(
 
 /// <summary>Source evidence owned by C; B accepts CE findings through its named commands.</summary>
 public sealed record ThirdPartyReportCandidate(
-    Guid DocumentId, Guid DocumentVersionId, string Sha256, string OccurrenceIdentity,
+    Guid? DocumentId, Guid? DocumentVersionId, Guid? IntakeAssetId, string Sha256, int Occurrence,
     ThirdPartyReportIdentity Identity, ThirdPartyReportVehicle Vehicle,
     ThirdPartyReportParties Parties, ThirdPartyReportDamage Damage,
     IReadOnlyList<ThirdPartyReportEstimate> Estimates,
@@ -104,5 +104,6 @@ public sealed record ThirdPartyReportCandidate(
 public interface IThirdPartyReportCandidateQueries
 {
     Task<IReadOnlyList<ThirdPartyReportCandidate>> GetAsync(
-        ActionActor actor, Guid caseId, Guid documentVersionId, CancellationToken cancellationToken);
+        ActionActor actor, Guid receiptId, Guid? documentVersionId, Guid? intakeAssetId,
+        CancellationToken cancellationToken);
 }

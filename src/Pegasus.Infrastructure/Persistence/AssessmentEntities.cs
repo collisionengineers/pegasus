@@ -44,7 +44,7 @@ internal sealed class CaseEstimateLineEntity
     public string? ConfirmedBy { get; set; }
     public DateTimeOffset? ConfirmedAtUtc { get; set; }
     public string? Operation { get; set; }
-    public string? Materials { get; set; }
+    public decimal? Materials { get; set; }
     public string? OriginalValuesJson { get; set; }
     public string? CurrentValuesJson { get; set; }
     public string? SourceDocumentIdentity { get; set; }
