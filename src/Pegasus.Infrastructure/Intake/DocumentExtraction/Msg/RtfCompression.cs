@@ -230,6 +230,8 @@ internal static class PassiveRtfText
                 else output.AppendLine();
             }
             else if (!skip && !htmlRtfSuppressed && word == "tab") output.Append('\t');
+            else if (!skip && !htmlRtfSuppressed && word == "rquote") output.Append('\u2019');
+            else if (!skip && !htmlRtfSuppressed && word == "lquote") output.Append('\u2018');
             else if (word == "uc" && hasNumber) unicodeFallback = Math.Clamp(number, 0, 16);
             else if (!skip && !htmlRtfSuppressed && word == "u" && hasNumber)
             {
