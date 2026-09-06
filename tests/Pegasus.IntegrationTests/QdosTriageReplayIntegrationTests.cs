@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
 using Pegasus.Web.Authentication;
 
@@ -25,6 +26,9 @@ public sealed partial class QdosTriageIntegrationTests
         var initial = await GetOnlyTriageAsync(factory.Services);
         var triageId = initial.Record.Id;
         var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
+        var staffActor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -38,7 +42,7 @@ public sealed partial class QdosTriageIntegrationTests
         var recordRequest = new RecordTriageFindingRequest(
             triageId,
             0,
-            actor,
+            staffActor,
             "replay-record-finding",
             "Initial retained assessment",
             RoadworthinessFinding.Unroadworthy,
@@ -52,7 +56,7 @@ public sealed partial class QdosTriageIntegrationTests
         var supersedeRequest = new RecordTriageFindingRequest(
             triageId,
             1,
-            actor,
+            staffActor,
             "replay-supersede-finding",
             "Corrected retained assessment",
             RoadworthinessFinding.Roadworthy,
@@ -69,7 +73,7 @@ public sealed partial class QdosTriageIntegrationTests
         var awaitRequest = new TriageMutationRequest(
             triageId,
             2,
-            actor,
+            staffActor,
             "replay-await-information",
             "Further retained information is required");
         var awaiting = await awaitInformation.ExecuteAsync(awaitRequest, CancellationToken.None);
@@ -90,7 +94,7 @@ public sealed partial class QdosTriageIntegrationTests
         var cancelRequest = new TriageMutationRequest(
             triageId,
             3,
-            actor,
+            staffActor,
             "replay-cancel",
             "The instruction was withdrawn");
         var cancelled = await cancel.ExecuteAsync(cancelRequest, CancellationToken.None);
@@ -100,7 +104,7 @@ public sealed partial class QdosTriageIntegrationTests
         var reopenRequest = new TriageMutationRequest(
             triageId,
             4,
-            actor,
+            staffActor,
             "replay-reopen",
             "Further retained evidence requires review");
         var reopened = await reopen.ExecuteAsync(reopenRequest, CancellationToken.None);
@@ -120,7 +124,7 @@ public sealed partial class QdosTriageIntegrationTests
         var postReopenCorrection = new RecordTriageFindingRequest(
             triageId,
             5,
-            actor,
+            staffActor,
             "post-reopen-finding-correction",
             "Final retained assessment before completion",
             RoadworthinessFinding.Unroadworthy,
@@ -150,11 +154,7 @@ public sealed partial class QdosTriageIntegrationTests
             pollOutcomeId,
             sentEvidence.MessageIdentity);
         var candidateDetail = await services.GetRequiredService<IGetTriage>().ExecuteAsync(
-            new(
-                triageId,
-                Pegasus.Core.Identity.ActionActor.Staff(
-                    DevelopmentOfflineIdentity.AdministratorId,
-                    [Pegasus.Core.Identity.StaffRole.Administrator])),
+            new(triageId, staffActor),
             CancellationToken.None);
         var candidate = Assert.Single(
             Assert.IsType<TriageDetail>(candidateDetail).ResponseEvidenceCandidates);
@@ -167,7 +167,7 @@ public sealed partial class QdosTriageIntegrationTests
             pollOutcomeId,
             sentEvidence.Id,
             6,
-            actor,
+            staffActor,
             "link-response-triage-replay",
             "Exact reply-chain evidence retained");
         await linkResponse.ExecuteAsync(linkRequest, CancellationToken.None);
@@ -205,7 +205,7 @@ public sealed partial class QdosTriageIntegrationTests
         var completeRequest = new TriageMutationRequest(
             triageId,
             7,
-            actor,
+            staffActor,
             "replay-complete",
             "Finding and exact response evidence confirmed");
         var completed = await complete.ExecuteAsync(completeRequest, CancellationToken.None);
@@ -247,6 +247,13 @@ public sealed partial class QdosTriageIntegrationTests
         await AssertReplayConflictAsync(
             () => complete.ExecuteAsync(
                 completeRequest with { Reason = "Altered completion request" },
+                CancellationToken.None));
+        // The actor kind is part of the command, not decoration: the same
+        // subject acting as Automation rather than Staff is a different
+        // command, so the committed key conflicts instead of replaying.
+        await AssertReplayConflictAsync(
+            () => complete.ExecuteAsync(
+                completeRequest with { Actor = ActionActor.Automation(staffActor.SubjectId) },
                 CancellationToken.None));
 
         var invalidNewCompletion = await Assert.ThrowsAsync<InvalidOperationException>(
