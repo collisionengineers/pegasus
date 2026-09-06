@@ -178,10 +178,6 @@
                                             <input id="estimate-labour-rate" name="estimateLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.LabourRate" />
                                         </div>
                                         <div>
-                                            <label for="estimate-paint-rate">@EngineerLabels.PaintLabourRatePerHour</label>
-                                            <input id="estimate-paint-rate" name="estimatePaintLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintLabourRate" />
-                                        </div>
-                                        <div>
                                             <label for="estimate-materials">@EngineerLabels.PaintMaterialsPounds</label>
                                             <input id="estimate-materials" name="estimatePaintMaterials" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintMaterials" />
                                         </div>
@@ -263,7 +259,6 @@
                                 <dl class="detail-list">
                                     <div><dt>@EngineerLabels.RepairDays</dt><dd>@(details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.LabourRate</dt><dd>@(details.LabourRate is { } labourRate ? $"£{labourRate.ToString("N2")}/h" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-                                    <div><dt>@EngineerLabels.PaintLabourRate</dt><dd>@(details.PaintLabourRate is { } paintRate ? $"£{paintRate.ToString("N2")}/h" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.PaintMaterials</dt><dd>@(details.PaintMaterials is { } paintMaterials ? $"£{paintMaterials.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.OtherCosts</dt><dd>@(details.OtherCosts is { } otherCosts ? $"£{otherCosts.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.Vat</dt><dd>@($"{totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%")</dd></div>

@@ -99,7 +99,6 @@ public sealed class EfRepairSpecificationStore(
             VatPercent = predecessor?.VatPercent ?? EstimatePolicy.DefaultVatPercent,
             RepairDays = predecessor?.RepairDays,
             LabourRate = predecessor?.LabourRate,
-            PaintLabourRate = predecessor?.PaintLabourRate,
             PaintMaterials = predecessor?.PaintMaterials,
             OtherCosts = predecessor?.OtherCosts,
             Notes = predecessor?.Notes,
@@ -574,7 +573,10 @@ public sealed class EfRepairSpecificationStore(
         entity.LabourRate = details.Rate?.HourlyRate ?? details.LabourRate;
         entity.RateCardId = details.Rate?.RateCardId;
         entity.RateCardVersion = details.Rate?.RateCardVersion;
-        entity.PaintLabourRate = details.PaintLabourRate;
+        // The schema still carries Foundation's second paint-rate column. The
+        // estimate model has one rate, so this store writes the column empty
+        // and never reads it back.
+        entity.PaintLabourRate = null;
         entity.PaintMaterials = details.PaintMaterials;
         entity.OtherCosts = details.OtherCosts;
         entity.VatPercent = details.VatPercent;
@@ -646,7 +648,7 @@ public sealed class EfRepairSpecificationStore(
                 entity.RateCardId, entity.RateCardVersion, entity.LabourRate ?? 0m);
 
         return new(
-            entity.Name, entity.RepairDays, entity.LabourRate, entity.PaintLabourRate,
+            entity.Name, entity.RepairDays, entity.LabourRate,
             entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes,
             discounts, vat, rate);
     }

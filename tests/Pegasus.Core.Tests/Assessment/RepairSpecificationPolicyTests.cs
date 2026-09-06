@@ -156,7 +156,7 @@ public sealed class RepairSpecificationPolicyTests
         [Line("new_part", 1)],
         new(100m, 20m, 10m, 0m, true, 26m, 156m, "calc/v1"),
         "engineer", DateTimeOffset.UtcNow, null, null, null, null,
-        new("Estimate 1", null, null, null, null, null, 20m, null));
+        new("Estimate 1", null, null, null, null, 20m, null));
 
     private static CaseEstimateLineRecord Line(
         string type,

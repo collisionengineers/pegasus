@@ -675,7 +675,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var repairer = await save.ExecuteAsync(
             new(caseId, leaseA.Version, engineer, "estimate-save-a", "Recorded the repairer's estimate.",
                 leaseA.Token, null,
-                new("Repairer", 3, 40m, 30m, 25m, 0m, 20m, "Typed from the repairer's e-mail."),
+                new("Repairer", 3, 40m, 25m, 0m, 20m, "Typed from the repairer's e-mail."),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
                         "confirmed", "official", null, Quantity: 1),
@@ -697,7 +697,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var engineers = await save.ExecuteAsync(
             new(caseId, leaseB.Version, engineer, "estimate-save-b", "Recorded the Engineer's own estimate.",
                 leaseB.Token, null,
-                new("Engineer's", 2, 45m, null, null, 0m, 0m, null),
+                new("Engineer's", 2, 45m, null, 0m, 0m, null),
                 [new("repair", null, "Repair nearside door", 2m, null, false, null, null, "confirmed", "judgement", null)],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
@@ -793,7 +793,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var aiDraft = await save.ExecuteAsync(
             new(caseId, leaseAi.Version, harness.AutomationActor, "mcp:estimate-save-ai", "AI drafted an estimate.",
                 leaseAi.Token, null,
-                new("Claude draft", 2, 40m, 30m, 20m, 0m, 20m, null),
+                new("Claude draft", 2, 40m, 20m, 0m, 20m, null),
                 [new("repair", null, "Repair nearside door", 3m, null, false, null, null, "estimated", "judgement", "Visible damage")],
                 new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
                 job.JobId),
@@ -849,7 +849,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var origin = new EstimateLineOrigin(
             "new_part", "Door skin", "P-1234", 1, null, null, 240.00m, 12.50m);
         var details = new EstimateDetails(
-            "Repairer", 3, 40m, null, 25m, 110m, 20m, "Typed from the repairer's e-mail.",
+            "Repairer", 3, 40m, 25m, 110m, 20m, "Typed from the repairer's e-mail.",
             new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m),
             new EstimateVatPolicy(
                 RepairerVatStatus.NotRegistered,
@@ -953,7 +953,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var original = await save.ExecuteAsync(
             new(caseId, saveLease.Version, engineer, "estimate-frozen-save",
                 "Recorded the repairer's estimate.", saveLease.Token, null,
-                new("Repairer", 3, 40m, null, 25m, 0m, 20m, null),
+                new("Repairer", 3, 40m, 25m, 0m, 20m, null),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
                         "confirmed", "official", null, Quantity: 1),
@@ -1055,7 +1055,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             save.ExecuteAsync(
                 new(caseId, lease.Version, engineer, key, "Recorded an estimate.", lease.Token,
                     estimateId,
-                    new(name, 3, 40m, null, 25m, 0m, 20m, null, null, vat, null),
+                    new(name, 3, 40m, 25m, 0m, 20m, null, null, vat, null),
                     [
                         new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
                             "confirmed", "official", null, Quantity: 1),
