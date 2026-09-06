@@ -121,6 +121,19 @@ public sealed class TriageReferenceAllocationTests
         Assert.Equal(
             concurrentCreations,
             listed.Select(item => item.Reference).Distinct(StringComparer.Ordinal).Count());
+
+        // Each creator's reference is the one persisted against its own
+        // Triage. Distinctness alone would still hold if two concurrent
+        // allocations were recorded against each other's rows, so the
+        // id-to-reference correspondence is asserted per creation.
+        var queries = services.GetRequiredService<ITriageQueries>();
+        foreach (var record in created)
+        {
+            var detail = await queries.GetAsync(record.Id, CancellationToken.None);
+            Assert.Equal(
+                record.Reference,
+                Assert.IsType<TriageDetail>(detail).Record.Reference);
+        }
     }
 
     [Fact]
