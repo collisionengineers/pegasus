@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
@@ -94,10 +95,20 @@ internal sealed record EstimateImportToolResult(
     string Name,
     string OperationKey,
     string CorrelationId);
+internal sealed record EstimateListToolItem(
+    Guid EstimateId,
+    int Version,
+    string State,
+    string Source,
+    string Name,
+    bool IsCurrent,
+    string? CalculationBasis);
 
 internal sealed record EstimateListToolResult(
     Guid CaseId,
-    IReadOnlyList<EstimateToolItem> Estimates,
+    IReadOnlyList<EstimateListToolItem> Estimates,
+    string? NextCursor,
+    int Limit,
     string CorrelationId);
 
 internal sealed record AssessmentCaseOwnedToolData(
@@ -162,7 +173,7 @@ internal sealed class AssessmentMcpTools(
     ICaseDataQueries caseDataQueries,
     ISaveCase saveCase,
     ISaveEstimate saveEstimate,
-    IListCaseEstimates listEstimates,
+    IListCaseEstimatesByCursor listEstimates,
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -309,9 +320,11 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists every estimate on a case in version order with its state (Draft, Accepted, Superseded, Discarded), source route, whether it is the Current estimate, the AI job it cites, its header, lines and totals computed by Pegasus.")]
+    [Description("Lists a bounded page of estimate headers on a case in version order with state, source route and Current status.")]
     public async Task<EstimateListToolResult> ListEstimatesAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
+        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -329,10 +342,14 @@ internal sealed class AssessmentMcpTools(
                 {
                     throw new McpException("The case was not found.");
                 }
-                var estimates = await listEstimates.ExecuteAsync(caseId, cancellationToken);
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
+                var estimates = await listEstimates.ExecuteAsync(
+                    new(context.Actor, caseId, cursor, effectiveLimit), cancellationToken);
                 return new EstimateListToolResult(
                     caseId,
-                    estimates.Select(MapEstimate).ToArray(),
+                    estimates.Items.Select(MapEstimateList).ToArray(),
+                    estimates.NextCursor,
+                    effectiveLimit,
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -650,6 +667,15 @@ internal sealed class AssessmentMcpTools(
             estimate.CreatedBy,
             estimate.CreatedAtUtc);
     }
+
+    private static EstimateListToolItem MapEstimateList(CaseEstimatePageItem estimate) => new(
+        estimate.SpecificationId,
+        estimate.Version,
+        estimate.State.ToString(),
+        estimate.Source.Route.ToString(),
+        estimate.Name,
+        estimate.IsCurrent,
+        estimate.CalculationBasis?.ToString());
 
     private static AssessmentCaseOwnedToolData MapCaseOwned(AssessmentCaseOwnedData data) => new(
         data.Registration,

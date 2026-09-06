@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -902,13 +903,16 @@ public sealed class AutomationAssessmentIngressTests
         using (var response = await PostMcpAsync(
             client,
             token,
-            ToolCallPayload(13, "pegasus_estimate_list", new { caseId })))
+            ToolCallPayload(13, "pegasus_estimate_list", new { caseId, limit = 1 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(1, structured.GetProperty("limit").GetInt32());
+            Assert.Equal(JsonValueKind.Null, structured.GetProperty("nextCursor").ValueKind);
             var listed = Assert.Single(structured.GetProperty("estimates").EnumerateArray());
             Assert.Equal(estimateId, listed.GetProperty("estimateId").GetGuid());
-            Assert.Equal(3, listed.GetProperty("lines").GetArrayLength());
+            Assert.False(listed.TryGetProperty("lines", out _));
+            Assert.False(listed.TryGetProperty("totals", out _));
         }
     }
 }

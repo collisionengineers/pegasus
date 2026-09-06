@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
@@ -29,7 +30,11 @@ public sealed class AutomationIntakeParityIngressTests
         using var listResponse = await PostMcpAsync(client, token,
             ToolCallPayload(1, "pegasus_unidentified_list", new { }));
         var list = await ReadStructuredContentAsync(listResponse);
-        var item = Assert.Single(list.GetProperty("result").EnumerateArray());
+        Assert.Equal(50, list.GetProperty("limit").GetInt32());
+        Assert.True(
+            !list.TryGetProperty("nextCursor", out var nextCursor)
+            || nextCursor.ValueKind == JsonValueKind.Null);
+        var item = Assert.Single(list.GetProperty("items").EnumerateArray());
         var reference = item.GetProperty("reference").GetString();
 
         using var getResponse = await PostMcpAsync(client, token,
@@ -45,6 +50,57 @@ public sealed class AutomationIntakeParityIngressTests
         Assert.True(download.GetProperty("contentIncluded").GetBoolean());
         Assert.Equal("not a PDF", Encoding.UTF8.GetString(
             Convert.FromBase64String(download.GetProperty("contentBase64").GetString()!)));
+    }
+
+    [Fact]
+    public async Task OversizedUnidentifiedSourceReturnsAuthorizedMetadataWithoutReadingContent()
+    {
+        var artifacts = new CountingArtifactStore();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            artifactStore: artifacts);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var intakeClient = mcpFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+        using var client = mcpFactory.CreateClient();
+        var content = Encoding.UTF8.GetBytes(new string('x', 2 * 1024));
+        _ = await IntakeWebDriver.UploadAndProcessAsync(
+            mcpFactory,
+            intakeClient,
+            "oversized-corrupt.pdf",
+            "application/pdf",
+            content);
+
+        var token = await RequestTokenAsync(client, "automation.intake");
+        using var listResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(21, "pegasus_unidentified_list", new { }));
+        var list = await ReadStructuredContentAsync(listResponse);
+        var reference = Assert.Single(list.GetProperty("items").EnumerateArray())
+            .GetProperty("reference")
+            .GetString();
+        using var detailResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(22, "pegasus_unidentified_get", new { reference }));
+        var detail = await ReadStructuredContentAsync(detailResponse);
+        var receiptId = Assert.Single(detail.GetProperty("sources").EnumerateArray())
+            .GetProperty("receiptId")
+            .GetGuid();
+        var readsBeforeDownload = artifacts.ReadCount;
+
+        using var downloadResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(23, "pegasus_unidentified_source_download",
+                new { reference, memberReceiptId = receiptId, maxInlineBytes = 1024 }));
+        var download = await ReadStructuredContentAsync(downloadResponse);
+
+        Assert.False(download.GetProperty("contentIncluded").GetBoolean());
+        Assert.Equal(content.Length, download.GetProperty("contentLength").GetInt64());
+        Assert.True(
+            !download.TryGetProperty("contentBase64", out var omittedContent)
+            || omittedContent.ValueKind == JsonValueKind.Null);
+        Assert.Equal(readsBeforeDownload, artifacts.ReadCount);
     }
 
     [Fact]
@@ -66,8 +122,12 @@ public sealed class AutomationIntakeParityIngressTests
 
         var token = await RequestTokenAsync(client, "automation.intake");
         using var listResponse = await PostMcpAsync(client, token,
-            ToolCallPayload(10, "pegasus_triage_list", new { page = 1, pageSize = 10 }));
+            ToolCallPayload(10, "pegasus_triage_list", new { limit = 10 }));
         var list = await ReadStructuredContentAsync(listResponse);
+        Assert.Equal(10, list.GetProperty("limit").GetInt32());
+        Assert.True(
+            !list.TryGetProperty("nextCursor", out var nextCursor)
+            || nextCursor.ValueKind == JsonValueKind.Null);
         var item = Assert.Single(list.GetProperty("items").EnumerateArray());
         var triageId = item.GetProperty("id").GetGuid();
         var version = item.GetProperty("version").GetInt64();
@@ -90,5 +150,32 @@ public sealed class AutomationIntakeParityIngressTests
             .GetProperty("record").GetProperty("state").GetString());
         Assert.Contains(cancelled.GetProperty("detail").GetProperty("history").EnumerateArray(),
             entry => entry.GetProperty("actor").GetString() == ClientId);
+    }
+    private sealed class CountingArtifactStore : IIntakeArtifactStore
+    {
+        private readonly Dictionary<string, ReadOnlyMemory<byte>> content = [];
+
+        public int ReadCount { get; private set; }
+
+        public Task<string> StoreAsync(
+            string contentHash,
+            ReadOnlyMemory<byte> value,
+            CancellationToken cancellationToken)
+        {
+            var storageKey = $"sha256/{contentHash[..2]}/{contentHash}";
+            content[storageKey] = value.ToArray();
+            return Task.FromResult(storageKey);
+        }
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(
+            string storageKey,
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return Task.FromResult(
+                content.TryGetValue(storageKey, out var value)
+                    ? (ReadOnlyMemory<byte>?)value
+                    : null);
+        }
     }
 }
