@@ -86,3 +86,10 @@ Items 1,2,3,5,7,8 delivered; item 4 dropped (A07 hunk branch instead); item 6 pa
 
 - G10 `9c5ddf454` merged `--no-ff` after G9 → C head `e5c9b1f43`, pushed; wave 2 baseline lane repointed at it. Typed-actor helper commit `fda3a35bb` (12 C-owned files at the G9 boundary) published as `task/pegasus-v1-c-typed-actor-hunks`; the four A-owned sites and the entity property are on PLAT-075 `scratch/c-stream-notes`.
 - C08 correction (optional `IGetAttentionRows` resolution) in progress; C05 Core slice (profiles/extraction/validation + Core and corpus tests) dispatched on `v1-intake-c05` (Opus). Editors: C08 + C05 = 2. Wave 2 runner on group C (C01) then the baseline.
+
+## 13:00Z — wave 2 results
+
+- C07 attempt 2 (`7850a7bd7`): build PASS, Core 207/207, Architecture 100/100, integration 65/66 — concurrency proof deadlocks reproducibly on the allocator (counter taken last) → correction round 2 (counter first, replay probe before the counter) dispatched.
+- A07 hunk branch (`2855d4a97`): build PASS, integration 38/38 (+5 corpus skips), Core 7/9 — the two day/week boundary tests lost their source; handed to A for G11.
+- C01 (`abfc219aa`): build PASS, Core 108/108, Architecture 100/100, integration 168/173: 2 × `UnidentifiedReconciliationTests` fail in A-owned `EfCaseWorkflowStore.Map` (`'not_ready'` enum parse — baseline pending); `ProviderApiSubmissionTests.ADeclaredTriageOpensATriageAndAllocatesNoCase` (Triage `Sequence = 0` on this slice; clears with C07); `AnAmbiguousExistingCaseMatchIsRejectedOnTheSamePath` (expected Failed, got Complete — C01 defect to investigate); `RetainedInstructionAnalysisTests.ARetainedQdosLetterIsAnalysedFromTheDocumentAndAllocatesNothing` (assertion mismatch on the receipt — C01 to investigate). C01 correction round queued behind C07 round 2 (two-editor rule; C05 running, C06 paused before any edit).
+- Baseline whole-solution lane on `e5c9b1f43` running.
