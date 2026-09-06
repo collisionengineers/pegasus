@@ -62,8 +62,12 @@ public sealed class EvaSubmissionModel(
     [StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)]
     public string? EvaReason { get; set; }
 
+    // Nullable, not string: each form posts only its own operation key, and a
+    // non-nullable string here would be implicitly Required even on the
+    // *other* form's POST (C06-R-16) — the same reasoning as EvaReason above.
+    // Each handler still requires and validates its own key explicitly, below.
     [BindProperty]
-    public string EvaOperationKey { get; set; } = NewOperationKey();
+    public string? EvaOperationKey { get; set; } = NewOperationKey();
 
     [BindProperty]
     public bool LocationIsImageBasedAssessment { get; set; }
@@ -85,8 +89,9 @@ public sealed class EvaSubmissionModel(
     [StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)]
     public string? LocationReason { get; set; }
 
+    // Nullable for the same reason as EvaOperationKey above (C06-R-16).
     [BindProperty]
-    public string LocationOperationKey { get; set; } = NewOperationKey();
+    public string? LocationOperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(
         Guid organizationId,
@@ -137,7 +142,7 @@ public sealed class EvaSubmissionModel(
                         principalId,
                         ExpectedVersion,
                         actor,
-                        EvaOperationKey,
+                        EvaOperationKey!,
                         EvaReason!,
                         EvaManualSubmission,
                         EvaAutomaticSubmission: false),
@@ -210,7 +215,7 @@ public sealed class EvaSubmissionModel(
                         actor,
                         principalId,
                         ExpectedVersion,
-                        LocationOperationKey,
+                        LocationOperationKey!,
                         LocationReason!,
                         LocationIsImageBasedAssessment
                             ? InspectionAddressEvidenceKind.ImageBasedAssessment
