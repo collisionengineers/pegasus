@@ -13,6 +13,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "ActorKind",
+                table: "TriageHistory",
+                type: "nvarchar(40)",
+                maxLength: 40,
+                nullable: false);
+
             migrationBuilder.DropCheckConstraint(
                 name: "CK_CaseDataFields_FieldName",
                 table: "CaseDataFields");
@@ -1336,6 +1343,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "ActorKind",
+                table: "TriageHistory");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_ImageIntakes_Principals_PrincipalId",
                 table: "ImageIntakes");
