@@ -247,6 +247,50 @@ public sealed class CaseReportDeliveryPreparationTests
     }
 
     /// <summary>
+    /// Stream A review (blocker 2): the transport's mailbox guard is the
+    /// G14 Generation, never the administration row's concurrency Version —
+    /// here deliberately distinct so a swap cannot pass unnoticed.
+    /// </summary>
+    [Fact]
+    public async Task SendUsesTheMailboxGenerationNotItsAdministrationVersion()
+    {
+        var send = new RecordingSend();
+        var sendPrepared = new SendPreparedCaseReport(
+            new FixedStore(Record()),
+            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedMailboxes(Mailbox(version: 5, generation: 3)),
+            new ReportSendReadiness(new FixedStore(Record())),
+            send);
+
+        await sendPrepared.ExecuteAsync(
+            new(Staff(), CaseId, PreparationId, 1, "send-1"), CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(3, command.Mail.ExpectedMailboxGeneration);
+    }
+
+    /// <summary>
+    /// Stream A review (blocker 2): a mailbox bound only for Sent-evidence
+    /// observation cannot send — the report journey needs the StaffSend
+    /// capability on the same approved, identified mailbox.
+    /// </summary>
+    [Fact]
+    public async Task SendFailsClosedWithoutTheStaffSendScope()
+    {
+        var send = new RecordingSend();
+        var sendPrepared = new SendPreparedCaseReport(
+            new FixedStore(Record()),
+            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedMailboxes(Mailbox(scopes: [ApprovedMailboxRouteScope.SentEvidence])),
+            new ReportSendReadiness(new FixedStore(Record())),
+            send);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sendPrepared.ExecuteAsync(
+            new(Staff(), CaseId, PreparationId, 1, "send-1"), CancellationToken.None));
+        Assert.Empty(send.Commands);
+    }
+
+    /// <summary>
     /// Stream A review: the preparation froze the Case version it was made
     /// at; any later Case mutation — even one that leaves the addressing and
     /// artifacts intact — must refuse the send rather than deliver stale
@@ -349,10 +393,15 @@ public sealed class CaseReportDeliveryPreparationTests
         Guid.NewGuid(), state, null, 1, PreparedAtUtc, null, null, null,
         Guid.NewGuid(), 1, new string('d', 64), null, null);
 
-    private static ApprovedMailbox Mailbox() => new(
+    private static ApprovedMailbox Mailbox(
+        IReadOnlyList<ApprovedMailboxRouteScope>? scopes = null,
+        int version = 5,
+        long generation = 3) => new(
         Guid.NewGuid(), "reports@collisionengineers.example",
-        [ApprovedMailboxRouteScope.SentEvidence], ApprovedMailboxState.Approved,
-        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: PreparedAtUtc, 1, []);
+        scopes ?? [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+        ApprovedMailboxState.Approved,
+        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: PreparedAtUtc, version, [],
+        Generation: generation);
 
     private static CaseDataProjection Projection(
         string? contactEmail,
