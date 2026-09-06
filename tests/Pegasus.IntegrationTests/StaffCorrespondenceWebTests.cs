@@ -155,7 +155,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 ABC", "SC08-CLAIM-1");
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
@@ -190,7 +190,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 KEY", "SC08-CLAIM-4");
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
@@ -225,7 +225,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 XYZ", "SC08-CLAIM-2");
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
@@ -281,7 +281,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 UNK", "SC08-CLAIM-5");
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
@@ -334,7 +334,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 RPL", "SC08-CLAIM-6");
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
@@ -389,7 +389,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, $"SC08 {handler}", $"SC08-{handler}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -462,7 +462,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 MSG", "SC08-MSG-UNKNOWN");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -517,7 +517,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Submitted };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 SUBMITTED", "SC08-MSG-SUBMITTED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -558,7 +558,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 INVALID", "SC08-MSG-INVALID");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -576,7 +576,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 ACTOR", "SC08-MSG-ACTOR");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -610,7 +610,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 MAILBOX", $"SC08-MSG-{state}-{staffSend}-{generation}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         var mailbox = new ApprovedMailbox(
@@ -654,7 +654,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 SENDER", $"SC08-MSG-SENDER-{Guid.NewGuid():N}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         await using (var scope = baseFactory.Services.CreateAsyncScope())
@@ -691,7 +691,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 FORWARD", "SC08-MSG-FORWARD-EMPTY");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -722,7 +722,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+        var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 MSG", "SC08-MSG-STALE");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
@@ -852,6 +852,13 @@ public sealed class StaffCorrespondenceWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
         });
+
+    private static Task<Guid> SeedSupportedCaseAsync(
+        WebApplicationFactory<Program> factory,
+        HttpClient _client,
+        string _registration,
+        string _claimNumber) =>
+        AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
 
     private static async Task SeedSendableMailboxAsync(IntakeWebApplicationFactory factory)
     {
