@@ -403,6 +403,36 @@ public sealed class EfRepairSpecificationStore(
         return entities.Select(Map).ToArray();
     }
 
+    /// <summary>
+    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
+    /// (CASE-047): newest version first, then estimate id.
+    /// </summary>
+    public async Task<IReadOnlyList<RepairSpecificationVersion>> ListByCursorAsync(
+        Guid caseId,
+        int? afterVersion,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
+            .Where(item => item.CaseId == caseId);
+        if (afterId is { } id)
+        {
+            var afterValue = afterVersion!.Value;
+            rows = rows.Where(item =>
+                item.Version < afterValue
+                || (item.Version == afterValue && item.Id < id));
+        }
+
+        var entities = await rows
+            .OrderByDescending(item => item.Version)
+            .ThenByDescending(item => item.Id)
+            .Take(fetchCount)
+            .ToArrayAsync(cancellationToken);
+        return entities.Select(Map).ToArray();
+    }
+
     public async Task<RepairSpecificationVersion?> GetVersionAsync(
         Guid caseId, Guid specificationId, CancellationToken cancellationToken)
     {

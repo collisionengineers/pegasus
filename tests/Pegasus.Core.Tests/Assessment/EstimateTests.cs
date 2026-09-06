@@ -942,5 +942,9 @@ public sealed class EstimateTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListByCursorAsync(
+            Guid caseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

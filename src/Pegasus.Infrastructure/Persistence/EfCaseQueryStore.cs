@@ -20,8 +20,131 @@ public sealed class EfCaseQueryStore(
     {
         ArgumentNullException.ThrowIfNull(query);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = SearchRows(context);
-        var filters = query.Filters;
+        var rows = ApplySearchFilters(SearchRows(context), query.Filters);
+
+        var skip = checked((query.Page - 1) * query.PageSize);
+        var ordered = OrderRows(rows, query.Order);
+        var page = await ordered
+            .ThenBy(item => item.Reference)
+            .ThenBy(item => item.CaseId)
+            .Skip(skip)
+            .Take(query.PageSize + 1)
+            .ToArrayAsync(cancellationToken);
+        var hasNextPage = page.Length > query.PageSize;
+        var items = page
+            .Take(query.PageSize)
+            .Select(MapSearchItem)
+            .ToArray();
+
+        return new(
+            items,
+            query.Page,
+            query.PageSize,
+            query.Page > 1,
+            hasNextPage);
+    }
+
+    /// <summary>
+    /// The keyset-paged sibling of <see cref="SearchAsync"/> (CASE-047):
+    /// shares <see cref="SearchRows"/> and <see cref="OrderRows"/> so the two
+    /// entry points can never read a different projection or sort a column
+    /// differently. The after-values are the decoded cursor's position, both
+    /// null on the first page; nullable text columns keyset-compare with
+    /// <c>string.Compare</c> so the EF Core SQL Server provider translates
+    /// the comparison the same way the official keyset-pagination pattern
+    /// does, and a null column sorts as the empty string — the normalized
+    /// filters below never store an empty string, so this matches the
+    /// database's own NULL-is-lowest ordering in practice.
+    /// </summary>
+    public async Task<IReadOnlyList<CaseSearchItem>> SearchByCursorAsync(
+        CaseSearchFilters filters,
+        CaseSearchOrder order,
+        DateTimeOffset? afterReceivedAtUtc,
+        string? afterSortText,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filters);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = ApplySearchFilters(SearchRows(context), filters);
+        if (afterId is { } id)
+        {
+            rows = ApplyCursorPredicate(rows, order, afterReceivedAtUtc, afterSortText, id);
+        }
+
+        // The tie-break must run the same direction as the primary column so
+        // it agrees with ApplyCursorPredicate's "< (k, id)" / "> (k, id)"
+        // keyset test below — unlike the numbered SearchAsync, which always
+        // ties on ascending Reference/CaseId because it pages by
+        // Skip/Take and never re-derives a predicate from the last row.
+        var ordered = OrderRows(rows, order);
+        var tieBroken = IsDescendingOrder(order)
+            ? ordered.ThenByDescending(item => item.CaseId)
+            : ordered.ThenBy(item => item.CaseId);
+        var page = await tieBroken
+            .Take(fetchCount)
+            .ToArrayAsync(cancellationToken);
+        return page.Select(MapSearchItem).ToArray();
+    }
+
+    private static bool IsDescendingOrder(CaseSearchOrder order) => order switch
+    {
+        CaseSearchOrder.ReceivedAsc
+            or CaseSearchOrder.ReferenceAsc
+            or CaseSearchOrder.RegistrationAsc
+            or CaseSearchOrder.ClaimantAsc
+            or CaseSearchOrder.PrincipalAsc => false,
+        _ => true
+    };
+
+    private static IQueryable<SearchRow> ApplyCursorPredicate(
+        IQueryable<SearchRow> rows,
+        CaseSearchOrder order,
+        DateTimeOffset? afterReceivedAtUtc,
+        string? afterSortText,
+        Guid afterId) => order switch
+    {
+        CaseSearchOrder.ReceivedAsc => rows.Where(item =>
+            item.ReceivedAtUtc > afterReceivedAtUtc
+            || (item.ReceivedAtUtc == afterReceivedAtUtc && item.CaseId > afterId)),
+        CaseSearchOrder.ReferenceAsc => rows.Where(item =>
+            string.Compare(item.Reference, afterSortText, StringComparison.Ordinal) > 0
+            || (item.Reference == afterSortText && item.CaseId > afterId)),
+        CaseSearchOrder.ReferenceDesc => rows.Where(item =>
+            string.Compare(item.Reference, afterSortText, StringComparison.Ordinal) < 0
+            || (item.Reference == afterSortText && item.CaseId < afterId)),
+        CaseSearchOrder.RegistrationAsc => rows.Where(item =>
+            string.Compare(item.Registration ?? "", afterSortText, StringComparison.Ordinal) > 0
+            || ((item.Registration ?? "") == afterSortText && item.CaseId > afterId)),
+        CaseSearchOrder.RegistrationDesc => rows.Where(item =>
+            string.Compare(item.Registration ?? "", afterSortText, StringComparison.Ordinal) < 0
+            || ((item.Registration ?? "") == afterSortText && item.CaseId < afterId)),
+        CaseSearchOrder.ClaimantAsc => rows.Where(item =>
+            string.Compare(item.Claimant ?? "", afterSortText, StringComparison.Ordinal) > 0
+            || ((item.Claimant ?? "") == afterSortText && item.CaseId > afterId)),
+        CaseSearchOrder.ClaimantDesc => rows.Where(item =>
+            string.Compare(item.Claimant ?? "", afterSortText, StringComparison.Ordinal) < 0
+            || ((item.Claimant ?? "") == afterSortText && item.CaseId < afterId)),
+        CaseSearchOrder.PrincipalAsc => rows.Where(item =>
+            string.Compare(item.Principal, afterSortText, StringComparison.Ordinal) > 0
+            || (item.Principal == afterSortText && item.CaseId > afterId)),
+        CaseSearchOrder.PrincipalDesc => rows.Where(item =>
+            string.Compare(item.Principal, afterSortText, StringComparison.Ordinal) < 0
+            || (item.Principal == afterSortText && item.CaseId < afterId)),
+        _ => rows.Where(item =>
+            item.ReceivedAtUtc < afterReceivedAtUtc
+            || (item.ReceivedAtUtc == afterReceivedAtUtc && item.CaseId < afterId))
+    };
+
+    /// <summary>
+    /// The <see cref="SearchAsync"/> filter translation, shared with
+    /// <see cref="SearchByCursorAsync"/> (CASE-047) so the numbered and
+    /// cursor search entry points can never read a different set of rows for
+    /// the same filters.
+    /// </summary>
+    private static IQueryable<SearchRow> ApplySearchFilters(IQueryable<SearchRow> rows, CaseSearchFilters filters)
+    {
         if (filters.Query is { } globalQuery)
         {
             var compactRegistrationQuery = string.Concat(
@@ -99,8 +222,11 @@ public sealed class EfCaseQueryStore(
             rows = rows.Where(item => item.Origin == origin);
         }
 
-        var skip = checked((query.Page - 1) * query.PageSize);
-        IOrderedQueryable<SearchRow> ordered = query.Order switch
+        return rows;
+    }
+
+    private static IOrderedQueryable<SearchRow> OrderRows(IQueryable<SearchRow> rows, CaseSearchOrder order) =>
+        order switch
         {
             CaseSearchOrder.ReceivedAsc => rows.OrderBy(item => item.ReceivedAtUtc),
             CaseSearchOrder.ReferenceAsc => rows.OrderBy(item => item.Reference),
@@ -113,25 +239,6 @@ public sealed class EfCaseQueryStore(
             CaseSearchOrder.PrincipalDesc => rows.OrderByDescending(item => item.Principal),
             _ => rows.OrderByDescending(item => item.ReceivedAtUtc)
         };
-        var page = await ordered
-            .ThenBy(item => item.Reference)
-            .ThenBy(item => item.CaseId)
-            .Skip(skip)
-            .Take(query.PageSize + 1)
-            .ToArrayAsync(cancellationToken);
-        var hasNextPage = page.Length > query.PageSize;
-        var items = page
-            .Take(query.PageSize)
-            .Select(MapSearchItem)
-            .ToArray();
-
-        return new(
-            items,
-            query.Page,
-            query.PageSize,
-            query.Page > 1,
-            hasNextPage);
-    }
 
     public async Task<CaseDetails?> GetAsync(
         GetCaseQuery query,
@@ -265,21 +372,14 @@ public sealed class EfCaseQueryStore(
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenBy(item => item.RetainedMessageId)
             .ToArray();
-        var history = await context.CaseWorkflowEvents
+        var historyEntities = await context.CaseWorkflowEvents
             .AsNoTracking()
             .Where(item => item.CaseId == query.CaseId)
             .OrderByDescending(item => item.OccurredAtUtc)
             .ThenByDescending(item => item.Id)
             .Take(200)
-            .Select(item => new CaseHistoryEntry(
-                item.EventType,
-                item.ActorSubjectId,
-                item.ActorKind,
-                item.OccurredAtUtc,
-                item.Reason,
-                item.BeforeVersion,
-                item.AfterVersion))
             .ToArrayAsync(cancellationToken);
+        var history = historyEntities.Select(MapHistoryEntry).ToArray();
         var activeLease = workflow.EditLeaseHolder is { } holder
             && workflow.EditLeaseExpiresAtUtc is { } expiresAtUtc
             && workflow.EditLeaseOperationKey is { Length: > 0 } operationKey
@@ -362,6 +462,69 @@ public sealed class EfCaseQueryStore(
             .OrderBy(item => item.Id)
             .Take(500)
             .ToArrayAsync(cancellationToken);
+        return await MapDocumentsAsync(context, caseId, documentEntities, cancellationToken);
+    }
+
+    /// <summary>
+    /// The keyset-paged sibling of <see cref="ReadDocumentsAsync"/>
+    /// (CASE-047): newest occurrence first, then document id. A document
+    /// with no occurrence sorts as though its newest occurrence were
+    /// <see cref="DateTimeOffset.MinValue"/> — every document a case can
+    /// carry gets at least one when it is added, so this only guards against
+    /// a row this store never itself writes.
+    /// </summary>
+    public async Task<IReadOnlyList<CaseDocument>> ListDocumentsByCursorAsync(
+        Guid caseId,
+        DateTimeOffset? afterRecordedAtUtc,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var ranked =
+            from document in context.Set<CaseDocumentEntity>().AsNoTracking()
+            where document.CaseId == caseId
+            select new
+            {
+                Document = document,
+                SortValue = context.Set<DocumentOccurrenceEntity>()
+                    .Where(occurrence => occurrence.DocumentId == document.Id)
+                    .Select(occurrence => (DateTimeOffset?)occurrence.RecordedAtUtc)
+                    .Max() ?? DateTimeOffset.MinValue
+            };
+        if (afterId is { } id)
+        {
+            var afterValue = afterRecordedAtUtc!.Value;
+            ranked = ranked.Where(item =>
+                item.SortValue < afterValue
+                || (item.SortValue == afterValue && item.Document.Id < id));
+        }
+
+        var page = await ranked
+            .OrderByDescending(item => item.SortValue)
+            .ThenByDescending(item => item.Document.Id)
+            .Take(fetchCount)
+            .ToArrayAsync(cancellationToken);
+        return await MapDocumentsAsync(
+            context,
+            caseId,
+            page.Select(item => item.Document).ToArray(),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The shared document-projection tail of <see cref="ReadDocumentsAsync"/>
+    /// and <see cref="ListDocumentsByCursorAsync"/> (CASE-047): given the
+    /// case's document rows in the caller's own order, reads their
+    /// occurrences and versions and maps them into <see cref="CaseDocument"/>
+    /// without re-choosing which documents or what order.
+    /// </summary>
+    private static async Task<IReadOnlyList<CaseDocument>> MapDocumentsAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseDocumentEntity[] documentEntities,
+        CancellationToken cancellationToken)
+    {
         if (documentEntities.Length == 0)
         {
             return [];
@@ -417,6 +580,47 @@ public sealed class EfCaseQueryStore(
                     .ToArray()))
             .ToArray();
     }
+
+    /// <summary>
+    /// The keyset-paged sibling of the history read in <see cref="GetAsync"/>
+    /// (CASE-047): newest event first, then entry id.
+    /// </summary>
+    public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(
+        Guid caseId,
+        DateTimeOffset? afterOccurredAtUtc,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = context.CaseWorkflowEvents.AsNoTracking().Where(item => item.CaseId == caseId);
+        if (afterId is { } id)
+        {
+            var afterValue = afterOccurredAtUtc!.Value;
+            rows = rows.Where(item =>
+                item.OccurredAtUtc < afterValue
+                || (item.OccurredAtUtc == afterValue && item.Id < id));
+        }
+
+        var entities = await rows
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(fetchCount)
+            .ToArrayAsync(cancellationToken);
+        return entities.Select(MapHistoryEntry).ToArray();
+    }
+
+    private static CaseHistoryEntry MapHistoryEntry(CaseWorkflowEventEntity item) => new(
+        item.EventType,
+        item.ActorSubjectId,
+        item.ActorKind,
+        item.OccurredAtUtc,
+        item.Reason,
+        item.BeforeVersion,
+        item.AfterVersion)
+    {
+        EntryId = item.Id
+    };
 
     private static CaseSearchItem MapSearchItem(SearchRow item) => new(
         item.CaseId,
