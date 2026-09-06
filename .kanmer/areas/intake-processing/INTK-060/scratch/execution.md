@@ -150,3 +150,7 @@ Independent review `pass` at `741f1a70d` (attestation `scratch/review-c01`); wav
 ## C07 integrated — C head `1561b886f`
 
 Superseding review `pass` at `28148f54f` (`scratch/review-c07`); wave 8 build 0/0, integration 72/72. Merged `--no-ff` into `task/pegasus-v1-intake` → `1561b886f`, Release build exit 0, pushed (PR #673). A notified with C07 DI list, the PublicUploadOccurrences UPDATE grant and snapshot regeneration on PLAT-075 `c-stream-notes`. Residual for C07 closure: A's host patch + A04 custody adapter, grant, G13 same-object merge, snapshots.
+
+## G13 merge in progress
+
+A published G13 `99f48a459` (counter-first Triage allocator from C's helper, migration line, A/B fixture corrections). `git merge --no-ff` into the C branch at `1561b886f` conflicts in `EfTriageStore.cs` (4 blocks) and `TriageReferenceAllocationTests.cs` (add/add) against C07's superset; an Opus resolver is completing the merge commit with second parent `99f48a459`, build-only. Slices c08 (`88028df51`, wave 9 running), c05 and c06 (implementers active) receive G13 via a C-branch merge once their current runs finish.
