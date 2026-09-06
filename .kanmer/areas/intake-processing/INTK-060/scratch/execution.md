@@ -396,3 +396,11 @@ Build/core 59/browser 82/architecture PASS; the one failure is round 3's own rou
 ## A INTK-027 fix published on A's branch (`9028aa12b`, PR 673 5561151076)
 
 Touches `DurableIntake.cs` (C02 map, INTK-027 = A), `CustodyOutboxIntegrationTests.cs` (C07 file), `QdosAllocationRecoveryTests.cs` (+2 authorized args), A infra. Asked A for the transport (G object preferred vs bounded patch). A's revised retry rule: after the fix, an identityless Unknown with G15-null may be retried with the SAME original scoped key and identical validated bytes (never a fresh key); serializable RequestLink path converges on one intent / one provider initiation; double's `GetAsync` admits the exact active RequestLink artifact, `CreatedBy = RequestLink:<D-guid>`. To be folded into the running C07 caller round 4.
+
+## Wave 32 (C02 `ca3ec9abb`): 3 failures in new C02 tests
+
+Build 0/0, core 287/287, web 57 + 7 known corpus skips, architecture 100. Reader lane 27/30: `AzureDocumentIntelligenceOcrTests.ConfidenceIsCarriedThroughAndIsNeverWhatAcceptsAValue` (no confidence item produced), `StructuredIntakeSourceReaderTests.TheOuterSenderTheCurrentBodyAndTheQuotedHistoryStayThreeSeparateThings` (quoted-history fragment starts with a newline), `OcrIntakeRecoveryTests.ASubmittedOperationCompletesOnceAndReanalysesOnce` (response hash read back space-padded — fixed-width column vs short fake hash; store must trim or tests use real-length hashes). C02 review will bind; correction round 1 queued behind the active editors (C07b r4, C03 b1), then C08 r4.
+
+## A: INTK-027 bounded patch (PR 673 5561171653) + same-key replay correction (5561181368)
+
+Patch: 8,024 bytes, SHA-256 `14691a9f…`, against `92f98b749`, only `Core/Intake/DurableIntake.cs` + the two authorized `QdosAllocationRecoveryTests.cs` arguments; A infra/readers stay in the combined host; C owns further direct-constructor adaptations and the C05 tripwire retarget. A adapter `0c72818da`: same-key Pending replay returns the persisted status with one provider write; Failed replay returns its disposition. Applying the patch now.
