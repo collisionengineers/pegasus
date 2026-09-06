@@ -464,3 +464,5 @@ Preserved helper state: C07b clean 2c427c643667596e397b6e51672bc32595075646; C02
 PR 673 takeover/status posted as comment 5561608677. C07b has no round-4 attestation: retained review file ends at round 3 needs-changes against 0a0e88975, while helper has advanced. Do not integrate until a fresh independent exact-head review exists. Next bounded executable lane is to inspect/complete the preserved C02 correction without replacing its work.
 
 - 2026-09-06T19:51:21.907Z lease-phase running-command → implementing (lease 40f03659-6845-4f20-b1cc-cfd09686ec00 rev 36; expires 2026-09-06T20:21:21.900Z)
+
+Replacement controller integrated independently reviewed C07b custody/public-upload caller slice: helper 348cb07d9d7bc3e14a01f75f96e34882e2c10f71 (review PASS; focused Integration 36/36 PASS) merged with --no-ff into Stream C owner head 9e1565a30dd4492e35a00c8900b01a03668c14ac, build 0/0, pushed to PR #673. Architecture remains 98/100 due A-owned missing IReadLogicalDocumentVersion Worker composition; handed to PR #674 comment 5561776928. No merge/deploy/live writes.
