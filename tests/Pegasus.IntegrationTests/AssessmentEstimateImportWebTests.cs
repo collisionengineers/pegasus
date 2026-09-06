@@ -331,6 +331,30 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
+    public async Task ASourceTheFormDoesNotOfferIsRefusedBeforeAnythingIsRead()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        // A valid document under a source the select never posts: the disabled option's value.
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build(), source: "other"));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Empty(store.AddedDocuments);
+        Assert.Empty(store.SavedEstimates);
+        Assert.Empty(store.LeaseClaims);
+
+        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        Assert.Contains("The form has expired. Retry the operation.", afterHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OnlyAnEngineerCanImport()
     {
         var caseId = Guid.NewGuid();
@@ -588,7 +612,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         Guid caseId,
         string operationKey,
         byte[] pdfBytes,
-        string? editLeaseToken = RecordingStores.HeldLeaseToken)
+        string? editLeaseToken = RecordingStores.HeldLeaseToken,
+        string source = "audatex-pdf")
     {
         var file = new ByteArrayContent(pdfBytes);
         file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
@@ -598,7 +623,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             { new StringContent(caseId.ToString("D")), "id" },
             { new StringContent(operationKey), "operationKey" },
             { new StringContent("Imported estimate"), "name" },
-            { new StringContent("audatex-pdf"), "source" },
+            { new StringContent(source), "source" },
             { file, "estimateFile", "estimate.pdf" },
         };
         if (editLeaseToken is not null)

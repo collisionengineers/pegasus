@@ -40,6 +40,11 @@ public sealed class RepairSpecificationPolicyTests
     }
 
     [Fact]
+    public void AnUndefinedRouteIsNotASource() =>
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationPolicy.ValidateSource(
+            new((RepairSpecificationSourceRoute)99, null, null, null)));
+
+    [Fact]
     public void OnlyDocumentRoutesRequireArtifactEvidence()
     {
         var manual = RepairSpecificationPolicy.ValidateSource(

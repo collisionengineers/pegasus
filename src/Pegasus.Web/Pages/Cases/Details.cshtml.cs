@@ -1481,10 +1481,14 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = "Name the imported estimate.";
             return RedirectToEstimate(id);
         }
-        var parser = string.Equals(source, "json", StringComparison.OrdinalIgnoreCase)
-            ? jsonEstimateParser
-            : estimateParser;
-        var isJson = ReferenceEquals(parser, jsonEstimateParser);
+        var isJson = string.Equals(source, "json", StringComparison.OrdinalIgnoreCase);
+        if (!isJson && !string.Equals(source, "audatex-pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            // Only the sources the form offers; anything else is not this form's post.
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        var parser = isJson ? jsonEstimateParser : estimateParser;
         if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
         {
             TempData["CaseError"] = "Choose a non-empty estimate file of 10 MB or less.";
