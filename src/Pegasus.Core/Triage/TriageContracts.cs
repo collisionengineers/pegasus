@@ -157,6 +157,40 @@ public sealed record AssignTriageRequest(
     string OperationKey,
     string Reason);
 
+/// <summary>
+/// Adds one operator note to the Triage's permanent history.
+/// </summary>
+/// <remarks>
+/// A note is not a second kind of record: it is an entry in the same
+/// attributed, versioned, replay-safe history every state change writes, so it
+/// carries an expected version, an operation key and its text, and it is
+/// appended — never edited and never replaced.
+/// </remarks>
+public sealed record AddTriageNoteRequest(
+    Guid TriageId,
+    long ExpectedVersion,
+    string Actor,
+    string OperationKey,
+    string Note);
+
+public static class TriageNotes
+{
+    /// <summary>
+    /// The history event type an operator note is written as, matching the
+    /// Case timeline's own name for the same thing.
+    /// </summary>
+    public const string EventType = "operator_note";
+
+    public const int MaximumLength = 2000;
+}
+
+public interface IAddTriageNote
+{
+    Task<TriageRecord> ExecuteAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record RecordTriageFindingRequest(
     Guid TriageId,
     long ExpectedVersion,
@@ -462,6 +496,22 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
     Task<TriageOperationReplay?> ProbeUnlinkResponseEvidenceReplayAsync(
         TriageResponseEvidenceUnlinkRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The house probe-then-write pair for a note, so a retried note append
+    /// returns the committed result instead of writing the same note twice.
+    /// </summary>
+    Task<TriageOperationReplay?> ProbeAddNoteReplayAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<TriageOperationReplay?>(
+            new NotSupportedException("Triage note replay probing is not available."));
+
+    Task<TriageRecord> AddNoteAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<TriageRecord>(
+            new NotSupportedException("Triage notes are not available."));
 
     Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,

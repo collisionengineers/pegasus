@@ -292,6 +292,51 @@ public sealed class EfTriageStore(
     }
 
 
+    public Task<TriageOperationReplay?> ProbeAddNoteReplayAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateNote(request);
+        return ProbeReplayAsync(
+            request.TriageId,
+            request.OperationKey,
+            TriageNotes.EventType,
+            NoteRequestHash(request),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Appends one operator note as an entry in the same history every state
+    /// change writes.
+    /// </summary>
+    /// <remarks>
+    /// The note changes no state, so the entry carries the current state,
+    /// assignee and case link forward unchanged; it still takes the next
+    /// version, because the history's before/after versions are what make a
+    /// retry recognisable and an entry's place in the sequence unambiguous.
+    /// The note text is the entry's reason: there is no second note store and
+    /// no editable note record.
+    /// </remarks>
+    public Task<TriageRecord> AddNoteAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateNote(request);
+        return MutateAsync(
+            request.TriageId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Note,
+            TriageNotes.EventType,
+            NoteRequestHash(request),
+            static _ => { },
+            cancellationToken);
+    }
+
+    private static string NoteRequestHash(AddTriageNoteRequest request) =>
+        Hash($"note|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Trim()}|{request.Note.Trim()}");
+
     public async Task LinkResponseEvidenceAsync(
         TriageResponseEvidenceLinkRequest request,
         CancellationToken cancellationToken)

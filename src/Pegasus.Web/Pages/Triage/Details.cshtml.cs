@@ -28,7 +28,13 @@ public sealed class DetailsModel(
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
     IGetIntake getIntake,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
+    // Both are composition-gated: the note command and the eligible-engineer
+    // list have no adapter registered yet, so their controls are not drawn
+    // until one is. Neither is a fallback for the other, and neither is
+    // claimed as delivered while its port is absent.
+    IAddTriageNote? addNote = null,
+    ICaseEngineerChoices? engineerChoices = null) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -65,6 +71,15 @@ public sealed class DetailsModel(
 
     public string? Message { get; private set; }
 
+    /// <summary>
+    /// The engineers this Triage may be assigned to. Empty until the
+    /// eligible-engineer adapter is registered, which is what closes the
+    /// assignment control rather than opening it onto a guess.
+    /// </summary>
+    public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
+
+    public bool CanRecordNotes => addNote is not null;
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out _, out var actor))
@@ -76,6 +91,10 @@ public sealed class DetailsModel(
         {
             return NotFound();
         }
+
+        EngineerChoices = engineerChoices is null
+            ? []
+            : await engineerChoices.GetAsync(actor, cancellationToken);
 
         Message = TempData["TriageStatus"] as string;
         if (TempData["TriageUnavailableCase"] is string unavailableCase)
@@ -106,6 +125,8 @@ public sealed class DetailsModel(
         string? responseCandidate,
         Guid? sentEvidenceId,
         Guid? caseId,
+        Guid? assigneeId,
+        string? note,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var staffId, out var actionActor))
@@ -126,14 +147,33 @@ public sealed class DetailsModel(
             switch (actionName)
             {
                 case "assign":
+                    // The engineer is chosen explicitly. Defaulting to the
+                    // signed-in staff member is what "Assign to me" did, and
+                    // it made the roster invisible.
+                    if (assigneeId is not { } chosenEngineer || chosenEngineer == Guid.Empty)
+                    {
+                        ModelState.AddModelError("assigneeId", "Choose the engineer to assign.");
+                        return await OnGetAsync(id, cancellationToken);
+                    }
+
                     await assign.ExecuteAsync(
                         new(
                             id,
                             expectedVersion,
-                            staffId,
+                            chosenEngineer,
                             actor,
                             operationKey,
                             reason),
+                        cancellationToken);
+                    break;
+                case "note":
+                    if (addNote is null)
+                    {
+                        return NotFound();
+                    }
+
+                    await addNote.ExecuteAsync(
+                        new(id, expectedVersion, actor, operationKey, note ?? string.Empty),
                         cancellationToken);
                     break;
                 case "unassign":
