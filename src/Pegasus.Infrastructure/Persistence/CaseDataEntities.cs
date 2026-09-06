@@ -62,6 +62,36 @@ internal static class CaseDataFieldNames
     public const string InspectionMode = "inspection_mode";
     public const string StorageLocation = "storage_location";
 
+    // The v1 Case workspace facts (CASE-047). They are ordinary case-data
+    // rows, so the record gains names here rather than columns anywhere.
+    public const string RepairerAddress = "repairer_address";
+    public const string ClaimSourceId = "claim_source_id";
+    public const string ClaimSourceVersion = "claim_source_version";
+    public const string ClaimSourceName = "claim_source_name";
+    public const string ClaimSourceContactName = "claim_source_contact_name";
+    public const string ClaimSourceContactTelephone = "claim_source_contact_telephone";
+    public const string ClaimSourceContactEmailAddress = "claim_source_contact_email";
+    public const string ClaimSourceCaseNote = "claim_source_case_note";
+    public const string StorageBusinessId = "storage_business_id";
+    public const string StorageBusinessVersion = "storage_business_version";
+    public const string StorageBusinessName = "storage_business_name";
+    public const string StorageBusinessContactName = "storage_business_contact_name";
+    public const string StorageBusinessContactTelephone = "storage_business_contact_telephone";
+    public const string StorageBusinessContactEmailAddress = "storage_business_contact_email";
+    public const string VehicleMileageDisplayUnit = "vehicle_mileage_display_unit";
+    public const string InspectionAddressTreatment = "inspection_address_treatment";
+    public const string InspectionLocationChoice = "inspection_location_choice";
+    public const string InspectionLocationSourceKind = "inspection_location_source_kind";
+    public const string InspectionLocationSourceId = "inspection_location_source_id";
+    public const string InspectionLocationSourceVersion = "inspection_location_source_version";
+    public const string InspectionLocationSourceLabel = "inspection_location_source_label";
+    public const string InspectionVehiclePresent = "inspection_vehicle_present";
+    public const string InspectionCondition = "inspection_condition";
+    public const string InspectionContactName = "inspection_contact_name";
+    public const string InspectionContactTelephone = "inspection_contact_telephone";
+    public const string InspectionContactEmailAddress = "inspection_contact_email";
+    public const string InspectionNotes = "inspection_notes";
+
     public static readonly string[] All =
     [
         WorkProviderCode,
@@ -85,7 +115,34 @@ internal static class CaseDataFieldNames
         InspectionDeadline,
         InspectionAddress,
         InspectionMode,
-        StorageLocation
+        StorageLocation,
+        RepairerAddress,
+        ClaimSourceId,
+        ClaimSourceVersion,
+        ClaimSourceName,
+        ClaimSourceContactName,
+        ClaimSourceContactTelephone,
+        ClaimSourceContactEmailAddress,
+        ClaimSourceCaseNote,
+        StorageBusinessId,
+        StorageBusinessVersion,
+        StorageBusinessName,
+        StorageBusinessContactName,
+        StorageBusinessContactTelephone,
+        StorageBusinessContactEmailAddress,
+        VehicleMileageDisplayUnit,
+        InspectionAddressTreatment,
+        InspectionLocationChoice,
+        InspectionLocationSourceKind,
+        InspectionLocationSourceId,
+        InspectionLocationSourceVersion,
+        InspectionLocationSourceLabel,
+        InspectionVehiclePresent,
+        InspectionCondition,
+        InspectionContactName,
+        InspectionContactTelephone,
+        InspectionContactEmailAddress,
+        InspectionNotes
     ];
 }
 

@@ -38,7 +38,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
@@ -132,7 +132,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
@@ -188,7 +188,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
@@ -250,7 +250,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
@@ -310,7 +310,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
@@ -341,7 +341,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await FindReplayAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
@@ -482,7 +482,13 @@ public sealed class EfRepairSpecificationStore(
     private static string DefaultName(int version) =>
         string.Create(CultureInfo.InvariantCulture, $"Estimate {version}");
 
-    private static void ApplyDetails(CaseRepairSpecificationEntity entity, EstimateDetails details)
+    /// <summary>
+    /// The one place a Draft estimate header takes its edited values. The Case
+    /// workspace save applies the same header inside its own transaction, so a
+    /// header saved through the workspace and one saved through the estimate
+    /// command cannot end up meaning different things.
+    /// </summary>
+    internal static void ApplyDetails(CaseRepairSpecificationEntity entity, EstimateDetails details)
     {
         entity.Name = details.Name;
         entity.RepairDays = details.RepairDays;
@@ -560,27 +566,8 @@ public sealed class EfRepairSpecificationStore(
         return now.Offset == TimeSpan.Zero ? now : now.ToUniversalTime();
     }
 
-    private static async Task<bool> FindReplayAsync(
-        PegasusDbContext context, Guid caseId, string operationKey, string requestHash,
-        CancellationToken cancellationToken)
-    {
-        var replay = await context.CaseWorkflowEvents.AsNoTracking().SingleOrDefaultAsync(
-            item => item.CaseId == caseId && item.OperationKey == operationKey,
-            cancellationToken);
-        if (replay is null)
-        {
-            return false;
-        }
-        if (!string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal))
-        {
-            throw new CaseOperationConflictException(caseId, operationKey);
-        }
-        return true;
-    }
-
-    private static string Hash<T>(T request) => Convert.ToHexStringLower(
-        System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, JsonOptions))));
+    private static string Hash<T>(T request) =>
+        CaseOperationReplay.Hash(JsonSerializer.Serialize(request, JsonOptions));
 
     private static CaseEstimateLineEntity CloneLine(
         CaseEstimateLineEntity line, CaseRepairSpecificationEntity target, ActionActor actor, DateTimeOffset now) =>
@@ -590,26 +577,10 @@ public sealed class EfRepairSpecificationStore(
             line.EvidenceLabel, line.Justification, line.PaintWorkUnits, line.Quantity),
             line.Position, target, actor, now);
 
-    /// <summary>
-    /// A staff line is confirmed by the act of saving it; an Automation
-    /// line stays unconfirmed working data until an Engineer's
-    /// "Use estimate" confirms it — the same rule as assessment fields.
-    /// </summary>
     private static CaseEstimateLineEntity NewLine(
         EstimateLineInput line, int position, CaseRepairSpecificationEntity target,
-        ActionActor actor, DateTimeOffset now) => new()
-    {
-        Id = Guid.NewGuid(), CaseId = target.CaseId, Case = target.Case,
-        RepairSpecificationId = target.Id, RepairSpecification = target, Position = position,
-        LineType = line.Type, GuideCode = line.GuideCode, Description = line.Description,
-        WorkUnits = line.WorkUnits, PaintWorkUnits = line.PaintWorkUnits, Quantity = line.Quantity,
-        Price = line.Price, Unpriced = line.Unpriced,
-        PartNumber = line.PartNumber, Betterment = line.Betterment, Status = line.Status,
-        EvidenceLabel = line.EvidenceLabel, Justification = line.Justification,
-        RecordedByKind = actor.Kind.ToString(), RecordedBy = actor.SubjectId, RecordedAtUtc = now,
-        ConfirmedBy = actor.Kind == ActorKind.Staff ? actor.SubjectId : null,
-        ConfirmedAtUtc = actor.Kind == ActorKind.Staff ? now : null,
-    };
+        ActionActor actor, DateTimeOffset now) =>
+        EstimateLineWriter.NewLine(line, position, target.CaseId, target.Case, target, actor, now);
 
     internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity) => new(
         entity.Id, entity.CaseId, entity.Version,
@@ -636,32 +607,127 @@ public sealed class EfRepairSpecificationStore(
     private static void AddHistory(
         PegasusDbContext context, CaseWorkflowEntity workflow, ActionActor actor,
         string operationKey, string reason, string eventType, string requestHash, object after,
+        DateTimeOffset now) =>
+        CaseMutationHistory.Add(
+            context,
+            workflow,
+            actor,
+            operationKey,
+            RequiredReason(reason),
+            eventType,
+            requestHash,
+            workflow.Version - 1,
+            workflow.Version,
+            "{}",
+            JsonSerializer.Serialize(after, JsonOptions),
+            $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
+            now);
+}
+
+/// <summary>
+/// The one owner of an estimate's line rows. Replacing the lines of a Draft is
+/// a whole-list operation — positions are contiguous and start at one — and a
+/// staff line is confirmed by the act of saving it while an Automation line
+/// stays unconfirmed working data until an Engineer accepts it. The estimate
+/// commands and the Case workspace save write lines through here, so the two
+/// routes cannot record different provenance for the same edit.
+/// </summary>
+internal static class EstimateLineWriter
+{
+    public static CaseEstimateLineEntity NewLine(
+        EstimateLineInput line,
+        int position,
+        Guid caseId,
+        CaseEntity owningCase,
+        CaseRepairSpecificationEntity? specification,
+        ActionActor actor,
         DateTimeOffset now)
     {
-        var beforeVersion = workflow.Version - 1;
-        var roles = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), JsonOptions);
-        context.CaseWorkflowEvents.Add(new()
+        ArgumentNullException.ThrowIfNull(line);
+        ArgumentNullException.ThrowIfNull(actor);
+        var confirmedBy = actor.Kind == ActorKind.Staff ? actor.SubjectId : null;
+        return new()
         {
-            Id = Guid.NewGuid(), CaseId = workflow.CaseId, Workflow = workflow,
-            EventType = eventType, OperationKey = operationKey, RequestHash = requestHash,
-            ActorKind = actor.Kind.ToString(), ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = roles, Reason = RequiredReason(reason), OccurredAtUtc = now,
-            BeforeVersion = beforeVersion, AfterVersion = workflow.Version,
-        });
-        context.ActionHistory.Add(new()
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Case = owningCase,
+            RepairSpecificationId = specification?.Id,
+            RepairSpecification = specification,
+            Position = position,
+            LineType = line.Type,
+            GuideCode = line.GuideCode,
+            Description = line.Description,
+            WorkUnits = line.WorkUnits,
+            PaintWorkUnits = line.PaintWorkUnits,
+            Quantity = line.Quantity,
+            Price = line.Price,
+            Unpriced = line.Unpriced,
+            PartNumber = line.PartNumber,
+            Betterment = line.Betterment,
+            Status = line.Status,
+            EvidenceLabel = line.EvidenceLabel,
+            Justification = line.Justification,
+            RecordedByKind = actor.Kind.ToString(),
+            RecordedBy = actor.SubjectId,
+            RecordedAtUtc = now,
+            ConfirmedBy = confirmedBy,
+            ConfirmedAtUtc = confirmedBy is null ? null : now
+        };
+    }
+
+    /// <summary>
+    /// Replaces every line of one estimate and returns the before/after
+    /// evidence the history record carries. <paramref name="tracked"/> is
+    /// updated in place so the caller's projection sees the new rows.
+    /// </summary>
+    public static (object Before, object After) Replace(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseEntity owningCase,
+        CaseRepairSpecificationEntity? specification,
+        List<CaseEstimateLineEntity> tracked,
+        IReadOnlyList<EstimateLineInput> replacement,
+        ActionActor actor,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(tracked);
+        ArgumentNullException.ThrowIfNull(replacement);
+        var before = tracked.Select(Evidence).ToArray();
+        context.CaseEstimateLines.RemoveRange(tracked);
+        tracked.Clear();
+        var position = 0;
+        foreach (var line in replacement)
         {
-            Id = Guid.NewGuid(), AggregateType = "case", AggregateId = workflow.CaseId.ToString("D"),
-            EventKind = eventType, ActorKind = actor.Kind.ToString(), ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = roles, OccurredAtUtc = now, Outcome = "Succeeded",
-            CorrelationId = operationKey, Reason = reason, BeforeJson = "{}",
-            AfterJson = JsonSerializer.Serialize(after, JsonOptions),
-            PolicyVersion = $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
-        });
-        context.CaseHistory.Add(new()
+            position++;
+            var entity = NewLine(line, position, caseId, owningCase, specification, actor, now);
+            context.CaseEstimateLines.Add(entity);
+            tracked.Add(entity);
+        }
+
+        return (before, tracked.Select(Evidence).ToArray());
+    }
+
+    public static object Evidence(CaseEstimateLineEntity line)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        return new
         {
-            Id = Guid.NewGuid(), CaseId = workflow.CaseId, Case = workflow.Case,
-            EventType = eventType, Actor = actor.SubjectId, Reason = reason, OccurredAtUtc = now,
-            OperationKey = operationKey, BeforeVersion = beforeVersion, AfterVersion = workflow.Version,
-        });
+            line.Position,
+            line.LineType,
+            line.GuideCode,
+            line.Description,
+            line.WorkUnits,
+            line.PaintWorkUnits,
+            line.Quantity,
+            line.Price,
+            line.Unpriced,
+            line.PartNumber,
+            line.Betterment,
+            line.Status,
+            line.EvidenceLabel,
+            line.Justification,
+            line.ConfirmedBy
+        };
     }
 }
