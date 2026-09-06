@@ -66,6 +66,7 @@ internal sealed class RetainedMailboxMessageEntity
     public string? SenderDisplayName { get; set; }
     public required string ToAddressesJson { get; set; }
     public required string CcAddressesJson { get; set; }
+    public string? ReplyToAddressesJson { get; set; }
     public string? Subject { get; set; }
     public string? BodyExcerpt { get; set; }
     public string? BodyPlainText { get; set; }
