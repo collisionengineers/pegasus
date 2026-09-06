@@ -258,7 +258,7 @@ public static class OperatorLabels
         public const string ActionLogs = "Action logs";
         public const string AiJobs = "AI jobs";
         public const string Reports = "Reports";
-        public const string Health = "Health";
+        public const string Health = "Service health";
         public const string ValuationPresets = "Valuation presets";
         public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
@@ -1110,7 +1110,6 @@ public static class OperatorLabels
     // PLAT-069: Operations partial-data notices.
     public static class OperationsNotices
     {
-        public const string ServiceHealth = "Service health";
         public const string PartialData = "Partial data";
     }
 
