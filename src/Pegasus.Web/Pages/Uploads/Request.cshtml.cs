@@ -130,6 +130,12 @@ public sealed partial class RequestModel(
                     // they need a new link from whoever sent this one.
                     ModelState.AddModelError(string.Empty, "This link is no longer valid. Ask for a new one.");
                     break;
+                case RequestUploadDecision.NotRetained:
+                    // Custody did not take the file, or did not say whether it
+                    // did. Nothing was kept and nothing about the Case is
+                    // disclosed; the same upload operation is the safe retry.
+                    ModelState.AddModelError(string.Empty, "The document could not be retained. Try again using the same upload operation.");
+                    break;
                 case RequestUploadDecision.Unavailable:
                     return NotFound();
                 default:
