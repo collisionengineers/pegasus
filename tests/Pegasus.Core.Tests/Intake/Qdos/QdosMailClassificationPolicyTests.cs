@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(5, QdosMailClassificationPolicy.Version);
+        Assert.Equal(6, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -83,6 +83,44 @@ public sealed class QdosMailClassificationPolicyTests
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    [Fact]
+    public void DuplicatePdfAndDocumentTriageLettersAreOneCategoryCandidate()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage.pdf, page 1", "Triage Only Request\nOur Ref: 47939/1"),
+                new(IntakeEvidenceSource.DocumentContent, "message, attachment 2, triage.doc", "Triage Only Request\nOur Ref: 47939/1")
+            ],
+            [new(IntakeEvidenceSource.Subject, "EREF - RTA")],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
+        Assert.True(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
+    }
+
+    [Fact]
+    public void PlainAndCombinedEngineerLettersRemainAmbiguous()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, plain.pdf", "ENGINEER NOTIFICATION"),
+                new(IntakeEvidenceSource.DocumentContent, "message, attachment 2, combined.doc", "ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Null(result.CaseType);
+        Assert.Equal(2, result.AmbiguousCandidates.Count);
+        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/Inspection", StringComparison.Ordinal));
+        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/InspectionAndAudit", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -485,7 +523,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(6, result.Predicates.Count);
+        Assert.Equal(7, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());

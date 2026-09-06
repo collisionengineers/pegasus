@@ -5,7 +5,7 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// QDOS message-type classification over the settled taxonomy, built only on the
-/// operator-guaranteed generated tells: the two Triage tells live in the email itself and
+/// operator-guaranteed generated tells: Triage tells live in the email or its attached letter and
 /// the work-type notification titles live only inside the attached instruction letter. Body
 /// keyword matching is deliberately absent — corpus evidence shows "audit" in a body
 /// signals an existing case being chased, not a new instruction. When predicates for more
@@ -15,12 +15,12 @@ namespace Pegasus.Core.Intake;
 /// MAIL-011/MAIL-012: QDOS sends triage requests in two templates, and the reviewed
 /// corpus shows the body-phrase and subject-line templates to be disjoint. Current
 /// cohort counts belong to the versioned evidence/evaluation output rather than this
-/// policy comment. Two tells, one triage candidate.
+/// policy comment. All supported tells produce one triage candidate.
 /// </summary>
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 5;
+    public const int Version = 6;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -60,17 +60,21 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         // Engineer Triage query" mid-subject is not the tell, exactly as a
         // human sentence mentioning the body phrase is not.
         var hasTriageSubject = TriageSubjectRegex().IsMatch(subject);
-        // One candidate from two tells. Adding a second candidate for the same
+        var hasAttachmentTriage = documentTexts.Any(text =>
+            text.Contains(TriagePhrase, StringComparison.Ordinal));
+        // One candidate from all accepted tells. Adding a second candidate for the same
         // category would resolve to Ambiguous, so a message carrying both
         // tells would classify worse than one carrying either.
-        var isTriageRequest = hasTriagePhrase || hasTriageSubject;
+        var isTriageRequest = hasTriagePhrase || hasTriageSubject || hasAttachmentTriage;
         var hasAuditTitle = documentTexts.Any(text =>
             text.Contains(AuditNotificationTitle, StringComparison.Ordinal));
-        var hasEngineerTitle = documentTexts.Any(text =>
-            text.Contains(EngineerNotificationTitle, StringComparison.Ordinal));
         var hasReportPlusAudit = documentTexts.Any(text =>
             text.Contains(EngineerNotificationTitle, StringComparison.Ordinal)
             && text.Contains(ReportPlusAuditMarker, StringComparison.Ordinal));
+        var hasPlainEngineerTitle = documentTexts.Any(text =>
+            text.Contains(EngineerNotificationTitle, StringComparison.Ordinal)
+            && !text.Contains(ReportPlusAuditMarker, StringComparison.Ordinal));
+        var hasEngineerTitle = hasPlainEngineerTitle || hasReportPlusAudit;
 
         MailClassificationPredicateResult[] predicates =
         [
@@ -99,6 +103,12 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                     ? $"The subject opens with the generated Triage line '{TriageSubjectPrefix}'."
                     : $"The subject does not open with '{TriageSubjectPrefix}'."),
             new(
+                "attachment.triage-only-request",
+                hasAttachmentTriage,
+                hasAttachmentTriage
+                    ? $"An attached document contains the generated title '{TriagePhrase}'."
+                    : $"No attached document contains the title '{TriagePhrase}'."),
+            new(
                 "attachment.audit-report-notification",
                 hasAuditTitle,
                 hasAuditTitle
@@ -114,34 +124,52 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                     : $"No attached document contains the title '{EngineerNotificationTitle}'.")
         ];
 
-        var candidates = new List<MailCategory>();
+        var candidates = new List<ClassificationCandidate>();
         if (isAutomaticReply)
         {
-            candidates.Add(MailCategory.Received(ReceivedMailFamily.General, "autoreply"));
+            candidates.Add(new(
+                MailCategory.Received(ReceivedMailFamily.General, "autoreply"),
+                null));
         }
 
         if (isTriageRequest)
         {
-            candidates.Add(MailCategory.Received(
-                ReceivedMailFamily.PreInstructionEmails,
-                MailCategory.TriageRequestSubtype,
-                isReplyContext: isReplyPrefixed));
+            candidates.Add(new(
+                MailCategory.Received(
+                    ReceivedMailFamily.PreInstructionEmails,
+                    MailCategory.TriageRequestSubtype,
+                    isReplyContext: isReplyPrefixed),
+                null));
         }
 
         if (hasAuditTitle)
         {
-            candidates.Add(MailCategory.Received(
-                ReceivedMailFamily.NewInstructionReceived,
-                "audit",
-                isReplyContext: isReplyPrefixed));
+            candidates.Add(new(
+                MailCategory.Received(
+                    ReceivedMailFamily.NewInstructionReceived,
+                    "audit",
+                    isReplyContext: isReplyPrefixed),
+                CaseType.Audit));
         }
 
-        if (hasEngineerTitle)
+        if (hasPlainEngineerTitle)
         {
-            candidates.Add(MailCategory.Received(
-                ReceivedMailFamily.NewInstructionReceived,
-                "inspection",
-                isReplyContext: isReplyPrefixed));
+            candidates.Add(new(
+                MailCategory.Received(
+                    ReceivedMailFamily.NewInstructionReceived,
+                    "inspection",
+                    isReplyContext: isReplyPrefixed),
+                CaseType.Inspection));
+        }
+
+        if (hasReportPlusAudit)
+        {
+            candidates.Add(new(
+                MailCategory.Received(
+                    ReceivedMailFamily.NewInstructionReceived,
+                    "inspection",
+                    isReplyContext: isReplyPrefixed),
+                CaseType.InspectionAndAudit));
         }
 
         if (candidates.Count == 0)
@@ -157,9 +185,7 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         {
             return MailClassificationResult.Ambiguous(
                 candidates
-                    .Select(candidate => candidate.Subtype is null
-                        ? candidate.Name
-                        : $"{candidate.Name}/{candidate.Subtype}")
+                    .Select(candidate => CandidateName(candidate, candidates))
                     .ToArray(),
                 predicates,
                 "Predicates for more than one category matched simultaneously; no winner is invented (open decision: mailbox rule activation).",
@@ -167,24 +193,9 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                 Version);
         }
 
-        var category = candidates[0];
-        CaseType? caseType = category is
-        {
-            Direction: MailDirection.Received,
-            ReceivedFamily: ReceivedMailFamily.NewInstructionReceived,
-            Subtype: "audit"
-        }
-            ? CaseType.Audit
-            : category is
-            {
-                Direction: MailDirection.Received,
-                ReceivedFamily: ReceivedMailFamily.NewInstructionReceived,
-                Subtype: "inspection"
-            }
-                ? hasReportPlusAudit
-                    ? CaseType.InspectionAndAudit
-                    : CaseType.Inspection
-                : null;
+        var candidate = candidates[0];
+        var category = candidate.Category;
+        var caseType = candidate.CaseType;
 
         var standaloneAuditReport = caseType == CaseType.Audit
             ? EvaluateStandaloneAuditReport(readResult)
@@ -199,6 +210,21 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
             caseType,
             standaloneAuditReport);
     }
+
+    private static string CandidateName(
+        ClassificationCandidate candidate,
+        IReadOnlyList<ClassificationCandidate> candidates)
+    {
+        var name = candidate.Category.Subtype is null
+            ? candidate.Category.Name
+            : $"{candidate.Category.Name}/{candidate.Category.Subtype}";
+        var sameCategoryCount = candidates.Count(item => item.Category == candidate.Category);
+        return sameCategoryCount > 1 && candidate.CaseType is not null
+            ? $"{name}/{candidate.CaseType}"
+            : name;
+    }
+
+    private sealed record ClassificationCandidate(MailCategory Category, CaseType? CaseType);
 
     private static StandaloneAuditReportEvaluation? EvaluateStandaloneAuditReport(
         IntakeSourceReadResult readResult)
