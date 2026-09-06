@@ -33,6 +33,21 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    /// <summary>
+    /// The known principal on a pre-case record — an Image Intake or a Triage.
+    /// One pair owns the concept for both surfaces: `Not known` is the absent
+    /// principal and is never reused as a generic empty label elsewhere.
+    /// </summary>
+    public const string Principal = "Principal";
+
+    public const string PrincipalNotKnown = "Not known";
+
+    /// <summary>
+    /// The Triage's own permanent reference, distinct from the originating
+    /// provider claim number.
+    /// </summary>
+    public const string TriageReference = "Triage reference";
+
     public static string AttachmentSearchability(bool isSearchable) =>
         isSearchable ? "Searchable content" : "Content unavailable for search";
 
