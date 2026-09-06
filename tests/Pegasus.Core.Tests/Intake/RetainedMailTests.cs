@@ -381,7 +381,8 @@ public sealed class RetainedMailTests
             Guid.NewGuid(), MailboxA, "mailbox-a@example.test", true, null, null, null,
             null, null, NowUtc, true, 0, null, null, null, null);
         var detail = new RetainedMailDetail(
-            summary, [], [], null, [], [], MailFolderScope.Inbox, null, null, dossier);
+            summary, [], [], null, [], [], MailFolderScope.Inbox, null, null,
+            "immutable-message", "<message@example.invalid>", "conversation", dossier);
         var queries = new Queries { DetailToReturn = detail };
         var staffAccounts = new FixedStaffAccounts(staffId, "alex");
 
@@ -703,7 +704,8 @@ public sealed class RetainedMailTests
             Guid.NewGuid(), MailboxId(mailboxId), "mailbox@example.test", true, null, null, null,
             null, null, NowUtc, true, 0, null, null, null, null);
         return new(summary, [], [], null, [], [], MailFolderScope.Inbox,
-            dossier.Current.Outcome, null, dossier);
+            dossier.Current.Outcome, null, $"immutable-{mailboxId}",
+            $"<{mailboxId}@example.invalid>", $"conversation-{mailboxId}", dossier);
     }
 
     private static Guid MailboxId(string value) => value switch
