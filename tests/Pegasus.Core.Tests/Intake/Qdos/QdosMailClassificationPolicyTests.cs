@@ -114,6 +114,18 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.False(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
     }
 
+    [Theory]
+    [InlineData("Please provide an initial assessment of whether the vehicle is not roadworthy and repairable.\nAn official inspection instruction will follow.")]
+    [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nAn official inspection instruction will not follow.")]
+    public void NegatedAssessmentOrFollowOnInstructionDoesNotClassify(string request)
+    {
+        var result = Classify(document:
+            "Triage Only Request\nOur Ref: 47939/1\nOur Client: Mrs Example\n"
+            + "Registration: AB12 CDE\n" + request);
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+    }
+
     [Fact]
     public void PlainAndCombinedEngineerLettersRemainAmbiguous()
     {
