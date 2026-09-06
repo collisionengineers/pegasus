@@ -533,6 +533,16 @@ public sealed class EfImageIntakeStore(
     /// re-submission after that principal is deactivated, as a no-op. Only an
     /// actual change requires an active principal.
     /// </summary>
+    /// <remarks>
+    /// The write is guarded by <c>LifecycleVersion</c> rather than a token of
+    /// its own: one Image Intake, one optimistic token. A principal save
+    /// therefore does invalidate a concurrently-open Merge or Close form,
+    /// which is the intended trade — those forms are reloaded, and a second
+    /// token would let two staff members write the same record while each
+    /// believed they held the current version. A same-value re-submission
+    /// leaves the version alone, so the only edits that can invalidate a form
+    /// are ones that genuinely changed the record.
+    /// </remarks>
     public async Task<ImageIntakeRecord> SetPrincipalAsync(
         SetImageIntakePrincipalRequest request,
         CancellationToken cancellationToken)

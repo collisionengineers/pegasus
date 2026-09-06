@@ -8,9 +8,19 @@ namespace Pegasus.IntegrationTests;
 /// typed refusal a link that outlived its limits version returns.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The window and the finalization rule are pure policy over a fixed clock, so
 /// they are proved directly rather than through a host: a real clock would make
 /// a fifteen-minute boundary a waiting game rather than a fact.
+/// </para>
+/// <para>
+/// This suite therefore needs no host and no database, and by that measure
+/// belongs in <c>Pegasus.Core.Tests</c>. It sits here deliberately: the plan
+/// names this path and the runner filter reads it from this project, and
+/// <c>tests/Pegasus.Core.Tests/Documents/</c> is outside the slice's file
+/// scope. It moves to the Core suite when the accept path is wired (A04) and
+/// the filter moves with it.
+/// </para>
 /// </remarks>
 public sealed class PublicUploadSessionTests
 {
