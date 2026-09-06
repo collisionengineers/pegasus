@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
