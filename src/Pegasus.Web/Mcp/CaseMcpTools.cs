@@ -200,10 +200,10 @@ internal sealed class CaseMcpTools(
                 var historyPage = await listHistory.ExecuteAsync(
                     new(context.Actor, caseId, historyCursor, effectiveLimit), cancellationToken);
                 var documents = documentPage.Items
-                    .SelectMany(document => document.Occurrences.Select(occurrence =>
+                    .Select(document =>
                     {
-                        var version = document.Versions.Single(
-                            value => value.Id == occurrence.VersionId);
+                        var occurrence = document.Occurrence;
+                        var version = document.Version;
                         return new CaseDocumentToolItem(
                             occurrence.Id,
                             version.Id,
@@ -215,7 +215,7 @@ internal sealed class CaseMcpTools(
                             occurrence.RecordedAtUtc,
                             version.IsCurrent,
                             version.IsLogicallyRemoved);
-                    }))
+                    })
                     .ToArray();
                 var history = historyPage.Items
                     .Select(entry => new CaseHistoryToolItem(
