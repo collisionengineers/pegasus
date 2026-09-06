@@ -44,6 +44,24 @@ public static class InspectionLocationMatchPolicy
     public static bool MeetsMinimumLength(string normalizedPrefix) =>
         normalizedPrefix.Length >= MinimumNormalizedPrefixLength;
 
+    /// <summary>
+    /// The one exact-before-prefix rule every local suggestion source ranks
+    /// by: a whole normalized name equal to the search prefix, or a whole
+    /// normalized postcode equal to it. Shared by
+    /// <c>EfOrganizationDirectory</c> and <c>InspectionAddressChoicesQueries</c>
+    /// so the rule has one owner (C06 review R-10) — an EF Core query that
+    /// needs this in a SQL <c>ORDER BY</c> cannot call it directly (it is not
+    /// translatable), so that one call site repeats the same expression
+    /// inline and is the only place allowed to.
+    /// </summary>
+    public static bool IsExactMatch(
+        string normalizedName,
+        string? normalizedPostcode,
+        string namePrefix,
+        string postcodePrefix) =>
+        normalizedName == namePrefix
+        || (normalizedPostcode is not null && normalizedPostcode == postcodePrefix);
+
     public static int ClampLimit(int requestedLimit) =>
         Math.Clamp(requestedLimit, 1, MaximumResultLimit);
 

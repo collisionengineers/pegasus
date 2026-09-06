@@ -38,6 +38,13 @@ public sealed class EfOrganizationDirectory(IDbContextFactory<PegasusDbContext> 
         var roleCode = query.Role is { } role ? ToRoleCode(role) : null;
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        // C06 review R-10: the exact-before-prefix rank must be applied
+        // *before* the bounded fetch, not only after it — otherwise an exact
+        // postcode match whose name sorts late is cut by Take(limit * 4)
+        // before it is ever re-ranked. This repeats
+        // InspectionLocationMatchPolicy.IsExactMatch's expression inline
+        // because an EF Core query cannot translate a call to it into SQL;
+        // that policy method is the one other owner of this rule.
         var candidates = await context.Set<OrganizationDirectoryEntryEntity>()
             .AsNoTracking()
             .Where(entry => entry.Active)
@@ -45,15 +52,17 @@ public sealed class EfOrganizationDirectory(IDbContextFactory<PegasusDbContext> 
             .Where(entry =>
                 entry.NormalizedName.StartsWith(namePrefix)
                 || (entry.NormalizedPostcode != null && entry.NormalizedPostcode.StartsWith(postcodePrefix)))
-            .OrderBy(entry => entry.NormalizedName)
+            .OrderByDescending(entry =>
+                entry.NormalizedName == namePrefix
+                || (entry.NormalizedPostcode != null && entry.NormalizedPostcode == postcodePrefix))
+            .ThenBy(entry => entry.NormalizedName)
             .ThenBy(entry => entry.Id)
             .Take(limit * 4)
             .ToArrayAsync(cancellationToken);
 
         return candidates
-            .OrderByDescending(entry =>
-                entry.NormalizedName == namePrefix
-                || (entry.NormalizedPostcode is not null && entry.NormalizedPostcode == postcodePrefix))
+            .OrderByDescending(entry => InspectionLocationMatchPolicy.IsExactMatch(
+                entry.NormalizedName, entry.NormalizedPostcode, namePrefix, postcodePrefix))
             .ThenBy(entry => entry.NormalizedName)
             .ThenBy(entry => entry.NormalizedPostcode)
             .ThenBy(entry => entry.Id)

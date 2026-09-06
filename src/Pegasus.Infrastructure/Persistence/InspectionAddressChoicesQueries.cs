@@ -224,9 +224,13 @@ public sealed class InspectionAddressChoicesQueries(
         InspectionLocationChoice choice,
         string namePrefix,
         string postcodePrefix) =>
-        InspectionLocationMatchPolicy.NormalizeNamePrefix(choice.Label) == namePrefix
-        || (choice.Postcode is not null
-            && InspectionLocationMatchPolicy.NormalizePostcodePrefix(choice.Postcode) == postcodePrefix);
+        InspectionLocationMatchPolicy.IsExactMatch(
+            InspectionLocationMatchPolicy.NormalizeNamePrefix(choice.Label),
+            choice.Postcode is null
+                ? null
+                : InspectionLocationMatchPolicy.NormalizePostcodePrefix(choice.Postcode),
+            namePrefix,
+            postcodePrefix);
 
     private static void AddIfMatches(
         List<InspectionLocationChoice> candidates,
