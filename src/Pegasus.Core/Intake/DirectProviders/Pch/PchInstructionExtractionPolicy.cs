@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
 
@@ -205,6 +205,15 @@ public sealed partial class PchInstructionExtractionPolicy
             PartyRole: InstructionRole),
         new("Accident circumstances", ["Incident Circumstances", "Accident Circumstances"],
             PartyRole: ClaimantRole),
+        // Only an explicitly appointed or completed inspection. No recorded
+        // original states one, and the report deadline this template does
+        // print is not one - which is why the deadline has its own field and
+        // its own role below.
+        new("Inspection date", ["Inspection Date", "Date of Inspection"],
+            IsRequired: false,
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
+            CanonicalValue: InstructionFieldEngine.CanonicalDate,
+            PartyRole: InstructionRole),
         // Damage, driveability and pre-existing damage are four separate rows
         // in this template and stay four separate fields: what the vehicle
         // looks like is not how it came to look that way.
@@ -466,10 +475,7 @@ public sealed partial class PchInstructionExtractionPolicy
             InstructionFieldEngine.ParseDate(values["Date of incident"]),
             InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
-            // Deliberately null. No recorded original states an appointed or
-            // completed inspection, and the report deadline this template does
-            // print is not one.
-            null,
+            InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null,
             InstructionFieldEngine.TypedString(values["VAT status"], 100),
             InstructionFieldEngine.TypedString(values[ClaimantAddressField], 1000),
