@@ -144,6 +144,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 maxLength: 200,
                 nullable: true);
 
+            migrationBuilder.AddColumn<string>(
+                name: "PendingContentStorageKey",
+                table: "DocumentVersions",
+                type: "nvarchar(200)",
+                maxLength: 200,
+                nullable: true);
+
             migrationBuilder.AddColumn<decimal>(
                 name: "CropHeight",
                 table: "DocumentOccurrences",
@@ -1507,6 +1514,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropColumn(
                 name: "BoxVersionId",
+                table: "DocumentVersions");
+
+            migrationBuilder.DropColumn(
+                name: "PendingContentStorageKey",
                 table: "DocumentVersions");
 
             migrationBuilder.DropColumn(
