@@ -108,3 +108,9 @@ G11 retires the dashboard activity projections (carrying C's A07 hunks and the c
 ## 13:50Z — session rate limit hit again (resets 15:30Z)
 
 The C01 review agent was killed by the API session limit; other running agents (C07 review, wave 3 runner, C05, C06) may follow. On reset: check each slice worktree's commits and each agent's last state, relaunch the reviews and the runner wave from the recorded heads (C07 `7000842ed`, C01 `ea4848acd`), and resume C05/C06 from their uncommitted work.
+
+## 15:35Z — resumed after the rate limit; G12 merged
+
+- All agents died at ~13:50Z. Slice heads: c01 `ea4848acd`, c07 `7000842ed`, c08 `c64d9cf83`, c05 WIP `815385cda` (three draft Core files committed as wip), c06 `f2b99b5ce` (no edits). Wave 3 had only started its build; the C01/C07 reviews produced no attestation.
+- G12 `c4d09b6e8` merged → C head `ab9f3fcd8`, pushed. C07 and C01 resumed to merge G12 and resolve their typed-actor conflicts in-stream; then a combined runner wave (C07 lanes incl. the concurrency proof twice, C01 lanes), then the two reviews, then C05/C06 resume. Running at low priority; one runner and at most two editors.
+- Baseline (e5c9b1f43) whole-solution: 33 integration failures mapped to owners on PLAT-075 notes; the C-owned ones are addressed by C07 (Triage), C01 (negative tests) and C06 (organization administration).
