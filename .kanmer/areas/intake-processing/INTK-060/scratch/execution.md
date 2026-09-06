@@ -244,3 +244,7 @@ C06-R-16 root cause of both 200s: `EvaOperationKey`/`LocationOperationKey` are n
 ## Checkpoint — C07 caller correction round 1 at `6490623c3` (merged `3c0e1931c`)
 
 Four majors + four minors fixed via a pre-custody `arrived` occurrence state, derived accepted totals under a link-row lock, receipt only on Confirmed, Pending reconciled like Unknown, thrown hand-over → `unknown`, `AcceptedPending` decision with its own wording (label constant handed to C08). New residual C07B-R-3a recorded. Wave 21 + targeted re-review running. C06 round 3 dispatched (Sonnet) for blocker R-16 (non-nullable operation keys) and minors R-17–R-20. Editors: C05 r2, C06 r3. C08 correction next.
+
+## Checkpoint — C05 round 2 at `868e7a5ea` (merged `b506c3b8d`)
+
+R-10 (finding filed against an issuer row with an empty label for scan-only sources), R-6 (re-evaluation only queued Worker work; test now drives the pass; outcome tag keyed by receipt id), R-11 (scan-only page rows/OCR findings recorded), R-12 (finding ordinal in the derived id) fixed. Wave 22 + re-review start when wave 21 releases LocalDB. C08 correction round 1 dispatched (Sonnet): finish the in-progress merge, nine wave-9 defects, G14 mailbox fields in Compose, labels batch (C07 AcceptedPending wording, C05 Finding chip). Editors: C06 r3, C08 r1.

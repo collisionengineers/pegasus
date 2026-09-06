@@ -22,3 +22,30 @@ Reviewed `wave1/c06-review.md` (verdict needs-changes at head `556a26b1a`, 2 blo
 - [ ] DISPOSITION R-6 (implementer, attempt 2): deferred, not fixed. A physical default inspection location can never be source-linked in production — `EvaSubmission.cshtml.cs`'s `OnPostUpdateLocationAsync` hardcodes `SourceKind: "manual", SourceRecordId: null, SourceVersion: null` and the form has no suggestion picker wired to `IInspectionLocationChoices`/`IOrganizationDirectoryQueries`. The command, policy and store all already carry the source triple correctly (nothing is broken or unsafe — a manual entry is exactly what it claims to be, never a fake source link), so this is a missing feature, not a defect: wiring a suggestion picker into the settings page is UI work with no story or file authorized for it in this ticket's plan/files list, and inventing one is exactly the "useful discovery is not authorization for a new file" case M8/M5 name. Recording as a named follow-up rather than building it here.
 - [ ] DISPOSITION R-11 (implementer, attempt 2): deferred, needs an A/B handoff, not fixed here. `CreatePrincipalRequest` and `UpdatePrincipalEvaSubmissionRequest` in `CaseContracts.cs` still carry `EvaAutomaticSubmission`, and the store no longer reads either value (both call sites hardcode/ignore it) — safe (a caller cannot use it to reintroduce automatic EVA) but dead and misleading. `CaseContracts.cs` is B-owned and outside the "### C06 files" list, so removing the field needs a B-side change this ticket cannot make. Adding to the DI/handoff section verbatim: **A/B follow-up — once C06 lands, remove `EvaAutomaticSubmission` from `CreatePrincipalRequest` and `UpdatePrincipalEvaSubmissionRequest` in `CaseContracts.cs`; no caller other than C06's own (now-hardcoded-false) construction sites reads or sets it.**
 - [ ] DISPOSITION R-15 (implementer, attempt 2): carried forward, not a new defect — the review itself says so. `OrganizationDirectoryEntryEntity` rows (and their `NormalizedName`/`NormalizedPostcode` values) are written only by tests; production has no directory writer. This is exactly assumption 4 from correction round 1 ("OrganizationDirectory has no admin write UI in this ticket — frozen contract is query-only... asks for a follow-up ticket"), already recorded honestly. No action needed beyond this acknowledgement.
+
+## Correction round 3 — C06-R-16 (ASSUMPTION 9 corrected)
+
+ASSUMPTION 9's premise was false: MVC's `ParameterBinder.EnforceBindRequiredAndValidate`
+validates the *binding result* (null when a `[BindProperty]` is absent from the
+posted form), not the C# property initializer, so a non-nullable `string`
+`[BindProperty]` posted by only one of `EvaSubmission`'s two forms fails
+implicit-Required on every POST to the *other* form's handler, before either
+handler's own `IsOperationKeyValid` check runs. That is what wave 20 lane 3
+caught: `AdministratorRoutesAreDiscoverableAndPostThroughCoreEfCallers` and
+`PrincipalSettingsPageSavesDefaultLocationAndManualEvaIndependently` both got
+200 (`Page()`) instead of a redirect.
+
+Fix applied (option 1 from the re-review, smallest diff, matches the existing
+`EvaReason`/`LocationReason` nullable idiom on the same page model):
+`EvaOperationKey` and `LocationOperationKey` widened to `string?` (keeping the
+`= NewOperationKey()` initializer), and
+`AdministrationPageModel.IsOperationKeyValid` widened to accept `string?`. Each
+handler still validates only its own key and ignores the other form's — that
+was already correct and unchanged. The two handlers remain independently
+idempotent.
+
+Superseded: ASSUMPTION 9 (correction round 2) is corrected by this entry, not
+by a new numbered assumption — the fix it proposed (unregistered optional
+`IUpdatePrincipalDefaultInspectionLocation`, ADR-0018 remark) is unrelated and
+still stands; only its claim about non-nullable `[BindProperty]` validation
+timing was wrong.
