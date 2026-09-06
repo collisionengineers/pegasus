@@ -18,6 +18,7 @@ public static class CaseWorkspaceLabels
     public static class Vehicle
     {
         public const string LookupDvlaMot = "Look up DVLA & MOT";
+        public const string LookupMileage = "MOT mileage";
 
         public static string UseSuggestion(string value) => $"Use {value}";
     }

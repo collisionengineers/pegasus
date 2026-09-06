@@ -281,6 +281,19 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/ValuationPresets/Index.cshtml",
+    "route": "/Administration/ValuationPresets",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-valuation-presets--default.html",
+        "branch": "Seeded valuation presets with amount, enabled state, version and administrator edit/create controls.",
+        "scenario": "administration-valuation-presets--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml",
     "route": "/Cases/{id:guid}/Assessment",
     "classification": "redirect",

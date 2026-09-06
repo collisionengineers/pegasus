@@ -43,6 +43,12 @@
     var mileageSource = (data?.Vehicle.Mileage.Confirmed ?? data?.Vehicle.Mileage.Fact) is { } mileageValue
         ? OperatorLabels.Provenance(mileageValue.Source).Word : null;
     var year = details.VehicleEvidence?.LatestObservation?.Vehicle?.ManufactureYear;
+    // The original mileage evidence stays on the record beside the case's own
+    // figure (ENG-034, B08): the latest lookup's MOT reading and the date it
+    // was observed, never merged into the recorded value.
+    var lookupMileage = details.VehicleEvidence?.LatestObservation?.Mileage is { } reading
+        ? $"{reading.Value:N0} {OperatorLabels.MileageUnit(reading.Unit)} · {reading.ObservedOn:d MMM yyyy}"
+        : null;
 }
 
 <section class="panel" aria-labelledby="case-vehicle-title">
@@ -82,6 +88,7 @@
             <dl><dt>Year</dt><dd>@Value(year?.ToString())</dd></dl>
             <dl><dt>Mileage</dt><dd>@Value(mileageText)</dd>@if (mayEdit && showMileage){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@mileageSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Mileage" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion($"{mileageSuggestion.Value:N0} {unitSuggestion!.Value}")</button></form>}</dl>
             <dl><dt>Mileage source</dt><dd>@Value(mileageSource)</dd></dl>
+            <dl><dt>@CaseWorkspaceLabels.Vehicle.LookupMileage</dt><dd>@Value(lookupMileage)</dd></dl>
         </div>
     </div>
 </section>
