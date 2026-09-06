@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Web.Pages.Uploads;
 
@@ -47,6 +48,19 @@ public sealed partial class RequestModel(
     private const string StoringCompletionMessage =
         "Your document was received and is being stored. You do not need to send it again.";
 
+    /// <summary>
+    /// What a refused submission is allowed to say. Custody declined this
+    /// submission outright, so it is not "try the same operation again" - the
+    /// next page load carries a new one - and it discloses nothing about the
+    /// Case, the link or the reason.
+    /// </summary>
+    /// <remarks>
+    /// Belongs beside the other sender-facing strings in <c>OperatorLabels</c>
+    /// and moves there with C08's labels batch, like the two above it.
+    /// </remarks>
+    private const string RefusedMessage =
+        "This document was not accepted. Reload the link and try again.";
+
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -56,7 +70,7 @@ public sealed partial class RequestModel(
             StatusMessage = completionStatus;
             if (UploadPolicy is not null)
             {
-                OperationKey = StaffPageModel.NewOperationKey();
+                OperationKey = NextOperationKey(UploadPolicy);
             }
             return Page();
         }
@@ -65,9 +79,19 @@ public sealed partial class RequestModel(
             return NotFound();
         }
 
-        OperationKey = StaffPageModel.NewOperationKey();
+        OperationKey = NextOperationKey(UploadPolicy);
         return Page();
     }
+
+    /// <summary>
+    /// The operation key this page hands the sender. A submission the link has
+    /// already taken and not resolved keeps its own key, so the sender's retry
+    /// is the same submission and reconciles; a new key is minted only when
+    /// the link has nothing outstanding, which is what makes it a new
+    /// deliberate submission rather than a duplicate of one custody may hold.
+    /// </summary>
+    private static string NextOperationKey(RequestUploadPublicView view) =>
+        view.UnresolvedOperationKey ?? StaffPageModel.NewOperationKey();
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
@@ -169,6 +193,17 @@ public sealed partial class RequestModel(
                     return NotFound();
             }
 
+            return Page();
+        }
+        // Custody declined the authority this link carries. That is a refusal
+        // of this submission and not an uncertainty: the arrival is already
+        // recorded refused, so the next page load carries a new operation key,
+        // and what the sender sees is a plain sentence rather than the 500 an
+        // unhandled authorization fault would put on a public page.
+        catch (StaffAuthorizationException exception)
+        {
+            LogPublicRequestUploadFailure(logger, exception);
+            ModelState.AddModelError(string.Empty, RefusedMessage);
             return Page();
         }
         // The submission path now puts a remote custody adapter behind this

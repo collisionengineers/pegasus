@@ -343,9 +343,22 @@ public sealed record UploadToRequestResult(
     Guid? ReceiptId,
     bool IsReplay);
 
+/// <summary>
+/// Everything the public page may know. It carries no request reference, no
+/// expiry and no Case identity - only the two limits the sender needs, and the
+/// operation key their next submission must use.
+/// </summary>
+/// <param name="UnresolvedOperationKey">
+/// The key of a submission this link has already taken that has not resolved -
+/// arrived, uncertain, or accepted and not yet confirmed - or null when the
+/// link has nothing outstanding. While one stands, the page presents that key
+/// again instead of a new one, so a retry reconciles the submission custody
+/// may already hold rather than becoming a second one.
+/// </param>
 public sealed record RequestUploadPublicView(
     IReadOnlySet<string> AllowedMediaTypes,
-    long MaximumFileBytes);
+    long MaximumFileBytes,
+    string? UnresolvedOperationKey = null);
 
 /// <summary>
 /// The one submission session a public link may have. The window is fixed, not
