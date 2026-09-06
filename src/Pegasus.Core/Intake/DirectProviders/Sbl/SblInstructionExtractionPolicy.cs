@@ -48,7 +48,7 @@ public sealed partial class SblInstructionExtractionPolicy
         new("Repairer email", ["Repairer email"], IsRequired: false, PartyRole: "repairer"),
         new("Agreed labour rate", ["Agreed labour rate"], IsRequired: false, PartyRole: "repairer-rate"),
         new("Hire company", ["Hire company"], IsRequired: false, PartyRole: "hire"),
-        new("Hire out date", ["SBL hire commencement"], IsRequired: false,
+        new("Hire out date", ["Hire out date"], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "hire")
     ];
@@ -157,9 +157,16 @@ public sealed partial class SblInstructionExtractionPolicy
             ("Repairer Tel", "Repairer telephone"), ("Repairer Email", "Repairer email"),
             ("Agreed Labour Rate", "Agreed labour rate")))
             yield return item;
-        foreach (var item in ReadLabels(fragment, hire,
-            ("Hire Company", "Hire company"), ("Hire Out Date", "SBL hire commencement")))
+        foreach (var item in ReadLabels(fragment, hire, ("Hire Company", "Hire company")))
             yield return item;
+        var hireOutDates = DateLabels(hire, "Hire Out Date");
+        if (hireOutDates.Length > 0)
+            yield return fragment with
+            {
+                Text = string.Join(
+                    Environment.NewLine,
+                    hireOutDates.Select(value => $"Hire out date: {value}"))
+            };
     }
 
     private static IEnumerable<IntakeContentFragment> ReadLabels(
@@ -203,6 +210,20 @@ public sealed partial class SblInstructionExtractionPolicy
             TimeSpan.FromMilliseconds(100));
         var value = match.Success ? Clean(match.Groups["value"].Value) : string.Empty;
         return IsPlaceholder(value) ? null : value;
+    }
+
+    private static string[] DateLabels(string? section, string label)
+    {
+        if (section is null)
+            return [];
+        return LabelRegex(label).Matches(section)
+            .Select(match => Clean(match.Groups["value"].Value))
+            .Where(value => !IsPlaceholder(value))
+            .Select(value => InstructionFieldEngine.CanonicalDate(value))
+            .Where(value => value is not null)
+            .Select(value => value!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static Regex LabelRegex(string label) => new(
