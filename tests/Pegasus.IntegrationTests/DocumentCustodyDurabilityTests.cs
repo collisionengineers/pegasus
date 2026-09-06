@@ -331,7 +331,6 @@ public sealed class DocumentCustodyDurabilityTests
                 new LocalDocumentContentStore(Path.Combine(root, "custody")));
             IUploadToRequest upload = new EfDocumentRequestStore(
                 contextFactory,
-                contentStore,
                 new RequestUploadPolicy(limits, timeProvider),
                 limits,
                 timeProvider);

@@ -647,7 +647,10 @@ public sealed class CustodyOutboxIntegrationTests
     public async Task EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay(
         CaseLifecycleState terminalState)
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        // The accepted request upload below is a real submission, so this host
+        // needs the custody adapter Stream A will register in production.
+        using var factory = PublicUploadRetentionWebTests.WithRetention(baseFactory);
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
         var caseId = accepted.CaseId;

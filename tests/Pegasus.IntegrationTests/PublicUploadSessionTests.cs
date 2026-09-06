@@ -18,8 +18,8 @@ namespace Pegasus.IntegrationTests;
 /// belongs in <c>Pegasus.Core.Tests</c>. It sits here deliberately: the plan
 /// names this path and the runner filter reads it from this project, and
 /// <c>tests/Pegasus.Core.Tests/Documents/</c> is outside the slice's file
-/// scope. It moves to the Core suite when the accept path is wired (A04) and
-/// the filter moves with it.
+/// scope. The accept path that applies these rules over the real database is
+/// <see cref="PublicUploadRetentionWebTests"/>.
 /// </para>
 /// </remarks>
 public sealed class PublicUploadSessionTests
