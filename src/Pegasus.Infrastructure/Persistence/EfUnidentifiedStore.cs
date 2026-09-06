@@ -202,6 +202,90 @@ public sealed class EfUnidentifiedStore(
         return new(Map(entity), Map(history), false);
     }
 
+    public async Task<UnidentifiedReopenResult> ReopenAsync(
+        ReopenUnidentifiedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        UnidentifiedValidation.ValidateReopen(request);
+        var operationKey = request.OperationKey.Trim();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
+            item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.UnidentifiedItemId != request.UnidentifiedItemId
+                || replay.PreviousState != UnidentifiedState.Resolved.ToString()
+                || replay.NewState != UnidentifiedState.Open.ToString()
+                || !string.Equals(replay.Reason, request.Reason.Trim(), StringComparison.Ordinal))
+            {
+                throw new UnidentifiedOperationConflictException();
+            }
+
+            // The state this reopen produced, not the row as it stands now. A
+            // later re-resolve or reopen may have moved the item on, and a
+            // stale caller replaying the reopen must not be handed that newer
+            // version to build its next key from: it would consume the key the
+            // fresher pass needs. The expected version is the one the reopen
+            // applied at, so the reopen left the item one past it, open, with
+            // every resolution field cleared.
+            var replayItem = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
+                .SingleAsync(item => item.Id == request.UnidentifiedItemId, cancellationToken);
+            var reopenedState = Map(replayItem) with
+            {
+                State = UnidentifiedState.Open,
+                ResolvedAtUtc = null,
+                ResolvedBy = null,
+                ResolutionReason = null,
+                ResolutionTargetKind = null,
+                ResolutionTargetId = null,
+                ResolutionTargetReference = null,
+                Version = request.ExpectedVersion + 1
+            };
+            return new(reopenedState, Map(replay), true);
+        }
+
+        var entity = await context.Set<UnidentifiedItemEntity>().SingleOrDefaultAsync(
+            item => item.Id == request.UnidentifiedItemId, cancellationToken)
+            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        if (entity.Version != request.ExpectedVersion || entity.State != UnidentifiedState.Resolved.ToString())
+        {
+            throw new UnidentifiedVersionConflictException();
+        }
+
+        entity.State = UnidentifiedState.Open.ToString();
+        entity.ResolvedAtUtc = null;
+        entity.ResolvedByActorKind = null;
+        entity.ResolvedByActorSubjectId = null;
+        entity.ResolvedByActorRolesJson = null;
+        entity.ResolutionReason = null;
+        entity.ResolutionTargetKind = null;
+        entity.ResolutionTargetId = null;
+        entity.ResolutionTargetReference = null;
+        // The recheck watermark belongs to the resolution being withdrawn, not
+        // to the item: the next resolution is reconciled from scratch.
+        entity.ReconciledAssociationVersion = null;
+        entity.Version++;
+        var history = new UnidentifiedHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            UnidentifiedItemId = entity.Id,
+            PreviousState = UnidentifiedState.Resolved.ToString(),
+            NewState = UnidentifiedState.Open.ToString(),
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+            OccurredAtUtc = request.ReopenedAtUtc,
+            Reason = request.Reason.Trim(),
+            OperationKey = operationKey
+        };
+        context.Set<UnidentifiedHistoryEntity>().Add(history);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(Map(entity), Map(history), false);
+    }
+
     public async Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -240,6 +324,68 @@ public sealed class EfUnidentifiedStore(
 
         var rows = await query.OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Sequence).ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
+    }
+
+    public async Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+        int maximum,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var resolved = UnidentifiedState.Resolved.ToString();
+        var receipt = UnidentifiedOriginKind.Receipt.ToString();
+        var automation = ActorKind.Automation.ToString();
+        var automationSubject = ReconcileUnidentifiedDestinations.AutomationActorId;
+
+        // As with ListQueueAsync, the origin is polymorphic and carries no
+        // modelled foreign key, so the receipt's manual association is joined
+        // directly on the origin id. Only the association can move an
+        // automation resolution's destination without the receipt's own
+        // processing pass seeing it, so only rows with an association are ever
+        // candidates.
+        //
+        // The association's own version, not its timestamps, decides freshness.
+        // A recheck that finds the destination unchanged writes no resolution,
+        // so a timestamp compared against ResolvedAtUtc would never advance and
+        // would re-select the row on every pass for ever; and being the oldest
+        // resolutions, such rows would hold the head of this bounded
+        // oldest-first page and starve every later stale resolution of its
+        // recheck in silence. The version is monotonic per receipt, moves on
+        // every link, unlink and relink, and needs no clock.
+        var rows = await (
+            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            join association in context.Set<IntakeManualAssociationEntity>().AsNoTracking()
+                on item.OriginId equals association.IntakeReceiptId
+            where item.State == resolved
+                && item.OriginKind == receipt
+                && item.ResolvedByActorKind == automation
+                && item.ResolvedByActorSubjectId == automationSubject
+                && (item.ReconciledAssociationVersion == null
+                    || item.ReconciledAssociationVersion != association.Version)
+            orderby item.ResolvedAtUtc, item.Sequence
+            select item)
+            .Take(maximum)
+            .ToArrayAsync(cancellationToken);
+        return rows.Select(Map).ToArray();
+    }
+
+    public async Task MarkResolutionRecheckedAsync(
+        Guid unidentifiedItemId,
+        long associationVersion,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var resolved = UnidentifiedState.Resolved.ToString();
+        // Scoped to the still-resolved item and written without the concurrency
+        // token: this is freshness bookkeeping about a resolution, not a
+        // transition of the item, so it neither takes a version nor resurrects a
+        // watermark onto a resolution that has since been reopened.
+        await context.Set<UnidentifiedItemEntity>()
+            .Where(item => item.Id == unidentifiedItemId && item.State == resolved)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    item => item.ReconciledAssociationVersion, associationVersion),
+                cancellationToken);
     }
 
     public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(

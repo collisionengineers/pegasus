@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -255,5 +255,28 @@ public sealed class UnidentifiedPersistenceTests
 
         var receipt = await receiptStore.StoreAsync(draft, CancellationToken.None);
         return receipt.Id;
+    }
+
+    /// <summary>
+    /// The reopen and recheck members carry interface defaults so that
+    /// in-memory doubles with no recheck queue stay honest (empty page, no
+    /// watermark). That default is a trap for the one implementation that MUST
+    /// override it: a production store silently inheriting it would report no
+    /// stale resolutions for ever and the correction loop would never run.
+    /// </summary>
+    [Fact]
+    public void TheProductionStoreDeclaresEveryReopenAndRecheckMemberItself()
+    {
+        var declared = typeof(Pegasus.Infrastructure.Persistence.EfUnidentifiedStore)
+            .GetMethods(
+                System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.DeclaredOnly)
+            .Select(method => method.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains(nameof(IUnidentifiedStore.ReopenAsync), declared);
+        Assert.Contains(nameof(IUnidentifiedStore.ListResolutionsToRecheckAsync), declared);
+        Assert.Contains(nameof(IUnidentifiedStore.MarkResolutionRecheckedAsync), declared);
     }
 }
