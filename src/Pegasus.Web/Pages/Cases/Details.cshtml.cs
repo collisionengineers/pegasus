@@ -58,6 +58,8 @@ public sealed partial class DetailsModel(
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
+    IListCaseValuations listCaseValuations,
+    ISaveValuation saveValuation,
     IEngineerNoteQueries engineerNoteQueries,
     IAddEngineerNote addEngineerNote,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
@@ -67,6 +69,12 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// The Case's recorded valuation source cards (B01 port/B03): one card
+    /// per source with its figures, loaded with the valuation section.
+    /// </summary>
+    public IReadOnlyList<CaseValuation> Valuations { get; private set; } = [];
+
     public IReadOnlyList<InspectionAddressChoice> InspectionAddressChoices { get; private set; } = [];
 
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
@@ -127,6 +135,7 @@ public sealed partial class DetailsModel(
         {
             ["engineer-notes"] = "/Pages/Cases/Shared/_CaseEngineerNotes.cshtml",
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
+            ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
         };
@@ -471,6 +480,10 @@ public sealed partial class DetailsModel(
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
+            if (!SectionIsDeferred("valuation"))
+            {
+                Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
+            }
             if (!SectionIsDeferred("engineer-notes"))
             {
                 await LoadEngineerNotesAsync(id, cancellationToken);
@@ -640,6 +653,10 @@ public sealed partial class DetailsModel(
             if (key == "files")
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
+            }
+            if (key == "valuation")
+            {
+                Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
             }
             if (key == "engineer-notes")
             {
@@ -1253,6 +1270,136 @@ public sealed partial class DetailsModel(
 
     private RedirectToPageResult RedirectToReport(Guid id) =>
         RedirectToPage("/Cases/Details", new { id, section = "report" });
+
+    /// <summary>
+    /// B01 port re-homed from PR 670's rejected standalone Valuation page:
+    /// recording a guide valuation is a section command on the one Case
+    /// workspace. The Add-valuation dialog posts here.
+    /// </summary>
+    public async Task<IActionResult> OnPostAddValuationAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        ValuationSource source,
+        DateOnly date,
+        TimeOnly time,
+        string? guideMonth,
+        long mileage,
+        decimal retailValue,
+        decimal tradeValue,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardValuationCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await saveValuation.ExecuteAsync(
+                new(
+                    id,
+                    currentCaseVersion,
+                    actor,
+                    operationKey,
+                    "Valuation recorded.",
+                    editLeaseToken!,
+                    new(source, date, time, mileage, retailValue, tradeValue, ParseGuideMonth(guideMonth))),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The valuation was not recorded. Retry the operation.");
+            return RedirectToValuation(id);
+        }
+
+        ClearLeaseState();
+        TempData["CaseStatus"] = "The valuation was recorded.";
+        return RedirectToValuation(id);
+    }
+
+    private static DateOnly? ParseGuideMonth(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (!DateOnly.TryParseExact(
+                value,
+                "yyyy-MM",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var month))
+        {
+            throw new ArgumentException("The guide month is invalid.", nameof(value));
+        }
+        return new DateOnly(month.Year, month.Month, 1);
+    }
+
+    /// <summary>
+    /// The valuation-section mutation guard: the report guard's rules with
+    /// the valuation redirect target.
+    /// </summary>
+    private async Task<IActionResult?> GuardValuationCommandAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true)
+        {
+            return NotFound();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["CaseError"] = "Only an Engineer can record a valuation.";
+            return RedirectToValuation(id);
+        }
+        if (access.IsReadOnly)
+        {
+            TempData["CaseError"] = "The case is read-only once Complete.";
+            return RedirectToValuation(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToValuation(id);
+        }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["CaseError"] = NotInEditMode;
+            return RedirectToValuation(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        currentCaseVersion = details.Workflow.Version;
+        return null;
+    }
+
+    private RedirectToPageResult RedirectToValuation(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "valuation" });
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(
         Guid id,

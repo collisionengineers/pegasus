@@ -1,3 +1,5 @@
+using Pegasus.Core.Assessment;
+
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
@@ -18,6 +20,29 @@ public static class CaseWorkspaceLabels
         public const string LookupDvlaMot = "Look up DVLA & MOT";
 
         public static string UseSuggestion(string value) => $"Use {value}";
+    }
+
+    /// <summary>
+    /// The Valuation section's source-card surface, same ownership rule as
+    /// Vehicle.
+    /// </summary>
+    public static class Valuation
+    {
+        public const string SectionTitle = "Valuation";
+        public const string AddValuation = "Add valuation";
+        public const string CazanaCondition = "not a live source";
+        public const string AbsentGuideMonth = "Not recorded";
+
+        public static string SourceLabel(ValuationSource source) => source switch
+        {
+            ValuationSource.Glasses => "Glass's",
+            ValuationSource.Cazana => "Cazana",
+            ValuationSource.EngineersValue => "Engineer's Value",
+            ValuationSource.AiMarketResearch => "AI market research",
+            ValuationSource.Brego => "Brego",
+            ValuationSource.SuperCap => "Super CAP",
+            _ => source.ToString(),
+        };
     }
 
     /// <summary>
