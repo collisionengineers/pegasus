@@ -132,15 +132,17 @@ public static class ValuationPolicy
     }
 
     /// <summary>
-    /// The sources staff may type in. Collision Engineers reads the Glass's
-    /// guide and records the figure by hand (Brego and Super CAP join this
-    /// list once the shared source constraint carries them): there is no live
-    /// provider here, and the guide is evidence rather than a call. Cazana remains a disabled seam and AI market research is written
+    /// The sources staff may type in. Collision Engineers reads Glass's,
+    /// Brego and Super CAP guides and records the figure by hand: none of
+    /// them has a live provider here, and the guide is evidence rather than a
+    /// call. Cazana remains a disabled seam and AI market research is written
     /// only by the automation completion, so neither is offered to the staff
     /// save and edit actions.
     /// </summary>
     public static bool IsManuallyRecordable(ValuationSource source) =>
         source is ValuationSource.Glasses
+            or ValuationSource.Brego
+            or ValuationSource.SuperCap
             or ValuationSource.EngineersValue;
 
     private static void RequireManuallyRecordableSource(ValuationSource source)
