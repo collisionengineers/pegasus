@@ -574,7 +574,6 @@ public sealed class EfRepairSpecificationStore(
         entity.LabourRate = details.Rate?.HourlyRate ?? details.LabourRate;
         entity.RateCardId = details.Rate?.RateCardId;
         entity.RateCardVersion = details.Rate?.RateCardVersion;
-        entity.PaintLabourRate = details.PaintLabourRate;
         entity.PaintMaterials = details.PaintMaterials;
         entity.OtherCosts = details.OtherCosts;
         entity.VatPercent = details.VatPercent;
@@ -646,7 +645,7 @@ public sealed class EfRepairSpecificationStore(
                 entity.RateCardId, entity.RateCardVersion, entity.LabourRate ?? 0m);
 
         return new(
-            entity.Name, entity.RepairDays, entity.LabourRate, entity.PaintLabourRate,
+            entity.Name, entity.RepairDays, entity.LabourRate, null,
             entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes,
             discounts, vat, rate);
     }

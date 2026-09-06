@@ -138,6 +138,7 @@ public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
     IReadOnlyList<string> ToAddresses,
     IReadOnlyList<string> CcAddresses,
+    IReadOnlyList<string>? ReplyToAddresses,
     string? BodyPlainText,
     IReadOnlyList<RetainedMailAttachment> Attachments,
     IReadOnlyList<RetainedMailThreadEntry> Thread,
