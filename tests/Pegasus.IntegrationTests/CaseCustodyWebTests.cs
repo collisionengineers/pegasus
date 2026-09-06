@@ -40,7 +40,7 @@ public sealed partial class CaseDetailsWebTests
             workspace.MutationForm("confirm-third-party", "Other vehicle in frame", ("occurrenceId", occurrenceId.ToString("D"))));
         using var linkCreated = await workspace.PostAsync(
             "Custody?handler=CreateRequestUploadLink",
-            workspace.MutationForm("create-request-link", "Ask the claimant for images"));
+            workspace.MutationForm("create-request-link", "Ask the claimant for images", ("recipient", "Claimant")));
         using var linkRevoked = await workspace.PostAsync(
             "Custody?handler=RevokeRequestUploadLink",
             workspace.MutationForm(
