@@ -20,6 +20,7 @@ internal static class V1FoundationModelConfiguration
             var stages = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailAttemptStage>().Select(x => $"'{x}'"));
             e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); }); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
+            e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
             e.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(40); e.Property(x => x.ComposeMode).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.State).HasConversion<string>().HasMaxLength(40); e.Property(x => x.AttemptStage).HasConversion<string>().HasMaxLength(40);
@@ -34,6 +35,19 @@ internal static class V1FoundationModelConfiguration
         {
             e.ToTable("ValuationPresets"); e.HasKey(x => x.Id); e.Property(x => x.SuggestedAmount).HasPrecision(18, 2);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
+            e.HasData(
+                new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f001"), Label="Tow bar", SuggestedAmount=300m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f101") },
+                new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f002"), Label="PCO plated", SuggestedAmount=1500m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f102") },
+                new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f003"), Label="Decals", SuggestedAmount=500m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f103") },
+                new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f004"), Label="Camper conversion", SuggestedAmount=0m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f104") },
+                new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f005"), Label="Driving tuition", SuggestedAmount=500m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f105") });
+        });
+        builder.Entity<LabourRateCardEntity>(e =>
+        {
+            e.ToTable("LabourRateCards"); e.HasKey(x => x.Id);
+            e.Property(x => x.Label).HasMaxLength(200); e.Property(x => x.PanelRate).HasPrecision(18, 2);
+            e.Property(x => x.UpdatedBy).HasMaxLength(200); e.Property(x => x.Version).IsConcurrencyToken();
+            e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
         builder.Entity<AppliedValuationSnapshotEntity>(e =>
         {
@@ -72,7 +86,10 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<IntakeSourceCandidateEntity>(e =>
         {
-            e.ToTable("IntakeSourceCandidates"); e.HasKey(x => x.Id); e.HasIndex(x => x.AnalysisId);
+            e.ToTable("IntakeSourceCandidates", t => t.HasCheckConstraint(
+                "CK_IntakeSourceCandidates_Source",
+                "([DocumentVersionId] IS NOT NULL AND [IntakeAssetId] IS NULL) OR ([DocumentVersionId] IS NULL AND [IntakeAssetId] IS NOT NULL)"));
+            e.HasKey(x => x.Id); e.HasIndex(x => x.AnalysisId);
             e.Property(x => x.SourceSha256).HasMaxLength(64).IsFixedLength();
         });
         builder.Entity<IntakeOcrOperationEntity>(e =>
@@ -97,6 +114,11 @@ internal static class V1FoundationModelConfiguration
         {
             e.ToTable("OrganizationDirectoryEntries"); e.HasKey(x => x.Id);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
+            e.Property(x => x.Telephone).HasMaxLength(50); e.Property(x => x.Email).HasMaxLength(320); e.Property(x => x.UpdatedBy).HasMaxLength(200);
+            e.Property(x => x.Role).HasMaxLength(50); e.Property(x => x.Name).HasMaxLength(300); e.Property(x => x.NormalizedName).HasMaxLength(300);
+            e.Property(x => x.Postcode).HasMaxLength(20); e.Property(x => x.NormalizedPostcode).HasMaxLength(20);
+            e.HasIndex(x => new { x.Role, x.NormalizedName, x.Id });
+            e.HasIndex(x => new { x.Role, x.NormalizedPostcode, x.Id });
         });
         builder.Entity<PublicUploadSessionEntity>(e =>
         {
@@ -118,6 +140,7 @@ internal static class V1FoundationModelConfiguration
         builder.Entity<RetainedInstructionAnalysisEntity>().HasOne<IntakeReceiptEntity>().WithMany().HasForeignKey(x => x.IntakeReceiptId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<RetainedInstructionAnalysisEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeSourceCandidateEntity>().HasOne<RetainedInstructionAnalysisEntity>().WithMany().HasForeignKey(x => x.AnalysisId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<IntakeSourceCandidateEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.DocumentVersionId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeSourceCandidateEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeOcrOperationEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.DocumentVersionId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeOcrOperationEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
