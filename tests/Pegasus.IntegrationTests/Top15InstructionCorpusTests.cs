@@ -279,7 +279,10 @@ public sealed class Top15InstructionCorpusTests
                 continue;
             }
 
-            var sha256 = Sha256Of(absolute);
+            // Read once: the same bytes are hashed and handed to the reader, so
+            // what was verified is what was measured.
+            var bytes = await File.ReadAllBytesAsync(absolute);
+            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
             if (!string.Equals(sha256, expectation.Sha256, StringComparison.OrdinalIgnoreCase))
             {
                 failures.Add(
@@ -288,7 +291,7 @@ public sealed class Top15InstructionCorpusTests
             }
 
             var readResult = await reader.ReadAsync(
-                Source(absolute, name, sha256), CancellationToken.None);
+                Source(bytes, name, sha256), CancellationToken.None);
             if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete)
             {
                 inconclusive.Add(
@@ -617,11 +620,11 @@ public sealed class Top15InstructionCorpusTests
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
 
-    private static IntakeSource Source(string path, string name, string sha256) =>
+    private static IntakeSource Source(byte[] bytes, string name, string sha256) =>
         new(
             name,
             MediaType(name),
-            File.ReadAllBytes(path),
+            bytes,
             ProcessedAtUtc,
             "top15-instruction-corpus",
             new(IntakeSourceChannel.ManualUpload, $"corpus-{sha256[..12]}"));
@@ -645,32 +648,14 @@ public sealed class Top15InstructionCorpusTests
         ?? throw new InvalidOperationException(
             $"{PackRootVariable} is not set; this test should have been skipped.");
 
-    private static string Sha256Of(string path)
-    {
-        using var stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-    }
-
     private static void WriteReport(string content)
     {
         var directory = Path.Combine(
-            FindRepositoryRoot(), "artifacts", "evaluation", "v1-intake");
+            CorpusPackage.RepositoryRoot, "artifacts", "evaluation", "v1-intake");
         Directory.CreateDirectory(directory);
         File.WriteAllText(
             Path.Combine(directory, "top15-instruction-corpus.md"),
             content,
             new UTF8Encoding(false));
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName
-            ?? throw new InvalidOperationException("Repository root not found.");
     }
 }
