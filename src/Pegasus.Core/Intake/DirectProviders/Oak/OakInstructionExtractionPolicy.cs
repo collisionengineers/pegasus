@@ -80,7 +80,7 @@ public sealed partial class OakInstructionExtractionPolicy
             Definitions,
             Cache,
             processedAtUtc);
-        var header = AssertAlignedHeader(extracted);
+        var header = AssertAlignedHeader(readResult.Content);
         var fields = extracted.Where(field => field.Name != HeaderAlignmentField).ToList();
         fields.Add(HeaderField("Claim reference", header.Reference, header.Candidate));
         fields.Add(HeaderField("Instruction date", header.Date, header.Candidate));
@@ -173,12 +173,43 @@ public sealed partial class OakInstructionExtractionPolicy
     }
 
     private static (string? Reference, string? Date, InstructionFieldCandidate? Candidate) AssertAlignedHeader(
-        IReadOnlyList<InstructionReviewField> fields)
+        IReadOnlyList<IntakeContentFragment> fragments)
     {
-        var aligned = fields.Single(field => field.Name == HeaderAlignmentField);
-        if (aligned.HasConflict || aligned.Candidates.Count != 1)
+        var labels = fragments
+            .Where(fragment => fragment.Locator is
+                { Kind: IntakeLocatorKind.TableCell, Table: { }, Row: { }, Column: { } })
+            .Where(fragment => string.Equals(
+                HeaderCellText(fragment.Text),
+                HeaderCellText("Our Ref: Your Ref: Date:"),
+                StringComparison.Ordinal))
+            .ToArray();
+        if (labels.Length != 1)
             return (null, null, null);
-        var candidate = aligned.Candidates[0];
+
+        var label = labels[0];
+        var locator = label.Locator!;
+        var values = fragments.Where(fragment => fragment.Locator is
+            {
+                Kind: IntakeLocatorKind.TableCell,
+                Table: { } table,
+                Row: { } row,
+                Column: { } column
+            }
+            && table == locator.Table
+            && row == locator.Row
+            && column == locator.Column + 1
+            && !string.IsNullOrWhiteSpace(fragment.Text)).ToArray();
+        if (values.Length != 1)
+            return (null, null, null);
+
+        var value = values[0];
+        var normalizedValue = WhitespaceRegex().Replace(value.Text, " ").Trim();
+        var candidate = new InstructionFieldCandidate(
+            normalizedValue,
+            value.Source,
+            value.SourceLabel,
+            value.Locator,
+            string.Equals(normalizedValue, value.Text, StringComparison.Ordinal) ? null : value.Text);
         var match = HeaderValuesRegex().Match(candidate.Value);
         if (!match.Success)
             return (null, null, candidate);
@@ -189,6 +220,9 @@ public sealed partial class OakInstructionExtractionPolicy
             InstructionFieldEngine.ParseDate(date) is null ? null : date,
             candidate);
     }
+
+    private static string HeaderCellText(string value) =>
+        new(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
 
     private static InstructionReviewField HeaderField(
         string name,

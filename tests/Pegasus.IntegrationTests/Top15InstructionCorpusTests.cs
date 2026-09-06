@@ -109,6 +109,19 @@ public sealed class Top15InstructionCorpusTests
         DateOnly InstructionDate,
         string Location);
 
+    private sealed record OakExpectation(
+        string PackRelativePath,
+        string Sha256,
+        string Claimant,
+        string Reference,
+        string Registration,
+        string? Model,
+        DateOnly IncidentDate,
+        DateOnly InstructionDate,
+        string InspectionAddress,
+        string Circumstances,
+        string Source);
+
     private const string CorpusRoot = "principal-docs/original-mapper-instruction-corpus";
 
     /// <summary>
@@ -456,6 +469,15 @@ public sealed class Top15InstructionCorpusTests
             "34 Avon Way Colchester CO4 3TP")
     ];
 
+    private static readonly OakExpectation[] OakExpectations =
+    [
+        new($"{CorpusRoot}/OAK 01.DOC", "2253a09ce674ef3e52548694f14d9b00e989789212acb210f4766ecd35979da7", "Mr Sam Graham", "TJD/GRAHAM/S486562.001", "B24SRG", null, new(2026, 5, 5), new(2026, 5, 5), "17 Powdermill Brae, Gorebridge, EH23 4HX", "CL in the left lane of a roundabout then TP moved into CL's lane and hit CL's vehicle..", "O'malley Recovery"),
+        new($"{CorpusRoot}/OAK 02.DOC", "22395559092263e89dd7440e61e26521a0f693e87355ccdaf5f64bae77b06d4e", "Ms Anna Pachla", "TJD/PACHLA/S486035.001", "EN18KEJ", null, new(2026, 4, 27), new(2026, 5, 5), "19 J Annandale Street, Edinburgh, EH21 7AH", "Client was driving her Taxi in the left lane. TP was going in same direction in right hand lane. Suddenly TP changed into the clients lane and collided with the clients vehicle. She thinks his intention was to turn left..", "Hfdrz Ltd Taxi"),
+        new($"{CorpusRoot}/OAK 03.DOC", "c48c8702830036066d21ddacc9f3d224a0bfe5db15d5d68ad45d76a42a46f19a", "Mr Lewis Morgan", "JAA/MORGAN/S486439.001", "CV68OVM", null, new(2026, 5, 4), new(2026, 5, 5), "41 Moffat Crescent, Lochgelly, KY5 9NY", "CL stationary on the road due to traffic when the oncoming TP hit CL's vehicle and proceed down the road.", "Wilson Breakdown Recovery"),
+        new($"{CorpusRoot}/OAK 04.DOC", "191ac025ab19d0174375e8bf831ea6083f1ed2ef61be182e4055fe01cd5cfaa2", "Mr Mohammad Butt", "GHE/BUTT/S486424.001", "SG12BLS", "TOYOTA YARIS VVT-I SR", new(2026, 5, 3), new(2026, 5, 5), "15 Greenacres Drive, Glasgow, G53 7BB", "that our client was proceeding correctly through a green light at a cross road when the defendant ran a red light, cutting across them to turn right, colliding with our client’s vehicle.", "Undent It"),
+        new($"{CorpusRoot}/OAK 05.DOC", "70424671cf11e236e570db5bf0f806a23499d7d663f857f0a2c73c67e3c89b41", "Mr James O'Donnell", "JPS/O'DONNELL/S486079.001", "MF17WYH", null, new(2026, 4, 17), new(2026, 5, 1), "99 Littleton Park, Barrhead, Glasgow, G78 2FA", "Clients was progressing down the narrow road as the tp initially was stationary in the passing place (photos attached). Tp all of a sudden pulled out of the passing place giving the client no where to go and colliding with the side of clients vehicle also pushing the vehicle into the hedges..", "Spray Tek Accident Repair Centre Ltd")
+    ];
+
     private static IInstructionExtractionPolicy[] Policies() =>
         [
             new QdosInstructionExtractionPolicy(),
@@ -672,6 +694,56 @@ public sealed class Top15InstructionCorpusTests
             Assert.Equal("Complex Reports", Assert.Single(
                 result.Fields,
                 field => field.Name == "Intermediary").SuggestedValue);
+        }
+    }
+
+    [ReferencePackFact]
+    public async Task OakwoodOriginalsProduceExactAlignedInstructionFields()
+    {
+        var root = PackRoot();
+        var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
+        var policy = new OakInstructionExtractionPolicy();
+        var selector = new InstructionExtractionPolicySelector([policy]);
+
+        foreach (var expectation in OakExpectations)
+        {
+            var absolute = Path.Combine(
+                root,
+                expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            var bytes = await File.ReadAllBytesAsync(absolute);
+            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            Assert.Equal(expectation.Sha256, sha256);
+
+            var read = await reader.ReadAsync(
+                Source(bytes, Path.GetFileName(absolute), sha256),
+                CancellationToken.None);
+            Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
+            Assert.False(read.IsIncomplete);
+            var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
+            Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+
+            var result = policy.Extract(
+                read,
+                ProcessedAtUtc,
+                new("OAK", policy.DocumentProfileKey, policy.DocumentProfileVersion));
+            var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+            Assert.Equal(expectation.Claimant, draft.ClaimantName);
+            Assert.Equal(expectation.Reference, draft.ClaimNumber);
+            Assert.Equal(expectation.Registration, draft.VehicleRegistration);
+            Assert.Null(draft.VehicleMake);
+            Assert.Equal(expectation.Model, draft.VehicleModel);
+            Assert.Equal(expectation.IncidentDate, draft.DateOfIncident);
+            Assert.Equal(expectation.InstructionDate, draft.InstructionDate);
+            Assert.Equal(expectation.InspectionAddress, draft.InspectionAddress);
+            Assert.Equal(expectation.Circumstances, draft.AccidentCircumstances);
+            Assert.Equal(expectation.Source, Assert.Single(
+                result.Fields, field => field.Name == "Source").SuggestedValue);
+            Assert.Equal(expectation.Source, Assert.Single(
+                result.Fields, field => field.Name == "Introducer").SuggestedValue);
+            Assert.Equal(IntakeLocatorKind.TableCell, Assert.Single(
+                result.Fields, field => field.Name == "Claim reference").Candidates.Single().Locator!.Kind);
+            Assert.Equal(IntakeLocatorKind.TableCell, Assert.Single(
+                result.Fields, field => field.Name == "Instruction date").Candidates.Single().Locator!.Kind);
         }
     }
 
