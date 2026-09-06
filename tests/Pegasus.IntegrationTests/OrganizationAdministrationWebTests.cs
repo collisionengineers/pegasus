@@ -105,20 +105,21 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}";
         // GetHtmlAsync so a Test UI capture records this page (it asserts 200).
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
-        Assert.Contains("EVA API submission for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
+        Assert.Contains("Settings for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
+        // EXT-18 item 7: automatic EVA submission is retired from this page.
+        Assert.DoesNotContain("EvaAutomaticSubmission", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
                 evaSubmissionHtml,
                 "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(evaSubmissionHtml, "OperationKey"),
+            ["EvaOperationKey"] = InputValue(evaSubmissionHtml, "EvaOperationKey"),
             ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
             ["EvaManualSubmission"] = bool.TrueString,
-            ["EvaAutomaticSubmission"] = bool.FalseString,
-            ["Reason"] = "Web caller EVA submission proof"
+            ["EvaReason"] = "Web caller EVA submission proof"
         };
         using var evaSubmissionPost = await client.PostAsync(
-            $"{evaSubmissionPath}?handler=Update",
+            $"{evaSubmissionPath}?handler=UpdateEva",
             new FormUrlEncodedContent(evaSubmissionForm));
         Assert.Equal(HttpStatusCode.Redirect, evaSubmissionPost.StatusCode);
         Assert.Equal(
