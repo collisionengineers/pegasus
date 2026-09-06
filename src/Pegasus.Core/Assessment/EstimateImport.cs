@@ -154,7 +154,7 @@ public sealed class ImportRawEstimate(
                     string.IsNullOrWhiteSpace(request.Name)
                         ? NextName(existing, parsed.ProviderName)
                         : request.Name.Trim(),
-                    RepairDays: null, LabourRate: null, PaintLabourRate: null,
+                    RepairDays: null, LabourRate: null,
                     PaintMaterials: null, OtherCosts: null,
                     EstimatePolicy.DefaultVatPercent, Notes: null),
                 [.. parsed.Lines.Select((line, index) => WithProvenance(

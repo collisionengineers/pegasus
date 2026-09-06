@@ -97,7 +97,8 @@ public sealed record EstimateRateSnapshot(
 /// <summary>
 /// The editable header of one named estimate on a Case (EPIC-011 §1.9,
 /// FRD-11 § Estimate VAT on the rendered report). Money is in pounds to two
-/// places; rates are per hour; the VAT percentage is free per estimate (D9).
+/// places; the one labour rate is per hour; the VAT percentage is free per
+/// estimate (D9).
 /// <see cref="PaintMaterials"/> is the estimate's additional materials.
 /// </summary>
 /// <remarks>
@@ -112,7 +113,6 @@ public sealed record EstimateDetails(
     string Name,
     int? RepairDays,
     decimal? LabourRate,
-    decimal? PaintLabourRate,
     decimal? PaintMaterials,
     decimal? OtherCosts,
     decimal VatPercent,
@@ -420,7 +420,6 @@ public static class EstimatePolicy
             throw new ArgumentException("Repair days cannot be negative.", nameof(details));
         }
         Money(details.LabourRate, "labour rate");
-        Money(details.PaintLabourRate, "paint labour rate");
         Money(details.PaintMaterials, "paint materials");
         Money(details.OtherCosts, "other costs");
         if (details.VatPercent is < 0 or > 100 || decimal.Round(details.VatPercent, 2) != details.VatPercent)

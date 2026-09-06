@@ -11,6 +11,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -26,6 +27,19 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class AssessmentEstimateImportWebTests
 {
+    /// <summary>The engineer who amended the seeded estimate's lines before this save.</summary>
+    private const string SeededAmendedBy = "engineer-before";
+
+    /// <summary>The one line amount this save changes.</summary>
+    private const decimal AmendedAmount = 700.25m;
+
+    private static readonly DateTimeOffset SeededAmendedAtUtc =
+        new(2031, 1, 2, 3, 4, 5, TimeSpan.Zero);
+
+    /// <summary>The clock the host runs on, so the stamp is the server's own time.</summary>
+    private static readonly DateTimeOffset SavedAtUtc =
+        new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
     [Fact]
     public async Task AnImportedEstimateIsRetainedAndLandsAsADraftWithProvenance()
     {
@@ -464,7 +478,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                     ("estimateName", "Repair alternative"),
                     ("estimateRepairDays", "3"),
                     ("estimateLabourRate", "48.50"),
-                    ("estimatePaintLabourRate", "42.00"),
                     ("estimatePaintMaterials", "120.00"),
                     ("estimateOtherCosts", "75.00"),
                     ("estimateVatPercent", "20"),
@@ -490,7 +503,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal("Repair alternative", saved.Details.Name);
         Assert.Equal(3, saved.Details.RepairDays);
         Assert.Equal(48.50m, saved.Details.LabourRate);
-        Assert.Equal(42.00m, saved.Details.PaintLabourRate);
+        // B04: one hourly rate prices panel and paint hours alike, so the
+        // editor neither offers nor carries a second paint rate.
+        Assert.DoesNotContain("estimatePaintLabourRate", html, StringComparison.Ordinal);
         Assert.Equal(120.00m, saved.Details.PaintMaterials);
         Assert.Equal(75.00m, saved.Details.OtherCosts);
         Assert.Equal(20m, saved.Details.VatPercent);
@@ -538,6 +553,173 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains("The estimate was duplicated.", afterHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// CASE-047 B04 review defect 2, through the real editor: the save used to
+    /// carry every existing line's amendment attribution forward
+    /// unconditionally, so a line the operator had just changed stayed
+    /// credited to whoever last touched it. Posting the real editor form with
+    /// one line's amount changed must stamp that line with this Engineer and
+    /// the host's clock, leave the untouched line's own stamp alone, and keep
+    /// every header fact the editor does not show - the discounts, the VAT
+    /// categories and the rate card - across the reload.
+    /// </summary>
+    [Fact]
+    public async Task SavingTheEditorStampsTheChangedLineAndKeepsTheUntouchedOnes()
+    {
+        var caseId = Guid.NewGuid();
+        var seeded = ProvenancedDraft(caseId);
+        var store = new RecordingStores(caseId) { CurrentDraft = seeded };
+        using var baseFactory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            new FixedTimeProvider(SavedAtUtc),
+            useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var editorHtml = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=estimate&estimate={seeded.SpecificationId:D}");
+        var details = seeded.Details;
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(editorHtml)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateId", seeded.SpecificationId.ToString("D")),
+            new("estimateName", details.Name),
+            new("estimateRepairDays", details.RepairDays!.Value.ToString(CultureInfo.InvariantCulture)),
+            new("estimateLabourRate", details.LabourRate!.Value.ToString(CultureInfo.InvariantCulture)),
+            new("estimatePaintMaterials", details.PaintMaterials!.Value.ToString(CultureInfo.InvariantCulture)),
+            new("estimateOtherCosts", details.OtherCosts!.Value.ToString(CultureInfo.InvariantCulture)),
+            new("estimateVatPercent", details.VatPercent.ToString(CultureInfo.InvariantCulture)),
+            new("estimateNotes", details.Notes ?? string.Empty),
+        };
+        foreach (var line in seeded.Lines.OrderBy(line => line.Position))
+        {
+            // Only the first line's amount moves; every other posted value is
+            // exactly the one the editor rendered.
+            var amount = line.Position == 1
+                ? AmendedAmount.ToString(CultureInfo.InvariantCulture)
+                : line.Price?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+            fields.Add(new("lineId", line.Id.ToString("D")));
+            fields.Add(new("lineOperation", EstimateOperations.FromLineType(line.Type).ToString()));
+            fields.Add(new("lineDescription", line.Description ?? string.Empty));
+            fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
+            fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineLabourHours", line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePartPounds", amount));
+        }
+
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
+        var request = Assert.Single(store.SavedEstimates);
+        Assert.Equal(seeded.SpecificationId, request.EstimateId);
+
+        // The reload goes back through the page's own read path.
+        var reloadedHtml = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=estimate&estimate={seeded.SpecificationId:D}");
+        Assert.Contains(
+            $"value=\"{AmendedAmount.ToString(CultureInfo.InvariantCulture)}\"",
+            reloadedHtml,
+            StringComparison.Ordinal);
+
+        var reloaded = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
+        var amended = Assert.Single(reloaded.Lines, line => line.Description == "FRONT BUMPER");
+        Assert.Equal(AmendedAmount, amended.Price);
+        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), amended.AmendedBy);
+        Assert.Equal(SavedAtUtc, amended.AmendedAtUtc);
+        // Stamping the amendment does not cost the line its imported evidence.
+        Assert.Equal(seeded.Lines[0].Origin, amended.Origin);
+        Assert.Equal(seeded.Lines[0].Materials, amended.Materials);
+        Assert.Equal(seeded.Lines[0].SourceRowIdentity, amended.SourceRowIdentity);
+
+        var untouched = Assert.Single(reloaded.Lines, line => line.Description == "REPAIR NEARSIDE DOOR");
+        Assert.Equal(SeededAmendedBy, untouched.AmendedBy);
+        Assert.Equal(SeededAmendedAtUtc, untouched.AmendedAtUtc);
+
+        // The header facts the editor never renders survive the round trip.
+        Assert.Equal(details.Discounts, reloaded.Details.Discounts);
+        Assert.Equal(details.Vat, reloaded.Details.Vat);
+        Assert.Equal(details.Rate, reloaded.Details.Rate);
+        Assert.Equal(details.LabourRate, reloaded.Details.LabourRate);
+        Assert.Equal(details.HourlyRate, reloaded.Details.HourlyRate);
+    }
+
+    /// <summary>
+    /// One imported estimate as the store holds it: a priced part line and a
+    /// labour line, both carrying the source document's provenance and an
+    /// earlier engineer's amendment stamp, under a header with discounts,
+    /// explicit VAT categories and the rate card it was priced at.
+    /// </summary>
+    private static RepairSpecificationVersion ProvenancedDraft(Guid caseId)
+    {
+        var documentVersionId = Guid.NewGuid();
+        var documentSha = new string('d', 64);
+        return new(
+            Guid.NewGuid(),
+            caseId,
+            1,
+            RepairSpecificationState.Draft,
+            new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:seeded", "TEST01 V1/1", documentSha),
+            [
+                new(
+                    Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
+                    "51 11 8 067", "0%", "confirmed", "official", null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    PaintWorkUnits: null,
+                    Quantity: 1,
+                    Materials: 12.50m,
+                    Origin: new("new_part", "FRONT BUMPER", "51 11 8 067", 1, null, null, 620.20m, 12.50m),
+                    SourceDocumentIdentity: "estimate-import:seeded",
+                    SourceDocumentVersionId: documentVersionId,
+                    SourceDocumentSha256: documentSha,
+                    SourceRowIdentity: "parts:1",
+                    AmendedBy: SeededAmendedBy,
+                    AmendedAtUtc: SeededAmendedAtUtc),
+                new(
+                    Guid.NewGuid(), 2, "repair", null, "REPAIR NEARSIDE DOOR", 2.5m, null, false,
+                    null, null, "confirmed", "judgement", null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    PaintWorkUnits: 1.5m,
+                    Quantity: null,
+                    Materials: null,
+                    Origin: new("repair", "REPAIR NEARSIDE DOOR", null, null, 2.5m, 1.5m, null, null),
+                    SourceDocumentIdentity: "estimate-import:seeded",
+                    SourceDocumentVersionId: documentVersionId,
+                    SourceDocumentSha256: documentSha,
+                    SourceRowIdentity: "labour:2",
+                    AmendedBy: SeededAmendedBy,
+                    AmendedAtUtc: SeededAmendedAtUtc),
+            ],
+            null,
+            "engineer-1",
+            SeededAmendedAtUtc,
+            null,
+            null,
+            null,
+            null,
+            new(
+                "Imported estimate", 3, 52.50m, 25m, 110m, 20m, "Typed from the repairer's e-mail.",
+                new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m),
+                new EstimateVatPolicy(
+                    RepairerVatStatus.NotRegistered,
+                    EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+                    false),
+                new EstimateRateSnapshot(Guid.NewGuid(), 7L, 52.50m)));
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
     private static RepairSpecificationVersion DraftSpecification(Guid caseId) => new(
         Guid.NewGuid(),
         caseId,
@@ -557,7 +739,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         null,
         null,
         null,
-        new("Estimate 1", null, null, null, null, null, 20m, null));
+        new("Estimate 1", null, null, null, null, 20m, null));
 
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory, RecordingStores store) =>
@@ -825,41 +1007,66 @@ public sealed partial class AssessmentEstimateImportWebTests
             CancellationToken cancellationToken = default)
         {
             SavedEstimates.Add(request);
+            // A save replaces the estimate's whole header and line collection,
+            // the way the real store does, so reading the estimate back after
+            // one shows exactly what the page mapped and nothing else.
             if (request.EstimateId is not null)
             {
-                return Task.FromResult(CurrentDraft ?? DraftSpecification(caseId));
+                var replaced = (CurrentDraft ?? DraftSpecification(caseId)) with
+                {
+                    Details = request.Details,
+                    Lines = Recorded(request),
+                };
+                CurrentDraft = replaced;
+                return Task.FromResult(replaced);
             }
 
             var created = DraftSpecification(caseId) with
             {
                 Details = request.Details,
                 Source = request.Source,
-                Lines = request.Lines.Select((line, index) => new CaseEstimateLineRecord(
-                    Guid.NewGuid(),
-                    index + 1,
-                    line.Type,
-                    line.GuideCode,
-                    line.Description,
-                    line.WorkUnits,
-                    line.Price,
-                    line.Unpriced,
-                    line.PartNumber,
-                    line.Betterment,
-                    line.Status,
-                    line.EvidenceLabel,
-                    line.Justification,
-                    ActorKind.Staff,
-                    request.Actor.SubjectId,
-                    DateTimeOffset.UtcNow,
-                    null,
-                    null,
-                    line.PaintWorkUnits,
-                    line.Quantity)).ToArray(),
+                Lines = Recorded(request),
             };
             LastCreatedEstimateId = created.SpecificationId;
             CurrentDraft = created;
             return Task.FromResult(created);
         }
+
+        /// <summary>
+        /// The saved lines as a read returns them, every recorded fact
+        /// included — the materials, source provenance and amendment
+        /// attribution the editor never shows are read back from here.
+        /// </summary>
+        private static CaseEstimateLineRecord[] Recorded(SaveEstimateRequest request) =>
+            request.Lines.Select((line, index) => new CaseEstimateLineRecord(
+                Guid.NewGuid(),
+                index + 1,
+                line.Type,
+                line.GuideCode,
+                line.Description,
+                line.WorkUnits,
+                line.Price,
+                line.Unpriced,
+                line.PartNumber,
+                line.Betterment,
+                line.Status,
+                line.EvidenceLabel,
+                line.Justification,
+                ActorKind.Staff,
+                request.Actor.SubjectId,
+                DateTimeOffset.UtcNow,
+                null,
+                null,
+                line.PaintWorkUnits,
+                line.Quantity,
+                line.Materials,
+                line.Origin,
+                line.SourceDocumentIdentity,
+                line.SourceDocumentVersionId,
+                line.SourceDocumentSha256,
+                line.SourceRowIdentity,
+                line.AmendedBy,
+                line.AmendedAtUtc)).ToArray();
 
         public Task<RepairSpecificationVersion> ExecuteAsync(
             DuplicateEstimateRequest request,

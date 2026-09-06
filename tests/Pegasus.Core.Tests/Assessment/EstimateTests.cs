@@ -24,7 +24,7 @@ public sealed class EstimateTests
     public void OneSnapshotRatePricesPanelAndPaintHoursAlike()
     {
         var estimate = Estimate(
-            new("Repairer estimate", 3, 40m, 30m, 25m, 10m, 17.5m, null),
+            new("Repairer estimate", 3, 40m, 25m, 10m, 17.5m, null),
             Line("new_part", price: 100m, quantity: 2),
             Line("repair", workUnits: 2.5m),
             Line("paint_repair", paintWorkUnits: 1.5m),
@@ -64,7 +64,7 @@ public sealed class EstimateTests
     public void TotalsWithoutRatesOrVatAreThePartsAlone()
     {
         var estimate = Estimate(
-            new("Parts only", null, null, null, null, null, 0m, null),
+            new("Parts only", null, null, null, null, 0m, null),
             Line("new_part", price: 50m),
             Line("repair", workUnits: 4m));
 
@@ -142,12 +142,12 @@ public sealed class EstimateTests
     [InlineData("Estimate", 20, 40.123)]
     public void DetailsOutsideTheirBoundsAreRefused(string name, double vat, double rate) =>
         Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateDetails(
-            new(name, null, (decimal)rate, null, null, null, (decimal)vat, null)));
+            new(name, null, (decimal)rate, null, null, (decimal)vat, null)));
 
     [Fact]
     public void DetailsAreTrimmedAndNotesBlankedToNull()
     {
-        var details = EstimatePolicy.ValidateDetails(new("  Glass's  ", 2, 40m, null, null, null, 20m, "   "));
+        var details = EstimatePolicy.ValidateDetails(new("  Glass's  ", 2, 40m, null, null, 20m, "   "));
         Assert.Equal("Glass's", details.Name);
         Assert.Null(details.Notes);
     }
@@ -232,7 +232,7 @@ public sealed class EstimateTests
     [Fact]
     public void MakingCurrentIsTheEngineersAcceptanceWithTheTotalsOwnersBasis()
     {
-        var draft = Estimate(new("Draft", 2, 40m, 30m, 25m, 0m, 20m, null),
+        var draft = Estimate(new("Draft", 2, 40m, 25m, 0m, 20m, null),
             Line("new_part", price: 100m), Line("repair", workUnits: 2m));
         EstimatePolicy.ValidateSetCurrent(draft, Engineer);
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(draft, User));
@@ -844,7 +844,7 @@ public sealed class EstimateTests
         EstimateVatPolicy? vat = null,
         decimal vatPercent = 20m,
         EstimateRateSnapshot? snapshot = null) => new(
-        "Estimate", null, rate, null, additionalMaterials, otherCosts, vatPercent, null,
+        "Estimate", null, rate, additionalMaterials, otherCosts, vatPercent, null,
         discounts, vat, snapshot);
 
     /// <summary>

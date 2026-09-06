@@ -68,6 +68,7 @@ public sealed partial class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
+    TimeProvider clock,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
     RequestUploadLimits? requestUploadLimits = null) : CaseMutationPageModel(logger)
@@ -299,7 +300,6 @@ public sealed partial class DetailsModel(
                     Name: Labels.CaseWorkspace.EngineerSections.Estimate,
                     RepairDays: null,
                     LabourRate: null,
-                    PaintLabourRate: null,
                     PaintMaterials: null,
                     OtherCosts: null,
                     VatPercent: EstimatePolicy.DefaultVatPercent,
@@ -572,7 +572,6 @@ public sealed partial class DetailsModel(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
                 RepairDays: null,
                 LabourRate: null,
-                PaintLabourRate: null,
                 PaintMaterials: null,
                 OtherCosts: null,
                 VatPercent: EstimatePolicy.DefaultVatPercent,
@@ -1698,43 +1697,51 @@ public sealed partial class DetailsModel(
         var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
         var existingLines = existing?.Lines.ToDictionary(line => line.Id)
             ?? new Dictionary<Guid, CaseEstimateLineRecord>();
+        var savedAtUtc = clock.GetUtcNow();
         var lines = editor.Lines.Select((line, index) =>
-            editor.ExistingLineIds[index] is { } lineId
-            && existingLines.TryGetValue(lineId, out var previous)
-                ? line with
-                {
-                    GuideCode = previous.GuideCode,
-                    // Carried forward only while the line still has no price.
-                    // AssessmentPolicy refuses a line that is both marked To be
-                    // confirmed and priced, so preserving it unconditionally would
-                    // make pricing an imported unpriced line impossible.
-                    Unpriced = previous.Unpriced && line.Price is null,
-                    Betterment = previous.Betterment,
-                    Status = previous.Status,
-                    EvidenceLabel = previous.EvidenceLabel,
-                    Justification = previous.Justification,
-                    // The screen edits operation, description, part number,
-                    // quantity, hours and the part amount. Every other
-                    // recorded fact on the line — its materials, the values
-                    // the source document stated, the document and row it
-                    // came from and any amendment attribution — is carried
-                    // forward, because a save that dropped them would erase
-                    // evidence the editor never showed.
-                    Materials = previous.Materials,
-                    Origin = previous.Origin,
-                    SourceDocumentIdentity = previous.SourceDocumentIdentity,
-                    SourceDocumentVersionId = previous.SourceDocumentVersionId,
-                    SourceDocumentSha256 = previous.SourceDocumentSha256,
-                    SourceRowIdentity = previous.SourceRowIdentity,
-                    AmendedBy = previous.AmendedBy,
-                    AmendedAtUtc = previous.AmendedAtUtc,
-                }
-                : line).ToArray();
+        {
+            if (editor.ExistingLineIds[index] is not { } lineId
+                || !existingLines.TryGetValue(lineId, out var previous))
+            {
+                return line;
+            }
+
+            var carried = line with
+            {
+                GuideCode = previous.GuideCode,
+                // Carried forward only while the line still has no price.
+                // AssessmentPolicy refuses a line that is both marked To be
+                // confirmed and priced, so preserving it unconditionally would
+                // make pricing an imported unpriced line impossible.
+                Unpriced = previous.Unpriced && line.Price is null,
+                Betterment = previous.Betterment,
+                Status = previous.Status,
+                EvidenceLabel = previous.EvidenceLabel,
+                Justification = previous.Justification,
+                // The screen edits operation, description, part number,
+                // quantity, hours and the part amount. Every other
+                // recorded fact on the line — its materials, and the values
+                // the source document stated with the document and row it
+                // came from — is carried forward, because a save that
+                // dropped them would erase evidence the editor never showed.
+                Materials = previous.Materials,
+                Origin = previous.Origin,
+                SourceDocumentIdentity = previous.SourceDocumentIdentity,
+                SourceDocumentVersionId = previous.SourceDocumentVersionId,
+                SourceDocumentSha256 = previous.SourceDocumentSha256,
+                SourceRowIdentity = previous.SourceRowIdentity,
+            };
+            // Amendment attribution is the one carried fact that must not be
+            // preserved blindly: a line whose editable values moved was
+            // amended by this operator, now.
+            var (amendedBy, amendedAtUtc) = EstimateLineAmendment.Stamp(
+                carried, previous, actor.SubjectId, savedAtUtc);
+            return carried with { AmendedBy = amendedBy, AmendedAtUtc = amendedAtUtc };
+        }).ToArray();
         var details = new EstimateDetails(
             editor.Name ?? string.Empty,
             editor.RepairDays,
             editor.LabourRate,
-            editor.PaintLabourRate,
             editor.PaintMaterials,
             editor.OtherCosts,
             editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
@@ -2007,7 +2014,6 @@ public sealed partial class DetailsModel(
             editor.Name ?? string.Empty,
             editor.RepairDays,
             editor.LabourRate,
-            editor.PaintLabourRate,
             editor.PaintMaterials,
             editor.OtherCosts,
             editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
@@ -2028,7 +2034,6 @@ public sealed partial class DetailsModel(
         string? Name,
         int? RepairDays,
         decimal? LabourRate,
-        decimal? PaintLabourRate,
         decimal? PaintMaterials,
         decimal? OtherCosts,
         decimal? VatPercent,
@@ -2147,7 +2152,6 @@ public sealed partial class DetailsModel(
             form["estimateName"].ToString(),
             Days(form["estimateRepairDays"].ToString()),
             Money(form["estimateLabourRate"].ToString()),
-            Money(form["estimatePaintLabourRate"].ToString()),
             Money(form["estimatePaintMaterials"].ToString()),
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
@@ -2302,7 +2306,7 @@ public sealed partial class DetailsModel(
                     string.IsNullOrWhiteSpace(reason) ? "Estimate imported from a document" : reason.Trim(),
                     draftLease.Token,
                     null,
-                    new(trimmedName, null, null, null, null, null, EstimatePolicy.DefaultVatPercent, null),
+                    new(trimmedName, null, null, null, null, EstimatePolicy.DefaultVatPercent, null),
                     parsed.Lines,
                     new(parser.Route, artifactIdentity, parsed.SourceVersion, retained.Version.Sha256)),
                 cancellationToken);
@@ -2631,3 +2635,47 @@ public sealed record EstimateEditorLine(
     string? PaintHours,
     string? PartPounds,
     Guid? ExistingLineId = null);
+
+/// <summary>
+/// Amendment attribution for one saved estimate line. The Case estimate
+/// editor replaces the whole line collection on save, so a line that came
+/// back unchanged keeps the attribution it already carried, while a line
+/// whose editable values moved names the operator who moved them and when.
+/// </summary>
+internal static class EstimateLineAmendment
+{
+    /// <summary>
+    /// The attribution the saved line carries: <paramref name="actor"/> and
+    /// <paramref name="amendedAtUtc"/> when any editable value differs from
+    /// the loaded line, the line's prior stamp when none does.
+    /// </summary>
+    internal static (string? AmendedBy, DateTimeOffset? AmendedAtUtc) Stamp(
+        EstimateLineInput saved,
+        CaseEstimateLineRecord loaded,
+        string actor,
+        DateTimeOffset amendedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(loaded);
+        return IsUnchanged(saved, loaded)
+            ? (loaded.AmendedBy, loaded.AmendedAtUtc)
+            : (actor, amendedAtUtc);
+    }
+
+    /// <summary>
+    /// The eight values the editor lets an operator change. The operation is
+    /// compared in the editor's own vocabulary, because the screen offers no
+    /// finer choice than <see cref="EstimateOperation"/>: an imported
+    /// <c>paint_new</c> line the operator never touched comes back as
+    /// <c>paint_repair</c>, and that is not an amendment.
+    /// </summary>
+    internal static bool IsUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded) =>
+        EstimateOperations.FromLineType(saved.Type) == EstimateOperations.FromLineType(loaded.Type)
+        && string.Equals(saved.Description, loaded.Description, StringComparison.Ordinal)
+        && string.Equals(saved.PartNumber, loaded.PartNumber, StringComparison.Ordinal)
+        && saved.Quantity == loaded.Quantity
+        && saved.WorkUnits == loaded.WorkUnits
+        && saved.PaintWorkUnits == loaded.PaintWorkUnits
+        && saved.Materials == loaded.Materials
+        && saved.Price == loaded.Price;
+}
