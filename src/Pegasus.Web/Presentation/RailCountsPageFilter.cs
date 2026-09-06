@@ -33,6 +33,7 @@ public sealed class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
     IListTriage listTriage,
     IUnidentifiedStore unidentifiedStore,
+    IGetAttentionRows getAttentionRows,
     TimeProvider timeProvider) : IAsyncPageFilter
 {
     private readonly IDashboardQueries dashboardQueries =
@@ -41,6 +42,8 @@ public sealed class RailCountsPageFilter(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly IUnidentifiedStore unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
+    private readonly IGetAttentionRows getAttentionRows =
+        getAttentionRows ?? throw new ArgumentNullException(nameof(getAttentionRows));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -62,7 +65,17 @@ public sealed class RailCountsPageFilter(
             var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
             var triageTask = listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
             var unidentifiedTask = unidentifiedStore.ListQueueAsync(null, cancellationToken);
-            await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
+            // Work Centre already holds its own full snapshot and slices its
+            // own top ten (Pages/Index.cshtml.cs) — calling the narrow query
+            // again here would be a second read of the same rows.
+            var isWorkCentre = pageModel is Pegasus.Web.Pages.IndexModel;
+            var attentionRowsTask = isWorkCentre
+                ? null
+                : getAttentionRows.ExecuteAsync(actor, cancellationToken);
+
+            await (attentionRowsTask is null
+                ? Task.WhenAll(stagesTask, triageTask, unidentifiedTask)
+                : Task.WhenAll(stagesTask, triageTask, unidentifiedTask, attentionRowsTask));
 
             var stages = stagesTask.Result;
             pageModel.ViewData["RailCounts"] = new Dictionary<string, int>
@@ -76,6 +89,11 @@ public sealed class RailCountsPageFilter(
                     + unidentifiedTask.Result.Count
             };
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
+
+            if (attentionRowsTask is not null)
+            {
+                pageModel.ViewData["AttentionRows"] = attentionRowsTask.Result;
+            }
         }
 
         await next();

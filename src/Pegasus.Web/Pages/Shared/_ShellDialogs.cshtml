@@ -11,6 +11,7 @@
     var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
     var userName = User.Identity?.Name ?? string.Empty;
     var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
+    var attentionRows = ViewData["AttentionRows"] as IReadOnlyList<Pegasus.Core.Operations.NeedsAttentionItem>;
 }
 
 <div class="dialog-backdrop" data-dialog="account-dialog" hidden>
@@ -86,12 +87,27 @@
             </button>
         </div>
         <div class="dialog-body">
-            @* There is no notification source yet (wave 3/4 supplies one); the
-               empty state is the honest render, never an invented item. *@
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
+            @* At most ten current needs-attention rows (C08), in the Work
+               Centre's own stable urgency order. Zero rows omits the list
+               content entirely — a fabricated "No notifications" item would
+               be exactly the stale placeholder FRD-12 forbids. *@
+            @if (attentionRows is { Count: > 0 })
+            {
+                <div class="pane-body pane-scroll" data-row-list>
+                    @foreach (var row in attentionRows)
+                    {
+                        <a class="work-item" asp-page="@NeedsAttentionPresentation.RecordPage(row.Kind)"
+                           asp-route-id="@NeedsAttentionPresentation.RecordRouteId(row)">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">@OperatorLabels.NeedsAttentionKind(row.Kind) · @row.Reference</span>
+                                    <h3>@NeedsAttentionPresentation.TitleLabel(row)</h3>
+                                </span>
+                            </span>
+                        </a>
+                    }
+                </div>
+            }
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
