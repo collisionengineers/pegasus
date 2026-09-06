@@ -13,10 +13,19 @@ public sealed class VehicleRegistrationCandidateLookupTests
         Assert.Equal(candidates, VehicleRegistrationCandidateLookup.GenerateCandidates(" O100IOO "));
         Assert.InRange(candidates.Count, 1, 8);
 
-        // Each permitted syntax fixes letter/digit roles. Enumerating the complete
-        // ambiguous alphabet proves the reachable valid set stays within the cap.
-        foreach (var raw in AmbiguousReadings(7))
-            Assert.InRange(VehicleRegistrationCandidateLookup.GenerateCandidates(raw).Count, 0, 8);
+        var maximumUncappedCount = 0;
+        foreach (var length in Enumerable.Range(1, 7))
+        foreach (var raw in AmbiguousReadings(length))
+        {
+            var uncapped = VehicleRegistrationCandidateLookup.GenerateValidCandidatesUncapped(raw);
+            maximumUncappedCount = Math.Max(maximumUncappedCount, uncapped.Count);
+            Assert.InRange(uncapped.Count, 0, 8);
+        }
+        Assert.Equal(8, maximumUncappedCount);
+
+        Assert.Equal(
+            ["O0OOO", "OOO0O", "00OOO", "OOO00", "000OO", "OO000", "0000O", "O0000"],
+            VehicleRegistrationCandidateLookup.GenerateCandidates("OOOOO"));
     }
 
     [Theory]
