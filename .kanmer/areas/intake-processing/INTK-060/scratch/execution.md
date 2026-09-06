@@ -216,3 +216,7 @@ Blockers = the two wave-15 failures (EvaSubmission required dependency; two non-
 ## C07 caller review at `6c8b945bd`: needs-changes (4 majors, 4 minors)
 
 R-1 replay can double-count link counters when no receipt is written; R-2 Pending hand-over writes a receipt so later submissions are refused as Replay and nothing sweeps Pending; R-3 a thrown hand-over leaves the arrival `pending` (must be `unknown`) so bytes may be re-offered; R-4 Pending renders upload success. Controller accommodation `6c8b945bd` judged correct and minimal; A-owned lane failures confirmed as the seeded-QDOS collision only. Correction round queued (next free editor slot, ahead of C08).
+
+## Checkpoint — C05 correction round 1 at `7b632169b`
+
+R-1…R-9 fixed (findings persisted as `finding.<code>` source rows; printed labels kept; catches named; dead members removed; one classification-table owner; negatives extended). "Finding" chip deferred to C04 (`Intake/Details.cshtml`) + C08 (`OperatorLabels`) — recorded. Wave 19 + targeted re-review running. C07 caller correction round 1 dispatched (Opus) for the four majors. Editors: C06 round 2, C07b correction. C08 correction still queued.
