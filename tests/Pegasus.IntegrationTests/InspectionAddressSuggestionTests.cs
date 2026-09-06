@@ -33,8 +33,16 @@ public sealed class InspectionAddressSuggestionTests
         var priorIds = await CloneCasesAsync(host, currentId, 1);
         var priorId = priorIds[0];
 
-        await SaveClaimantAddressAsync(host, currentId, "Riverside House, AB1 2CD");
-        await SaveStorageLocationAsync(host, currentId, "Riverside Yard, AB1 5GH");
+        // C06 review R-22: SaveEditableDataAsync posts a partial
+        // CaseEditableData, and EfCaseDataStore.SetConfirmed deletes a
+        // confirmed field whose incoming value is null — a second save
+        // naming only StorageLocation would wipe the ClaimantAddress the
+        // line above it just confirmed. Seed both confirmed fields this
+        // case needs in one save so neither is destroyed by the other.
+        await SaveEditableDataAsync(
+            host,
+            currentId,
+            new(ClaimantAddress: "Riverside House, AB1 2CD", StorageLocation: "Riverside Yard, AB1 5GH"));
         await SaveInspectionAddressAsync(host, priorId, "Riverside Garage, AB1 9ZZ");
         await using (var scope = host.Services.CreateAsyncScope())
         {
