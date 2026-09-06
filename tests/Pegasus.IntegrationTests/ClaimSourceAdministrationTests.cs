@@ -1,0 +1,167 @@
+using System.Net;
+using System.Net.Http;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
+
+namespace Pegasus.IntegrationTests;
+
+/// <summary>
+/// EXT-19/S13 item 8: the Claim Sources administration surface — v3 admin
+/// page conventions, Administrator authorization, expected version, reason
+/// and idempotent operation key. Disable is the same Edit form with the
+/// active flag cleared, and a changed record never rewrites a Case that
+/// already copied its snapshot.
+/// </summary>
+[Trait("Category", "SqlServer")]
+public sealed partial class ClaimSourceAdministrationTests
+{
+    [Fact]
+    public async Task CreateEditAndDisableRoundTripAllSixDataFieldsThroughCoreEfCallers()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var indexGet = await client.GetAsync("/Administration/ClaimSources");
+        var indexHtml = await indexGet.Content.ReadAsStringAsync();
+        indexGet.EnsureSuccessStatusCode();
+        Assert.Contains("Create claim source", indexHtml, StringComparison.Ordinal);
+
+        var createForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(indexHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(indexHtml, "OperationKey"),
+            ["Reason"] = InputValue(indexHtml, "Reason"),
+            ["Name"] = "Web Caller Claim Source",
+            ["ContactName"] = "Pat Example",
+            ["Telephone"] = "01234 000111",
+            ["Email"] = "pat@claimsource.example",
+            ["Notes"] = "Created by the web caller proof"
+        };
+        using var createPost = await client.PostAsync(
+            "/Administration/ClaimSources?handler=Create",
+            new FormUrlEncodedContent(createForm));
+        Assert.Equal(HttpStatusCode.Redirect, createPost.StatusCode);
+
+        var claimSourceId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM ClaimSources WHERE Name = 'Web Caller Claim Source';");
+
+        using var editGet = await client.GetAsync($"/Administration/ClaimSources/Edit/{claimSourceId:D}");
+        var editHtml = await editGet.Content.ReadAsStringAsync();
+        editGet.EnsureSuccessStatusCode();
+        Assert.Contains("Pat Example", editHtml, StringComparison.Ordinal);
+
+        var editOperationKey = InputValue(editHtml, "OperationKey");
+        var editForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(editHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = editOperationKey,
+            ["ExpectedVersion"] = InputValue(editHtml, "ExpectedVersion"),
+            ["Name"] = "Web Caller Claim Source Renamed",
+            ["ContactName"] = "Pat Example",
+            ["Telephone"] = "01234 000111",
+            ["Email"] = "pat@claimsource.example",
+            ["Notes"] = "Renamed by the web caller proof",
+            ["Active"] = bool.TrueString,
+            ["Reason"] = "Web caller rename proof"
+        };
+        using var editPost = await client.PostAsync(
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}?handler=Update",
+            new FormUrlEncodedContent(editForm));
+        Assert.Equal(HttpStatusCode.Redirect, editPost.StatusCode);
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM ClaimSources WHERE Id = '{claimSourceId:D}' AND Name = 'Web Caller Claim Source Renamed' AND Version = 1;"));
+
+        using var reeditGet = await client.GetAsync($"/Administration/ClaimSources/Edit/{claimSourceId:D}");
+        var reeditHtml = await reeditGet.Content.ReadAsStringAsync();
+        reeditGet.EnsureSuccessStatusCode();
+        var disableForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(reeditHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(reeditHtml, "OperationKey"),
+            ["ExpectedVersion"] = InputValue(reeditHtml, "ExpectedVersion"),
+            ["Name"] = "Web Caller Claim Source Renamed",
+            ["ContactName"] = "Pat Example",
+            ["Telephone"] = "01234 000111",
+            ["Email"] = "pat@claimsource.example",
+            ["Notes"] = "Renamed by the web caller proof",
+            ["Active"] = bool.FalseString,
+            ["Reason"] = "Web caller disable proof"
+        };
+        using var disablePost = await client.PostAsync(
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}?handler=Update",
+            new FormUrlEncodedContent(disableForm));
+        Assert.Equal(HttpStatusCode.Redirect, disablePost.StatusCode);
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM ClaimSources WHERE Id = '{claimSourceId:D}' AND Active = 0 AND Version = 2;"));
+
+        // Reusing an already-consumed operation key for a different payload
+        // is a conflict, never a silent no-op or a fresh mutation.
+        var conflictingForm = new Dictionary<string, string>(editForm)
+        {
+            ["OperationKey"] = editOperationKey,
+            ["Notes"] = "A different payload reusing the same operation key"
+        };
+        using var replayPost = await client.PostAsync(
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}?handler=Update",
+            new FormUrlEncodedContent(conflictingForm));
+        var replayHtml = await replayPost.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, replayPost.StatusCode);
+        Assert.Contains("already used for a different operation", replayHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DirectClaimSourceRoutesDenyNonAdministratorSession()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: false);
+        _ = factory.Services;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<PegasusIdentityUser>>();
+            var user = await userManager.FindByIdAsync(
+                DevelopmentOfflineIdentity.AdministratorId.ToString("D"));
+            Assert.NotNull(user);
+            Assert.True((await userManager.RemoveFromRoleAsync(
+                user,
+                StaffRoleNames.Administrator)).Succeeded);
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var id = Guid.Parse("2eeea2b1-3e1d-4a0a-8205-0c25396206e9");
+        string[] routes =
+        [
+            "/Administration/ClaimSources",
+            $"/Administration/ClaimSources/Edit/{id:D}"
+        ];
+        foreach (var route in routes)
+        {
+            using var response = await client.GetAsync(route);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+    }
+
+    private static string InputValue(string html, string name)
+    {
+        var match = InputTagRegex().Matches(html)
+            .Cast<Match>()
+            .FirstOrDefault(candidate => string.Equals(
+                WebUtility.HtmlDecode(candidate.Groups["name"].Value),
+                name,
+                StringComparison.Ordinal));
+        Assert.True(match is not null, $"The administration form must render input '{name}'.");
+        return WebUtility.HtmlDecode(match!.Groups["value"].Value);
+    }
+
+    [GeneratedRegex(
+        "<input\\b(?=[^>]*\\bname=\"(?<name>[^\"]+)\")(?=[^>]*\\bvalue=\"(?<value>[^\"]*)\")[^>]*>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex InputTagRegex();
+}

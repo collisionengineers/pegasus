@@ -59,7 +59,20 @@ public sealed class EditModel(
             return Forbid();
         }
 
-        return await LoadAsync(actor, id, cancellationToken) ? Page() : NotFound();
+        ClaimSource = await claimSourceQueries.GetAsync(actor, id, cancellationToken);
+        if (ClaimSource is null)
+        {
+            return NotFound();
+        }
+
+        ExpectedVersion = ClaimSource.Version;
+        Name = ClaimSource.Name;
+        ContactName = ClaimSource.ContactName;
+        Telephone = ClaimSource.Telephone;
+        Email = ClaimSource.Email;
+        Notes = ClaimSource.Notes;
+        Active = ClaimSource.Active;
+        return Page();
     }
 
     public async Task<IActionResult> OnPostUpdateAsync(Guid id, CancellationToken cancellationToken)
@@ -68,7 +81,12 @@ public sealed class EditModel(
         {
             return Forbid();
         }
-        if (!await LoadAsync(actor, id, cancellationToken))
+
+        // Existence only: the posted ExpectedVersion below is exactly what
+        // the caller supplied, never overwritten by this lookup, so a stale
+        // form is refused by the store rather than silently refreshed here.
+        ClaimSource = await claimSourceQueries.GetAsync(actor, id, cancellationToken);
+        if (ClaimSource is null)
         {
             return NotFound();
         }
@@ -113,33 +131,8 @@ public sealed class EditModel(
         }
 
         OperationKey = NewOperationKey();
-        await LoadAsync(actor, id, cancellationToken, initializeFields: false);
-        return Page();
-    }
-
-    private async Task<bool> LoadAsync(
-        ActionActor actor,
-        Guid id,
-        CancellationToken cancellationToken,
-        bool initializeFields = true)
-    {
-        ClaimSource = await claimSourceQueries.GetAsync(actor, id, cancellationToken);
-        if (ClaimSource is null)
-        {
-            return false;
-        }
-
         ExpectedVersion = ClaimSource.Version;
-        if (initializeFields)
-        {
-            Name = ClaimSource.Name;
-            ContactName = ClaimSource.ContactName;
-            Telephone = ClaimSource.Telephone;
-            Email = ClaimSource.Email;
-            Notes = ClaimSource.Notes;
-            Active = ClaimSource.Active;
-        }
-        return true;
+        return Page();
     }
 
     private static string MutationErrorMessage(ClaimSourceAdministrationError error) => error switch
