@@ -1020,6 +1020,17 @@ public sealed class CaseReportGenerationPersistenceTests
             LastQuery = (caseId, documentId, versionId);
             return Task.FromResult(Result);
         }
+
+        /// <summary>
+        /// G15: this fixture's scenarios never lose a retention response, so
+        /// an operation-key lookup would be unexpected - fail loudly rather
+        /// than invent a committed intent.
+        /// </summary>
+        public Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+            ActionActor actor, Guid caseId, string operationKey,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "This fixture never loses a custody response; no operation-key lookup was modelled.");
     }
 
     /// <summary>Serves the bytes the fake custody retained, by exact hash.</summary>
