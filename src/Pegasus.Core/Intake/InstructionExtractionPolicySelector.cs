@@ -1,4 +1,4 @@
-namespace Pegasus.Core.Intake;
+﻿namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// A versioned signature by which a document says which provider's instruction
@@ -21,6 +21,13 @@ public sealed record InstructionDocumentSignature(
     IReadOnlyList<string> RequiredSignals,
     IReadOnlyList<string> NegativeSignals)
 {
+    /// <summary>
+    /// The one document role every profile that exists today describes. Named
+    /// once so the profiles, the selector's role filter and the caller cannot
+    /// spell it three ways.
+    /// </summary>
+    public const string InstructionRole = "instruction";
+
     public static void Validate(InstructionDocumentSignature signature)
     {
         ArgumentNullException.ThrowIfNull(signature);
@@ -55,7 +62,45 @@ public interface IInstructionDocumentProfile
     string DocumentProfileKey { get; }
     int DocumentProfileVersion { get; }
     InstructionDocumentSignature Signature { get; }
+
+    /// <summary>
+    /// The accepted template variants of THIS profile, where the registry
+    /// records more than one signature for one principal - PCH's Performance
+    /// and Lawshield forms. A document matches the profile only when the
+    /// profile signature holds AND at least one accepted variant holds, so no
+    /// variant is inferred from a logo and a variant nobody has evidenced
+    /// (PCH's Everywhen) matches nothing.
+    ///
+    /// Two variants of ONE profile both matching is not ambiguity about which
+    /// policy reads the document; it is ambiguity about which template a
+    /// principal used, and it is recorded as that. A profile with no recorded
+    /// variants is matched by its signature alone, exactly as before.
+    /// </summary>
+    IReadOnlyList<InstructionTemplateVariant> Variants => [];
 }
+
+/// <summary>
+/// One accepted template signature of one profile, named so the matched
+/// variant can be recorded beside the candidates rather than collapsed into
+/// the profile's identity.
+/// </summary>
+public sealed record InstructionTemplateVariant(
+    string Key,
+    InstructionDocumentSignature Signature);
+
+/// <summary>
+/// Which separate role each of a policy's fields belongs to. Declared by the
+/// policy from its own field definitions, so the roles the intake invariants
+/// keep apart - claimant, driver, repairer, third party, principal reference,
+/// insurer reference - reach the recorded candidates instead of being lost
+/// between the policy and the store.
+/// </summary>
+public interface IInstructionFieldRoles
+{
+    IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; }
+}
+
+public sealed record InstructionFieldRole(string? PartyRole, string? ReferenceRole);
 
 public enum InstructionPolicySelectionOutcome
 {
@@ -73,17 +118,28 @@ public enum InstructionPolicySelectionOutcome
 public sealed record InstructionPolicySelection(
     InstructionPolicySelectionOutcome Outcome,
     IInstructionExtractionPolicy? Policy,
-    IReadOnlyList<IInstructionExtractionPolicy> Matches)
+    IReadOnlyList<IInstructionExtractionPolicy> Matches,
+    IReadOnlyList<string> MatchedVariantKeys)
 {
-    public static InstructionPolicySelection Selected(IInstructionExtractionPolicy policy) =>
-        new(InstructionPolicySelectionOutcome.Selected, policy, [policy]);
+    public static InstructionPolicySelection Selected(
+        IInstructionExtractionPolicy policy,
+        IReadOnlyList<string>? variantKeys = null) =>
+        new(InstructionPolicySelectionOutcome.Selected, policy, [policy], variantKeys ?? []);
 
     public static InstructionPolicySelection NotApplicable() =>
-        new(InstructionPolicySelectionOutcome.NotApplicable, null, []);
+        new(InstructionPolicySelectionOutcome.NotApplicable, null, [], []);
 
     public static InstructionPolicySelection Ambiguous(
         IReadOnlyList<IInstructionExtractionPolicy> matches) =>
-        new(InstructionPolicySelectionOutcome.Ambiguous, null, matches);
+        new(InstructionPolicySelectionOutcome.Ambiguous, null, matches, []);
+
+    /// <summary>
+    /// True when the profile is settled but WHICH of its accepted templates
+    /// the document used is not - the two PCH footers co-occur in four of the
+    /// five recorded originals. The principal is not in doubt; the template is,
+    /// and staff are shown both rather than one picked by order.
+    /// </summary>
+    public bool HasAmbiguousVariant => this.MatchedVariantKeys.Count > 1;
 }
 
 /// <summary>
@@ -105,9 +161,16 @@ public sealed class InstructionExtractionPolicySelector(
     private readonly IEnumerable<IInstructionExtractionPolicy> policies =
         policies ?? throw new ArgumentNullException(nameof(policies));
 
-    public InstructionPolicySelection Select(IntakeSourceReadResult readResult)
+    /// <param name="documentRole">
+    /// The role of document being read - <c>instruction</c> for the one caller
+    /// that exists today. A signature is matched on its role AND its signals:
+    /// a profile written for a different document role is not a candidate
+    /// here, however well its labels happen to read.
+    /// </param>
+    public InstructionPolicySelection Select(IntakeSourceReadResult readResult, string documentRole)
     {
         ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentRole);
         if (readResult.Status != IntakeSourceReadStatus.Readable)
         {
             return InstructionPolicySelection.NotApplicable();
@@ -115,17 +178,48 @@ public sealed class InstructionExtractionPolicySelector(
 
         var text = Text(readResult);
         var matches = this.policies
-            .Where(policy => policy is IInstructionDocumentProfile profile
-                && Matches(profile.Signature, text))
-            .OrderBy(policy => policy.PrincipalCode, StringComparer.Ordinal)
+            .Select(policy => (Policy: policy, Profile: policy as IInstructionDocumentProfile))
+            .Where(entry => entry.Profile is not null
+                && string.Equals(
+                    entry.Profile.Signature.DocumentRole,
+                    documentRole,
+                    StringComparison.OrdinalIgnoreCase)
+                && Matches(entry.Profile.Signature, text))
+            .Select(entry => (entry.Policy, Variants: MatchingVariants(entry.Profile!, text)))
+            .Where(entry => entry.Variants is not null)
+            .OrderBy(entry => entry.Policy.PrincipalCode, StringComparer.Ordinal)
             .ToArray();
 
         return matches.Length switch
         {
             0 => InstructionPolicySelection.NotApplicable(),
-            1 => InstructionPolicySelection.Selected(matches[0]),
-            _ => InstructionPolicySelection.Ambiguous(matches)
+            1 => InstructionPolicySelection.Selected(matches[0].Policy, matches[0].Variants),
+            _ => InstructionPolicySelection.Ambiguous([.. matches.Select(entry => entry.Policy)])
         };
+    }
+
+    /// <summary>
+    /// The accepted variant keys this document satisfies, or null when the
+    /// profile records variants and the document satisfies none - an unproved
+    /// template stays unmatched rather than borrowing its principal's identity.
+    /// A profile with no recorded variants returns the empty list, which is a
+    /// match.
+    /// </summary>
+    private static string[]? MatchingVariants(
+        IInstructionDocumentProfile profile,
+        string text)
+    {
+        if (profile.Variants.Count == 0)
+        {
+            return [];
+        }
+
+        var matched = profile.Variants
+            .Where(variant => Matches(variant.Signature, text))
+            .Select(variant => variant.Key)
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToArray();
+        return matched.Length == 0 ? null : matched;
     }
 
     /// <summary>
