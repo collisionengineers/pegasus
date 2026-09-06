@@ -26,6 +26,21 @@ public sealed class RetainIncomingArtifactTests
         1024,
         sha256);
 
+    /// <summary>
+    /// One arrival, committed before anything is offered. Every caller of the
+    /// command has to do this - the command refuses a hand-over that names no
+    /// committed arrival - so every test below hands over from a staged
+    /// arrival exactly as the public upload path does.
+    /// </summary>
+    private static IncomingArtifactOccurrence Staged(
+        RecordingStore store,
+        IncomingArtifactOccurrence? occurrence = null)
+    {
+        var staged = occurrence ?? Occurrence();
+        store.Arrive(staged);
+        return staged;
+    }
+
     [Fact]
     public async Task AConfirmedRetentionRecordsItsLogicalDocumentAndRemoteIdentities()
     {
@@ -33,7 +48,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var retained = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
             PublicActor(),
-            Occurrence(),
+            Staged(store),
             new MemoryStream([1, 2, 3]));
 
         Assert.True(retained.IsConfirmed);
@@ -57,7 +72,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var retained = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
             PublicActor(),
-            Occurrence(),
+            Staged(store),
             new MemoryStream([1]));
 
         Assert.Equal(expected, retained.State);
@@ -78,7 +93,7 @@ public sealed class RetainIncomingArtifactTests
         var custody = new RecordingCustody(Confirmed());
         var store = new RecordingStore();
         var command = new RetainIncomingArtifact(custody, store);
-        var occurrence = Occurrence();
+        var occurrence = Staged(store);
         var first = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         var replay = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
@@ -94,11 +109,11 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store);
         var first = await command.ExecuteAsync(
             PublicActor(),
-            Occurrence("occurrence-1", "estimate.pdf", "aaaa"),
+            Staged(store, Occurrence("occurrence-1", "estimate.pdf", "aaaa")),
             new MemoryStream([1]));
         var second = await command.ExecuteAsync(
             PublicActor(),
-            Occurrence("occurrence-2", "estimate.pdf", "bbbb"),
+            Staged(store, Occurrence("occurrence-2", "estimate.pdf", "bbbb")),
             new MemoryStream([2]));
 
         Assert.NotEqual(first.OccurrenceId, second.OccurrenceId);
@@ -119,7 +134,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
+        var occurrence = Staged(store);
 
         var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
@@ -143,7 +158,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
+        var occurrence = Staged(store);
 
         _ = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         var second = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
@@ -205,7 +220,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed() with { Disposition = reconciledAs });
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
+        var occurrence = Staged(store);
 
         var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Pending, pending.State);
@@ -239,7 +254,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
+        var occurrence = Staged(store);
 
         var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
@@ -274,8 +289,7 @@ public sealed class RetainIncomingArtifactTests
         var custody = new ThrowingCustody(
             new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload));
         var command = new RetainIncomingArtifact(custody, store);
-        var occurrence = Occurrence();
-        store.Arrive(occurrence);
+        var occurrence = Staged(store);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1])));
@@ -298,20 +312,28 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
-    /// The refusal a caller that staged nothing gets: it surfaces, and there
-    /// is no arrival to close it on, so nothing is written down.
+    /// A caller that staged nothing never reaches custody at all. There would
+    /// be no claim to win, nothing to record an answer on and nothing for a
+    /// retry to reconcile against, so the invariant is enforced here rather
+    /// than left to each caller's own discipline - which matters for the
+    /// holding-receipt destination this command already carries and no
+    /// production caller stages yet.
     /// </summary>
     [Fact]
-    public async Task ARefusedHandOverWithNoStagedArrivalSurfacesAndRecordsNothing()
+    public async Task AHandOverWithNoCommittedArrivalIsRefusedBeforeCustodyIsAsked()
     {
+        var custody = new RecordingCustody(Confirmed());
         var store = new RecordingStore();
 
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new RetainIncomingArtifact(
-                new ThrowingCustody(
-                    new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload)),
-                store).ExecuteAsync(PublicActor(), Occurrence(), new MemoryStream([1])));
+        await Assert.ThrowsAsync<UnclaimedHandOverException>(() =>
+            new RetainIncomingArtifact(custody, store).ExecuteAsync(
+                PublicActor(),
+                Occurrence(),
+                new MemoryStream([1])));
 
+        // Not offered, not recorded, and emphatically not an uncertainty a
+        // retry would have to reconcile: nothing happened at all.
+        Assert.Equal(0, custody.Calls);
         Assert.Empty(store.Recorded);
     }
 
@@ -329,8 +351,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
-        store.Arrive(occurrence);
+        var occurrence = Staged(store);
 
         var uncertain = await command.ExecuteAsync(
             PublicActor(),
@@ -360,8 +381,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
-        store.Arrive(occurrence);
+        var occurrence = Staged(store);
 
         // The winner takes the claim and is still inside its hand-over.
         Assert.True(await store.TryClaimHandOverAsync(occurrence.OccurrenceId, CancellationToken.None));
@@ -393,8 +413,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
-        store.Arrive(occurrence);
+        var occurrence = Staged(store);
 
         var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
@@ -450,7 +469,7 @@ public sealed class RetainIncomingArtifactTests
 
             var uncertain = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
                 PublicActor(),
-                Occurrence(),
+                Staged(store),
                 new MemoryStream([1]));
 
             Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
@@ -477,7 +496,7 @@ public sealed class RetainIncomingArtifactTests
 
         var uncertain = await command.ExecuteAsync(
             PublicActor(),
-            Occurrence(),
+            Staged(store),
             new MemoryStream([1]),
             aborted.Token);
 
@@ -505,7 +524,7 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var status = new RefusingCustodyStatus();
         var command = new RetainIncomingArtifact(custody, store, status);
-        var occurrence = Occurrence();
+        var occurrence = Staged(store);
 
         var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));

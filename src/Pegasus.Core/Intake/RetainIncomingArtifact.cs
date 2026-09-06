@@ -170,6 +170,23 @@ public interface IIncomingArtifactRetentionStore
 }
 
 /// <summary>
+/// Raised when an incoming artifact is offered to custody without the
+/// committed arrival every hand-over runs through.
+/// </summary>
+/// <remarks>
+/// It is a caller defect, not an outcome: the bytes were never offered,
+/// nothing was claimed and nothing was recorded, so there is no uncertainty to
+/// reconcile and a retry that commits its arrival first is safe. It is typed
+/// so a caller can tell it from the uncertain hand-over it is emphatically
+/// not, and it carries no operation key, occurrence or Case, because the
+/// public page logs what it catches.
+/// </remarks>
+public sealed class UnclaimedHandOverException()
+    : InvalidOperationException(
+        "An incoming artifact reaches custody only from an arrival its store "
+        + "has already committed and this caller has claimed.");
+
+/// <summary>
 /// The one Core command that hands an incoming artifact to custody.
 /// </summary>
 /// <remarks>
@@ -189,6 +206,15 @@ public interface IIncomingArtifactRetentionStore
 /// callers of one operation key produce one hand-over and the rest reconcile,
 /// and a crash between custody answering and the answer being written leaves a
 /// claimed arrival to ask about rather than an arrival to offer again.
+/// </para>
+/// <para>
+/// That is enforced, not assumed. A caller whose operation key names no
+/// committed arrival is refused before custody is reached: there would be
+/// nothing to claim, nothing to record the answer on, and nothing for a retry
+/// to reconcile against, so offering the bytes would be exactly the unclaimed
+/// hand-over the claim exists to prevent. Every caller commits its arrival
+/// first - the public upload path does, and the holding destination this
+/// command already carries must too.
 /// </para>
 /// </remarks>
 public sealed class RetainIncomingArtifact(
@@ -220,38 +246,39 @@ public sealed class RetainIncomingArtifact(
         ArgumentNullException.ThrowIfNull(content);
         Validate(actor, occurrence);
 
-        var existing = await store.FindAsync(occurrence.OperationKey, cancellationToken);
-        if (existing is not null)
+        // No committed arrival, no hand-over. The bytes would reach custody
+        // outside the one lifecycle that makes a retry safe, and the refusal
+        // that closes a claim would have nothing to close.
+        var existing = await store.FindAsync(occurrence.OperationKey, cancellationToken)
+            ?? throw new UnclaimedHandOverException();
+
+        // The two answers custody actually gave. A confirmed retention returns
+        // the same logical document and version, and a refusal is final for
+        // the acceptance it refused; neither is ever offered a second time
+        // under this key, and only a new deliberate submission earns a new one.
+        if (existing.State is IncomingArtifactCustodyState.Confirmed
+            or IncomingArtifactCustodyState.Failed)
         {
-            // The two answers custody actually gave. A confirmed retention
-            // returns the same logical document and version, and a refusal is
-            // final for the acceptance it refused; neither is ever offered a
-            // second time under this key, and only a new deliberate submission
-            // earns a new one.
-            if (existing.State is IncomingArtifactCustodyState.Confirmed
-                or IncomingArtifactCustodyState.Failed)
-            {
-                return existing;
-            }
+            return existing;
+        }
 
-            // A Pending is custody stating that it has these bytes. It is
-            // asked about, never repeated.
-            if (existing.State is IncomingArtifactCustodyState.Pending)
-            {
-                return await ReconcileAsync(actor, existing, cancellationToken);
-            }
+        // A Pending is custody stating that it has these bytes. It is asked
+        // about, never repeated.
+        if (existing.State is IncomingArtifactCustodyState.Pending)
+        {
+            return await ReconcileAsync(actor, existing, cancellationToken);
+        }
 
-            // Unknown is both the arrival nobody has offered yet and the
-            // hand-over whose outcome was lost, because from here they are the
-            // same thing: custody may hold these bytes. Exactly one caller may
-            // find out which by offering them, and the store's conditional
-            // claim - committed before the possibly accepting call - is what
-            // decides which caller that is. Anyone else asks about the same
-            // operation key instead, and never reaches custody with bytes.
-            if (!await store.TryClaimHandOverAsync(occurrence.OccurrenceId, cancellationToken))
-            {
-                return await ReconcileAsync(actor, existing, cancellationToken);
-            }
+        // Unknown is both the arrival nobody has offered yet and the hand-over
+        // whose outcome was lost, because from here they are the same thing:
+        // custody may hold these bytes. Exactly one caller may find out which
+        // by offering them, and the store's conditional claim - committed
+        // before the possibly accepting call - is what decides which caller
+        // that is. Anyone else asks about the same operation key instead, and
+        // never reaches custody with bytes.
+        if (!await store.TryClaimHandOverAsync(occurrence.OccurrenceId, cancellationToken))
+        {
+            return await ReconcileAsync(actor, existing, cancellationToken);
         }
 
         CaseArtifactCustodyResult result;
@@ -278,20 +305,16 @@ public sealed class RetainIncomingArtifact(
             // way to refusing are not one, so the claim this attempt holds is
             // closed as the refusal it is rather than left uncertain - which
             // is what lets the sender make a new deliberate submission under a
-            // new key. A caller that staged no arrival has nothing to close
-            // and nothing to close it on, so the refusal simply surfaces.
-            if (existing is not null)
-            {
-                await store.RecordAsync(
-                    new(
-                        occurrence.OccurrenceId,
-                        occurrence.OperationKey,
-                        IncomingArtifactCustodyState.Failed,
-                        occurrence.CaseId,
-                        FailureCode: RefusedFailureCode),
-                    CancellationToken.None);
-            }
-
+            // new key. There is always a claim to close, because nothing
+            // reaches custody without one.
+            await store.RecordAsync(
+                new(
+                    occurrence.OccurrenceId,
+                    occurrence.OperationKey,
+                    IncomingArtifactCustodyState.Failed,
+                    occurrence.CaseId,
+                    FailureCode: RefusedFailureCode),
+                CancellationToken.None);
             throw;
         }
         catch (Exception exception) when (IsUncertainHandOver(exception))
