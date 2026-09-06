@@ -264,6 +264,17 @@ public static class OperatorLabels
         // C08 shell administration areas end
     }
 
+    /// <summary>
+    /// Handed to C08 by C05 (INTK-060 scratch/c05-notes, ASSUMPTION 7): the
+    /// chip label for a persisted <c>finding.&lt;code&gt;</c> source candidate
+    /// row — a reconciliation finding, not a value — wherever the C04-owned
+    /// retained-analysis list (<c>Pages/Intake/Details.cshtml</c>) renders one.
+    /// </summary>
+    public static class SourceCandidateKind
+    {
+        public const string Finding = "Finding";
+    }
+
     /// <summary>The freshness words the shell and every page header share.</summary>
     public static class Freshness
     {
@@ -1706,5 +1717,21 @@ public static class OperatorLabels
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"EML, MSG, PDF, DOC, DOCX, JPG or PNG · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
+
+        /// <summary>
+        /// The public request page's post-submission wording, handed to C08 by
+        /// C07 (INTK-060 scratch/c07-notes, "OperatorLabels handoff") ahead of
+        /// that slice's own integration — added here with the exact text so it
+        /// can switch its local <c>private const</c>s over without a wording
+        /// change. <see cref="RetainedCompletionMessage"/> is
+        /// <c>RequestUploadDecision.Accepted</c>/<c>Replay</c>'s wording (custody
+        /// confirmed); <see cref="StoringCompletionMessage"/> is
+        /// <c>RequestUploadDecision.AcceptedPending</c>'s (custody durable but
+        /// not yet confirmed) — never say "retained securely" before custody has
+        /// said so.
+        /// </summary>
+        public const string RetainedCompletionMessage = "Your document was received and retained securely.";
+        public const string StoringCompletionMessage =
+            "Your document was received and is being stored. You do not need to send it again.";
     }
 }
