@@ -173,6 +173,12 @@ public sealed class DueChaserSweepPersistenceTests
 
         harness.TimeProvider.SetUtcNow(resumedAtUtc);
         Assert.Equal(1, (await harness.Runner.ExecuteAsync(50, default)).GeneratedCount);
+        await using (var context = await harness.ContextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET InstructionComplete = {true}, ImagesComplete = {true} WHERE Id = {harness.CaseId}"));
+        }
+
         var current = await harness.WorkflowStore.GetAsync(harness.CaseId, default);
         var reviewLease = await harness.WorkflowStore.ClaimAsync(
             new(harness.CaseId, current!.Version, actor, "claim-review-material"),
