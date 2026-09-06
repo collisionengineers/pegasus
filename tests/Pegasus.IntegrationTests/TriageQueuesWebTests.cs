@@ -3,6 +3,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -687,6 +688,112 @@ public sealed class TriageQueuesWebTests
             now,
             CancellationToken.None);
         return evaluation.Id;
+    }
+
+    /// <summary>
+    /// The keyset continuation over real SQL: the pages partition the list in
+    /// the newest-first order with no repeat and no gap, the database applies
+    /// both the bound and the limit, and a cursor minted for one query is
+    /// refused by another.
+    /// </summary>
+    [Fact]
+    public async Task TriageKeysetPagesArePartitionedDeterministicallyOverRealSql()
+    {
+        const int total = 7;
+        const int limit = 3;
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        for (var index = 0; index < total; index++)
+        {
+            await OpenTriageForPagingAsync(services, index);
+        }
+
+        var queries = services.GetRequiredService<ITriageQueries>();
+        var listPage = new ListTriagePage(
+            queries,
+            services.GetRequiredService<ICursorProtector>());
+        var actor = StaffActor();
+
+        var seen = new List<TriageSummary>();
+        string? cursor = null;
+        var requests = 0;
+        do
+        {
+            var page = await listPage.ExecuteAsync(
+                new(actor, State: null, cursor, limit),
+                CancellationToken.None);
+            Assert.True(page.Items.Count <= limit);
+            seen.AddRange(page.Items);
+            cursor = page.NextCursor;
+            requests++;
+            Assert.True(requests <= total, "The continuation did not terminate.");
+        }
+        while (cursor is not null);
+
+        // Every Triage exactly once, in the same newest-first order the
+        // unpaged read returns.
+        var expected = await queries.ListAsync(null, CancellationToken.None);
+        Assert.Equal(total, seen.Count);
+        Assert.Equal(
+            expected.Select(item => item.Id).ToArray(),
+            seen.Select(item => item.Id).ToArray());
+        Assert.Equal(total, seen.Select(item => item.Id).Distinct().Count());
+
+        // A cursor is bound to its query: the same page under a state filter
+        // is a different scope and is refused rather than answered.
+        var firstPage = await listPage.ExecuteAsync(
+            new(actor, State: null, null, limit),
+            CancellationToken.None);
+        Assert.NotNull(firstPage.NextCursor);
+        await Assert.ThrowsAsync<CursorRejectedException>(() =>
+            listPage.ExecuteAsync(
+                new(actor, TriageState.Open, firstPage.NextCursor, limit),
+                CancellationToken.None));
+    }
+
+    private static async Task OpenTriageForPagingAsync(IServiceProvider services, int index)
+    {
+        var registration = $"PG{index:00}AGE";
+        var sourceIdentity = new IntakeSourceIdentity(
+            IntakeSourceChannel.ManualUpload,
+            Guid.NewGuid().ToString("N"));
+        var sourceHash = new string((char)('a' + (index % 6)), 64);
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            registration,
+            "Accepted Triage match for the keyset paging test.",
+            MatcherKey: "triage-paging-test",
+            MatcherVersion: 1);
+        var receiptId = await StoreMinimalReceiptAsync(
+            services,
+            $"triage-paging-{index}.pdf",
+            new InstructionDraft(
+                SuggestedPrincipalCode: "QDOS",
+                ClaimantName: null,
+                ClaimNumber: $"PAGING-{index:00}",
+                VehicleRegistration: registration,
+                VehicleMake: null,
+                VehicleModel: null,
+                VehicleMileage: null,
+                AccidentCircumstances: null,
+                DateOfIncident: null,
+                InstructionDate: null,
+                InspectionAddress: null),
+            [acceptedMatch],
+            sourceIdentity,
+            sourceHash);
+        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(services, receiptId);
+        await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
+            new(
+                new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
+                registration,
+                acceptedMatch,
+                "test-actor",
+                $"triage-paging-create:{Guid.NewGuid():N}"),
+            CancellationToken.None);
     }
 
     private static async Task<Guid> StoreMinimalReceiptAsync(
