@@ -251,7 +251,7 @@ public sealed class SentEvidencePollPersistenceTests
             new(
                 triageId,
                 0,
-                actorCode,
+                staffActor,
                 "sent-poll-auto-link-finding",
                 "Retained assessment before exact response",
                 RoadworthinessFinding.Roadworthy,
@@ -355,7 +355,8 @@ public sealed class SentEvidencePollPersistenceTests
         var linkedHistory = Assert.Single(
             detail.History,
             item => item.EventType == "triage_response_linked");
-        Assert.Equal("system-worker:sent-evidence-poll", linkedHistory.Actor);
+        Assert.Equal("sent-evidence-poll", linkedHistory.Actor);
+        Assert.Equal(nameof(ActorKind.SystemWorker), linkedHistory.ActorKind);
         Assert.Equal(1, linkedHistory.BeforeVersion);
         Assert.Equal(2, linkedHistory.AfterVersion);
 
@@ -365,7 +366,7 @@ public sealed class SentEvidencePollPersistenceTests
             triageId,
             sentEvidence.Id,
             2,
-            actorCode,
+            staffActor,
             "sent-poll-response-unlink",
             "Temporarily remove the current response association");
         var unlinkResponse = scopedServices.GetRequiredService<IUnlinkTriageResponseEvidence>();
@@ -394,7 +395,7 @@ public sealed class SentEvidencePollPersistenceTests
             pollOutcomeId,
             sentEvidence.Id,
             3,
-            actorCode,
+            staffActor,
             "sent-poll-response-relink",
             "Restore the retained exact response association");
         var linkResponse = scopedServices.GetRequiredService<ILinkTriageResponseEvidence>();
@@ -432,7 +433,7 @@ public sealed class SentEvidencePollPersistenceTests
             new(
                 triageId,
                 4,
-                actorCode,
+                staffActor,
                 "sent-poll-auto-link-complete",
                 "Finding and exact response evidence confirmed"),
             default);

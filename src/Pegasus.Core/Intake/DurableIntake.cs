@@ -547,6 +547,16 @@ public sealed class ProcessQueuedIntake(
     SubmitMailboxImageIntake? mailboxImageIntake = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
+
+    /// <summary>
+    /// The same intake system worker as <see cref="SystemActor"/>, typed, for the
+    /// commands that carry an <see cref="ActionActor"/>. Triage records the actor
+    /// kind, so the subject is the bare worker identity and the kind is carried
+    /// rather than spelled into a prefix.
+    /// </summary>
+    private static readonly ActionActor SystemWorkerActor =
+        ActionActor.SystemWorker("intake-processing");
+
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan[] RetryDelays =
@@ -1121,7 +1131,7 @@ public sealed class ProcessQueuedIntake(
                         evaluation.Id),
                     registration,
                     acceptedMatches[0],
-                    SystemActor,
+                    SystemWorkerActor,
                     $"triage-from-intake-evaluation:{evaluation.Id:N}"),
                 cancellationToken);
             return TriageCreationOutcome.Created;
