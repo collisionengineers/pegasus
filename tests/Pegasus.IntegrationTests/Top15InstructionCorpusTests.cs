@@ -472,6 +472,11 @@ public sealed class Top15InstructionCorpusTests
         ,new("MP", $"{CorpusRoot}/MP Word 03.doc", "18fa98723d35429de6ff75e955beaee59cdd63c87b3169092566178b2f43b654", new("MONTREAL PRESTIGE LTD", "RA6458812", "MA22CHZ", new(2026, 3, 22), new(2026, 3, 25)), [])
         ,new("MP", $"{CorpusRoot}/MP Word 04.doc", "b494d5e063beb991b4ab4239f11465dc189a3d8ec29afcebb7976490b357ad56", new("Miss Waseema Kola", "RA6458668", "WA55KYK", new(2025, 9, 22), null), [])
         ,new("MP", $"{CorpusRoot}/MP Word 05.doc", "c0aa299d0affab6ef2696ac11b7e5edb83d504d4ffcb5893874161c9159d53b5", new("Mr Sukhchain Singh", "RA6458806", "SF15GXT", new(2026, 3, 6), new(2026, 3, 17)), [])
+        ,new("YML", $"{CorpusRoot}/HDUK 01.pdf", "37f70f707fa710d81c09abb3ccda02c61292a37fa3665d4dccc4ce20c6c8cfc6", new("Ahmad Doshi", "HD4009", "OV20ZYT", new(2026, 5, 4), new(2026, 5, 5)), [])
+        ,new("YML", $"{CorpusRoot}/HDUK 02.pdf", "1567e1393f0a1d7c3cd609664b58fa4697cc30cfe57a8feb60ae741240f06e69", new("Stacey Lewis", "HD4010", "RV61VBC", new(2026, 5, 3), new(2026, 5, 5)), [])
+        ,new("YML", $"{CorpusRoot}/HDUK 03.pdf", "f1540a0c96e4d32d703b4faab7ed1ed2621e755d7395bd426da3288693688db2", new("Lee Hornby", "HD4008", "ML16NGJ", new(2026, 4, 14), new(2026, 5, 5)), [])
+        ,new("YML", $"{CorpusRoot}/HDUK 04.pdf", "8dc9d4b59b85feb64eed9fc7a3dbc020170f002c82363372af5768411aa888b9", new("Arshad Bibi", "HD3982", "CX15LKK", new(2026, 3, 20), new(2026, 4, 29)), [])
+        ,new("YML", $"{CorpusRoot}/HDUK 05.pdf", "6708f0e9f46186a4ef7a5972271b05ac7ed8873d628b42940a5ef323bdf6d906", new("Mohammed Haroon", "HD3992", "FG69DHZ", new(2026, 4, 27), new(2026, 4, 29)), [])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -566,7 +571,8 @@ public sealed class Top15InstructionCorpusTests
             new RjsInstructionExtractionPolicy(),
             new DfdInstructionExtractionPolicy(),
             new KbsInstructionExtractionPolicy(),
-            new MpInstructionExtractionPolicy()
+            new MpInstructionExtractionPolicy(),
+            new YmlInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
