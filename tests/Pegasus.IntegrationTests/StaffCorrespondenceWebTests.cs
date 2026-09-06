@@ -449,8 +449,8 @@ public sealed class StaffCorrespondenceWebTests
             expectedMode == StaffMailComposeMode.Forward
                 ? ["forward@example.invalid"]
                 : expectedMode == StaffMailComposeMode.Reply
-                    ? ["sender@example.invalid"]
-                    : ["sender@example.invalid", "other-to@example.invalid"],
+                    ? ["reply@example.invalid"]
+                    : ["reply@example.invalid", "other-to@example.invalid"],
             command.To.Select(item => item.Address));
         Assert.Equal(
             expectedMode == StaffMailComposeMode.ReplyAll
@@ -514,10 +514,17 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(1, send.ReconcileCalls);
     }
 
-    [Fact]
-    public async Task SubmittedRetainedReplyShowsStatusAndBlocksASecondFreshAction()
+    [Theory]
+    [InlineData(StaffMailState.Prepared)]
+    [InlineData(StaffMailState.DraftCreating)]
+    [InlineData(StaffMailState.DraftReady)]
+    [InlineData(StaffMailState.Sending)]
+    [InlineData(StaffMailState.Submitted)]
+    [InlineData(StaffMailState.Unknown)]
+    public async Task UnresolvedRetainedReplyShowsStatusAndBlocksASecondFreshAction(
+        StaffMailState unresolvedState)
     {
-        var send = new RecordingStaffMailSend { NextState = StaffMailState.Submitted };
+        var send = new RecordingStaffMailSend { NextState = unresolvedState };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var caseId = await SeedSupportedCaseAsync(
@@ -539,7 +546,7 @@ public sealed class StaffCorrespondenceWebTests
             }));
         using var status = await client.GetAsync(post.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), statusHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(unresolvedState), statusHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
         using var fresh = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply",
@@ -650,9 +657,9 @@ public sealed class StaffCorrespondenceWebTests
 
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("not-an-address")]
-    public async Task RetainedReplyRejectsMissingOrMalformedStoredSender(string? sender)
+    [InlineData("[]")]
+    [InlineData("[\"not-an-address\"]")]
+    public async Task RetainedReplyIsUnavailableWithoutValidStoredReplyTargets(string? replyTargetsJson)
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -666,24 +673,26 @@ public sealed class StaffCorrespondenceWebTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE RetainedMailboxMessages SET SenderAddress = {sender} WHERE Id = {seeded.MessageId}");
+                $"UPDATE RetainedMailboxMessages SET ReplyToAddressesJson = {replyTargetsJson} WHERE Id = {seeded.MessageId}");
         }
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
-
+        Assert.DoesNotContain("compose=reply", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=forward", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("name=\"CorrespondenceOperationKey\"", html, StringComparison.OrdinalIgnoreCase);
         using var response = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
-                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["ExpectedCorrespondenceCaseVersion"] = "1",
+                ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}",
                 ["CorrespondenceSubject"] = "Re: Source subject",
                 ["CorrespondenceBody"] = "Reviewed response."
             }));
-
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Empty(send.Commands);
     }
@@ -996,8 +1005,9 @@ public sealed class StaffCorrespondenceWebTests
                     internetMessageId,
                     "sender@example.invalid",
                     "Sender Name",
-                    [mailboxAddress, "other-to@example.invalid", "sender@example.invalid"],
+                    [mailboxAddress, "other-to@example.invalid"],
                     ["copy@example.invalid", mailboxAddress, "other-to@example.invalid"],
+                    ["reply@example.invalid"],
                     "Source subject",
                     "Source body.",
                     [],
