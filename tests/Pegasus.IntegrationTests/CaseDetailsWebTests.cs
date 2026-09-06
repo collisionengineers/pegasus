@@ -15,6 +15,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -172,11 +173,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
 
-        // The four sections that have a body below the fold are served as
-        // fragments; every other host, including the four Engineer shells,
+        // The five sections that have a body below the fold are served as
+        // fragments; every other host, including the Engineer shells,
         // renders with the page.
         Assert.Equal(
-            ["engineer-notes", "vehicle", "files", "notes"],
+            ["engineer-notes", "vehicle", "valuation", "files", "notes"],
             DeferredSections(html));
     }
 
@@ -319,6 +320,7 @@ public sealed partial class CaseDetailsWebTests
     [InlineData("engineer-notes")]
     [InlineData("notes")]
     [InlineData("vehicle")]
+    [InlineData("valuation")]
     public async Task TheSectionFragmentReturnsOnlyThatSectionBody(string key)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -349,7 +351,6 @@ public sealed partial class CaseDetailsWebTests
     [Theory]
     [InlineData("overview")]
     [InlineData("inspection")]
-    [InlineData("valuation")]
     [InlineData("case-files")]
     [InlineData("nonsense")]
     public async Task TheSectionFragmentRefusesKeysItDoesNotServe(string key)
@@ -2122,14 +2123,7 @@ public sealed partial class CaseDetailsWebTests
                 new(Confirmed("QDOS")),
                 new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),
                 new(Confirmed("CLM-42")),
-                OmitVehicleValues
-                    ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
-                    : new(
-                        Confirmed("AB12CDE"),
-                        Confirmed("Ford"),
-                        Confirmed("Transit"),
-                        Confirmed(42_000L),
-                        Confirmed("miles")),
+                VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(Empty<DateOnly>(), Confirmed("Standard")),
@@ -2140,6 +2134,58 @@ public sealed partial class CaseDetailsWebTests
                     Confirmed(CaseInspectionMode.PhysicalAddress),
                     Confirmed("14 Storage Lane"),
                     Empty<string>()));
+
+        /// <summary>
+        /// The vehicle as the case holds it. With
+        /// <see cref="IncludeVehicleSuggestions"/> the latest answered lookup
+        /// also suggests a different make, model and mileage, each cited to
+        /// that observation, which is the shape the section's per-field
+        /// acceptance controls render from (PR 670 port).
+        /// </summary>
+        private CaseVehicleData VehicleFields()
+        {
+            if (OmitVehicleValues)
+            {
+                return new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>());
+            }
+            if (!IncludeVehicleSuggestions)
+            {
+                return new(
+                    Confirmed("AB12CDE"),
+                    Confirmed("Ford"),
+                    Confirmed("Transit"),
+                    Confirmed(42_000L),
+                    Confirmed("miles"));
+            }
+
+            var lookup = VehicleLookupEvidence?.LatestObservation
+                ?? throw new InvalidOperationException(
+                    "Vehicle suggestions cite a recorded lookup observation; supply VehicleLookupEvidence.");
+            return new(
+                Confirmed("AB12CDE"),
+                WithSuggestion(Confirmed("Ford"), "Ford Motor Company", lookup),
+                WithSuggestion(Confirmed("Transit"), "Transit Custom", lookup),
+                WithSuggestion(Confirmed(42_000L), 43_210L, lookup),
+                WithSuggestion(Confirmed("miles"), "miles", lookup));
+        }
+
+        private static CaseField<T> WithSuggestion<T>(
+            CaseField<T> field,
+            T suggested,
+            VehicleLookupObservation lookup)
+            where T : notnull =>
+            field with
+            {
+                Suggestion = new(
+                    suggested,
+                    CaseDataValueKind.Suggestion,
+                    new(
+                        CaseDataSourceKind.VehicleLookup,
+                        lookup.Id.ToString("D"),
+                        "DVLA lookup",
+                        "vehicle-lookup",
+                        1))
+            };
 
         private static readonly CaseDataSource StaffCorrection =
             new(CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);
