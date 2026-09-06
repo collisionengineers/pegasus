@@ -402,6 +402,19 @@ internal sealed class EfVehicleWorkflowStore(
             },
             nowUtc);
 
+        // A confirmed vehicle make/model/mileage is a frozen report input:
+        // the acceptance stales the Case's current generation in this same
+        // serializable transaction (Stream A review, comment 5560667174).
+        // Replay returned before any mutation above; superseded generations
+        // are never touched by the stale operation itself; a lookup request
+        // alone never reaches this path.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context,
+            command.CaseId,
+            "vehicle_suggestion_accepted",
+            nowUtc,
+            cancellationToken);
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
