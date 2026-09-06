@@ -52,8 +52,10 @@ internal sealed class EfDocumentRequestStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var operationKey = ValidateActorAndOperation(command.Actor, command.OperationKey);
-        var (recipient, reason) = NormalizeCreate(command.Recipient, command.Reason);
+        var normalized = RequestUploadPolicy.NormalizeCreate(command);
+        var operationKey = ValidateActorAndOperation(normalized.Actor, normalized.OperationKey);
+        var recipient = normalized.Recipient;
+        var reason = normalized.Reason;
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var history = await FindHistoryAsync(context, operationKey, cancellationToken);
@@ -845,22 +847,6 @@ internal sealed class EfDocumentRequestStore(
         return normalized;
     }
 
-    private static (string Recipient, string? Reason) NormalizeCreate(
-        string recipient,
-        string? reason)
-    {
-        var normalizedRecipient = RequireText(recipient, 500, nameof(recipient));
-        var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-        if (normalizedReason?.Length > 1000)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(reason),
-                "The value cannot exceed 1000 characters.");
-        }
-
-        return (normalizedRecipient, normalizedReason);
-    }
-
     private static Task<ActionHistoryEntity?> FindHistoryAsync(
         PegasusDbContext context,
         string operationKey,
@@ -880,7 +866,7 @@ internal sealed class EfDocumentRequestStore(
         entity.AcceptedFileCount,
         entity.AcceptedByteCount,
         entity.LimitsVersion,
-        ValidateStoredRecipient(entity.Recipient),
+        ValidateStoredMetadata(entity.Recipient, 500, nameof(entity.Recipient)),
         ValidateStoredReason(entity.Reason),
         entity.Version);
 
@@ -894,35 +880,28 @@ internal sealed class EfDocumentRequestStore(
         int AcceptedFileCount,
         long AcceptedByteCount,
         string LimitsVersion,
-        string Recipient,
+        string? Recipient,
         string? Reason,
         long Version);
 
-    private static string ValidateStoredRecipient(string? recipient)
-    {
-        if (string.IsNullOrWhiteSpace(recipient)
-            || recipient.Length > 500
-            || !string.Equals(recipient, recipient.Trim(), StringComparison.Ordinal))
-        {
-            throw new InvalidDataException(
-                "The upload-request link has an invalid recipient.");
-        }
-
-        return recipient;
-    }
-
     private static string? ValidateStoredReason(string? reason)
+        => ValidateStoredMetadata(reason, 1000, nameof(reason));
+
+    private static string? ValidateStoredMetadata(
+        string? value,
+        int maximumLength,
+        string fieldName)
     {
-        if (reason is not null
-            && (string.IsNullOrWhiteSpace(reason)
-                || reason.Length > 1000
-                || !string.Equals(reason, reason.Trim(), StringComparison.Ordinal)))
+        if (value is not null
+            && (string.IsNullOrWhiteSpace(value)
+                || value.Length > maximumLength
+                || !string.Equals(value, value.Trim(), StringComparison.Ordinal)))
         {
             throw new InvalidDataException(
-                "The upload-request link has an invalid reason.");
+                $"The upload-request link has invalid {fieldName} metadata.");
         }
 
-        return reason;
+        return value;
     }
 
     private static RequestUploadLink ToCreatedUploadLink(
@@ -931,9 +910,9 @@ internal sealed class EfDocumentRequestStore(
     {
         var snapshot =
             DocumentActionHistory.Deserialize<RequestUploadHistoryValue>(history.AfterJson);
-        var snapshotRecipient = ValidateStoredRecipient(snapshot.Recipient);
+        var snapshotRecipient = ValidateStoredMetadata(snapshot.Recipient, 500, nameof(snapshot.Recipient));
         var snapshotReason = ValidateStoredReason(snapshot.Reason);
-        var currentRecipient = ValidateStoredRecipient(current.Recipient);
+        var currentRecipient = ValidateStoredMetadata(current.Recipient, 500, nameof(current.Recipient));
         var currentReason = ValidateStoredReason(current.Reason);
         if (snapshot.RequestId != current.Id
             || snapshot.CaseId != current.CaseId
@@ -995,7 +974,7 @@ internal sealed class EfDocumentRequestStore(
         value.AcceptedByteCount,
         value.LimitsVersion,
         value.Version,
-        ValidateStoredRecipient(value.Recipient),
+        ValidateStoredMetadata(value.Recipient, 500, nameof(value.Recipient)),
         ValidateStoredReason(value.Reason));
 
     private static UploadToRequestResult Unavailable() =>
