@@ -89,7 +89,6 @@ internal sealed class CaseRepairSpecificationEntity
     public required string Name { get; set; }
     public int? RepairDays { get; set; }
     public decimal? LabourRate { get; set; }
-    public decimal? PaintLabourRate { get; set; }
     public decimal? PaintMaterials { get; set; }
     public decimal? OtherCosts { get; set; }
     public Guid? RateCardId { get; set; }

@@ -573,10 +573,6 @@ public sealed class EfRepairSpecificationStore(
         entity.LabourRate = details.Rate?.HourlyRate ?? details.LabourRate;
         entity.RateCardId = details.Rate?.RateCardId;
         entity.RateCardVersion = details.Rate?.RateCardVersion;
-        // The schema still carries Foundation's second paint-rate column. The
-        // estimate model has one rate, so this store writes the column empty
-        // and never reads it back.
-        entity.PaintLabourRate = null;
         entity.PaintMaterials = details.PaintMaterials;
         entity.OtherCosts = details.OtherCosts;
         entity.VatPercent = details.VatPercent;
