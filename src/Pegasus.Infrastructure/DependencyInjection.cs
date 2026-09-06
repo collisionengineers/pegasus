@@ -518,6 +518,10 @@ public static class DependencyInjection
         {
             services.AddSingleton(requestUploadLimitsFactory);
             services.AddSingleton<RequestUploadPolicy>();
+            services.AddScoped<EfPublicUploadRetentionStore>();
+            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
+                provider.GetRequiredService<EfPublicUploadRetentionStore>());
+            services.AddScoped<RetainIncomingArtifact>();
             services.AddScoped<EfDocumentRequestStore>();
             services.AddScoped<ICreateRequestUploadLink>(provider =>
                 provider.GetRequiredService<EfDocumentRequestStore>());
