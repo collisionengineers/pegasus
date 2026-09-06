@@ -4,6 +4,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
@@ -30,8 +31,47 @@ public sealed partial class DetailsModel(
     ReconcileUnidentifiedDestinations unidentifiedDestinations,
     ILogger<DetailsModel> logger,
     IInspectionAddressResolutionStore addressResolutionStore,
-    IProviderInspectionModeStore providerInspectionModeStore) : StaffPageModel
+    IProviderInspectionModeStore providerInspectionModeStore,
+    AnalyzeRetainedInstruction? analyzeRetainedInstruction = null,
+    IGetLatestRetainedInstructionAnalysis? latestRetainedInstructionAnalysis = null)
+    : StaffPageModel
 {
+    /// <summary>
+    /// The latest recorded analysis of this receipt's retained source, or null
+    /// when none has been run. Labels and values only: the panel says what the
+    /// document states and never acts on it.
+    /// </summary>
+    public RetainedInstructionAnalysis? RetainedAnalysis { get; private set; }
+
+    /// <summary>
+    /// Whether the analysis action can be offered: the receipt has exactly one
+    /// readable retained source asset, and the analysis surface is composed.
+    /// Available for an initial analysis and for a re-evaluation alike - a
+    /// second run under a new operation key records a second analysis rather
+    /// than rewriting the first.
+    /// </summary>
+    public bool CanAnalyzeRetainedInstruction { get; private set; }
+
+    /// <summary>
+    /// True when the retained-analysis command and read model are not
+    /// registered in this host. Surfaced to the operator rather than swallowed:
+    /// a silently absent action is indistinguishable from an action that ran
+    /// and found nothing, which is the failure this states out loud.
+    /// </summary>
+    public bool RetainedAnalysisNotComposed =>
+        analyzeRetainedInstruction is null || latestRetainedInstructionAnalysis is null;
+
+    /// <summary>
+    /// Whether the analysis panel has anything to say about this receipt: it has
+    /// been analysed, or it carries a retained source that could be. A receipt
+    /// with neither would otherwise read "This retained instruction has not been
+    /// analysed" on an allocated Case's own receipt, which is true and useless.
+    /// Deliberately not keyed on the decision - the surface exists for material
+    /// no route identified, whatever decision was recorded for it.
+    /// </summary>
+    public bool ShowRetainedAnalysisPanel =>
+        RetainedAnalysis is not null || IntakeFileIdentity.SourceAsset(Receipt) is not null;
+
     public ImageIntakeDetail? ImageIntake { get; private set; }
 
     public IReadOnlyList<ImageVrmSuggestion> VrmSuggestions { get; private set; } = [];
@@ -510,8 +550,69 @@ public sealed partial class DetailsModel(
             null);
         await LoadImageIntakeAsync(cancellationToken);
         await LoadTriageAsync(cancellationToken);
+        await LoadRetainedAnalysisAsync(actor, cancellationToken);
         return null;
     }
+
+    /// <summary>
+    /// The retained-instruction analysis panel. A receipt with no single
+    /// readable source asset can never be analysed, so the action is not
+    /// offered for one; nothing here depends on the receipt's decision, because
+    /// the whole point of the surface is material no route identified.
+    /// </summary>
+    private async Task LoadRetainedAnalysisAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        // The same owner the command itself resolves the source through, so the
+        // page can never offer an analysis the command would refuse, or withhold
+        // one it would accept.
+        CanAnalyzeRetainedInstruction = IntakeFileIdentity.SourceAsset(Receipt) is not null
+            && !RetainedAnalysisNotComposed;
+        if (latestRetainedInstructionAnalysis is null)
+        {
+            return;
+        }
+
+        RetainedAnalysis = await latestRetainedInstructionAnalysis.ExecuteAsync(
+            new(Receipt.Id, actor),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Analyses the retained source, or re-analyses it. The expected receipt
+    /// version and the operation key both come from the form, as every other
+    /// command on this page does: a page that minted its own key would replay
+    /// nothing and would break the architecture rule that only
+    /// <c>StaffPageModel</c> and the upload page mint one.
+    /// </summary>
+    public async Task<IActionResult> OnPostAnalyzeAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        Guid? intakeAssetId = null,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteCommandAsync(
+            id,
+            async actor =>
+            {
+                var command = analyzeRetainedInstruction
+                    ?? throw new InvalidOperationException(
+                        "The retained-instruction analysis command is not composed in this host.");
+                var result = await command.ExecuteAsync(
+                    new(actor, id, expectedVersion, operationKey, intakeAssetId),
+                    cancellationToken);
+                if (result.Outcome is RetainedInstructionAnalysisOutcome.Conflict
+                    or RetainedInstructionAnalysisOutcome.SourceUnavailable)
+                {
+                    // Not a success: the redirect must not report one. The
+                    // reason is the command's own, so the operator is told what
+                    // actually happened rather than a generic failure.
+                    throw new InvalidOperationException(result.Reason);
+                }
+            },
+            "The retained instruction was analysed.",
+            cancellationToken);
 
     /// <summary>
     /// A Triage only ever opens from a receipt the accepted route classified as
@@ -613,8 +714,8 @@ public sealed partial class DetailsModel(
             id,
             async actor =>
             {
-                // The Triage creation request carries a bare actor string and
-                // validates no rights of its own, so the caller authorises.
+                // The Triage creation request carries the typed actor but checks
+                // only its kind, not this right, so the caller authorises.
                 StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
                 var receipt = await getIntake.ExecuteAsync(new GetIntakeQuery(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException($"Intake receipt '{id}' was not found.");
@@ -634,7 +735,7 @@ public sealed partial class DetailsModel(
                             origin.EvaluationRevisionId),
                         ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
                         acceptedMatch,
-                        actor.SubjectId,
+                        actor,
                         $"triage-from-staff:{operationKey}"),
                     cancellationToken);
                 await CloseUnidentifiedForTriageAsync(receipt, cancellationToken);
@@ -649,6 +750,13 @@ public sealed partial class DetailsModel(
     /// so nothing else closes it until the periodic sweep runs — which is the
     /// backstop if this advisory write fails, exactly as the suggestion
     /// bookkeeping below treats a failure after a committed write.
+    ///
+    /// The backstop only covers faults the sweep can retry. A permanently taken
+    /// operation key is not one of those: the key is consumed for good, every
+    /// later sweep rebuilds the same key and fails on it, and swallowing it here
+    /// would return a 302 over work that is lost. It is excluded from the
+    /// advisory catch so it reaches the operator. A version conflict stays
+    /// advisory — the next sweep reads the fresher version and succeeds.
     /// </summary>
     private async Task CloseUnidentifiedForTriageAsync(
         IntakeReceipt receipt,
@@ -656,9 +764,11 @@ public sealed partial class DetailsModel(
     {
         try
         {
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (
+            exception is not UnidentifiedOperationConflictException
+            && IntakeExceptionPolicy.IsRecoverable(exception))
         {
             LogIntakeCommandFailed(logger, receipt.Id, exception);
         }

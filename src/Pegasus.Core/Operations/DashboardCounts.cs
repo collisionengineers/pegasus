@@ -35,57 +35,12 @@ public sealed record CaseStageCounts(
     int Complete = 0);
 
 /// <summary>
-/// What moved today and this week.
-/// </summary>
-/// <remarks>
-/// "Sent to Engineer" is counted from the first-handoff proxy, which is the
-/// recorded fact that a case reached an Engineer, rather than from a workflow
-/// transition that only says the case became eligible. "Reports sent" counts
-/// case-linked sent evidence, so a sent message that was never attributed to a
-/// case is not claimed as a delivered report.
-/// </remarks>
-public sealed record CaseActivityCounts(
-    int NewCasesToday,
-    int SentToEngineerToday,
-    int SentToEngineerThisWeek,
-    int ReportsSentToday,
-    int ReportsSentThisWeek);
-
-/// <summary>
-/// What arrived, and what is waiting for a person.
-/// </summary>
-/// <remarks>
-/// <see cref="ReceivedToday"/> counts mailbox-channel intake only (PLAT-012):
-/// a manual upload is a different intake channel entirely and must not move
-/// it. The Dashboard E-mail activity tile it was written for is gone with the
-/// Work Centre port (UIIMP-008) and nothing renders the value now, but the
-/// query still runs on every load — PLAT-058 decides whether it gets a surface
-/// or is deleted. Until then the rule stays guarded by
-/// DashboardCountersWebTests.ReceivedTodayCountsMailboxChannelOnlyNotManualUploads,
-/// which reads the query rather than the tile that no longer exists.
-/// </remarks>
-public sealed record MailActivityCounts(int ReceivedToday, int NeedsSorting)
-{
-    /// <summary>Open Unidentified items; NeedsSorting remains read-only compatibility during rollout.</summary>
-    public int Unidentified { get; init; } = NeedsSorting;
-}
-
-/// <summary>
 /// The dashboard's counts. Every member returns a real number or the tile that
 /// would have shown it is not rendered — there is no placeholder value.
 /// </summary>
 public interface IDashboardQueries
 {
     Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken);
-
-    Task<CaseActivityCounts> GetCaseActivityCountsAsync(
-        DateTimeOffset dayStartUtc,
-        DateTimeOffset weekStartUtc,
-        CancellationToken cancellationToken);
-
-    Task<MailActivityCounts> GetMailActivityCountsAsync(
-        DateTimeOffset dayStartUtc,
-        CancellationToken cancellationToken);
 }
 
 /// <summary>

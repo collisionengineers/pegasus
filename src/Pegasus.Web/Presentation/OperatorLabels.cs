@@ -158,6 +158,44 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// What the retained-instruction analysis concluded, in the operator's own
+    /// words. The enum name is never printed: "NoProfile" tells a member of
+    /// staff nothing about what to do next.
+    /// </summary>
+    public static string RetainedInstructionAnalysisOutcome(
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome outcome) => outcome switch
+    {
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Analyzed =>
+            "Read from the document",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.NoProfile =>
+            "No provider document was recognised",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Ambiguous =>
+            "More than one provider document was recognised",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.SourceUnavailable =>
+            "The retained file could not be read",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Conflict =>
+            "The receipt changed before the analysis was recorded",
+        _ => throw new InvalidOperationException(
+            $"Unknown retained instruction analysis outcome '{(int)outcome}'.")
+    };
+
+    /// <summary>
+    /// What one recorded field candidate is worth to a member of staff. The
+    /// vocabulary is shared with the case-side source candidates, so a field
+    /// never reads two different ways on two screens.
+    /// </summary>
+    public static string SourceCandidateDisposition(
+        Pegasus.Core.Intake.SourceCandidateDisposition disposition) => disposition switch
+    {
+        Pegasus.Core.Intake.SourceCandidateDisposition.Usable => "Usable",
+        Pegasus.Core.Intake.SourceCandidateDisposition.Missing => "Not stated in the document",
+        Pegasus.Core.Intake.SourceCandidateDisposition.Ambiguous => "Ambiguous",
+        Pegasus.Core.Intake.SourceCandidateDisposition.Conflicting => "Conflicting statements",
+        _ => throw new InvalidOperationException(
+            $"Unknown source candidate disposition '{(int)disposition}'.")
+    };
+
+    /// <summary>
     /// A Not ready case's outstanding requirement as the operator reads it:
     /// the requirement and the action that resolves it. Both come from the
     /// case's recorded completeness facts, never from a sentence written here.
