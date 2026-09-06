@@ -69,6 +69,7 @@ public sealed partial class KbsInstructionExtractionPolicy
         foreach (Match match in LocationRegex().Matches(body)) yield return Label(fragment, "Vehicle location", match.Groups["value"].Value.Trim(' ', '(', ')'));
         foreach (Match match in ContactRegex().Matches(body)) yield return Label(fragment, "Inspection contact", match.Groups["value"].Value.Trim(' ', '(', ')'));
         foreach (Match match in EmailRegex().Matches(body)) yield return Label(fragment, "Inspection email", match.Groups["value"].Value);
+        foreach (Match match in MobileRegex().Matches(body)) yield return Label(fragment, "Inspection contact", match.Groups["value"].Value);
     }
     private static readonly (Regex Regex, string Label)[] LineFields = [(ClaimantRegex(), "Our Client"), (VehicleRegex(), "Our Client's Vehicle"), (RegistrationRegex(), "Registration"), (AccidentRegex(), "Date of Accident"), (MileageRegex(), "Mileage"), (InspectionDateRegex(), "Completed inspection date"), (VatRegex(), "VAT status")];
     private static IntakeContentFragment Label(IntakeContentFragment origin, string label, string value) => origin with { Text = $"{label}: {Clean(value)}" };
@@ -86,6 +87,7 @@ public sealed partial class KbsInstructionExtractionPolicy
     [GeneratedRegex(@"(?ims)The\s+vehicle\s+is\s+currently\s+located\s+at\s*:[ \t]*(?<value>.+?)(?=\n\s*Please\s+contact)", RegexOptions.CultureInvariant, 100)] private static partial Regex LocationRegex();
     [GeneratedRegex(@"(?ims)Please\s+contact\s+the\s+following\s+number\s+to\s+arrange\s+inspection\s*:[ \t]*(?:\n\s*)?(?<value>\(?[+\d][+\d ()-]+\)?)", RegexOptions.CultureInvariant, 100)] private static partial Regex ContactRegex();
     [GeneratedRegex(@"(?im)^\s*Email\s*:[ \t]*(?<value>\S+)", RegexOptions.CultureInvariant, 100)] private static partial Regex EmailRegex();
+    [GeneratedRegex(@"(?im)^\s*Mobile\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex MobileRegex();
     [GeneratedRegex(@"(?im)^\s*Mileage\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex MileageRegex();
     [GeneratedRegex(@"(?im)^\s*(?:Completed|Appointed)\s+Inspection\s+Date\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex InspectionDateRegex();
     [GeneratedRegex(@"(?im)^\s*VAT\s+(?:status|registered)\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VatRegex();
