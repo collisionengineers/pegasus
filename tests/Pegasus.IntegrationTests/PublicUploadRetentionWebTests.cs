@@ -889,6 +889,11 @@ internal sealed class RecordingCaseArtifactCustody(
 
     public int StatusCalls { get; private set; }
 
+    /// <summary>
+    /// How many operation-key lookups were attempted, refused ones included.
+    /// </summary>
+    public int LookupCalls { get; private set; }
+
     public IReadOnlyList<RecordedCustodyCall> Calls
     {
         get
@@ -1064,6 +1069,58 @@ internal sealed class RecordingCaseArtifactCustody(
         // its own retry is refused here - see the handoff recorded on
         // INTK-060 scratch/c07-notes.
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Finds the accepted intent one operation key produced, without offering
+    /// content again. This is the read a sender whose response was lost can
+    /// actually make: Stream A fences it on the exact persisted upload link,
+    /// its own Case, and the link still being active — the same fence
+    /// <see cref="RetainAsync"/> applies — rather than on staff casework.
+    /// </summary>
+    /// <remarks>
+    /// Null means only that no committed intent was observed. It is never
+    /// permission to start a new one: a winner still inside
+    /// <see cref="RetainAsync"/> has committed nothing yet and will.
+    /// </remarks>
+    public async Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+        ActionActor actor,
+        Guid caseId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        // Counted before the rule is applied, so a test can prove the lookup
+        // was attempted and refused rather than quietly skipped.
+        LookupCalls++;
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        RequireStatusAuthority(actor, caseId, context, timeProvider.GetUtcNow());
+
+        // The document occurrence is written inside the transaction that
+        // accepts the bytes, so a row here is exactly "custody committed to
+        // holding what this key offered" and its absence is exactly "nothing
+        // committed has been observed".
+        var intent = await context.Set<DocumentOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
+            .Select(item => new { item.DocumentId, item.VersionId })
+            .SingleOrDefaultAsync(cancellationToken);
+        return intent is null
+            ? null
+            : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken);
+    }
+
+    /// <summary>
+    /// What custody durably holds for one exact version, and the adapter's own
+    /// confirmation write, shared by both status reads so neither can drift
+    /// into answering something the other would not.
+    /// </summary>
+    private async Task<CaseArtifactCustodyResult> ReadCommittedIntentAsync(
+        Guid documentId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
         var disposition = StatusDisposition ?? Disposition;
         var confirmed = disposition == CaseArtifactCustodyDisposition.Confirmed;
         var boxFileId = confirmed ? $"box-file:{versionId:N}" : null;
@@ -1095,6 +1152,41 @@ internal sealed class RecordingCaseArtifactCustody(
             version.MediaType,
             disposition == CaseArtifactCustodyDisposition.Failed ? "custody-failed" : null,
             PendingContentStorageKey: null);
+    }
+
+    /// <summary>
+    /// Stream A's fence for the operation-key lookup: staff casework, or the
+    /// exact persisted request link this Case's bytes arrived through, while
+    /// that link is active, unrevoked and unexpired.
+    /// </summary>
+    private static void RequireStatusAuthority(
+        ActionActor actor,
+        Guid caseId,
+        PegasusDbContext context,
+        DateTimeOffset nowUtc)
+    {
+        if (actor.Kind == ActorKind.Staff)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+            return;
+        }
+        if (actor.Kind != ActorKind.RequestLink
+            || !Guid.TryParseExact(actor.SubjectId, "D", out var linkId))
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+        }
+
+        var link = context.Set<RequestUploadLinkEntity>()
+            .AsNoTracking()
+            .SingleOrDefault(item => item.Id == linkId)
+            ?? throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+        if (link.CaseId != caseId
+            || link.Status != RequestUploadStatus.Active
+            || link.RevokedAtUtc is not null
+            || link.ExpiresAtUtc <= nowUtc)
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+        }
     }
 
     private static Guid RequireAuthority(
