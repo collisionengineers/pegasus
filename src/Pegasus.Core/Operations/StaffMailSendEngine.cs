@@ -87,6 +87,8 @@ public interface IStaffMailSendStore
         CancellationToken cancellationToken);
     Task<StaffMailOperation?> GetAsync(
         string actorSubjectId, Guid operationId, CancellationToken cancellationToken);
+    Task<StaffMailOperation?> GetLatestForOriginalAsync(
+        string actorSubjectId, Guid retainedMessageId, CancellationToken cancellationToken);
     Task<StaffMailExecution?> GetExecutionAsync(
         string actorSubjectId, Guid operationId, CancellationToken cancellationToken);
     Task<StaffMailExecution?> GetExecutionForObservationAsync(
@@ -267,6 +269,20 @@ public sealed class StaffMailSend(
     {
         RequireStaff(actor);
         return store.GetAsync(actor.SubjectId, operationId, cancellationToken);
+    }
+
+    public async Task<StaffMailOperation?> GetLatestForOriginalAsync(
+        ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken)
+    {
+        RequireStaff(actor);
+        if (retainedMessageId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A retained message identifier is required.", nameof(retainedMessageId));
+        }
+        await store.RequireCurrentStaffAsync(actor.SubjectId, cancellationToken);
+        return await store.GetLatestForOriginalAsync(
+            actor.SubjectId, retainedMessageId, cancellationToken);
     }
 
     public async Task<StaffMailOperation> ReconcileAsync(

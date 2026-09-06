@@ -44,6 +44,8 @@ public interface IStaffMailSend
 {
     Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken);
     Task<StaffMailOperation?> GetAsync(ActionActor actor, Guid operationId, CancellationToken cancellationToken);
+    Task<StaffMailOperation?> GetLatestForOriginalAsync(
+        ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken);
     Task<StaffMailOperation> ReconcileAsync(ActionActor actor, Guid operationId,
         long expectedVersion, CancellationToken cancellationToken);
     Task<StaffMailOperation> CancelAsync(ActionActor actor, Guid operationId,

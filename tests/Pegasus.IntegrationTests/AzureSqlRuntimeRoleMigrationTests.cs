@@ -904,6 +904,16 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await database.ExecuteAsync(
             $"""
             EXECUTE AS USER = N'pegasus_test_web_runtime';
+            BEGIN TRANSACTION;
+            DECLARE @StaffMailLockResult int;
+            EXEC @StaffMailLockResult = sys.sp_getapplock
+                @Resource = N'staff-mail-original:runtime-role-proof',
+                @LockMode = N'Exclusive',
+                @LockOwner = N'Transaction',
+                @LockTimeout = 0;
+            IF @StaffMailLockResult < 0
+                THROW 51000, 'Web runtime could not acquire the staff-mail transaction lock.', 1;
+            ROLLBACK TRANSACTION;
             INSERT INTO [dbo].[ClaimSources] (
                 [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
             VALUES (
