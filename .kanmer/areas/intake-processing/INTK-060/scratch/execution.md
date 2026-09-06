@@ -146,3 +146,7 @@ Independent review `pass` at `741f1a70d` (attestation `scratch/review-c01`); wav
 - C08: C branch (`ca9caae70`) merged into `c08-shell` → `88028df51`; sole conflict `OperationsSnapshot.cs` resolved to G11's seven-field snapshot with C08's shared `FetchAttentionInputsAsync` and `IGetAttentionRows` retained; `UnidentifiedCount` from the open queue. Build 0/0. Test wave queued behind wave 8 (LocalDB is serial).
 - C05 resumed at `36b0d84f1` (C branch merged over wip `815385cda`), Opus implementer; C06 started at `930440465`, Sonnet implementer. Two editors active.
 - Stale wave 3 runner stopped.
+
+## C07 integrated — C head `1561b886f`
+
+Superseding review `pass` at `28148f54f` (`scratch/review-c07`); wave 8 build 0/0, integration 72/72. Merged `--no-ff` into `task/pegasus-v1-intake` → `1561b886f`, Release build exit 0, pushed (PR #673). A notified with C07 DI list, the PublicUploadOccurrences UPDATE grant and snapshot regeneration on PLAT-075 `c-stream-notes`. Residual for C07 closure: A's host patch + A04 custody adapter, grant, G13 same-object merge, snapshots.
