@@ -33,6 +33,11 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
     /// negative role, or — for the two scan-only PDFs — no verdict at all. Taken
     /// from the extraction review, and asserted from the document's own printed
     /// evidence rather than from the folder each file happens to sit in.
+    ///
+    /// This is the one owner of that recorded fact. It belongs here because
+    /// this class reads the real PDFs through the production reader; the Core
+    /// project asserts what its own text shape can, which is that the verdict
+    /// does not change with the spacing.
     /// </summary>
     private static readonly Dictionary<string, string> Expected =
         new(StringComparer.OrdinalIgnoreCase)
@@ -445,9 +450,16 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
             : row.NormalizedValue;
     }
 
+    /// <summary>
+    /// The identifier leads, because deterministic replay is a claim about the
+    /// identifier: it is derived from the hash, occurrence, field, roles, page,
+    /// raw value and disposition, and comparing only the content it is derived
+    /// from would leave the derivation itself unproved.
+    /// </summary>
     private static string Describe(SourceFieldCandidate row) =>
         string.Join(
             '|',
+            row.Id.ToString(),
             row.Field,
             row.PartyRole,
             row.ReferenceRole,

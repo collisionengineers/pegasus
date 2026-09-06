@@ -10,10 +10,16 @@ namespace Pegasus.Core.Tests.Intake.ThirdPartyReports;
 ///
 /// Two kinds of test live here. The bounded ones use inline excerpts of the
 /// printed layout and run everywhere, so the rules are provable on any machine.
-/// The corpus one reads the reference pack's own extracted text and asserts
-/// that all 29 originals resolve to the family or explicit negative role the
-/// extraction review recorded; the pack is local and git-ignored, so it skips
-/// with a stated reason when absent rather than passing silently.
+/// The corpus ones read the reference pack's own extracted text; the pack is
+/// local and git-ignored, so they skip with a stated reason when absent rather
+/// than passing silently.
+///
+/// The recorded classification of the 29 originals is NOT restated here. It
+/// has one owner — ThirdPartyReportCorpusTests, which reads the real PDFs
+/// through the production reader — and a second copy of a recorded fact is a
+/// second thing to keep in step. What this project proves instead is what its
+/// own text shape can prove and the other cannot: that the verdict and the
+/// values do not depend on how the text engine spaced the columns.
 ///
 /// Every excerpt below is written in the shape the PDF text engine actually
 /// produces, and the padding-independence test proves the same rules read the
@@ -596,69 +602,60 @@ public sealed partial class ThirdPartyReportExtractionTests
     }
 
     /// <summary>
-    /// The whole-corpus classification: every one of the 29 originals resolves
-    /// to the family or the explicit negative role the extraction review
-    /// recorded, read from the document and never from its folder or name. The
-    /// two scan-only originals resolve to neither — with no text there is
-    /// nothing to read, and guessing from the file name is what this proves the
-    /// selector does not do.
+    /// The verdict for every one of the 29 originals is the same whether the
+    /// text engine keeps a printed column's padding or collapses it to single
+    /// spaces. That is the property this project can prove and the real-PDF
+    /// corpus test cannot: it reads through one engine, and this reads the same
+    /// text in both shapes.
+    ///
+    /// It also proves that no original matches two document signatures at once.
+    /// An ambiguous verdict costs a report every candidate it prints, so it is
+    /// a failure here rather than a shrug.
     /// </summary>
     [ReferencePackFact]
-    public void EveryCorpusOriginalResolvesToItsRecordedFamilyOrNegativeRole()
+    public void EveryCorpusOriginalClassifiesTheSameWhicheverWayTheTextIsSpaced()
     {
-        var expected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Report 00077570.pdf"] = "Connexus",
-            ["Report 00077930.pdf"] = "Connexus",
-            ["Report 00079220.pdf"] = "Connexus",
-            ["2041739499656__EREHR91037_.pdf"] = "ExclusiveErehr",
-            ["2063880554396__EREHR92682_.pdf"] = "ExclusiveErehr",
-            ["2063917430326__EREHR92502_.pdf"] = "ExclusiveErehr",
-            ["2065134549155__EREHR93004_.pdf"] = "ExclusiveErehr",
-            ["2139090762105__EREHR96454_.pdf"] = "ExclusiveErehr",
-            ["2158880476495__EREHR97577_.pdf"] = "ExclusiveErehr",
-            ["2159872700713__EREHR97500_.pdf"] = "ExclusiveErehr",
-            ["Bodyshopreport139273-V1.pdf"] = "EvaBodyshop",
-            ["Bodyshopreport236502-V1-EVA-repairable.pdf"] = "EvaBodyshop",
-            ["Bodyshopreport236502-V1-EVA-repairable2.pdf"] = "EvaBodyshop",
-            ["Bodyshopreport236502-V1-EVA-repairable3.pdf"] = "EvaBodyshop",
-            ["Bodyshopreport236502-V1-EVA-repairable4.pdf"] = "EvaBodyshop",
-            ["Bodyshopreport236502-V1-EVA-repairableSupp1.pdf"] = "EvaBodyshop",
-            ["1_Bodyshopreport1064150-V1-Laird-Repairable1.pdf"] = "Laird",
-            ["2336321682865__Bodyshopreport-V1.pdf"] = "Laird",
-            ["LairdRepairable1.pdf"] = "Laird",
-            ["tpreportexample.pdf"] = "Laird",
-            ["Bodyshopreport-V1.pdf"] = "Montgomery",
-            ["MontgomeryRepairable1.pdf"] = "Montgomery",
-            ["Bodyshopreport236502-V1-sPrintAssessors-repairable2.pdf"] = "SPrint",
-            ["Bodyshopreport236502-V1-sPrintAssessors-repairable3.pdf"] = "SPrint",
-            ["GGEstimate1.pdf"] = "Estimate",
-            ["MotorCheck1.pdf"] = "VehicleHistory",
-            ["eva-just-images.pdf"] = "ImageEvidence",
-            ["JohnRBell1.pdf"] = "TextUnavailableRequiresOcr",
-            ["TonBridgeAccidentRepair1.pdf"] = "TextUnavailableRequiresOcr"
-        };
+        var wrong = new List<string>();
+        var count = 0;
 
-        var actual = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, pages) in CorpusText())
         {
-            var result = ThirdPartyReportExtraction.Extract(Readable(pages), Context());
-            actual[name] = result.Selection switch
+            count++;
+            var padded = ThirdPartyReportExtraction.Extract(Readable(pages), Context());
+            var collapsed = ThirdPartyReportExtraction.Extract(
+                Readable([.. pages.Select(page => (page.Page, Collapse(page.Text)))]),
+                Context());
+            if (!string.Equals(
+                    Classification(padded),
+                    Classification(collapsed),
+                    StringComparison.Ordinal))
             {
-                { Family: { } family } => family.ToString(),
-                { Reason: ThirdPartySelectionReason.TextUnavailableRequiresOcr } =>
-                    nameof(ThirdPartySelectionReason.TextUnavailableRequiresOcr),
-                { DocumentRole: { } role } => role.ToString(),
-                var selection => selection.Reason.ToString()
-            };
+                wrong.Add(
+                    $"{name}: padded {Classification(padded)}, "
+                    + $"collapsed {Classification(collapsed)}");
+            }
+
+            if (padded.Selection.Outcome == ThirdPartySelectionOutcome.Ambiguous)
+            {
+                wrong.Add(
+                    $"{name}: matched {padded.Selection.Matches.Count} document signatures at once");
+            }
         }
 
-        Assert.Equal(29, actual.Count);
-        Assert.Equal(
-            expected.OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(entry => $"{entry.Key} = {entry.Value}"),
-            actual.Select(entry => $"{entry.Key} = {entry.Value}"));
+        Assert.Equal(29, count);
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
+
+    /// <summary>The verdict for one source, in the words the record uses.</summary>
+    private static string Classification(ThirdPartyReportExtractionResult result) =>
+        result.Selection switch
+        {
+            { Family: { } family } => family.ToString(),
+            { Reason: ThirdPartySelectionReason.TextUnavailableRequiresOcr } =>
+                nameof(ThirdPartySelectionReason.TextUnavailableRequiresOcr),
+            { DocumentRole: { } role } => role.ToString(),
+            var selection => selection.Reason.ToString()
+        };
 
     /// <summary>
     /// The per-family reading, against the pack's own extracted text: for every
