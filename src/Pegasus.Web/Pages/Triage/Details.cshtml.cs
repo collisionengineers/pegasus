@@ -112,7 +112,6 @@ public sealed class DetailsModel(
         {
             return Forbid();
         }
-        var actor = actionActor.SubjectId;
 
         OperationKey = operationKey;
         try
@@ -120,7 +119,7 @@ public sealed class DetailsModel(
             var mutation = new TriageMutationRequest(
                 id,
                 expectedVersion,
-                actor,
+                actionActor,
                 operationKey,
                 reason);
             switch (actionName)
@@ -131,7 +130,7 @@ public sealed class DetailsModel(
                             id,
                             expectedVersion,
                             staffId,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
@@ -147,7 +146,7 @@ public sealed class DetailsModel(
                         new(
                             id,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason,
                             roadworthiness,
@@ -160,7 +159,7 @@ public sealed class DetailsModel(
                         new(
                             id,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason,
                             roadworthiness,
@@ -177,7 +176,7 @@ public sealed class DetailsModel(
                             candidate.PollOutcomeId,
                             candidate.SentEvidenceId,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
@@ -189,7 +188,7 @@ public sealed class DetailsModel(
                             id,
                             sentEvidenceId ?? Guid.Empty,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
