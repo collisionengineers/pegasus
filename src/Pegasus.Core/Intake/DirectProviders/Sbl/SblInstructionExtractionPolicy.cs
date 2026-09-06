@@ -11,6 +11,7 @@ public sealed partial class SblInstructionExtractionPolicy
     public const string SupportedPrincipalCode = "SBL";
     public const string DocumentProfileKeyValue = "sbl_instruction_document";
     public const int DocumentProfileVersionValue = 1;
+    private const char ProtectedRightApostrophe = '\uE000';
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
@@ -35,7 +36,8 @@ public sealed partial class SblInstructionExtractionPolicy
         new("Inspection date", ["Completed inspection date"], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "inspection"),
-        new("Accident circumstances", ["Incident circumstances"], IsRequired: false, PartyRole: "claimant"),
+        new("Accident circumstances", ["Incident circumstances"], IsRequired: false,
+            PartyRole: "claimant", CanonicalValue: RestoreApostrophe),
         new("VAT status", ["Policyholder VAT status"], IsRequired: false, PartyRole: "claimant"),
         new("Claimant address", ["Policyholder address"], IsRequired: false, PartyRole: "claimant"),
         new("Driver", ["Driver"], IsRequired: false, PartyRole: "driver"),
@@ -78,8 +80,9 @@ public sealed partial class SblInstructionExtractionPolicy
             throw new ArgumentException("The established principal is not SBL.", nameof(principalContext));
 
         var scoped = readResult.Content.SelectMany(InstructionFields).ToArray();
-        var (fields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
+        var (extractedFields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
             scoped, Definitions, Cache, processedAtUtc);
+        var fields = extractedFields.Select(NormalizeField).ToArray();
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(
             SupportedPrincipalCode,
@@ -145,7 +148,10 @@ public sealed partial class SblInstructionExtractionPolicy
             ("Completed Inspection Date", "Completed inspection date")))
             yield return item;
         if (LabelBlock(vehicle, "Incident Circumstances", "Agreed Value") is { } circumstances)
-            yield return Labelled(fragment, "Incident circumstances", circumstances);
+            yield return Labelled(
+                fragment,
+                "Incident circumstances",
+                circumstances.Replace('\u2019', ProtectedRightApostrophe));
         foreach (var item in ReadLabels(fragment, repairer,
             ("Repairer Name", "Repairer name"), ("Repairer Address", "Repairer address"),
             ("Repairer Tel", "Repairer telephone"), ("Repairer Email", "Repairer email"),
@@ -223,6 +229,26 @@ public sealed partial class SblInstructionExtractionPolicy
             : Clean(value);
 
     private static string Clean(string value) => WhitespaceRegex().Replace(value, " ").Trim(' ', ':');
+
+    private static string? RestoreApostrophe(string value) =>
+        value.Replace(ProtectedRightApostrophe, '\u2019');
+
+    private static InstructionReviewField NormalizeField(InstructionReviewField field)
+    {
+        if (string.Equals(field.SuggestedValue, field.Name, StringComparison.OrdinalIgnoreCase))
+            return field with { SuggestedValue = null, Candidates = [] };
+        if (!string.Equals(field.Name, "Accident circumstances", StringComparison.Ordinal))
+            return field;
+        return field with
+        {
+            SuggestedValue = field.SuggestedValue is null ? null : RestoreApostrophe(field.SuggestedValue),
+            Candidates = field.Candidates.Select(candidate => candidate with
+            {
+                Value = RestoreApostrophe(candidate.Value)!,
+                RawValue = candidate.RawValue is null ? null : RestoreApostrophe(candidate.RawValue)
+            }).ToArray()
+        };
+    }
 
     [GeneratedRegex(@"(?im)^\s*URGENT\s+NEW\s+INSTRUCTION\s*$|^\s*From\s*:\s*Smart\s+Business\s+Link\s*$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex SmartInstructionRegex();
