@@ -212,6 +212,13 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
+        services.AddScoped<EfClaimSourceAdministration>();
+        services.AddScoped<IClaimSourceAdministration>(
+            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
+        services.AddScoped<IClaimSourceQueries>(
+            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
+        services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
+        services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(
             provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
@@ -343,7 +350,11 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<ICaseDataQueries>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
-        services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
+        services.AddScoped<InspectionAddressChoicesQueries>();
+        services.AddScoped<IInspectionAddressChoicesQueries>(
+            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
+        services.AddScoped<IInspectionLocationChoices>(
+            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
