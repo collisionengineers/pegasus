@@ -144,6 +144,40 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Contains("<h1>Principals</h1>", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// C06 correction round 2 (ASSUMPTION 8): the other half of the bridge
+    /// for <see cref="IUpdatePrincipalDefaultInspectionLocation"/>. Unlike
+    /// ClaimSources' brand-new routes, EvaSubmission is reachable from
+    /// Principals/Index and opened by every A/B/C web test that visits it,
+    /// so a required constructor dependency there 500s the whole surface
+    /// until Stream A's registration lands. With no C06 registrations
+    /// present at all (today's state on this branch), the page still opens
+    /// and offers only the manual-EVA form, never the default-location one.
+    /// </summary>
+    [Fact]
+    public async Task EvaSubmissionPageRendersWithoutDefaultLocationFormWhenNoC06RegistrationsArePresent()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        // The foundation migration (C-F05) already seeds QDOS and its owning
+        // organization exactly once, so no setup is needed beyond looking
+        // the row up.
+        var organizationId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT OrganizationId FROM Principals WHERE Code = 'QDOS';");
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
+
+        using var response = await client.GetAsync(
+            $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}");
+
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Manual EVA API submission", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Default inspection location", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"LocationOperationKey\"", html, StringComparison.Ordinal);
+    }
+
     private static string InputValue(string html, string name)
     {
         var match = InputTagRegex().Matches(html)
