@@ -256,3 +256,7 @@ Build 0/0, core 16/16, integration 58/59 (+1 skip), a-owned 1/5 (A's seeded-QDOS
 ## Wave 22 (C05 `b506c3b8d`): 2 failures remain
 
 Build/core 29/architecture PASS; corpus 12/13 — the new `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate` finds a JohnRBell `identity.issuer` row (Disposition Missing) with no source label; web 9/15 — `ReprocessingTheSameRetainedBytes…` sees 1 outcome where 2 are expected (the driven re-evaluation pass still emits none). Re-review in progress will bind the causes; C05 round 3 queued with C07 caller round 2 behind the two active editors (C06 r3, C08 r1).
+
+## C07 caller re-review at `6490623c3`: needs-changes — 1 major, 3 minors
+
+All eight round-0 findings fixed; R-3a accepted as recorded residual. Open: R-12 `IsUncertainHandOver` names `HttpRequestException` (Core → System.Net.Http; the fix is to classify via `IntakeDependencyUnavailableException`/`IntakeExceptionPolicy.IsTransientFailure` and let A04's adapter translate transport faults), R-13 a bare `TaskCanceledException` leaves the occurrence `arrived` and re-offers bytes, R-14 the double's status port never checks authority. Round 2 queued for the next editor slot (C06 r3, C08 r1 active).
