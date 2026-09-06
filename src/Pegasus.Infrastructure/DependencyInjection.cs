@@ -71,7 +71,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
         services.AddScoped<IAllocateIntake, AllocateIntake>();
         services.AddScoped<IListIntake, ListIntake>();
+        services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
         services.AddScoped<IGetIntake, GetIntake>();
+        services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
         // The read half of retained mail only. The write port is registered by the
         // poll compositions below, so nothing in Web can add a retained message.
         services.AddScoped<EfRetainedMailboxMessageStore>();
@@ -116,6 +118,7 @@ public static class DependencyInjection
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
         services.AddScoped<EfUnidentifiedStore>();
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
+        services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
@@ -125,9 +128,11 @@ public static class DependencyInjection
         services.AddScoped<ITriageResponseEvidenceCandidateQueries>(
             provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<IListTriage, ListTriage>();
+        services.AddScoped<IListTriagePage, ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<IAssignTriage, AssignTriage>();
+        services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
         services.AddScoped<IRecordTriageFinding, RecordTriageFinding>();
@@ -155,6 +160,13 @@ public static class DependencyInjection
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
         services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
+        services.AddScoped<InstructionExtractionPolicySelector>();
+        services.AddScoped<EfRetainedInstructionAnalysisStore>();
+        services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<ISourceCandidateQueries>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because
