@@ -30,8 +30,7 @@ public sealed class IndexModel(
     ICancelAiJob cancelAiJob,
     IUnidentifiedStore unidentifiedStore,
     IEvaSubmissionQueries evaSubmissionQueries,
-    TimeProvider timeProvider,
-    GetServiceHealth? getServiceHealth = null) : StaffPageModel
+    TimeProvider timeProvider) : StaffPageModel
 {
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
@@ -87,14 +86,6 @@ public sealed class IndexModel(
         LimitReached: false);
 
     /// <summary>
-    /// The Service health snapshot, when this deployment composes it. The
-    /// query is registered with the Automation Actor ingress, so a deployment
-    /// without that feature carries no snapshot and the page shows no Service
-    /// health section — an uncomposed capability is absent, never broken.
-    /// </summary>
-    public ServiceHealthSnapshot? ServiceHealth { get; private set; }
-
-    /// <summary>
     /// The AI Job List (FRD-11): every non-terminal job, plus the jobs that
     /// reached a terminal state today, newest first.
     /// </summary>
@@ -120,10 +111,6 @@ public sealed class IndexModel(
         Operations = await getRequestOperations.ExecuteAsync(actor, cancellationToken);
         PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
         PreservedReason = TempData[PreservedReasonKey] as string;
-        if (getServiceHealth is not null)
-        {
-            ServiceHealth = await getServiceHealth.ExecuteAsync(actor, cancellationToken);
-        }
         var nowUtc = timeProvider.GetUtcNow();
         EvaActivity = await evaSubmissionQueries.GetActivityAsync(cancellationToken);
         EvaFailures = await evaSubmissionQueries.GetRecentFailuresAsync(
