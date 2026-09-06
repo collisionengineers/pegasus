@@ -253,9 +253,19 @@ public sealed record ResolveUnidentifiedRequest(
     string? TargetReference,
     DateTimeOffset ResolvedAtUtc);
 
+public sealed record ReopenUnidentifiedRequest(
+    Guid UnidentifiedItemId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    DateTimeOffset ReopenedAtUtc);
+
 public sealed record UnidentifiedRegisterResult(UnidentifiedItem Item, bool IsReplay);
 
 public sealed record UnidentifiedResolveResult(UnidentifiedItem Item, UnidentifiedHistoryEntry History, bool IsReplay);
+
+public sealed record UnidentifiedReopenResult(UnidentifiedItem Item, UnidentifiedHistoryEntry History, bool IsReplay);
 
 public interface IUnidentifiedStore
 {
@@ -270,6 +280,22 @@ public interface IUnidentifiedStore
     Task<UnidentifiedResolveResult> ResolveAsync(
         ResolveUnidentifiedRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Withdraws a resolution and returns the item to <c>Open</c>, appending
+    /// the <c>Resolved to Open</c> history row; the withdrawn destination stays
+    /// on the record. Not a new state and not a deletion.
+    ///
+    /// Default: in-memory doubles that never reopen anything. The one
+    /// production implementation is
+    /// <c>Pegasus.Infrastructure.Persistence.EfUnidentifiedStore</c>, which
+    /// overrides this and both recheck members.
+    /// </summary>
+    Task<UnidentifiedReopenResult> ReopenAsync(
+        ReopenUnidentifiedRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<UnidentifiedReopenResult>(
+            new NotSupportedException("Reopening an Unidentified item is not available."));
 
     Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
         ResolveUnidentifiedRequest request,
@@ -292,6 +318,52 @@ public interface IUnidentifiedStore
     Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
         UnidentifiedState? state = UnidentifiedState.Open,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Items this reconciliation itself resolved whose origin receipt's manual
+    /// case association has moved on from the version the recorded destination
+    /// was last reconciled against: the only rows whose destination can have
+    /// gone stale. This is a freshness filter, not a destination decision;
+    /// <see cref="ReconcileUnidentifiedDestinations"/> still owns what the
+    /// effective destination is.
+    ///
+    /// Default: an empty page. An in-memory double has no recheck queue - it
+    /// keeps no manual-association versions and no reconciliation watermark, so
+    /// it can never say which of its rows have gone stale, and an empty page is
+    /// the honest answer rather than a fabricated one. The sweep therefore
+    /// still runs its open loop against such a double. The one production
+    /// implementation,
+    /// <c>Pegasus.Infrastructure.Persistence.EfUnidentifiedStore</c>, overrides
+    /// this, <see cref="MarkResolutionRecheckedAsync"/> and
+    /// <see cref="ReopenAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+        int maximum,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
+
+    /// <summary>
+    /// Records that this reconciliation examined the item's recorded
+    /// destination against <paramref name="associationVersion"/>, completing a
+    /// recheck. A recheck that finds the destination unchanged writes nothing
+    /// else, so without this the row satisfies
+    /// <see cref="ListResolutionsToRecheckAsync"/> on every pass; holding the
+    /// head of that bounded, oldest-first page, enough such rows starve every
+    /// later stale resolution of a recheck entirely. The version recorded is
+    /// the one the caller observed, never "now", so an association that moves
+    /// during the pass is picked up next time rather than marked reconciled
+    /// unseen.
+    ///
+    /// Default: unsupported, for the same reason
+    /// <see cref="ListResolutionsToRecheckAsync"/> defaults to empty - a double
+    /// with no recheck queue has no watermark to write.
+    /// </summary>
+    Task MarkResolutionRecheckedAsync(
+        Guid unidentifiedItemId,
+        long associationVersion,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException(
+            new NotSupportedException("Recording an Unidentified resolution recheck is not available."));
 
     /// <summary>
     /// The Queues page's Unidentified tab: open items oldest-first, each
@@ -433,6 +505,19 @@ public static class UnidentifiedValidation
             throw new ArgumentOutOfRangeException(nameof(request), "The resolution target is not recognised.");
         }
         RequireUtc(request.ResolvedAtUtc, nameof(request.ResolvedAtUtc));
+    }
+
+    public static void ValidateReopen(ReopenUnidentifiedRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.UnidentifiedItemId == Guid.Empty || request.ExpectedVersion < 0)
+        {
+            throw new ArgumentException("A reopen requires a valid item and expected version.", nameof(request));
+        }
+        RequireStaffOrAutomation(request.Actor);
+        RequireOperation(request.OperationKey);
+        RequireText(request.Reason, MaximumReasonLength, nameof(request.Reason));
+        RequireUtc(request.ReopenedAtUtc, nameof(request.ReopenedAtUtc));
     }
 
     public static void RequireDetail(string value) => RequireText(value, MaximumDetailLength, nameof(value));

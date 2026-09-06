@@ -4,6 +4,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
@@ -649,6 +650,13 @@ public sealed partial class DetailsModel(
     /// so nothing else closes it until the periodic sweep runs — which is the
     /// backstop if this advisory write fails, exactly as the suggestion
     /// bookkeeping below treats a failure after a committed write.
+    ///
+    /// The backstop only covers faults the sweep can retry. A permanently taken
+    /// operation key is not one of those: the key is consumed for good, every
+    /// later sweep rebuilds the same key and fails on it, and swallowing it here
+    /// would return a 302 over work that is lost. It is excluded from the
+    /// advisory catch so it reaches the operator. A version conflict stays
+    /// advisory — the next sweep reads the fresher version and succeeds.
     /// </summary>
     private async Task CloseUnidentifiedForTriageAsync(
         IntakeReceipt receipt,
@@ -656,9 +664,11 @@ public sealed partial class DetailsModel(
     {
         try
         {
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (
+            exception is not UnidentifiedOperationConflictException
+            && IntakeExceptionPolicy.IsRecoverable(exception))
         {
             LogIntakeCommandFailed(logger, receipt.Id, exception);
         }
