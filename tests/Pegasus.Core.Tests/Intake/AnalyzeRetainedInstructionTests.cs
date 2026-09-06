@@ -16,6 +16,7 @@ public sealed class AnalyzeRetainedInstructionTests
     private static readonly byte[] SourceBytes = Encoding.UTF8.GetBytes(
         "QDOS\nOur Client’s Vehicle: Ford Focus\nRegistration: AB12 CDE");
     private static readonly string SourceHash = Convert.ToHexString(SHA256.HashData(SourceBytes));
+    private const string ResponseHash = "bb11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
     private static readonly DateTimeOffset Now = new(2031, 8, 9, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -299,6 +300,92 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, result.Outcome);
     }
 
+    [Fact]
+    public async Task CompletedOcrIsHashBoundLocatedAndAlwaysReviewOnly()
+    {
+        var evidence = OcrEvidence(SourceHash);
+        var ocrRead = AnalyzeRetainedInstruction.CreateOcrReadResult(evidence);
+        var fragment = Assert.Single(ocrRead.Content);
+        Assert.Equal(2, fragment.Locator!.Page);
+        Assert.Equal(SourceHash, fragment.Locator.Sha256);
+        Assert.Contains(ResponseHash, fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("0.42", fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("0.99", fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("\"Confidence\":null", fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("pixel", fragment.Locator.Region, StringComparison.Ordinal);
+
+        var harness = new Harness(
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
+            {
+                Fields =
+                [
+                    new("Claimant name", "Jane Smith",
+                        [new("Jane Smith", IntakeEvidenceSource.DocumentContent, fragment.SourceLabel, fragment.Locator)],
+                        IsDefaulted: false, HasConflict: false)
+                ]
+            });
+        var actor = ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId);
+        var first = await harness.Command.ExecuteAsync(
+            new(actor, harness.Receipt.Id, harness.Receipt.Version, "ocr-analysis", harness.SourceAssetId, evidence));
+        var replay = await harness.Command.ExecuteAsync(
+            new(actor, harness.Receipt.Id, harness.Receipt.Version, "ocr-analysis", harness.SourceAssetId, evidence));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, first.Outcome);
+        Assert.True(replay.IsReplay);
+        Assert.All(first.Analysis!.Candidates, candidate =>
+            Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
+        var claimant = Assert.Single(first.Analysis.Candidates, candidate => candidate.Field == "Claimant name");
+        Assert.Equal(SourceHash, claimant.Locator!.Sha256);
+        Assert.Equal($"{IntakeOcrProviderIdentity.Provider}/{IntakeOcrProviderIdentity.ModelId}", claimant.ReaderKey);
+        Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, claimant.ReaderVersion);
+        Assert.Equal(1, harness.Documents.Opens);
+    }
+
+    [Fact]
+    public async Task OcrFromStaffOrWithUnattributableProvenanceRecordsNothing()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        var evidence = OcrEvidence(SourceHash);
+        var staff = await harness.Command.ExecuteAsync(
+            new(harness.Actor, harness.Receipt.Id, harness.Receipt.Version, "staff-ocr", harness.SourceAssetId, evidence));
+        var malformed = await harness.Command.ExecuteAsync(
+            new(
+                ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+                harness.Receipt.Id,
+                harness.Receipt.Version,
+                "bad-ocr",
+                harness.SourceAssetId,
+                evidence with { SourceSha256 = new string('0', 64) }));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, staff.Outcome);
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, malformed.Outcome);
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+    }
+
+    private static CompletedOcrEvidence OcrEvidence(string sourceHash) => new(
+        sourceHash,
+        [2],
+        new(
+            IntakeOcrState.Completed,
+            IntakeOcrProviderIdentity.Provider,
+            IntakeOcrProviderIdentity.ModelId,
+            IntakeOcrProviderIdentity.ApiVersion,
+            "provider-operation",
+            ResponseHash,
+            [
+                new(
+                    2,
+                    "QDOS Jane Smith",
+                    [new("QDOS Jane Smith", new(1, 2, 30, 8, "pixel"),
+                        [
+                            new("QDOS", 0.42, new(1, 2, 8, 8, "pixel")),
+                            new("Jane", 0.99, new(9, 2, 18, 8, "pixel")),
+                            new("Smith", null, new(19, 2, 30, 8, "pixel"))
+                        ])],
+                    [new(1, 1, 1, [new(0, 0, "Jane Smith", new(10, 20, 30, 40, "pixel"))])])
+            ]));
+
     [Theory]
     [InlineData("instruction.pdf, page 4", 4)]
     [InlineData("uploaded instruction.pdf", null)]
@@ -356,7 +443,7 @@ public sealed class AnalyzeRetainedInstructionTests
             + "\"MessagePart\":3,\"Occurrence\":0}");
         Assert.Equal(quoted with { Region = null }, legacyNumericLocator);
         Assert.Throws<InvalidDataException>(() => AnalyzeRetainedInstruction.ReadLocator(
-            "{\"Version\":3,\"SourceLabel\":\"future\",\"Page\":null}"));
+            "{\"Version\":4,\"SourceLabel\":\"future\",\"Page\":null}"));
     }
 
     private sealed class Harness

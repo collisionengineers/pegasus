@@ -53,7 +53,13 @@ public sealed record AnalyzeRetainedInstructionRequest(
     Guid ReceiptId,
     long ExpectedReceiptVersion,
     string OperationKey,
-    Guid? IntakeAssetId = null);
+    Guid? IntakeAssetId = null,
+    CompletedOcrEvidence? OcrEvidence = null);
+
+public sealed record CompletedOcrEvidence(
+    string SourceSha256,
+    IReadOnlyList<int> QualifiedPages,
+    IntakeOcrResult Result);
 
 /// <summary>
 /// One field the document states, exactly as recorded: the raw value as
@@ -278,6 +284,17 @@ public sealed class AnalyzeRetainedInstruction(
                 false);
         }
 
+        if (request.OcrEvidence is { } ocrEvidence
+            && !IsValidOcrEvidence(request.Actor, asset, ocrEvidence))
+        {
+            return new(
+                RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                null,
+                "The completed OCR output cannot be attributed to this retained source.",
+                [],
+                false);
+        }
+
         IntakeSourceReadResult readResult;
         try
         {
@@ -298,15 +315,17 @@ public sealed class AnalyzeRetainedInstruction(
 
             using var buffer = new MemoryStream();
             await content.Content.CopyToAsync(buffer, cancellationToken);
-            readResult = await sourceReader.ReadAsync(
-                new(
-                    content.FileName,
-                    content.MediaType,
-                    buffer.ToArray(),
-                    receipt.ReceivedAtUtc,
-                    ActorLabel(request.Actor),
-                    receipt.SourceIdentity),
-                cancellationToken);
+            readResult = request.OcrEvidence is { } completedOcr
+                ? CreateOcrReadResult(completedOcr)
+                : await sourceReader.ReadAsync(
+                    new(
+                        content.FileName,
+                        content.MediaType,
+                        buffer.ToArray(),
+                        receipt.ReceivedAtUtc,
+                        ActorLabel(request.Actor),
+                        receipt.SourceIdentity),
+                    cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -382,7 +401,8 @@ public sealed class AnalyzeRetainedInstruction(
             profile,
             policy.PrincipalCode,
             readResult.ReaderKey,
-            readResult.ReaderVersion);
+            readResult.ReaderVersion,
+            request.OcrEvidence is not null);
 
         var (analysis, isReplay) = await store.RecordAsync(
             new(
@@ -415,7 +435,8 @@ public sealed class AnalyzeRetainedInstruction(
         IInstructionDocumentProfile profile,
         string principalCode,
         string readerKey,
-        string readerVersion)
+        string readerVersion,
+        bool forceReviewOnly = false)
     {
         var policyVersion = profile.DocumentProfileVersion.ToString(CultureInfo.InvariantCulture);
         var documentRole = profile.Signature.DocumentRole;
@@ -440,7 +461,7 @@ public sealed class AnalyzeRetainedInstruction(
                 readerVersion,
                 profile.DocumentProfileKey,
                 policyVersion,
-                SourceCandidateDisposition.Usable)
+                forceReviewOnly ? SourceCandidateDisposition.Ambiguous : SourceCandidateDisposition.Usable)
         };
 
         foreach (var field in extraction.Fields)
@@ -473,7 +494,7 @@ public sealed class AnalyzeRetainedInstruction(
             // document simply says two things and neither may be picked here.
             // Conflicting stays reserved for a candidate that contradicts a
             // fact staff or an Engineer already confirmed.
-            var disposition = field.HasConflict
+            var disposition = forceReviewOnly || field.HasConflict
                 ? SourceCandidateDisposition.Ambiguous
                 : SourceCandidateDisposition.Usable;
             var occurrence = 0;
@@ -544,7 +565,7 @@ public sealed class AnalyzeRetainedInstruction(
     /// </summary>
     public static string LocatorJson(string sourceLabel, int? page, IntakeSourceLocator? locator = null) =>
         JsonSerializer.Serialize(new LocatorEnvelope(
-            locator is null ? 1 : 2,
+            locator?.Sha256 is not null || locator?.DocumentRole is not null ? 3 : locator is null ? 1 : 2,
             sourceLabel,
             page ?? locator?.Page,
             locator?.Kind,
@@ -554,13 +575,15 @@ public sealed class AnalyzeRetainedInstruction(
             locator?.FormField,
             locator?.Region,
             locator?.MessagePart,
-            locator?.Occurrence), LocatorJsonOptions);
+            locator?.Occurrence,
+            locator?.Sha256,
+            locator?.DocumentRole), LocatorJsonOptions);
 
     public static (string SourceLabel, int? Page, IntakeSourceLocator? Locator) ReadLocator(string locatorJson)
     {
         var envelope = JsonSerializer.Deserialize<LocatorEnvelope>(locatorJson, LocatorJsonOptions)
             ?? throw new InvalidDataException("The source locator envelope is unreadable.");
-        if (envelope.Version is not (1 or 2))
+        if (envelope.Version is not (1 or 2 or 3))
         {
             throw new InvalidDataException("The source locator envelope version is unsupported.");
         }
@@ -586,7 +609,9 @@ public sealed class AnalyzeRetainedInstruction(
                 envelope.FormField,
                 envelope.Region,
                 envelope.MessagePart ?? IntakeMessagePart.None,
-                envelope.Occurrence ?? 0);
+                envelope.Occurrence ?? 0,
+                envelope.Sha256,
+                envelope.DocumentRole);
 
     public sealed record LocatorEnvelope(
         int Version,
@@ -599,7 +624,69 @@ public sealed class AnalyzeRetainedInstruction(
         string? FormField = null,
         string? Region = null,
         IntakeMessagePart? MessagePart = null,
-        int? Occurrence = null);
+        int? Occurrence = null,
+        string? Sha256 = null,
+        string? DocumentRole = null);
+
+    private static bool IsValidOcrEvidence(
+        ActionActor actor,
+        IntakeAssetRecord asset,
+        CompletedOcrEvidence evidence)
+    {
+        var result = evidence.Result;
+        var qualified = evidence.QualifiedPages;
+        return actor.Kind == ActorKind.Automation
+            && string.Equals(actor.SubjectId, ReconcileUnidentifiedDestinations.AutomationActorId, StringComparison.Ordinal)
+            && IsSha256(evidence.SourceSha256)
+            && string.Equals(evidence.SourceSha256, asset.ContentHash, StringComparison.OrdinalIgnoreCase)
+            && result.State == IntakeOcrState.Completed
+            && IsSha256(result.ResponseSha256)
+            && string.Equals(result.Provider, IntakeOcrProviderIdentity.Provider, StringComparison.Ordinal)
+            && string.Equals(result.ModelId, IntakeOcrProviderIdentity.ModelId, StringComparison.Ordinal)
+            && string.Equals(result.ApiVersion, IntakeOcrProviderIdentity.ApiVersion, StringComparison.Ordinal)
+            && qualified.Count > 0
+            && qualified.All(page => page > 0)
+            && qualified.Distinct().Count() == qualified.Count
+            && result.PageResults.Select(page => page.Number).Order().SequenceEqual(qualified.Order())
+            && result.PageResults.All(page => !string.IsNullOrWhiteSpace(page.Text));
+    }
+
+    private static bool IsSha256(string? value) =>
+        value is { Length: 64 }
+        && value.All(character => char.IsAsciiHexDigit(character));
+
+    internal static IntakeSourceReadResult CreateOcrReadResult(CompletedOcrEvidence evidence)
+    {
+        var responseSha = evidence.Result.ResponseSha256!;
+        var content = evidence.Result.PageResults
+            .OrderBy(page => page.Number)
+            .Select(page => new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                $"OCR page {page.Number}; response {responseSha}",
+                page.Text,
+                new(
+                    IntakeLocatorKind.Page,
+                    Page: page.Number,
+                    Region: JsonSerializer.Serialize(
+                        new OcrPageProvenance(page.Lines, page.Tables, responseSha),
+                        LocatorJsonOptions),
+                    Sha256: evidence.SourceSha256,
+                    DocumentRole: "ocr")))
+            .ToArray();
+        return new(
+            IntakeSourceReadStatus.Readable,
+            content,
+            [],
+            [],
+            false,
+            ReaderKey: $"{evidence.Result.Provider}/{evidence.Result.ModelId}",
+            ReaderVersion: evidence.Result.ApiVersion);
+    }
+
+    private sealed record OcrPageProvenance(
+        IReadOnlyList<IntakeOcrLine> Lines,
+        IReadOnlyList<IntakeOcrTable> Tables,
+        string ResponseSha256);
 
     /// <summary>
     /// The receipt's own retained source asset by default; an explicit id picks
