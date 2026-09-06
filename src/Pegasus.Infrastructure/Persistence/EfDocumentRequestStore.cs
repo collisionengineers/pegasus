@@ -61,6 +61,7 @@ internal sealed class EfDocumentRequestStore(
     {
         ArgumentNullException.ThrowIfNull(command);
         var operationKey = ValidateActorAndOperation(command.Actor, command.OperationKey);
+        var (recipient, reason) = NormalizeCreate(command.Recipient, command.Reason);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var history = await FindHistoryAsync(context, operationKey, cancellationToken);
@@ -78,6 +79,12 @@ internal sealed class EfDocumentRequestStore(
             }
 
             var replayLink = ToCreatedUploadLink(replay, history);
+            if (!string.Equals(replayLink.Recipient, recipient, StringComparison.Ordinal)
+                || !string.Equals(replayLink.Reason, reason, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The upload-request creation operation key was reused with different values.");
+            }
             DocumentActionHistory.RequireExactReplay(
                 history,
                 "request_upload_link",
@@ -112,6 +119,8 @@ internal sealed class EfDocumentRequestStore(
             CreatedAtUtc = now,
             ExpiresAtUtc = uploadPolicy.CalculateExpiry(now),
             LimitsVersion = uploadLimits.Version,
+            Recipient = recipient,
+            Reason = reason,
             Version = 1,
             CreateOperationKey = operationKey
         };
@@ -852,6 +861,22 @@ internal sealed class EfDocumentRequestStore(
         return normalized;
     }
 
+    private static (string Recipient, string? Reason) NormalizeCreate(
+        string recipient,
+        string? reason)
+    {
+        var normalizedRecipient = RequireText(recipient, 500, nameof(recipient));
+        var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        if (normalizedReason?.Length > 1000)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(reason),
+                "The value cannot exceed 1000 characters.");
+        }
+
+        return (normalizedRecipient, normalizedReason);
+    }
+
     private static Task<ActionHistoryEntity?> FindHistoryAsync(
         PegasusDbContext context,
         string operationKey,
@@ -871,6 +896,8 @@ internal sealed class EfDocumentRequestStore(
         entity.AcceptedFileCount,
         entity.AcceptedByteCount,
         entity.LimitsVersion,
+        RequireStoredRecipient(entity.Recipient),
+        entity.Reason,
         entity.Version);
 
     private sealed record RequestUploadHistoryValue(
@@ -883,7 +910,15 @@ internal sealed class EfDocumentRequestStore(
         int AcceptedFileCount,
         long AcceptedByteCount,
         string LimitsVersion,
+        string Recipient,
+        string? Reason,
         long Version);
+
+    private static string RequireStoredRecipient(string? recipient) =>
+        string.IsNullOrWhiteSpace(recipient)
+            ? throw new InvalidDataException(
+                "The upload-request link is missing its required recipient.")
+            : recipient;
 
     private static RequestUploadLink ToCreatedUploadLink(
         RequestUploadLinkEntity current,
@@ -891,7 +926,8 @@ internal sealed class EfDocumentRequestStore(
     {
         var snapshot =
             DocumentActionHistory.Deserialize<RequestUploadHistoryValue>(history.AfterJson);
-        if (snapshot.RequestId != current.Id
+        if (string.IsNullOrWhiteSpace(snapshot.Recipient)
+            || snapshot.RequestId != current.Id
             || snapshot.CaseId != current.CaseId
             || !string.Equals(
                 snapshot.Status,
@@ -906,6 +942,8 @@ internal sealed class EfDocumentRequestStore(
                 snapshot.LimitsVersion,
                 current.LimitsVersion,
                 StringComparison.Ordinal)
+            || !string.Equals(snapshot.Recipient, current.Recipient, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Reason, current.Reason, StringComparison.Ordinal)
             || snapshot.Version != 1)
         {
             throw new InvalidDataException(
@@ -923,7 +961,9 @@ internal sealed class EfDocumentRequestStore(
             AcceptedFileCount: 0,
             AcceptedByteCount: 0,
             snapshot.LimitsVersion,
-            snapshot.Version);
+            snapshot.Version,
+            snapshot.Recipient,
+            snapshot.Reason);
     }
 
     private static void EnsureExpectedVersion(long actual, long expected, string aggregate)
@@ -946,7 +986,9 @@ internal sealed class EfDocumentRequestStore(
         value.AcceptedFileCount,
         value.AcceptedByteCount,
         value.LimitsVersion,
-        value.Version);
+        value.Version,
+        RequireStoredRecipient(value.Recipient),
+        value.Reason);
 
     private static UploadToRequestResult Unavailable() =>
         new(RequestUploadDecision.Unavailable, null, false);

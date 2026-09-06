@@ -284,14 +284,18 @@ public sealed record RequestUploadLink(
     int AcceptedFileCount,
     long AcceptedByteCount,
     string LimitsVersion,
-    long Version);
+    long Version,
+    string Recipient = "",
+    string? Reason = null);
 
 public sealed record CreateRequestUploadLinkCommand(
     Guid CaseId,
     ActionActor Actor,
     string OperationKey,
     long ExpectedCaseVersion,
-    string EditLeaseToken);
+    string EditLeaseToken,
+    string Recipient = "",
+    string? Reason = null);
 
 public sealed record CreateRequestUploadLinkResult(
     RequestUploadLink Link,
