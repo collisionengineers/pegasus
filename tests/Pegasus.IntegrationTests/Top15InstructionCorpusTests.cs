@@ -397,6 +397,31 @@ public sealed class Top15InstructionCorpusTests
                 new(null, "cost of replacement if beyond repair", "Requested work is not an accepted report outcome.")
             ]),
         new(
+            "BLACK", $"{CorpusRoot}/BLACK 01.pdf",
+            "bf9f91f653436c3d344279f6f8606b908340d518f9f91cc27fb13761423b4385",
+            new("Mr Abraham Huruy", "261436SA", "BF16FOT", new(2026, 4, 30), new(2026, 5, 6)),
+            [new("Inspection address", "Flat 1-2, 24 Potter Street, Newport Gwent, NP20 2DB", "Claimant address has its own role.")]),
+        new(
+            "BLACK", $"{CorpusRoot}/BLACK 02.pdf",
+            "7deb2e88da8e9740a65f745f6ed48b53e8e10ec59a30e666d69b08ef0c1eb834",
+            new("Mr Osman Ifow", "261435SA", "BX66SZV", new(2026, 5, 3), new(2026, 5, 6)),
+            [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
+        new(
+            "BLACK", $"{CorpusRoot}/BLACK 03.pdf",
+            "201fbada7460459d78049583de557aa8ecec729a3b041cdb77b74cd9693cc071",
+            new("Mr Hassan Butt", "261434SA", "BR19SRX", new(2026, 4, 30), new(2026, 5, 5)),
+            [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
+        new(
+            "BLACK", $"{CorpusRoot}/BLACK 04.pdf",
+            "89aa7d9b752b14564f78dd065cc287805274898028625f6df161ff211303afcd",
+            new("Mr Jamal Khan", "261425SA", "CB11DCB", new(2026, 4, 22), new(2026, 4, 30)),
+            [new("Inspection address", "13 Oregon Avenue, London, E12 5JE", "Claimant address has its own role.")]),
+        new(
+            "BLACK", $"{CorpusRoot}/BLACK 05.pdf",
+            "a0a1d79cc66fdff601643285415379808331152557b528483c65062fcddc5419",
+            new("Mr Afjol Hussain", "261422SA", "BX67RZU", new(2026, 4, 26), new(2026, 4, 30)),
+            [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
+        new(
             "SBL", $"{CorpusRoot}/SBL 01.pdf",
             "fa2d7e6abe04830ac29bd5faa7b9452212a6bc91d636cfddf10510c821780fc8",
             new("Mr Craig Motorhome Escapes", "SBL-B0470099", "SK24KYF", new(2026, 4, 6), new(2026, 5, 6)),
@@ -510,7 +535,8 @@ public sealed class Top15InstructionCorpusTests
             new FwInstructionExtractionPolicy(),
             new QclInstructionExtractionPolicy(),
             new OakInstructionExtractionPolicy(),
-            new SblInstructionExtractionPolicy()
+            new SblInstructionExtractionPolicy(),
+            new BlackInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
