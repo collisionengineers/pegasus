@@ -21,7 +21,6 @@ public static class ThirdPartyReportFields
     public const string ReportDate = "identity.report.date";
     public const string Revision = "identity.revision";
     public const string Amendment = "identity.amendment";
-    public const string BaseReportReference = "identity.base.report.reference";
 
     public const string Registration = "vehicle.registration";
     public const string Make = "vehicle.make";
@@ -106,7 +105,6 @@ public static class ThirdPartyReportFields
     public const string PageRequiresHumanVerification = "source.page.requires-human-verification";
 
     public const string Photograph = "media.photograph";
-    public const string Diagram = "media.diagram";
 
     /// <summary>
     /// The namespace every reconciliation finding is recorded under. A finding
@@ -143,18 +141,6 @@ public static class ThirdPartyEstimateRoles
     public const string Revised = "revised";
     public const string Supplement = "supplement";
     public const string ContractRepair = "contract-repair";
-
-    public static ThirdPartyEstimateRole Parse(string role) => role switch
-    {
-        Initial => ThirdPartyEstimateRole.Initial,
-        Claimed => ThirdPartyEstimateRole.Claimed,
-        Assessed => ThirdPartyEstimateRole.Assessed,
-        Agreed => ThirdPartyEstimateRole.Agreed,
-        Revised => ThirdPartyEstimateRole.Revised,
-        Supplement => ThirdPartyEstimateRole.Supplement,
-        ContractRepair => ThirdPartyEstimateRole.ContractRepair,
-        _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown printed amount role.")
-    };
 
     public static string Code(ThirdPartyEstimateRole role) => role switch
     {
@@ -596,12 +582,6 @@ public static class ThirdPartyReportExtraction
     ];
 
     /// <summary>
-    /// The rule table per family. John R Bell is deliberately empty: the only
-    /// original in the corpus is scan-only, so no printed layout has been
-    /// observed and no rule is guessed for it — its fields stay unavailable
-    /// until OCR text reaches this engine (INTK-032).
-    /// </summary>
-    /// <summary>
     /// The printed labels that end a cell in the shared narrative block. They
     /// come from the corpus's own vehicle table, so a value stops where the
     /// next label starts however the PDF engine spaced the columns.
@@ -628,6 +608,12 @@ public static class ThirdPartyReportExtraction
         + @"|Inspection Location|Vehicle Status|Pre-Accident Condition|Cause of Damage"
         + @"|Date of Report|Date of Inspection|Date Instructed|Date of Accident|Miles|Km";
 
+    /// <summary>
+    /// The rule table per family. John R Bell is deliberately empty: the only
+    /// original in the corpus is scan-only, so no printed layout has been
+    /// observed and no rule is guessed for it — its fields stay unavailable
+    /// until OCR text reaches this engine (INTK-032).
+    /// </summary>
     private static readonly Dictionary<ThirdPartyReportFamily, ThirdPartyFamilyRules> Rules = new()
     {
         [ThirdPartyReportFamily.Connexus] = new(NarrativeLabels, NarrativeRules),
@@ -649,10 +635,6 @@ public static class ThirdPartyReportExtraction
         @"\s+",
         RegexOptions.CultureInvariant,
         TimeSpan.FromMilliseconds(100));
-
-    /// <summary>The families that carry bounded label rules today.</summary>
-    public static IReadOnlyList<ThirdPartyReportFamily> ExtractableFamilies =>
-        [.. Rules.Where(entry => entry.Value.Rules.Count > 0).Select(entry => entry.Key).Order()];
 
     /// <summary>
     /// Reads one source into a third-party report candidate. A source with no
