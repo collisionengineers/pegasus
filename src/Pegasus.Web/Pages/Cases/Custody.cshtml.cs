@@ -129,12 +129,19 @@ public sealed class CustodyModel(
         {
             return Forbid();
         }
+        // The shared contract keeps the recipient optional; this create action
+        // requires one, so a missing or blank recipient never reaches Core.
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            RetainProposedValues(id);
+            TempData["CaseError"] = "The upload request needs a recipient.";
+            return RedirectToDetails(id);
+        }
 
         try
         {
-            // The shared contract keeps both optional; the create dialog
-            // requires the recipient itself. An omitted reason is null before
-            // Core, while supplied text (blank included) is Core's to judge.
+            // An omitted reason is null before Core; supplied text, blank
+            // included, is Core's to trim, bound or refuse.
             var result = await createRequestUploadLink.ExecuteAsync(
                 new(
                     id,
