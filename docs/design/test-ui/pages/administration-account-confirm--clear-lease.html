@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Disable account · Pegasus</title>
+    <title>Clear case edit hold · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -94,7 +94,7 @@
                 <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="0 outstanding">0</span>
+                        <span class="nav-count" aria-label="1 outstanding">1</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -156,27 +156,30 @@
                   data-workspace-href=""
                   data-workspace-label="">
                 <div class="content">
+                        <div class="notice notice--success mb-2" role="status" data-confirmation>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                            <span>Existing browser sessions were revoked.</span>
+                        </div>
 
 <header class="page-header">
     <div class="page-title">
             <p class="eyebrow">Administration</p>
-        <h1>Disable account</h1>
+        <h1>Clear case edit hold</h1>
     </div>
 </header>
 
 
 <section class="panel" aria-labelledby="account-action-title">
     <div class="panel-head">
-        <h2 id="account-action-title">Disable account</h2>
+        <h2 id="account-action-title">Clear case edit hold</h2>
     </div>
     <div class="panel-body">
-        <dl class="detail-list"><div><dt>Account</dt><dd>development-offline-administrator</dd></div></dl>
-            <div class="notice notice--warning">
-                <span>Disabling revokes existing browser sessions; the account is retained permanently.</span>
-            </div>
+        <dl class="detail-list"><div><dt>Account</dt><dd>held-lease-test-ui-guid-3</dd></div></dl>
         <form method="post" class="stack" action="administration-accounts--default.html">
             <input type="hidden" name="staffId" value="test-ui-guid-1" />
             <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="caseId" value="test-ui-guid-2" />
+                <input type="hidden" name="expectedLeaseGeneration" value="1" />
             <div class="field field--narrow">
                 <label class="req" for="confirm-reason">Reason</label>
                 <textarea id="confirm-reason" name="reason" rows="3" required

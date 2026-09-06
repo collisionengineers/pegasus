@@ -30,6 +30,35 @@ public sealed partial class AutomationConnectorAuthorizationTests
     private const string State = "state-4c1c0d0f";
 
     [Fact]
+    public async Task AdministrationHealthReadsTheConfiguredClientRegistryAfterEachChange()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var browser = CreateBrowser(mcpFactory);
+        var administrator = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+
+        foreach (var enabled in new[] { true, false, true })
+        {
+            await using (var scope = mcpFactory.Services.CreateAsyncScope())
+            {
+                var registry = scope.ServiceProvider.GetRequiredService<AutomationClientRegistry>();
+                await registry.SetEnabledAsync(
+                    enabled, administrator, "Verify configured health state", Guid.NewGuid().ToString("N"), default);
+            }
+            await using (var scope = mcpFactory.Services.CreateAsyncScope())
+            {
+                var status = scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IAutomationIngressStatusQueries>();
+                Assert.IsType<AutomationIngressStatusQueries>(status);
+                Assert.Equal(enabled, await status.IsEnabledAsync(default));
+            }
+            using var response = await browser.GetAsync("/Administration/Health");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("Automation ingress", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task SeparateConsentsRetainDistinctGrantAttribution()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);

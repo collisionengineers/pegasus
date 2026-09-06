@@ -362,6 +362,10 @@ public sealed class IndexModel(
         {
             confirmation = await operation(actor);
         }
+        catch (CaseEditLeaseConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "The case edit hold changed. Reload the account before trying again.");
+        }
         catch (StaffAccountAdministrationException exception)
         {
             ModelState.AddModelError(string.Empty, MutationErrorMessage(exception.Error));
@@ -471,7 +475,6 @@ public sealed class IndexModel(
 }
 
 /// <summary>
-/// One accounts-table row: the account summary plus Core's outstanding
-/// access-review verdict for it.
+/// One accounts-table row and whether it represents the current operator.
 /// </summary>
 public sealed record StaffAccountRow(StaffAccountSummary Account, bool IsCurrentOperator);

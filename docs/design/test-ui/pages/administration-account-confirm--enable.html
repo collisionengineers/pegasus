@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Disable account · Pegasus</title>
+    <title>Enable account · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -160,20 +160,17 @@
 <header class="page-header">
     <div class="page-title">
             <p class="eyebrow">Administration</p>
-        <h1>Disable account</h1>
+        <h1>Enable account</h1>
     </div>
 </header>
 
 
 <section class="panel" aria-labelledby="account-action-title">
     <div class="panel-head">
-        <h2 id="account-action-title">Disable account</h2>
+        <h2 id="account-action-title">Enable account</h2>
     </div>
     <div class="panel-body">
         <dl class="detail-list"><div><dt>Account</dt><dd>development-offline-administrator</dd></div></dl>
-            <div class="notice notice--warning">
-                <span>Disabling revokes existing browser sessions; the account is retained permanently.</span>
-            </div>
         <form method="post" class="stack" action="administration-accounts--default.html">
             <input type="hidden" name="staffId" value="test-ui-guid-1" />
             <input type="hidden" name="operationKey" value="{{operationkey}}" />
