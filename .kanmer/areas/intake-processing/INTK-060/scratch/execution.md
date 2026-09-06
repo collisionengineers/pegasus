@@ -122,3 +122,7 @@ build PASS; Core 108/108; Architecture 100/100; integration 95/96 — the single
 ## C07 at `b46a07452` — G12 merged and resolved in-stream
 
 Conflicts resolved in `EfTriageStore.cs` (usings) and `Pages/Triage/Details.cshtml.cs` (explicit engineer choice with the typed actor); `AddTriageNoteRequest.Actor` typed and hashed with kind+subject; `ValidateNote` through G12's `ValidateActorAndOperation`; A-owned G12 files untouched. Two fixes found in the merge review: Triage note bound now 500 (one constant, matches `TriageHistory.Reason`), and `ICaseEngineerChoices` (registered by G10) is a required dependency of the assignment picker. Still A handoffs: `IAddTriageNote`, `IListTriagePage` registrations. Wave 5 dispatched (incl. the concurrency proof twice and the G12-touched suites). Deviation 3 (typed actors) closed.
+
+## C01 review (9b4dd1ef2): needs-changes
+
+Independent reviewer: one major `C01-R-1` (Unidentified keyset continuation filters media kind after a window and can drop rows under a sparse filter), five minors (source-asset rule triplicated; stranded XML doc; `SingleOrDefaultAsync` on non-unique key; C03 deferral unrecorded; no simplification pass), four nits; PR 639/646 rows, analysis command, selector and A05 items verified faithful; no A-owned file touched. Correction round 2 dispatched to the C01 implementer; a targeted re-review and wave follow. C07 review running.
