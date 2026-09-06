@@ -178,6 +178,62 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(0, custody.Calls);
     }
 
+    /// <summary>
+    /// A hand-over that throws mid-call is exactly what
+    /// <see cref="IncomingArtifactCustodyState.Unknown"/> exists for: custody
+    /// may already hold the bytes. It has to be recorded as uncertain rather
+    /// than left in the state it was offered from, so the next attempt asks
+    /// about it instead of offering the same bytes a second time.
+    /// </summary>
+    [Fact]
+    public async Task AThrownHandOverIsRecordedUncertainAndTheBytesAreNeverOfferedAgain()
+    {
+        var custody = new ThrowingCustody(new TimeoutException("the custody call timed out"));
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed());
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Occurrence();
+
+        var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
+        Assert.Equal(occurrence.OccurrenceId, uncertain.OccurrenceId);
+        Assert.Equal(occurrence.CaseId, uncertain.CaseId);
+        Assert.Null(uncertain.DocumentId);
+        Assert.Null(uncertain.BoxFileId);
+        Assert.Equal(uncertain, Assert.Single(store.Recorded));
+
+        // The retry asks rather than repeats. There is nothing to ask with -
+        // custody never named a document - so it honestly stays uncertain, and
+        // the bytes are still offered exactly once.
+        var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
+        Assert.Equal(1, custody.Calls);
+        Assert.Equal(0, status.Calls);
+    }
+
+    /// <summary>
+    /// A refusal is not an uncertainty. An authorization failure inside custody
+    /// never offered the bytes, so it surfaces instead of being buried as an
+    /// arrival nothing can reconcile.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalInsideCustodySurfacesInsteadOfBecomingAnUncertainRetention()
+    {
+        var custody = new ThrowingCustody(
+            new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload));
+        var store = new RecordingStore();
+        var command = new RetainIncomingArtifact(custody, store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
+            PublicActor(),
+            Occurrence(),
+            new MemoryStream([1])));
+
+        Assert.Empty(store.Recorded);
+    }
+
     private static CaseArtifactCustodyResult Confirmed() => new(
         CaseArtifactCustodyDisposition.Confirmed,
         DocumentId,
@@ -203,6 +259,24 @@ public sealed class RetainIncomingArtifactTests
             Calls++;
             Requests.Add(request);
             return Task.FromResult(result);
+        }
+    }
+
+    /// <summary>
+    /// Custody that reads the bytes and then fails - the shape of a lost
+    /// connection or a timeout, where the caller cannot know what was kept.
+    /// </summary>
+    private sealed class ThrowingCustody(Exception exception) : ICaseArtifactCustody
+    {
+        public int Calls { get; private set; }
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            request.Content.CopyTo(Stream.Null);
+            return Task.FromException<CaseArtifactCustodyResult>(exception);
         }
     }
 
