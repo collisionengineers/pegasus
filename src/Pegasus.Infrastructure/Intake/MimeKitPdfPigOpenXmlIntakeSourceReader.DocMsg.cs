@@ -129,6 +129,15 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
             "doc-rtf-engine",
             $"{sourceLabel} RTF text was read passively; embedded objects and scripts were not opened.",
             IntakeEvidenceSource.DocumentContent));
+        if (issues.Any(issue => string.Equals(
+                issue.Code, "MSG_RTF_RESERVED_STRUCTURE_TEXT", StringComparison.Ordinal)))
+        {
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "doc-rtf-reserved-structure-text",
+                $"{sourceLabel} contains textual values reserved for RTF structure parsing and requires review.",
+                IntakeEvidenceSource.DocumentContent));
+        }
         if (issues.Any(issue => string.Equals(issue.Code, "MSG_RTF_GROUP_INVALID", StringComparison.Ordinal)))
         {
             result.IsIncomplete = true;
