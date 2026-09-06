@@ -420,3 +420,7 @@ R-1 (blocker) `AzureDocumentIntelligenceOcr.Pages` builds lines with empty `Word
 ## A on C08 residuals (PR 673 5561214716; C ack posted)
 
 Generation and StaffSend ARE mapped by A's store (combined) — C08 round 4 must remove the `StaffSend`-or-`SentEvidence` fallback and require real `StaffSend` + positive `Generation`; `IGetAttentionRows` mapping: A authors after C publishes the reviewed C08 head (bridge stays until then, then reverts); `StaffMailSend` exists in A (DI:815), offline adapter A's; `/Administration/AiJobs` is A06 — keep the link; `/Inbox/Compose` catalogue entry A's. Residuals must cite combined availability. Folded into the C08 round 4 brief (queued).
+
+## INTK-027 integration on the C branch — `78cb51c2c` (unpushed, build 0/0)
+
+`465d099f8` adapts C's direct `ProcessQueuedIntake` constructions (`CustodyOutboxIntegrationTests:2467` refusing double; `IntakeWebDriver.CreateProcessor` prefers a host-composed reader, else the refusing double — test support only); new C-owned `Support/RecordingLogicalDocumentVersionReader.cs`. `78cb51c2c` retargets the C05 tripwire to work item Complete + `recorded` → `recorded_reading_stands` with the armed double serving the exact retained bytes (ASSUMPTION 8 closed). Wave 33 running before push. C02 round 1 dispatched (Opus). Editors: C07b r4, C03 b1, C02 r1. C08 r4 next.
