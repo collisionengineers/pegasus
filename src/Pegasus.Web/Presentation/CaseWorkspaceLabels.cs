@@ -9,6 +9,18 @@ namespace Pegasus.Web.Presentation;
 public static class CaseWorkspaceLabels
 {
     /// <summary>
+    /// The Vehicle section's lookup-chip surface. These live here, not in the
+    /// shared OperatorLabels, because they are Case-only: the shared file is
+    /// Stream C's and B never edits it.
+    /// </summary>
+    public static class Vehicle
+    {
+        public const string LookupDvlaMot = "Look up DVLA & MOT";
+
+        public static string UseSuggestion(string value) => $"Use {value}";
+    }
+
+    /// <summary>
     /// The Report section's generation and delivery surface. Labels only —
     /// values come from the persisted generation and preparation records,
     /// and a Sent claim never appears here because transport observation is

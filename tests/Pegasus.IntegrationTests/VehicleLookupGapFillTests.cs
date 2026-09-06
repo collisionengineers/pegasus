@@ -76,6 +76,71 @@ public sealed class VehicleLookupGapFillTests
             $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'suggestion'"));
     }
 
+    [Fact]
+    public async Task AcceptingOneSuggestionClearsOnlyThatFieldAndMileageIsAtomic()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var observationId = await database.ScalarAsync<Guid>(
+            $"SELECT TOP (1) Id FROM VehicleLookupObservations WHERE Registration = 'ST66BCE' ORDER BY RecordedAtUtc DESC");
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var caseVersion = await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+        await using var scope = database.CreateAsyncScope();
+        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+        var accept = scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>();
+        var makeLease = await leases.ClaimAsync(
+            new(caseId, caseVersion, actor, "gap-fill-make-lease"),
+            CancellationToken.None);
+        var acceptedMake = await accept.ExecuteAsync(
+            new(
+                caseId,
+                makeLease.Version,
+                observationId,
+                VehicleSuggestionDecision.Accept,
+                null,
+                actor,
+                "gap-fill-accept-make",
+                "Accepted the make suggestion.",
+                makeLease.Token)
+            {
+                Field = VehicleSuggestionField.Make
+            },
+            CancellationToken.None);
+
+        Assert.Equal("RENAULT", acceptedMake.Values.Make);
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'suggestion'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'suggestion'"));
+
+        var mileageLease = await leases.ClaimAsync(
+            new(caseId, acceptedMake.ResultingCaseVersion, actor, "gap-fill-mileage-lease"),
+            CancellationToken.None);
+        await accept.ExecuteAsync(
+            new(
+                caseId,
+                mileageLease.Version,
+                observationId,
+                VehicleSuggestionDecision.Accept,
+                null,
+                actor,
+                "gap-fill-accept-mileage",
+                "Accepted the mileage suggestion.",
+                mileageLease.Token)
+            {
+                Field = VehicleSuggestionField.Mileage
+            },
+            CancellationToken.None);
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit') AND ValueKind = 'suggestion'"));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit') AND ValueKind = 'confirmed' AND SourceIdentity = '{observationId:D}'"));
+    }
+
     private static async Task RecordLookupAsync(
         LocalDbTestDatabase database,
         Guid caseId,
