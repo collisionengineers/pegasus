@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -15,20 +16,10 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// C08: <c>/Inbox/Compose</c> drives the real <c>ComposeModel</c> handlers
-/// against a C-owned recording <see cref="IStaffMailSend"/> double. GET never
-/// sends; an invalid actor, an unknown mailbox, empty recipients, or a Case
-/// whose version has moved on all return the form without a call.
+/// C08: compose and retained-message correspondence drive the real page
+/// handlers against a recording <see cref="IStaffMailSend"/> double. GET never
+/// sends; invalid context and stale workflow state return without a call.
 /// </summary>
-/// <remarks>
-/// Reply/ReplyAll/Forward (<c>Message.cshtml.cs</c>) are not implemented in
-/// this slice: building their <see cref="StaffMailOriginalMessage"/> needs
-/// the retained message's immutable mailbox/message/internet-message/
-/// conversation identity, and no Core query exposes it to Web —
-/// <c>RetainedMailDetail</c> (<c>Pegasus.Core.Intake.RetainedMail</c>, out of
-/// this ticket's file scope) carries none of the four fields. Recorded as a
-/// C08 deviation.
-/// </remarks>
 [Trait("Category", "SqlServer")]
 public sealed class StaffCorrespondenceWebTests
 {
@@ -387,9 +378,167 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), html, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("Reply", StaffMailComposeMode.Reply)]
+    [InlineData("ReplyAll", StaffMailComposeMode.ReplyAll)]
+    [InlineData("Forward", StaffMailComposeMode.Forward)]
+    public async Task RetainedMessageCorrespondenceUsesExactIdentityCaseAndRecipients(
+        string handler,
+        StaffMailComposeMode expectedMode)
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, $"SC08 {handler}", $"SC08-{handler}");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var mode = expectedMode switch
+        {
+            StaffMailComposeMode.Reply => "reply",
+            StaffMailComposeMode.ReplyAll => "reply-all",
+            _ => "forward"
+        };
+
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose={mode}");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Equal(0, send.SendCalls);
+        var token = InputValue(html, "__RequestVerificationToken");
+        var operationKey = InputValue(html, "CorrespondenceOperationKey");
+        var version = InputValue(html, "ExpectedCorrespondenceCaseVersion");
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["CorrespondenceOperationKey"] = operationKey,
+            ["ExpectedCorrespondenceCaseVersion"] = version,
+            ["CorrespondenceSubject"] = "Re: Source subject",
+            ["CorrespondenceBody"] = "Reviewed response."
+        };
+        if (expectedMode == StaffMailComposeMode.Forward)
+        {
+            form["CorrespondenceTo"] = "forward@example.invalid";
+            form["CorrespondenceCc"] = string.Empty;
+        }
+
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler={handler}",
+            new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(expectedMode, command.ComposeMode);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.True(command.ExpectedContextVersion > 0);
+        Assert.Equal(seeded.MailboxId, command.ApprovedMailboxId);
+        Assert.Equal(seeded.MailboxGeneration, command.ExpectedMailboxGeneration);
+        Assert.Equal(
+            new StaffMailOriginalMessage(
+                seeded.MessageId,
+                seeded.MailboxId,
+                seeded.ImmutableMessageId,
+                seeded.InternetMessageId,
+                seeded.ConversationId),
+            command.OriginalMessage);
+        Assert.DoesNotContain(command.To.Concat(command.Cc), item =>
+            string.Equals(item.Address, seeded.MailboxAddress, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(
+            expectedMode == StaffMailComposeMode.Forward
+                ? ["forward@example.invalid"]
+                : expectedMode == StaffMailComposeMode.Reply
+                    ? ["sender@example.invalid"]
+                    : ["sender@example.invalid", "other-to@example.invalid"],
+            command.To.Select(item => item.Address));
+        Assert.Equal(
+            expectedMode == StaffMailComposeMode.ReplyAll
+                ? ["copy@example.invalid"]
+                : [],
+            command.Cc.Select(item => item.Address));
+    }
+
+    [Fact]
+    public async Task UnknownRetainedReplyReplaysWithoutResendingAndOffersReconcile()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 MSG", "SC08-MSG-UNKNOWN");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceSubject"] = "Re: Source subject",
+            ["CorrespondenceBody"] = "Reviewed response."
+        };
+
+        using var first = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        using var replay = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        Assert.Equal(ExtractOperationId(first.Headers.Location!), ExtractOperationId(replay.Headers.Location!));
+
+        using var status = await client.GetAsync(replay.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("notice--success", statusHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), statusHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=ReconcileCorrespondence", statusHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, send.SendCalls);
+        Assert.Equal(0, send.ReconcileCalls);
+    }
+
+    [Fact]
+    public async Task RetainedReplyRejectsAStaleCaseContextWithoutSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 MSG", "SC08-MSG-STALE");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceSubject"] = "Re: Source subject",
+            ["CorrespondenceBody"] = "Reviewed response."
+        };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            workflow.Version++;
+            await context.SaveChangesAsync();
+        }
+
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+
+        post.EnsureSuccessStatusCode();
+        Assert.Empty(send.Commands);
+    }
+
     private static Guid ExtractOperationId(Uri location)
     {
-        var match = Regex.Match(location.ToString(), "operationId=(?<id>[0-9a-fA-F-]{36})");
+        var match = Regex.Match(
+            location.ToString(),
+            "(?:mailOperationId|operationId)=(?<id>[0-9a-fA-F-]{36})");
         Assert.True(match.Success, $"'{location}' did not carry an operationId.");
         return Guid.Parse(match.Groups["id"].Value);
     }
@@ -448,6 +597,18 @@ public sealed class StaffCorrespondenceWebTests
             inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
     }
 
+    private static string InputValue(string html, string name)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The input '{name}' was not rendered.");
+        var value = Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase);
+        Assert.True(value.Success, $"The input '{name}' had no value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
     private sealed class FixedApprovedMailboxStore(IReadOnlyList<ApprovedMailbox> mailboxes)
         : IApprovedMailboxStore
     {
@@ -489,6 +650,118 @@ public sealed class StaffCorrespondenceWebTests
         // Infrastructure mapping lands.
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE ApprovedMailboxes SET AllowSentEvidence = 1, AllowStaffSend = 1, MailboxGeneration = 1 WHERE Address = 'sc08-sender@collisionengineers.co.uk'");
+    }
+
+    private sealed record SeededCorrespondence(
+        Guid MessageId,
+        Guid MailboxId,
+        string MailboxAddress,
+        long MailboxGeneration,
+        string ImmutableMessageId,
+        string InternetMessageId,
+        string ConversationId);
+
+    private static async Task<SeededCorrespondence> SeedRetainedCorrespondenceAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId)
+    {
+        const string mailboxGraphId = "sc08-sender";
+        const string mailboxAddress = "sc08-sender@collisionengineers.co.uk";
+        const long mailboxGeneration = 7;
+        var mailboxId = TestMailboxId.From(mailboxGraphId);
+        var immutableMessageId = $"retained-{Guid.NewGuid():N}";
+        var internetMessageId = $"<{immutableMessageId}@example.invalid>";
+        var conversationId = $"conversation-{Guid.NewGuid():N}";
+        var externalToken = $"retained-token:{Guid.NewGuid():N}";
+        var receiptId = Guid.NewGuid();
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await TestMailboxId.EnsureApprovedAsync(
+                context, mailboxGraphId, mailboxAddress, NowUtc.AddDays(-1));
+            var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+            mailbox.AllowSentEvidence = true;
+            mailbox.AllowStaffSend = true;
+            mailbox.MailboxGeneration = mailboxGeneration;
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            if (workflow.Version <= 0)
+                workflow.Version = 1;
+            context.IntakeReceipts.Add(new()
+            {
+                Id = receiptId,
+                SourceFileName = "retained-message.msg",
+                MediaType = "application/vnd.ms-outlook",
+                SourceLength = 1024,
+                SourceHash = new string('A', 64),
+                SourceChannel = "mailbox",
+                ExternalReceiptToken = externalToken,
+                ReceivedAtUtc = NowUtc,
+                ProcessedAtUtc = NowUtc,
+                SourceReaderKey = "fixture-reader",
+                SourceReaderVersion = "1",
+                Version = 0,
+                Decision = IntakeDecision.NeedsSorting.ToString(),
+                DecisionReason = "Fixture retained correspondence.",
+                EvidenceJson = "[]",
+                FieldsJson = "[]",
+                OcrCandidatesJson = "[]"
+            });
+            context.IntakeManualAssociations.Add(new()
+            {
+                IntakeReceiptId = receiptId,
+                CaseId = caseId,
+                IsActive = true,
+                Version = 1,
+                LinkedAtUtc = NowUtc,
+                ActorKind = ActorKind.Staff.ToString(),
+                ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+                ActorRolesJson = "[\"Administrator\"]",
+                Reason = "Fixture message association.",
+                LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await scope.ServiceProvider.GetRequiredService<IRetainedMailboxMessageStore>().RetainAsync(
+            new(
+                mailboxId,
+                mailboxAddress,
+                immutableMessageId,
+                externalToken,
+                NowUtc,
+                1024,
+                new string('B', 64),
+                new(
+                    "inbox",
+                    conversationId,
+                    internetMessageId,
+                    "sender@example.invalid",
+                    "Sender Name",
+                    [mailboxAddress, "other-to@example.invalid", "sender@example.invalid"],
+                    ["copy@example.invalid", mailboxAddress, "other-to@example.invalid"],
+                    "Source subject",
+                    "Source body.",
+                    [],
+                    IsRead: false),
+                NowUtc),
+            CancellationToken.None);
+
+        await using var read = await contextFactory.CreateDbContextAsync();
+        var messageId = await read.RetainedMailboxMessages
+            .Where(item => item.MailboxId == mailboxId && item.ImmutableMessageId == immutableMessageId)
+            .Select(item => item.Id)
+            .SingleAsync();
+        return new(
+            messageId,
+            mailboxId,
+            mailboxAddress,
+            mailboxGeneration,
+            immutableMessageId,
+            internetMessageId,
+            conversationId);
     }
 
     private static async Task<Guid> SentEvidenceMailboxIdAsync(WebApplicationFactory<Program> factory)
