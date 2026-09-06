@@ -166,3 +166,9 @@ A's C01/C07 DI+MCP patch (PR 673 comment 5559772047, sha256 verified) applied `-
 ## Wave 11 on `2b6b5ed37` — all PASS
 
 Build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port integration 37/37 (`wave1/wave11-tests/`). Head stands as pushed. Slice c08 receives the patched head next; C05/C06 implementers still active.
+
+## Checkpoint 15:45Z
+
+- C05 READY_FOR_TESTS at `11a306580` (4 commits; drafts' padding-dependent rules rewritten; `ProcessIntake` optional caller; DI = C01's four registrations, now present via A's patch; one frozen-contract change requested to A: `ThirdPartyReportValuation.Adjustments`). C branch `2b6b5ed37` merged into the slice → `d0daa2340`; wave 12 (build/core/corpus/web/architecture with pack root) running; independent review dispatched against `11a306580`, consuming wave 12.
+- Small C edit batch running on the C branch: pinned-MSG correction (exact CaseCreated + route/classification/extraction predicate evidence) and Triage note gate removal.
+- A's retention auth rule received: RequestLink actor subject = `RequestUploadLinkEntity.Id`; C07 caller brief bound to it; dispatches when the small batch frees its slot. C06 resumed (active).
