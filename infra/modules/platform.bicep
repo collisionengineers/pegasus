@@ -17,7 +17,18 @@ param graphSentFolderId string
 param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
+param boxHoldingFolderId string
 param automationMcpClientSecretUri string
+param automationMcpSigningCertificateSecretUris string
+param automationMcpEncryptionCertificateSecretUris string
+var automationMcpSigningCertificateEnvironment = [for (uri, index) in split(automationMcpSigningCertificateSecretUris, ','): {
+  name: 'AutomationMcp__SigningCertificateSecretUris__${index}'
+  value: trim(uri)
+}]
+var automationMcpEncryptionCertificateEnvironment = [for (uri, index) in split(automationMcpEncryptionCertificateSecretUris, ','): {
+  name: 'AutomationMcp__EncryptionCertificateSecretUris__${index}'
+  value: trim(uri)
+}]
 param automationMcpRedirectUris string
 param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
@@ -438,7 +449,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
         {
           name: 'web'
           image: webImageReference
-          env: [
+          env: concat([
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
             { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${webIdentity.properties.clientId}' }
             { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
@@ -462,11 +473,13 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
             { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
             { name: 'Box__RootFolderId', value: '405543781910' }
+            { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
             { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
             { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
             { name: 'Features__AutomationMcp', value: 'true' }
             { name: 'Features__ProviderApi', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
+            { name: 'AutomationMcp__KeyVaultUri', value: keyVault.properties.vaultUri }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
             { name: 'Eva__ClientId', secretRef: 'eva-client-id' }
             { name: 'Eva__ClientSecret', secretRef: 'eva-client-secret' }
@@ -524,7 +537,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'DocumentRequests__AllowedMediaTypes__4', value: 'application/msword' }
             { name: 'DocumentRequests__AllowedMediaTypes__5', value: 'message/rfc822' }
             { name: 'DocumentRequests__AllowedMediaTypes__6', value: 'application/vnd.ms-outlook' }
-          ]
+          ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
           // ADR-0028: the report renderer runs in process in this container,
           // so headless Chromium shares the app's CPU and memory. Container
           // Apps hard-OOM-kills rather than throttling, and this app runs a
@@ -652,6 +665,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
         { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
         { name: 'Box__RootFolderId', value: '405543781910' }
+        { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
         { name: 'Box__ConfigJson', value: '@Microsoft.KeyVault(SecretUri=${boxConfigJsonSecretUri})' }
         { name: 'Box__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${boxClientSecretSecretUri})' }
         { name: 'Dvla__BaseUri', value: 'https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/' }

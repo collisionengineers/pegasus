@@ -50,8 +50,17 @@
     "boxClientSecretSecretUri": {
       "value": "${BOX_CLIENT_SECRET_SECRET_URI}"
     },
+    "boxHoldingFolderId": {
+      "value": "${BOX_HOLDING_FOLDER_ID}"
+    },
     "automationMcpClientSecretUri": {
       "value": "${AUTOMATION_MCP_CLIENT_SECRET_URI}"
+    },
+    "automationMcpSigningCertificateSecretUris": {
+      "value": "${AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS}"
+    },
+    "automationMcpEncryptionCertificateSecretUris": {
+      "value": "${AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS}"
     },
     "automationMcpRedirectUris": {
       "value": "${AUTOMATION_MCP_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback}"

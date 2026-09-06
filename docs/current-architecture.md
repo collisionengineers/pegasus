@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 ## Unidentified intake boundary
 
@@ -25,6 +25,34 @@ Implementation, caller proof, deployment, and acceptance are distinct:
 Registration, tests, migration presence, generated infrastructure, predecessor behavior, and source imports do not by themselves prove a caller, deployment, authority, or acceptance.
 
 ## System shape
+
+### v1 development assembly
+
+PLAT-075 owns platform changes; CASE-047 owns Case engineering and reports;
+INTK-060 owns intake, directories and the shell. They consume identical shared
+Foundation commits and later shared corrections. This source assembly is not
+the release-38 deployment recorded in Operations.
+
+The platform extends the existing staff-account and Data Protection owners
+for access deletion, forced logout/reset, lease recovery and per-user external
+credentials. Approved mailboxes own generation-scoped Inbox/Sent polling.
+The staff-send engine persists draft/upload/submission progress; the retained
+MIME pipeline alone confirms Sent after exact operation/artifact correlation.
+The staged-artifact reconciliation function resumes Pending custody by its
+durable logical version. Box remains the durable content owner; the SQL-indexed
+Azure cache validates hashes and expires after 24 hours idle.
+
+The `/mcp` adapters use persistent signing/encryption certificates and separate
+grant attribution. Authorized metadata precedes content reads; large documents
+use the same bearer-scoped exact-version streaming route. The source tool
+inventory contains the 43 existing tools plus `pegasus_estimate_import`.
+The import adapter refuses execution without B's canonical command binding;
+its combined caller validation remains pending. Discovery, working domain
+composition and real external-client acceptance remain distinct.
+
+Administration adds Action Logs, AI Jobs, Reports and Health over existing
+Core query owners. Source wiring and local validation do not establish that
+these pages, certificates or provider integrations are deployed.
 
 Pegasus is a four-project modular monolith:
 
@@ -91,16 +119,9 @@ superseding `Needs sorting` for that meaning — are owned by
 section reports how the running system is wired to them; it does not restate or
 compete with that owner.
 
-Two current engineering conventions are not yet stated in AGENTS.md and remain
-in force here:
-
-- Do not introduce horizontal `Common`, `Helpers`, `Utilities` packages or
-  version-suffixed names such as `V2`, `New`, or `Manager`.
-- Classifier and extraction precedence must be explicit, ordered, documented,
-  and covered by contradiction tests. External clients and catch paths
-  distinguish `terminal`, `transient`, and `unknown`; terminal outcomes stop
-  retries, unknown outcomes remain unknown, and metrics count successful effects
-  rather than attempts.
+Shared-code naming, classifier precedence and external-outcome conventions
+are owned by [AGENTS.md](../AGENTS.md#simplicity-rails). This snapshot describes
+their implementation rather than defining another operating contract.
 
 ## Current callers and entry points
 
@@ -162,13 +183,19 @@ in `src/Pegasus.Infrastructure/Vision/` behind the Core `ImageIntake`
 automation; [operations § dated evidence](operations.md#dated-evidence-qualifications) owns the accepted evaluation numbers.
 Implementation is not live-caller acceptance.
 
-The following remain planned or absent, not merely unverified:
+The following boundaries distinguish source capability from live proof:
 
-- broad Graph mailbox categorisation or any Graph mutation;
-- Document Intelligence OCR;
-- automated legacy DOC and MSG extraction;
-- provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
+- Broad Graph mailbox categorisation, flag/delete/folder mutation and
+  unattended sending remain excluded. v1 adds the separately authorized
+  staff-initiated draft/send adapter; this branch has not been deployed.
+- Document Intelligence OCR remains subject to C's qualified-page caller and
+  later operator activation evidence.
+- DOC/MSG extraction is implemented by the bounded in-process readers below;
+  format recognition is not proof for every genuine sample.
+- Provider API and Automation MCP are composed, with their production ingress
+  flags observed enabled on 6 September in [operations](operations.md#production-environment).
+  Ingress activation does not establish external-client acceptance or v1
+  certificate deployment.
 - correlated live telemetry retention for a full working day remains unproved.
   Both hosts are instrumented: the Worker has reported continuously throughout
   the retained window, and release 19 instrumented the Web host, which had
@@ -295,7 +322,7 @@ Suggestions and typed drafts are neither editable nor approved case records. Rec
 
 **Definitive authorised intake attempts typed case allocation at processing time.** QDOS classification persists `Inspection`, `Audit`, or `Inspection + Audit` beside its policy version. With no definitive existing-case match, the durable processing path calls the Core `IAllocateIntake` owner for a `CaseCreated` processing decision and consumes only that persisted type and the extracted principal. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. The evaluation-scoped automatic attempt and its outcome are durable and replay-safe. A failed attempt leaves the completed receipt and a bounded operator-safe failure; completed-work replay cannot call acceptance again. Only an authenticated, reasoned staff retry can reuse the frozen failed command.
 
-Only an **ambiguous** case match is withheld from automatic allocation. An Audit is definitive only where the retained email contains its instruction and a separate original report carrying one literal outcome, `repairable` or `total loss`; that creates its `a.` or `ap.` reference automatically without a staff confirmation. Missing, conflicting, or unclear Audit evidence is `Needs sorting`. A missing or disabled Principal is instead a visible recoverable allocation failure on the completed receipt. The create screen (`INT-26`) records detail and settles the inspection address. `EfCaseAcceptanceStore` still applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so eligibility does not depend on which caller asks, while actual success is projected only from the Case intake link.
+Only an **ambiguous** case match is withheld from automatic allocation. An Audit is definitive only where the retained email contains its instruction and a separate original report carrying one literal outcome, `repairable` or `total loss`; that creates its `a.` or `ap.` reference automatically without a staff confirmation. Missing, conflicting, or unclear standalone Audit evidence withholds the later Audit reference; it does not withhold an otherwise eligible normal Case/PO reference. A missing or disabled Principal is instead a visible recoverable allocation failure on the completed receipt. The create screen (`INT-26`) records detail and settles the inspection address. `EfCaseAcceptanceStore` still applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so eligibility does not depend on which caller asks, while actual success is projected only from the Case intake link.
 
 ### Idempotency and persisted semantics
 
@@ -303,7 +330,7 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
+- `Unidentified` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
 
 ## Operations workspace subsystems
 
@@ -578,7 +605,7 @@ A first Document Intelligence caller may submit only persisted scan-like PDF pag
 
 Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's composition gate was opened at release 37 (`Features:ProviderApi=true`); an unauthenticated request answers 401, so the route admits nobody until a credential is issued, which is a separately approved step. Its exact client and real caller evidence therefore remain outstanding. The provider accept path's staged-receipt back-reference and `Accepted` history row are repaired by that same existing Worker reconciliation timer after an interrupted accept.
 
-The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0031, and ADR-0026: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict registration authenticates the single vendor-neutral Automation client by client credentials or, for external connectors with administrator-configured redirect URIs, by authorization code with PKCE after Administrator consent (ADR-0027), and a streamable-HTTP MCP endpoint at `/mcp` exposes 33 typed tools wrapping existing Core case, intake, Unidentified, Triage, document, assessment, and mail use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`, `automation.mail`). Unidentified receipt/group detail and exact-member source download use the retained intake owners; Triage reads, source retrieval, lifecycle, evidence, and Case association use the same queries, commands, integrity checks, versions, replay rules, and Case leases as staff. Explicit named-Engineer assignment remains separately tracked by INTK-019 and no actor-relative assignment shortcut is exposed. Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, they renew that lease through the same Core renew use case the staff no-script renew control uses rather than re-claiming (the browser heartbeat is not exposed as a tool, so the tool census is unchanged), their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, EVA-export, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it with valid Automation MCP settings (ADR-0026); the deployed state of that gate and its dated activation evidence are owned by [operations](operations.md#production-environment), and source inventory must not be mistaken for deployed inventory.
+The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0031, and ADR-0026: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict registration authenticates the single vendor-neutral Automation client by client credentials or, for external connectors with administrator-configured redirect URIs, by authorization code with PKCE after Administrator consent (ADR-0027), and a streamable-HTTP MCP endpoint at `/mcp` exposes the registered typed tools wrapping existing Core case, intake, Unidentified, Triage, document, assessment, and mail use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`, `automation.mail`). Unidentified receipt/group detail and exact-member source download use the retained intake owners; Triage reads, source retrieval, lifecycle, evidence, and Case association use the same queries, commands, integrity checks, versions, replay rules, and Case leases as staff. Explicit named-Engineer assignment remains separately tracked by INTK-019 and no actor-relative assignment shortcut is exposed. Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, they renew that lease through the same Core renew use case the staff no-script renew control uses rather than re-claiming (the browser heartbeat is not exposed as a tool, so the tool census is unchanged), their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, EVA-export, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it with valid Automation MCP settings (ADR-0026); the deployed state of that gate and its dated activation evidence are owned by [operations](operations.md#production-environment), and source inventory must not be mistaken for deployed inventory.
 
 The Send to AI hand-off (AI-09, ADR-0031) is a second gated boundary beside it: `Pegasus.Core` owns the work-request lifecycle (`AiWork`), `Pegasus.Web` composes the loopback channel transport behind `Features:SendToAi` (DevelopmentOffline only), and the channel carries operator chat only — a case-reference pointer and short instruction out, a short confirmation reply back. Business content returns exclusively through the Automation MCP ingress above; the external channel connector is a non-owned client, never a policy owner, and never part of any deployment.
 
@@ -592,12 +619,12 @@ The Box adapters use the immutable Case/PO reference for final folder names. Sin
 
 ### Workspaces
 
-`workspaces/` contains independently buildable source workspaces:
+`workspaces/` retains provenance for the retired source imports:
 
 - document extraction;
 - report rendering.
 
-They are not:
+The retired imports are not:
 
 - projects in `Pegasus.slnx`;
 - application dependencies;

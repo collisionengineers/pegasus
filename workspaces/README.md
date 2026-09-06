@@ -1,8 +1,9 @@
 # Pegasus source workspaces
 
-These directories are independently buildable source imports. They are not
-projects in `Pegasus.slnx`, application callers, runtime services, deployment
-units, or owners of Pegasus business policy.
+The source imports are retired. Their accepted renderer and document-reader
+slices were integrated into the application under ADR-0025. This index retains
+their provenance; it does not describe active independently buildable projects,
+runtime services, deployment units, or business-policy owners.
 
 ## Integration status register
 

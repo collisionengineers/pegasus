@@ -169,7 +169,8 @@ one — the frontmatter carries the only machine-readable verdict, and prose
 appended below it can contradict `result:`. A frontmatter-only read is how a
 failed attempt gets reported as a pass.
 
-Only `PASS`, or an operator's `WAIVED_BY_OPERATOR`, permits the final move.
+Only `PASS` permits the final move. An explicit `WAIVED_BY_OPERATOR` record
+retains the operator's disposition; it is not a passing verification result.
 Call `get_doc_gates` immediately before `move_item`; move one boundary only,
 `verifying` → `done`. If any required check failed or is unavailable, write
 the truthful record and remain in Verifying until it is routed. Do not turn
@@ -207,8 +208,8 @@ merges, rewrites, or pulls main.
 
 ---
 
-**Hand off to `kanmer-closeout`** after either the exact merged-SHA PASS (or
-operator waiver) and Verifying → Done move, or an operator-disposed non-PASS
+**Hand off to `kanmer-closeout`** after either the exact merged-SHA PASS
+and Verifying → Done move, or an operator-disposed non-PASS
 retirement that remains Verifying and is archived; an `implementation` or
 `plan` failure hands off to `kanmer-execute` or `kanmer-plan` instead through
 the routed backward move. Closeout owns final traceability, release, and

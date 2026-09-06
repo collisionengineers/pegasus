@@ -382,6 +382,24 @@ The local alpha must not mutate a mailbox. A Worker project, queue registration,
 
 ### Outbound correspondence
 
+The v1 transport has one durable operation keyed by staff actor, mailbox and
+operation key, with a server-computed payload hash. Reusing the key for a
+different payload fails. Reply, Reply all, Forward and Compose use an approved
+mailbox with verified send capability and an encoded-message ceiling. Draft
+creation and upload progress survive restart without a second send attempt.
+Ambiguous provider writes remain Unknown until exact evidence resolves them.
+
+Graph `202 Accepted` means Submitted, never Sent. Sent requires the existing
+retained-MIME pipeline to correlate the immutable item, operation marker,
+mailbox generation and attachment hashes. Provider sent time and observation
+time remain distinct. Each enabled Sent mailbox owns its cursor and activation
+boundary; old items advance the cursor without historic backfill. One failing
+mailbox does not starve the others.
+
+Report sends revalidate B's persisted report readiness and exact generation,
+versions and artifacts immediately before the provider effect. Staff authority
+and mailbox generation are also rechecked. No connector may invoke this send.
+
 Staff-initiated Reply, Forward and Compose exist on the Inbox message and the
 Case correspondence surfaces, and are the technical decision of
 [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md). They are

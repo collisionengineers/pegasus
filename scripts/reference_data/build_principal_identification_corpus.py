@@ -303,10 +303,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def normalized_text_bytes(path: Path) -> bytes:
+    return path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def sha256_file(path: Path, hash_mode: str = "raw-bytes") -> str:
     digest = hashlib.sha256()
     if hash_mode == "normalized-lf":
-        data = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        data = normalized_text_bytes(path)
         digest.update(data)
         return digest.hexdigest()
     if hash_mode != "raw-bytes":
@@ -357,7 +361,7 @@ def snapshot(
         "mediaKind": media_kind,
         "sha256": sha256_file(path, hash_mode),
         "hashMode": hash_mode,
-        "bytes": path.stat().st_size,
+        "bytes": len(normalized_text_bytes(path)) if hash_mode == "normalized-lf" else path.stat().st_size,
     }
     if record_count is not None:
         result["recordCount"] = record_count
@@ -1261,52 +1265,13 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
         )
 
     source_snapshots.extend(
-        [
-            {
-                "id": "qdos-route-policy-v4",
-                "repository": "pegasus",
-                "relativePath": "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs",
-                "mediaKind": "source-code",
-                "sha256": sha256_file(repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs", "normalized-lf"),
-                "hashMode": "normalized-lf",
-                "bytes": (repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs").stat().st_size,
-            },
-            {
-                "id": "qdos-runtime-policy-v5",
-                "repository": "pegasus",
-                "relativePath": "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs",
-                "mediaKind": "source-code",
-                "sha256": sha256_file(repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs", "normalized-lf"),
-                "hashMode": "normalized-lf",
-                "bytes": (repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs").stat().st_size,
-            },
-            {
-                "id": "qdos-case-match-policy-v1",
-                "repository": "pegasus",
-                "relativePath": "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs",
-                "mediaKind": "source-code",
-                "sha256": sha256_file(repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs", "normalized-lf"),
-                "hashMode": "normalized-lf",
-                "bytes": (repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs").stat().st_size,
-            },
-            {
-                "id": "qdos-extraction-policy-v7",
-                "repository": "pegasus",
-                "relativePath": "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs",
-                "mediaKind": "source-code",
-                "sha256": sha256_file(repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs", "normalized-lf"),
-                "hashMode": "normalized-lf",
-                "bytes": (repository_root / "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs").stat().st_size,
-            },
-            {
-                "id": "shared-mail-taxonomy",
-                "repository": "pegasus",
-                "relativePath": "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs",
-                "mediaKind": "source-code",
-                "sha256": sha256_file(repository_root / "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs", "normalized-lf"),
-                "hashMode": "normalized-lf",
-                "bytes": (repository_root / "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs").stat().st_size,
-            },
+        snapshot(source_id, "pegasus", repository_root, path, "source-code", hash_mode="normalized-lf")
+        for source_id, path in [
+            ("qdos-route-policy-v4", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs"),
+            ("qdos-runtime-policy-v5", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs"),
+            ("qdos-case-match-policy-v1", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs"),
+            ("qdos-extraction-policy-v7", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs"),
+            ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
         ]
     )
 

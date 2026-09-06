@@ -11,8 +11,8 @@ Authority order is defined once in the
 
 - Task branches are cut from `dev` and merge into `dev` through a PR. `main`
   is the active deployment and the sole revision eligible for an authorised
-  release. `dev` and `main` are never rebased, reset, or force-pushed. Claim
-  lines riding into `main`'s `NOW.md` at release are accepted cosmetics.
+  release. `dev` and `main` are never rebased, reset, or force-pushed. Claims
+  and execution evidence live in the owning Kanmer ticket.
 - Promote `dev` to `main` only as an exact-SHA fast-forward: fetch both remote
   refs, confirm `git merge-base --is-ancestor origin/main origin/dev`, record
   the reviewed `origin/dev` SHA, then atomically push that SHA to both
@@ -81,7 +81,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 
 1. **Static/build/architecture** — compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, inspect dependencies, and prevent tracked corpus or secret material. This proves consistency only.
 2. **Core/domain** — positive, contradictory, ambiguous, and failure cases for intake, references, matching, lifecycle, roles, completeness, and case invariants.
-3. **Parser/adapter contracts** — EML/PDF/DOCX and later approved DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures.
+3. **Parser/adapter contracts** — EML/PDF/DOCX/DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures. Format recognition, deployed parser capability, OCR activation and genuine-sample acceptance remain separate claims.
 4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
 5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
@@ -281,7 +281,9 @@ observed Sent evidence establishes Sent. Recovery projections contain safe
 state, attempt time, mailbox generation, payload hash and expiry; upload URLs,
 credential material and provider-session secrets stay inside the adapter.
 
-Only the concrete administrative lease implementation is newly registered at
-Foundation. B/C domain implementations and their A-authored composition patches
-must arrive together on each owning branch; absent implementations are not
-registered and passive contracts do not prove a working user journey.
+Foundation itself registered the administrative lease implementation. The
+Stream A source now adds the account/credential, mailbox, staff-mail,
+logical-content/cache and administration query implementations. B/C domain
+implementations and their A-authored composition patches arrive together on
+the owning branches. The combined checkout must prove those callers;
+contracts and registrations alone do not establish a working user journey.

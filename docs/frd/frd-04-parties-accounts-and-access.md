@@ -16,9 +16,9 @@ Staff accounts use Pegasus-managed usernames and passwords with non-reversible p
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/access review/role assignment/password reset (D28); the Sign-off Engineer account setting (D31); principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration, including labour-rate-card administration (D17); approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
-| `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
-| `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, access review, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/delete access/force logout/role assignment/password reset (D15); the Sign-off Engineer account setting (D31); principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration, including labour-rate-card administration (D17); approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
+| `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
 
 Andrew and Alex are the initial `Administrator` assignments held in application data/configuration. No person, name, email address, or bypass is hard-coded into authorization. Automated processing uses a distinct durable machine identity and only named Core actions; it is not a staff account or an independent policy owner.
 
@@ -60,19 +60,34 @@ before/after values.
 
 The staff accounts table lists Name, Username, Role, and State, with role
 assignment inline: Save is enabled only once the role has changed and requires
-a reason. Create staff account, Disable, and Review are the account actions.
-Review records that the account was reviewed by the acting Administrator at a
-time with a reason; it is a permanent action-history event and has no page of
-its own. An account never disables or reviews itself.
+a reason. Account actions are Create, Enable, Disable, Delete access, Force
+logout and Reset password. Periodic reviews, review dates and review actions
+are removed by the 6 September 2026 operator decision. An account cannot
+disable or delete itself, and concurrent actions cannot remove the last
+enabled Administrator.
 
 **Reset password** is an Administrator-only account action on the same table
-(D28, 2026-09-01). The Administrator enters and confirms a temporary password;
-the existing password policy validates it and the existing non-reversible hash
-stores it, so no second policy or hashing route is created. The existing
+(D15, 2026-09-06). It generates and reveals a temporary password once through
+the protected confirmation flow. The existing password policy and
+non-reversible hash remain the password owner. The existing
 forced-change state is set, so the account must choose a new password at its
 next sign-in. The reset is a permanent action-history event with actor, time and
 reason. The temporary secret is never emailed, logged, persisted in raw form or
 placed in analytics, and no reset email is sent.
+
+Disable, role change, reset and Force logout revoke existing sessions and
+tokens; the next request must observe current staff authority. Delete removes
+active access, role and credential material while retaining the minimal actor
+identity needed by immutable business history and printed reports. It never
+deletes a Case. Destructive confirmation names the selected account and its
+consequence. Force logout does not clear edit leases: targeted Administrator
+lease clearance names the Case or holder, records a reason and invalidates the
+old token independently.
+
+Glass's credentials are protected per Engineer, provider and generation.
+Administration shows configured/enabled/username/updated state and offers
+replace/clear; it never reveals the stored password. Replacement or deletion
+invalidates old sessions. Disabled or deleted staff cannot launch or resume.
 
 **Sign-off Engineer** is an Administrator-only account setting (D31,
 2026-09-02): a flag, the account's qualifications and a signature image. Only
@@ -96,9 +111,9 @@ Sign-ins and authentication failures remain in the security log. Routine views, 
 **Action Logs** is the one administration view over permanent action
 history and the security log. It is filtered by search text, Area, Actor,
 Result, From, and To, sorted newest first with a sort toggle, and shows Time,
-Actor, Area, Action, Reference, and Result per row. Account reviews, role
+Actor, Area, Action, Reference, and Result per row. Account access changes, role
 changes, Principal settings and credential changes, and automation activity
-are read here; there is no separate Access review or Automation Activity
+are read here; there is no separate periodic review or Automation Activity
 page.
 
 No identity design, app registration, scope declaration, role table, file, or registration proves that a live caller exists or is accepted.

@@ -1,4 +1,4 @@
-# FRD-12: Operator experience
+﻿# FRD-12: Operator experience
 
 > Owner capabilities: UI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [docs/design/README.md](../design/README.md)
 
@@ -107,14 +107,14 @@ dialog traps focus and inerts the page behind it.
 | `/Search` | Advanced search (`UI-07`) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}` | Triage and Unidentified detail | — |
 | `/Operations` | AI jobs, attention, upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
-| `/Admin`, `/Admin/{area}` | Administration areas | Administration index, Organisations, Access review, Roles, Automation Activity |
+| `/Admin`, `/Admin/{area}` | Administration areas | Administration index, Organisations, Staff accounts, Roles, Automation Activity |
 
 `/Triage` and `/Unidentified` are permanent redirects to `/Cases?tab=triage`
 and `/Cases?tab=unidentified`, kept for existing links and bookmarks rather
 than left dead. The `/VehicleImages` list route is removed; the vehicle-image
 detail page remains the image record and is reached from Not-ready
 Image-initiated rows, the Case Files section and upload outcomes. There is no
-separate top-level Unidentified, Organisations, Access review, Roles or
+separate top-level Unidentified, Organisations, Staff accounts, Roles or
 Automation Activity entry. `/Cases/{id}/Assessment` is a permanent redirect
 to `/Cases/{id}?section=estimate` (D30): the Engineer workbench is a set of
 sections on the Case record, not a page of its own.
@@ -285,9 +285,9 @@ non-destructive conflict.
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)).
 - Valuation: each entry with source, date, time, mileage, retail and trade
   values, plus guide month per entry (`CASE-029`), and Add valuation
-  (`EXT-10`); sources are Glass's valuation, Cazana
-  (disabled seam), Engineer's Value and AI market research (D40); requesting
-  AI market research creates a `MarketResearch` job (D35,
+  (`EXT-10`); sources are Glass's valuation, Brego and Super CAP manual entries,
+  Cazana (disabled seam), Engineer's Value and AI market research (automation
+  only) (D40); requesting AI market research creates a `MarketResearch` job (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
 - Estimate: the estimate set and raw estimate import (§ Assessment).
 - Settlement: outcome, category, salvage value, excess, betterment, claimant
@@ -331,20 +331,21 @@ always viewable and read-only once Complete. Report-image preparation lives
 on the Report section: distinct `Close-up` first and `Overview` second,
 optional supporting images in explicit order, and non-destructive crops that
 leave the retained source and its hash untouched (D19). The Estimate section
-carries the estimate set (`EXT-09`: named estimates
-with source, repair days, the selected labour-rate card, explicit paint
-labour, paint materials and other costs, a free VAT percentage, lines and
-totals; one estimate is Current and drives the report). Each version selects
-one of the global versioned labour-rate cards, which prices non-paint labour
-only; the version's own VAT percentage applies to the whole subtotal (D9,
-D17); no comparison or savings figure is shown. It also carries Send to Claude
+carries the estimate set (`EXT-09`: named estimates with source, repair
+days, the selected labour-rate-card snapshot, VAT categories, lines and
+totals; one estimate is Current and drives the report). Each version's card
+prices both panel and paint hours. Its own VAT percentage defaults to 20 and
+applies to selected discounted Labour, Parts, Materials and Specialist
+categories. Unknown repairer VAT blocks Use as Current until staff record an
+explicit status or categories (D9, D17); no comparison or savings figure is
+shown. It also carries Send to Claude
 (`AI-09`, disabled without an Engineer's Value); the report-draft
 generation and preview sit on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point)).
 
-Raw estimate import (`EXT-12`) has no control and no dialog. One file dropped
-anywhere on the Case record is imported immediately, with no confirmation
-step and no visible file picker (D16, 2026-09-01). Only currently registered
+Raw estimate import (`EXT-12`) is a whole-page drop surface. One file is
+imported immediately, with no confirmation step and no visible file picker
+(D16, 2026-09-01). Only currently registered
 parser types are accepted; the provider and parser are auto-detected and an
 ambiguous artifact is refused rather than guessed. The resulting Draft is named
 by provider plus sequence, and the filename, source hash, provider/parser,
@@ -398,10 +399,14 @@ default 7, Europe/London), where `Held` preserves the remaining time (D23).
 It has no staff instruction-review or image-review settings; where only the
 workflow policy identity applies, the page shows its current version read-only
 (D44, 2026-09-03). It also holds labour-rate-card administration: the
-global versioned cards (name, non-paint hourly rate, enabled state) that every
-estimate version selects from, with disabling blocking future selection
+global versioned cards (name, panel-and-paint hourly rate, enabled state) that
+every estimate version selects from, with disabling blocking future selection
 without changing history (D17). It stays inside that area; no ninth area is
 added.
+
+Review-gated transitions calculate completeness from persisted facts inside
+the transaction. A submitted readiness claim or staff-confirmation checkbox is
+not authority; those checkboxes are retired (CASE-046, PLAT-072).
 
 ### Workspace tabs, command palette and keyboard
 
