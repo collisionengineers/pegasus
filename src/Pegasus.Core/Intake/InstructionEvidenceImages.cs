@@ -1,4 +1,5 @@
 ﻿using System.Security.Cryptography;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
@@ -128,15 +129,61 @@ public interface IDownloadIntakeAsset
         CancellationToken cancellationToken = default);
 }
 
+public sealed record IntakeAssetMetadataQuery(
+    Guid ReceiptId,
+    Guid AssetId,
+    ActionActor Actor);
+
+public interface IGetIntakeAssetMetadata
+{
+    Task<IntakeFileMetadata?> ExecuteAsync(
+        IntakeAssetMetadataQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The exact metadata of one retained asset, authorized at the same boundary
+/// its bytes are and carrying no storage key. A connector asks for this before
+/// it asks for content, and verifies the content it receives against the hash
+/// and length it was given here.
+/// </summary>
+public sealed class GetIntakeAssetMetadata(IIntakeReceiptQueries receiptQueries)
+    : IGetIntakeAssetMetadata
+{
+    public async Task<IntakeFileMetadata?> ExecuteAsync(
+        IntakeAssetMetadataQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.ReceiptId == Guid.Empty || query.AssetId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var receipt = await receiptQueries.GetAsync(query.ReceiptId, cancellationToken);
+        var asset = receipt?.AssetRecords.SingleOrDefault(record => record.Id == query.AssetId);
+        return asset is null ? null : IntakeFileIdentity.Describe(receipt!, asset);
+    }
+}
+
 /// <summary>
 /// Downloads one retained asset of a receipt, hash-verified against its
 /// recorded content the same way the source download is. The receipt id
 /// scopes the lookup so an asset can never be fetched under another
 /// receipt's identity.
+///
+/// When the logical-document reader is composed, the bytes are served through
+/// it by asset identity, so no storage key crosses this boundary and the reader
+/// resolves the custody or cache address itself. Until that adapter exists the
+/// hash-verified artifact path below is the whole of the behaviour, and the
+/// integrity check is identical either way — the difference is where the bytes
+/// come from, never whether they are verified.
 /// </summary>
 public sealed class DownloadIntakeAsset(
     IIntakeReceiptQueries receiptQueries,
-    IIntakeArtifactStore artifactStore) : IDownloadIntakeAsset
+    IIntakeArtifactStore artifactStore,
+    IReadLogicalDocumentVersion? logicalDocumentReader = null) : IDownloadIntakeAsset
 {
     public async Task<IntakeSourceDownload?> ExecuteAsync(
         DownloadIntakeAssetQuery query,
@@ -148,6 +195,10 @@ public sealed class DownloadIntakeAsset(
             return null;
         }
 
+        // Staff casework, or the Automation Actor, which ADR-0011 grants
+        // exactly the ordinary operational casework surface. A request-link,
+        // provider or system-worker actor fails closed here rather than at a
+        // surface that might forget to ask.
         StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
         var receipt = await receiptQueries.GetAsync(query.ReceiptId, cancellationToken);
         var asset = receipt?.AssetRecords
@@ -157,8 +208,34 @@ public sealed class DownloadIntakeAsset(
             return null;
         }
 
+        if (logicalDocumentReader is not null)
+        {
+            await using var logical = await logicalDocumentReader.OpenAsync(
+                new(
+                    query.Actor,
+                    DocumentId: null,
+                    VersionId: null,
+                    IntakeAssetId: asset.Id,
+                    CaseId: null,
+                    IntakeReceiptId: query.ReceiptId,
+                    asset.ContentHash,
+                    asset.ContentLength),
+                cancellationToken);
+            using var buffer = new MemoryStream();
+            await logical.Content.CopyToAsync(buffer, cancellationToken);
+            var bytes = buffer.ToArray();
+            return Verified(bytes, asset);
+        }
+
         var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
             ?? throw new IntakeArtifactIntegrityException();
+        return Verified(content, asset);
+    }
+
+    private static IntakeSourceDownload Verified(
+        ReadOnlyMemory<byte> content,
+        IntakeAssetRecord asset)
+    {
         var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
         if (content.Length != asset.ContentLength
             || !DownloadIntakeSource.FixedTimeHashEquals(actualHash, asset.ContentHash))

@@ -918,7 +918,7 @@ public sealed class ProcessQueuedIntake(
             // One owner for the supersession rule: the same component the
             // reconciliation sweep uses resolves the receipt's stale open
             // item to the destination that now exists.
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -1071,6 +1071,10 @@ public sealed class ProcessQueuedIntake(
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
         InvalidDataException => "invalid_intake_data",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
+        // API-01's existing-Case rejection is a property of the submitted
+        // facts, not a fault: a redelivery would reach the same conclusion, so
+        // it fails on the first attempt under its own code with no backoff.
+        ProviderExistingCaseMatchException => ProviderExistingCaseMatchException.FailureCode,
         _ => null
     };
 
