@@ -26,7 +26,7 @@ public sealed class EfOrganizationAdministration(
     private const string ReplacePrincipalKind = "replace_principal";
     private const string PolicyVersion = "organization-principal-administration/v1";
     private const int MaximumProjectedPrincipals = 100;
-    private static readonly JsonSerializerOptions SerializerOptions =
+    internal static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
 
     private readonly IDbContextFactory<PegasusDbContext> _contextFactory =
@@ -869,7 +869,7 @@ public sealed class EfOrganizationAdministration(
     private static string[] RoleNames(IEnumerable<OrganizationRole> roles) =>
         roles.OrderBy(role => role).Select(role => role.ToString()).ToArray();
 
-    private static Task<OrganizationAdministrationOperationEntity?> FindReceiptAsync(
+    internal static Task<OrganizationAdministrationOperationEntity?> FindReceiptAsync(
         PegasusDbContext context,
         string operationKey,
         CancellationToken cancellationToken) =>
@@ -899,7 +899,7 @@ public sealed class EfOrganizationAdministration(
         }
     }
 
-    private static bool SameHash(string left, string right)
+    internal static bool SameHash(string left, string right)
     {
         try
         {
@@ -913,7 +913,7 @@ public sealed class EfOrganizationAdministration(
         }
     }
 
-    private static void AddReceipt<T>(
+    internal static void AddReceipt<T>(
         PegasusDbContext context,
         string operationKey,
         string commandKind,
@@ -929,7 +929,7 @@ public sealed class EfOrganizationAdministration(
             CompletedAtUtc = completedAtUtc
         });
 
-    private static void AddHistory(
+    internal static void AddHistory(
         PegasusDbContext context,
         string aggregateType,
         Guid aggregateId,
@@ -969,7 +969,7 @@ public sealed class EfOrganizationAdministration(
             actor.SubjectId,
             actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray());
 
-    private static string HashRequest<T>(T material) =>
+    internal static string HashRequest<T>(T material) =>
         Convert.ToHexString(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes(
