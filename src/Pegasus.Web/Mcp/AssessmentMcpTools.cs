@@ -290,7 +290,6 @@ internal sealed class AssessmentMcpTools(
                             name,
                             repairDays,
                             labourRate,
-                            null,
                             paintMaterials,
                             otherCosts,
                             vatPercent ?? EstimatePolicy.DefaultVatPercent,

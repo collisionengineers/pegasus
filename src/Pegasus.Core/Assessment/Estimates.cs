@@ -97,22 +97,23 @@ public sealed record EstimateRateSnapshot(
 /// <summary>
 /// The editable header of one named estimate on a Case (EPIC-011 §1.9,
 /// FRD-11 § Estimate VAT on the rendered report). Money is in pounds to two
-/// places; rates are per hour; the VAT percentage is free per estimate (D9).
+/// places; the one labour rate is per hour; the VAT percentage is free per
+/// estimate (D9).
 /// <see cref="PaintMaterials"/> is the estimate's additional materials.
 /// </summary>
 /// <remarks>
 /// D9 reconciliation: the B04 plan writes VAT as 20 %, this repository keeps
 /// the free per-estimate percentage and computes VAT as
-/// <c>Taxable × VatPercent / 100</c>. An estimate that records no
-/// <see cref="Vat"/> policy is read at its own percentage over every
-/// category, and its repairer status is read from that percentage — the one
-/// rule that <c>BasisFor</c> used to apply on its own.
+/// <c>Taxable × VatPercent / 100</c>. The percentage never states a
+/// repairer's VAT position: an estimate that records no <see cref="Vat"/>
+/// policy stands on <see cref="RepairerVatStatus.Unknown"/> and charges VAT
+/// on nothing until an Engineer records the status or selects the
+/// categories, which is also what blocks it from being made Current.
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,
     int? RepairDays,
     decimal? LabourRate,
-    decimal? PaintLabourRate,
     decimal? PaintMaterials,
     decimal? OtherCosts,
     decimal VatPercent,
@@ -126,8 +127,7 @@ public sealed record EstimateDetails(
 
     public EstimateDiscounts AppliedDiscounts => Discounts ?? EstimateDiscounts.None;
 
-    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(
-        VatPercent > 0 ? RepairerVatStatus.Registered : RepairerVatStatus.NotRegistered);
+    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
 }
 
 /// <summary>
@@ -420,7 +420,6 @@ public static class EstimatePolicy
             throw new ArgumentException("Repair days cannot be negative.", nameof(details));
         }
         Money(details.LabourRate, "labour rate");
-        Money(details.PaintLabourRate, "paint labour rate");
         Money(details.PaintMaterials, "paint materials");
         Money(details.OtherCosts, "other costs");
         if (details.VatPercent is < 0 or > 100 || decimal.Round(details.VatPercent, 2) != details.VatPercent)

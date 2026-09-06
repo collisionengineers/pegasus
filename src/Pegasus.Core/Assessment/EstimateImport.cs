@@ -150,11 +150,16 @@ public sealed class ImportRawEstimate(
                 request.Reason,
                 request.EditLeaseToken,
                 EstimateId: null,
+                // No parser reads a repairer's VAT position — a
+                // ParsedEstimate carries lines, a provider and source totals
+                // whose Vat is a money amount, never a status — so an import
+                // records no VAT policy and the estimate stands on Unknown
+                // until an Engineer records one (B08).
                 new EstimateDetails(
                     string.IsNullOrWhiteSpace(request.Name)
                         ? NextName(existing, parsed.ProviderName)
                         : request.Name.Trim(),
-                    RepairDays: null, LabourRate: null, PaintLabourRate: null,
+                    RepairDays: null, LabourRate: null,
                     PaintMaterials: null, OtherCosts: null,
                     EstimatePolicy.DefaultVatPercent, Notes: null),
                 [.. parsed.Lines.Select((line, index) => WithProvenance(

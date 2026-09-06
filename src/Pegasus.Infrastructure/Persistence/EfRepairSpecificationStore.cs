@@ -644,7 +644,7 @@ public sealed class EfRepairSpecificationStore(
                 entity.RateCardId, entity.RateCardVersion, entity.LabourRate ?? 0m);
 
         return new(
-            entity.Name, entity.RepairDays, entity.LabourRate, null,
+            entity.Name, entity.RepairDays, entity.LabourRate,
             entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes,
             discounts, vat, rate);
     }

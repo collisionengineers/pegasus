@@ -20,6 +20,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Assessment;
+using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
@@ -68,6 +69,7 @@ public sealed partial class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
+    TimeProvider clock,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
     RequestUploadLimits? requestUploadLimits = null) : CaseMutationPageModel(logger)
@@ -290,6 +292,19 @@ public sealed partial class DetailsModel(
         && (SelectedEstimate.State == RepairSpecificationState.Draft
             || SelectedEstimate.State == RepairSpecificationState.Accepted);
 
+    /// <summary>
+    /// The condition that stops the selected estimate being made Current, or
+    /// null when nothing does. Core owns the refusal
+    /// (<see cref="EstimatePolicy.ValidateSetCurrent"/>) and only a Draft is
+    /// held to it; this names the same condition on the disabled control so
+    /// the screen never presents a button the save would refuse.
+    /// </summary>
+    public string? UseEstimateCondition =>
+        SelectedEstimate is { State: RepairSpecificationState.Draft } draft
+        && draft.Details.VatPolicy.BlocksAcceptance
+            ? EstimateVatLabels.UnknownStatusCondition
+            : null;
+
     public EstimateTotals EditorTotals
     {
         get
@@ -299,7 +314,6 @@ public sealed partial class DetailsModel(
                     Name: Labels.CaseWorkspace.EngineerSections.Estimate,
                     RepairDays: null,
                     LabourRate: null,
-                    PaintLabourRate: null,
                     PaintMaterials: null,
                     OtherCosts: null,
                     VatPercent: EstimatePolicy.DefaultVatPercent,
@@ -572,7 +586,6 @@ public sealed partial class DetailsModel(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
                 RepairDays: null,
                 LabourRate: null,
-                PaintLabourRate: null,
                 PaintMaterials: null,
                 OtherCosts: null,
                 VatPercent: EstimatePolicy.DefaultVatPercent,
@@ -1698,56 +1711,48 @@ public sealed partial class DetailsModel(
         var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
         var existingLines = existing?.Lines.ToDictionary(line => line.Id)
             ?? new Dictionary<Guid, CaseEstimateLineRecord>();
+        var savedAtUtc = clock.GetUtcNow();
         var lines = editor.Lines.Select((line, index) =>
-            editor.ExistingLineIds[index] is { } lineId
-            && existingLines.TryGetValue(lineId, out var previous)
-                ? line with
-                {
-                    GuideCode = previous.GuideCode,
-                    // Carried forward only while the line still has no price.
-                    // AssessmentPolicy refuses a line that is both marked To be
-                    // confirmed and priced, so preserving it unconditionally would
-                    // make pricing an imported unpriced line impossible.
-                    Unpriced = previous.Unpriced && line.Price is null,
-                    Betterment = previous.Betterment,
-                    Status = previous.Status,
-                    EvidenceLabel = previous.EvidenceLabel,
-                    Justification = previous.Justification,
-                    // The screen edits operation, description, part number,
-                    // quantity, hours and the part amount. Every other
-                    // recorded fact on the line — its materials, the values
-                    // the source document stated, the document and row it
-                    // came from and any amendment attribution — is carried
-                    // forward, because a save that dropped them would erase
-                    // evidence the editor never showed.
-                    Materials = previous.Materials,
-                    Origin = previous.Origin,
-                    SourceDocumentIdentity = previous.SourceDocumentIdentity,
-                    SourceDocumentVersionId = previous.SourceDocumentVersionId,
-                    SourceDocumentSha256 = previous.SourceDocumentSha256,
-                    SourceRowIdentity = previous.SourceRowIdentity,
-                    AmendedBy = previous.AmendedBy,
-                    AmendedAtUtc = previous.AmendedAtUtc,
-                }
-                : line).ToArray();
-        var details = new EstimateDetails(
-            editor.Name ?? string.Empty,
-            editor.RepairDays,
-            editor.LabourRate,
-            editor.PaintLabourRate,
-            editor.PaintMaterials,
-            editor.OtherCosts,
-            editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            editor.Notes,
-            // The screen does not yet edit the discounts or the VAT
-            // categories, so the estimate keeps the ones it records. The rate
-            // card is kept only while the posted rate is still the one it
-            // priced: a retyped rate is the Engineer's own, not the card's.
-            existing?.Details.Discounts,
-            existing?.Details.Vat,
-            existing?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
-                ? card
-                : null);
+        {
+            if (editor.ExistingLineIds[index] is not { } lineId
+                || !existingLines.TryGetValue(lineId, out var previous))
+            {
+                return line;
+            }
+
+            var carried = line with
+            {
+                GuideCode = previous.GuideCode,
+                // Carried forward only while the line still has no price.
+                // AssessmentPolicy refuses a line that is both marked To be
+                // confirmed and priced, so preserving it unconditionally would
+                // make pricing an imported unpriced line impossible.
+                Unpriced = previous.Unpriced && line.Price is null,
+                Betterment = previous.Betterment,
+                Status = previous.Status,
+                EvidenceLabel = previous.EvidenceLabel,
+                Justification = previous.Justification,
+                // The screen edits operation, description, part number,
+                // quantity, hours and the part amount. Every other
+                // recorded fact on the line — its materials, and the values
+                // the source document stated with the document and row it
+                // came from — is carried forward, because a save that
+                // dropped them would erase evidence the editor never showed.
+                Materials = previous.Materials,
+                Origin = previous.Origin,
+                SourceDocumentIdentity = previous.SourceDocumentIdentity,
+                SourceDocumentVersionId = previous.SourceDocumentVersionId,
+                SourceDocumentSha256 = previous.SourceDocumentSha256,
+                SourceRowIdentity = previous.SourceRowIdentity,
+            };
+            // Amendment attribution is the one carried fact that must not be
+            // preserved blindly: a line whose editable values moved was
+            // amended by this operator, now.
+            var (amendedBy, amendedAtUtc) = EstimateLineAmendment.Stamp(
+                carried, previous, actor.SubjectId, savedAtUtc);
+            return carried with { AmendedBy = amendedBy, AmendedAtUtc = amendedAtUtc };
+        }).ToArray();
+        var details = EditorDetailsFrom(editor, existing);
         try
         {
             var saved = await saveEstimate.ExecuteAsync(
@@ -2003,23 +2008,9 @@ public sealed partial class DetailsModel(
             ? Estimates.FirstOrDefault(item => item.SpecificationId == selected)
             : null;
         EditingNewEstimate = estimateId is null;
-        EditorDetails = new EstimateDetails(
-            editor.Name ?? string.Empty,
-            editor.RepairDays,
-            editor.LabourRate,
-            editor.PaintLabourRate,
-            editor.PaintMaterials,
-            editor.OtherCosts,
-            editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            editor.Notes,
-            // Redrawing a row must not change what the totals mean: the
-            // estimate's own discounts, VAT categories and rate card stand,
-            // on the same terms the save applies them.
-            SelectedEstimate?.Details.Discounts,
-            SelectedEstimate?.Details.Vat,
-            SelectedEstimate?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
-                ? card
-                : null);
+        // Redrawing a row must not change what the totals mean: the header
+        // is read back on exactly the terms the save reads it.
+        EditorDetails = EditorDetailsFrom(editor, SelectedEstimate);
         EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null)];
         return Page();
     }
@@ -2028,15 +2019,51 @@ public sealed partial class DetailsModel(
         string? Name,
         int? RepairDays,
         decimal? LabourRate,
-        decimal? PaintLabourRate,
         decimal? PaintMaterials,
         decimal? OtherCosts,
         decimal? VatPercent,
         string? Notes,
+        RepairerVatStatus VatStatus,
+        EstimateVatCategories VatCategories,
+        EstimateDiscounts Discounts,
         Guid? EstimateId,
         IReadOnlyList<EstimateEditorLine> Rows,
         IReadOnlyList<EstimateLineInput>? Lines,
-        IReadOnlyList<Guid?> ExistingLineIds);
+        IReadOnlyList<Guid?> ExistingLineIds)
+    {
+        /// <summary>
+        /// The posted VAT policy. Categories that differ from the status's
+        /// own defaults are the operator's hand-made override — which is
+        /// also the one thing that lets an Unknown status be made Current,
+        /// because an Unknown status defaults to charging nothing.
+        /// </summary>
+        public EstimateVatPolicy VatPolicy => new(
+            VatStatus,
+            VatCategories,
+            VatCategories != EstimateVatPolicy.DefaultFor(VatStatus));
+    }
+
+    /// <summary>
+    /// The estimate header the editor posted. The rate card is kept only
+    /// while the posted rate is still the one it priced: a retyped rate is
+    /// the Engineer's own, not the card's. Every other header fact — the
+    /// discounts and the VAT policy — is now posted, so nothing is carried
+    /// forward unseen.
+    /// </summary>
+    private static EstimateDetails EditorDetailsFrom(
+        EstimateEditorPost editor, RepairSpecificationVersion? existing) => new(
+        editor.Name ?? string.Empty,
+        editor.RepairDays,
+        editor.LabourRate,
+        editor.PaintMaterials,
+        editor.OtherCosts,
+        editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
+        editor.Notes,
+        editor.Discounts,
+        editor.VatPolicy,
+        existing?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
+            ? card
+            : null);
 
     private EstimateEditorPost ReadEditorPost()
     {
@@ -2053,6 +2080,16 @@ public sealed partial class DetailsModel(
                 : int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
                     ? parsed
                     : -1;
+        // A discount is typed as a percentage and held as a fraction. A blank
+        // box is no discount; anything unreadable stays negative through the
+        // conversion, so EstimatePolicy.ValidateDiscounts' [0,1] rule refuses
+        // it rather than the screen guessing a value.
+        static decimal Fraction(string? value) => (Money(value) ?? 0m) / 100m;
+        // A checked box posts "true" ahead of its hidden "false"; an
+        // unchecked box posts the "false" alone (CaseMutationPageModel's
+        // BooleanFormFields convention), so the first entry is the answer.
+        bool Checked(string field) =>
+            bool.TryParse(form[field].FirstOrDefault(), out var value) && value;
 
         var operations = form["lineOperation"].ToArray();
         var postedLineIds = form["lineId"].ToArray();
@@ -2143,20 +2180,48 @@ public sealed partial class DetailsModel(
             && parsedId != Guid.Empty
             ? parsedId
             : null;
+        var categories = EstimateVatCategories.None;
+        foreach (var category in EstimateVatLabels.Categories)
+        {
+            if (Checked(VatCategoryField(category)))
+            {
+                categories |= category;
+            }
+        }
+
         return new(
             form["estimateName"].ToString(),
             Days(form["estimateRepairDays"].ToString()),
             Money(form["estimateLabourRate"].ToString()),
-            Money(form["estimatePaintLabourRate"].ToString()),
             Money(form["estimatePaintMaterials"].ToString()),
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
             form["estimateNotes"].ToString(),
+            // Enum.TryParse accepts any number, so a posted value that is not
+            // one of the three named states falls back to Unknown rather than
+            // reaching Core as an undefined status.
+            Enum.TryParse<RepairerVatStatus>(form["estimateVatStatus"].ToString(), out var status)
+                && Enum.IsDefined(status)
+                ? status
+                : RepairerVatStatus.Unknown,
+            categories,
+            new(
+                Fraction(form["estimateDiscountParts"].ToString()),
+                Fraction(form["estimateDiscountMaterials"].ToString()),
+                Fraction(form["estimateDiscountSpecialist"].ToString()),
+                Fraction(form["estimateDiscountOverall"].ToString())),
             estimateId,
             rows,
             linesAreValid ? lines : null,
             existingLineIds);
     }
+
+    /// <summary>
+    /// The form field one VAT category is posted under, so the screen and
+    /// the reader never name the same box two different ways.
+    /// </summary>
+    public static string VatCategoryField(EstimateVatCategories category) =>
+        "estimateVat" + category;
 
     /// <summary>
     /// ENG-026: the estimate import. The file is parsed first
@@ -2302,7 +2367,7 @@ public sealed partial class DetailsModel(
                     string.IsNullOrWhiteSpace(reason) ? "Estimate imported from a document" : reason.Trim(),
                     draftLease.Token,
                     null,
-                    new(trimmedName, null, null, null, null, null, EstimatePolicy.DefaultVatPercent, null),
+                    new(trimmedName, null, null, null, null, EstimatePolicy.DefaultVatPercent, null),
                     parsed.Lines,
                     new(parser.Route, artifactIdentity, parsed.SourceVersion, retained.Version.Sha256)),
                 cancellationToken);
@@ -2631,3 +2696,47 @@ public sealed record EstimateEditorLine(
     string? PaintHours,
     string? PartPounds,
     Guid? ExistingLineId = null);
+
+/// <summary>
+/// Amendment attribution for one saved estimate line. The Case estimate
+/// editor replaces the whole line collection on save, so a line that came
+/// back unchanged keeps the attribution it already carried, while a line
+/// whose editable values moved names the operator who moved them and when.
+/// </summary>
+internal static class EstimateLineAmendment
+{
+    /// <summary>
+    /// The attribution the saved line carries: <paramref name="actor"/> and
+    /// <paramref name="amendedAtUtc"/> when any editable value differs from
+    /// the loaded line, the line's prior stamp when none does.
+    /// </summary>
+    internal static (string? AmendedBy, DateTimeOffset? AmendedAtUtc) Stamp(
+        EstimateLineInput saved,
+        CaseEstimateLineRecord loaded,
+        string actor,
+        DateTimeOffset amendedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(loaded);
+        return IsUnchanged(saved, loaded)
+            ? (loaded.AmendedBy, loaded.AmendedAtUtc)
+            : (actor, amendedAtUtc);
+    }
+
+    /// <summary>
+    /// The eight values the editor lets an operator change. The operation is
+    /// compared in the editor's own vocabulary, because the screen offers no
+    /// finer choice than <see cref="EstimateOperation"/>: an imported
+    /// <c>paint_new</c> line the operator never touched comes back as
+    /// <c>paint_repair</c>, and that is not an amendment.
+    /// </summary>
+    internal static bool IsUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded) =>
+        EstimateOperations.FromLineType(saved.Type) == EstimateOperations.FromLineType(loaded.Type)
+        && string.Equals(saved.Description, loaded.Description, StringComparison.Ordinal)
+        && string.Equals(saved.PartNumber, loaded.PartNumber, StringComparison.Ordinal)
+        && saved.Quantity == loaded.Quantity
+        && saved.WorkUnits == loaded.WorkUnits
+        && saved.PaintWorkUnits == loaded.PaintWorkUnits
+        && saved.Materials == loaded.Materials
+        && saved.Price == loaded.Price;
+}
