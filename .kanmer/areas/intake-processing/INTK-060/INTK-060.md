@@ -2,10 +2,12 @@
 id: INTK-060
 type: ticket
 title: 'Pegasus v1 intake, principals and operator shell'
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-06T05:34:15.786Z'
 labels:
   - pegasus-v1
   - stream-c
@@ -14,7 +16,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-06T05:33:42.519Z'
+updated: '2026-09-06T05:34:15.786Z'
 ---
 
 ## What

@@ -2,10 +2,12 @@
 id: CASE-047
 type: ticket
 title: 'Pegasus v1 Case engineering, Glass''s and reports'
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-06T05:34:15.740Z'
 labels:
   - pegasus-v1
   - stream-b
@@ -14,7 +16,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-09-06T05:33:42.471Z'
-updated: '2026-09-06T05:33:42.471Z'
+updated: '2026-09-06T05:34:15.740Z'
 ---
 
 ## What

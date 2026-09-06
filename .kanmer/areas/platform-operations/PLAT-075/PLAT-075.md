@@ -2,10 +2,12 @@
 id: PLAT-075
 type: ticket
 title: 'Pegasus v1 platform, shared foundation and integration'
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-06T05:34:15.696Z'
 labels:
   - pegasus-v1
   - stream-a
@@ -15,7 +17,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-09-06T05:33:42.409Z'
-updated: '2026-09-06T05:33:42.409Z'
+updated: '2026-09-06T05:34:15.696Z'
 ---
 
 ## What
