@@ -6,11 +6,17 @@ namespace Pegasus.Core.Tests.Lifecycle;
 
 public sealed class CaseReviewReadinessTests
 {
+    /// <summary>
+    /// CASE-046: a posted readiness claim is never authority. Core no longer
+    /// refuses on the client's booleans; the Review gate reads the persisted
+    /// instruction and image completeness inside the store transaction
+    /// (CaseWorkflowPersistenceTests). Any posted combination passes here.
+    /// </summary>
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(false, false)]
-    public void ReviewAlwaysRequiresCompleteInstructionsAndImages(
+    public void PostedReadinessClaimsAreNotAuthorityForReview(
         bool instructionsComplete,
         bool imagesComplete)
     {
@@ -19,10 +25,9 @@ public sealed class CaseReviewReadinessTests
             imagesComplete,
             "readiness-evidence"));
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => CaseLifecycleRules.ValidateReturnToReview(request));
+        var exception = Record.Exception(() => CaseLifecycleRules.ValidateReturnToReview(request));
 
-        Assert.Equal("Review requires complete instructions and images.", exception.Message);
+        Assert.Null(exception);
     }
 
     [Fact]
