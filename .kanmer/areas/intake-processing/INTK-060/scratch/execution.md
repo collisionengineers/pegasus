@@ -162,3 +162,7 @@ A published G13 `99f48a459` (counter-first Triage allocator from C's helper, mig
 ## A composition patch applied — C head `2b6b5ed37`
 
 A's C01/C07 DI+MCP patch (PR 673 comment 5559772047, sha256 verified) applied `--3way` clean on `b1773601e`, committed with A attribution, build 0/0, pushed. Wave 10 (G13 head): build/core 75/integration 60+1 skip PASS; its runner stalled before the architecture lane, which is folded into wave 11 (architecture, MCP 9, C01/C07 activated ports) on `2b6b5ed37`. C06 implementer stalled once, resumed from `30a5196c5` (one commit). Queued C-owned edits (two-editor limit, C05+C06 active): pinned-MSG correction + stale Triage note comment/required `IAddTriageNote`; C07 public-upload retention caller (`IUploadToRequest` → session → Pending occurrence → `RetainIncomingArtifact`, fail-closed without custody; A asked to extend `EfCaseArtifactCustody.RetainAsync` authorization to RequestLink/SystemWorker); C08 correction round (nine wave-9 defects).
+
+## Wave 11 on `2b6b5ed37` — all PASS
+
+Build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port integration 37/37 (`wave1/wave11-tests/`). Head stands as pushed. Slice c08 receives the patched head next; C05/C06 implementers still active.
