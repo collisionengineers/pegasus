@@ -646,15 +646,21 @@ internal sealed class EfPublicUploadRetentionStore(
         occurrence.DocumentId = artifact.DocumentId;
         occurrence.DocumentVersionId = artifact.DocumentVersionId;
 
-        if (artifact.DocumentVersionId is { } versionId)
+        // Only a confirmed retention says anything about where custody holds
+        // the bytes, so only a confirmed retention writes the remote
+        // identities — and it never writes null. A version can back more than
+        // one occurrence (two arrivals of the same file are two occurrences),
+        // so clearing on a later Pending or Failed record would erase an
+        // earlier confirmed identity that is still true.
+        if (artifact.State == IncomingArtifactCustodyState.Confirmed
+            && artifact.DocumentVersionId is { } versionId)
         {
             var version = await context.Set<DocumentVersionEntity>()
                 .SingleOrDefaultAsync(item => item.Id == versionId, cancellationToken);
             if (version is not null)
             {
-                var confirmed = artifact.State == IncomingArtifactCustodyState.Confirmed;
-                version.BoxFileId = confirmed ? artifact.BoxFileId : null;
-                version.BoxVersionId = confirmed ? artifact.BoxVersionId : null;
+                version.BoxFileId = artifact.BoxFileId ?? version.BoxFileId;
+                version.BoxVersionId = artifact.BoxVersionId ?? version.BoxVersionId;
             }
         }
 
