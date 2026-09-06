@@ -221,6 +221,33 @@ public sealed class CaseReportDeliveryPreparationTests
         Assert.Equal("handler@principal.example", Assert.Single(command.Mail.To).Address);
         Assert.Equal([ReportAttachment], command.Mail.Attachments);
         Assert.Equal(command.Report.PreparationId, PreparationId);
+        // A03's report context is the immutable generation: the transport
+        // re-checks the generation identity and version, not the Case's.
+        Assert.Equal(GenerationId, command.Mail.ContextId);
+        Assert.Equal(1, command.Mail.ExpectedContextVersion);
+        Assert.Equal(1, command.Report.ExpectedCaseVersion);
+    }
+
+    /// <summary>
+    /// Stream A review: the preparation froze the Case version it was made
+    /// at; any later Case mutation — even one that leaves the addressing and
+    /// artifacts intact — must refuse the send rather than deliver stale
+    /// bytes, and the transport is never invoked.
+    /// </summary>
+    [Fact]
+    public async Task SendRefusesWhenTheCaseMovedAfterPreparation()
+    {
+        var send = new RecordingSend();
+        var sendPrepared = new SendPreparedCaseReport(
+            new FixedStore(Record(frozenCaseVersion: 1, currentCaseVersion: 2)),
+            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedMailboxes(Mailbox()),
+            new ReportSendReadiness(new FixedStore(Record(frozenCaseVersion: 1, currentCaseVersion: 2))),
+            send);
+
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => sendPrepared.ExecuteAsync(
+            new(Staff(), CaseId, PreparationId, 1, "send-1"), CancellationToken.None));
+        Assert.Empty(send.Commands);
     }
 
     [Fact]
@@ -272,13 +299,16 @@ public sealed class CaseReportDeliveryPreparationTests
         actor ?? Staff(), CaseId, 1, GenerationId, 1, PreparationId, 1, [ReportAttachment]);
 
     private static CaseReportDeliveryPreparationRecord Record(
-        IReadOnlyList<StaffMailAttachment>? confirmed = null) => new(
+        IReadOnlyList<StaffMailAttachment>? confirmed = null,
+        long frozenCaseVersion = 1,
+        long currentCaseVersion = 1) => new(
         new CaseReportDeliveryPreparation(
             PreparationId, CaseId, GenerationId, 1, 1,
             [ReportAttachment], Staff(), PreparedAtUtc),
         new CaseReportDeliveryAddressing(
             [new("handler@principal.example", null)], [], "DVR-31001"),
-        CurrentCaseVersion: 1,
+        frozenCaseVersion,
+        currentCaseVersion,
         CaseReportGenerationState.Confirmed,
         GenerationIsCurrent: true,
         CurrentGenerationVersion: 1,

@@ -39,14 +39,15 @@ public sealed record CaseReportDeliveryAddressing(
 
 /// <summary>
 /// One persisted preparation read back with the current facts the send
-/// boundary re-checks it against: the Case version now, the generation's
-/// state and version now, and the attachments the confirmed artifact rows
-/// describe now. The preparation itself never changes; what changes around
-/// it is what makes it unsendable.
+/// boundary re-checks it against: the Case version the preparation froze,
+/// the Case version now, the generation's state and version now, and the
+/// attachments the confirmed artifact rows describe now. The preparation
+/// itself never changes; what changes around it is what makes it unsendable.
 /// </summary>
 public sealed record CaseReportDeliveryPreparationRecord(
     CaseReportDeliveryPreparation Preparation,
     CaseReportDeliveryAddressing Addressing,
+    long FrozenCaseVersion,
     long CurrentCaseVersion,
     CaseReportGenerationState GenerationState,
     bool GenerationIsCurrent,
@@ -193,11 +194,12 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// The send boundary's re-check: a staff actor, the Case and generation
-    /// versions the preparation was made at, the generation still current
-    /// and confirmed, the preparation's own version, and every requested
-    /// attachment byte-identical to both the preparation and the confirmed
-    /// artifact rows as they are now.
+    /// The send boundary's re-check: a staff actor, the preparation's frozen
+    /// Case version against the Case version now, the generation still
+    /// current and confirmed at the version the preparation pinned, the
+    /// preparation's own version, and every requested attachment
+    /// byte-identical to both the preparation and the confirmed artifact
+    /// rows as they are now.
     /// </summary>
     public static void RequireReady(
         ReportSendReadinessRequest request, CaseReportDeliveryPreparationRecord record)
@@ -212,6 +214,9 @@ public static class CaseReportDeliveryPolicy
                 "The report delivery preparation does not belong to the named Case.");
         }
 
+        // The expected version is the one frozen into the preparation: any
+        // Case mutation since — even one that left the addressing intact —
+        // refuses the send instead of delivering stale bytes.
         CaseEditAuthority.RequireVersion(
             request.CaseId, record.CurrentCaseVersion, request.ExpectedCaseVersion);
         if (request.GenerationId != preparation.GenerationId)
@@ -389,7 +394,7 @@ public sealed class SendPreparedCaseReport(
         var report = new ReportSendReadinessRequest(
             request.Actor,
             request.CaseId,
-            record.CurrentCaseVersion,
+            record.FrozenCaseVersion,
             preparation.GenerationId,
             preparation.GenerationVersion,
             preparation.Id,
@@ -403,8 +408,10 @@ public sealed class SendPreparedCaseReport(
             mailbox.Id,
             mailbox.Version,
             StaffMailPurpose.CaseReport,
-            request.CaseId,
-            record.CurrentCaseVersion,
+            // A03's report context is the immutable generation, not the Case:
+            // the generation's version is what the transport re-checks.
+            preparation.GenerationId,
+            preparation.GenerationVersion,
             StaffMailComposeMode.New,
             OriginalMessage: null,
             record.Addressing.To,

@@ -387,8 +387,6 @@ public sealed partial class DetailsModel(
 
     public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
 
-    public string SendPreparedReportOperationKey { get; private set; } = NewOperationKey();
-
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? null
@@ -1058,7 +1056,7 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
-        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
+        if (!await HasReportJourneyAccessAsync(id, actor, cancellationToken))
         {
             return NotFound();
         }
@@ -1128,14 +1126,15 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// The one page caller of A's staff send transport. It presents the
-    /// preparation's exact version; the send boundary re-checks recipients,
-    /// freshness and attachment hashes, and A's returned state is reported
-    /// as-is — an Unknown outcome never claims a Sent fact.
+    /// The one page caller of A's staff send transport. The operation key is
+    /// derived from the immutable preparation identity server-side — a
+    /// reload can never mint a second send operation for one preparation —
+    /// and the send boundary re-checks recipients, freshness and attachment
+    /// hashes. A's returned state is mapped truthfully: only observation says
+    /// sent, and an Unknown outcome never claims one.
     /// </summary>
     public async Task<IActionResult> OnPostSendPreparedReportAsync(
         Guid id,
-        string operationKey,
         Guid preparationId,
         long expectedPreparationVersion,
         CancellationToken cancellationToken)
@@ -1144,11 +1143,7 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToReport(id);
-        }
+        var operationKey = preparationId.ToString("N");
 
         StaffMailOperation operation;
         try
@@ -1171,12 +1166,37 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
-        TempData["CaseStatus"] = operation.State switch
+        switch (operation.State)
         {
-            StaffMailState.Failed => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendFailed,
-            StaffMailState.Unknown => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown,
-            _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted,
-        };
+            case StaffMailState.Sent:
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent;
+                break;
+            case StaffMailState.Submitted:
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted;
+                break;
+            case StaffMailState.Failed:
+                TempData["CaseError"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendFailed;
+                break;
+            case StaffMailState.Unknown:
+                TempData["CaseError"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown;
+                break;
+            case StaffMailState.Cancelled:
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendCancelled;
+                break;
+            default:
+                // Prepared/DraftCreating/DraftReady/Sending: the transport
+                // accepted work that is still in flight — neither success
+                // nor failure is claimed.
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendInProgress;
+                break;
+        }
+
         return RedirectToReport(id);
     }
 
@@ -1197,7 +1217,7 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true)
+        if (access is null || !AssessmentAccessPolicy.CanOpenReports(access))
         {
             return NotFound();
         }
@@ -1939,6 +1959,19 @@ public sealed partial class DetailsModel(
         (await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
             cancellationToken))?.CanOpen == true;
+
+    /// <summary>
+    /// H3: the report generation/preview/delivery journey uses the workspace
+    /// state set without D11's EVA-export clause.
+    /// </summary>
+    private async Task<bool> HasReportJourneyAccessAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        (await getAssessmentAccess.ExecuteAsync(
+            new(caseId, actor),
+            cancellationToken)) is { } access
+        && AssessmentAccessPolicy.CanOpenReports(access);
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;

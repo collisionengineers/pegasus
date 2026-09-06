@@ -39,6 +39,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             (Assert.Single(record.Addressing.To).Address, record.Addressing.Subject));
         Assert.Equal(CaseReportGenerationState.Confirmed, record.GenerationState);
         Assert.True(record.GenerationIsCurrent);
+        Assert.Equal(1, record.FrozenCaseVersion);
+        Assert.Equal(record.FrozenCaseVersion, record.CurrentCaseVersion);
         Assert.Equal(1, await harness.IntentCountAsync());
         Assert.Equal(1, await harness.ActionHistoryCountAsync());
     }
@@ -121,6 +123,31 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         await harness.TamperArtifactVersionAsync();
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => readiness.RequireReadyAsync(request, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Stream A review: the frozen Case version is the one the preparation
+    /// pinned. A Case mutation after preparation — with the addressing and
+    /// artifacts untouched — refuses the send boundary.
+    /// </summary>
+    [Fact]
+    public async Task ReadinessRefusesWhenTheCaseMovedAfterPreparation()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var record = await harness.Store.PrepareAsync(harness.PrepareCommand(), CancellationToken.None);
+        var readiness = new ReportSendReadiness(harness.Store);
+        var request = harness.ReadyRequest(record);
+        await readiness.RequireReadyAsync(request, CancellationToken.None);
+
+        await harness.MoveCaseVersionAsync(2);
+        var moved = await harness.Store.GetAsync(harness.Staff, harness.CaseId,
+            record.Preparation.Id, CancellationToken.None);
+        Assert.NotNull(moved);
+        Assert.Equal(1, moved!.FrozenCaseVersion);
+        Assert.Equal(2, moved.CurrentCaseVersion);
+
+        await Assert.ThrowsAsync<CaseVersionConflictException>(
+            () => readiness.RequireReadyAsync(harness.ReadyRequest(moved), CancellationToken.None));
     }
 
     [Fact]
@@ -244,7 +271,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         public ReportSendReadinessRequest ReadyRequest(CaseReportDeliveryPreparationRecord record) => new(
             Staff,
             CaseId,
-            record.CurrentCaseVersion,
+            record.FrozenCaseVersion,
             record.Preparation.GenerationId,
             record.Preparation.GenerationVersion,
             record.Preparation.Id,
@@ -288,6 +315,10 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         /// </summary>
         public Task TamperArtifactVersionAsync() => database.ExecuteAsync(
             $"UPDATE DocumentVersions SET ContentLength = 999 WHERE Id = '{ArtifactVersionId:D}'");
+
+        /// <summary>A Case mutation after preparation: the live version moves.</summary>
+        public Task MoveCaseVersionAsync(long version) => database.ExecuteAsync(
+            $"UPDATE CaseWorkflows SET [Version] = {version} WHERE CaseId = '{CaseId:D}'");
 
         public async ValueTask DisposeAsync() => await database.DisposeAsync();
 

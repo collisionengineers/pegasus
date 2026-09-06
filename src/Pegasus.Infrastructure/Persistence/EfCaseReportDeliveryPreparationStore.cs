@@ -211,6 +211,9 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                 payload.PreparedBy.ToActor(),
                 entity.PreparedAtUtc),
             new CaseReportDeliveryAddressing(payload.To, payload.Cc, payload.Subject),
+            // The frozen Case version travels in the payload; the live one is
+            // the row this read just joined. The send boundary compares them.
+            payload.CaseVersion,
             caseVersion,
             Enum.Parse<CaseReportGenerationState>(generation.State),
             generation.SupersededById is null,
