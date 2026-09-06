@@ -102,6 +102,8 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(CaseReportGenerationOutcome.Generated, second.Outcome);
         var secondGeneration = Assert.IsType<CaseReportGenerationRecord>(second.Generation);
         Assert.Equal(CaseReportGenerationState.Confirmed, secondGeneration.State);
+        // The claim is unchanged material: the same hash, a different row.
+        Assert.Equal(firstGeneration.SnapshotHash, secondGeneration.SnapshotHash);
         Assert.NotEqual(firstGeneration.Id, secondGeneration.Id);
 
         var rows = await harness.GenerationRowsAsync();
