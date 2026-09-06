@@ -352,3 +352,7 @@ Review `pass` at `eb46b7a7d` (3 open minors R-21/R-22/R-23, residual). Merged `-
 ## Checkpoint — rate limit hit (resets 21:30 London); continuing at low priority
 
 C07 caller round 3 at `4a92a06e4` (atomic claim `TryClaimHandOverAsync`, monotonic `IncomingArtifactCustodyProgress`, original-key GET/recovery, refusal → failed, R-18, G15 doubles, tests a–f); merged C head → `37a923067`; wave 29 + re-review dispatched. C02 implementer cut at `796778e8b` (locator + reader structure committed; `IntakeOcr.cs`, `AzureDocumentIntelligenceOcr.cs`, `EfIntakeOcrOperationStore.cs` untracked drafts) — resumed with "commit drafts first" and the C-F02 persistence caveat. C06 cleanup agent cut before any change — resumed. C08 round 3 (query values) still queued.
+
+## Wave 29 (C07 caller `0a0e88975`): C lanes PASS
+
+Build 0/0, core 23, integration 66/67 (+1 skip), architecture 100; a-owned lane = A's seeded-QDOS duplicate only. Helper `task/pegasus-v1-c-retention-caller` moved to `0a0e88975`; A told what changed. Re-review pending; on pass, C07 caller integrates (then the B01 Recipient/Reason follow-up in the same files).
