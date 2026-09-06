@@ -117,6 +117,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Theory]
     [InlineData("Please provide an initial assessment of whether the vehicle is not roadworthy and repairable.\nAn official inspection instruction will follow.")]
     [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nAn official inspection instruction will not follow.")]
+    [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nNo official inspection instruction will follow.")]
     public void NegatedAssessmentOrFollowOnInstructionDoesNotClassify(string request)
     {
         var result = Classify(document:

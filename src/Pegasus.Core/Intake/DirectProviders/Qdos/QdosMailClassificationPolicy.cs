@@ -350,7 +350,7 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     private static partial Regex InitialAssessmentRequestRegex();
 
     [GeneratedRegex(
-        @"(?i)\b(?:an?\s+)?official\s+inspection\s+instruction\s+will\s+follow\b",
+        @"(?i)\b(?<!no\s)(?<!not\s)(?<!no\san\s)(?<!no\sa\s)(?<!not\san\s)(?<!not\sa\s)(?:an?\s+)?official\s+inspection\s+instruction\s+will\s+follow\b",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex OfficialInspectionWillFollowRegex();
