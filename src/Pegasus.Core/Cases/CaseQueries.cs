@@ -113,7 +113,9 @@ public sealed record CaseRequestUploadSummary(
     DateTimeOffset? RevokedAtUtc,
     int AcceptedFileCount,
     long AcceptedByteCount,
-    long Version);
+    long Version,
+    string? Recipient = null,
+    string? Reason = null);
 
 public sealed record CaseHistoryEntry(
     string EventType,

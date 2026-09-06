@@ -276,7 +276,9 @@ public sealed class EfCaseQueryStore(
                 item.RevokedAtUtc,
                 item.AcceptedFileCount,
                 item.AcceptedByteCount,
-                item.Version))
+                item.Version,
+                item.Recipient,
+                item.Reason))
             .ToArrayAsync(cancellationToken);
         var availableReportSentEvidence = await context.CaseReportSentEvidence
             .AsNoTracking()
