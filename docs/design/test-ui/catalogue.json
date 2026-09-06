@@ -158,6 +158,32 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/ClaimSources/Index.cshtml",
+    "route": "/Administration/ClaimSources",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "empty",
+        "file": "pages/administration-claim-sources--empty.html",
+        "branch": "No claim sources and the create form is available.",
+        "scenario": "administration-claim-sources--empty"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/ClaimSources/Edit.cshtml",
+    "route": "/Administration/ClaimSources/Edit/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-claim-source-edit--default.html",
+        "branch": "Loaded active claim source before its first edit.",
+        "scenario": "administration-claim-source-edit--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Index.cshtml",
     "route": "/Administration",
     "classification": "visual",
@@ -516,6 +542,19 @@
         "file": "pages/inbox--unavailable.html",
         "branch": "The current mail query is unavailable and no false empty result is rendered.",
         "scenario": "inbox--unavailable"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Mail/Compose.cshtml",
+    "route": "/Inbox/Compose",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/mail-compose--default.html",
+        "branch": "Initial new-message form before validation or submission.",
+        "scenario": "mail-compose--default"
       }
     ]
   },
