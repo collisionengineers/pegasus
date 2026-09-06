@@ -438,7 +438,9 @@ public sealed class StaffMailSend(
             || command.ContextId == Guid.Empty || command.ExpectedContextVersion <= 0
             || string.IsNullOrWhiteSpace(command.OperationKey) || command.OperationKey.Length > 100
             || string.IsNullOrWhiteSpace(command.Subject) || command.Subject.Length > 998
-            || string.IsNullOrWhiteSpace(command.Body) || command.To.Count + command.Cc.Count == 0
+            || command.Body is null
+            || (string.IsNullOrWhiteSpace(command.Body) && command.Attachments.Count == 0)
+            || command.To.Count + command.Cc.Count == 0
             || command.Attachments.Any(value => value.DocumentId == Guid.Empty
                 || value.VersionId == Guid.Empty || value.ContentLength <= 0
                 || value.Sha256.Length != 64 || string.IsNullOrWhiteSpace(value.FileName)))
