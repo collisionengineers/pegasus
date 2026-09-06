@@ -392,7 +392,10 @@ public sealed class StaffCorrespondenceWebTests
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, $"SC08 {handler}", $"SC08-{handler}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        using var factory = Configure(baseFactory, send);
+        using var factory = Configure(
+            baseFactory,
+            send,
+            new(seeded.MailboxId, seeded.MailboxGeneration));
         using var client = CreateClient(factory);
         var mode = expectedMode switch
         {
@@ -764,7 +767,9 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     private static WebApplicationFactory<Program> Configure(
-        IntakeWebApplicationFactory baseFactory, RecordingStaffMailSend send) =>
+        IntakeWebApplicationFactory baseFactory,
+        RecordingStaffMailSend send,
+        MailboxCapability? mailboxCapability = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -781,7 +786,9 @@ public sealed class StaffCorrespondenceWebTests
                 // Infrastructure gap itself.
                 services.RemoveAll<IApprovedMailboxStore>();
                 services.AddScoped<IApprovedMailboxStore>(provider =>
-                    new StaffSendCapableMailboxStore(provider.GetRequiredService<EfApprovedMailboxStore>()));
+                    new StaffSendCapableMailboxStore(
+                        provider.GetRequiredService<EfApprovedMailboxStore>(),
+                        mailboxCapability));
             }));
 
     /// <summary>
@@ -792,7 +799,11 @@ public sealed class StaffCorrespondenceWebTests
     /// perform on this branch. Every other read/write goes through the real
     /// store untouched.
     /// </summary>
-    private sealed class StaffSendCapableMailboxStore(IApprovedMailboxStore inner) : IApprovedMailboxStore
+    private sealed record MailboxCapability(Guid MailboxId, long Generation);
+
+    private sealed class StaffSendCapableMailboxStore(
+        IApprovedMailboxStore inner,
+        MailboxCapability? mailboxCapability) : IApprovedMailboxStore
     {
         public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
         {
@@ -802,7 +813,10 @@ public sealed class StaffCorrespondenceWebTests
                     ? mailbox with
                     {
                         RouteScopes = [.. mailbox.RouteScopes, ApprovedMailboxRouteScope.StaffSend],
-                        Generation = mailbox.Generation > 0 ? mailbox.Generation : 1
+                        Generation = mailboxCapability is not null
+                            && mailbox.Id == mailboxCapability.MailboxId
+                                ? mailboxCapability.Generation
+                                : mailbox.Generation > 0 ? mailbox.Generation : 1
                     }
                     : mailbox)
                 .ToArray();
