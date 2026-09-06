@@ -34,6 +34,7 @@ public sealed class InspectionAddressSuggestionTests
         var priorId = priorIds[0];
 
         await SaveClaimantAddressAsync(host, currentId, "Riverside House, AB1 2CD");
+        await SaveStorageLocationAsync(host, currentId, "Riverside Yard, AB1 5GH");
         await SaveInspectionAddressAsync(host, priorId, "Riverside Garage, AB1 9ZZ");
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -67,12 +68,45 @@ public sealed class InspectionAddressSuggestionTests
 
         Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Claimant
             && choice.Address == "Riverside House, AB1 2CD");
+        // C06 review R-19: the union's Storage source had no coverage at
+        // all — unlike Repairer, EfCaseDataStore does write and map back
+        // CaseDataFieldNames.StorageLocation, so it is seedable here.
+        Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Storage
+            && choice.Address == "Riverside Yard, AB1 5GH");
         Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.PriorPrincipalLocation
             && choice.Address == "Riverside Garage, AB1 9ZZ");
         Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Directory
             && choice.Label == "Riverside Repairs Ltd");
         Assert.True(choices.Count <= 20);
         Assert.Equal(choices.Count, choices.Select(choice => choice.Id).Distinct().Count());
+    }
+
+    /// <summary>
+    /// C06 review R-17: the SQL-level pre-filter on
+    /// <c>CaseDataFields.Value</c> must not be narrower than the exact,
+    /// whitespace-collapsing <c>NormalizeNamePrefix</c> rule the union
+    /// re-applies afterwards — a prior address stored with irregular (here,
+    /// doubled) whitespace must still prefix-match a query whose whitespace
+    /// is regular.
+    /// </summary>
+    [Fact]
+    public async Task SearchMatchesAPriorLocationWhoseStoredWhitespaceIsIrregular()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        using var host = factory.WithC06Adapters();
+        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        var priorIds = await CloneCasesAsync(host, currentId, 1);
+        var priorId = priorIds[0];
+
+        await SaveInspectionAddressAsync(host, priorId, "12  High Street, AB1 2CD");
+
+        await using var scope = host.Services.CreateAsyncScope();
+        var choices = await scope.ServiceProvider
+            .GetRequiredService<IInspectionLocationChoices>()
+            .SearchAsync(new(Administrator, currentId, "12 High"), CancellationToken.None);
+
+        Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.PriorPrincipalLocation
+            && choice.Address == "12  High Street, AB1 2CD");
     }
 
     [Fact]
@@ -316,6 +350,12 @@ public sealed class InspectionAddressSuggestionTests
             factory,
             caseId,
             new(InspectionAddress: inspectionAddress, InspectionMode: CaseInspectionMode.PhysicalAddress));
+
+    private static async Task SaveStorageLocationAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId,
+        string storageLocation) =>
+        await SaveEditableDataAsync(factory, caseId, new(StorageLocation: storageLocation));
 
     private static async Task SaveEditableDataAsync(
         WebApplicationFactory<Program> factory,

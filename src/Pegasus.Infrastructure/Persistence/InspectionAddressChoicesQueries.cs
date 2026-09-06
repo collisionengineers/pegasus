@@ -155,15 +155,25 @@ public sealed class InspectionAddressChoicesQueries(
             // gets an arbitrary, unordered 500 and a real prefix match past
             // that cutoff is silently dropped before it is ever compared.
             // AddIfMatches below still applies the exact normalized
-            // comparison as the real filter.
-            var rawPrefix = (query.Prefix ?? string.Empty).Trim();
+            // comparison as the real filter. C06 review R-17: this predicate
+            // must not be narrower than that real filter, so it compares
+            // against the same collapsed-whitespace, uppercased `namePrefix`
+            // NormalizeNamePrefix already produced, and collapses runs of
+            // whitespace in the stored value the same way (bounded passes —
+            // still a pre-filter, not the exact rule) so irregular spacing in
+            // stored data does not drop a real match before AddIfMatches ever
+            // sees it.
             var priorRows = await context.CaseDataFields.AsNoTracking()
                 .Where(field => field.FieldName == CaseDataFieldNames.InspectionAddress
                     && field.ValueKind == CaseDataCodes.Confirmed
                     && field.CaseId != query.CaseId
                     && field.Snapshot.Case.PrincipalId == principalId
                     && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment
-                    && field.Value.StartsWith(rawPrefix))
+                    && field.Value
+                        .Replace("\t", " ").Replace("\r", " ").Replace("\n", " ")
+                        .Replace("  ", " ").Replace("  ", " ").Replace("  ", " ").Replace("  ", " ")
+                        .Trim()
+                        .StartsWith(namePrefix))
                 .OrderByDescending(field => field.ConfirmedAtUtc)
                 .Select(field => new
                 {
