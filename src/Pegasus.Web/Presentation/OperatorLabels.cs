@@ -1605,8 +1605,6 @@ public static class OperatorLabels
             public const string RepairDays = "Repair days";
             public const string LabourRate = "Labour rate";
             public const string LabourRatePerHour = "Labour rate (\u00a3/h)";
-            public const string PaintLabourRate = "Paint labour rate";
-            public const string PaintLabourRatePerHour = "Paint labour rate (\u00a3/h)";
             public const string PaintMaterials = "Paint materials";
             public const string PaintMaterialsPounds = "Paint materials (\u00a3)";
             public const string OtherCosts = "Other costs";

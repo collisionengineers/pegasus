@@ -224,6 +224,8 @@ public sealed class MessageModel(
         && CorrespondenceMailbox is not null
         && CorrespondenceCase is not null;
 
+    public bool CanReply => CanCorrespond && ReplyRecipients(Detail).To.Length > 0;
+
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         CancellationToken cancellationToken)
@@ -951,6 +953,11 @@ public sealed class MessageModel(
         {
             return false;
         }
+        if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+            && ReplyRecipients(Detail).To.Length == 0)
+        {
+            return false;
+        }
         if (initializeForm && CorrespondenceMode is not null)
         {
             ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
@@ -970,7 +977,7 @@ public sealed class MessageModel(
 
     private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
         RetainedMailDetail detail) =>
-        (ParseRecipients(detail.Summary.SenderAddress), []);
+        (ParseRecipients(detail.ReplyToAddresses), []);
 
     private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyAllRecipients(
         RetainedMailDetail detail,
@@ -979,7 +986,7 @@ public sealed class MessageModel(
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ownAddress };
         var to = new List<StaffMailRecipient>();
         var cc = new List<StaffMailRecipient>();
-        AddUnique(to, ParseRecipients(detail.Summary.SenderAddress), seen);
+        AddUnique(to, ParseRecipients(detail.ReplyToAddresses), seen);
         AddUnique(to, detail.ToAddresses.Select(AddressRecipient), seen);
         AddUnique(cc, detail.CcAddresses.Select(AddressRecipient), seen);
         return ([.. to], [.. cc]);
@@ -1004,6 +1011,13 @@ public sealed class MessageModel(
         (value ?? string.Empty)
             .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(AddressRecipient)
+            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static StaffMailRecipient[] ParseRecipients(IReadOnlyList<string>? values) =>
+        (values ?? [])
+            .SelectMany(ParseRecipients)
+            .Where(item => IsMailboxAddress(item.Address))
             .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 

@@ -16,16 +16,19 @@
     <div class="page-actions">
         @if (Model.CanCorrespond)
         {
-            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
-               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-               asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
-            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
-               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-               asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
+            @if (Model.CanReply)
+            {
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
+            }
             <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
