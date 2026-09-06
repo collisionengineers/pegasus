@@ -395,7 +395,32 @@ public sealed class Top15InstructionCorpusTests
             [
                 new("Claimant name", "Spray Tek Accident Repair Centre Ltd", "The separately labelled Source/Introducer."),
                 new(null, "cost of replacement if beyond repair", "Requested work is not an accepted report outcome.")
-            ])
+            ]),
+        new(
+            "SBL", $"{CorpusRoot}/SBL 01.pdf",
+            "fa2d7e6abe04830ac29bd5faa7b9452212a6bc91d636cfddf10510c821780fc8",
+            new("Mr Craig Motorhome Escapes", "SBL-B0470099", "SK24KYF", new(2026, 4, 6), new(2026, 5, 6)),
+            [new("Claimant name", "C.A.R.S Collision Accident Recovery Service Ltd", "Introducer, not policyholder."), new("Inspection address", "Block 1 Whiteside Industrial Estate, Bathgate EH48 2RX", "Repairer address has its own role.")]),
+        new(
+            "SBL", $"{CorpusRoot}/SBL 02.pdf",
+            "7cd71550bb2d0d782885928036c23818b6db877cac97db30d55e76ca47d62866",
+            new("Mr EDSB Ltd EDSB Ltd", "SBL-B0558371", "DA75JCU", new(2026, 4, 26), new(2026, 5, 6)),
+            [new("Claimant name", "MAGNA ACCIDENT SERVICES LIMITED", "Introducer, not policyholder."), new("Inspection address", "Watling St Hinckley", "Repairer address has its own role.")]),
+        new(
+            "SBL", $"{CorpusRoot}/SBL 03.pdf",
+            "d5106d2067f7576c6873527db59f8868ed8617f2f1334faf22f5a65caf36adee",
+            new("Ms Jacklyn Gurney", "SBL-B0427818", "L777GUR", new(2026, 2, 12), new(2026, 4, 28)),
+            [new("Claimant name", "C.A.R.S Collision Accident Recovery Service Ltd", "Introducer, not policyholder."), new("Inspection address", "36 Speirs Wharf, Glasgow G4 9TG", "Repairer address has its own role.")]),
+        new(
+            "SBL", $"{CorpusRoot}/SBL 04.pdf",
+            "3fd4d9cd2f7895579f51afcaf055f43e465038125543f198046109fd313dd99b",
+            new("Miss Arabella Christie", "SBL-B0423796", "AJ17FNL", new(2026, 4, 25), new(2026, 4, 28)),
+            [new("Claimant name", "Fleet Mitigation Solutions", "Introducer, not policyholder."), new("Inspection address", "Unit C2, Rhymes Lane, Fairford, GL7 4BU", "Repairer address has its own role.")]),
+        new(
+            "SBL", $"{CorpusRoot}/SBL 05.pdf",
+            "436db268cf7cb824ef089e08399879b4f7f78a65bf3c2b0f515d043c44bb3e00",
+            new("Mr Yoni Sherer", "SBL-B0484837", "VX71YDO", new(2026, 4, 13), new(2026, 4, 28)),
+            [new("Claimant name", "Parkhouse Assist", "Introducer, not policyholder."), new("Inspection address", "Unit 1, Leo Industrial Estate, Mosley Rd, Trafford Park, Stretford, Manchester M17 1JS", "Repairer address has its own role.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -484,7 +509,8 @@ public sealed class Top15InstructionCorpusTests
             new PchInstructionExtractionPolicy(),
             new FwInstructionExtractionPolicy(),
             new QclInstructionExtractionPolicy(),
-            new OakInstructionExtractionPolicy()
+            new OakInstructionExtractionPolicy(),
+            new SblInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
