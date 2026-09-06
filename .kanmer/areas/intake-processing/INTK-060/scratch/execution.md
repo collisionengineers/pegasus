@@ -228,3 +228,7 @@ Build/core 27/architecture PASS; corpus 10/11 — `EveryRecordedFindingIsPersist
 ## Checkpoint — C06 round 2 at `8384e28bb` (merged `0be584782`)
 
 Both blockers, three majors and 7/10 minors fixed (R-6/R-11/R-15 dispositioned on `c06-notes`); root cause of the 302 defect: non-nullable Reason properties across two independent forms invalidating ModelState. Wave 20 + targeted re-review running. C05 round 2 dispatched (Opus) for the two wave-19 defects. Editors: C05 r2, C07 caller correction. C08 correction next in queue.
+
+## Wave 20 (C06 at `0be584782`): host DI fixed, two form POSTs still 200
+
+Build/core 61/host 32/browser 2/architecture PASS; integration 34/36 — the EvaSubmission page's `UpdateEva` (shared A/B test, previously passing) and `UpdateLocation` POSTs both return `Page()` instead of 302 after round 2's ModelState change. Reviewer asked to name the branch from source; round 3 queued (editor slots: C05 r2, C07 caller correction) and will make both tests print the validation summary on a non-redirect.
