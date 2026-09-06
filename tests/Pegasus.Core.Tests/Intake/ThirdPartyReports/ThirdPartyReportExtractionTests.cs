@@ -258,6 +258,71 @@ public sealed partial class ThirdPartyReportExtractionTests
         Assert.Contains(
             result.Findings,
             finding => finding.Code == ThirdPartyFindingCodes.PageRequiresHumanVerification);
+
+        // Every finding it raises names the source it is about. This document
+        // matched no signature, so its issuer row carries no page and no label
+        // at all; filing a finding against that row would persist a statement
+        // about a document while naming no part of it (C05-R-10).
+        var findings = result.Candidates
+            .Where(row => ThirdPartyReportFields.IsFinding(row.Field))
+            .ToList();
+        Assert.NotEmpty(findings);
+        Assert.All(
+            findings,
+            row => Assert.False(
+                string.IsNullOrWhiteSpace(row.SourceLabel),
+                $"the {row.NormalizedValue} row names no source"));
+
+        // And the production gate keeps it: a scan-only source is the one
+        // unsignatured document that has something to say about itself, so
+        // discarding it here would compute these page rows and throw them
+        // away (C05-R-11).
+        Assert.True(ThirdPartyReportAnalysis.IsRecordable(result));
+    }
+
+    /// <summary>
+    /// The other half of the recording gate: a document that was read, matched
+    /// no signature and states nothing about itself is left entirely alone.
+    /// Writing an empty analysis for every unrelated attachment would bury the
+    /// ones that matter.
+    /// </summary>
+    [Fact]
+    public void AReadableDocumentThatIsNoReportAndSaysNothingAboutItselfIsNotRecorded()
+    {
+        var result = Read("Please find the enclosed paperwork for your attention.");
+
+        Assert.Empty(result.Selection.Matches);
+        Assert.Empty(result.Findings);
+        Assert.False(ThirdPartyReportAnalysis.IsRecordable(result));
+    }
+
+    /// <summary>
+    /// Two findings can legitimately state the same sentence about the same
+    /// page of the same document — and a source row's identifier is derived,
+    /// not generated, so without the finding's position in the raised order
+    /// both would derive one identifier, collide inside the single write and
+    /// lose every candidate for that source rather than the duplicate
+    /// (C05-R-12). The derivation stays a pure function of its inputs: the same
+    /// position reproduces the same identifier.
+    /// </summary>
+    [Fact]
+    public void TwoFindingsThatStateTheSameSentenceDoNotShareAnIdentifier()
+    {
+        SourceFieldCandidate Finding(int ordinal) => ThirdPartySourceCandidates.Create(
+            Context(),
+            ThirdPartyReportFields.Finding(ThirdPartyFindingCodes.FieldConflict),
+            ThirdPartyReportProfiles.ReportDocumentRole,
+            rawValue: "'estimate.net' has 2 competing printed values; both are retained.",
+            normalizedValue: ThirdPartyFindingCodes.FieldConflict,
+            page: 2,
+            sourceLabel: "uploaded report.pdf, page 2",
+            policyVersion: ThirdPartyReportValidation.PolicyVersion,
+            disposition: SourceCandidateDisposition.Conflicting,
+            region: "finding",
+            ordinal: ordinal);
+
+        Assert.NotEqual(Finding(1).Id, Finding(2).Id);
+        Assert.Equal(Finding(1).Id, Finding(1).Id);
     }
 
     [Fact]

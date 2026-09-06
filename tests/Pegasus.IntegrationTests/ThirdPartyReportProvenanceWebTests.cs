@@ -233,19 +233,29 @@ public sealed class ThirdPartyReportProvenanceWebTests
     }
 
     /// <summary>
-    /// Re-evaluating the same retained bytes leaves the recorded reading
-    /// exactly as it was — and the span says which path did that, so a replay
-    /// is no longer indistinguishable from a reading that threw and was
-    /// swallowed. Before the outcome was named, this test passed either way.
+    /// Re-evaluating the same retained bytes re-reads them through the same
+    /// reader and leaves the recorded reading exactly as it was — and the span
+    /// says which path did that, so a replay is no longer indistinguishable
+    /// from a reading that threw and was swallowed. Before the outcome was
+    /// named, this test passed either way.
+    ///
+    /// The re-evaluation command queues the work the Worker picks up; it does
+    /// not itself re-read anything. Scheduling and stopping there would prove
+    /// only that nothing ran, so this drives the pass that production runs:
+    /// the queued processor, over the retained artifact, against the receipt
+    /// the first pass produced.
     /// </summary>
     [ReferencePackFact]
     public async Task ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates()
     {
         var (bytes, _) = ReadOriginal(ReportName);
 
-        // Only this class composes the analysis store, so only this class's
-        // intakes tag a report-reading outcome at all.
-        var outcomes = new ConcurrentQueue<string>();
+        // Every outcome is kept with the receipt it belongs to.
+        // ActivitySource.AddActivityListener is process-global, so a collection
+        // running beside this one tags outcomes on this listener too; filtering
+        // by receipt is what makes the assertions below about this test's own
+        // two passes.
+        var outcomes = new ConcurrentQueue<(Guid Receipt, string Outcome)>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "Pegasus.Core.Intake",
@@ -253,9 +263,10 @@ public sealed class ThirdPartyReportProvenanceWebTests
                 ActivitySamplingResult.AllData,
             ActivityStopped = stopped =>
             {
-                if (stopped.GetTagItem("intake.third_party_report.outcome") is string outcome)
+                if (stopped.GetTagItem("intake.third_party_report.outcome") is string outcome
+                    && stopped.GetTagItem("intake.receipt_id") is Guid tagged)
                 {
-                    outcomes.Enqueue(outcome);
+                    outcomes.Enqueue((tagged, outcome));
                 }
             }
         };
@@ -287,9 +298,13 @@ public sealed class ThirdPartyReportProvenanceWebTests
         var first = await queries.GetAsync(
             StaffActor(), receiptId, null, assetId, CancellationToken.None);
 
-        // Re-evaluate the retained source. The operation key is derived from
-        // the asset, so the recorded reading replays instead of being written
-        // twice or overwritten.
+        // Re-evaluate the retained source. The command queues the work; the
+        // dispatcher below stands in for the Worker timer and runs the pass
+        // that actually re-reads the retained bytes, exactly as production
+        // does. The operation key is derived from the asset, and the retained
+        // source asset keeps its identity across a re-evaluation, so the
+        // recorded reading is left standing instead of being written twice or
+        // overwritten.
         await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
             new(
                 receiptId,
@@ -297,6 +312,12 @@ public sealed class ThirdPartyReportProvenanceWebTests
                 StaffActor(),
                 $"reevaluate:{receiptId:N}",
                 "Re-reading the retained third-party report."));
+        var dispatcher = new DispatchPendingIntakeWork(
+            services.GetRequiredService<IIntakeWorkStore>(),
+            new IntakeWebDriver.ImmediateIntakeWorkEnqueuer(
+                IntakeWebDriver.CreateProcessor(services)),
+            services.GetRequiredService<TimeProvider>());
+        Assert.Equal(1, await dispatcher.ExecuteAsync(1, CancellationToken.None));
 
         var second = await queries.GetAsync(
             StaffActor(), receiptId, null, assetId, CancellationToken.None);
@@ -305,10 +326,16 @@ public sealed class ThirdPartyReportProvenanceWebTests
             first.Select(row => row.Id).OrderBy(id => id),
             second.Select(row => row.Id).OrderBy(id => id));
 
-        // The first intake recorded the reading and the second left it
-        // standing. Neither failed: a swallowed failure would leave the same
-        // rows behind and is exactly what this now rules out.
-        var recorded = outcomes.ToList();
+        // The first intake recorded the reading and the second re-read the same
+        // bytes and left it standing. Neither failed, and neither stayed
+        // silent: a swallowed failure — or a pass that never reached the reader
+        // at all — would leave the same rows behind, and both are exactly what
+        // this now rules out.
+        var recorded = outcomes
+            .Where(entry => entry.Receipt == receiptId)
+            .Select(entry => entry.Outcome)
+            .ToList();
+        Assert.Equal(2, recorded.Count);
         Assert.Contains("recorded", recorded);
         Assert.Contains("recorded_reading_stands", recorded);
         Assert.DoesNotContain("not_recorded", recorded);

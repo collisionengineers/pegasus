@@ -820,7 +820,8 @@ public static class ThirdPartyReportExtraction
         ?? issuer;
 
     /// <summary>Whether a row names the source it was read from.</summary>
-    private static bool Locates(SourceFieldCandidate row) => row.SourceLabel.Length > 0;
+    private static bool Locates(SourceFieldCandidate row) =>
+        !string.IsNullOrWhiteSpace(row.SourceLabel);
 
     /// <summary>
     /// What the operator must do with a finding, expressed in the only
