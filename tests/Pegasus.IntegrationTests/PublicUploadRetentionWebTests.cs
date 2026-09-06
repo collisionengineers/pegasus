@@ -1061,9 +1061,14 @@ public sealed partial class PublicUploadRetentionWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
+        factory.Services.GetRequiredService<RecordingCaseArtifactCustody>().Disposition =
+            CaseArtifactCustodyDisposition.Confirmed;
         var owner = await SeedLinkAsync(factory.Services, reference: "PUBUP-FENCE");
         var accepted = await PostEvidenceAsync(factory, owner.Token);
         Assert.Equal(HttpStatusCode.Redirect, accepted.StatusCode);
+        var scopedOperationKey = EfPublicUploadRetentionStore.ScopeOperationKey(
+            owner.LinkId,
+            accepted.OperationKey);
 
         Guid documentId;
         Guid versionId;
@@ -1072,7 +1077,7 @@ public sealed partial class PublicUploadRetentionWebTests
         {
             var occurrence = await context.Set<DocumentOccurrenceEntity>()
                 .AsNoTracking()
-                .SingleAsync(item => item.OperationKey == accepted.OperationKey);
+                .SingleAsync(item => item.OperationKey == scopedOperationKey);
             documentId = occurrence.DocumentId;
             versionId = occurrence.VersionId;
             context.Set<RequestUploadLinkEntity>().Add(new()
@@ -1096,7 +1101,7 @@ public sealed partial class PublicUploadRetentionWebTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
             foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
-            foreignActor, owner.CaseId, accepted.OperationKey, CancellationToken.None));
+            foreignActor, owner.CaseId, scopedOperationKey, CancellationToken.None));
 
         var ownResult = await status.GetAsync(
             ActionActor.RequestLink(owner.LinkId),
