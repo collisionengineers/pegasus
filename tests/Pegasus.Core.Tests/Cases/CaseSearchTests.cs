@@ -79,7 +79,7 @@ public sealed class CaseSearchTests
             string? afterSortText, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<CaseDocument>> ListDocumentsByCursorAsync(
+        public Task<IReadOnlyList<CaseDocumentPageItem>> ListDocumentsByCursorAsync(
             Guid caseId, DateTimeOffset? afterRecordedAtUtc, Guid? afterId, int fetchCount,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();

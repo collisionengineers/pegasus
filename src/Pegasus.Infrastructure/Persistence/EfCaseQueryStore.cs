@@ -524,19 +524,14 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ReadDocumentsAsync"/>
-    /// (CASE-047): newest occurrence first, then document id. A document
-    /// with no occurrence sorts as though its newest occurrence were
-    /// <see cref="DateTimeOffset.MinValue"/> — every document a case can
-    /// carry gets at least one when it is added, so this only guards against
-    /// a row this store never itself writes. Each returned <see
-    /// cref="CaseDocument"/> carries only its current occurrence and current
-    /// version (Stream A review, D-bounded-pages) — never the full history
-    /// <see cref="ReadDocumentsAsync"/> reads — so a page can never grow
-    /// unboundedly with a document's occurrence/version count; a caller
-    /// wanting every occurrence or version reads the case's full document
-    /// list instead.
+    /// (CASE-047, Stream A MCP review): newest occurrence first, then
+    /// occurrence id. The row unit is the occurrence, so a document with
+    /// more occurrences than the caller's limit still enumerates every one
+    /// across consecutive pages — a document-unit page cannot split one
+    /// document's occurrences. Each row carries exactly the version its
+    /// occurrence names; no occurrence or version set is ever materialized.
     /// </summary>
-    public async Task<IReadOnlyList<CaseDocument>> ListDocumentsByCursorAsync(
+    public async Task<IReadOnlyList<CaseDocumentPageItem>> ListDocumentsByCursorAsync(
         Guid caseId,
         DateTimeOffset? afterRecordedAtUtc,
         Guid? afterId,
@@ -544,35 +539,41 @@ public sealed class EfCaseQueryStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var ranked =
-            from document in context.Set<CaseDocumentEntity>().AsNoTracking()
-            where document.CaseId == caseId
-            select new
-            {
-                Document = document,
-                SortValue = context.Set<DocumentOccurrenceEntity>()
-                    .Where(occurrence => occurrence.DocumentId == document.Id)
-                    .Select(occurrence => (DateTimeOffset?)occurrence.RecordedAtUtc)
-                    .Max() ?? DateTimeOffset.MinValue
-            };
+        var query = context.Set<DocumentOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId);
         if (afterId is { } id)
         {
             var afterValue = afterRecordedAtUtc!.Value;
-            ranked = ranked.Where(item =>
-                item.SortValue < afterValue
-                || (item.SortValue == afterValue && item.Document.Id < id));
+            query = query.Where(item =>
+                item.RecordedAtUtc < afterValue
+                || (item.RecordedAtUtc == afterValue && item.Id < id));
         }
 
-        var page = await ranked
-            .OrderByDescending(item => item.SortValue)
-            .ThenByDescending(item => item.Document.Id)
+        var occurrences = await query
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .ThenByDescending(item => item.Id)
             .Take(fetchCount)
             .ToArrayAsync(cancellationToken);
-        return await MapCursorDocumentsAsync(
-            context,
-            caseId,
-            page.Select(item => item.Document).ToArray(),
-            cancellationToken);
+        if (occurrences.Length == 0)
+        {
+            return [];
+        }
+
+        var versionIds = occurrences.Select(item => item.VersionId).ToArray();
+        var versionsById = (await context.Set<DocumentVersionEntity>()
+                .AsNoTracking()
+                .Where(item => versionIds.Contains(item.Id))
+                .ToArrayAsync(cancellationToken))
+            .ToDictionary(item => item.Id);
+
+        return occurrences.Select(item => new CaseDocumentPageItem(
+                MapOccurrence(item),
+                versionsById.TryGetValue(item.VersionId, out var version)
+                    ? MapVersion(version)
+                    : throw new InvalidOperationException(
+                        $"Document version {item.VersionId:D} named by occurrence {item.Id:D} does not exist.")))
+            .ToArray();
     }
 
     /// <summary>
@@ -613,48 +614,6 @@ public sealed class EfCaseQueryStore(
                 occurrences.Where(item => item.DocumentId == document.Id).Select(MapOccurrence).ToArray(),
                 versions.Where(item => item.DocumentId == document.Id).Select(MapVersion).ToArray()))
             .ToArray();
-    }
-
-    /// <summary>
-    /// The bounded cursor-page tail of <see cref="ListDocumentsByCursorAsync"/>
-    /// (CASE-047, Stream A review): each document carries at most one
-    /// occurrence (the most recent — the same row its sort key came from)
-    /// and at most one version (the current one), instead of every occurrence
-    /// and version <see cref="MapDocumentsAsync"/> reads for the full list.
-    /// </summary>
-    private static async Task<IReadOnlyList<CaseDocument>> MapCursorDocumentsAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        CaseDocumentEntity[] documentEntities,
-        CancellationToken cancellationToken)
-    {
-        if (documentEntities.Length == 0)
-        {
-            return [];
-        }
-
-        var documentIds = documentEntities.Select(item => item.Id).ToArray();
-        var occurrences = await context.Set<DocumentOccurrenceEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId && documentIds.Contains(item.DocumentId))
-            .OrderByDescending(item => item.RecordedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        var currentVersions = await context.Set<DocumentVersionEntity>()
-            .AsNoTracking()
-            .Where(item => documentIds.Contains(item.DocumentId) && item.IsCurrent)
-            .ToArrayAsync(cancellationToken);
-
-        return documentEntities.Select(document =>
-        {
-            var occurrence = occurrences.FirstOrDefault(item => item.DocumentId == document.Id);
-            var version = currentVersions.FirstOrDefault(item => item.DocumentId == document.Id);
-            return new CaseDocument(
-                document.Id,
-                caseId,
-                occurrence is null ? [] : [MapOccurrence(occurrence)],
-                version is null ? [] : [MapVersion(version)]);
-        }).ToArray();
     }
 
     private static DocumentOccurrence MapOccurrence(DocumentOccurrenceEntity item) => new(
