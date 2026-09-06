@@ -138,3 +138,11 @@ Two majors in `EfPublicUploadRetentionStore` (Box identities cleared on non-Conf
 ## C01 integrated — C head `ca9caae70`
 
 Independent review `pass` at `741f1a70d` (attestation `scratch/review-c01`); wave 6 build/Core 108/Architecture 100 PASS, integration 96/97 (C07-dependent test). Merged `--no-ff` into `task/pegasus-v1-intake`, Release build exit 0, pushed (PR #673). Residual for C01 closure: A's DI/host patch (+A04 reader), corpus rebuild, preservation statement 15 real-SQL proof at integration, fifteen-profile reachability via C03. C07 `2ba5e4e21` in wave 7 + re-review; G13 allocator hunk extraction running.
+
+## Checkpoint 13:50Z
+
+- C07: review at `2ba5e4e21` = needs-changes with one new major (C07-R-9, custody fixture resolved the scoped receipt store from the root provider — the same defect wave 7 surfaced). Fixed at `28148f54f` (test-only, 7/3 lines, solution build 0/0); wave 8 integration lane running.
+- G13 helper published for A: `task/pegasus-v1-c-triage-allocator-hunks` = `65002169f` (rooted at G12; contracts+store+allocation tests only). Posted on PLAT-075 `c-stream-notes`.
+- C08: C branch (`ca9caae70`) merged into `c08-shell` → `88028df51`; sole conflict `OperationsSnapshot.cs` resolved to G11's seven-field snapshot with C08's shared `FetchAttentionInputsAsync` and `IGetAttentionRows` retained; `UnidentifiedCount` from the open queue. Build 0/0. Test wave queued behind wave 8 (LocalDB is serial).
+- C05 resumed at `36b0d84f1` (C branch merged over wip `815385cda`), Opus implementer; C06 started at `930440465`, Sonnet implementer. Two editors active.
+- Stale wave 3 runner stopped.
