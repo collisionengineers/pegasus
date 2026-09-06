@@ -462,3 +462,5 @@ User-authorized transfer from claude-fable-c completed without force. Preserved 
 Preserved helper state: C07b clean 2c427c643667596e397b6e51672bc32595075646; C02 6482cca59a628019ffe781a9056cba7d85a04bc5 plus dirty src/Pegasus.Core/Intake/IntakeOcr.cs; C03 clean 0f1355108e2cb25c022a5e54454a97857b484794; C08 ef9d71655f76c69f88f04c0f8d52e133582a7d5c plus six dirty C-owned files. No reset, stash, rebase, clean, duplicate worktree or restart.
 
 PR 673 takeover/status posted as comment 5561608677. C07b has no round-4 attestation: retained review file ends at round 3 needs-changes against 0a0e88975, while helper has advanced. Do not integrate until a fresh independent exact-head review exists. Next bounded executable lane is to inspect/complete the preserved C02 correction without replacing its work.
+
+- 2026-09-06T19:51:21.907Z lease-phase running-command → implementing (lease 40f03659-6845-4f20-b1cc-cfd09686ec00 rev 36; expires 2026-09-06T20:21:21.900Z)
