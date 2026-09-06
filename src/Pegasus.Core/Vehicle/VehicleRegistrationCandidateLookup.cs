@@ -71,6 +71,12 @@ public sealed partial class VehicleRegistrationCandidateLookup(IVehicleLookupAda
 
     public static IReadOnlyList<string> GenerateCandidates(string rawValue)
     {
+        var results = GenerateValidCandidatesUncapped(rawValue);
+        return results.Count > MaximumCandidates ? [] : results;
+    }
+
+    internal static IReadOnlyList<string> GenerateValidCandidatesUncapped(string rawValue)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(rawValue);
         var original = WhitespaceRegex().Replace(rawValue, string.Empty).ToUpperInvariant();
         if (original.Length is 0 or > 7
@@ -79,7 +85,7 @@ public sealed partial class VehicleRegistrationCandidateLookup(IVehicleLookupAda
 
         var positions = original.Select((character, index) => (character, index))
             .Where(item => item.character is 'O' or '0' or 'I' or '1').ToArray();
-        var results = new List<(string Value, int Substitutions, int Ordinal)>();
+        var results = new List<(string Value, int Substitutions)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var combinations = 1 << positions.Length;
         for (var mask = 0; mask < combinations; mask++)
@@ -93,15 +99,12 @@ public sealed partial class VehicleRegistrationCandidateLookup(IVehicleLookupAda
             }
             var candidate = new string(characters);
             if (IsSupportedRegistration(candidate) && seen.Add(candidate))
-                results.Add((candidate, System.Numerics.BitOperations.PopCount((uint)mask), mask));
+                results.Add((candidate, System.Numerics.BitOperations.PopCount((uint)mask)));
         }
-
-        if (results.Count > MaximumCandidates)
-            return [];
 
         return results
             .OrderBy(candidate => candidate.Substitutions)
-            .ThenBy(candidate => candidate.Ordinal)
+            .ThenBy(candidate => candidate.Value, StringComparer.Ordinal)
             .Select(candidate => candidate.Value)
             .ToArray();
     }
