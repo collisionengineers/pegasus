@@ -28,6 +28,9 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.FileName).HasMaxLength(255).IsRequired();
             entity.Property(value => value.MediaType).HasMaxLength(128).IsRequired();
             entity.Property(value => value.Sha256).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(value => value.BoxFileId).HasMaxLength(200);
+            entity.Property(value => value.BoxVersionId).HasMaxLength(200);
+            entity.Property(value => value.PendingContentStorageKey).HasMaxLength(200);
             entity.Property(value => value.CustodyStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(value => value.CreatedBy).HasMaxLength(256).IsRequired();
             entity.Property(value => value.RemovalReason).HasMaxLength(2000);
