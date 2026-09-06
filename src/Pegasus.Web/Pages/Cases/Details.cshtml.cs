@@ -65,7 +65,6 @@ public sealed partial class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
-    TimeProvider timeProvider,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
 {
@@ -426,8 +425,6 @@ public sealed partial class DetailsModel(
 
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
 
-    public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
-
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         string? estimate,
@@ -491,7 +488,6 @@ public sealed partial class DetailsModel(
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
-            ManualChaseAttemptedAtUtc = timeProvider.GetUtcNow();
             return Page();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

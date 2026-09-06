@@ -747,7 +747,11 @@ public sealed partial class CaseDetailsWebTests
     [Fact]
     public async Task ManualChasePostUsesAntiforgeryServerActorLiveLeaseVersionAndReplayKey()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        // The attempt time is the server's clock at the post, never a value
+        // the form carried (PR 670 port), so the host's clock is pinned here.
+        var attemptedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        using var baseFactory = new IntakeWebApplicationFactory(
+            new CaseWorkflowPersistenceTests.MutableTimeProvider(attemptedAtUtc));
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -808,18 +812,21 @@ public sealed partial class CaseDetailsWebTests
         // The Record chase control lives on the Notes section and renders in
         // edit context while a chase is scheduled.
         Assert.Contains("Record chase", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"recipient\"", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"content\"", leasedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"attemptedAtUtc\"", leasedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"targetPartyOrAddress\"", leasedHtml, StringComparison.Ordinal);
         var operationKey = "manual-chase-replay";
-        var attemptedAtUtc = InputValue(leasedHtml, "attemptedAtUtc");
         using var firstResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
-            ManualChaseForm(AntiforgeryValue(leasedHtml), store, operationKey, attemptedAtUtc));
+            ManualChaseForm(AntiforgeryValue(leasedHtml), store, operationKey));
         AssertPrg(firstResponse, store.CaseId);
 
         var currentHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
         using var replayResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
-            ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey, attemptedAtUtc));
+            ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey));
         AssertPrg(replayResponse, store.CaseId);
 
         Assert.Equal(2, store.ManualChases.Count);
@@ -834,9 +841,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(store.LeaseToken, command.EditLeaseToken);
         Assert.Equal(operationKey, command.OperationKey);
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
-        Assert.Equal(
-            DateTimeOffset.Parse(attemptedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-            command.AttemptedAtUtc);
+        Assert.Equal(attemptedAtUtc, command.AttemptedAtUtc);
         Assert.NotEmpty(command.Actor.Roles);
         Assert.Equal("Telephone", command.Channel);
         Assert.Equal("Provider claims team", command.TargetPartyOrAddress);
@@ -973,19 +978,17 @@ public sealed partial class CaseDetailsWebTests
     private static FormUrlEncodedContent ManualChaseForm(
         string antiforgeryToken,
         RecordingCaseDetailsStore store,
-        string operationKey,
-        string attemptedAtUtc) => Form(
+        string operationKey) => Form(
             antiforgeryToken,
             ("id", store.CaseId.ToString("D")),
             ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             ("operationKey", operationKey),
             ("editLeaseToken", store.LeaseToken),
             ("reason", "Missing evidence follow-up"),
-            ("attemptedAtUtc", attemptedAtUtc),
             ("channel", "Telephone"),
-            ("targetPartyOrAddress", "Provider claims team"),
+            ("recipient", "Provider claims team"),
             ("outcome", "Awaiting requested photographs"),
-            ("note", "Asked provider for missing images"));
+            ("content", "Asked provider for missing images"));
 
     /// <summary>
     /// What every case mutation posts from the leased workspace — the case id, its version, the
