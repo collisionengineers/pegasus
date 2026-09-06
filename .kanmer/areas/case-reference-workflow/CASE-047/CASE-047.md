@@ -11,23 +11,40 @@ stageEntered:
 taken_at: '2026-09-06T05:58:38.228Z'
 branch: task/pegasus-v1-casework
 worktree: ../pegasus-worktrees/v1-casework
-claim_expires_at: '2026-09-06T06:55:02.839Z'
+claim_expires_at: '2026-09-06T23:24:48.106Z'
 claim_controller: claude-fable-b
-lease_id: 715d1480-9946-467e-b177-9b167c73ee94
-lease_revision: 5
+lease_id: 0053a7bb-66b1-4c58-81bc-5e0bce9f026f
+lease_revision: 48
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus-worktrees\v1-casework'
 lease_provider: claude-code
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-06T06:25:02.839Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-06T22:24:48.106Z'
+lease_reclaimed_from: 'opencode-backup-b (user-authorized backup for claude-fable-b until 17:50Z)'
 labels:
   - pegasus-v1
   - stream-b
 links: []
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+commits:
+  - de69bdcb5
+  - 0c00c74a7
+  - 3483cd4f0
+  - 21b3e34f1
+  - c907b59bf
+  - 0ab330a21
+  - 9f0e6ce71
+  - 8c78e97ac
+  - 22bf79e0e
+  - 0e078e00a
+  - 10d76166d
+  - a64e51d19
+  - ca6a97c72
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/672'
 archived: false
 created: '2026-09-06T05:33:42.471Z'
-updated: '2026-09-06T06:25:02.839Z'
+updated: '2026-09-06T22:24:48.106Z'
 ---
 
 ## What
