@@ -981,6 +981,9 @@ public sealed partial class OperationsWebTests
                     .OrderBy(job => job.CreatedAtUtc)
                     .ToArray());
 
+        public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult(new AiJobQueryPage([], false));
+
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
             Guid subjectId,
             CancellationToken cancellationToken) =>
@@ -1227,6 +1230,15 @@ public sealed partial class OperationsWebTests
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+
+        public Task<AiJobQueryPage> ListOpenPageAsync(
+            AiJobKind? kind,
+            string grantId,
+            DateTimeOffset? afterCreatedAtUtc,
+            Guid? afterJobId,
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new AiJobQueryPage([], false));
 
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
             Guid subjectId,

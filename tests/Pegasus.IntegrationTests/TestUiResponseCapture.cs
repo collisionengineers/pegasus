@@ -43,7 +43,12 @@ internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
             {
                 using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
                 var html = await reader.ReadToEndAsync(context.RequestAborted);
-                await CaptureAsync(captureDirectory, context, html, context.RequestAborted);
+                // A password-reset response is deliberately shown once to
+                // its administrator; it must never become a retained fixture.
+                if (!html.Contains("id=\"temporary-password-title\"", StringComparison.Ordinal))
+                {
+                    await CaptureAsync(captureDirectory, context, html, context.RequestAborted);
+                }
                 buffer.Position = 0;
             }
             else if (context.Response.ContentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true)

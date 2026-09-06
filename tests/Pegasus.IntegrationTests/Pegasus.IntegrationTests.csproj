@@ -33,6 +33,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Pegasus.Web\Pegasus.Web.csproj" />
     <ProjectReference Include="..\..\src\Pegasus.Infrastructure\Pegasus.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Pegasus.Worker\Pegasus.Worker.csproj" />
   </ItemGroup>
 
 </Project>

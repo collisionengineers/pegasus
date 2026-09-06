@@ -39,7 +39,7 @@ public sealed class GraphMailWebhookTests
             services.AddSingleton<IApprovedMailboxSubscriptionStore>(new SubscriptionStore(
                 new(mailboxId, subscriptionId.ToString("D"), resource,
                     DateTimeOffset.UtcNow.AddDays(1),
-                    ApprovedMailboxSubscriptionLifecycleState.Active, null, null)));
+                    ApprovedMailboxSubscriptionLifecycleState.Active, null, null, 3)));
             services.RemoveAll<IMailboxWakeEnqueuer>();
             services.AddSingleton<IMailboxWakeEnqueuer>(enqueuer);
         }));
@@ -61,7 +61,7 @@ public sealed class GraphMailWebhookTests
         });
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        Assert.Equal((mailboxId, subscriptionId, MailboxWakeKind.Created), Assert.Single(enqueuer.Messages));
+        Assert.Equal((mailboxId, subscriptionId, 3L, MailboxWakeKind.Created, "message-id"), Assert.Single(enqueuer.Messages));
     }
 
     [Theory]
@@ -84,7 +84,7 @@ public sealed class GraphMailWebhookTests
             lifecycleEvent: lifecycleEvent));
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        Assert.Equal((mailboxId, subscriptionId, expectedKind), Assert.Single(enqueuer.Messages));
+        Assert.Equal((mailboxId, subscriptionId, 3L, expectedKind, (string?)null), Assert.Single(enqueuer.Messages));
     }
 
     [Theory]
@@ -170,7 +170,7 @@ public sealed class GraphMailWebhookTests
             services.AddSingleton<IApprovedMailboxSubscriptionStore>(new SubscriptionStore(
                 new(mailboxId, subscriptionId.ToString("D"), resource,
                     DateTimeOffset.UtcNow.AddDays(1),
-                    ApprovedMailboxSubscriptionLifecycleState.Active, null, null)));
+                    ApprovedMailboxSubscriptionLifecycleState.Active, null, null, 3)));
             services.RemoveAll<IMailboxWakeEnqueuer>();
             services.AddSingleton(enqueuer);
         }));
@@ -205,20 +205,21 @@ public sealed class GraphMailWebhookTests
 
     private sealed class RecordingEnqueuer : IMailboxWakeEnqueuer
     {
-        public List<(Guid MailboxId, Guid SubscriptionId, MailboxWakeKind Kind)> Messages { get; } = [];
+        public List<(Guid MailboxId, Guid SubscriptionId, long Generation, MailboxWakeKind Kind, string? MessageId)> Messages { get; } = [];
 
-        public Task EnqueueAsync(Guid approvedMailboxId, Guid subscriptionId, MailboxWakeKind wakeKind,
+        public Task EnqueueAsync(Guid approvedMailboxId, Guid subscriptionId, long generation,
+            MailboxWakeKind wakeKind, string? immutableMessageId,
             CancellationToken cancellationToken)
         {
-            Messages.Add((approvedMailboxId, subscriptionId, wakeKind));
+            Messages.Add((approvedMailboxId, subscriptionId, generation, wakeKind, immutableMessageId));
             return Task.CompletedTask;
         }
     }
 
     private sealed class ThrowingEnqueuer : IMailboxWakeEnqueuer
     {
-        public Task EnqueueAsync(Guid approvedMailboxId, Guid subscriptionId,
-            MailboxWakeKind wakeKind, CancellationToken cancellationToken) =>
+        public Task EnqueueAsync(Guid approvedMailboxId, Guid subscriptionId, long generation,
+            MailboxWakeKind wakeKind, string? immutableMessageId, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Queue unavailable.");
     }
 
@@ -241,10 +242,12 @@ public sealed class GraphMailWebhookTests
                 CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>>([]);
 
-        public Task SaveAsync(ApprovedMailboxSubscription value, CancellationToken cancellationToken) =>
+        public Task SaveAsync(ApprovedMailboxSubscription value,
+            string? expectedPriorSubscriptionId, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task RecordMaintenanceFailureAsync(Guid approvedMailboxId, string failureCode,
+        public Task RecordMaintenanceFailureAsync(Guid approvedMailboxId, long expectedGeneration,
+            string? expectedSubscriptionId, string failureCode,
             DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

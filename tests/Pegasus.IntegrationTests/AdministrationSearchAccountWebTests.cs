@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -114,6 +115,83 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Equal(
             StaffRoleNames.Administrator,
             typeof(MailCategoriesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(HealthModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(ActionLogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(AiJobsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(ReportsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+    }
+
+    [Theory]
+    [InlineData("/Administration/Health")]
+    [InlineData("/Administration/ActionLogs")]
+    [InlineData("/Administration/AiJobs")]
+    [InlineData("/Administration/Reports")]
+    public async Task NewAdministrationRoutesForbidNonAdministrators(string route)
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+
+        using var response = await client.GetAsync(route);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AiJobsShowsUnavailableWhenTheHostDidNotComposeAHandOffTransport()
+    {
+        // The default test composition carries the persistent switch but no
+        // DevelopmentOffline Send-to-AI transport, matching a production host
+        // where the preview capability is absent.
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync("/Administration/AiJobs");
+
+        Assert.Contains("Unavailable", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("· Active</span>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ActionLogPagerTraversesOneHundredAndOneFilteredRows()
+    {
+        const string actor = "pager-actor";
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(Enumerable.Range(0, 101).Select(index => new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = $"case-{index:000}",
+                EventKind = $"action-{index:000}",
+                ActorKind = "Staff",
+                ActorSubjectId = actor,
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(-index),
+                Outcome = "Succeeded",
+                CorrelationId = $"pager-{index:000}"
+            }));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+        var first = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}");
+        Assert.Contains("page=2", first, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Actor=pager-actor", first, StringComparison.OrdinalIgnoreCase);
+
+        var second = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=2");
+        Assert.Contains("page=3", second, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Actor=pager-actor", second, StringComparison.OrdinalIgnoreCase);
+
+        var third = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+        Assert.Contains("action-100", third, StringComparison.Ordinal);
+        Assert.DoesNotContain("page=4", third, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

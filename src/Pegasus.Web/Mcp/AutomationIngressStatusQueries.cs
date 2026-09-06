@@ -9,9 +9,12 @@ namespace Pegasus.Web.Mcp;
 /// <see cref="AutomationClientRegistry"/>.
 /// </summary>
 internal sealed class AutomationIngressStatusQueries(
-    AutomationClientRegistry registry,
-    AutomationMcpOptions options) : IAutomationIngressStatusQueries
+    AutomationClientRegistry? registry = null,
+    AutomationMcpOptions? options = null) : IAutomationIngressStatusQueries
 {
     public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
-        registry.IsEnabledAsync(options.ClientId, cancellationToken);
+        options is null
+            ? Task.FromResult(false)
+            : (registry ?? throw new InvalidOperationException("The configured Automation ingress has no client registry."))
+                .IsEnabledAsync(options.ClientId, cancellationToken);
 }

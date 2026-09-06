@@ -278,6 +278,7 @@ public sealed class WorkerAzureClientCompositionTests
             ["Box:BaseUri"] = "https://api.box.com/2.0/",
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",
+            ["Box:HoldingFolderId"] = "test-holding-folder",
             ["Box:ConfigJson"] = "{\"boxAppSettings\":{\"clientID\":\"client-id\",\"appAuth\":{\"publicKeyID\":\"key-id\",\"privateKey\":\"private-key\",\"passphrase\":\"passphrase\"}},\"enterpriseID\":\"enterprise-id\"}",
             ["Box:ClientSecret"] = "test-client-secret",
             ["Dvla:BaseUri"] = "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles/",
