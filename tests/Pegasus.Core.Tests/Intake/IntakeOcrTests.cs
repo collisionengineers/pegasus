@@ -14,6 +14,7 @@ public sealed class IntakeOcrTests
     private static readonly DateTimeOffset Now = new(2026, 4, 1, 10, 0, 0, TimeSpan.Zero);
     private static readonly byte[] SourceBytes = [1, 2, 3, 4, 5, 6, 7, 8];
     private const string SourceHash = "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
+    private const string ResponseHash = "bb11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
 
     [Fact]
     public async Task AnUnstartedOperationIsSubmittedCompletedAndReanalysedExactlyOnce()
@@ -26,7 +27,7 @@ public sealed class IntakeOcrTests
         var operation = harness.Store.Single();
         Assert.Equal(IntakeOcrState.Completed, operation.State);
         Assert.Equal("provider-op-1", operation.ProviderOperationId);
-        Assert.Equal("response-hash", operation.ResponseSha256);
+        Assert.Equal(ResponseHash, operation.ResponseSha256);
         Assert.Equal([2, 5], operation.PageResults.Select(page => page.Number));
         Assert.Equal(1, harness.Provider.Analyses);
         Assert.Equal(0, harness.Provider.Reconciliations);
@@ -39,6 +40,10 @@ public sealed class IntakeOcrTests
         Assert.Equal(harness.Receipt.Version, request.ExpectedReceiptVersion);
         Assert.Equal(harness.SourceAssetId, request.IntakeAssetId);
         Assert.Equal(ActorKind.Automation, request.Actor.Kind);
+        var evidence = Assert.IsType<CompletedOcrEvidence>(request.OcrEvidence);
+        Assert.Equal(SourceHash, evidence.SourceSha256);
+        Assert.Equal([2, 5], evidence.QualifiedPages);
+        Assert.Equal(ResponseHash, evidence.Result.ResponseSha256);
     }
 
     [Fact]
@@ -375,7 +380,7 @@ public sealed class IntakeOcrTests
             IntakeOcrProviderIdentity.ModelId,
             IntakeOcrProviderIdentity.ApiVersion,
             "provider-op-1",
-            "response-hash",
+            ResponseHash,
             [.. pages.Select(page => new IntakeOcrPage(page, $"page {page}", [], []))]);
 
         public static IntakeOcrResult Failure(IntakeOcrState state, IntakeOcrFailure failure) => new(

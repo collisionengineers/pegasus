@@ -749,7 +749,7 @@ public sealed class ProcessIntakeOcr(
             }
 
             await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
-            await ReanalyzeAsync(current, receipt, cancellationToken);
+            await ReanalyzeAsync(current, receipt, request, result, cancellationToken);
             return;
         }
 
@@ -813,6 +813,8 @@ public sealed class ProcessIntakeOcr(
     private async Task ReanalyzeAsync(
         IntakeOcrOperation operation,
         IntakeReceipt receipt,
+        IntakeOcrRequest ocrRequest,
+        IntakeOcrResult ocrResult,
         CancellationToken cancellationToken)
     {
         var key = $"ocr:{operation.OperationKey}";
@@ -822,7 +824,8 @@ public sealed class ProcessIntakeOcr(
                 receipt.Id,
                 receipt.Version,
                 key.Length > 100 ? key[..100] : key,
-                operation.IntakeAssetId),
+                operation.IntakeAssetId,
+                new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
             cancellationToken);
     }
 }
