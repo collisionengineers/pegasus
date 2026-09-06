@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Intake.Unidentified;
@@ -29,22 +28,12 @@ namespace Pegasus.Web.Presentation;
 ///
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
 /// shared per-request <c>ViewData</c>.
-///
-/// <see cref="IGetAttentionRows"/> is resolved per request from
-/// <c>HttpContext.RequestServices</c> instead of the constructor (C08): this
-/// branch does not yet carry Stream A's registration for it, and a required
-/// constructor dependency on an unregistered service would break every
-/// authenticated page in every web test that resolves this filter. A missing
-/// registration renders the notifications menu with no list content rather
-/// than failing the whole page — the same optional-resolution bridge C01
-/// used for its analysis panel. A's registration patch makes the dependency
-/// required again in the combined checkout; this filter reverts to
-/// constructor injection once that lands.
 /// </remarks>
 public sealed class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
     IListTriage listTriage,
     IUnidentifiedStore unidentifiedStore,
+    IGetAttentionRows getAttentionRows,
     TimeProvider timeProvider) : IAsyncPageFilter
 {
     private readonly IDashboardQueries dashboardQueries =
@@ -53,6 +42,8 @@ public sealed class RailCountsPageFilter(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly IUnidentifiedStore unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
+    private readonly IGetAttentionRows getAttentionRows =
+        getAttentionRows ?? throw new ArgumentNullException(nameof(getAttentionRows));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -76,14 +67,9 @@ public sealed class RailCountsPageFilter(
             var unidentifiedTask = unidentifiedStore.ListQueueAsync(null, cancellationToken);
             // Work Centre already holds its own full snapshot and slices its
             // own top ten (Pages/Index.cshtml.cs) — calling the narrow query
-            // again here would be a second read of the same rows. Resolved
-            // per request (GetService, not GetRequiredService): this branch
-            // does not yet carry Stream A's registration for it, so a missing
-            // registration renders no list content instead of failing the page.
+            // again here would be a second read of the same rows.
             var isWorkCentre = pageModel is Pegasus.Web.Pages.IndexModel;
-            var getAttentionRows = context.HttpContext.RequestServices
-                .GetService<IGetAttentionRows>();
-            var attentionRowsTask = isWorkCentre || getAttentionRows is null
+            var attentionRowsTask = isWorkCentre
                 ? null
                 : getAttentionRows.ExecuteAsync(actor, cancellationToken);
 
