@@ -1,4 +1,6 @@
-﻿using System.Security.Cryptography;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -232,10 +234,34 @@ public sealed class ThirdPartyReportProvenanceWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Re-evaluating the same retained bytes leaves the recorded reading
+    /// exactly as it was — and the span says which path did that, so a replay
+    /// is no longer indistinguishable from a reading that threw and was
+    /// swallowed. Before the outcome was named, this test passed either way.
+    /// </summary>
     [ReferencePackFact]
     public async Task ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates()
     {
         var (bytes, _) = ReadOriginal(ReportName);
+
+        // Only this class composes the analysis store, so only this class's
+        // intakes tag a report-reading outcome at all.
+        var outcomes = new ConcurrentQueue<string>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Pegasus.Core.Intake",
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.AllData,
+            ActivityStopped = stopped =>
+            {
+                if (stopped.GetTagItem("intake.third_party_report.outcome") is string outcome)
+                {
+                    outcomes.Enqueue(outcome);
+                }
+            }
+        };
+        ActivitySource.AddActivityListener(listener);
         using var factory = new IntakeWebApplicationFactory();
         using var host = WithSourceCandidates(factory);
         using var client = host.CreateClient(new WebApplicationFactoryClientOptions
@@ -280,6 +306,14 @@ public sealed class ThirdPartyReportProvenanceWebTests
         Assert.Equal(
             first.Select(row => row.Id).OrderBy(id => id),
             second.Select(row => row.Id).OrderBy(id => id));
+
+        // The first intake recorded the reading and the second left it
+        // standing. Neither failed: a swallowed failure would leave the same
+        // rows behind and is exactly what this now rules out.
+        var recorded = outcomes.ToList();
+        Assert.Contains("recorded", recorded);
+        Assert.Contains("recorded_reading_stands", recorded);
+        Assert.DoesNotContain("not_recorded", recorded);
     }
 
     /// <summary>
