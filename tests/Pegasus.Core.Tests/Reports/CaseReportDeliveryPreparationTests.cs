@@ -168,6 +168,24 @@ public sealed class CaseReportDeliveryPreparationTests
             () => CaseReportDeliveryPolicy.RequireReady(request, record));
     }
 
+    /// <summary>
+    /// Stream A review (multiplicity): a request that duplicates one
+    /// artifact and omits another has the same count as the pin and every
+    /// item contained — a count-plus-contains check would pass it and send
+    /// without the fee note. Exact identity equality refuses it before the
+    /// transport is ever invoked.
+    /// </summary>
+    [Fact]
+    public void ReadinessRefusesADuplicatedArtifactThatOmitsAnother()
+    {
+        var pinned = new[] { ReportAttachment, FeeAttachment };
+        var record = Record(pinned: pinned, confirmed: pinned);
+        var request = ReadyRequest() with { Artifacts = [ReportAttachment, ReportAttachment] };
+
+        Assert.Throws<InvalidOperationException>(
+            () => CaseReportDeliveryPolicy.RequireReady(request, record));
+    }
+
     [Fact]
     public async Task DeliveryIsAStaffActAndRefusesOtherActors()
     {
@@ -226,6 +244,50 @@ public sealed class CaseReportDeliveryPreparationTests
         Assert.Equal(GenerationId, command.Mail.ContextId);
         Assert.Equal(1, command.Mail.ExpectedContextVersion);
         Assert.Equal(1, command.Report.ExpectedCaseVersion);
+    }
+
+    /// <summary>
+    /// Stream A review (blocker 2): the transport's mailbox guard is the
+    /// G14 Generation, never the administration row's concurrency Version —
+    /// here deliberately distinct so a swap cannot pass unnoticed.
+    /// </summary>
+    [Fact]
+    public async Task SendUsesTheMailboxGenerationNotItsAdministrationVersion()
+    {
+        var send = new RecordingSend();
+        var sendPrepared = new SendPreparedCaseReport(
+            new FixedStore(Record()),
+            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedMailboxes(Mailbox(version: 5, generation: 3)),
+            new ReportSendReadiness(new FixedStore(Record())),
+            send);
+
+        await sendPrepared.ExecuteAsync(
+            new(Staff(), CaseId, PreparationId, 1, "send-1"), CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(3, command.Mail.ExpectedMailboxGeneration);
+    }
+
+    /// <summary>
+    /// Stream A review (blocker 2): a mailbox bound only for Sent-evidence
+    /// observation cannot send — the report journey needs the StaffSend
+    /// capability on the same approved, identified mailbox.
+    /// </summary>
+    [Fact]
+    public async Task SendFailsClosedWithoutTheStaffSendScope()
+    {
+        var send = new RecordingSend();
+        var sendPrepared = new SendPreparedCaseReport(
+            new FixedStore(Record()),
+            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedMailboxes(Mailbox(scopes: [ApprovedMailboxRouteScope.SentEvidence])),
+            new ReportSendReadiness(new FixedStore(Record())),
+            send);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sendPrepared.ExecuteAsync(
+            new(Staff(), CaseId, PreparationId, 1, "send-1"), CancellationToken.None));
+        Assert.Empty(send.Commands);
     }
 
     /// <summary>
@@ -299,12 +361,13 @@ public sealed class CaseReportDeliveryPreparationTests
         actor ?? Staff(), CaseId, 1, GenerationId, 1, PreparationId, 1, [ReportAttachment]);
 
     private static CaseReportDeliveryPreparationRecord Record(
+        IReadOnlyList<StaffMailAttachment>? pinned = null,
         IReadOnlyList<StaffMailAttachment>? confirmed = null,
         long frozenCaseVersion = 1,
         long currentCaseVersion = 1) => new(
         new CaseReportDeliveryPreparation(
             PreparationId, CaseId, GenerationId, 1, 1,
-            [ReportAttachment], Staff(), PreparedAtUtc),
+            pinned ?? [ReportAttachment], Staff(), PreparedAtUtc),
         new CaseReportDeliveryAddressing(
             [new("handler@principal.example", null)], [], "DVR-31001"),
         frozenCaseVersion,
@@ -312,7 +375,7 @@ public sealed class CaseReportDeliveryPreparationTests
         CaseReportGenerationState.Confirmed,
         GenerationIsCurrent: true,
         CurrentGenerationVersion: 1,
-        confirmed ?? [ReportAttachment]);
+        confirmed ?? pinned ?? [ReportAttachment]);
 
     private static CaseReportArtifactRecord Artifact(
         CaseReportArtifactStatus status,
@@ -330,10 +393,15 @@ public sealed class CaseReportDeliveryPreparationTests
         Guid.NewGuid(), state, null, 1, PreparedAtUtc, null, null, null,
         Guid.NewGuid(), 1, new string('d', 64), null, null);
 
-    private static ApprovedMailbox Mailbox() => new(
+    private static ApprovedMailbox Mailbox(
+        IReadOnlyList<ApprovedMailboxRouteScope>? scopes = null,
+        int version = 5,
+        long generation = 3) => new(
         Guid.NewGuid(), "reports@collisionengineers.example",
-        [ApprovedMailboxRouteScope.SentEvidence], ApprovedMailboxState.Approved,
-        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: PreparedAtUtc, 1, []);
+        scopes ?? [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+        ApprovedMailboxState.Approved,
+        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: PreparedAtUtc, version, [],
+        Generation: generation);
 
     private static CaseDataProjection Projection(
         string? contactEmail,

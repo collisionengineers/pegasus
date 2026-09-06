@@ -243,15 +243,16 @@ public static class CaseReportDeliveryPolicy
                 $"Report delivery preparation '{preparation.Id}' is at version {preparation.Version}, not expected version {request.ExpectedPreparationVersion}.");
         }
 
-        if (request.Artifacts.Count == 0
-            || request.Artifacts.Count != preparation.Artifacts.Count
-            || request.Artifacts.Any(attachment => !preparation.Artifacts.Contains(attachment)))
+        // Exact identity equality against the frozen pin — same count, same
+        // items, same order. A count-plus-contains check would let a
+        // duplicated artifact omit another (Stream A review, multiplicity).
+        if (!request.Artifacts.SequenceEqual(preparation.Artifacts))
         {
             throw new InvalidOperationException(
                 $"The attachments to send are not the ones report delivery preparation '{preparation.Id}' pinned.");
         }
 
-        if (request.Artifacts.Any(attachment => !record.ConfirmedArtifacts.Contains(attachment)))
+        if (!request.Artifacts.SequenceEqual(record.ConfirmedArtifacts))
         {
             throw new InvalidOperationException(
                 $"An attachment of report delivery preparation '{preparation.Id}' no longer matches its confirmed artifact's hash, length or identity.");
@@ -406,7 +407,9 @@ public sealed class SendPreparedCaseReport(
         var mail = new StaffMailSendCommand(
             request.Actor,
             mailbox.Id,
-            mailbox.Version,
+            // The transport's generation guard is the mailbox's Generation
+            // (G14), never the administration row's concurrency Version.
+            mailbox.Generation,
             StaffMailPurpose.CaseReport,
             // A03's report context is the immutable generation, not the Case:
             // the generation's version is what the transport re-checks.
@@ -424,22 +427,27 @@ public sealed class SendPreparedCaseReport(
     }
 
     /// <summary>
-    /// The approved mailbox reports leave from is the one whose Sent items
-    /// A reads for report-sent evidence. Exactly one identified, Approved
-    /// mailbox may hold that scope; none or several fails closed.
+    /// The approved mailbox reports leave from is the one bound for both
+    /// directions of that journey: StaffSend, because a report send is a
+    /// staff send, and SentEvidence, because A reads the same mailbox's Sent
+    /// items for truthful report-sent evidence. Exactly one identified,
+    /// Approved mailbox with a valid Generation may hold both scopes; none,
+    /// a missing scope or several fails closed.
     /// </summary>
     private async Task<ApprovedMailbox> SendingMailboxAsync(CancellationToken cancellationToken)
     {
         var candidates = (await mailboxes.ListAsync(cancellationToken).ConfigureAwait(false))
             .Where(mailbox => mailbox.State == ApprovedMailboxState.Approved
                 && mailbox.IdentityIsBound
-                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence))
+                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
+                && mailbox.Generation > 0)
             .ToArray();
         return candidates.Length == 1
             ? candidates[0]
             : throw new InvalidOperationException(
                 candidates.Length == 0
-                    ? "No approved mailbox is bound for report-sent evidence, so no report can be sent."
-                    : "More than one approved mailbox is bound for report-sent evidence.");
+                    ? "No approved mailbox is bound for both staff send and report-sent evidence, so no report can be sent."
+                    : "More than one approved mailbox is bound for both staff send and report-sent evidence.");
     }
 }
