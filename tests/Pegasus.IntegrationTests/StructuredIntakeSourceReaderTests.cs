@@ -215,6 +215,21 @@ public sealed class StructuredIntakeSourceReaderTests
     }
 
     [Fact]
+    public async Task RtfQuotationControlsRetainTheirPrintedUnicodePunctuation()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi The client\rquote s vehicle was parked.}");
+        var result = await ReadAsync(new TestEmail(
+            "quotation.doc",
+            "application/msword",
+            rtf));
+
+        Assert.False(result.IsIncomplete);
+        Assert.Contains(result.Content, fragment =>
+            fragment.Text.Contains("client’s vehicle", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ReadingTheSameBytesTwiceProducesTheSameFragmentsAndLocators()
     {
         var source = new TestEmail(
