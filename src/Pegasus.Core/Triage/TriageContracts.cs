@@ -82,13 +82,13 @@ public sealed record CreateTriageFromIntakeRequest(
     TriageOrigin Origin,
     string NormalizedVehicleRegistration,
     IntakeEvidence AcceptedMatchEvidence,
-    string Actor,
+    ActionActor Actor,
     string OperationKey);
 
 public sealed record TriageMutationRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -96,14 +96,14 @@ public sealed record AssignTriageRequest(
     Guid TriageId,
     long ExpectedVersion,
     Guid AssigneeId,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
 public sealed record RecordTriageFindingRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason,
     RoadworthinessFinding? Roadworthiness,
@@ -125,7 +125,7 @@ public sealed record TriageResponseEvidenceLinkRequest(
     Guid PollOutcomeId,
     Guid SentEvidenceId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -133,7 +133,7 @@ public sealed record TriageResponseEvidenceUnlinkRequest(
     Guid TriageId,
     Guid SentEvidenceId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -252,6 +252,7 @@ public sealed record TriageHistoryEntry(
     Guid TriageId,
     string EventType,
     string Actor,
+    string ActorKind,
     string Reason,
     string OperationKey,
     DateTimeOffset OccurredAtUtc,

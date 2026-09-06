@@ -47,6 +47,55 @@ public sealed class EvaluateIntakeCaseMatch(
 
         var keys = policy.ExtractMatchKeys(readResult);
         ArgumentNullException.ThrowIfNull(keys);
+        return await EvaluateAsync(route.WorkProviderCode, policy, keys, cancellationToken);
+    }
+
+    /// <summary>
+    /// The same accepted eliminator procedure applied to a Principal's own
+    /// DECLARED identity facts (API-01), rather than to facts read out of a
+    /// message. Nothing is parsed from the submitted files: the four declared
+    /// values are normalized by the provider's own <see
+    /// cref="IProviderCaseMatchPolicy.DeriveIndexKeys"/> — the very method the
+    /// write side uses to index cases — so read and write can never drift into
+    /// two grammars, and the shared eliminator below is the only decision
+    /// procedure. Returns null when no policy owns the Principal's code; the
+    /// caller treats that exactly as a no-match.
+    /// </summary>
+    public async Task<CaseMatchEvaluationResult?> ExecuteDeclaredAsync(
+        string workProviderCode,
+        CaseMatchSourceData sourceData,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workProviderCode);
+        ArgumentNullException.ThrowIfNull(sourceData);
+
+        var policy = policies.SingleOrDefault(candidate =>
+            string.Equals(
+                candidate.WorkProviderCode,
+                workProviderCode,
+                StringComparison.Ordinal));
+        if (policy is null)
+        {
+            return null;
+        }
+
+        var derived = policy.DeriveIndexKeys(sourceData);
+        ArgumentNullException.ThrowIfNull(derived);
+        var keys = new CaseMatchKeys(
+            derived.DurableClaimToken,
+            derived.NormalizedVrm,
+            derived.NormalizedSurname,
+            derived.NormalizedFirstInitial,
+            derived.IncidentDate);
+        return await EvaluateAsync(workProviderCode, policy, keys, cancellationToken);
+    }
+
+    private async Task<CaseMatchEvaluationResult> EvaluateAsync(
+        string workProviderCode,
+        IProviderCaseMatchPolicy policy,
+        CaseMatchKeys keys,
+        CancellationToken cancellationToken)
+    {
         if (!keys.HasAnyKey)
         {
             return new(
@@ -61,7 +110,7 @@ public sealed class EvaluateIntakeCaseMatch(
         }
 
         var candidates = await candidateQueries.FindByAnyKeyAsync(
-            route.WorkProviderCode,
+            workProviderCode,
             keys,
             cancellationToken);
 
