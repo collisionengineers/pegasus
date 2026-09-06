@@ -1,4 +1,4 @@
-using Pegasus.Core.Intake;
+﻿using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -152,6 +152,71 @@ public sealed class InstructionExtractionPolicySelectorTests
         Assert.Equal(
             InstructionPolicySelectionOutcome.NotApplicable,
             selector.Select(lookalike).Outcome);
+    }
+
+    [Fact]
+    public void StructuredFragmentsAreReadForSignalsLikeAnyOtherContent()
+    {
+        // The reader now reports cells and form fields as their own fragments.
+        // A signature signal printed only in a cell is still something the
+        // document says, so it must still identify the profile.
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("CELL", ["Assessment Instruction", "Claim Number"])]);
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.DocumentContent, "uploaded instruction.docx", "Assessment Instruction"),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "uploaded instruction.docx, table 1 row 1 column 1",
+                    "Claim Number",
+                    IntakeSourceLocator.ForCell(1, 1, 1)),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "uploaded instruction.pdf, form field txtClaimRef",
+                    "CLM-1",
+                    IntakeSourceLocator.ForFormField("txtClaimRef", page: 1))
+            ],
+            [],
+            [],
+            RequiresOcr: false);
+
+        var selection = selector.Select(readResult);
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Equal("CELL", selection.Policy!.PrincipalCode);
+    }
+
+    [Fact]
+    public void ANegativeSignalQuotedInAnEarlierMessageStillDisqualifiesTheProfile()
+    {
+        // The quoted history is part of what the document says. A profile that
+        // declares a negative signal is not rescued by that signal appearing
+        // only beneath a forwarded header — selection reads content, and the
+        // quoted fragment is content.
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("QUOTED", ["Assessment Instruction"], ["Third Party Engineer"])]);
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message, email body",
+                    "Assessment Instruction",
+                    IntakeSourceLocator.ForMessagePart(IntakeMessagePart.CurrentBody)),
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message, quoted history",
+                    "From: someone " + Environment.NewLine + "Third Party Engineer report attached",
+                    IntakeSourceLocator.ForMessagePart(IntakeMessagePart.QuotedHistory))
+            ],
+            [],
+            [],
+            RequiresOcr: false);
+
+        Assert.Equal(
+            InstructionPolicySelectionOutcome.NotApplicable,
+            selector.Select(readResult).Outcome);
     }
 
     private static IntakeSourceReadResult Readable(string text) =>

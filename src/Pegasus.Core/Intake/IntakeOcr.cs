@@ -406,7 +406,7 @@ public sealed class ProcessIntakeOcr(
     IIntakeOcrOperationStore store,
     IIntakeOcrProvider provider,
     IReadLogicalDocumentVersion documentReader,
-    AnalyzeRetainedInstruction analyzeRetainedInstruction,
+    IAnalyzeRetainedInstruction analyzeRetainedInstruction,
     IIntakeReceiptQueries receiptQueries,
     TimeProvider timeProvider) : IProcessIntakeOcr
 {
@@ -470,8 +470,11 @@ public sealed class ProcessIntakeOcr(
             operation.OperationKey);
 
         // An operation already sent is never sent again. It is asked about.
-        if (operation.State is IntakeOcrState.Unknown or IntakeOcrState.Processing
-            && operation.ProviderOperationId is { } recorded)
+        // Which STATE it is in does not change that: a retry scheduled after a
+        // failed wait is still a retry of the LOOKUP, because the pages have
+        // already reached the provider and reading them again would be a second
+        // charged side effect against the same source.
+        if (operation.ProviderOperationId is { } recorded)
         {
             await ApplyAsync(
                 operation,
@@ -519,9 +522,10 @@ public sealed class ProcessIntakeOcr(
         IntakeOcrRequest request,
         CancellationToken cancellationToken)
     {
+        LogicalDocumentContent content;
         try
         {
-            await using var content = await documentReader.OpenAsync(
+            content = await documentReader.OpenAsync(
                 new(
                     OcrActor,
                     DocumentId: null,
@@ -532,7 +536,6 @@ public sealed class ProcessIntakeOcr(
                     request.SourceSha256,
                     request.SourceContentLength),
                 cancellationToken);
-            return await provider.AnalyzeAsync(request, content.Content, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -540,22 +543,50 @@ public sealed class ProcessIntakeOcr(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            // The source could not be opened, or the send did not complete. The
-            // send is the uncertain half: nothing here knows whether the
-            // provider saw it, and the recorded operation carries no provider
-            // identity, so the honest state is Unknown.
-            return new(
-                operation.ProviderOperationId is null ? IntakeOcrState.Unknown : IntakeOcrState.Processing,
-                IntakeOcrProviderIdentity.Provider,
-                IntakeOcrProviderIdentity.ModelId,
-                IntakeOcrProviderIdentity.ApiVersion,
-                operation.ProviderOperationId,
-                Failure: new(
-                    "ocr_dependency_failure",
-                    "The OCR request did not complete: " + exception.GetType().Name,
-                    Retryable: true));
+            // Nothing was sent, so nothing is uncertain: the source could not be
+            // opened this time and the same request may safely be made again.
+            return Failure(
+                "ocr_source_unreadable",
+                "The retained source could not be opened: " + exception.GetType().Name,
+                retryable: true);
+        }
+
+        await using (content)
+        {
+            try
+            {
+                return await provider.AnalyzeAsync(request, content.Content, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                // The send did not complete, and nothing here knows whether the
+                // provider saw it. That is the definition of Unknown, and it is
+                // why the request is not simply made again.
+                return new(
+                    IntakeOcrState.Unknown,
+                    IntakeOcrProviderIdentity.Provider,
+                    IntakeOcrProviderIdentity.ModelId,
+                    IntakeOcrProviderIdentity.ApiVersion,
+                    operation.ProviderOperationId,
+                    Failure: new(
+                        "ocr_dependency_failure",
+                        "The OCR request did not complete: " + exception.GetType().Name,
+                        Retryable: true));
+            }
         }
     }
+
+    private static IntakeOcrResult Failure(string code, string reason, bool retryable) =>
+        new(
+            IntakeOcrState.Failed,
+            IntakeOcrProviderIdentity.Provider,
+            IntakeOcrProviderIdentity.ModelId,
+            IntakeOcrProviderIdentity.ApiVersion,
+            Failure: new(code, reason, retryable));
 
     private async Task<IntakeOcrResult> ReconcileAsync(
         IntakeOcrRequest request,
@@ -634,6 +665,23 @@ public sealed class ProcessIntakeOcr(
             "ocr_unspecified_failure",
             "The provider returned no usable result and no reason.",
             Retryable: false);
+        // An uncertain side effect with no provider identity to look up is the
+        // one thing that is never scheduled for another attempt: repeating it
+        // would risk reading — and being charged for — the same pages twice,
+        // and nothing here can tell whether that has already happened. It waits
+        // for a person.
+        if (result.State == IntakeOcrState.Unknown && current.ProviderOperationId is null)
+        {
+            await store.RecordOutcomeAsync(
+                current.Id,
+                current.Version,
+                IntakeOcrState.Unknown,
+                failure,
+                retryAtUtc: null,
+                cancellationToken);
+            return;
+        }
+
         var delay = IntakeOcrPolicy.NextAttemptDelay(current.AttemptCount + 1, failure);
         if (delay is { } retryIn)
         {
