@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -420,5 +422,64 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "replacement_test_policy",
                 1),
             default);
+    }
+
+    /// <summary>
+    /// C-F05/EXT-18 item 1: the fresh-database migration seeds the current
+    /// top-15 principal identities exactly once, by the exact code/GUID the
+    /// foundation handoff froze — and YML (the confirmed HDUK-branded route)
+    /// stays a distinct principal role rather than merging with a document
+    /// issuer or any other principal.
+    /// </summary>
+    [Fact]
+    public async Task FreshDatabaseSeedsExactlyTheFifteenFrozenPrincipalsOnce()
+    {
+        var expected = new (string Code, Guid PrincipalId)[]
+        {
+            ("QDOS", Guid.Parse("00000000-0000-4000-8000-00000000c001")),
+            ("PCH", Guid.Parse("00000000-0000-4000-8000-00000000c002")),
+            ("AX", Guid.Parse("00000000-0000-4000-8000-00000000c003")),
+            ("FW", Guid.Parse("00000000-0000-4000-8000-00000000c004")),
+            ("QCL", Guid.Parse("00000000-0000-4000-8000-00000000c005")),
+            ("OAK", Guid.Parse("00000000-0000-4000-8000-00000000c006")),
+            ("SBL", Guid.Parse("00000000-0000-4000-8000-00000000c007")),
+            ("BLACK", Guid.Parse("00000000-0000-4000-8000-00000000c008")),
+            ("RJS", Guid.Parse("00000000-0000-4000-8000-00000000c009")),
+            ("DFD", Guid.Parse("00000000-0000-4000-8000-00000000c00a")),
+            ("KBS", Guid.Parse("00000000-0000-4000-8000-00000000c00b")),
+            ("MP", Guid.Parse("00000000-0000-4000-8000-00000000c00c")),
+            ("YML", Guid.Parse("00000000-0000-4000-8000-00000000c00d")),
+            ("ALS", Guid.Parse("00000000-0000-4000-8000-00000000c00e")),
+            ("BC", Guid.Parse("00000000-0000-4000-8000-00000000c00f"))
+        };
+
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        var seeded = await context.Principals
+            .AsNoTracking()
+            .Select(principal => new { principal.Id, principal.Code })
+            .ToListAsync();
+
+        Assert.Equal(15, seeded.Count);
+        foreach (var (code, principalId) in expected)
+        {
+            var matches = seeded.Where(row => row.Id == principalId).ToArray();
+            Assert.True(
+                matches.Length == 1,
+                $"Expected exactly one seeded principal with id {principalId}, found {matches.Length}.");
+            Assert.Equal(code, matches[0].Code);
+        }
+
+        // YML is the confirmed HDUK-branded route, but HDUK itself is a
+        // document issuer, never a second principal identity: no seeded
+        // principal may carry that code, and every seeded code above is
+        // unique.
+        Assert.DoesNotContain(seeded, row => row.Code == "HDUK");
+        Assert.Equal(seeded.Count, seeded.Select(row => row.Code).Distinct().Count());
+        Assert.Equal(seeded.Count, seeded.Select(row => row.Id).Distinct().Count());
     }
 }

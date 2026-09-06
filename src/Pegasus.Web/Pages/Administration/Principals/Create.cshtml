@@ -57,19 +57,13 @@ else
                 <span asp-validation-for="InspectionMode"></span>
                 <small class="empty-state">Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</small>
             </div>
-            @* EXT-04: two independent settings, so both are checkboxes
-               rather than one mode. A principal may submit automatically and
-               offer no button, which is legal and deliberate. *@
+            @* EXT-18 item 7: automatic EVA submission is retired from this
+               administration surface; manual remains the one optional,
+               explicit setting a principal may have. *@
             <div>
                 <label>
                     <input asp-for="EvaManualSubmission" type="checkbox" />
                     Manual API submission
-                </label>
-            </div>
-            <div>
-                <label>
-                    <input asp-for="EvaAutomaticSubmission" type="checkbox" />
-                    Automatic API submission
                 </label>
             </div>
             <div class="button-row">

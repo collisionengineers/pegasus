@@ -224,8 +224,8 @@ public sealed class OrganizationAdministrationTests
     }
 
     /// <summary>
-    /// EXT-04. The settings change in place and nothing else does — the code,
-    /// the organization and the lineage are what a replacement is for.
+    /// EXT-04. The manual setting changes in place and nothing else does — the
+    /// code, the organization and the lineage are what a replacement is for.
     /// </summary>
     [Fact]
     public void EvaSubmissionSettingsChangeInPlaceAndMoveTheVersion()
@@ -235,16 +235,34 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
             current,
             expectedVersion: 3,
-            evaManualSubmission: true,
-            evaAutomaticSubmission: true);
+            evaManualSubmission: true);
 
         Assert.True(updated.EvaManualSubmission);
-        Assert.True(updated.EvaAutomaticSubmission);
         Assert.Equal(4, updated.Version);
         Assert.Equal(current.Id, updated.Id);
         Assert.Equal(current.Code, updated.Code);
         Assert.Equal(current.OrganizationId, updated.OrganizationId);
         Assert.Equal(current.SequenceLineageId, updated.SequenceLineageId);
+    }
+
+    /// <summary>
+    /// EXT-18 item 7: automatic EVA submission is retired from this
+    /// administration surface. Even a principal persisted with it already
+    /// true (historical data) is forced back to false the next time its
+    /// manual setting is saved, and it can never be turned on again here.
+    /// </summary>
+    [Fact]
+    public void AutomaticEvaSubmissionIsAlwaysClearedByThisUpdate()
+    {
+        var current = Principal(version: 3) with { EvaAutomaticSubmission = true };
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+            current,
+            expectedVersion: 3,
+            evaManualSubmission: false);
+
+        Assert.False(updated.EvaAutomaticSubmission);
+        Assert.Equal(4, updated.Version);
     }
 
     /// <summary>
@@ -259,8 +277,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
             current,
             expectedVersion: 3,
-            evaManualSubmission: true,
-            evaAutomaticSubmission: false);
+            evaManualSubmission: true);
 
         Assert.Equal(3, updated.Version);
     }
@@ -272,8 +289,7 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
                 Principal(version: 4),
                 expectedVersion: 3,
-                evaManualSubmission: true,
-                evaAutomaticSubmission: false));
+                evaManualSubmission: true));
 
         Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
     }
@@ -289,8 +305,7 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
-                evaManualSubmission: true,
-                evaAutomaticSubmission: false));
+                evaManualSubmission: true));
 
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
@@ -353,7 +368,35 @@ public sealed class OrganizationAdministrationTests
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
                 request.EvaManualSubmission,
-                request.EvaAutomaticSubmission));
+                EvaAutomaticSubmission: false));
+        }
+
+        public List<UpdatePrincipalDefaultInspectionLocationRequest> DefaultInspectionLocationUpdates
+        { get; } = [];
+
+        public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
+            UpdatePrincipalDefaultInspectionLocationRequest request,
+            CancellationToken cancellationToken)
+        {
+            DefaultInspectionLocationUpdates.Add(request);
+            return Task.FromResult(new PrincipalAdministrationSummary(
+                request.PrincipalId,
+                Guid.NewGuid(),
+                "QDOS",
+                Guid.NewGuid(),
+                null,
+                null,
+                true,
+                request.ExpectedVersion + 1,
+                0,
+                CaseInspectionMode.PhysicalAddress,
+                EvaManualSubmission: false,
+                request.Label,
+                request.Address,
+                request.Postcode,
+                request.SourceKind,
+                request.SourceRecordId,
+                request.SourceVersion));
         }
 
         public Task<Principal> CreatePrincipalAsync(
