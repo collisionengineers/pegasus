@@ -837,7 +837,10 @@ public sealed class MessageModel(
         if (string.IsNullOrWhiteSpace(CorrespondenceBody))
             ModelState.AddModelError(nameof(CorrespondenceBody), "A message is required.");
         if (string.IsNullOrWhiteSpace(CorrespondenceOperationKey)
-            || CorrespondenceOperationKey.Trim().Length > 100)
+            || !string.Equals(
+                CorrespondenceOperationKey.Trim(),
+                RetainedOperationKey(detail.Summary.Id),
+                StringComparison.Ordinal))
         {
             ModelState.AddModelError(
                 nameof(CorrespondenceOperationKey),
@@ -951,7 +954,7 @@ public sealed class MessageModel(
         if (initializeForm && CorrespondenceMode is not null)
         {
             ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
-            CorrespondenceOperationKey = NewOperationKey();
+            CorrespondenceOperationKey = RetainedOperationKey(Detail.Summary.Id);
             CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
             var recipients = mode switch
             {
@@ -1041,6 +1044,9 @@ public sealed class MessageModel(
         StaffMailComposeMode.Forward => "forward",
         _ => throw new ArgumentOutOfRangeException(nameof(mode))
     };
+
+    private static string RetainedOperationKey(Guid retainedMessageId) =>
+        $"retained-correspondence:{retainedMessageId:N}";
 
     private async Task LoadAiJobContextAsync(CancellationToken cancellationToken)
     {

@@ -480,8 +480,15 @@ public sealed class StaffCorrespondenceWebTests
 
         using var first = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        var freshForm = new Dictionary<string, string>(form)
+        {
+            ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}"
+        };
+        using var fresh = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(freshForm));
         using var replay = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         Assert.Equal(1, send.SendCalls);
@@ -531,6 +538,17 @@ public sealed class StaffCorrespondenceWebTests
         var statusHtml = await status.Content.ReadAsStringAsync();
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), statusHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
+        using var fresh = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
+                ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}",
+                ["ExpectedCorrespondenceCaseVersion"] = "1",
+                ["CorrespondenceSubject"] = "Re: Source subject",
+                ["CorrespondenceBody"] = "Second action."
+            }));
+        Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
         Assert.Equal(1, send.SendCalls);
     }
 
