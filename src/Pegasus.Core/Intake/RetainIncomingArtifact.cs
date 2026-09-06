@@ -236,10 +236,19 @@ public sealed class RetainIncomingArtifact(
     /// <summary>
     /// Asks custody what became of a hand-over that is neither confirmed nor
     /// refused - a Pending one it has not finished, or an Unknown one it may
-    /// never have received. Without a status port, or without the identities
-    /// to ask about, the retention keeps the state it had, which is honest and
-    /// still never renders as success.
+    /// never have received. Without a status port, without the identities to
+    /// ask about, or without the authority to ask, the retention keeps the
+    /// state it had, which is honest and still never renders as success.
     /// </summary>
+    /// <remarks>
+    /// Custody's status read is staff-only, while the public sender acts as a
+    /// request link, so a public retry asks and is refused. That refusal is
+    /// not an error to report: the retention stays exactly where it was, the
+    /// bytes are still never offered twice, and a staff or system-worker retry
+    /// - or custody finishing the Pending itself - still converges it. The
+    /// narrower rule this leaves the public path with is recorded as a handoff
+    /// to the custody stream rather than worked around here.
+    /// </remarks>
     private async Task<RetainedIncomingArtifact> ReconcileAsync(
         ActionActor actor,
         RetainedIncomingArtifact existing,
@@ -253,12 +262,23 @@ public sealed class RetainIncomingArtifact(
             return existing;
         }
 
-        var status = await custodyStatus.GetAsync(
-            actor,
-            caseId,
-            documentId,
-            versionId,
-            cancellationToken);
+        CaseArtifactCustodyResult status;
+        try
+        {
+            status = await custodyStatus.GetAsync(
+                actor,
+                caseId,
+                documentId,
+                versionId,
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            // This actor may hand bytes over but may not read custody state.
+            // Keeping what we already recorded is the honest answer.
+            return existing;
+        }
+
         var state = ToState(status.Disposition);
         var confirmed = state == IncomingArtifactCustodyState.Confirmed;
         var reconciled = existing with

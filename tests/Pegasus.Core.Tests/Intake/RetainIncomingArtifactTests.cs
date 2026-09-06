@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -348,6 +349,38 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(uncertain, Assert.Single(store.Recorded));
     }
 
+    /// <summary>
+    /// Custody's status read is staff-only, so the public sender's own retry
+    /// is refused. The retention keeps the state it had - never success, never
+    /// re-offered - rather than the refusal reaching the sender as a fault.
+    /// The narrower rule this leaves the public path with is a handoff to the
+    /// custody stream, recorded on INTK-060 scratch/c07-notes.
+    /// </summary>
+    [Fact]
+    public async Task AReconciliationTheActorMayNotReadLeavesTheRetentionWhereItWas()
+    {
+        var custody = new RecordingCustody(Confirmed() with
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending
+        });
+        var store = new RecordingStore();
+        var status = new RefusingCustodyStatus();
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Occurrence();
+
+        var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Pending, pending.State);
+        Assert.Equal(IncomingArtifactCustodyState.Pending, retry.State);
+
+        // Asked and refused, not repeated: one hand-over, one attempted read,
+        // and no second record claiming something changed.
+        Assert.Equal(1, custody.Calls);
+        Assert.Equal(1, status.Calls);
+        Assert.Single(store.Recorded);
+    }
+
     private static CaseArtifactCustodyResult Confirmed() => new(
         CaseArtifactCustodyDisposition.Confirmed,
         DocumentId,
@@ -414,6 +447,27 @@ public sealed class RetainIncomingArtifactTests
         {
             Calls++;
             return Task.FromResult(result);
+        }
+    }
+
+    /// <summary>
+    /// Custody's status port under its real rule: staff only. A request-link
+    /// actor may hand bytes over and may not read what became of them.
+    /// </summary>
+    private sealed class RefusingCustodyStatus : ICaseArtifactCustodyStatus
+    {
+        public int Calls { get; private set; }
+
+        public Task<CaseArtifactCustodyResult> GetAsync(
+            ActionActor actor,
+            Guid caseId,
+            Guid documentId,
+            Guid versionId,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+            throw new UnreachableException("The staff-only rule refuses above.");
         }
     }
 

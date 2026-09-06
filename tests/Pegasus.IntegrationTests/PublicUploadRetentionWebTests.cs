@@ -29,8 +29,8 @@ namespace Pegasus.IntegrationTests;
 /// </para>
 /// <para>
 /// The custody adapter itself is Stream A's (A04). The double registered here
-/// stands in for it and <em>enforces A's authorization rule rather than
-/// assuming it</em>: it re-reads the upload-link row and refuses anything but
+/// stands in for it and <em>enforces A's authorization rules rather than
+/// assuming them</em>: it re-reads the upload-link row and refuses anything but
 /// a request-link actor naming that exact persisted link, with that link's own
 /// Case, while the link is active, unrevoked and unexpired. A caller that
 /// passed a document-request identity, a sender-supplied Case, or a holding
@@ -285,14 +285,20 @@ public sealed partial class PublicUploadRetentionWebTests
     }
 
     /// <summary>
-    /// A Pending arrival is not a dead end. It writes no receipt, so the next
-    /// submission of the same operation key reaches the command again, which
-    /// asks custody what became of it instead of offering the bytes twice. A
-    /// confirmation lands the identities, opens the fixed window, and only then
-    /// tells the sender the document is retained.
+    /// A Pending arrival is not a dead end, and it is never re-offered either.
+    /// The next submission of the same operation key reaches the command
+    /// again, which asks custody what became of it instead of sending the
+    /// bytes twice — and is refused, because Stream A's status read is staff
+    /// casework only while the sender acts as a request link. The refusal is
+    /// shown here rather than papered over: the arrival keeps the state
+    /// custody actually gave it, the sender is told it is being stored and
+    /// never that it is retained, and no receipt is invented. Closing the
+    /// public path's own recovery is a handoff to Stream A (a request-link
+    /// status read under the same link rule), recorded on INTK-060
+    /// scratch/c07-notes.
     /// </summary>
     [Fact]
-    public async Task APendingArrivalIsReconciledToConfirmedByTheNextArrivalWithTheSameKey()
+    public async Task APendingArrivalIsNeverReOfferedAndThePublicSenderCannotReconcileIt()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -303,27 +309,78 @@ public sealed partial class PublicUploadRetentionWebTests
         var first = await PostEvidenceAsync(factory, link.Token);
         Assert.Contains(StoringMessage, first.CompletionBody, StringComparison.Ordinal);
 
-        // Custody finishes storing it between the two submissions.
+        // Custody finishes storing it between the two submissions. The sender
+        // still cannot be the one to find that out.
         custody.StatusDisposition = CaseArtifactCustodyDisposition.Confirmed;
         var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
 
         Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
-        Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
+        Assert.Contains(StoringMessage, second.CompletionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
 
-        // Asked, not repeated.
-        var call = Assert.Single(custody.Calls);
+        // Asked and refused, not repeated: the bytes were offered exactly once
+        // and the status read was genuinely attempted.
+        Assert.Single(custody.Calls);
         Assert.Equal(1, custody.StatusCalls);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
             .AsNoTracking()
             .SingleAsync(item => item.RequestUploadLinkId == link.LinkId);
-        Assert.Equal(Now, session.StartedAtUtc);
-        Assert.Equal(Now.Add(PublicUploadSessionPolicy.Window), session.ExpiresAtUtc);
+
+        // A Pending never opens the fixed window: it is not a confirmed file.
+        Assert.Null(session.StartedAtUtc);
 
         var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
             .AsNoTracking()
             .SingleAsync(item => item.SessionId == session.Id);
+        Assert.Equal("pending", occurrence.CustodyState);
+
+        var version = await context.Set<DocumentVersionEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == occurrence.DocumentVersionId);
+        Assert.Equal(DocumentCustodyStatus.Pending, version.CustodyStatus);
+        Assert.Null(version.BoxFileId);
+
+        // Nothing custody has not confirmed earns a receipt.
+        Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
+            .AsNoTracking()
+            .Where(item => item.RequestId == link.LinkId)
+            .ToArrayAsync());
+
+        // One occurrence, counted once, however many times it is submitted.
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// The reconciliation the public sender may not perform, performed by an
+    /// authority that may. Custody is asked under the same operation key —
+    /// never offered the bytes again — and a confirmation lands the identities
+    /// on the version the hand-over created.
+    /// </summary>
+    [Fact]
+    public async Task AStaffReconciliationConfirmsAPendingArrivalWithoutASecondHandOver()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Pending;
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+        Assert.Contains(StoringMessage, first.CompletionBody, StringComparison.Ordinal);
+        custody.StatusDisposition = CaseArtifactCustodyDisposition.Confirmed;
+
+        var reconciled = await ReconcileAsStaffAsync(factory, link, first.OperationKey);
+
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, reconciled.State);
+        var call = Assert.Single(custody.Calls);
+        Assert.Equal(1, custody.StatusCalls);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .SingleAsync();
         Assert.Equal("confirmed", occurrence.CustodyState);
         Assert.Equal(call.VersionId, occurrence.DocumentVersionId);
 
@@ -334,8 +391,11 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal($"box-file:{version.Id:N}", version.BoxFileId);
         Assert.Equal($"box-version:{version.Id:N}", version.BoxVersionId);
 
-        // The confirmation earns the receipt the Pending deliberately did not.
-        Assert.Single(await context.Set<RequestUploadReceiptEntity>()
+        // The receipt and the window belong to the accept path, which a
+        // reconciliation does not re-enter. Recorded as part of the same
+        // handoff: the sender's own retry is what would earn them, and the
+        // sender cannot make the status read that would let it.
+        Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
             .AsNoTracking()
             .Where(item => item.RequestId == link.LinkId)
             .ToArrayAsync());
@@ -344,12 +404,11 @@ public sealed partial class PublicUploadRetentionWebTests
 
     /// <summary>
     /// The other end of the same reconciliation: custody says it refused the
-    /// file after all. The occurrence records the refusal, the window never
-    /// opens, no receipt is written, and the sender is told to try again rather
-    /// than that the document is held.
+    /// file after all. The occurrence and the version record the refusal, and
+    /// nothing anywhere says the document is held.
     /// </summary>
     [Fact]
-    public async Task APendingArrivalIsReconciledToFailedByTheNextArrivalWithTheSameKey()
+    public async Task AStaffReconciliationRecordsCustodysRefusalOfAPendingArrival()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -359,11 +418,11 @@ public sealed partial class PublicUploadRetentionWebTests
 
         var first = await PostEvidenceAsync(factory, link.Token);
         custody.StatusDisposition = CaseArtifactCustodyDisposition.Failed;
-        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
 
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        Assert.Contains(RetryMessage, second.Body, StringComparison.Ordinal);
-        Assert.DoesNotContain(RetainedMessage, second.Body, StringComparison.Ordinal);
+        var reconciled = await ReconcileAsStaffAsync(factory, link, first.OperationKey);
+
+        Assert.Equal(IncomingArtifactCustodyState.Failed, reconciled.State);
+        Assert.Null(reconciled.BoxFileId);
         Assert.Single(custody.Calls);
         Assert.Equal(1, custody.StatusCalls);
 
@@ -503,9 +562,10 @@ public sealed partial class PublicUploadRetentionWebTests
             other.CaseId,
             link.LinkId);
 
-        // Holding — a null destination — is not open to a request link, and it
-        // is refused for being holding rather than for failing validation.
-        await Refuses<InvalidOperationException>(
+        // Holding — a null destination — is not open to a request link. The
+        // fake receipt injected by the helper gets it past the command's own
+        // validation, so what refuses it is custody's rule and nothing else.
+        await Refuses<StaffAuthorizationException>(
             retention,
             ActionActor.RequestLink(link.LinkId),
             null,
@@ -528,6 +588,17 @@ public sealed partial class PublicUploadRetentionWebTests
             ActionActor.RequestLink(inactive.LinkId),
             inactive.CaseId,
             inactive.LinkId);
+
+        // The status port is refused too, and by its own rule: Stream A's
+        // status read is staff casework only, so the authority that may hand
+        // bytes over may not ask what became of them.
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>().GetAsync(
+                ActionActor.RequestLink(link.LinkId),
+                link.CaseId,
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                CancellationToken.None));
 
         // A refusal reaches no store, so there is no arrival and no document
         // against any of the five seeded Cases.
@@ -570,6 +641,36 @@ public sealed partial class PublicUploadRetentionWebTests
             .Where(item => item.CaseId == link.CaseId)
             .ToArrayAsync());
         Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// Asks custody what became of an arrival under an authority that may make
+    /// the status read. Same operation key, so the command reconciles rather
+    /// than offering the bytes a second time; the occurrence identity and the
+    /// content are only there to satisfy the command's own validation, and
+    /// neither is reached.
+    /// </summary>
+    private static async Task<RetainedIncomingArtifact> ReconcileAsStaffAsync(
+        WebApplicationFactory<Program> factory,
+        SeededLink link,
+        string senderOperationKey)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var content = new MemoryStream(Evidence, writable: false);
+        return await scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>()
+            .ExecuteAsync(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                new(
+                    Guid.NewGuid(),
+                    link.CaseId,
+                    null,
+                    $"request:{link.LinkId:N}:{senderOperationKey}",
+                    "evidence.txt",
+                    "text/plain",
+                    Evidence.Length,
+                    Sha256Hex(Evidence)),
+                content,
+                CancellationToken.None);
     }
 
     /// <summary>
@@ -742,6 +843,7 @@ public sealed partial class PublicUploadRetentionWebTests
 /// here rather than passing a permissive fake.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The rule, from Stream A: the actor must be
 /// <see cref="ActionActor.RequestLink(Guid)"/> naming the persisted upload-link
 /// row; the request's Case must be that link's own recorded Case; the link must
@@ -749,6 +851,13 @@ public sealed partial class PublicUploadRetentionWebTests
 /// clock; and holding — a null Case — is not open to a request-link actor. On
 /// acceptance the adapter, not its caller, creates the document, the version
 /// and the document occurrence, and returns their identities.
+/// </para>
+/// <para>
+/// The status port carries its own rule, which Stream A did not widen with
+/// the hand-over: a status read is staff casework only. So the reconciliation
+/// a public retry attempts is refused here exactly as it will be refused by
+/// A04, and the tests below show that refusal rather than hiding it.
+/// </para>
 /// </remarks>
 internal sealed class RecordingCaseArtifactCustody(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
@@ -945,7 +1054,16 @@ internal sealed class RecordingCaseArtifactCustody(
         Guid versionId,
         CancellationToken cancellationToken)
     {
+        // Counted before the rule is applied, so a test can prove the read was
+        // attempted and refused rather than quietly skipped.
         StatusCalls++;
+
+        // Stream A's rule for the status read, unchanged by A04's request-link
+        // fix to RetainAsync (PR 673 comment 5560061438): the status read is
+        // staff casework only. The public sender acts as a request link, so
+        // its own retry is refused here - see the handoff recorded on
+        // INTK-060 scratch/c07-notes.
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var disposition = StatusDisposition ?? Disposition;
         var confirmed = disposition == CaseArtifactCustodyDisposition.Confirmed;
         var boxFileId = confirmed ? $"box-file:{versionId:N}" : null;
@@ -994,8 +1112,12 @@ internal sealed class RecordingCaseArtifactCustody(
         }
         if (request.CaseId is not { } caseId)
         {
-            throw new InvalidOperationException(
-                "A request-link actor cannot retain into holding.");
+            // Holding is not open to a request link, and A's rule expresses
+            // that as the authorization outcome it is. It must not be an
+            // InvalidOperationException: that is a type custody can just as
+            // easily raise after it has taken the bytes, and the command
+            // treats such a fault as uncertain rather than as a refusal.
+            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
         }
 
         var link = context.Set<RequestUploadLinkEntity>()
