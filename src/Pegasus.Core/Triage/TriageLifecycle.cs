@@ -30,6 +30,38 @@ public sealed class AssignTriage(ITriageStore store) : IAssignTriage
     }
 }
 
+/// <summary>
+/// Appends one operator note to the Triage's permanent history.
+/// </summary>
+/// <remarks>
+/// The note goes into the same replay-probed history every other Triage
+/// mutation writes, so a retried append returns the committed entry rather
+/// than recording the note twice. A note is never editable and never replaces
+/// an earlier one; correcting a note means writing another.
+/// </remarks>
+public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
+{
+    private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public async Task<TriageRecord> ExecuteAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TriageLifecycleRules.ValidateNote(request);
+        if (await _store.ProbeAddNoteReplayAsync(request, cancellationToken) is { } replay)
+        {
+            return replay.Result;
+        }
+
+        var current = await TriageLifecycleRules.GetRequiredAsync(
+            _store,
+            request.TriageId,
+            cancellationToken);
+        TriageLifecycleRules.RequireMutable(current.Record, "note");
+        return await _store.AddNoteAsync(request, cancellationToken);
+    }
+}
+
 public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
 {
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -312,6 +344,18 @@ public static class TriageLifecycleRules
         ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
+    }
+
+    public static void ValidateNote(AddTriageNoteRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
+        ValidateActorAndOperation(request.Actor, request.OperationKey);
+        RequireText(
+            request.Note,
+            "A note is required.",
+            TriageNotes.MaximumLength,
+            nameof(request));
     }
 
     public static void ValidateAssign(AssignTriageRequest request)

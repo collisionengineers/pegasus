@@ -28,7 +28,12 @@ public sealed class DetailsModel(
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
     IGetIntake getIntake,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
+    ICaseEngineerChoices engineerChoices,
+    // Composition-gated: nothing registers the note command yet, so the note
+    // form is not drawn until something does. It is a closed gate, not a
+    // partially shipped feature.
+    IAddTriageNote? addNote = null) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -65,6 +70,14 @@ public sealed class DetailsModel(
 
     public string? Message { get; private set; }
 
+    /// <summary>
+    /// The engineers this Triage may be assigned to — the enabled accounts
+    /// holding the Engineer role, and nobody else.
+    /// </summary>
+    public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
+
+    public bool CanRecordNotes => addNote is not null;
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out _, out var actor))
@@ -76,6 +89,8 @@ public sealed class DetailsModel(
         {
             return NotFound();
         }
+
+        EngineerChoices = await engineerChoices.GetAsync(actor, cancellationToken);
 
         Message = TempData["TriageStatus"] as string;
         if (TempData["TriageUnavailableCase"] is string unavailableCase)
@@ -106,6 +121,8 @@ public sealed class DetailsModel(
         string? responseCandidate,
         Guid? sentEvidenceId,
         Guid? caseId,
+        Guid? assigneeId,
+        string? note,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var staffId, out var actionActor))
@@ -125,14 +142,33 @@ public sealed class DetailsModel(
             switch (actionName)
             {
                 case "assign":
+                    // The engineer is chosen explicitly. Defaulting to the
+                    // signed-in staff member is what "Assign to me" did, and
+                    // it made the roster invisible.
+                    if (assigneeId is not { } chosenEngineer || chosenEngineer == Guid.Empty)
+                    {
+                        ModelState.AddModelError("assigneeId", "Choose the engineer to assign.");
+                        return await OnGetAsync(id, cancellationToken);
+                    }
+
                     await assign.ExecuteAsync(
                         new(
                             id,
                             expectedVersion,
-                            staffId,
+                            chosenEngineer,
                             actionActor,
                             operationKey,
                             reason),
+                        cancellationToken);
+                    break;
+                case "note":
+                    if (addNote is null)
+                    {
+                        return NotFound();
+                    }
+
+                    await addNote.ExecuteAsync(
+                        new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty),
                         cancellationToken);
                     break;
                 case "unassign":
