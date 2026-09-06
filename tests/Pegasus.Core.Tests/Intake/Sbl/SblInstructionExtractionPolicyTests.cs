@@ -129,6 +129,20 @@ public sealed class SblInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void ExplicitHireDateUsesOnlyTheNonblankRoleLabel()
+    {
+        var result = Extract(Template("""
+            Vehicle Make: Toyota Prius
+            Registration: AB12 CDE
+            Incident Circumstances: Stationary when struck
+            Agreed Value:
+            """).Replace("Hire Out Date:", "Hire Out Date: 02/05/2026", StringComparison.Ordinal));
+
+        Assert.Equal("2026-05-02", Field(result, "Hire out date").SuggestedValue);
+        Assert.Equal("hire", new SblInstructionExtractionPolicy().FieldRoles["Hire out date"].PartyRole);
+    }
+
+    [Fact]
     public void SelectorUsesDocumentFingerprintWithoutActivatingASenderRoute()
     {
         var read = Read(Template("""

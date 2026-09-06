@@ -48,7 +48,7 @@ public sealed partial class SblInstructionExtractionPolicy
         new("Repairer email", ["Repairer email"], IsRequired: false, PartyRole: "repairer"),
         new("Agreed labour rate", ["Agreed labour rate"], IsRequired: false, PartyRole: "repairer-rate"),
         new("Hire company", ["Hire company"], IsRequired: false, PartyRole: "hire"),
-        new("Hire out date", ["Hire out date"], IsRequired: false,
+        new("Hire out date", ["SBL hire commencement"], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "hire")
     ];
@@ -158,7 +158,7 @@ public sealed partial class SblInstructionExtractionPolicy
             ("Agreed Labour Rate", "Agreed labour rate")))
             yield return item;
         foreach (var item in ReadLabels(fragment, hire,
-            ("Hire Company", "Hire company"), ("Hire Out Date", "Hire out date")))
+            ("Hire Company", "Hire company"), ("Hire Out Date", "SBL hire commencement")))
             yield return item;
     }
 
