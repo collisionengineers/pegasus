@@ -335,10 +335,11 @@ public sealed class ProcessIntake(
                 Occurrence: 0,
                 IntakeAssetId: asset.Id,
                 ReaderVersion: readResult.ReaderVersion));
-        if (!ThirdPartyReportAnalysis.IsRecordable(extraction.Selection))
+        if (!ThirdPartyReportAnalysis.IsRecordable(extraction))
         {
-            // The document was read and carries no report signature. Saying so
-            // is what makes the silence on the other paths meaningful.
+            // The document was read, carries no report signature and states
+            // nothing about itself that a person has to act on. Saying so is
+            // what makes the silence on the other paths meaningful.
             activity?.SetTag(ReportOutcomeTag, "no_report_signature");
             return;
         }

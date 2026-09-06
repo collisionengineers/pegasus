@@ -498,9 +498,10 @@ internal static class ThirdPartySourceCandidates
         string? unit = null,
         string? currency = null,
         string? cell = null,
-        string? region = null) =>
+        string? region = null,
+        int ordinal = 0) =>
         new(
-            DeterministicId(context, field, partyRole, referenceRole, page, rawValue, disposition),
+            DeterministicId(context, field, partyRole, referenceRole, page, rawValue, disposition, ordinal),
             context.ReceiptId,
             context.DocumentId,
             context.DocumentVersionId,
@@ -531,7 +532,8 @@ internal static class ThirdPartySourceCandidates
         string referenceRole,
         int? page,
         string? rawValue,
-        SourceCandidateDisposition disposition)
+        SourceCandidateDisposition disposition,
+        int ordinal)
     {
         var key = string.Join(
             '\u001F',
@@ -542,7 +544,13 @@ internal static class ThirdPartySourceCandidates
             referenceRole,
             page?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             rawValue ?? string.Empty,
-            disposition.ToString());
+            disposition.ToString(),
+            // Zero for every printed value: one row per (field, role, page,
+            // value), so the printed values need nothing to tell them apart.
+            // A finding passes its position in the raised order, because two
+            // findings can legitimately state the same sentence about the same
+            // page (C05-R-12).
+            ordinal.ToString(CultureInfo.InvariantCulture));
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         Span<byte> bytes = stackalloc byte[16];
         hash.AsSpan(0, 16).CopyTo(bytes);
