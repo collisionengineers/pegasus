@@ -477,6 +477,11 @@ public sealed class Top15InstructionCorpusTests
         ,new("YML", $"{CorpusRoot}/HDUK 03.pdf", "f1540a0c96e4d32d703b4faab7ed1ed2621e755d7395bd426da3288693688db2", new("Lee Hornby", "HD4008", "ML16NGJ", new(2026, 4, 14), new(2026, 5, 5)), [])
         ,new("YML", $"{CorpusRoot}/HDUK 04.pdf", "8dc9d4b59b85feb64eed9fc7a3dbc020170f002c82363372af5768411aa888b9", new("Arshad Bibi", "HD3982", "CX15LKK", new(2026, 3, 20), new(2026, 4, 29)), [])
         ,new("YML", $"{CorpusRoot}/HDUK 05.pdf", "6708f0e9f46186a4ef7a5972271b05ac7ed8873d628b42940a5ef323bdf6d906", new("Mohammed Haroon", "HD3992", "FG69DHZ", new(2026, 4, 27), new(2026, 4, 29)), [])
+        ,new("ALS", $"{CorpusRoot}/ALS 01.DOC", "573a1db2e96f1c3d924fd04fceff5d24378d34a070f884b030a5f95a44de3f35", new("Mrs Arleen Weatherall", "158981", "KW18ZWE", new(2026, 4, 19), new(2026, 5, 7)), [new("Claimant name","Mrs Catherine Carruthers","Vehicle owner column.")])
+        ,new("ALS", $"{CorpusRoot}/ALS 02.DOC", "1d27d037ad10f3ff84abe9b82b1389100a73f713d2ac4feade8db6ff20439578", new("Mr Jonathan Binley", "159035", "E8JNO", new(2026, 4, 3), new(2026, 5, 6)), [])
+        ,new("ALS", $"{CorpusRoot}/ALS 03.DOC", "a70a4e486150780f7ea05c3776aeea696091c3b80cc369659786b8c38be94911", new("Mrs Lisa Bell", "159133", "EF15AOS", new(2026, 4, 20), new(2026, 4, 30)), [new("Claimant name","Peter Bell","Vehicle owner column.")])
+        ,new("ALS", $"{CorpusRoot}/ALS 04.DOC", "ed85af2000f47314f4b0d3a6620b62e8a316b0de8dab98e9d50ce607bbf4c7be", new("Mr Lee Kennedy", "158920", "KE54DYS", new(2026, 4, 19), new(2026, 4, 29)), [])
+        ,new("ALS", $"{CorpusRoot}/ALS 05.DOC", "f53eaceac1c0b31b8052af04ecda4272be0e0030aac996d25ead38b471c0586b", new("Mr David Bennett", "158804", "MM72GNY", new(2026, 4, 8), new(2026, 4, 28)), [new("Claimant name","Miss Donna Cameron","Vehicle owner column.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -572,7 +577,8 @@ public sealed class Top15InstructionCorpusTests
             new DfdInstructionExtractionPolicy(),
             new KbsInstructionExtractionPolicy(),
             new MpInstructionExtractionPolicy(),
-            new YmlInstructionExtractionPolicy()
+            new YmlInstructionExtractionPolicy(),
+            new AlsInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
