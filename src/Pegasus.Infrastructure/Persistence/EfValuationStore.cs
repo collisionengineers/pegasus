@@ -314,6 +314,16 @@ public sealed class EfValuationStore(
                 SerializerOptions),
             ValuationCalculationPolicy.PolicyStamp,
             now);
+        // The applied Engineer value is a frozen report input: adopting a new
+        // one marks the Case's current generation stale in this same
+        // transaction, so neither the adoption nor the staleness can land
+        // without the other.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context,
+            request.CaseId,
+            "valuation_applied",
+            now,
+            cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
