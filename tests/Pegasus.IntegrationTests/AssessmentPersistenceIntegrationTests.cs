@@ -84,8 +84,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            TimeProvider.System,
-            new EfStaffAccountQueries(staffContext));
+            new EfStaffAccountQueries(staffContext),
+            new EfCaseAssetPreparationStore(harness.Factory, TimeProvider.System),
+            new ListAppliedValuations(new EfValuationStore(harness.Factory, TimeProvider.System)));
 
         var input = await source.GetAsync(
             outcome.Identity.CaseId,
@@ -97,7 +98,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
-        var projected = AssessmentReportProjection.Project(input);
+        var projected = AssessmentReportProjection.Project(
+            input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.False(projected.IsReady);
         Assert.Contains(projected.Reasons, reason => reason.Requirement == "Sign-off Engineer");
 
@@ -118,12 +120,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         }
         Assert.Equal("A Engineer", input.Signatory?.PrintedName);
 
-        var ready = AssessmentReportProjection.Project(input);
+        var ready = AssessmentReportProjection.Project(
+            input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.True(ready.IsReady, string.Join("; ", ready.Reasons.Select(reason => reason.Requirement)));
         var pdf = "%PDF-1.4 CASE-040"u8.ToArray();
         var draft = await new GenerateAssessmentReportDraft(new TestReportRenderer(pdf))
-            .ExecuteAsync(ready.Snapshot!);
-        Assert.Equal(pdf, draft.Assessment.Pdf);
+            .ExecuteAsync(ready.Snapshot!, CaseReportArtifactKind.AssessmentReport);
+        Assert.Equal(pdf, draft.Pdf);
     }
 
     private static async Task<Guid> SeedSignOffEngineerAsync(
@@ -282,19 +285,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     private sealed class TestReportRenderer(byte[] pdf) : IAssessmentReportRenderer
     {
-        public Task<AssessmentReportDraft> RenderAsync(
+        public string EngineVersion => "case-040-test";
+
+        public Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
-            CancellationToken cancellationToken = default)
-        {
-            var artifact = new RenderedReportArtifact(
-                "assessment.pdf",
+            CaseReportArtifactKind kind,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RenderedReportArtifact(
+                $"{kind}.pdf",
                 pdf,
                 1,
                 Convert.ToHexStringLower(SHA256.HashData(pdf)),
                 AssessmentReportContract.TemplateVersion,
-                "case-040-test");
-            return Task.FromResult(new AssessmentReportDraft(artifact, artifact));
-        }
+                EngineVersion));
     }
 
     [Fact]
@@ -1892,7 +1895,17 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Source = DocumentSource.StaffUpload,
                     SourceOccurrenceIdentity = $"photo:{ordinal}",
                     RecordedAtUtc = StartUtc,
-                    OperationKey = $"seed-photo:{ordinal}"
+                    OperationKey = $"seed-photo:{ordinal}",
+                    PreparationRole = ordinal switch
+                    {
+                        1 => nameof(CaseAssetReportRole.CloseUp),
+                        2 => nameof(CaseAssetReportRole.Overview),
+                        _ => nameof(CaseAssetReportRole.Supporting)
+                    },
+                    SupportingOrder = ordinal > 2 ? ordinal - 2 : null,
+                    PreparationVersion = 1,
+                    PreparedBy = "Staff:test",
+                    PreparedAtUtc = StartUtc
                 });
         }
         await context.SaveChangesAsync();
