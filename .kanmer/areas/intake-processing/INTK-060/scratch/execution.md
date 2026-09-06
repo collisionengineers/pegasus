@@ -236,3 +236,7 @@ Build/core 61/host 32/browser 2/architecture PASS; integration 34/36 — the Eva
 ## G14 merged — C head `fa564c0a7`
 
 `2a20adbed` (approved-mailbox StaffSend enum, Generation, VerifiedEncodedMessageSizeLimit) merged `--no-ff` as the identical object; build 0/0; pushed. Propagated to c06 (idle). c05/c07b receive it after their active correction rounds; c08 with its correction round.
+
+## C06 re-review at `8384e28bb`: needs-changes — 1 blocker, 4 minors
+
+C06-R-16 root cause of both 200s: `EvaOperationKey`/`LocationOperationKey` are non-nullable `string` bind properties each posted by one form only; MVC validates the binding result (null), not the initializer, so every POST fails implicit-Required on the other form's key. Minors R-17 (SQL prefix predicate narrower than `NormalizeNamePrefix` for irregular whitespace), R-18 (client-bound `NewClaimSourceId` can overwrite a `Version = 0` claim source), R-19 (Storage-source coverage absent), R-20 (both tests assert only the status code). 12/15 prior findings closed; R-6/R-11/R-15 deferrals accepted. Round 3 queued for the next editor slot (ahead of C08). G14 propagated to c06 → `ab7108c0c`.
