@@ -597,6 +597,21 @@ public sealed class EstimateTests
     // ---- The one canonical raw-estimate import ----
 
     [Fact]
+    public async Task AnImportUsesTheSuppliedNameAndDerivesOneOnlyWhenNoneIsGiven()
+    {
+        var save = new RecordingSave();
+        var import = new ImportRawEstimate(
+            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"), JsonStub()],
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+            new StubList(),
+            save);
+
+        await import.ExecuteAsync(ImportRequest(name: "  Repairer quote  "), CancellationToken.None);
+
+        Assert.Equal("Repairer quote", Assert.Single(save.Requests).Details.Name);
+    }
+
+    [Fact]
     public async Task AnImportAutoDetectsItsFormatAndLandsOneSourceLabelledDraft()
     {
         var save = new RecordingSave();
@@ -771,8 +786,9 @@ public sealed class EstimateTests
 
     private static ImportRawEstimateRequest ImportRequest(
         string operationKey = ImportOperationKey,
-        RepairSpecificationSourceRoute route = RepairSpecificationSourceRoute.AudatexPdf) => new(
-        Engineer, CaseId, 4, Lease, DocumentId, DocumentVersionId, ImportSha256, route, operationKey);
+        RepairSpecificationSourceRoute route = RepairSpecificationSourceRoute.AudatexPdf,
+        string name = "") => new(
+        Engineer, CaseId, 4, Lease, DocumentId, DocumentVersionId, ImportSha256, route, operationKey, name);
 
     private static StubParser JsonStub() =>
         new(RepairSpecificationSourceRoute.Json, ".json", "Repairer");
