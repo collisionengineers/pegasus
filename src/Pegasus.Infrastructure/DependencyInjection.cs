@@ -328,6 +328,7 @@ public static class DependencyInjection
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
+        services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<EfCaseDataStore>();
         services.AddScoped<ICaseDataStore>(
@@ -363,6 +364,11 @@ public static class DependencyInjection
         services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
         services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
         services.AddScoped<IListCaseEstimatesByCursor, ListCaseEstimatesByCursor>();
+        services.AddScoped<EfCaseAssetPreparationStore>();
+        services.AddScoped<ICaseAssetPreparationStore>(provider =>
+            provider.GetRequiredService<EfCaseAssetPreparationStore>());
+        services.AddScoped<ICaseAssetPreparationQueries>(provider =>
+            provider.GetRequiredService<EfCaseAssetPreparationStore>());
         services.AddScoped<EfValuationStore>();
         services.AddScoped<IValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
