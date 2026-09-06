@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -24,6 +24,17 @@ public sealed class ProcessIntake(
     IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
+
+    /// <summary>
+    /// What became of the third-party report reading on this intake. Recorded
+    /// on every path, including the ones that record nothing: without it an
+    /// environment where every reading fails looks exactly like one that
+    /// receives no third-party reports at all.
+    /// </summary>
+    private const string ReportOutcomeTag = "intake.third_party_report.outcome";
+
+    /// <summary>The exception type behind a reading that was not recorded.</summary>
+    private const string ReportFailureTag = "intake.third_party_report.failure_type";
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default) =>
@@ -276,7 +287,7 @@ public sealed class ProcessIntake(
             receipt,
             assessment.MailClassificationDecision,
             cancellationToken);
-        await RecordThirdPartyReportSourceAsync(receipt, readResult, cancellationToken);
+        await RecordThirdPartyReportSourceAsync(receipt, readResult, activity, cancellationToken);
         await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
@@ -301,6 +312,7 @@ public sealed class ProcessIntake(
     private async Task RecordThirdPartyReportSourceAsync(
         IntakeReceipt receipt,
         IntakeSourceReadResult readResult,
+        Activity? activity,
         CancellationToken cancellationToken)
     {
         if (retainedInstructionAnalysisStore is null
@@ -325,12 +337,15 @@ public sealed class ProcessIntake(
                 ReaderVersion: readResult.ReaderVersion));
         if (!ThirdPartyReportAnalysis.IsRecordable(extraction.Selection))
         {
+            // The document was read and carries no report signature. Saying so
+            // is what makes the silence on the other paths meaningful.
+            activity?.SetTag(ReportOutcomeTag, "no_report_signature");
             return;
         }
 
         try
         {
-            await retainedInstructionAnalysisStore.RecordAsync(
+            var (_, isReplay) = await retainedInstructionAnalysisStore.RecordAsync(
                 new(
                     Guid.NewGuid(),
                     receipt.Id,
@@ -348,19 +363,30 @@ public sealed class ProcessIntake(
                         readResult.ReaderKey,
                         readResult.ReaderVersion)),
                 cancellationToken);
+            activity?.SetTag(ReportOutcomeTag, isReplay ? "replayed" : "recorded");
         }
         catch (RetainedInstructionAnalysisConflictException)
         {
             // The same document was already read under this key at a different
             // receipt version. The recorded reading stands: the bytes have not
             // changed, so re-reading them would add nothing and overwriting is
-            // exactly what the key exists to prevent.
+            // exactly what the key exists to prevent. Named on the span, so
+            // "the recorded reading stands" is distinguishable from "the
+            // reading was never attempted".
+            activity?.SetTag(ReportOutcomeTag, "recorded_reading_stands");
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             // Source evidence is supplementary. A receipt that has already been
             // stored must not fail because a report reading could not be
             // written beside it; the Received page offers analysis on demand.
+            //
+            // The failure is named on the span rather than swallowed. The
+            // intake itself succeeded, so the span's own status stays as the
+            // receipt left it: this is a named failure inside work that
+            // otherwise did what it was asked.
+            activity?.SetTag(ReportOutcomeTag, "not_recorded");
+            activity?.SetTag(ReportFailureTag, exception.GetType().Name);
         }
     }
 
