@@ -30,10 +30,7 @@ public sealed class DetailsModel(
     IGetIntake getIntake,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     ICaseEngineerChoices engineerChoices,
-    // Composition-gated: nothing registers the note command yet, so the note
-    // form is not drawn until something does. It is a closed gate, not a
-    // partially shipped feature.
-    IAddTriageNote? addNote = null) : StaffPageModel
+    IAddTriageNote addNote) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -76,7 +73,6 @@ public sealed class DetailsModel(
     /// </summary>
     public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
 
-    public bool CanRecordNotes => addNote is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -162,11 +158,6 @@ public sealed class DetailsModel(
                         cancellationToken);
                     break;
                 case "note":
-                    if (addNote is null)
-                    {
-                        return NotFound();
-                    }
-
                     await addNote.ExecuteAsync(
                         new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty),
                         cancellationToken);

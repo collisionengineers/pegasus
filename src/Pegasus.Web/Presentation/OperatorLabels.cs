@@ -252,6 +252,7 @@ public static class OperatorLabels
         public const string Configuration = "Workflow configuration";
         public const string Mail = "Mail settings";
         public const string Automation = "Automation & AI";
+        public const string Health = "Service health";
     }
 
     /// <summary>The freshness words the shell and every page header share.</summary>
@@ -1121,7 +1122,6 @@ public static class OperatorLabels
     // PLAT-069: Operations partial-data notices.
     public static class OperationsNotices
     {
-        public const string ServiceHealth = "Service health";
         public const string PartialData = "Partial data";
     }
 
