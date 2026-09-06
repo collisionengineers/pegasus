@@ -24,14 +24,13 @@ public sealed class ValuationTests
         Assert.False(ValuationSources.IsSupported((ValuationSource)99));
         Assert.Equal(
             [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue,
-                ValuationSource.AiMarketResearch],
+                ValuationSource.AiMarketResearch, ValuationSource.Brego, ValuationSource.SuperCap],
             Enum.GetValues<ValuationSource>());
     }
 
     /// <summary>
-    /// Collision Engineers reads the Glass's guide and types the figure in;
-    /// it is not a live call here (Brego and Super CAP follow the shared
-    /// source constraint). Cazana stays a
+    /// Collision Engineers reads the Glass's, Brego and Super CAP guides and
+    /// types the figure in; none of them is a live call here. Cazana stays a
     /// disabled seam and AI market research is written only by the automation
     /// completion, so neither is offered to the staff save and edit actions.
     /// </summary>
@@ -42,6 +41,8 @@ public sealed class ValuationTests
             new[]
             {
                 ValuationSource.Glasses,
+                ValuationSource.Brego,
+                ValuationSource.SuperCap,
                 ValuationSource.EngineersValue
             },
             source => Assert.True(ValuationPolicy.IsManuallyRecordable(source)));
@@ -169,8 +170,17 @@ public sealed class ValuationTests
             SaveRequest(User, "valuation-user-glasses"),
             CancellationToken.None);
 
+        var brego = await save.ExecuteAsync(
+            SaveRequest(User, "valuation-user-brego", ValuationSource.Brego),
+            CancellationToken.None);
+        var superCap = await save.ExecuteAsync(
+            SaveRequest(User, "valuation-user-super-cap", ValuationSource.SuperCap),
+            CancellationToken.None);
+
         Assert.Equal(ValuationSource.Glasses, glasses.Details.Source);
-        Assert.Single(store.Saves);
+        Assert.Equal(ValuationSource.Brego, brego.Details.Source);
+        Assert.Equal(ValuationSource.SuperCap, superCap.Details.Source);
+        Assert.Equal(3, store.Saves.Count);
 
         // Cazana is a disabled seam, not a source staff may type in.
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
