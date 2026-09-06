@@ -731,7 +731,30 @@ internal sealed class EfDocumentRequestStore(
             return null;
         }
 
-        return new(uploadLimits.AllowedMediaTypes, uploadLimits.MaximumFileBytes);
+        // A submission that has not resolved keeps its own operation key on the
+        // page. Minting a fresh one while an arrival is claimed, uncertain, or
+        // accepted-and-unconfirmed is what turns a sender's retry into a second
+        // deliberate submission of bytes custody may already hold.
+        var linkId = entity.Id;
+        var unresolved = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item =>
+                EfPublicUploadRetentionStore.UnresolvedCodes.Contains(item.CustodyState)
+                && context.Set<PublicUploadSessionEntity>().Any(session =>
+                    session.Id == item.SessionId
+                    && session.RequestUploadLinkId == linkId))
+            // One link has one session and one unresolved arrival at a time in
+            // practice; the ordering is only so that two never race to be the
+            // one presented.
+            .OrderBy(item => item.OperationKey)
+            .Select(item => item.OperationKey)
+            .FirstOrDefaultAsync(cancellationToken);
+        return new(
+            uploadLimits.AllowedMediaTypes,
+            uploadLimits.MaximumFileBytes,
+            unresolved is null
+                ? null
+                : EfPublicUploadRetentionStore.UnscopeOperationKey(linkId, unresolved));
     }
 
     private static async Task<CaseWorkflowEntity> RequireWorkflowAsync(
