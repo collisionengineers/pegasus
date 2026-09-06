@@ -168,29 +168,46 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
-        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
+        services.AddScoped<EfStaffAccountQueries>();
+        services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<IStaffHeldCaseEditLeaseQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IAssignStaffRolesStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IReviewStaffAccessStore>(provider =>
+        services.AddScoped<IEnableStaffAccountStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IForceStaffLogoutStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IResetStaffPasswordStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IDeleteStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IUpdateStaffAccountSignOffStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
-        services.AddScoped<IGetAccessReview, GetAccessReview>();
+        services.AddScoped<IGetStaffHeldCaseEditLeases, GetStaffHeldCaseEditLeases>();
         services.AddScoped<IGetRoleAssignments, GetRoleAssignments>();
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IAssignStaffRoles, AssignStaffRoles>();
-        services.AddScoped<IReviewStaffAccess, ReviewStaffAccess>();
+        services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
+        services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
+        services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
+        services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
         services.AddScoped<IUpdateStaffAccountSignOff, UpdateStaffAccountSignOff>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
         services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
+        services.AddScoped<EfPerUserExternalCredentialStore>();
+        services.AddScoped<IPerUserExternalCredentialReader>(provider =>
+            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
+        services.AddScoped<IPerUserExternalCredentialAdministration>(provider =>
+            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
         services.AddScoped<EfOrganizationAdministration>();
         services.AddScoped<IOrganizationAdministrationStore>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());

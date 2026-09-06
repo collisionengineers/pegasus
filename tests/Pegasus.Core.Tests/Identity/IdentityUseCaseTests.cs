@@ -16,9 +16,6 @@ public sealed class IdentityUseCaseTests
         var list = await new ListStaffAccounts(queries).ExecuteAsync(
             new(Administrator, PageNumber: 2, PageSize: 25),
             default);
-        var access = await new GetAccessReview(queries).ExecuteAsync(
-            new(Administrator, MaximumResults: 10),
-            default);
         var roles = await new GetRoleAssignments(queries).ExecuteAsync(
             new(Administrator, MaximumResults: 12),
             default);
@@ -27,19 +24,54 @@ public sealed class IdentityUseCaseTests
             default);
 
         Assert.Equal((25, 25), queries.ListCalls[0]);
-        Assert.Equal((0, 10), queries.ListCalls[1]);
-        Assert.Equal((0, 12), queries.ListCalls[2]);
+        Assert.Equal((0, 12), queries.ListCalls[1]);
         Assert.True(list.HasPreviousPage);
         Assert.True(list.HasMoreAccounts);
-        Assert.True(Assert.Single(access.Accounts).ReviewIsOutstanding);
         Assert.Equal(account.Roles, Assert.Single(roles.Accounts).CurrentRoles);
         Assert.Equal(account, detail?.Account);
 
         var engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new ListStaffAccounts(queries).ExecuteAsync(new(engineer), default));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            new GetAccessReview(queries).ExecuteAsync(new(Administrator, 101), default));
+    }
+
+    [Fact]
+    public async Task HeldLeaseQueryRequiresAdministratorAndReturnsOnlyStoreProjection()
+    {
+        var staffId = Guid.NewGuid();
+        var expected = new StaffHeldCaseEditLease(
+            Guid.NewGuid(),
+            "ABC-2026-00001",
+            7,
+            DateTimeOffset.UtcNow.AddMinutes(5));
+        var queries = new RecordingQueries(new([], HasMoreAccounts: false), [expected]);
+
+        var result = await new GetStaffHeldCaseEditLeases(queries).ExecuteAsync(
+            new(Administrator, staffId),
+            default);
+
+        Assert.Equal(staffId, result.StaffId);
+        Assert.Equal(expected, Assert.Single(result.Leases));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new GetStaffHeldCaseEditLeases(queries).ExecuteAsync(
+                new(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), staffId),
+                default));
+    }
+
+    [Fact]
+    public void ResetPasswordResultNeverFormatsItsTemporarySecret()
+    {
+        var result = new ResetStaffPasswordResult(
+            Guid.NewGuid(),
+            "temporary-secret",
+            1,
+            2,
+            false);
+
+        Assert.Equal(nameof(ResetStaffPasswordResult), result.ToString());
+        Assert.False(result.ToString().Contains(
+            result.TemporaryPassword,
+            StringComparison.Ordinal));
     }
 
     [Fact]
@@ -62,8 +94,17 @@ public sealed class IdentityUseCaseTests
                 "  Approved duties  ",
                 "  roles-1  "),
             default);
-        await new ReviewStaffAccess(store).ExecuteAsync(
-            new(Administrator, staffId, "  Quarterly review  ", "  review-1  "),
+        await new EnableStaffAccount(store).ExecuteAsync(
+            new(Administrator, staffId, "  Access restored  ", "  enable-1  "),
+            default);
+        await new ForceStaffLogout(store).ExecuteAsync(
+            new(Administrator, staffId, "  End sessions  ", "  logout-1  "),
+            default);
+        await new ResetStaffPassword(store).ExecuteAsync(
+            new(Administrator, staffId, "  Recovery  ", "  reset-1  "),
+            default);
+        await new DeleteStaffAccount(store).ExecuteAsync(
+            new(Administrator, staffId, "  Access removed permanently  ", "  delete-1  "),
             default);
         await new UpdateStaffAccountSignOff(store).ExecuteAsync(
             new(
@@ -86,7 +127,10 @@ public sealed class IdentityUseCaseTests
             [StaffRole.Administrator, StaffRole.User],
             store.AssignRequest?.Roles);
         Assert.Equal("Approved duties", store.AssignRequest?.Reason);
-        Assert.Equal("Quarterly review", store.ReviewRequest?.Reason);
+        Assert.Equal("Access restored", store.EnableRequest?.Reason);
+        Assert.Equal("End sessions", store.LogoutRequest?.Reason);
+        Assert.Equal("Recovery", store.ResetRequest?.Reason);
+        Assert.Equal("Access removed permanently", store.DeleteRequest?.Reason);
         Assert.Equal("A Engineer", store.SignOffRequest?.PrintedName);
         Assert.Equal("M.Inst.IAEA", store.SignOffRequest?.Qualifications);
         Assert.Equal("Sign-off approved", store.SignOffRequest?.Reason);
@@ -176,7 +220,7 @@ public sealed class IdentityUseCaseTests
     }
 
     [Fact]
-    public async Task StaffAccountCannotDisableOrReviewItself()
+    public async Task StaffAccountCannotRunDestructiveAdministrativeActionsOnItself()
     {
         var staffId = Guid.Parse("b0a0e70a-1b8c-4ee4-bc21-1de58b73cf0c");
         var actor = ActionActor.Staff(staffId, [StaffRole.Administrator]);
@@ -186,19 +230,31 @@ public sealed class IdentityUseCaseTests
             new DisableStaffAccount(store).ExecuteAsync(
                 new(actor, staffId, "Disable self", "disable-self"),
                 default));
-        var review = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
-            new ReviewStaffAccess(store).ExecuteAsync(
-                new(actor, staffId, "Review self", "review-self"),
+        var logout = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            new ForceStaffLogout(store).ExecuteAsync(
+                new(actor, staffId, "Logout self", "logout-self"),
+                default));
+        var reset = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            new ResetStaffPassword(store).ExecuteAsync(
+                new(actor, staffId, "Reset self", "reset-self"),
+                default));
+        var delete = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
+            new DeleteStaffAccount(store).ExecuteAsync(
+                new(actor, staffId, "Delete self", "delete-self"),
                 default));
 
         Assert.Equal(StaffAccountAdministrationError.SelfAction, disable.Error);
-        Assert.Equal(StaffAccountAdministrationError.SelfAction, review.Error);
+        Assert.Equal(StaffAccountAdministrationError.SelfAction, logout.Error);
+        Assert.Equal(StaffAccountAdministrationError.SelfAction, reset.Error);
+        Assert.Equal(StaffAccountAdministrationError.SelfAction, delete.Error);
         Assert.Null(store.DisableRequest);
-        Assert.Null(store.ReviewRequest);
+        Assert.Null(store.LogoutRequest);
+        Assert.Null(store.ResetRequest);
+        Assert.Null(store.DeleteRequest);
     }
 
     private static StaffAccountSummary Account(Guid id) =>
-        new(id, "staff", true, false, [StaffRole.User], null);
+        new(id, "staff", true, false, [StaffRole.User]);
 
     private static UpdateStaffAccountSignOffRequest SignOffRequest(Guid staffId) =>
         new(
@@ -222,7 +278,11 @@ public sealed class IdentityUseCaseTests
         return signature;
     }
 
-    private sealed class RecordingQueries(StaffAccountQuerySlice slice) : IStaffAccountQueries
+    private sealed class RecordingQueries(
+        StaffAccountQuerySlice slice,
+        IReadOnlyList<StaffHeldCaseEditLease>? leases = null)
+        : IStaffAccountQueries,
+          IStaffHeldCaseEditLeaseQueries
     {
         public List<(int Offset, int Limit)> ListCalls { get; } = [];
 
@@ -240,6 +300,11 @@ public sealed class IdentityUseCaseTests
             CancellationToken cancellationToken) =>
             Task.FromResult(slice.Accounts.SingleOrDefault(account => account.Id == staffId));
 
+        public Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
+            Guid staffId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(leases ?? (IReadOnlyList<StaffHeldCaseEditLease>)[]);
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
@@ -254,13 +319,19 @@ public sealed class IdentityUseCaseTests
         ICreateStaffAccountStore,
         IDisableStaffAccountStore,
         IAssignStaffRolesStore,
-        IReviewStaffAccessStore,
+        IEnableStaffAccountStore,
+        IForceStaffLogoutStore,
+        IResetStaffPasswordStore,
+        IDeleteStaffAccountStore,
         IUpdateStaffAccountSignOffStore
     {
         public CreateStaffAccountRequest? CreateRequest { get; private set; }
         public DisableStaffAccountRequest? DisableRequest { get; private set; }
         public AssignStaffRolesRequest? AssignRequest { get; private set; }
-        public ReviewStaffAccessRequest? ReviewRequest { get; private set; }
+        public EnableStaffAccountRequest? EnableRequest { get; private set; }
+        public ForceStaffLogoutRequest? LogoutRequest { get; private set; }
+        public ResetStaffPasswordRequest? ResetRequest { get; private set; }
+        public DeleteStaffAccountRequest? DeleteRequest { get; private set; }
         public UpdateStaffAccountSignOffRequest? SignOffRequest { get; private set; }
 
         public Task<CreateStaffAccountResult> CreateAsync(
@@ -287,15 +358,36 @@ public sealed class IdentityUseCaseTests
             return Task.FromResult(new AssignStaffRolesResult(Account(request.StaffId), 1, 2, false));
         }
 
-        public Task<ReviewStaffAccessResult> ReviewAsync(
-            ReviewStaffAccessRequest request,
+        public Task<EnableStaffAccountResult> EnableAsync(
+            EnableStaffAccountRequest request,
             CancellationToken cancellationToken)
         {
-            ReviewRequest = request;
-            return Task.FromResult(new ReviewStaffAccessResult(
-                request.StaffId,
-                DateTimeOffset.UnixEpoch,
-                false));
+            EnableRequest = request;
+            return Task.FromResult(new EnableStaffAccountResult(Account(request.StaffId), false));
+        }
+
+        public Task<ForceStaffLogoutResult> ForceLogoutAsync(
+            ForceStaffLogoutRequest request,
+            CancellationToken cancellationToken)
+        {
+            LogoutRequest = request;
+            return Task.FromResult(new ForceStaffLogoutResult(request.StaffId, 1, 2, false));
+        }
+
+        public Task<ResetStaffPasswordResult> ResetPasswordAsync(
+            ResetStaffPasswordRequest request,
+            CancellationToken cancellationToken)
+        {
+            ResetRequest = request;
+            return Task.FromResult(new ResetStaffPasswordResult(request.StaffId, "temporary", 1, 2, false));
+        }
+
+        public Task<DeleteStaffAccountResult> DeleteAsync(
+            DeleteStaffAccountRequest request,
+            CancellationToken cancellationToken)
+        {
+            DeleteRequest = request;
+            return Task.FromResult(new DeleteStaffAccountResult(request.StaffId, 1, 2, true, false));
         }
 
         public Task<UpdateStaffAccountSignOffResult> UpdateAsync(
