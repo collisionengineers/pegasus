@@ -422,21 +422,39 @@ public sealed class EfCaseReportGenerationStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
+        var marked = await MarkStaleAsync(
+            context, caseId, reasonCode, timeProvider.GetUtcNow(), cancellationToken)
+            .ConfigureAwait(false);
+        if (marked == 0)
+        {
+            return 0;
+        }
 
-        // Only the Case's current generation moves. A superseded generation
-        // keeps its bytes, its state and its history exactly as issued.
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return marked;
+    }
+
+    /// <summary>
+    /// The same-context stale core the sibling B stores call inside their
+    /// own transactions, so a material change and the staleness it causes
+    /// commit atomically. Only the Case's current generation moves: a
+    /// superseded generation keeps its bytes, its state and its history
+    /// exactly as issued. This never saves — the caller's transaction does.
+    /// </summary>
+    internal static async Task<int> MarkStaleAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string reasonCode,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
         var current = await context.Set<CaseReportGenerationEntity>()
             .Where(item => item.CaseId == caseId
                 && item.SupersededById == null
                 && item.State != nameof(CaseReportGenerationState.Stale))
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
-        if (current.Length == 0)
-        {
-            return 0;
-        }
-
-        var now = timeProvider.GetUtcNow();
         foreach (var generation in current)
         {
             generation.State = nameof(CaseReportGenerationState.Stale);
@@ -449,7 +467,7 @@ public sealed class EfCaseReportGenerationStore(
                 ActorKind = nameof(ActorKind.SystemWorker),
                 ActorSubjectId = PolicyVersion,
                 ActorRolesJson = "[]",
-                OccurredAtUtc = now,
+                OccurredAtUtc = nowUtc,
                 Outcome = "Succeeded",
                 CorrelationId = DeserializeSnapshot(generation).OperationKey,
                 Reason = reasonCode,
@@ -463,8 +481,6 @@ public sealed class EfCaseReportGenerationStore(
             });
         }
 
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return current.Length;
     }
 
