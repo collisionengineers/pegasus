@@ -71,3 +71,8 @@
 ## Transitions
 
 - 2026-09-06T14:26:28.777Z claim-transfer claude-fable-b → opencode-backup-b (user-authorized backup for claude-fable-b until 17:50Z) (expired; lease 715d1480-9946-467e-b177-9b167c73ee94 → c1faca65-583e-4fc5-ace0-67ef74b87b10 rev 23; branch task/pegasus-v1-casework; worktree ../pegasus-worktrees/v1-casework; expires 2026-09-06T14:56:28.766Z; evidence: workspace clean (matches-claim), pr open, commits 13, proof absent)
+
+## 2026-09-06 — backup session (opencode-backup-b, user-authorized while claude-fable-b is usage-limited until 17:50Z)
+
+- Lease recovered with native `transfer` (expired 14:07Z after the 13:37Z heartbeat); recorded branch/worktree preserved; rev 23→24 under `opencode-backup-b`. b07 helper WIP `28ff59aac` found clean (2 new files, nothing dirty) and preserved.
+- A's MCP paging blocker fixed as **d140d9b70** (pushed): `IListCaseDocumentsByCursor` now pages occurrences — `CursorPage<CaseDocumentPageItem>` (one occurrence + exactly the version it names), keyset (RecordedAtUtc desc, occurrence Id). Document-unit pages cannot split a many-occurrence document, so limit 1 lost occurrences after the first. Regression `ADocumentWithMoreOccurrencesThanTheLimitEnumeratesEveryOccurrence` (1 document, 5 occurrences, limit 1 — every occurrence once, each with its named version). Verify: build 0/0; Core Cursor 32/32; full Core 1446/1446; integration CaseCursorQueryPersistence 11/11. Contract published on PR 672 ("A05 occurrence-unit document paging").
