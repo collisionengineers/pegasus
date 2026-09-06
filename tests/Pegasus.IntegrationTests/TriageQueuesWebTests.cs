@@ -1,7 +1,11 @@
 using System.Globalization;
+using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
@@ -626,6 +630,127 @@ public sealed class TriageQueuesWebTests
     /// Registers one Image-initiated Case from a fresh upload — the same
     /// sequence every Not ready merge test needs.
     /// </summary>
+    /// <summary>
+    /// The Awaiting-instruction read carries each row's principal code out of
+    /// its one set-based projection as a LEFT JOIN, so the number of database
+    /// reads one request performs does not grow with the number of rows.
+    /// </summary>
+    /// <remarks>
+    /// The proof is the comparison, not a pinned number: an absolute count is
+    /// a fact about one base and stops being evidence the moment anything else
+    /// on the page changes, whereas the same request over three rows and over
+    /// six rows must cost the same reads if and only if nothing is read per
+    /// row. The observed count travels in the assertion message so a run
+    /// records it.
+    /// </remarks>
+    [Fact]
+    public async Task AwaitingReadCountDoesNotGrowWithTheNumberOfImageRows()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var actor = StaffActor();
+
+        // Three rows of mixed principal state: one recorded, two `Not known`.
+        var first = await RegisterImageIntakeAsync(factory, client, services, "AA11AAA");
+        await RegisterImageIntakeAsync(factory, client, services, "BB22BBB");
+        await RegisterImageIntakeAsync(factory, client, services, "CC33CCC");
+        var firstDetail = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetAsync(first.Id, CancellationToken.None));
+        await store.SetPrincipalAsync(
+            new(first.Id, alpha, actor, firstDetail.LifecycleVersion),
+            CancellationToken.None);
+
+        var summaries = await queries.ListAsync(false, CancellationToken.None);
+        Assert.Contains(summaries, item => item.PrincipalCode == "ALPHA");
+        Assert.Contains(summaries, item => item.Id != first.Id && item.PrincipalCode is null);
+
+        var counter = new AwaitingRequestCommandCounter();
+        using var countingFactory = CreateCountingFactory(factory, counter);
+        using var countingClient = countingFactory.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
+        var withThreeRows = await MeasureAwaitingReadsAsync(countingClient, counter, first.Id);
+
+        // Three more rows, same request.
+        await RegisterImageIntakeAsync(factory, client, services, "DD44DDD");
+        await RegisterImageIntakeAsync(factory, client, services, "EE55EEE");
+        await RegisterImageIntakeAsync(factory, client, services, "FF66FFF");
+        var withSixRows = await MeasureAwaitingReadsAsync(countingClient, counter, first.Id);
+
+        Assert.True(withThreeRows > 0, "The interceptor observed no reads at all.");
+        Assert.True(
+            withThreeRows == withSixRows,
+            $"The Awaiting read count grew with the rows: {withThreeRows} reads for three "
+            + $"image rows and {withSixRows} for six.");
+    }
+
+    private static WebApplicationFactory<Program> CreateCountingFactory(
+        IntakeWebApplicationFactory factory,
+        AwaitingRequestCommandCounter counter)
+    {
+        var connectionString = factory.Database.ConnectionString;
+        return factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            // The host's own context factory is what the request pipeline
+            // resolves; an interceptor anywhere else counts nothing a request
+            // does.
+            services.RemoveAll<IDbContextFactory<PegasusDbContext>>();
+            services.RemoveAll<DbContextOptions<PegasusDbContext>>();
+            services.RemoveAll<DbContextOptions>();
+            services.AddDbContextFactory<PegasusDbContext>(options =>
+            {
+                options.UseSqlServer(connectionString);
+                options.AddInterceptors(counter);
+            });
+        }));
+    }
+
+    private static async Task<int> MeasureAwaitingReadsAsync(
+        HttpClient client,
+        AwaitingRequestCommandCounter counter,
+        Guid selectedId)
+    {
+        counter.Reset();
+        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={selectedId:D}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return counter.ExecutedReaderCommands;
+    }
+
+    /// <summary>
+    /// Counts the reader commands one request executes. Registered on the
+    /// host's own context factory, so it observes exactly what the request
+    /// pipeline runs.
+    /// </summary>
+    private sealed class AwaitingRequestCommandCounter : DbCommandInterceptor
+    {
+        private int executedReaderCommands;
+
+        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
+
+        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref executedReaderCommands);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
     private static async Task<ImageIntakeRecord> RegisterImageIntakeAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client,

@@ -1,10 +1,13 @@
 using System.Net;
+using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -143,6 +146,127 @@ public sealed class ImageIntakeWebTests
             $"/Cases/{caseId:D}?section=files");
         Assert.Contains("AB12CDE-01", casePage);
     }
+
+    /// <summary>
+    /// The whole staff decision over HTTP: an Image Intake shows `Not known`
+    /// until someone records a principal, offers only the active principals,
+    /// and lets them be set, replaced and cleared again.
+    /// </summary>
+    [Fact]
+    public async Task StaffSetsReplacesAndClearsTheImageIntakePrincipal()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+        var beta = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "BETA");
+        var retired = await ImageIntakeTestData.SeedPrincipalAsync(
+            factory.Services,
+            "GAMMA",
+            isActive: false);
+        var imageIntakeId = await RegisterImageIntakeForPrincipalAsync(factory, client);
+
+        var initial = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}");
+        AssertPrincipalFact(initial, "Not known");
+        Assert.Contains($"value=\"{alpha:D}\"", initial, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{beta:D}\"", initial, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{retired:D}\"", initial, StringComparison.Ordinal);
+        // The empty option is a real selectable state, not a disabled prompt.
+        Assert.Contains("<option value=\"\"", initial, StringComparison.Ordinal);
+
+        await PostPrincipalAsync(factory, client, imageIntakeId, alpha);
+        AssertPrincipalFact(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}"),
+            "ALPHA");
+
+        await PostPrincipalAsync(factory, client, imageIntakeId, beta);
+        AssertPrincipalFact(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}"),
+            "BETA");
+
+        await PostPrincipalAsync(factory, client, imageIntakeId, null);
+        AssertPrincipalFact(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}"),
+            "Not known");
+    }
+
+    private static async Task<Guid> RegisterImageIntakeForPrincipalAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client)
+    {
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "principal-vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var registerResponse = await client.PostAsync(
+            $"/Received/{receiptId:D}?handler=RegisterImageIntake",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["operationKey"] = Guid.NewGuid().ToString("N"),
+                ["vehicleRegistration"] = "ab12 cde",
+                ["reason"] = "Staff read the registration from the retained image."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, registerResponse.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var detail = await scope.ServiceProvider
+            .GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        return Assert.IsType<ImageIntakeDetail>(detail).Record.Id;
+    }
+
+    private static async Task PostPrincipalAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        Guid imageIntakeId,
+        Guid? principalId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var detail = await scope.ServiceProvider
+            .GetRequiredService<IImageIntakeQueries>()
+            .GetAsync(imageIntakeId, CancellationToken.None);
+        var expectedVersion = Assert.IsType<ImageIntakeDetail>(detail).LifecycleVersion;
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var response = await client.PostAsync(
+            $"/VehicleImages/{imageIntakeId:D}?handler=Principal",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["principalId"] = principalId is { } id ? id.ToString("D") : string.Empty,
+                ["expectedVersion"] = expectedVersion.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    /// <summary>
+    /// The Principal fact is always drawn. The absent state is exactly
+    /// `Not known` — never an empty value and never one of the alternates the
+    /// rest of the product does not use.
+    /// </summary>
+    private static void AssertPrincipalFact(string html, string expected)
+    {
+        var match = Regex.Match(
+            html,
+            "<dt>Principal</dt>\\s*<dd>(?<value>[^<]*)</dd>");
+        Assert.True(match.Success, "The Principal fact was not rendered.");
+        Assert.Equal(expected, match.Groups["value"].Value.Trim());
+        if (expected == "Not known")
+        {
+            foreach (var alternate in new[] { "None", "Unknown", "Unassigned" })
+            {
+                Assert.NotEqual(alternate, match.Groups["value"].Value.Trim());
+            }
+        }
+    }
 }
 
 internal static class MultiFormatFixture
@@ -153,6 +277,40 @@ internal static class MultiFormatFixture
 
 internal static class ImageIntakeTestData
 {
+    /// <summary>
+    /// Inserts one principal with the given code and active flag, together
+    /// with the organization and sequence lineage its foreign keys require.
+    /// The remaining principal columns all carry database defaults, so this
+    /// six-column insert is complete.
+    /// </summary>
+    public static async Task<Guid> SeedPrincipalAsync(
+        IServiceProvider services,
+        string code,
+        bool isActive = true)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO [Organizations] ([Id], [Name], [Version])
+            VALUES ({organizationId}, {$"Fixture organization {code}"}, 0)
+            """);
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO [PrincipalSequenceLineages] ([Id], [CreatedAtUtc])
+            VALUES ({lineageId}, {DateTimeOffset.UtcNow})
+            """);
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO [Principals]
+                ([Id], [OrganizationId], [Code], [SequenceLineageId], [IsActive], [Version])
+            VALUES ({principalId}, {organizationId}, {code}, {lineageId}, {isActive}, 0)
+            """);
+        return principalId;
+    }
+
     /// <summary>
     /// Uploads a QDOS instruction email carrying the given registration and
     /// claim number, processes it, and promotes its allocated case: a real
