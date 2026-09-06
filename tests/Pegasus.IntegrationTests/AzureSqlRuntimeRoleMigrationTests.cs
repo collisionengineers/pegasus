@@ -966,6 +966,26 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task V1FoundationCanDowngradeAndReapplyItsCurrentSchema()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(useTemplate: false);
+        await using var context = await database.CreateContextAsync();
+        Assert.False(context.Database.HasPendingModelChanges());
+
+        await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN ('ValuationPresets', 'AppliedValuationSnapshots')"));
+
+        await context.Database.MigrateAsync();
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc')"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_ValuationPresets_Label' AND is_unique = 1 AND has_filter = 0"));
+    }
+
+    [Fact]
     public async Task OriginalRoleMigrationDowngradeRemovesOnlyItsManagedRoles()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);

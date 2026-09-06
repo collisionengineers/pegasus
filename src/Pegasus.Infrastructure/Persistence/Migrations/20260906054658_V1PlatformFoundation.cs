@@ -21,6 +21,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CK_CaseAssessmentFields_FieldPath",
                 table: "CaseAssessmentFields");
 
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations");
+
             migrationBuilder.AddColumn<long>(
                 name: "ReconciledAssociationVersion",
                 table: "UnidentifiedItems",
@@ -872,10 +876,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Label = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Label = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     SuggestedAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Active = table.Column<bool>(type: "bit", nullable: false),
-                    UpdatedBy = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     Version = table.Column<long>(type: "bigint", nullable: false),
                     ConcurrencyToken = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
@@ -927,7 +931,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_GeneratedCaseArtifacts", x => x.Id);
-                    table.CheckConstraint("CK_GeneratedCaseArtifacts_Custody", "([State] = 'Confirmed' AND [VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL) OR ([State] <> 'Confirmed' AND [VersionId] IS NULL)");
+                    table.CheckConstraint("CK_GeneratedCaseArtifacts_Custody", "[State] <> 'Confirmed' OR ([VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL)");
                     table.ForeignKey(
                         name: "FK_GeneratedCaseArtifacts_CaseReportGenerations_GenerationId",
                         column: x => x.GenerationId,
@@ -1095,6 +1099,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CK_CaseAssessmentFields_FieldPath",
                 table: "CaseAssessmentFields",
                 sql: "[FieldPath] <> '' AND LEN([FieldPath]) <= 60");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations",
+                sql: "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch', 'Brego', 'SuperCap')");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc",
+                table: "AppliedValuationSnapshots",
+                columns: new[] { "CaseId", "AcceptedAtUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ValuationPresets_Label",
+                table: "ValuationPresets",
+                column: "Label",
+                unique: true);
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_ApprovedSentPollStates_Generation",
@@ -1429,6 +1449,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "CaseAssessmentFields");
 
             migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations");
+
+            migrationBuilder.DropCheckConstraint(
                 name: "CK_ApprovedSentPollStates_Generation",
                 table: "ApprovedSentPollStates");
 
@@ -1739,6 +1763,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CK_CaseAssessmentFields_FieldPath",
                 table: "CaseAssessmentFields",
                 sql: "[FieldPath] IN ('assessment.category', 'assessment.impact_location', 'assessment.impact_severity', 'assessment.legal_status', 'assessment.outcome', 'assessment.salvage_value', 'assessment.unroadworthy_reason', 'assessment.values.engineer', 'assessment.values.retail', 'assessment.values.trade', 'costs.recovery_charge', 'costs.repairer_vat_registered', 'costs.storage_charge', 'damage.impacts', 'damage.material_transfer', 'damage.tyres.centre_belt', 'damage.tyres.left_front.belt', 'damage.tyres.left_front.tyre', 'damage.tyres.left_rear.belt', 'damage.tyres.left_rear.tyre', 'damage.tyres.right_front.belt', 'damage.tyres.right_front.tyre', 'damage.tyres.right_rear.belt', 'damage.tyres.right_rear.tyre', 'damage.tyres.spare', 'damage.unrelated', 'damage.unrelated_deduction', 'engineer.name', 'engineer.qualifications', 'engineer.signature', 'fee.agreed_fee', 'fee.description_lines', 'incident.assessed', 'narrative.engineers_comments', 'narrative.history_check', 'narrative.nature_of_incident', 'rates.card', 'rates.class', 'rates.manufacturer_approved', 'rates.regional_uplift', 'settlement.betterment', 'settlement.claimant_vat_registered', 'settlement.diminution', 'settlement.excess', 'settlement.hire_daily_cost', 'settlement.hire_start', 'settlement.repair_delays', 'settlement.report_delay', 'settlement.reserve', 'settlement.salvage.agent', 'settlement.salvage.agent_reference', 'settlement.salvage.at', 'settlement.salvage.moved', 'settlement.salvage.owner_retains', 'settlement.salvage.settled', 'settlement.salvage.value_agreed', 'settlement.storage_per_day', 'statement_of_truth', 'vehicle.airbags_deployed', 'vehicle.body', 'vehicle.colour', 'vehicle.condition', 'vehicle.engine_cc', 'vehicle.fault_codes', 'vehicle.fuel', 'vehicle.mileage_source', 'vehicle.mot_expiry', 'vehicle.tax_expiry', 'vehicle.temporary_repair_cost', 'vehicle.temporary_repair_method', 'vehicle.temporary_repairs_possible', 'vehicle.transmission', 'vehicle.vehicle_type', 'vehicle.vin', 'vehicle.vin_checked', 'vehicle.year')");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations",
+                sql: "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch')");
         }
     }
 }
