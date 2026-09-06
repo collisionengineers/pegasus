@@ -908,7 +908,7 @@ public sealed class ProcessQueuedIntake(
             // One owner for the supersession rule: the same component the
             // reconciliation sweep uses resolves the receipt's stale open
             // item to the destination that now exists.
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
