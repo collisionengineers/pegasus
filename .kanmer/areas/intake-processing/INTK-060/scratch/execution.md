@@ -340,3 +340,7 @@ One A-owned file (`DependencyInjection.cs`: Claim Source store/command/query, `I
 ## Wave 27 (C08 `df03ccd4e`): 1 failure left
 
 Build/core 59/browser 82/architecture PASS; integration 146/147 — `OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts` now 404s on the list GET itself: the test's query uses `sort=asc`, but `Index.cshtml.cs` `TryParseSort` accepts only `oldest` (absent = newest); `unread=true` must also be checked against `TryParseUnread`. C08 round 3 (test query values + assert the parsed filters round-trip) queued with the C06 bridge/test-composition cleanup behind the two active editors (C07 caller r3, C02). Wave 28 (C05) running.
+
+## Wave 28 (C05 `7467190b1`): all lanes PASS
+
+Build 0/0, core 30, corpus 13/13 against the pack, web 11 + 5 known absent-pinned-sample skips, architecture 100. C05 re-review binds on it; on pass, C05 integrates.
