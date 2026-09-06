@@ -255,24 +255,97 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
-    /// A refusal is not an uncertainty. An authorization failure inside custody
-    /// never offered the bytes, so it surfaces instead of being buried as an
-    /// arrival nothing can reconcile.
+    /// A refusal is not an uncertainty. Custody decides an authority it will
+    /// not accept, and a request it cannot parse, before it reads a byte, so
+    /// both surface instead of being buried as an arrival nothing can
+    /// reconcile. These two are the whole of the exception, by name.
     /// </summary>
     [Fact]
-    public async Task ARefusalInsideCustodySurfacesInsteadOfBecomingAnUncertainRetention()
+    public async Task TheTwoRefusalsCustodyRaisesBeforeReadingAnythingSurfaceUnrecorded()
     {
+        var store = new RecordingStore();
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new RetainIncomingArtifact(
+                new ThrowingCustody(
+                    new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload)),
+                store).ExecuteAsync(PublicActor(), Occurrence(), new MemoryStream([1])));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new RetainIncomingArtifact(
+                new ThrowingCustody(new ArgumentException("the request is malformed")),
+                store).ExecuteAsync(
+                PublicActor(),
+                Occurrence("occurrence-2"),
+                new MemoryStream([1])));
+
+        Assert.Empty(store.Recorded);
+    }
+
+    /// <summary>
+    /// Any other thrown hand-over is uncertain, whatever its type. The type of
+    /// a fault raised mid-call is not evidence about what custody kept, and
+    /// this command must never depend on knowing what transport an adapter
+    /// speaks - naming one would put an infrastructure dependency in Core.
+    /// </summary>
+    [Fact]
+    public async Task AnyOtherThrownHandOverIsUncertainWhateverItsType()
+    {
+        Exception[] faults =
+        [
+            // What an adapter translates a transport fault to. Core names
+            // this and never the transport exception itself.
+            new IntakeDependencyUnavailableException("custody is unreachable"),
+            new TimeoutException("the custody call timed out"),
+            new IOException("the connection was reset"),
+            // A type this command has never heard of, and an EF-shaped fault
+            // that can be raised after the bytes were written as easily as
+            // before them.
+            new InvalidOperationException("a second operation was started"),
+            new NotSupportedException("some adapter's own idea of a fault")
+        ];
+
+        foreach (var fault in faults)
+        {
+            var custody = new ThrowingCustody(fault);
+            var store = new RecordingStore();
+
+            var uncertain = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
+                PublicActor(),
+                Occurrence(),
+                new MemoryStream([1]));
+
+            Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
+            Assert.Equal(uncertain, Assert.Single(store.Recorded));
+        }
+    }
+
+    /// <summary>
+    /// The narrow case a transport-typed classifier missed: the sender
+    /// disconnects and the request's token is cancelled after custody already
+    /// has the bytes. That is an uncertain hand-over like any other, and the
+    /// record of it is written on a fresh token, because the cancelled one
+    /// would refuse the write and leave the arrival re-offerable.
+    /// </summary>
+    [Fact]
+    public async Task AHandOverCancelledAfterTheBytesWereReadIsUncertainAndIsStillRecorded()
+    {
+        using var aborted = new CancellationTokenSource();
         var custody = new ThrowingCustody(
-            new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload));
+            new TaskCanceledException("the sender disconnected"),
+            aborted);
         var store = new RecordingStore();
         var command = new RetainIncomingArtifact(custody, store);
 
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
+        var uncertain = await command.ExecuteAsync(
             PublicActor(),
             Occurrence(),
-            new MemoryStream([1])));
+            new MemoryStream([1]),
+            aborted.Token);
 
-        Assert.Empty(store.Recorded);
+        Assert.True(aborted.IsCancellationRequested);
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
+        Assert.Equal(uncertain, Assert.Single(store.Recorded));
     }
 
     private static CaseArtifactCustodyResult Confirmed() => new(
@@ -307,7 +380,9 @@ public sealed class RetainIncomingArtifactTests
     /// Custody that reads the bytes and then fails - the shape of a lost
     /// connection or a timeout, where the caller cannot know what was kept.
     /// </summary>
-    private sealed class ThrowingCustody(Exception exception) : ICaseArtifactCustody
+    private sealed class ThrowingCustody(
+        Exception exception,
+        CancellationTokenSource? abortBeforeThrowing = null) : ICaseArtifactCustody
     {
         public int Calls { get; private set; }
 
@@ -317,6 +392,10 @@ public sealed class RetainIncomingArtifactTests
         {
             Calls++;
             request.Content.CopyTo(Stream.Null);
+
+            // A sender that disconnects mid-hand-over: the request's token is
+            // cancelled after custody has already read the bytes.
+            abortBeforeThrowing?.Cancel();
             return Task.FromException<CaseArtifactCustodyResult>(exception);
         }
     }
@@ -349,10 +428,17 @@ public sealed class RetainIncomingArtifactTests
             CancellationToken cancellationToken) =>
             Task.FromResult(byOperationKey.GetValueOrDefault(operationKey));
 
+        /// <summary>
+        /// Refuses a cancelled token, exactly as a database-backed store does.
+        /// That is what makes the uncertain-hand-over proof meaningful: if the
+        /// command recorded on the token the hand-over was cancelled on,
+        /// nothing would be written down at all.
+        /// </summary>
         public Task RecordAsync(
             RetainedIncomingArtifact artifact,
             CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             byOperationKey[artifact.OperationKey] = artifact;
             Recorded.Add(artifact);
             return Task.CompletedTask;

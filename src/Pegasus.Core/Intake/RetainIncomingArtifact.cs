@@ -183,7 +183,12 @@ public sealed class RetainIncomingArtifact(
                 occurrence.OperationKey,
                 IncomingArtifactCustodyState.Unknown,
                 occurrence.CaseId);
-            await store.RecordAsync(uncertain, cancellationToken);
+
+            // Written on a fresh token on purpose. A hand-over cancelled by
+            // the sender disconnecting is exactly the case that must still be
+            // written down, and the cancelled token it arrived on would refuse
+            // the write and leave the arrival re-offerable.
+            await store.RecordAsync(uncertain, CancellationToken.None);
             return uncertain;
         }
 
@@ -193,18 +198,40 @@ public sealed class RetainIncomingArtifact(
     }
 
     /// <summary>
-    /// A hand-over that failed in a way that does not say whether custody took
-    /// the bytes: transport, timeout and database faults, including one
-    /// wrapped inside another, which is how a client library surfaces a
-    /// dropped connection. An authorization refusal or a malformed request is
-    /// deliberately not one of these - nothing was ever offered, so nothing
-    /// about it is uncertain, and it must surface rather than be recorded as
-    /// an unreconcilable arrival.
+    /// Whether a thrown hand-over leaves it uncertain that custody took the
+    /// bytes. Everything does, except the two refusals custody raises before
+    /// it has read anything.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Custody refuses an authority it does not accept, and a request it
+    /// cannot parse, <em>before</em> the content stream is touched. Those two
+    /// are named here so they surface: nothing was offered, so nothing about
+    /// it is uncertain, and recording an arrival nothing can reconcile would
+    /// be a lie. Every other exception is uncertain - a dependency an adapter
+    /// could not reach, a timeout, a database fault, a cancelled request, or a
+    /// type this command has never heard of - because the type of a fault
+    /// raised mid-call is not evidence about what custody kept, and the only
+    /// safe reading of "the call did not return" is "custody may hold these
+    /// bytes".
+    /// </para>
+    /// <para>
+    /// No transport type is named, deliberately. Core does not know what
+    /// transport an adapter speaks, and naming one would make Core reference
+    /// <c>System.Net.Http</c>, which the dependency direction forbids; an
+    /// adapter translates its transport faults to
+    /// <see cref="IntakeDependencyUnavailableException"/>, which is uncertain
+    /// here like everything else. The two process-fatal faults
+    /// <see cref="IntakeExceptionPolicy.IsRecoverable"/> also excludes are
+    /// left to propagate, because there is no database write to be made on
+    /// the way down.
+    /// </para>
+    /// </remarks>
     private static bool IsUncertainHandOver(Exception exception) =>
-        exception is HttpRequestException
-        || IntakeExceptionPolicy.IsTransientFailure(exception)
-        || (exception.InnerException is { } inner && IsUncertainHandOver(inner));
+        exception is not (StaffAuthorizationException
+            or ArgumentException
+            or OutOfMemoryException
+            or AccessViolationException);
 
     /// <summary>
     /// Asks custody what became of a hand-over that is neither confirmed nor
