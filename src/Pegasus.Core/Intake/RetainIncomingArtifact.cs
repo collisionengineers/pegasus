@@ -28,6 +28,38 @@ public enum IncomingArtifactCustodyState
 }
 
 /// <summary>
+/// How a retention's recorded custody state is allowed to move.
+/// </summary>
+/// <remarks>
+/// Confirmation is monotonic. A record only ever moves towards an answer
+/// custody actually gave, so a recorder that knows less than the record
+/// already does - a Pending or an Unknown arriving late, after custody
+/// finished - cannot undo what is known. It is the same reason the states
+/// exist at all: nothing may render as less certain than custody has been.
+/// </remarks>
+public static class IncomingArtifactCustodyProgress
+{
+    /// <summary>
+    /// Whether <paramref name="next"/> is a forward move from
+    /// <paramref name="current"/>. Unknown is the least that can be said -
+    /// custody may hold this, and nothing more is known - Pending is more, and
+    /// Confirmed and Failed are both final answers, so neither overwrites the
+    /// other and nothing overwrites either.
+    /// </summary>
+    public static bool MovesForward(
+        IncomingArtifactCustodyState current,
+        IncomingArtifactCustodyState next) => Rank(next) > Rank(current);
+
+    private static int Rank(IncomingArtifactCustodyState state) => state switch
+    {
+        IncomingArtifactCustodyState.Unknown => 0,
+        IncomingArtifactCustodyState.Pending => 1,
+        IncomingArtifactCustodyState.Confirmed or IncomingArtifactCustodyState.Failed => 2,
+        _ => throw new ArgumentOutOfRangeException(nameof(state))
+    };
+}
+
+/// <summary>
 /// One immutable incoming artifact offered to custody. The occurrence identity
 /// is server-issued and addresses this arrival — two arrivals with the same
 /// proposed name are two occurrences and never overwrite one another. The
@@ -78,12 +110,44 @@ public sealed record RetainedIncomingArtifact(
 public interface IIncomingArtifactRetentionStore
 {
     /// <summary>
-    /// The retention this operation key already produced, if any. This is what
-    /// makes a confirmed replay return the same logical document and version
-    /// instead of retaining a second copy.
+    /// The durable retention record this operation key already has, if any.
+    /// This is what makes a confirmed replay return the same logical document
+    /// and version instead of retaining a second copy.
     /// </summary>
+    /// <remarks>
+    /// Every committed record is returned, including one custody has said
+    /// nothing about yet: an arrival a store commits before the hand-over
+    /// reads as <see cref="IncomingArtifactCustodyState.Unknown"/>, because
+    /// that is exactly what is known about it. Reporting it as no record at
+    /// all is what let two callers of one operation key both reach custody.
+    /// Null therefore means only that this store holds nothing under the key.
+    /// </remarks>
     Task<RetainedIncomingArtifact?> FindAsync(
         string operationKey,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Claims the committed arrival this occurrence addresses for the one
+    /// hand-over it is allowed, and returns whether this caller won it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The claim is one conditional write - the arrival moves out of its
+    /// pre-custody state, and only from it - so exactly one of any number of
+    /// simultaneous callers can win. It is committed before the possibly
+    /// accepting call, which is what makes a crash, a lost response or a
+    /// failed recording of the result unable to reopen the hand-over: what is
+    /// left behind is a claimed arrival that is reconciled, never one that is
+    /// offered again.
+    /// </para>
+    /// <para>
+    /// False is not a failure. It means another caller is holding the
+    /// hand-over, or custody has already answered, and the losing caller must
+    /// ask what became of the operation key rather than offer the bytes.
+    /// </para>
+    /// </remarks>
+    Task<bool> TryClaimHandOverAsync(
+        Guid occurrenceId,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -91,6 +155,15 @@ public interface IIncomingArtifactRetentionStore
     /// pending, failed or uncertain hand-over is as durable as a confirmed one
     /// and never silently disappears.
     /// </summary>
+    /// <remarks>
+    /// The write is monotonic, by
+    /// <see cref="IncomingArtifactCustodyProgress.MovesForward"/>: a recorder
+    /// that arrives after a further answer keeps what is recorded and its
+    /// identities rather than replacing them with what it knew. Identities are
+    /// filled in where they are missing and never erased, because the same
+    /// logical document and version are what a later reconciliation asks
+    /// about.
+    /// </remarks>
     Task RecordAsync(
         RetainedIncomingArtifact artifact,
         CancellationToken cancellationToken);
@@ -109,6 +182,14 @@ public interface IIncomingArtifactRetentionStore
 /// <see cref="ICaseArtifactCustodyStatus"/> under the same operation key rather
 /// than resubmitted, because resubmitting bytes custody may already hold is how
 /// duplicates are made.
+/// <para>
+/// One arrival is offered exactly once, and the store's claim is what makes
+/// that true rather than a hope about timing. Every path to custody runs
+/// through a claim this caller won and committed first, so simultaneous
+/// callers of one operation key produce one hand-over and the rest reconcile,
+/// and a crash between custody answering and the answer being written leaves a
+/// claimed arrival to ask about rather than an arrival to offer again.
+/// </para>
 /// </remarks>
 public sealed class RetainIncomingArtifact(
     ICaseArtifactCustody custody,
@@ -120,6 +201,13 @@ public sealed class RetainIncomingArtifact(
 
     private readonly IIncomingArtifactRetentionStore store =
         store ?? throw new ArgumentNullException(nameof(store));
+
+    /// <summary>
+    /// What a retention records when custody declined the authority. It is a
+    /// refusal of that attempted acceptance and of nothing else, so it says
+    /// only that, and never why.
+    /// </summary>
+    private const string RefusedFailureCode = "custody_refused";
 
     public async Task<RetainedIncomingArtifact> ExecuteAsync(
         ActionActor actor,
@@ -135,20 +223,32 @@ public sealed class RetainIncomingArtifact(
         var existing = await store.FindAsync(occurrence.OperationKey, cancellationToken);
         if (existing is not null)
         {
-            // A confirmed retention is final: the same operation key returns
-            // the same logical document and version, and the bytes are not
-            // offered a second time.
-            if (existing.IsConfirmed)
+            // The two answers custody actually gave. A confirmed retention
+            // returns the same logical document and version, and a refusal is
+            // final for the acceptance it refused; neither is ever offered a
+            // second time under this key, and only a new deliberate submission
+            // earns a new one.
+            if (existing.State is IncomingArtifactCustodyState.Confirmed
+                or IncomingArtifactCustodyState.Failed)
             {
                 return existing;
             }
 
-            // Pending and Unknown both mean custody may already hold these
-            // bytes, so both are asked about rather than repeated. Only a
-            // Failed retention - custody said no, and said so - is offered
-            // again under the same key.
-            if (existing.State is IncomingArtifactCustodyState.Pending
-                or IncomingArtifactCustodyState.Unknown)
+            // A Pending is custody stating that it has these bytes. It is
+            // asked about, never repeated.
+            if (existing.State is IncomingArtifactCustodyState.Pending)
+            {
+                return await ReconcileAsync(actor, existing, cancellationToken);
+            }
+
+            // Unknown is both the arrival nobody has offered yet and the
+            // hand-over whose outcome was lost, because from here they are the
+            // same thing: custody may hold these bytes. Exactly one caller may
+            // find out which by offering them, and the store's conditional
+            // claim - committed before the possibly accepting call - is what
+            // decides which caller that is. Anyone else asks about the same
+            // operation key instead, and never reaches custody with bytes.
+            if (!await store.TryClaimHandOverAsync(occurrence.OccurrenceId, cancellationToken))
             {
                 return await ReconcileAsync(actor, existing, cancellationToken);
             }
@@ -170,6 +270,29 @@ public sealed class RetainIncomingArtifact(
                     occurrence.Sha256,
                     content),
                 cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            // A definite refusal of this attempted acceptance. Custody
+            // committed no accepted intent, and bytes it read or staged on the
+            // way to refusing are not one, so the claim this attempt holds is
+            // closed as the refusal it is rather than left uncertain - which
+            // is what lets the sender make a new deliberate submission under a
+            // new key. A caller that staged no arrival has nothing to close
+            // and nothing to close it on, so the refusal simply surfaces.
+            if (existing is not null)
+            {
+                await store.RecordAsync(
+                    new(
+                        occurrence.OccurrenceId,
+                        occurrence.OperationKey,
+                        IncomingArtifactCustodyState.Failed,
+                        occurrence.CaseId,
+                        FailureCode: RefusedFailureCode),
+                    CancellationToken.None);
+            }
+
+            throw;
         }
         catch (Exception exception) when (IsUncertainHandOver(exception))
         {
@@ -199,21 +322,27 @@ public sealed class RetainIncomingArtifact(
 
     /// <summary>
     /// Whether a thrown hand-over leaves it uncertain that custody took the
-    /// bytes. Everything does, except the two refusals custody raises before
-    /// it has read anything.
+    /// bytes. Everything does, except the one refusal custody states as a
+    /// refusal.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Custody refuses an authority it does not accept, and a request it
-    /// cannot parse, <em>before</em> the content stream is touched. Those two
-    /// are named here so they surface: nothing was offered, so nothing about
-    /// it is uncertain, and recording an arrival nothing can reconcile would
-    /// be a lie. Every other exception is uncertain - a dependency an adapter
-    /// could not reach, a timeout, a database fault, a cancelled request, or a
-    /// type this command has never heard of - because the type of a fault
-    /// raised mid-call is not evidence about what custody kept, and the only
-    /// safe reading of "the call did not return" is "custody may hold these
-    /// bytes".
+    /// <see cref="StaffAuthorizationException"/> is custody declining the
+    /// authority, which it settles before it commits an accepted intent
+    /// whether or not it has read anything by then; it is handled as the
+    /// definite refusal it is rather than as an uncertainty. Every other
+    /// exception is uncertain - a dependency an adapter could not reach, a
+    /// timeout, a database fault, a cancelled request, or a type this command
+    /// has never heard of - because the type of a fault raised mid-call is not
+    /// evidence about what custody kept, and the only safe reading of "the
+    /// call did not return" is "custody may hold these bytes".
+    /// </para>
+    /// <para>
+    /// <see cref="ArgumentException"/> is among the uncertain ones,
+    /// deliberately. An adapter can raise one after it has committed as easily
+    /// as before, so reading it as a refusal would license offering bytes
+    /// custody already holds. Malformed input is refused by this command's own
+    /// validation instead, which runs before anything is claimed or offered.
     /// </para>
     /// <para>
     /// No transport type is named, deliberately. Core does not know what
@@ -229,48 +358,65 @@ public sealed class RetainIncomingArtifact(
     /// </remarks>
     private static bool IsUncertainHandOver(Exception exception) =>
         exception is not (StaffAuthorizationException
-            or ArgumentException
             or OutOfMemoryException
             or AccessViolationException);
 
     /// <summary>
     /// Asks custody what became of a hand-over that is neither confirmed nor
-    /// refused - a Pending one it has not finished, or an Unknown one it may
-    /// never have received. Without a status port, without the identities to
-    /// ask about, or without the authority to ask, the retention keeps the
-    /// state it had, which is honest and still never renders as success.
+    /// refused - a Pending one it has not finished, an Unknown one it may
+    /// never have received, or one another caller is holding the claim on
+    /// right now. Without a status port, without a Case to ask about, or
+    /// without the authority to ask, the retention keeps the state it had,
+    /// which is honest and still never renders as success.
     /// </summary>
     /// <remarks>
-    /// Custody's status read is staff-only, while the public sender acts as a
-    /// request link, so a public retry asks and is refused. That refusal is
-    /// not an error to report: the retention stays exactly where it was, the
-    /// bytes are still never offered twice, and a staff or system-worker retry
-    /// - or custody finishing the Pending itself - still converges it. The
-    /// narrower rule this leaves the public path with is recorded as a handoff
-    /// to the custody stream rather than worked around here.
+    /// <para>
+    /// There are two ways to ask, and which one is available is decided by
+    /// what the record already knows. A retention that names a document and a
+    /// version asks about that exact version. One that names neither - the
+    /// hand-over whose response was lost before its identities could be
+    /// written down - asks by the operation key it was accepted under, which
+    /// is the only identity both sides still share. Recovered identities are
+    /// copied onto the record, so the next question can be the precise one.
+    /// </para>
+    /// <para>
+    /// A null lookup is not permission to start again. It says only that no
+    /// committed intent was observed, which is exactly what a winner still
+    /// inside its hand-over looks like, so the retention stays uncertain and
+    /// the bytes are still never offered a second time under a fresh key.
+    /// </para>
+    /// <para>
+    /// A refusal is not an error to report either: the retention stays exactly
+    /// where it was, and a staff or system-worker retry - or custody finishing
+    /// the Pending itself - still converges it.
+    /// </para>
     /// </remarks>
     private async Task<RetainedIncomingArtifact> ReconcileAsync(
         ActionActor actor,
         RetainedIncomingArtifact existing,
         CancellationToken cancellationToken)
     {
-        if (custodyStatus is null
-            || existing.CaseId is not { } caseId
-            || existing.DocumentId is not { } documentId
-            || existing.DocumentVersionId is not { } versionId)
+        if (custodyStatus is null || existing.CaseId is not { } caseId)
         {
             return existing;
         }
 
-        CaseArtifactCustodyResult status;
+        CaseArtifactCustodyResult? status;
         try
         {
-            status = await custodyStatus.GetAsync(
-                actor,
-                caseId,
-                documentId,
-                versionId,
-                cancellationToken);
+            status = existing.DocumentId is { } documentId
+                && existing.DocumentVersionId is { } versionId
+                    ? await custodyStatus.GetAsync(
+                        actor,
+                        caseId,
+                        documentId,
+                        versionId,
+                        cancellationToken)
+                    : await custodyStatus.FindByOperationKeyAsync(
+                        actor,
+                        caseId,
+                        existing.OperationKey,
+                        cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -279,11 +425,22 @@ public sealed class RetainIncomingArtifact(
             return existing;
         }
 
+        if (status is null)
+        {
+            // No committed intent was observed. That is not evidence that none
+            // will be: the claim stands and the retention stays uncertain.
+            return existing;
+        }
+
         var state = ToState(status.Disposition);
         var confirmed = state == IncomingArtifactCustodyState.Confirmed;
         var reconciled = existing with
         {
             State = state,
+            // Recovered identities are what make the next reconciliation the
+            // precise one, and they are never unlearned once known.
+            DocumentId = status.DocumentId ?? existing.DocumentId,
+            DocumentVersionId = status.VersionId ?? existing.DocumentVersionId,
             // The same rule a first hand-over follows: only a confirmed
             // retention says where custody holds the bytes, so a reconciliation
             // that comes back Pending or Failed carries no remote identity.

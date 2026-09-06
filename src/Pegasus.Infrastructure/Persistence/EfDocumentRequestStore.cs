@@ -899,11 +899,18 @@ internal sealed class EfPublicUploadRetentionStore(
     /// <summary>
     /// The state of an arrival that has been committed but not yet offered to
     /// custody. It is deliberately not one of the four custody states: custody
-    /// has said nothing about it, so <see cref="FindAsync"/> reports no
-    /// retention for it and the accepted totals do not count it. It is what
-    /// separates "we have not asked yet" from "custody answered Pending",
-    /// which the same code for both could not.
+    /// has said nothing about it, so the accepted totals do not count it, and
+    /// it is what separates "we have not asked yet" from "custody answered
+    /// Pending", which the same code for both could not.
     /// </summary>
+    /// <remarks>
+    /// It is also the only state <see cref="TryClaimHandOverAsync"/> will move
+    /// out of, which is what makes exactly one caller the one that offers the
+    /// bytes. <see cref="FindAsync"/> still reports the row - as Unknown,
+    /// because that is what is known about it - so a caller that loses the
+    /// claim can see the arrival it must reconcile instead of a null it would
+    /// hand over against.
+    /// </remarks>
     internal const string ArrivedCode = "arrived";
 
     internal const string PendingCode = "pending";
@@ -914,8 +921,32 @@ internal sealed class EfPublicUploadRetentionStore(
     public static string ScopeOperationKey(Guid requestUploadLinkId, string operationKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
-        return $"request:{requestUploadLinkId:N}:{operationKey.Trim()}";
+        return $"{ScopePrefix(requestUploadLinkId)}{operationKey.Trim()}";
     }
+
+    /// <summary>
+    /// The sender's own operation key back out of a stored one. The page
+    /// re-presents that key, not the scoped form it is stored under, because
+    /// the sender is what has to send it again.
+    /// </summary>
+    public static string? UnscopeOperationKey(Guid requestUploadLinkId, string scopedOperationKey)
+    {
+        var prefix = ScopePrefix(requestUploadLinkId);
+        return scopedOperationKey.StartsWith(prefix, StringComparison.Ordinal)
+            ? scopedOperationKey[prefix.Length..]
+            : null;
+    }
+
+    private static string ScopePrefix(Guid requestUploadLinkId) =>
+        $"request:{requestUploadLinkId:N}:";
+
+    /// <summary>
+    /// The states an arrival can still resolve into something else from. While
+    /// one of these stands for a link, the sender's original operation key is
+    /// re-presented rather than replaced, so a retry reconciles that arrival
+    /// instead of becoming a second one.
+    /// </summary>
+    internal static readonly string[] UnresolvedCodes = [ArrivedCode, UnknownCode, PendingCode];
 
     public async Task<RetainedIncomingArtifact?> FindAsync(
         string operationKey,
@@ -949,15 +980,15 @@ internal sealed class EfPublicUploadRetentionStore(
                     .FirstOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
-        if (row is null
-            || string.Equals(row.CustodyState, ArrivedCode, StringComparison.Ordinal))
+        if (row is null)
         {
-            // Committed, but never offered: there is no retention to return, so
-            // the bytes are handed over for the first time rather than asked
-            // about.
             return null;
         }
 
+        // Every committed row is reported, the not-yet-offered arrival
+        // included: it reads as Unknown because that is the whole of what is
+        // known about it. Reporting it as no row at all is what let two
+        // callers of one operation key both reach custody with the bytes.
         return new(
             row.Id,
             row.OperationKey,
@@ -967,6 +998,33 @@ internal sealed class EfPublicUploadRetentionStore(
             row.DocumentVersionId,
             row.Remote?.BoxFileId,
             row.Remote?.BoxVersionId);
+    }
+
+    /// <summary>
+    /// Moves one committed arrival out of its pre-custody state, and only out
+    /// of that state, in a single conditional update. The row count is the
+    /// whole of the decision: exactly one of any number of simultaneous
+    /// callers sees 1, and that caller alone offers the bytes.
+    /// </summary>
+    /// <remarks>
+    /// The claim lands as Unknown because that is precisely what becomes true
+    /// the moment it is taken: custody may hold this. No new state word, table
+    /// or worker is needed to say it. The update commits on its own, before
+    /// the possibly accepting call, so a crash or a failure to record the
+    /// result leaves a claimed arrival to reconcile rather than an arrival
+    /// anyone may offer again.
+    /// </remarks>
+    public async Task<bool> TryClaimHandOverAsync(
+        Guid occurrenceId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var claimed = await context.Set<PublicUploadOccurrenceEntity>()
+            .Where(item => item.Id == occurrenceId && item.CustodyState == ArrivedCode)
+            .ExecuteUpdateAsync(
+                update => update.SetProperty(item => item.CustodyState, UnknownCode),
+                cancellationToken);
+        return claimed == 1;
     }
 
     public async Task RecordAsync(
@@ -979,9 +1037,25 @@ internal sealed class EfPublicUploadRetentionStore(
             .SingleOrDefaultAsync(item => item.Id == artifact.OccurrenceId, cancellationToken)
             ?? throw new KeyNotFoundException(
                 $"Public upload occurrence '{artifact.OccurrenceId}' was not found.");
-        occurrence.CustodyState = ToCode(artifact.State);
-        occurrence.DocumentId = artifact.DocumentId;
-        occurrence.DocumentVersionId = artifact.DocumentVersionId;
+
+        // Forward only. A recorder that arrives after custody has answered
+        // knows less than the row does, so it leaves the answer and its
+        // identities alone: a late Pending or Unknown cannot pull a Confirmed
+        // back, and a Failed never displaces a Confirmed. The pre-custody
+        // arrival is behind every custody answer, so any of them may claim it.
+        if (string.Equals(occurrence.CustodyState, ArrivedCode, StringComparison.Ordinal)
+            || IncomingArtifactCustodyProgress.MovesForward(
+                ParseCustodyState(occurrence.CustodyState),
+                artifact.State))
+        {
+            occurrence.CustodyState = ToCode(artifact.State);
+        }
+
+        // Identities are learned once and never unlearned. A reconciliation
+        // that recovers them writes them in; a later record that never knew
+        // them does not erase them.
+        occurrence.DocumentId ??= artifact.DocumentId;
+        occurrence.DocumentVersionId ??= artifact.DocumentVersionId;
 
         // Only a confirmed retention says anything about where custody holds
         // the bytes, so only a confirmed retention writes the remote
@@ -990,7 +1064,8 @@ internal sealed class EfPublicUploadRetentionStore(
         // so clearing on a later Pending or Failed record would erase an
         // earlier confirmed identity that is still true.
         if (artifact.State == IncomingArtifactCustodyState.Confirmed
-            && artifact.DocumentVersionId is { } versionId)
+            && string.Equals(occurrence.CustodyState, ConfirmedCode, StringComparison.Ordinal)
+            && occurrence.DocumentVersionId is { } versionId)
         {
             var version = await context.Set<DocumentVersionEntity>()
                 .SingleOrDefaultAsync(item => item.Id == versionId, cancellationToken);
@@ -1019,9 +1094,12 @@ internal sealed class EfPublicUploadRetentionStore(
         ConfirmedCode => IncomingArtifactCustodyState.Confirmed,
         FailedCode => IncomingArtifactCustodyState.Failed,
         UnknownCode => IncomingArtifactCustodyState.Unknown,
-        // An unrecognised stored state is never read as success. The
-        // pre-custody ArrivedCode is one of those: it is not an answer custody
-        // gave, and FindAsync never brings it here.
+        // A committed arrival is an answer custody has not given, which is
+        // what Unknown says. Reading it as anything more would claim custody
+        // spoke; reading it as nothing at all would hide the row a losing
+        // caller has to reconcile against.
+        ArrivedCode => IncomingArtifactCustodyState.Unknown,
+        // An unrecognised stored state is never read as success.
         _ => throw new InvalidOperationException(
             $"The retained occurrence custody state '{value}' is not recognized.")
     };

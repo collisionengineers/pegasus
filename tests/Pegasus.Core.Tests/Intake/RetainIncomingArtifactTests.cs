@@ -149,7 +149,12 @@ public sealed class RetainIncomingArtifactTests
         var second = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, second.State);
+
+        // Nothing precise to ask about, so it is asked for by its operation
+        // key; custody owns up to no committed intent, and the retention stays
+        // uncertain rather than being offered again.
         Assert.Equal(0, status.Calls);
+        Assert.Equal(1, status.LookupCalls);
         Assert.Equal(1, custody.Calls);
     }
 
@@ -253,16 +258,51 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
         Assert.Equal(1, custody.Calls);
         Assert.Equal(0, status.Calls);
+        Assert.Equal(1, status.LookupCalls);
     }
 
     /// <summary>
-    /// A refusal is not an uncertainty. Custody decides an authority it will
-    /// not accept, and a request it cannot parse, before it reads a byte, so
-    /// both surface instead of being buried as an arrival nothing can
-    /// reconcile. These two are the whole of the exception, by name.
+    /// A refusal is not an uncertainty. Custody declining the authority is the
+    /// one thing it states as a refusal of the acceptance it was attempting,
+    /// so it surfaces rather than being buried as an arrival to reconcile -
+    /// and where an arrival was staged, that arrival is closed as refused.
     /// </summary>
     [Fact]
-    public async Task TheTwoRefusalsCustodyRaisesBeforeReadingAnythingSurfaceUnrecorded()
+    public async Task ARefusedHandOverSurfacesAndClosesTheArrivalItWasClaimedFrom()
+    {
+        var store = new RecordingStore();
+        var custody = new ThrowingCustody(
+            new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload));
+        var command = new RetainIncomingArtifact(custody, store);
+        var occurrence = Occurrence();
+        store.Arrive(occurrence);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1])));
+
+        // The claim this attempt held is closed as the refusal it was, not
+        // left uncertain: that is what lets the sender make a new deliberate
+        // submission instead of retrying into a slot nothing can resolve.
+        var refused = Assert.Single(store.Recorded);
+        Assert.Equal(IncomingArtifactCustodyState.Failed, refused.State);
+        Assert.Equal(occurrence.OccurrenceId, refused.OccurrenceId);
+
+        // And the same key is not offered again: the refusal answers it.
+        var replay = await command.ExecuteAsync(
+            PublicActor(),
+            occurrence,
+            new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Failed, replay.State);
+        Assert.Equal(1, custody.Calls);
+    }
+
+    /// <summary>
+    /// The refusal a caller that staged nothing gets: it surfaces, and there
+    /// is no arrival to close it on, so nothing is written down.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedHandOverWithNoStagedArrivalSurfacesAndRecordsNothing()
     {
         var store = new RecordingStore();
 
@@ -272,15 +312,112 @@ public sealed class RetainIncomingArtifactTests
                     new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload)),
                 store).ExecuteAsync(PublicActor(), Occurrence(), new MemoryStream([1])));
 
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            new RetainIncomingArtifact(
-                new ThrowingCustody(new ArgumentException("the request is malformed")),
-                store).ExecuteAsync(
-                PublicActor(),
-                Occurrence("occurrence-2"),
-                new MemoryStream([1])));
-
         Assert.Empty(store.Recorded);
+    }
+
+    /// <summary>
+    /// Only this command's own validation refuses malformed input, and it does
+    /// so before anything is claimed or offered. An
+    /// <see cref="ArgumentException"/> out of the adapter is not that: an
+    /// adapter can raise one after it has committed as easily as before, so it
+    /// is uncertain like every other mid-call fault.
+    /// </summary>
+    [Fact]
+    public async Task AnAdapterArgumentExceptionIsUncertainAndNotARefusal()
+    {
+        var custody = new ThrowingCustody(new ArgumentException("the request is malformed"));
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed());
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Occurrence();
+        store.Arrive(occurrence);
+
+        var uncertain = await command.ExecuteAsync(
+            PublicActor(),
+            occurrence,
+            new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
+
+        // The retry asks under the original key rather than offering again.
+        var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
+        Assert.Equal(1, custody.Calls);
+        Assert.Equal(1, status.LookupCalls);
+    }
+
+    /// <summary>
+    /// One arrival, one hand-over. The claim is what decides which caller
+    /// offers the bytes, so a caller that does not hold it never reaches
+    /// custody - it asks about the same operation key, and a lookup that
+    /// observes nothing committed leaves the claim exactly where it was.
+    /// </summary>
+    [Fact]
+    public async Task ACallerThatDoesNotWinTheClaimAsksInsteadOfOffering()
+    {
+        var custody = new RecordingCustody(Confirmed());
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed());
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Occurrence();
+        store.Arrive(occurrence);
+
+        // The winner takes the claim and is still inside its hand-over.
+        Assert.True(await store.TryClaimHandOverAsync(occurrence.OccurrenceId, CancellationToken.None));
+
+        var lost = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(0, custody.Calls);
+        Assert.Equal(1, status.LookupCalls);
+        Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
+
+        // Nothing committed was observed, which is exactly what a winner still
+        // in flight looks like. The claim stands and nothing is recorded over
+        // it.
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, lost.State);
+        Assert.Empty(store.Recorded);
+    }
+
+    /// <summary>
+    /// The hand-over whose response was lost before its identities could be
+    /// written down. There is nothing precise to ask about, so it is asked for
+    /// by the operation key it was accepted under - the one identity both
+    /// sides still share - and the recovered identities are copied onto the
+    /// record without the bytes being offered a second time.
+    /// </summary>
+    [Fact]
+    public async Task AnIdentitylessUncertainHandOverIsRecoveredByItsOriginalOperationKey()
+    {
+        var custody = new ThrowingCustody(new TimeoutException("the custody call timed out"));
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed());
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Occurrence();
+        store.Arrive(occurrence);
+
+        var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
+        Assert.Null(uncertain.DocumentId);
+
+        // Custody had in fact committed the acceptance before the response was
+        // lost, and owns up to it under the same key.
+        status.Committed[occurrence.OperationKey] = Confirmed();
+
+        var recovered = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, recovered.State);
+        Assert.Equal(DocumentId, recovered.DocumentId);
+        Assert.Equal(VersionId, recovered.DocumentVersionId);
+        Assert.Equal("box-file", recovered.BoxFileId);
+
+        // Asked, not repeated, and asked by the original key: no second
+        // hand-over and no new identity was invented for it.
+        Assert.Equal(1, custody.Calls);
+        Assert.Equal(0, status.Calls);
+        Assert.Equal(
+            (CaseId, occurrence.OperationKey),
+            Assert.Single(status.Lookups));
     }
 
     /// <summary>
@@ -299,10 +436,10 @@ public sealed class RetainIncomingArtifactTests
             new IntakeDependencyUnavailableException("custody is unreachable"),
             new TimeoutException("the custody call timed out"),
             new IOException("the connection was reset"),
-            // A type this command has never heard of, and an EF-shaped fault
-            // that can be raised after the bytes were written as easily as
-            // before them.
+            // A type this command has never heard of, and two an adapter can
+            // raise after the bytes were written as easily as before them.
             new InvalidOperationException("a second operation was started"),
+            new ArgumentException("the adapter did not like the request"),
             new NotSupportedException("some adapter's own idea of a fault")
         ];
 
@@ -520,8 +657,30 @@ public sealed class RetainIncomingArtifactTests
     private sealed class RecordingStore : IIncomingArtifactRetentionStore
     {
         private readonly Dictionary<string, RetainedIncomingArtifact> byOperationKey = [];
+        private readonly HashSet<Guid> unclaimed = [];
 
+        /// <summary>
+        /// Every record the command asked for, in order, refused or not. The
+        /// durable state is <see cref="FindAsync"/>; this is the log of what
+        /// was attempted.
+        /// </summary>
         public List<RetainedIncomingArtifact> Recorded { get; } = [];
+
+        /// <summary>
+        /// Commits the pre-custody arrival a staging caller writes before it
+        /// hands anything over, exactly as the public upload path does. It
+        /// reads as Unknown - custody has said nothing - and it can be claimed
+        /// once.
+        /// </summary>
+        public void Arrive(IncomingArtifactOccurrence occurrence)
+        {
+            byOperationKey[occurrence.OperationKey] = new(
+                occurrence.OccurrenceId,
+                occurrence.OperationKey,
+                IncomingArtifactCustodyState.Unknown,
+                occurrence.CaseId);
+            unclaimed.Add(occurrence.OccurrenceId);
+        }
 
         public Task<RetainedIncomingArtifact?> FindAsync(
             string operationKey,
@@ -529,19 +688,48 @@ public sealed class RetainIncomingArtifactTests
             Task.FromResult(byOperationKey.GetValueOrDefault(operationKey));
 
         /// <summary>
+        /// One arrival, one claim. The set is emptied by the winner, so a
+        /// second caller of the same occurrence is told no exactly as the
+        /// conditional update tells it no.
+        /// </summary>
+        public Task<bool> TryClaimHandOverAsync(
+            Guid occurrenceId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(unclaimed.Remove(occurrenceId));
+
+        /// <summary>
         /// Refuses a cancelled token, exactly as a database-backed store does.
         /// That is what makes the uncertain-hand-over proof meaningful: if the
         /// command recorded on the token the hand-over was cancelled on,
-        /// nothing would be written down at all.
+        /// nothing would be written down at all. The write is forward-only and
+        /// keeps identities, like the real one.
         /// </summary>
         public Task RecordAsync(
             RetainedIncomingArtifact artifact,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            byOperationKey[artifact.OperationKey] = artifact;
             Recorded.Add(artifact);
+            byOperationKey[artifact.OperationKey] =
+                byOperationKey.TryGetValue(artifact.OperationKey, out var stored)
+                    ? Merge(stored, artifact)
+                    : artifact;
             return Task.CompletedTask;
         }
+
+        private static RetainedIncomingArtifact Merge(
+            RetainedIncomingArtifact stored,
+            RetainedIncomingArtifact recorded) =>
+            IncomingArtifactCustodyProgress.MovesForward(stored.State, recorded.State)
+                ? recorded with
+                {
+                    DocumentId = recorded.DocumentId ?? stored.DocumentId,
+                    DocumentVersionId = recorded.DocumentVersionId ?? stored.DocumentVersionId
+                }
+                : stored with
+                {
+                    DocumentId = stored.DocumentId ?? recorded.DocumentId,
+                    DocumentVersionId = stored.DocumentVersionId ?? recorded.DocumentVersionId
+                };
     }
 }
