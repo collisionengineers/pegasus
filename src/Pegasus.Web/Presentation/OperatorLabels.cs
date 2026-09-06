@@ -1094,6 +1094,29 @@ public static class OperatorLabels
         return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
 
+    /// <summary>
+    /// Staff correspondence's own state (S12, C08): the operator sees only
+    /// whether it is on its way, delivered, or needs attention — the internal
+    /// attempt-stage vocabulary (draft creation, attaching, sending) is
+    /// writer detail, not a distinction the operator acts on differently.
+    /// "Unknown" is the one state that ever offers Reconcile rather than a
+    /// resend: a resend from an unknown outcome could double-send a message
+    /// that already reached Outlook.
+    /// </summary>
+    public static class StaffMail
+    {
+        public const string Reconcile = "Reconcile";
+
+        public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
+        {
+            Pegasus.Core.Operations.StaffMailState.Sent => "Sent",
+            Pegasus.Core.Operations.StaffMailState.Failed => "Failed",
+            Pegasus.Core.Operations.StaffMailState.Cancelled => "Cancelled",
+            Pegasus.Core.Operations.StaffMailState.Unknown => "Unknown",
+            _ => "Submitted"
+        };
+    }
+
     /// <summary>The Mail settings area labels and status values — one list.</summary>
     public static class MailSettings
     {
