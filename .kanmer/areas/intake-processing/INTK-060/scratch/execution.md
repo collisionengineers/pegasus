@@ -368,3 +368,7 @@ Re-evaluation defect accepted by A (INTK-027: re-read the logical confirmed Box 
 ## C07 caller re-review at `0a0e88975`: needs-changes — 3 majors, 2 minors
 
 A's three items (atomic claim, original key, refusal mapping) verified fixed. New: R-24 `RecordAsync` forward-only rule is a non-atomic read-modify-write on an entity with no concurrency token (a loser's Pending can overwrite the winner's Confirmed) → one conditional `ExecuteUpdateAsync` naming allowed source states; R-25 the web double's `GetAsync` still staff-only while `FindByOperationKeyAsync` has A's link fence — must be the same fence for both; R-26 re-presenting the unresolved key per LINK blocks a second, different file (`OperationConflict`) contrary to plan item 6 — round 4 direction: reuse the unresolved key only when the posted bytes' SHA-256 equals the unresolved occurrence's, otherwise a new deliberate submission gets its own occurrence/key. Minors R-27 (unclaimed `existing is null` branch), R-28 (stale comment). Round 4 queued (editors: C02, C08 r3).
+
+## Checkpoint — C08 round 3 at `86e8659f5` (merged `2c1a9d8a1` → `e1f8850ee`)
+
+Test query `sort=oldest` (page vocabulary), unread token verified, round-trip assertion added; no production change. Wave 31 + review after wave 30 releases LocalDB. C07 caller round 4 dispatched (Opus): R-24 conditional-update transitions, R-25 same fence on both status reads, R-26 same-bytes reuse vs new-file new key, R-27, R-28. Editors: C02 (resumed), C07b r4.
