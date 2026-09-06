@@ -176,11 +176,14 @@ public sealed class MailWorkspaceWebTests
         // proves what this query round-trips.
         var triggerIndex = listHtml.IndexOf("data-mail-preview-trigger", StringComparison.Ordinal);
         Assert.True(triggerIndex >= 0, "expected at least one rendered row (data-mail-preview-trigger) for this query.");
-        var rowHrefStart = listHtml.LastIndexOf("href=\"", triggerIndex, StringComparison.Ordinal);
-        Assert.True(rowHrefStart >= 0, "expected the rendered row link to carry an href.");
-        var rowHrefValueStart = rowHrefStart + "href=\"".Length;
-        var rowHrefEnd = listHtml.IndexOf('"', rowHrefValueStart);
-        var rowHref = WebUtility.HtmlDecode(listHtml[rowHrefValueStart..rowHrefEnd]);
+        var rowAnchorStart = listHtml.LastIndexOf("<a", triggerIndex, StringComparison.Ordinal);
+        var rowAnchorEnd = listHtml.IndexOf('>', triggerIndex);
+        Assert.True(rowAnchorStart >= 0 && rowAnchorEnd > triggerIndex,
+            "expected data-mail-preview-trigger inside a complete row anchor.");
+        var rowAnchor = listHtml[rowAnchorStart..(rowAnchorEnd + 1)];
+        var rowHrefMatch = Regex.Match(rowAnchor, "href=\"(?<href>[^\"]+)\"", RegexOptions.IgnoreCase);
+        Assert.True(rowHrefMatch.Success, $"expected the rendered row anchor to carry an href: {rowAnchor}");
+        var rowHref = WebUtility.HtmlDecode(rowHrefMatch.Groups["href"].Value);
         Assert.Contains("unread=true", rowHref, StringComparison.Ordinal);
         Assert.Contains("sort=oldest", rowHref, StringComparison.Ordinal);
 
