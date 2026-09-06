@@ -9,6 +9,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     private const string OriginalRuntimeRoleMigration = "20260729176000_AzureSqlRuntimeLeastPrivilege";
     private const string PreviousMigration = "20260729193000_UniqueTriageResponseEvidenceLink";
     private const string RuntimeRoleMigration = "20260729199000_RuntimeRoleReconciliation";
+    private const string V1FoundationMigration = "20260906054658_V1PlatformFoundation";
+    private const string FilterActiveReportGenerationMigration =
+        "20260906170000_FilterActiveCaseReportGenerationSnapshot";
     private const string WebRole = "pegasus_web_runtime_role";
     private const string WorkerRole = "pegasus_worker_runtime_role";
 
@@ -983,8 +986,10 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task V1FoundationCanDowngradeAndReapplyItsCurrentSchema()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(useTemplate: false);
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false, useTemplate: false);
         await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync(V1FoundationMigration);
         Assert.False(context.Database.HasPendingModelChanges());
 
         await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
@@ -998,6 +1003,35 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc')"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_ValuationPresets_Label' AND is_unique = 1 AND has_filter = 0"));
+    }
+
+    [Fact]
+    public async Task FilteredReportGenerationIndexMigrationRefusesDowngradeWithoutChangingCurrentSchema()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(useTemplate: false);
+        await using var context = await database.CreateContextAsync();
+        var appliedBefore = await context.Database.GetAppliedMigrationsAsync();
+
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(
+            () => context.Database.MigrateAsync(V1FoundationMigration));
+
+        Assert.Equal(
+            "This migration cannot be reverted after stale report generations may share a snapshot hash.",
+            exception.Message);
+        Assert.Equal(appliedBefore, await context.Database.GetAppliedMigrationsAsync());
+        Assert.Contains(FilterActiveReportGenerationMigration, appliedBefore);
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'[dbo].[CaseReportGenerations]')
+              AND name = N'IX_CaseReportGenerations_CaseId_SnapshotHash'
+              AND is_unique = 1
+              AND REPLACE(REPLACE(REPLACE(filter_definition, N' ', N''), N'(', N''), N')', N'')
+                  = N'[State]<>N''Stale'''
+            """));
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
     }
 
     [Fact]
