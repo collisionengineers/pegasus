@@ -23,21 +23,24 @@ internal sealed class GraphStaffMailSender(
         IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken)
     {
         var message = BuildMimeMessage(operation.Id, operation.PayloadHash, command);
-        var builder = new BodyBuilder { TextBody = command.Body };
-        foreach (var attachment in attachments)
+        if (attachments.Count > 0)
         {
-            if (!attachment.Content.CanSeek)
-                throw new InvalidOperationException("Staff mail attachment streams must be seekable for exact size validation.");
-            attachment.Content.Position = 0;
-            builder.Attachments.Add(new MimePart(ContentType.Parse(attachment.Attachment.MediaType))
+            var multipart = new Multipart("mixed") { message.Body! };
+            foreach (var attachment in attachments)
             {
-                Content = new MimeContent(attachment.Content),
-                ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
-                ContentTransferEncoding = ContentEncoding.Base64,
-                FileName = attachment.Attachment.FileName
-            });
+                if (!attachment.Content.CanSeek)
+                    throw new InvalidOperationException("Staff mail attachment streams must be seekable for exact size validation.");
+                attachment.Content.Position = 0;
+                multipart.Add(new MimePart(ContentType.Parse(attachment.Attachment.MediaType))
+                {
+                    Content = new MimeContent(attachment.Content),
+                    ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                    ContentTransferEncoding = ContentEncoding.Base64,
+                    FileName = attachment.Attachment.FileName
+                });
+            }
+            message.Body = multipart;
         }
-        message.Body = builder.ToMessageBody();
         await using var counter = new CountingWriteStream(mailbox.EncodedMessageSizeLimit);
         try
         {

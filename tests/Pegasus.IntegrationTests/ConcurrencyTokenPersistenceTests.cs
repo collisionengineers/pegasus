@@ -53,7 +53,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                 "QDOS",
                 new(true, true, true, true),
                 new(true, "concurrency-test-policy", 1),
-                CaseInspectionMode.PhysicalAddress),
+                CaseInspectionMode.ImageBasedAssessment),
             CancellationToken.None);
 
         var acceptedMatch = new IntakeEvidence(

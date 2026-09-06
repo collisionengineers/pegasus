@@ -260,6 +260,236 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(2, attempts.Length);
     }
 
+    [Fact]
+    public async Task RequestLinkCustodyRequiresCurrentPersistedLinkBoundToExactCase()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var otherCaseId = Guid.NewGuid();
+        var requestId = Guid.NewGuid();
+        var requestActor = ActionActor.RequestLink(requestId);
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new RequestUploadLinkEntity
+            {
+                Id = requestId,
+                CaseId = caseId,
+                TokenDigest = new string('A', 64),
+                Status = RequestUploadStatus.Active,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
+                LimitsVersion = "test",
+                Version = 1,
+                CreateOperationKey = $"request:{requestId:N}"
+            });
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var contentStore = new SuccessfulContentStore();
+        var artifacts = new MemoryArtifactStore();
+        var custody = new EfCaseArtifactCustody(
+            factory, contentStore, artifacts, TimeProvider.System);
+        var bytes = "request evidence"u8.ToArray();
+        var request = ArtifactRequest(requestActor, caseId, bytes);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+            ArtifactRequest(ActionActor.RequestLink(Guid.NewGuid()), caseId, bytes), default));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+            request with
+            {
+                CaseId = otherCaseId,
+                Content = new MemoryStream(bytes, writable: false)
+            }, default));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+            request with
+            {
+                CaseId = null,
+                IntakeReceiptId = Guid.NewGuid(),
+                Content = new MemoryStream(bytes, writable: false)
+            }, default));
+        Assert.Equal(0, contentStore.WriteCount);
+
+        var retained = await custody.RetainAsync(request, default);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, retained.Disposition);
+        Assert.Equal(1, contentStore.WriteCount);
+
+        await using (var db = await database.CreateContextAsync())
+        {
+            var link = await db.Set<RequestUploadLinkEntity>().SingleAsync(value => value.Id == requestId);
+            link.RevokedAtUtc = DateTimeOffset.UtcNow;
+            link.Status = RequestUploadStatus.Revoked;
+            await db.SaveChangesAsync();
+        }
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+            ArtifactRequest(requestActor, caseId, bytes), default));
+        Assert.Equal(1, contentStore.WriteCount);
+    }
+
+    [Theory]
+    [InlineData(RequestUploadStatus.Pending, false, false)]
+    [InlineData(RequestUploadStatus.Exhausted, false, false)]
+    [InlineData(RequestUploadStatus.Active, true, false)]
+    [InlineData(RequestUploadStatus.Active, false, true)]
+    public async Task RequestLinkCustodyRejectsInactiveRevokedExpiredAndHolding(
+        RequestUploadStatus status, bool revoked, bool expired)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var requestId = Guid.NewGuid();
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new RequestUploadLinkEntity
+            {
+                Id = requestId,
+                CaseId = caseId,
+                TokenDigest = new string('B', 64),
+                Status = status,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                ExpiresAtUtc = expired ? DateTimeOffset.UtcNow.AddMinutes(-1) : DateTimeOffset.UtcNow.AddHours(1),
+                RevokedAtUtc = revoked ? DateTimeOffset.UtcNow : null,
+                LimitsVersion = "test",
+                Version = 1,
+                CreateOperationKey = $"request:{requestId:N}"
+            });
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var custody = new EfCaseArtifactCustody(
+            factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System);
+        var bytes = "request evidence"u8.ToArray();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+            ArtifactRequest(ActionActor.RequestLink(requestId), caseId, bytes), default));
+    }
+
+    [Fact]
+    public async Task RequestLinkRevokedDuringSlowReadCannotStageOrPersistCustodyIntent()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var requestId = Guid.NewGuid();
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new RequestUploadLinkEntity
+            {
+                Id = requestId,
+                CaseId = caseId,
+                TokenDigest = new string('C', 64),
+                Status = RequestUploadStatus.Active,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
+                LimitsVersion = "test",
+                Version = 1,
+                CreateOperationKey = $"request:{requestId:N}"
+            });
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var contentStore = new SuccessfulContentStore();
+        var artifacts = new MemoryArtifactStore();
+        var custody = new EfCaseArtifactCustody(
+            factory, contentStore, artifacts, TimeProvider.System);
+        var bytes = "slow request evidence"u8.ToArray();
+        await using var stream = new BlockingReadStream(bytes);
+        var request = ArtifactRequest(ActionActor.RequestLink(requestId), caseId, bytes) with
+        {
+            Content = stream
+        };
+
+        var retain = custody.RetainAsync(request, default);
+        await stream.ReadEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var link = await db.Set<RequestUploadLinkEntity>().SingleAsync(value => value.Id == requestId);
+            link.Status = RequestUploadStatus.Revoked;
+            link.RevokedAtUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        }
+        stream.ReleaseRead.SetResult();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => retain);
+        Assert.Equal(0, artifacts.StoreCount);
+        Assert.Equal(0, contentStore.WriteCount);
+        await using var verify = await database.CreateContextAsync();
+        Assert.Empty(await verify.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task RequestLinkRevokedDuringStagingCannotPersistCustodyIntentOrWriteProvider()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var requestId = Guid.NewGuid();
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new RequestUploadLinkEntity
+            {
+                Id = requestId,
+                CaseId = caseId,
+                TokenDigest = new string('D', 64),
+                Status = RequestUploadStatus.Active,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
+                LimitsVersion = "test",
+                Version = 1,
+                CreateOperationKey = $"request:{requestId:N}"
+            });
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var contentStore = new SuccessfulContentStore();
+        var artifacts = new CallbackArtifactStore(async () =>
+        {
+            await using var db = await database.CreateContextAsync();
+            var link = await db.Set<RequestUploadLinkEntity>().SingleAsync(value => value.Id == requestId);
+            link.Status = RequestUploadStatus.Revoked;
+            link.RevokedAtUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        });
+        var custody = new EfCaseArtifactCustody(
+            factory, contentStore, artifacts, TimeProvider.System);
+        var bytes = "staged request evidence"u8.ToArray();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+            ArtifactRequest(ActionActor.RequestLink(requestId), caseId, bytes), default));
+
+        Assert.Equal(1, artifacts.StoreCount);
+        Assert.Equal(0, contentStore.WriteCount);
+        await using var verify = await database.CreateContextAsync();
+        Assert.Empty(await verify.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+        Assert.Empty(await verify.Set<DocumentVersionEntity>().ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task SystemWorkerMayRetainCaseArtifactThroughExecuteSystemWorkRight()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var custody = new EfCaseArtifactCustody(
+            factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System);
+        var bytes = "worker evidence"u8.ToArray();
+
+        var result = await custody.RetainAsync(
+            ArtifactRequest(ActionActor.SystemWorker("custody-reconciler"), caseId, bytes), default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
+            ArtifactRequest(ActionActor.Provider(Guid.NewGuid()), caseId, bytes), default));
+    }
+
+    private static CaseArtifactCustodyRequest ArtifactRequest(
+        ActionActor actor, Guid caseId, byte[] content) => new(
+        actor, caseId, null, $"test:{Guid.NewGuid():N}", $"test:{Guid.NewGuid():N}",
+        "evidence.txt", "text/plain", content.LongLength,
+        Convert.ToHexString(SHA256.HashData(content)),
+        new MemoryStream(content, writable: false));
+
     private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
     {
         await using var db = await database.CreateContextAsync();
@@ -344,5 +574,89 @@ public sealed class CaseArtifactCustodyRecoveryTests
             ReadCount++;
             return Task.FromResult<ReadOnlyMemory<byte>?>(null);
         }
+    }
+
+    private sealed class SuccessfulContentStore : IDocumentContentStore
+    {
+        public int WriteCount { get; private set; }
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
+            string expectedSha256, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            return Task.FromResult(new DocumentContentWriteResult(
+                DocumentContentWriteDisposition.Created, null, null));
+        }
+        public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class MemoryArtifactStore : IIntakeArtifactStore
+    {
+        private readonly Dictionary<string, ReadOnlyMemory<byte>> values = [];
+        public int StoreCount { get; private set; }
+        public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+        {
+            StoreCount++;
+            var key = $"test/{contentHash}";
+            values[key] = content;
+            return Task.FromResult(key);
+        }
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
+            Task.FromResult(values.TryGetValue(storageKey, out var content)
+                ? (ReadOnlyMemory<byte>?)content
+                : null);
+    }
+
+    private sealed class BlockingReadStream(byte[] content) : Stream
+    {
+        private int position;
+        private bool blocked;
+        public TaskCompletionSource ReadEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => content.LongLength;
+        public override long Position { get => position; set => throw new NotSupportedException(); }
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (!blocked)
+            {
+                blocked = true;
+                ReadEntered.SetResult();
+                await ReleaseRead.Task.WaitAsync(cancellationToken);
+            }
+            if (position >= content.Length)
+                return 0;
+            var count = Math.Min(buffer.Length, content.Length - position);
+            content.AsMemory(position, count).CopyTo(buffer);
+            position += count;
+            return count;
+        }
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class CallbackArtifactStore(Func<Task> onStore) : IIntakeArtifactStore
+    {
+        public int StoreCount { get; private set; }
+        public async Task<string> StoreAsync(
+            string contentHash, ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken)
+        {
+            StoreCount++;
+            await onStore();
+            return $"test/{contentHash}";
+        }
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(
+            string storageKey, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
     }
 }
