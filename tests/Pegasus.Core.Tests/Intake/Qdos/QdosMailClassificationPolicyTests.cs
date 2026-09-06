@@ -91,8 +91,8 @@ public sealed class QdosMailClassificationPolicyTests
         var result = new QdosMailClassificationPolicy().Classify(new(
             IntakeSourceReadStatus.Readable,
             [
-                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage.pdf, page 1", "Triage Only Request\nOur Ref: 47939/1"),
-                new(IntakeEvidenceSource.DocumentContent, "message, attachment 2, triage.doc", "Triage Only Request\nOur Ref: 47939/1")
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage.pdf, page 1", TriageLetter()),
+                new(IntakeEvidenceSource.DocumentContent, "message, attachment 2, triage.doc", TriageLetter())
             ],
             [new(IntakeEvidenceSource.Subject, "EREF - RTA")],
             [],
@@ -101,6 +101,17 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
         Assert.True(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
+    }
+
+    [Fact]
+    public void UnrelatedDocumentMentionOfTriageTitleDoesNotClassify()
+    {
+        var result = Classify(document:
+            "Our Ref: 47939/1\nOur Client: Example\nRegistration: AB12 CDE\n"
+            + "The earlier attachment was called Triage Only Request.");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.False(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
     }
 
     [Fact]
@@ -553,4 +564,10 @@ public sealed class QdosMailClassificationPolicyTests
             [],
             false));
     }
+
+    private static string TriageLetter() =>
+        "Triage Only Request\nOur Ref: 47939/1\nOur Client: Mrs Example\n"
+        + "Our Client's Vehicle: Ford Focus\nRegistration: AB12 CDE\n"
+        + "Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\n"
+        + "An official inspection instruction will follow.";
 }

@@ -60,8 +60,7 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         // Engineer Triage query" mid-subject is not the tell, exactly as a
         // human sentence mentioning the body phrase is not.
         var hasTriageSubject = TriageSubjectRegex().IsMatch(subject);
-        var hasAttachmentTriage = documentTexts.Any(text =>
-            text.Contains(TriagePhrase, StringComparison.Ordinal));
+        var hasAttachmentTriage = documentTexts.Any(IsAttachmentTriageLetter);
         // One candidate from all accepted tells. Adding a second candidate for the same
         // category would resolve to Ambiguous, so a message carrying both
         // tells would classify worse than one carrying either.
@@ -226,6 +225,15 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
 
     private sealed record ClassificationCandidate(MailCategory Category, CaseType? CaseType);
 
+    private static bool IsAttachmentTriageLetter(string text) =>
+        text.Contains(TriagePhrase, StringComparison.Ordinal)
+        && text.Contains("Our Ref", StringComparison.Ordinal)
+        && text.Contains("Our Client", StringComparison.Ordinal)
+        && text.Contains("Registration", StringComparison.Ordinal)
+        && text.Contains("roadworthy", StringComparison.OrdinalIgnoreCase)
+        && text.Contains("repairable", StringComparison.OrdinalIgnoreCase)
+        && OfficialInspectionWillFollowRegex().IsMatch(text);
+
     private static StandaloneAuditReportEvaluation? EvaluateStandaloneAuditReport(
         IntakeSourceReadResult readResult)
     {
@@ -335,6 +343,12 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         @"^\s*(?:(?i:RE|FW|FWD)\s*:\s*)*Engineer Triage\b",
         RegexOptions.CultureInvariant)]
     private static partial Regex TriageSubjectRegex();
+
+    [GeneratedRegex(
+        @"(?is)official\s+inspection\s+instruction\b.{0,160}\b(?:will\s+)?follow\b",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex OfficialInspectionWillFollowRegex();
 
     // A word occurrence is not automatically a report outcome: "unrepairable",
     // "not repairable", and "not a total loss" must never allocate a permanent
