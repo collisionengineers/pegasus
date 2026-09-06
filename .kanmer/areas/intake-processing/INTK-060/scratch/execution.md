@@ -182,3 +182,10 @@ Build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port integra
 ## Checkpoint 16:20Z — C branch small batch
 
 `d9c6e6ed2` pinned-MSG correction (exact CaseCreated; route/classification/extraction predicates asserted on `receipt.MailRouteDecision`/`MailClassificationDecision`/`ExtractionPolicyKey|Version`, not on `Evidence`, which does not carry them; `established-principal` evidence item asserted), `f81932aa0` Triage note gate removed (`IAddTriageNote` required). Operations `GetServiceHealth` removal (A comment 5559965571) in progress on the same branch. Dispositions to A: IntakeWebNegativeTests already fixed at C01 `e80862f37`; OrganizationAdministrationPersistenceTests duplicate QDOS → C06 correction round. Not yet pushed; wave 14 then push.
+
+## Checkpoint — corrections in flight
+
+- C branch at `15518699c` (unpushed): MSG correction, Triage note gate, Operations health removal (partial-data notice links `/Administration/Health`; the page itself lands with C08's admin surface / A's health page). Wave 14 running (architecture, Triage/Operations/MultiFormat/QDOS recovery lanes); push after.
+- Wave 13 (C06 at `7c7f724dd`): build/core 54/architecture PASS; integration 6/30 — all 24 failures one root cause: `InspectionAddressChoicesQueries` (A-registered) gained a required `IOrganizationDirectoryQueries` dependency → host scope validation fails for every page. C06 correction round 1 dispatched: optional bridge + test-side composition of the C06 adapters + seeded-QDOS reuse in the replacement test.
+- C05 review (`scratch/review-c05`): needs-changes, 1 major (`ProcessIntake` persists candidates but discards `Findings`), 8 minors. Correction round queued.
+- C07 retention caller (Opus) running in `v1-intake-c07b`. C08 correction queued. Editors: 2 (C06 correction, C07 caller).
