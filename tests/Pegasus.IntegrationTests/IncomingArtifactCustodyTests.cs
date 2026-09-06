@@ -14,9 +14,9 @@ namespace Pegasus.IntegrationTests;
 /// The command's own invariants are proved without a database in
 /// <c>Pegasus.Core.Tests/Intake/RetainIncomingArtifactTests.cs</c>. What needs
 /// SQL is what the store writes and reads back, which is what these cover. The
-/// end-to-end custody flow waits on A04's <c>ICaseArtifactCustody</c> adapter
-/// and the DI registration of this port; the store is exercised directly here
-/// because nothing composes it yet.
+/// store is exercised directly because these are its own invariants; the
+/// accept path that composes it — the public upload page — is proved end to
+/// end in <see cref="PublicUploadRetentionWebTests"/>.
 /// </remarks>
 [Trait("Category", "SqlServer")]
 public sealed class IncomingArtifactCustodyTests
@@ -206,9 +206,9 @@ public sealed class IncomingArtifactCustodyTests
         });
 
         // The port is addressed globally, so each occurrence's key is scoped by
-        // its session exactly as the accept path must scope it.
-        var firstKey = EfPublicUploadRetentionStore.ScopeOperationKey(sessionId, "upload-1");
-        var secondKey = EfPublicUploadRetentionStore.ScopeOperationKey(sessionId, "upload-2");
+        // its upload link exactly as the accept path scopes it.
+        var firstKey = EfPublicUploadRetentionStore.ScopeOperationKey(linkId, "upload-1");
+        var secondKey = EfPublicUploadRetentionStore.ScopeOperationKey(linkId, "upload-2");
         foreach (var (id, key) in new[] { (firstOccurrenceId, firstKey), (secondOccurrenceId, secondKey) })
         {
             context.Set<PublicUploadOccurrenceEntity>().Add(new()

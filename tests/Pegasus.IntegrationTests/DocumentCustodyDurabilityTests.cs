@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
@@ -280,8 +281,20 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
+    /// <summary>
+    /// The arrival transaction is all or nothing, and custody is never asked
+    /// about bytes whose arrival did not commit.
+    /// </summary>
+    /// <remarks>
+    /// This path used to write the document content itself and had to remove
+    /// the orphan its own failed save left behind. It writes no content at all
+    /// now - Stream A's custody adapter does, behind
+    /// <see cref="RetainIncomingArtifact"/> - so what needs proving is that a
+    /// failed arrival leaves nothing whatsoever, not even a hand-over, and
+    /// that the same operation key then succeeds exactly once.
+    /// </remarks>
     [Fact]
-    public async Task FailedRequestUploadSaveRemovesUnreferencedContentBeforeSafeRetry()
+    public async Task AFailedArrivalSaveLeavesNoOccurrenceAndNoHandOverBeforeSafeRetry()
     {
         var root = Path.Combine(
             Path.GetTempPath(),
@@ -327,14 +340,15 @@ public sealed class DocumentCustodyDurabilityTests
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
-            var contentStore = new ManagedOnlyDocumentContentStore(
-                new LocalDocumentContentStore(Path.Combine(root, "custody")));
+            var custody = new RecordingCaseArtifactCustody(contextFactory, timeProvider);
             IUploadToRequest upload = new EfDocumentRequestStore(
                 contextFactory,
-                contentStore,
                 new RequestUploadPolicy(limits, timeProvider),
                 limits,
-                timeProvider);
+                timeProvider,
+                new RetainIncomingArtifact(
+                    custody,
+                    new EfPublicUploadRetentionStore(contextFactory)));
             var command = new UploadToRequestCommand(
                 token.Secret.Token,
                 new(
@@ -348,19 +362,13 @@ public sealed class DocumentCustodyDurabilityTests
             await Assert.ThrowsAsync<DbUpdateException>(() =>
                 upload.ExecuteAsync(command, CancellationToken.None));
 
-            var managedDirectory = Path.Combine(
-                root,
-                "custody",
-                "cases",
-                "QDOS001",
-                "managed");
-            Assert.Empty(Directory.EnumerateFiles(
-                managedDirectory,
-                "content",
-                SearchOption.AllDirectories));
+            Assert.Empty(custody.Calls);
             await using (var context = await database.CreateContextAsync())
             {
+                Assert.Empty(await context.Set<PublicUploadSessionEntity>().ToArrayAsync());
+                Assert.Empty(await context.Set<PublicUploadOccurrenceEntity>().ToArrayAsync());
                 Assert.Empty(await context.Set<RequestUploadReceiptEntity>().ToArrayAsync());
+                Assert.Empty(await context.Set<CaseDocumentEntity>().ToArrayAsync());
                 Assert.Equal(
                     1,
                     await context.Set<RequestUploadLinkEntity>()
@@ -378,27 +386,27 @@ public sealed class DocumentCustodyDurabilityTests
             var result = await upload.ExecuteAsync(command, CancellationToken.None);
 
             Assert.Equal(RequestUploadDecision.Accepted, result.Decision);
-            Assert.Equal(2, contentStore.Addresses.Count);
-            Assert.All(contentStore.Addresses, address =>
-            {
-                Assert.Equal(caseId, address.CaseId);
-                Assert.Equal("QDOS001", address.CaseReference);
-                Assert.Equal("case-root-id", address.CaseRootRemoteId);
-                Assert.Equal(2, address.OccurrenceOrdinal);
-                Assert.Equal(DocumentSemanticRole.Other, address.SemanticRole);
-                Assert.Equal("evidence.txt", address.FileName);
-                Assert.Equal("text/plain", address.MediaType);
-            });
-            Assert.Single(Directory.EnumerateFiles(
-                managedDirectory,
-                "content",
-                SearchOption.AllDirectories));
+            var call = Assert.Single(custody.Calls);
+            Assert.Equal(ActorKind.RequestLink, call.ActorKind);
+            Assert.Equal(requestId.ToString("D"), call.ActorSubjectId);
+            Assert.Equal(caseId, call.CaseId);
             await using (var context = await database.CreateContextAsync())
             {
                 var document = await context.Set<CaseDocumentEntity>().SingleAsync();
                 var occurrence = await context.Set<DocumentOccurrenceEntity>().SingleAsync();
                 Assert.Equal(2, document.Ordinal);
                 Assert.Equal(document.Ordinal, occurrence.Ordinal);
+
+                // Custody confirmed, so the fixed window opened once and the
+                // arrival records the identities custody returned.
+                var session = await context.Set<PublicUploadSessionEntity>().SingleAsync();
+                Assert.NotNull(session.StartedAtUtc);
+                Assert.Equal(
+                    session.StartedAtUtc!.Value.Add(PublicUploadSessionPolicy.Window),
+                    session.ExpiresAtUtc);
+                var arrival = await context.Set<PublicUploadOccurrenceEntity>().SingleAsync();
+                Assert.Equal("confirmed", arrival.CustodyState);
+                Assert.Equal(call.VersionId, arrival.DocumentVersionId);
                 Assert.Equal(
                     1,
                     await context.CaseWorkflows
@@ -567,7 +575,7 @@ public sealed class DocumentCustodyDurabilityTests
 
             if (Volatile.Read(ref failNextRequestUploadSave) == 1
                 && eventData.Context is not null
-                && eventData.Context.ChangeTracker.Entries<RequestUploadReceiptEntity>()
+                && eventData.Context.ChangeTracker.Entries<PublicUploadOccurrenceEntity>()
                     .Any(entry => entry.State == EntityState.Added)
                 && Interlocked.Exchange(ref failNextRequestUploadSave, 0) == 1)
             {
@@ -576,56 +584,5 @@ public sealed class DocumentCustodyDurabilityTests
 
             return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
-    }
-
-    private sealed class ManagedOnlyDocumentContentStore(IDocumentContentStore inner)
-        : IDocumentContentStore
-    {
-        public List<ManagedDocumentContentAddress> Addresses { get; } = [];
-
-        public Task StoreAsync(
-            Guid caseId,
-            string caseReference,
-            Guid versionId,
-            ReadOnlyMemory<byte> content,
-            string expectedSha256,
-            CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Managed custody addressing is required.");
-
-        public async Task<DocumentContentWriteResult> StoreVersionAsync(
-            ManagedDocumentContentAddress address,
-            ReadOnlyMemory<byte> content,
-            string expectedSha256,
-            CancellationToken cancellationToken)
-        {
-            Addresses.Add(address);
-            return await inner.StoreVersionAsync(
-                address,
-                content,
-                expectedSha256,
-                cancellationToken);
-        }
-
-        public Task<Stream> OpenReadAsync(
-            Guid caseId,
-            string caseReference,
-            Guid versionId,
-            string expectedSha256,
-            long expectedLength,
-            CancellationToken cancellationToken) =>
-            inner.OpenReadAsync(
-                caseId,
-                caseReference,
-                versionId,
-                expectedSha256,
-                expectedLength,
-                cancellationToken);
-
-        public Task DeleteAsync(
-            Guid caseId,
-            string caseReference,
-            Guid versionId,
-            CancellationToken cancellationToken) =>
-            inner.DeleteAsync(caseId, caseReference, versionId, cancellationToken);
     }
 }

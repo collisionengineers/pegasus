@@ -31,7 +31,23 @@ public enum RequestUploadDecision
     /// recoverable state of a long-lived link — the sender did nothing wrong
     /// and the case owner can reissue.
     /// </summary>
-    LimitsVersionMismatch
+    LimitsVersionMismatch,
+
+    /// <summary>
+    /// Custody did not take the bytes: it refused them, or the hand-over
+    /// neither confirmed nor refused. Nothing was kept, so this is never
+    /// rendered as a success, and the sender may send the same file again
+    /// under the same operation key — that key reconciles an uncertain
+    /// hand-over instead of offering the bytes twice.
+    /// </summary>
+    /// <remarks>
+    /// None of the other members says this. <see cref="Unavailable"/> means
+    /// the link itself is gone and hides the Case, <see cref="RateLimited"/>
+    /// would name a limit that was not reached, and
+    /// <see cref="InvalidFile"/> / <see cref="LimitExceeded"/> would blame a
+    /// file that policy had already accepted.
+    /// </remarks>
+    NotRetained
 }
 
 public sealed class RequestUploadLimits
