@@ -45,15 +45,24 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal("qdos_instruction", projection.Claimant.Name.Fact?.Source.PolicyKey);
         Assert.Contains("instructions.pdf", projection.Claimant.Name.Fact?.Source.Label);
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
-        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Confirmed?.Value);
+        Assert.Equal(
+            CaseDataSourceKind.IntakeEvidence,
+            projection.Inspection.Address.Fact?.Source.Kind);
+        Assert.Equal("qdos_instruction", projection.Inspection.Address.Fact?.Source.PolicyKey);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
             harness.StaffActor.SubjectId,
             projection.Inspection.Address.Confirmed?.ConfirmedByActor);
         Assert.Equal(
-            CaseDataSourceKind.IntakeEvidence,
+            CaseDataSourceKind.ProviderSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            CaseInspectionMode.PhysicalAddress,
+            ProviderInspectionModePolicy.PolicyKey,
+            projection.Inspection.Address.Confirmed?.Source.PolicyKey);
+        Assert.Equal(
+            CaseInspectionMode.ImageBasedAssessment,
             projection.Inspection.Mode.Confirmed?.Value);
         Assert.Null(projection.Contact.Name.Current);
         Assert.Null(projection.Instruction.VatStatus.Current);
@@ -85,16 +94,36 @@ public sealed class CaseDataCompletenessPersistenceTests
         var projection = await harness.GetRequiredDataAsync();
 
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
-        Assert.Equal("2 Corrected Street, London", projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
-            CaseDataSourceKind.StaffCorrection,
+            CaseDataSourceKind.IntakeEvidence,
+            projection.Inspection.Address.Fact?.Source.Kind);
+        Assert.Equal(
+            "qdos_instruction",
+            projection.Inspection.Address.Fact?.Source.PolicyKey);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            projection.Inspection.Address.Confirmed?.Value);
+        Assert.Equal(
+            CaseDataSourceKind.ProviderSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            Ext18InspectionAddressPolicy.PolicyKey,
+            ProviderInspectionModePolicy.PolicyKey,
             projection.Inspection.Address.Confirmed?.Source.PolicyKey);
         Assert.Equal(
-            harness.StaffActor.SubjectId,
-            projection.Inspection.Address.Confirmed?.ConfirmedByActor);
+            CaseInspectionMode.ImageBasedAssessment,
+            projection.Inspection.Mode.Confirmed?.Value);
+
+        var retainedAddress = await harness.AddressStore.GetAsync(
+            harness.ReceiptId,
+            CancellationToken.None);
+        Assert.NotNull(retainedAddress);
+        Assert.Equal(InspectionAddressResolutionState.Corrected, retainedAddress.State);
+        Assert.Equal("2 Corrected Street, London", retainedAddress.ResolvedValue);
+        Assert.Equal(Guid.Parse(harness.StaffActor.SubjectId), retainedAddress.ResolvedByStaffId);
+        Assert.NotNull(retainedAddress.ResolvedAtUtc);
+        var extractedAddress = Assert.Single(retainedAddress.Evaluation.Suggestion!.Provenance);
+        Assert.Equal("qdos_instruction", extractedAddress.PolicyKey);
+        Assert.Equal(1, extractedAddress.PolicyVersion);
     }
 
     [Fact]

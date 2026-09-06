@@ -3,6 +3,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Tests.Qdos;
@@ -50,6 +51,49 @@ public sealed class QdosBoundaryContractTests
         Assert.Null(conflict.ContentHash);
         Assert.False(conflict.MayEnterCustody);
     }
+
+    /// <summary>
+    /// The Provider API's decoded envelope is 30 MB, and the per-file bound it
+    /// actually enforces can never exceed it: a single file that fits the
+    /// per-file cap but not the envelope is refused, so the envelope is the
+    /// effective ceiling for one file as well as for the batch.
+    /// </summary>
+    [Fact]
+    public void TheProviderApiEnvelopeBoundsEveryFileItCarries()
+    {
+        Assert.Equal(30 * 1024 * 1024, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
+        Assert.True(
+            IntakeEnvelopeLimits.MaximumContentLength
+                <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
+            "A single Provider API file may never be allowed past the envelope.");
+
+        // One file inside the per-file cap is accepted; the same envelope
+        // filled past 30 MB is refused as an envelope failure, not as a
+        // per-file one.
+        var withinBounds = ProviderSubmissionPolicy.RequireEnvelope(
+            [ProviderFile(0, 1024)]);
+        Assert.Single(withinBounds);
+
+        var overEnvelope = Enumerable
+            .Range(0, IntakeEnvelopeLimits.MaximumBatchFileCount)
+            .Select(ordinal => ProviderFile(
+                ordinal,
+                IntakeEnvelopeLimits.MaximumContentLength))
+            .ToArray();
+        Assert.True(
+            overEnvelope.Sum(file => (long)file.Content.Length)
+                > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
+            "The fixture must exceed the envelope for this to prove anything.");
+        var refused = Assert.Throws<ProviderSubmissionException>(
+            () => ProviderSubmissionPolicy.RequireEnvelope(overEnvelope));
+        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, refused.Error);
+    }
+
+    private static ProviderSubmissionFile ProviderFile(int ordinal, int length) => new(
+        ordinal,
+        $"provider-{ordinal:00}.pdf",
+        "application/pdf",
+        new byte[length]);
 
     [Fact]
     public void InspectionAddressPolicyRejectsTransportMetadataAndRetainsContradictoryContent()
