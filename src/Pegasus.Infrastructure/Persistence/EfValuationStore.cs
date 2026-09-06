@@ -87,6 +87,16 @@ public sealed class EfValuationStore(
             before: null,
             engineersValue,
             now);
+        // Manual valuation evidence (guide figures, and the Engineer's Value
+        // field it may write) is frozen report input: the save stales the
+        // current generation in this same transaction. Replay returned before
+        // any mutation; a lookup or draft action never reaches this path.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context,
+            request.CaseId,
+            "valuation_recorded",
+            now,
+            cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -157,6 +167,15 @@ public sealed class EfValuationStore(
             before,
             engineersValue,
             now);
+        // Same stale rule as the save: an edited valuation changes frozen
+        // report inputs (figures, guide month, and the Engineer's Value field
+        // it may rewrite), and the staleness commits with the edit.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context,
+            request.CaseId,
+            "valuation_edited",
+            now,
+            cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
