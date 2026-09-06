@@ -52,8 +52,7 @@ public sealed partial class OperationsWebTests
         // The composed list has no superseded placeholder heading or copy.
         Assert.DoesNotContain("AI operations", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
-        // This host does not compose the service-health snapshot (it rides
-        // the Automation Actor composition), so the section is absent too.
+        // Health belongs to Administration even when its query is composed.
         Assert.DoesNotContain("Service health", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Automation MCP", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Send-to-AI transport", html, StringComparison.Ordinal);
@@ -66,16 +65,16 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
-    public async Task ComposedServiceHealthRendersTheAdministratorNoticeAndRetriesThroughTheCanonicalCommand()
+    public async Task ExternalWorkRetriesThroughTheCanonicalCommandWithoutReadingServiceHealth()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingOperationsStore();
-        using var factory = Configure(baseFactory, store, withServiceHealth: true);
+        using var factory = Configure(baseFactory, store);
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Operations");
 
-        Assert.Contains("Service health", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Service health", html, StringComparison.Ordinal);
         Assert.DoesNotContain("service-health-title", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Area</th>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Latest evidence</th>", html, StringComparison.Ordinal);
@@ -106,11 +105,11 @@ public sealed partial class OperationsWebTests
     [Theory]
     [InlineData("Engineer")]
     [InlineData("User")]
-    public async Task ComposedServiceHealthDoesNotRenderTheNoticeForNonAdministrators(string role)
+    public async Task OperationsDoesNotRenderServiceHealthForNonAdministrators(string role)
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var store = new RecordingOperationsStore();
-        using var factory = Configure(baseFactory, store, withServiceHealth: true);
+        using var factory = Configure(baseFactory, store);
         using var client = CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", role);
 
@@ -121,18 +120,18 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
-    public async Task LimitAndHealthNoticesRenderSeparatelyWithoutExplanatoryCopy()
+    public async Task PartialDataNoticeLinksAdministrationHealthWithoutLoadingItsSnapshot()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingOperationsStore { LimitReached = true };
-        using var factory = Configure(baseFactory, store, withServiceHealth: true);
+        using var factory = Configure(baseFactory, store);
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Operations");
 
-        Assert.Equal(2, Regex.Count(html, "notice notice--warning"));
+        Assert.Equal(1, Regex.Count(html, "notice notice--warning"));
         Assert.Contains("Partial data", html, StringComparison.Ordinal);
-        Assert.Contains("Service health", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Admin/Health\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "Showing recent operational results; refresh for the latest activity.",
             html,
@@ -556,7 +555,6 @@ public sealed partial class OperationsWebTests
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         RecordingOperationsStore store,
-        bool withServiceHealth = false,
         RecordingAiWorkStore? aiWork = null,
         RecordingEvaSubmissions? evaSubmissions = null) => baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -593,23 +591,6 @@ public sealed partial class OperationsWebTests
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IReleaseCaseEditLease>(store);
                 services.AddSingleton<IRevokeRequestUploadLink>(store);
-                if (withServiceHealth)
-                {
-                    // The snapshot rides the Automation Actor composition in
-                    // production; here it is composed by hand over the same
-                    // recording store so the retry identity is shared.
-                    services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>(_ =>
-                        new Pegasus.Core.Operations.GetServiceHealth(
-                            new NoMailboxPolls(),
-                            new NoServiceHealthFacts(),
-                            new GetRequestOperations(store, TimeProvider.System),
-                            new NoEvaSubmissions(),
-                            new NoAiJobs(),
-                            new DisabledSendToAi(),
-                            new DisabledAutomationIngress(),
-                            new NoAutomationActivity(),
-                            TimeProvider.System));
-                }
             }));
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -1184,102 +1165,4 @@ public sealed partial class OperationsWebTests
         }
     }
 
-    /// <summary>
-    /// Empty ports behind a hand-composed <see cref="GetServiceHealth"/>: the
-    /// page test only needs the rows the recording projection already feeds
-    /// it, so every other source reports nothing recorded.
-    /// </summary>
-    private sealed class NoMailboxPolls : IApprovedMailboxPollStatusQueries
-    {
-        public Task<IReadOnlyList<ApprovedMailboxPollStatus>> ListAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ApprovedMailboxPollStatus>>([]);
-    }
-
-    private sealed class NoServiceHealthFacts : IServiceHealthQueries
-    {
-        public Task<IReadOnlyList<SentEvidencePollStatus>> ListSentEvidencePollStatusAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<SentEvidencePollStatus>>([]);
-
-        public Task<IntakeDispatchHealth> GetIntakeDispatchHealthAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeDispatchHealth(0, 0, 0, null));
-    }
-
-    private sealed class NoEvaSubmissions : IEvaSubmissionQueries
-    {
-        Task<EvaSubmissionRecord?> IEvaSubmissionQueries.GetLatestAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<EvaSubmissionRecord?>(null);
-
-        public Task<IReadOnlyList<EvaSubmissionFailure>> GetRecentFailuresAsync(
-            DateTimeOffset sinceUtc,
-            int maximumResults,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
-
-        public Task<EvaSubmissionActivity> GetActivityAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new EvaSubmissionActivity(0, null));
-    }
-
-    private sealed class NoAiJobs : IAiJobQueries
-    {
-        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
-
-        public Task<AiJobQueryPage> ListOpenPageAsync(
-            AiJobKind? kind,
-            string grantId,
-            DateTimeOffset? afterCreatedAtUtc,
-            Guid? afterJobId,
-            int limit,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new AiJobQueryPage([], false));
-
-        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
-            Guid subjectId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
-
-        public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(
-            int max,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
-
-        public Task<AiJobCounts> GetCountsAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new AiJobCounts(0, 0));
-    }
-
-    private sealed class DisabledSendToAi : ISendToAiControl
-    {
-        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(false);
-
-        public Task<bool> SetEnabledAsync(
-            bool enabled,
-            ActionActor actor,
-            string reason,
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("The read-only page never writes the Send to AI switch.");
-    }
-
-    private sealed class DisabledAutomationIngress : IAutomationIngressStatusQueries
-    {
-        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(false);
-    }
-
-    private sealed class NoAutomationActivity : IAutomationActivityQueries
-    {
-        public Task<ListAutomationActivityResult> ListAsync(
-            ListAutomationActivityRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new ListAutomationActivityResult([], null, 1, 1, false, false));
-    }
 }

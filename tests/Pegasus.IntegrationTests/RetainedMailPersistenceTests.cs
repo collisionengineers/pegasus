@@ -1490,30 +1490,17 @@ public sealed class RetainedMailPersistenceTests
     private static async Task<(Guid CaseId, Guid OtherCaseId)> SeedQueryCasesAsync(
         LocalDbTestDatabase database)
     {
-        var organizationId = Guid.NewGuid();
-        var lineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
         var originId = Guid.NewGuid();
         var otherOriginId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         var otherCaseId = Guid.NewGuid();
         await using var context = await database.CreateContextAsync();
+        var principal = await SeededPrincipals.QdosAsync(context);
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "Query test", Version = 0 },
-            new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = ReceivedAtUtc },
-            new PrincipalEntity
-            {
-                Id = principalId,
-                OrganizationId = organizationId,
-                SequenceLineageId = lineageId,
-                Code = "QDOS",
-                IsActive = true,
-                Version = 0
-            },
             Receipt(originId, "origin:query-test"),
             Receipt(otherOriginId, "origin:query-test-other"),
-            Case(caseId, principalId, lineageId, originId, 1),
-            Case(otherCaseId, principalId, lineageId, otherOriginId, 2),
+            Case(caseId, principal.Id, principal.SequenceLineageId, originId, 1),
+            Case(otherCaseId, principal.Id, principal.SequenceLineageId, otherOriginId, 2),
             Workflow(caseId),
             Workflow(otherCaseId));
         await context.SaveChangesAsync();
