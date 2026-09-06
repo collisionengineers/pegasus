@@ -1,8 +1,12 @@
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Reports
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
+@using ReportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
+    var generation = Model.CurrentReportGeneration;
+    var preparation = Model.CurrentDeliveryPreparation;
 }
 
 <section class="panel" aria-labelledby="section-report-title">
@@ -26,6 +30,24 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                         <span>@EngineerLabels.PreviewReportDraft</span>
                     </a>
+                    <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
+                          asp-route-id="@caseId" asp-route-section="report">
+                        <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <button type="submit" class="btn">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>@ReportLabels.GenerateReport</span>
+                        </button>
+                    </form>
+                    <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
+                          asp-route-id="@caseId" asp-route-section="report">
+                        <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <button type="submit" class="btn">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>@ReportLabels.GenerateFeeNote</span>
+                        </button>
+                    </form>
                 }
                 else
                 {
@@ -48,6 +70,76 @@
                     @EngineerLabels.ReportDraftNotReady: @string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement)).
                 </span>
             </div>
+        }
+        @if (generation is not null)
+        {
+            <div class="detail-list">
+                <div>
+                    <dt>@ReportLabels.CurrentGeneration</dt>
+                    <dd>@generation.GeneratedAtUtc.UtcDateTime.ToString("d MMMM yyyy HH:mm") UTC</dd>
+                </div>
+                <div>
+                    <dt>@ReportLabels.GenerationState</dt>
+                    <dd>@generation.State</dd>
+                </div>
+            </div>
+            <div class="button-row">
+                @foreach (var artifact in generation.Artifacts)
+                {
+                    if (artifact.Status == CaseReportArtifactStatus.Confirmed)
+                    {
+                        <a class="btn" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
+                           asp-route-id="@caseId" asp-route-generationId="@generation.Id"
+                           asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote ? ReportLabels.DownloadFeeNote : ReportLabels.DownloadReport)</span>
+                        </a>
+                    }
+                }
+            </div>
+            @if (generation.State == CaseReportGenerationState.Stale)
+            {
+                <div class="notice notice--warning" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@ReportLabels.GenerationStaleNotice</span>
+                </div>
+            }
+            @if (!Model.AssessmentIsReadOnly
+                && preparation is null
+                && generation.State == CaseReportGenerationState.Confirmed
+                && generation.Artifacts.All(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed))
+            {
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="PrepareReportDelivery"
+                      asp-route-id="@caseId" asp-route-section="report">
+                    <input type="hidden" name="operationKey" value="@Model.PrepareDeliveryOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="generationId" value="@generation.Id" />
+                    <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>@ReportLabels.PrepareDelivery</span>
+                    </button>
+                </form>
+            }
+            @if (preparation is not null && !Model.AssessmentIsReadOnly)
+            {
+                <div class="detail-list">
+                    <div>
+                        <dt>@ReportLabels.DeliveryPrepared</dt>
+                        <dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd>
+                    </div>
+                </div>
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendPreparedReport"
+                      asp-route-id="@caseId" asp-route-section="report">
+                    <input type="hidden" name="operationKey" value="@Model.SendPreparedReportOperationKey" />
+                    <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
+                    <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <span>@ReportLabels.SendPreparedReport</span>
+                    </button>
+                </form>
+            }
         }
         <dl class="detail-list">
             <div><dt>@EngineerLabels.EngineersComments</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.EngineersComments)</dd></div>
