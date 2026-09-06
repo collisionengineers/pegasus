@@ -296,3 +296,7 @@ F carries `RequestUploadLinkEntity.Recipient/Reason`; C owes `CreateRequestUploa
 ## Checkpoint — A option 1 in progress; C07 caller published for inspection
 
 Helper `task/pegasus-v1-c-retention-caller` = `f55a5adac` pushed; PR 673 comment posted with exact caller files. Per A: identityless-Unknown + fresh-key duplicate risk reopened as an open finding (C will re-issue the same operation key while an arrived/unknown/pending occurrence exists for link+content; A owns an identity-less status lookup); refusal timing — A's adapter rechecks authority after reading bytes, so C's pre-read exception list needs A's explicit refusal contract. Reviewer told to keep both open. Wave 25 (C07 caller) running; C08 round 2 dispatched (Compose test posts its key; preview fake must delegate reads; B's `case-workspace.css` link; `CaseWorkspace` labels). Editors: C05 r3, C08 r2.
+
+## Wave 25 (C07 caller `f55a5adac`): C lanes all PASS
+
+Build 0/0, core 19/19, integration 59/60 (+1 skip), architecture 100/100 (Core no longer references System.Net.Http); a-owned lane 1/5 = A's seeded-QDOS duplicate only. Re-review binds with the two A-reopened findings. Wave 26 (C06 `f1519a2f9`) launched.
