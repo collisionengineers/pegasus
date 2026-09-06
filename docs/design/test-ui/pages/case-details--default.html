@@ -602,58 +602,35 @@
                 </section>
                 <section class="case-section" id="section-vehicle" data-section="vehicle">
 
-<div class="stack">
-    <section class="panel" aria-labelledby="case-vehicle-title">
-        <div class="panel-head"><h2 id="case-vehicle-title">Vehicle</h2></div>
-        <div class="panel-body">
-            <div class="overview-facts">
-                <dl><dt>Registration</dt><dd>AB12CDE</dd></dl>
-                <dl><dt>Make</dt><dd>Ford</dd></dl>
-                <dl><dt>Model</dt><dd>Transit</dd></dl>
-                <dl><dt>Year</dt><dd>Not recorded</dd></dl>
-                <dl><dt>Mileage</dt><dd>42,000 miles</dd></dl>
-                <dl><dt>Mileage source</dt><dd>Staff</dd></dl>
-            </div>
+<section class="panel" aria-labelledby="case-vehicle-title">
+    <div class="panel-head">
+        <h2 id="case-vehicle-title">Vehicle</h2>
+        <div class="button-row">
+                <form method="post" action="#">
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
+                    <input type="hidden" name="expectedVersion" value="7" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                    <input type="hidden" name="registration" value="AB12CDE" />
+                        <button type="submit" class="btn btn--small">Look up DVLA &amp; MOT</button>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <span class="gated" data-condition="Experian is not connected">
+                <button type="button" class="btn btn--small" disabled aria-disabled="true">Run Experian check</button>
+            </span>
         </div>
-    </section>
-
-    <section class="panel" aria-labelledby="case-vehicle-checks-title">
-        <div class="panel-head"><h2 id="case-vehicle-checks-title">Vehicle checks</h2></div>
-        <div class="panel-body stack">
-            <div class="button-row">
-                        <form method="post" action="#">
-                            <input type="hidden" name="id" value="test-ui-guid-1" />
-                            <input type="hidden" name="expectedVersion" value="7" />
-                            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                            <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
-                            <input type="hidden" name="registration" value="AB12CDE" />
-                                <button type="submit" class="btn">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                                    <span>Refresh DVLA</span>
-                                </button>
-                        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                        <form method="post" action="#">
-                            <input type="hidden" name="id" value="test-ui-guid-1" />
-                            <input type="hidden" name="expectedVersion" value="7" />
-                            <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                            <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
-                            <input type="hidden" name="registration" value="AB12CDE" />
-                                <button type="submit" class="btn">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                                    <span>Refresh DVSA/MOT</span>
-                                </button>
-                        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                <span class="gated" data-condition="Experian is not connected">
-                    <button type="button" class="btn" disabled aria-disabled="true">
-                        Run Experian check
-                    </button>
-                </span>
-            </div>
-
-
+    </div>
+    <div class="panel-body">
+        <div class="overview-facts">
+            <dl><dt>Registration</dt><dd>AB12CDE</dd></dl>
+            <dl><dt>Make</dt><dd>Ford</dd></dl>
+            <dl><dt>Model</dt><dd>Transit</dd></dl>
+            <dl><dt>Year</dt><dd>Not recorded</dd></dl>
+            <dl><dt>Mileage</dt><dd>42,000 miles</dd></dl>
+            <dl><dt>Mileage source</dt><dd>Staff</dd></dl>
+            <dl><dt>MOT mileage</dt><dd>Not recorded</dd></dl>
         </div>
-    </section>
-</div>
+    </div>
+</section>
 
                 </section>
                 <section class="case-section" id="section-damage" data-section="damage">
@@ -671,9 +648,34 @@
 
                 </section>
                 <section class="case-section" id="section-valuation" data-section="valuation">
-                        <section class="panel">
-                            <div class="panel-head"><h2 id="section-valuation-title">Valuation</h2></div>
-                        </section>
+
+<section class="panel" aria-labelledby="case-valuation-title">
+    <div class="panel-head">
+        <h2 id="case-valuation-title">Valuation</h2>
+            <button type="button" class="btn btn--small btn--primary" data-dialog-open="add-valuation">Add valuation</button>
+    </div>
+</section>
+
+    <dialog id="add-valuation" class="dialog">
+        <form method="post" class="stack" action="case-details--default.html">
+            <div class="dialog-head"><h2>Add valuation</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
+            <input type="hidden" name="id" value="test-ui-guid-1" />
+            <input type="hidden" name="expectedVersion" value="7" />
+            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+            <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+            <div class="form-grid form-grid--2">
+                <div class="field"><label class="req" for="valuation-source">Source</label><select id="valuation-source" name="source" required><option value="Glasses">Glass&#x27;s</option><option value="EngineersValue">Engineer&#x27;s Value</option><option value="Brego">Brego</option><option value="SuperCap">Super CAP</option><option value="Cazana" disabled>Cazana · not a live source</option></select></div>
+                <div class="field"><label for="valuation-guide-month">Guide month</label><input id="valuation-guide-month" name="guideMonth" type="month" /></div>
+                <div class="field"><label class="req" for="valuation-mileage">Mileage</label><input id="valuation-mileage" name="mileage" type="number" min="0" required /></div>
+                <div class="field"><label class="req" for="valuation-date">Date</label><input id="valuation-date" name="date" type="date" required /></div>
+                <div class="field"><label class="req" for="valuation-time">Time</label><input id="valuation-time" name="time" type="time" required /></div>
+                <div class="field"><label class="req" for="valuation-retail">Retail</label><input id="valuation-retail" name="retailValue" type="number" min="0" step="0.01" required /></div>
+                <div class="field"><label class="req" for="valuation-trade">Trade</label><input id="valuation-trade" name="tradeValue" type="number" min="0" step="0.01" required /></div>
+            </div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Add</button></div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </dialog>
+
                 </section>
                 <section class="case-section" id="section-estimate" data-section="estimate">
 
@@ -806,12 +808,11 @@
                 <input type="hidden" name="expectedVersion" value="7" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
-                <input type="hidden" name="attemptedAtUtc" value="2031-05-06T10:30:00.0000000&#x2B;00:00" />
                 <div class="grid grid-2">
+                    <div class="field"><label class="req" for="chase-recipient">Recipient</label><input id="chase-recipient" name="recipient" required maxlength="500" /></div>
                     <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" name="channel" required maxlength="100" /></div>
-                    <div class="field"><label class="req" for="chase-target">Target party or address</label><input id="chase-target" name="targetPartyOrAddress" required maxlength="500" /></div>
+                    <div class="field"><label for="chase-content">Content</label><input id="chase-content" name="content" maxlength="1000" /></div>
                     <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" name="outcome" required maxlength="500" /></div>
-                    <div class="field"><label for="chase-note">Note</label><input id="chase-note" name="note" maxlength="1000" /></div>
                     <div class="field"><label class="req" for="chase-reason">Reason</label><input id="chase-reason" name="reason" required maxlength="500" /></div>
                 </div>
                 <div class="button-row">
