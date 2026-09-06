@@ -131,7 +131,7 @@ public sealed partial class OperationsWebTests
 
         Assert.Equal(1, Regex.Count(html, "notice notice--warning"));
         Assert.Contains("Partial data", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Admin/Health\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Administration/Health\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "Showing recent operational results; refresh for the latest activity.",
             html,
