@@ -34,7 +34,10 @@ public sealed class BcInstructionExtractionPolicyTests
             TimeSpan.FromMilliseconds(100));
         Assert.NotEqual(text, wrongPrincipal);
         Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selector.Select(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "wrong principal", wrongPrincipal)], [], [], false), InstructionDocumentSignature.InstructionRole).Outcome);
-        Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selector.Select(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "incomplete", text)], [], [], true), InstructionDocumentSignature.InstructionRole).Outcome);
+        Assert.Throws<ArgumentException>(() => policy.Extract(
+            new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "incomplete", text)], [], [], true),
+            DateTimeOffset.UtcNow,
+            new("BC", BcInstructionExtractionPolicy.DocumentProfileKeyValue, 1)));
     }
     static string? D(DateOnly? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture); static string Root() => Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT") ?? throw new InvalidOperationException();
 }
