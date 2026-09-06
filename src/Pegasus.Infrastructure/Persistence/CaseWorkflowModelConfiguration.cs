@@ -11,6 +11,7 @@ internal static class CaseWorkflowModelConfiguration
             entity.ToTable("CaseWorkflows", table =>
             {
                 table.HasCheckConstraint("CK_CaseWorkflows_Version", "[Version] >= 0");
+                table.HasCheckConstraint("CK_CaseWorkflows_EditLeaseGeneration", "[EditLeaseGeneration] >= 0");
                 table.HasCheckConstraint(
                     "CK_CaseWorkflows_ReplacementNotSelf",
                     "[ReplacementCaseId] IS NULL OR [ReplacementCaseId] <> [CaseId]");
@@ -35,6 +36,7 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.EditLeaseHolder).HasMaxLength(200);
             entity.Property(item => item.EditLeaseHolderKind).HasMaxLength(40);
             entity.Property(item => item.EditLeaseOperationKey).HasMaxLength(100);
+            entity.Property(item => item.EditLeaseGeneration).HasDefaultValue(0L);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.HasIndex(item => item.ReportApprovalId).IsUnique();

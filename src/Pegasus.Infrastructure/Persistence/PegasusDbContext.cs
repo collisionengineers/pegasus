@@ -167,6 +167,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        V1FoundationModelConfiguration.Configure(builder);
         // Registers the OpenIddict application/authorization/scope/token
         // entities backing the Automation Actor client-credentials ingress.
         builder.UseOpenIddict();
@@ -237,6 +238,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.Disposition).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ContentHash).HasMaxLength(64).IsRequired();
             entity.Property(item => item.StorageKey).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.BoxFileId).HasMaxLength(200);
+            entity.Property(item => item.BoxVersionId).HasMaxLength(200);
+            entity.Property(item => item.CustodyStatus).HasMaxLength(40);
             entity.HasIndex(item => new { item.IntakeReceiptId, item.ContentHash });
             entity.HasOne(item => item.IntakeReceipt)
                 .WithMany(item => item.Assets)
@@ -446,6 +450,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .HasMaxLength(40)
                 .IsRequired()
                 .HasDefaultValue("physical_address");
+            entity.Property(item => item.DefaultInspectionLocationLabel).HasMaxLength(200);
+            entity.Property(item => item.DefaultInspectionAddress).HasMaxLength(1000);
+            entity.Property(item => item.DefaultInspectionPostcode).HasMaxLength(20);
+            entity.Property(item => item.DefaultInspectionSourceKind).HasMaxLength(40);
+            entity.Property(item => item.DefaultInspectionSourceRecordId).HasMaxLength(200);
             // EXT-04: both default off, so adding the columns switches nothing
             // on. They are independent by operator decision, which makes
             // automatic-without-manual legal - that principal submits
@@ -693,6 +702,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.ImageIntakeReference).IsUnique();
+            entity.HasIndex(item => item.PrincipalId);
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
             entity.HasIndex(item => new { item.NormalizedVehicleRegistration, item.CreatedAtUtc });
             // One ImageIntake per submission group (INTK-015); single-receipt
@@ -707,6 +717,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne<IntakeSubmissionGroupEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.SubmissionGroupId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Principal)
+                .WithMany()
+                .HasForeignKey(item => item.PrincipalId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -753,12 +767,16 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         builder.Entity<TriageEntity>(entity =>
         {
             entity.ToTable("Triage", table =>
-                table.HasCheckConstraint("CK_Triage_Version", "[Version] >= 0"));
+            {
+                table.HasCheckConstraint("CK_Triage_Version", "[Version] >= 0");
+                table.HasCheckConstraint("CK_Triage_Sequence", "[Sequence] > 0");
+            });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
             entity.Property(item => item.SourceHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.NormalizedVehicleRegistration).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Reference).HasMaxLength(32).IsRequired();
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
@@ -766,6 +784,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
+            entity.HasIndex(item => item.Sequence).IsUnique();
+            entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => new { item.State, item.CreatedAtUtc });
             entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
@@ -774,6 +794,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne<CaseEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.LinkedCaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PrincipalEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.PrincipalId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -1099,6 +1123,12 @@ internal sealed class PrincipalEntity
     public PrincipalEntity? Successor { get; set; }
     public bool IsActive { get; set; }
     public string InspectionMode { get; set; } = "physical_address";
+    public string? DefaultInspectionLocationLabel { get; set; }
+    public string? DefaultInspectionAddress { get; set; }
+    public string? DefaultInspectionPostcode { get; set; }
+    public string? DefaultInspectionSourceKind { get; set; }
+    public string? DefaultInspectionSourceRecordId { get; set; }
+    public long? DefaultInspectionSourceVersion { get; set; }
     public bool EvaManualSubmission { get; set; }
     public bool EvaAutomaticSubmission { get; set; }
     public long Version { get; set; }
@@ -1261,6 +1291,9 @@ internal sealed class ExternalWorkItemEntity
 internal sealed class TriageEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }
+    public long Sequence { get; set; }
+    public string Reference { get; set; } = string.Empty;
+    public Guid? PrincipalId { get; set; }
     public Guid OriginReceiptId { get; set; }
     public required string SourceChannel { get; set; }
     public required string ExternalReceiptToken { get; set; }
@@ -1484,6 +1517,9 @@ internal sealed class IntakeAssetEntity
     public long ContentLength { get; set; }
     public required string ContentHash { get; set; }
     public required string StorageKey { get; set; }
+    public string? BoxFileId { get; set; }
+    public string? BoxVersionId { get; set; }
+    public string? CustodyStatus { get; set; }
     public int? PageNumber { get; set; }
     public string? BoundsJson { get; set; }
     public int? WidthPixels { get; set; }

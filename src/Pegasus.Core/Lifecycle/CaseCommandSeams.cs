@@ -59,6 +59,20 @@ public sealed class ReleaseCaseEditLease(ILeaseCaseForEdit leases) : IReleaseCas
     }
 }
 
+public sealed class ClearCaseEditLease(IAdministrativeCaseEditLeaseStore leases) : IClearCaseEditLease
+{
+    private readonly IAdministrativeCaseEditLeaseStore _leases =
+        leases ?? throw new ArgumentNullException(nameof(leases));
+
+    public Task<ClearCaseEditLeaseResult> ExecuteAsync(
+        ClearCaseEditLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var normalizedRequest = CaseCommandSeamRules.ValidateAdministrativeClear(request);
+        return _leases.ClearAsync(normalizedRequest, cancellationToken);
+    }
+}
+
 public sealed class HoldCase(IPutCaseOnHold hold) : IHoldCase
 {
     private readonly IPutCaseOnHold _hold = hold ?? throw new ArgumentNullException(nameof(hold));
@@ -269,6 +283,35 @@ internal static class CaseCommandSeamRules
             CaseEditAuthority.LeaseTokenLength,
             nameof(request));
         return request with { OperationKey = request.OperationKey.Trim() };
+    }
+
+    public static ClearCaseEditLeaseRequest ValidateAdministrativeClear(
+        ClearCaseEditLeaseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(request));
+        }
+        if (request.ExpectedHolderUserId == Guid.Empty)
+        {
+            throw new ArgumentException("An expected lease holder is required.", nameof(request));
+        }
+        if (request.ExpectedLeaseGeneration <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The expected lease generation must be positive.");
+        }
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        RequireText(request.OperationKey, "An operation key is required.", 100, nameof(request));
+        RequireText(request.Reason, "A reason is required.", 500, nameof(request));
+        return request with
+        {
+            OperationKey = request.OperationKey.Trim(),
+            Reason = request.Reason.Trim()
+        };
     }
 
     private static void ValidateCaseAndVersion(Guid caseId, long expectedVersion)

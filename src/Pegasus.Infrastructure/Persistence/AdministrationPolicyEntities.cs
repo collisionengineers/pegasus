@@ -12,6 +12,11 @@ internal sealed class ApprovedMailboxEntity
     public required string Address { get; set; }
     public bool AllowInboundIntake { get; set; }
     public bool AllowSentEvidence { get; set; }
+    public bool AllowStaffSend { get; set; }
+    public long MailboxGeneration { get; set; }
+    public long? VerifiedEncodedMessageSizeLimit { get; set; }
+    public DateTimeOffset? SendLimitVerifiedAtUtc { get; set; }
+    public string? SendLimitVerifiedBy { get; set; }
     public required string State { get; set; }
 
     /// <summary>

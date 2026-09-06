@@ -288,7 +288,8 @@ public sealed class EfCaseQueryStore(
                     holder,
                     CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
                     expiresAtUtc,
-                    operationKey)
+                    operationKey,
+                    workflow.EditLeaseGeneration)
                 : null;
 
         return new CaseDetails(

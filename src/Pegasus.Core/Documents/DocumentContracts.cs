@@ -2,6 +2,27 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Documents;
 
+/// <summary>
+/// An immutable document version or retained intake asset in its authorized context.
+/// The reader resolves custody/cache addresses internally; callers never supply storage keys.
+/// </summary>
+public sealed record ReadLogicalDocumentVersionRequest(
+    ActionActor Actor, Guid? DocumentId, Guid? VersionId, Guid? IntakeAssetId, Guid? CaseId,
+    Guid? IntakeReceiptId, string ExpectedSha256, long ExpectedContentLength);
+
+public sealed record LogicalDocumentContent(
+    Stream Content, Guid? DocumentId, Guid? VersionId, Guid? IntakeAssetId, string Sha256,
+    long ContentLength, string FileName, string MediaType) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync() => Content.DisposeAsync();
+}
+
+public interface IReadLogicalDocumentVersion
+{
+    Task<LogicalDocumentContent> OpenAsync(
+        ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken);
+}
+
 public enum DocumentSemanticRole
 {
     OriginalSource,

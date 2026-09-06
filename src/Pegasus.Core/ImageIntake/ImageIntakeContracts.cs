@@ -28,7 +28,8 @@ public sealed record ImageIntakeRecord(
     DateTimeOffset? ClosedAtUtc = null,
     long LifecycleVersion = 0,
     Guid? SubmissionGroupId = null,
-    Guid? PendingExternalWorkId = null);
+    Guid? PendingExternalWorkId = null,
+    Guid? PrincipalId = null);
 
 public enum ImageInitiatedCaseState
 {
