@@ -117,7 +117,7 @@ internal static class GenuineMultiFormatCorpus
 
     public static bool HasCohort(string extension)
     {
-        if (!Directory.Exists(CorpusRoot))
+        if (CorpusLocator.CorpusRoot is null)
         {
             return false;
         }
@@ -136,6 +136,11 @@ internal static class GenuineMultiFormatCorpus
 
     public static bool HasPinned(string extension, string pinnedHash)
     {
+        if (CorpusLocator.CorpusRoot is null)
+        {
+            return false;
+        }
+
         try
         {
             return Candidates(extension).Any(candidate => candidate.Hash == pinnedHash);
@@ -211,20 +216,11 @@ internal static class GenuineMultiFormatCorpus
         _ => "application/octet-stream"
     };
 
-    private static string CorpusRoot => Path.Combine(
-        FindRepositoryRoot(),
-        "corpus");
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-    }
+    private static string CorpusRoot =>
+        CorpusLocator.CorpusRoot
+        ?? throw new InvalidOperationException(
+            "The immutable local corpus is absent: set PEGASUS_CORPUS_ROOT to its location, "
+            + "or restore the repository's corpus/ directory.");
 
     private sealed record CorpusCandidate(string Path, string Hash);
 }
