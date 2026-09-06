@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Security.Cryptography;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Documents;
 
@@ -22,7 +23,15 @@ public enum RequestUploadDecision
     RateLimited,
     InvalidFile,
     LimitExceeded,
-    OperationConflict
+    OperationConflict,
+
+    /// <summary>
+    /// The link was issued against a different accepted limits version. This
+    /// is a typed refusal rather than an exception because it is an ordinary,
+    /// recoverable state of a long-lived link — the sender did nothing wrong
+    /// and the case owner can reissue.
+    /// </summary>
+    LimitsVersionMismatch
 }
 
 public sealed class RequestUploadLimits
@@ -288,7 +297,8 @@ public sealed record RequestUploadAuthorization(
     RequestUploadDecision Decision,
     string? ContentHash,
     string? SafeFileName,
-    bool IsReplay)
+    bool IsReplay,
+    bool MayReissue = false)
 {
     public bool MayEnterCustody => Decision == RequestUploadDecision.Accepted;
 }
@@ -306,6 +316,169 @@ public sealed record UploadToRequestResult(
 public sealed record RequestUploadPublicView(
     IReadOnlySet<string> AllowedMediaTypes,
     long MaximumFileBytes);
+
+/// <summary>
+/// The one submission session a public link may have. The window is fixed, not
+/// sliding: it opens when the first file's content <em>and</em> custody are
+/// both confirmed, and closes fifteen minutes later whatever else arrives. Its
+/// life is <see cref="StartedAtUtc"/> null (nothing has landed yet), then open,
+/// then either finalized or expired — and both of those refuse bytes.
+/// </summary>
+public sealed record PublicUploadSession(
+    Guid Id,
+    Guid RequestUploadLinkId,
+    string LimitsVersion,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? FinalizedAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
+    long Version)
+{
+    public bool HasStarted => StartedAtUtc is not null;
+
+    public bool IsFinalized => FinalizedAtUtc is not null;
+}
+
+/// <summary>
+/// Why a session refuses. <see cref="Open"/> is the only state that accepts.
+/// </summary>
+public enum PublicUploadSessionState
+{
+    /// <summary>Nothing has been confirmed yet; the window has not opened.</summary>
+    NotStarted,
+
+    /// <summary>Open and inside the fixed window.</summary>
+    Open,
+
+    /// <summary>Finalized: the sender said they were done and it was recorded.</summary>
+    Finalized,
+
+    /// <summary>The fixed window closed.</summary>
+    Expired
+}
+
+/// <summary>
+/// One addressable slot in a session. The identity is server-issued so an
+/// addition or a replacement names the slot rather than a file name: two files
+/// called the same thing are two occurrences and neither overwrites the other.
+/// </summary>
+public sealed record PublicUploadOccurrence(
+    Guid Id,
+    Guid SessionId,
+    string OperationKey,
+    string ProposedName,
+    string MediaType,
+    long Size,
+    string Sha256,
+    IncomingArtifactCustodyState CustodyState,
+    Guid? DocumentId = null,
+    Guid? DocumentVersionId = null)
+{
+    /// <summary>
+    /// Only a confirmed occurrence counts. A pending, failed or uncertain one
+    /// renders its own typed state, never success, and never lets the session
+    /// be finalized on its behalf.
+    /// </summary>
+    public bool CountsTowardsTheSession =>
+        CustodyState == IncomingArtifactCustodyState.Confirmed;
+}
+
+/// <summary>
+/// The fixed-window rule for a public submission session.
+/// </summary>
+public static class PublicUploadSessionPolicy
+{
+    /// <summary>
+    /// The window a confirmed first file opens. Fifteen minutes, from that
+    /// moment, not extended by anything that arrives later.
+    /// </summary>
+    public static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Opens the window. Only a file whose content and custody are both
+    /// confirmed may start one, so a run of failed attempts leaves the session
+    /// exactly where it was and the sender keeps the full window once
+    /// something actually lands.
+    /// </summary>
+    public static PublicUploadSession Start(
+        PublicUploadSession session,
+        PublicUploadOccurrence firstConfirmed,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(firstConfirmed);
+        if (!firstConfirmed.CountsTowardsTheSession)
+        {
+            throw new ArgumentException(
+                "Only a confirmed occurrence starts the submission window.",
+                nameof(firstConfirmed));
+        }
+        if (session.HasStarted)
+        {
+            // A later success never extends a window that is already open.
+            return session;
+        }
+
+        return session with
+        {
+            StartedAtUtc = nowUtc,
+            ExpiresAtUtc = nowUtc.Add(Window),
+            Version = checked(session.Version + 1)
+        };
+    }
+
+    public static PublicUploadSessionState Evaluate(
+        PublicUploadSession session,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.IsFinalized)
+        {
+            return PublicUploadSessionState.Finalized;
+        }
+        if (!session.HasStarted)
+        {
+            return PublicUploadSessionState.NotStarted;
+        }
+
+        return session.ExpiresAtUtc is { } expiresAtUtc && nowUtc >= expiresAtUtc
+            ? PublicUploadSessionState.Expired
+            : PublicUploadSessionState.Open;
+    }
+
+    /// <summary>
+    /// Whether more bytes may be accepted. A session that has not started yet
+    /// accepts — that is how it starts.
+    /// </summary>
+    public static bool AcceptsBytes(PublicUploadSession session, DateTimeOffset nowUtc) =>
+        Evaluate(session, nowUtc) is PublicUploadSessionState.NotStarted
+            or PublicUploadSessionState.Open;
+
+    /// <summary>
+    /// Finalization is replay-safe on the operation key: the first call
+    /// records the moment and every later one returns the same session
+    /// unchanged. A session that never started, or that expired first, cannot
+    /// be finalized.
+    /// </summary>
+    public static PublicUploadSession Finalize(
+        PublicUploadSession session,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.IsFinalized)
+        {
+            return session;
+        }
+
+        return Evaluate(session, nowUtc) == PublicUploadSessionState.Open
+            ? session with
+            {
+                FinalizedAtUtc = nowUtc,
+                Version = checked(session.Version + 1)
+            }
+            : throw new InvalidOperationException(
+                "Only an open submission session can be finalized.");
+    }
+}
 
 public interface ICreateRequestUploadLink
 {
@@ -369,10 +542,13 @@ public sealed class RequestUploadPolicy
         ArgumentNullException.ThrowIfNull(attempt);
         ArgumentNullException.ThrowIfNull(attempt.File);
 
+        // A long-lived link outliving a limits change is an ordinary state of
+        // the world, not a programming error, so it is a typed refusal the
+        // public page can render and the case owner can act on — never an
+        // exception used as control flow.
         if (!string.Equals(link.LimitsVersion, limits.Version, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                "The request upload link references a different accepted limits version.");
+            return new(RequestUploadDecision.LimitsVersionMismatch, null, null, false, MayReissue: true);
         }
 
         if (!HasAcceptedLifetime(link)

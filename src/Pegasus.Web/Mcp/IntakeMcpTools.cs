@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Mcp;
@@ -19,10 +20,8 @@ internal sealed record IntakeQueueToolItem(
 internal sealed record IntakeQueueToolResult(
     IReadOnlyList<IntakeQueueToolItem> Items,
     string? Decision,
-    int Page,
-    int PageSize,
-    int TotalCount,
-    int TotalPages,
+    string? NextCursor,
+    int Limit,
     string CorrelationId);
 
 internal sealed record IntakeSubmitToolResult(
@@ -42,13 +41,12 @@ internal sealed record IntakeSubmitToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class IntakeMcpTools(
-    IListIntake listIntake,
+    IListIntakeByCursor listIntake,
     IIntakeSubmission intakeSubmission,
     TimeProvider timeProvider,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    private const int MaximumPageSize = 50;
     private const int MaximumExternalReceiptTokenLength = 200;
 
     [McpServerTool(
@@ -59,11 +57,11 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, needs_sorting, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Page size is capped at 50.")]
+    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, needs_sorting, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations; limit defaults to 50 and is at most 100.")]
     public async Task<IntakeQueueToolResult> ListAsync(
         [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
-        [Description("1-based page number.")] int page = 1,
-        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize = 0,
+        [Description("Opaque continuation returned by the preceding list call.")] string? cursor = null,
+        [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -89,16 +87,9 @@ internal sealed class IntakeMcpTools(
                     };
                 }
 
-                var effectivePage = page == 0 ? 1 : page;
-                var effectivePageSize = pageSize == 0 ? 25 : pageSize;
-                if (effectivePageSize is < 1 or > MaximumPageSize)
-                {
-                    throw new McpException(
-                        $"The page size must be between 1 and {MaximumPageSize}.");
-                }
-
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var result = await listIntake.ExecuteAsync(
-                    new(context.Actor, decisionFilter, effectivePage, effectivePageSize),
+                    new(context.Actor, decisionFilter, cursor, effectiveLimit),
                     cancellationToken);
                 return new IntakeQueueToolResult(
                     result.Items
@@ -114,10 +105,8 @@ internal sealed class IntakeMcpTools(
                             item.CaseReference))
                         .ToArray(),
                     decisionFilter is { } filter ? DecisionCode(filter) : null,
-                    result.Page,
-                    result.PageSize,
-                    result.TotalCount,
-                    result.TotalPages,
+                    result.NextCursor,
+                    effectiveLimit,
                     context.TraceIdentifier);
             }),
             cancellationToken);
