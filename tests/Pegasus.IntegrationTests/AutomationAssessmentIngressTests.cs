@@ -875,8 +875,8 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(0m, totals.GetProperty("specialist").GetDecimal());
             Assert.Equal(405.40m, totals.GetProperty("net").GetDecimal());
             Assert.Equal(20m, totals.GetProperty("vatPercent").GetDecimal());
-            Assert.Equal(81.08m, totals.GetProperty("vat").GetDecimal());
-            Assert.Equal(486.48m, totals.GetProperty("gross").GetDecimal());
+            Assert.Equal(0m, totals.GetProperty("vat").GetDecimal());
+            Assert.Equal(405.40m, totals.GetProperty("gross").GetDecimal());
             Assert.False(totals.TryGetProperty("labour", out _));
             Assert.False(totals.TryGetProperty("paint", out _));
             Assert.False(totals.TryGetProperty("other", out _));
@@ -884,6 +884,19 @@ public sealed class AutomationAssessmentIngressTests
             Assert.False(totals.TryGetProperty("total", out _));
             Assert.Equal(40m, estimate.GetProperty("labourRate").GetDecimal());
             Assert.False(estimate.TryGetProperty("paintLabourRate", out _));
+        }
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>();
+            var saved = await store.GetVersionAsync(caseId, estimateId, CancellationToken.None);
+            Assert.NotNull(saved);
+            Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
+            Assert.True(saved.Details.VatPolicy.BlocksAcceptance);
+            var refusal = Assert.Throws<InvalidOperationException>(() =>
+                EstimatePolicy.ValidateSetCurrent(
+                    saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])));
+            Assert.Contains("VAT status", refusal.Message, StringComparison.Ordinal);
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
