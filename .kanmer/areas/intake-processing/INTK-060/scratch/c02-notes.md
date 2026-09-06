@@ -53,3 +53,7 @@ into the unrelated receipt store, both of which break ownership.
 `ProcessQueuedExternalWork`, and compose `IIntakeOcrProvider` /
 `IIntakeOcrOperationStore` / `IProcessIntakeOcr` in DI and the Worker. C edited
 none of those files.
+
+## Replacement-controller completion — C02 correction round 1
+
+Preserved the exhausted worker's dirty IntakeOcr.cs change and completed its coherent provider/store/test contract at commit e203c8100 on c02-provenance. First build failed with six CS0535 interface errors because the worker stopped mid-refactor; retained as failure evidence. After completing Azure accepted-operation callback, request-envelope submission timestamps, durable store transitions, and test doubles, dotnet build ./Pegasus.slnx --configuration Release --no-restore exited 0 with 0 warnings and 0 errors. Implementation role ran no tests. Exact head e203c8100 is READY_FOR_TESTS; independent C02 wave and exact-head re-review remain required before integration.
