@@ -128,14 +128,16 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         var mailboxId = await SentEvidenceMailboxIdAsync(factory);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseId={caseId:D}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
                 ["CaseId"] = caseId.ToString("D"),
                 ["ExpectedContextVersion"] = "-1",
                 ["ApprovedMailboxId"] = mailboxId.ToString("D"),
@@ -151,6 +153,41 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
+    public async Task AMissingOperationKeyReturnsTheFormWithoutSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 KEY", "SC08-CLAIM-4");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
+        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var (_, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseId={caseId:D}");
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["CaseId"] = caseId.ToString("D"),
+                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
+                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Following up",
+                ["Body"] = "Please find the update below."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The OperationKey field is required.", html, StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    [Fact]
     public async Task AValidComposeSendsExactlyOnceInNewModeWithNoOriginalMessage()
     {
         var send = new RecordingStaffMailSend();
@@ -161,15 +198,17 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         var mailboxId = await SentEvidenceMailboxIdAsync(factory);
         var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseId={caseId:D}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
                 ["CaseId"] = caseId.ToString("D"),
                 ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
                 ["ApprovedMailboxId"] = mailboxId.ToString("D"),
@@ -235,6 +274,35 @@ public sealed class StaffCorrespondenceWebTests
         var mailbox = (await store.ListAsync(CancellationToken.None))
             .Single(item => item.Address == "sc08-sender@collisionengineers.co.uk");
         return mailbox.Id;
+    }
+
+    /// <summary>
+    /// GETs a Compose page and reads its rendered hidden <c>OperationKey</c>
+    /// and antiforgery token, so a POST carries the real idempotency key the
+    /// GET issued rather than omitting it.
+    /// </summary>
+    private static async Task<(string OperationKey, string AntiforgeryToken)> ComposeFormTokensAsync(
+        HttpClient client, string url)
+    {
+        using var response = await client.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+
+        var operationKeyTag = Regex.Match(
+            html, "<input[^>]*name=\"OperationKey\"[^>]*>", RegexOptions.IgnoreCase);
+        Assert.True(operationKeyTag.Success, "Compose must render a hidden OperationKey field.");
+        var operationKeyValue = Regex.Match(operationKeyTag.Value, "value=\"(?<value>[^\"]*)\"");
+        Assert.True(operationKeyValue.Success, "The OperationKey field must have a value.");
+
+        var antiforgeryTag = Regex.Match(
+            html, "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase);
+        Assert.True(antiforgeryTag.Success, "Compose must render an antiforgery token.");
+        var antiforgeryValue = Regex.Match(antiforgeryTag.Value, "value=\"(?<value>[^\"]*)\"");
+        Assert.True(antiforgeryValue.Success, "The antiforgery token must have a value.");
+
+        return (
+            WebUtility.HtmlDecode(operationKeyValue.Groups["value"].Value),
+            WebUtility.HtmlDecode(antiforgeryValue.Groups["value"].Value));
     }
 
     private static async Task<long> CaseVersionAsync(WebApplicationFactory<Program> factory, Guid caseId)
