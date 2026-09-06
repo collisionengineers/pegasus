@@ -272,3 +272,7 @@ R-10/R-11/R-12 fixed and proved. Open: C05-R-16 `ThirdPartyReportProfiles.Verdic
 ## Wave 23 (C06 `dc24438e2`): blocker closed, 2 new failures in round-3 tests
 
 Build/core 61/host 41/browser 2/architecture PASS; the two settings-page POSTs now redirect. Integration 36/38: `InspectionAddressSuggestionTests.SearchMatchesAPriorLocationWhoseStoredWhitespaceIsIrregular` (line 108 — the prior location is returned with a collapsed label, the assertion's filter does not match it) and `SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory` (lines 69/81 — the newly seeded Storage case is absent from the union). Re-review in progress will bind; C06 round 4 queued with C05 round 3 behind the active editors (C07 caller r2, C08 r1).
+
+## C06 re-review at `dc24438e2`: needs-changes — 2 blockers (test fixtures), 3 minors, no production defect
+
+R-16/R-18/R-20 closed; R-17's SQL predicate judged correct and needed. New: C06-R-21 the whitespace regression test seeds through `ISaveCase`, which collapses whitespace on write, so the asserted value cannot exist (seed the irregular value at row level instead); C06-R-22 `SaveStorageLocationAsync` posts a partial `CaseEditableData` and `EfCaseDataStore.SetConfirmed` deletes a confirmed field whose incoming value is null, wiping the claimant address (seed with the complete payload). C06-R-23 `AdministrationPageModel.cs` edit (out of the C06 map, behaviour-neutral, prescribed) must be disclosed as a deviation. Round 4 queued behind C07 caller r2 / C08 r1.

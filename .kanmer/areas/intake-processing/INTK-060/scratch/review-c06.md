@@ -728,3 +728,177 @@ no merged role types, no second principal catalog, no external address provider 
 new package, and automatic EVA is not reintroduced anywhere on C's surfaces. The
 frozen seeded-principal assertions and the seeded-estate fixes are untouched by
 these eight commits.
+
+---
+
+## C06 review attestation — round 3, superseding — head `dc24438e2`
+
+- **verdict:** `needs-changes`
+- **supersedes:** round 2 (needs-changes at `8384e28bb`)
+- **head:** `dc24438e29f27cda288f8ffa657c31bc868af9b4`, worktree
+  `C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c06`, branch
+  `c06-directory`, tree clean
+- **correction diff:** `git diff ab7108c0c..dc24438e2` — 4 commits
+  (`9710ef998`, `f435148c4`, `64416c567`, `dc24438e2`)
+- **independent:** true (reviewer is not the implementer)
+- **ownership:** PASS with one recorded deviation (C06-R-23)
+- **frozen signatures:** PASS — round 3 does not touch
+  `OrganizationDirectory.cs`, `ClaimSourceAdministration.cs` or
+  `InspectionAddressResolution.cs`
+- **stop conditions:** none tripped
+- **evidence binding:** Release binaries built 17:23:37, after the head commit
+  at 17:23:20; lanes 2-6 ran `--no-build` against them
+- **findings:** 2 blocker, 0 major, 3 minor open
+
+### Lanes seen (wave 23)
+
+| Lane | Exit | Result | Summary |
+|---|---|---|---|
+| 1-build | 0 | PASS | Build succeeded. 0 Warning(s), 0 Error(s) |
+| 2-core | 0 | PASS | Failed 0, Passed 61, Total 61 |
+| 3-integration | 1 | **FAIL** | Failed 2, Passed 36, Total 38 |
+| 4-host | 0 | PASS | Failed 0, Passed 41, Total 41 |
+| 5-browser | 0 | PASS | Failed 0, Passed 2, Total 2 |
+| 6-architecture | 0 | PASS | Failed 0, Passed 100, Total 100 |
+
+`pass` requires every lane PASS; lane 3 is red, so the verdict is
+`needs-changes`. Both failures are new and were introduced by this round's own
+commit `64416c567`. Round 2's two `Expected: Found, Actual: OK` failures are
+gone, and lane 4 rose from 32 to 41 passing.
+
+### Per-finding disposition (C06-R-16…R-20)
+
+| Finding | Severity | Claimed | Verified | Verdict |
+|---|---|---|---|---|
+| C06-R-16 | Blocker | Fixed `9710ef998` | Yes; the sweep is complete | **CLOSED** |
+| C06-R-17 | Minor | Fixed `64416c567` | Production fix sound and needed; its new test fails | **PARTIAL → C06-R-21** |
+| C06-R-18 | Minor | Fixed `dc24438e2` | Yes | **CLOSED** |
+| C06-R-19 | Minor | Fixed `64416c567` | Assertion right; the fixture breaks the test | **PARTIAL → C06-R-22** |
+| C06-R-20 | Minor | Fixed `f435148c4` | Yes | **CLOSED**, see C06-R-25 |
+
+What was checked rather than read:
+
+- **R-16.** Both keys are `string?` keeping their `NewOperationKey()`
+  initializers, and every remaining `[BindProperty]` on `EvaSubmissionModel` is
+  a value type or nullable — the demanded sweep is complete. Each handler reads
+  only its own key (`:127`/`:145` vs `:196`/`:218`) and each form renders only
+  its own hidden field (`EvaSubmission.cshtml:34`, `:70`), so no handler can
+  accept the other form's key. The `IsOperationKeyValid(string?)` widening
+  changes no other page: the method body is byte-identical,
+  `Guid.TryParseExact` already accepted null, and all 17 other call sites were
+  enumerated — every one passes a non-nullable `string`, except
+  `Accounts/Index:332` which already short-circuits on `IsNullOrWhiteSpace`.
+- **R-18.** The id is now SHA-256 over the operation key's 16 GUID bytes plus a
+  `"claim_source_id"u8` discriminator — the same construction as the existing
+  `InspectionAddressChoicesQueries.DeterministicId`, deterministic and
+  documented. Replay under the same key returns the receipt before the entity
+  lookup, so no second row (proved by
+  `CreateReplayWithTheSameOperationKeyNeverCreatesASecondRow`). A different key
+  cannot reach an existing row's id without inverting SHA-256, and the id is no
+  longer client-supplied at all. A reused key with an edited payload fails
+  `SameHash` and raises `OperationConflict` rather than overwriting; no receipt
+  purge or TTL exists that could reopen that window. `Guid.ParseExact` cannot
+  throw — the derivation runs only inside `if (ModelState.IsValid)` after
+  `IsOperationKeyValid`.
+- **R-17 production half.** The predicate is genuinely evaluated in SQL (it is
+  inside the server `.Where`; EF Core throws rather than client-evaluating, and
+  the query ran against real SQL Server returning rows). It is also genuinely
+  needed: `ISaveCase` collapses whitespace via `CaseDataOperations.Text`, but
+  the intake-acceptance path does not —
+  `Ext18InspectionAddressPolicy.Evaluate` takes `candidate.Value.Trim()` only
+  and that value reaches `CaseDataFields.Value` verbatim through
+  `CaseDataSnapshotFactory.UpsertConfirmed`. Irregular interior whitespace does
+  reach production rows.
+
+### New findings
+
+**C06-R-21 — BLOCKER — the R-17 regression test seeds through the one path that
+already collapses whitespace.**
+`tests/Pegasus.IntegrationTests/InspectionAddressSuggestionTests.cs:84-108`.
+Lane 3 failure 1. The collection came back holding one row whose `Address` is
+`12 High Street, AB1 2CD` — one space — while the test seeded and asserts two.
+`SaveEditableDataAsync` goes through `ISaveCase`, which runs
+`CaseDataPolicy.Normalize` (`EfCaseDataStore.cs:161`) whose `Text(...)` helper
+does `string.Join(' ', value.Split((char[]?)null, RemoveEmptyEntries))`
+(`CaseDataOperations.cs:153, :256-267`), destroying the doubled space on write.
+The test never exercises the branch it was written for. Not a flake, not the
+predicate, not an EF translation failure. Fix: seed the `CaseDataFieldEntity`
+directly through `IDbContextFactory` (`FieldName = InspectionAddress`,
+`ValueKind = Confirmed`, the doubled-space `Value`, a `ConfirmedAtUtc`) — the
+same technique the union test already uses for `OrganizationDirectoryEntryEntity`
+— or drive the intake-acceptance path. Keep the assertion; only the fixture is
+wrong.
+
+**C06-R-22 — BLOCKER — seeding the Storage location wipes the claimant
+address.**
+`tests/Pegasus.IntegrationTests/InspectionAddressSuggestionTests.cs:37`,
+`:354-358`. Lane 3 failure 2, at line 69 — the Claimant assertion, which passed
+in every prior wave. The result holds PriorPrincipalLocation, Directory and
+Storage rows and no Claimant row, and the Storage choice reports
+`SourceVersion = 2`. `SaveStorageLocationAsync` posts a fresh
+`CaseEditableData(StorageLocation: …)` whose every other property is null; the
+helper never merges onto `current.Data`, and `EfCaseDataStore.SetConfirmed`
+**removes** the existing confirmed field when the incoming value is null
+(`:380-388`). The R-19 fix silently deleted the Claimant coverage beside it.
+Fix: seed both fields in one `CaseEditableData`, or better, make
+`SaveEditableDataAsync` merge onto `current.Data` with a `with` expression —
+`SaveClaimantAddressAsync`, `SaveInspectionAddressAsync` and
+`SaveStorageLocationAsync` are all partial and any two in sequence will keep
+doing this. Keep both assertions.
+
+**C06-R-23 — MINOR — a shared administration base class was edited outside
+"### C06 files" without a recorded deviation.**
+`src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs:5`
+(`9710ef998`). The file is not in the C06 map and `AdministrationPageModel`
+appears zero times in the ticket's files document, so no slice owns it — no
+cross-slice conflict, and round 2 prescribed this exact edit as fix option 1,
+so it is authorized in substance. But it is disclosed only as a clause in the
+report's R-16 row, and recorded as a deviation nowhere. Fix: one line on
+`scratch/c06-notes` recording the deviation and its authorization, plus the
+file in the report's deviations list. No code change.
+
+**C06-R-24 — MINOR — the SQL collapse is still narrower than
+`NormalizeNamePrefix`, and the predicate is now non-sargable.**
+`src/Pegasus.Infrastructure/Persistence/InspectionAddressChoicesQueries.cs:158-176`.
+`NormalizeNamePrefix` collapses on `char.IsWhiteSpace` (U+00A0, U+000B, U+000C,
+U+2000-200A included); the SQL chain replaces only `\t`, `\r`, `\n`, and SQL
+`Trim()` is `LTRIM(RTRIM())`, which strips spaces only — so a stored address
+carrying an NBSP, including a leading one, is still dropped before
+`AddIfMatches` sees it. Four `Replace("  ", " ")` passes reduce a run of *n*
+spaces to `ceil(n / 16)`, so runs of 17+ survive. Separately, seven `REPLACE`s
+and an `LTRIM(RTRIM())` around `Value` make the predicate non-sargable — no
+index seek is possible before the `ORDER BY … TOP 500`. Fix: normalize on write
+(a persisted computed column would serve this predicate, the `ORDER BY` and the
+directory's `NormalizedName` at once — an A-owned migration, so a handoff), or
+state the two uncovered cases in the comment as a known limit. Do not extend the
+`Replace` chain.
+
+**C06-R-25 — MINOR — the R-20 helper is duplicated verbatim, and its message is
+built on every passing assertion.**
+`OrganizationAdministrationWebTests.cs:233-259` and
+`OrganizationDirectoryWebTests.cs:232-258`. `DescribeValidationErrorsAsync` and
+its two `[GeneratedRegex]` members are byte-identical in both files;
+`IntakeWebTestSupport` is the shared file that should own them. And
+`Assert.True(cond, $"…{await DescribeValidationErrorsAsync(response)}")`
+evaluates the message eagerly, reading and scanning the body on every passing
+call — use `if (status != Redirect) { Assert.Fail($"…"); }` instead.
+
+### The three review questions
+
+1. **Plan vs ticket:** nothing new. The three accepted deferrals (C06-R-6
+   suggestion picker, C06-R-11 `CaseContracts.cs` handoff to B, C06-R-15
+   directory writer) stand as recorded.
+2. **Implementation vs plan:** no new gap; round 3 closes the last blocker
+   against the plan's expected outputs. The two open blockers are test-fixture
+   defects, but until C06-R-21 is fixed the "prefix matches survive irregular
+   stored whitespace" behaviour is unproven.
+3. **Simplification pass and honest dispositions:** mostly yes. The
+   finding-to-commit table is accurate for R-16, R-18, R-19 and R-20, and the
+   ASSUMPTION 9 correction on `scratch/c06-notes` is exemplary — it names the
+   false premise and the exact MVC mechanism without renumbering to hide it.
+   Two gaps: the R-17 row claims "Fixed … added a double-space input test" when
+   that test fails and does not exercise the branch (written against the build
+   gate before lane 3 ran — unverified, not dishonest, and must not be carried
+   into acceptance), and the `AdministrationPageModel.cs` deviation is not
+   recorded (C06-R-23). C06-R-25 shows the pass did not sweep the two new test
+   helpers.

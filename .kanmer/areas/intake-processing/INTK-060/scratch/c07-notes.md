@@ -526,3 +526,70 @@ command exists to prevent. Proved as it stands in
   A04's adapter. The status port is now load-bearing for Pending as well as
   Unknown: without it a Pending arrival stays Pending for ever, which is the
   defect R-2 named in a different costume.
+
+## C07 correction round 2 — one contract gap for Stream A, and two Core decisions
+
+**HANDOFF TO A (blocking for the public upload path's own recovery): a
+request-link status read.** C's caller reconciles a Pending or Unknown
+hand-over through `ICaseArtifactCustodyStatus.GetAsync` rather than offering
+the bytes a second time. The public sender acts as `ActionActor.RequestLink`,
+but A's status read is staff casework only — unchanged by A04's request-link
+fix to `RetainAsync` (PR 673 comment 5560061438; and C's own earlier note said
+"`GetAsync` (status) can stay staff-only", which was written before the caller
+needed to reconcile). C's test double now enforces exactly that rule, so the
+refusal is visible in the suite instead of being assumed away.
+
+What this leaves, precisely: a Pending or Unknown arrival made through the
+public page can never be resolved by the sender's own retry. Nothing false is
+rendered — the page says "Your document was received and is being stored." and
+never "retained securely" — the bytes are never offered twice, the occurrence
+keeps the state custody actually gave it, no receipt is written, and the
+arrival counts exactly once. But the occurrence stays `pending`, the
+`DocumentVersion` stays `DocumentCustodyStatus.Pending`, and no receipt is ever
+earned for it unless some authority that may read custody status reconciles it.
+
+Request to A, either shape:
+1. authorize `GetAsync` for `RequestLink` under the same rule `RetainAsync` now
+   uses — the actor names the persisted link row, `caseId` equals that link's
+   own recorded Case, and the link is active, unrevoked and unexpired; or
+2. take the sweep: A04 confirms its own Pendings and writes the version and
+   occurrence through, and C's public path stops depending on the read.
+
+Either is a small change and neither touches `CustodyContracts.cs`'s shape.
+Until one lands, C07B-R-2 (a Pending that never moves) is closed for a staff or
+system-worker authority and open for the public sender alone. Proved by
+`PublicUploadRetentionWebTests.APendingArrivalIsNeverReOfferedAndThePublicSenderCannotReconcileIt`
+(refused, unchanged, never re-offered) and
+`AStaffReconciliationConfirmsAPendingArrivalWithoutASecondHandOver` (converges
+under an authority that may read).
+
+**Core decision 1 — a refused status read is not an error to report.**
+`RetainIncomingArtifact.ReconcileAsync` catches `StaffAuthorizationException`
+from the status port and returns the retention unchanged, exactly as it already
+does when there is no status port or no identities to ask about. The
+alternative — letting it propagate — would turn a Pending replay into a page
+fault for a sender who did nothing wrong, and encoding A's rule in Core would
+duplicate a rule Core does not own and would need changing again when A widens
+it. Recorded here rather than treated as settled.
+
+**Core decision 2 — an uncertain hand-over is classified by Core semantics
+only (C07B-R-12/R-13).** `IsUncertainHandOver` no longer names
+`HttpRequestException`; `Pegasus.Core.dll` carries no `System.Net.Http`
+reference. The predicate is inverted: everything thrown out of
+`custody.RetainAsync` is uncertain except an authorization refusal
+(`StaffAuthorizationException`) or a malformed-request refusal
+(`ArgumentException`) — the two custody raises before it reads a byte — with
+`OutOfMemoryException`/`AccessViolationException` left to propagate. An adapter
+translates its transport faults to `IntakeDependencyUnavailableException`,
+which is uncertain here like everything else, and a cancelled hand-over is now
+uncertain too, recorded on `CancellationToken.None` so the cancelled token
+cannot suppress the write.
+
+Consequence for A04: **do not raise `InvalidOperationException` for a refusal
+you want to surface.** C's caller now reads that type as "custody may hold the
+bytes" and records the arrival `unknown`, because EF and most adapters raise it
+after a write as readily as before one. A refusal that must surface has to be
+`StaffAuthorizationException` or `ArgumentException`. C's own double was
+changed to match: its holding refusal ("a request-link actor cannot retain into
+holding") is now a `StaffAuthorizationException`, which is also what A's
+authorization gate would raise for a null `CaseId`.
