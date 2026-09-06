@@ -300,6 +300,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                 ? ParseClassificationOutcome(classification)
                 : null,
             receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
+            entity.ImmutableMessageId,
+            entity.InternetMessageIdentity,
+            entity.ConversationIdentity,
             await LoadClassificationAsync(context, id, cancellationToken));
     }
 
