@@ -1176,11 +1176,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[TriageSequences] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[DocumentContentCacheEntries] TO [pegasus_worker_runtime_role];
                     GRANT UPDATE ON OBJECT::[dbo].[IntakeAssets] TO [pegasus_worker_runtime_role]; END;
                     DECLARE @denyTable sysname;
+                    DECLARE @denySql nvarchar(max);
                     DECLARE deny_cursor CURSOR LOCAL FAST_FORWARD FOR SELECT value FROM STRING_SPLIT('UserExternalCredentials,StaffMailSendOperations,ValuationPresets,AppliedValuationSnapshots,GlassRepairEstimateSessions,CaseReportGenerations,GeneratedCaseArtifacts,CaseReportDeliveryIntents,RetainedInstructionAnalyses,IntakeSourceCandidates,IntakeOcrOperations,TriageSequences,DocumentContentCacheEntries,ClaimSources,OrganizationDirectoryEntries,PublicUploadSessions,PublicUploadOccurrences', ',');
                     OPEN deny_cursor; FETCH NEXT FROM deny_cursor INTO @denyTable;
                     WHILE @@FETCH_STATUS = 0 BEGIN
-                      IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL EXEC(N'DENY DELETE ON dbo.'+QUOTENAME(@denyTable)+N' TO pegasus_web_runtime_role');
-                      IF DATABASE_PRINCIPAL_ID('pegasus_worker_runtime_role') IS NOT NULL EXEC(N'DENY DELETE ON dbo.'+QUOTENAME(@denyTable)+N' TO pegasus_worker_runtime_role');
+                      IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL BEGIN SET @denySql=N'DENY DELETE ON [dbo].'+QUOTENAME(@denyTable)+N' TO [pegasus_web_runtime_role]'; EXEC(@denySql); END;
+                      IF DATABASE_PRINCIPAL_ID('pegasus_worker_runtime_role') IS NOT NULL BEGIN SET @denySql=N'DENY DELETE ON [dbo].'+QUOTENAME(@denyTable)+N' TO [pegasus_worker_runtime_role]'; EXEC(@denySql); END;
                       FETCH NEXT FROM deny_cursor INTO @denyTable;
                     END; CLOSE deny_cursor; DEALLOCATE deny_cursor;
                     """);
