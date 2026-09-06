@@ -16,13 +16,24 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <see cref="IOrganizationDirectoryQueries"/> directory locations; no
 /// external address provider or fuzzy/geographic inference is part of it.
 /// </summary>
+/// <remarks>
+/// <paramref name="directory"/> is an optional constructor dependency (C06):
+/// this branch does not yet carry Stream A's registration for
+/// <see cref="IOrganizationDirectoryQueries"/>, and this class is already
+/// registered for <see cref="IInspectionAddressChoicesQueries"/>, so a
+/// required dependency on an unregistered service would fail ASP.NET's
+/// startup service-graph validation and break every page in the host, not
+/// just this one. When it is not registered, <see cref="SearchAsync"/>
+/// simply contributes no directory rows — the other three sources still
+/// work and nothing throws or fakes a result. This reverts to a required
+/// constructor dependency once A's registration lands.
+/// </remarks>
 public sealed class InspectionAddressChoicesQueries(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    IOrganizationDirectoryQueries directory)
+    IOrganizationDirectoryQueries? directory = null)
     : IInspectionAddressChoicesQueries, IInspectionLocationChoices
 {
-    private readonly IOrganizationDirectoryQueries _directory =
-        directory ?? throw new ArgumentNullException(nameof(directory));
+    private readonly IOrganizationDirectoryQueries? _directory = directory;
 
 
     public async Task<InspectionAddressChoicesData?> GetAsync(
@@ -174,18 +185,21 @@ public sealed class InspectionAddressChoicesQueries(
             }
         }
 
-        var directoryQuery = new OrganizationDirectoryQuery(query.Actor, query.Prefix ?? string.Empty, Role: null);
-        var directoryEntries = await _directory.SearchAsync(directoryQuery, cancellationToken);
-        candidates.AddRange(directoryEntries.Select(entry => new InspectionLocationChoice(
-            entry.Id,
-            entry.Name,
-            InspectionAddressEvidenceKind.PhysicalAddress,
-            entry.Address,
-            entry.Postcode,
-            entry.Role.ToString(),
-            InspectionLocationSourceKind.Directory,
-            entry.SourceRecordId,
-            entry.SourceVersion)));
+        if (_directory is not null)
+        {
+            var directoryQuery = new OrganizationDirectoryQuery(query.Actor, query.Prefix ?? string.Empty, Role: null);
+            var directoryEntries = await _directory.SearchAsync(directoryQuery, cancellationToken);
+            candidates.AddRange(directoryEntries.Select(entry => new InspectionLocationChoice(
+                entry.Id,
+                entry.Name,
+                InspectionAddressEvidenceKind.PhysicalAddress,
+                entry.Address,
+                entry.Postcode,
+                entry.Role.ToString(),
+                InspectionLocationSourceKind.Directory,
+                entry.SourceRecordId,
+                entry.SourceVersion)));
+        }
 
         return candidates
             .DistinctBy(choice => choice.Id)
