@@ -289,3 +289,7 @@ Build: `dotnet build ./Pegasus.slnx --configuration Release --no-restore` —
 exit 0, 0 warnings, 0 errors.
 
 No deviations, no new assumptions this round. READY_FOR_TESTS.
+
+## Replacement-controller completion — C08 correction round 4
+
+Preserved the exhausted worker's six-file dirty correction and committed it as ab7a69855 on c08-shell. It closes the recorded Inbox href, S12 label, Unknown/replay visibility, ten-row attention bound, and banned-placeholder findings while retaining Stream A's exact StaffSend + positive Generation ruling; SentEvidence alone is not send authority. Standalone tests adapt only the absent A-owned mailbox mapping. dotnet build ./Pegasus.slnx --configuration Release --no-restore exited 0 with 0 warnings and 0 errors. Implementation role ran no tests. Exact head ab7a69855 is READY_FOR_TESTS; focused wave and independent exact-head re-review remain required before integration.
