@@ -675,7 +675,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var repairer = await save.ExecuteAsync(
             new(caseId, leaseA.Version, engineer, "estimate-save-a", "Recorded the repairer's estimate.",
                 leaseA.Token, null,
-                new("Repairer", 3, 40m, 25m, 0m, 20m, "Typed from the repairer's e-mail."),
+                new("Repairer", 3, 40m, 25m, 0m, 20m, "Typed from the repairer's e-mail.",
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
                         "confirmed", "official", null, Quantity: 1),
@@ -697,7 +698,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var engineers = await save.ExecuteAsync(
             new(caseId, leaseB.Version, engineer, "estimate-save-b", "Recorded the Engineer's own estimate.",
                 leaseB.Token, null,
-                new("Engineer's", 2, 45m, null, 0m, 0m, null),
+                new("Engineer's", 2, 45m, null, 0m, 0m, null,
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.NotRegistered)),
                 [new("repair", null, "Repair nearside door", 2m, null, false, null, null, "confirmed", "judgement", null)],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
@@ -793,7 +795,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var aiDraft = await save.ExecuteAsync(
             new(caseId, leaseAi.Version, harness.AutomationActor, "mcp:estimate-save-ai", "AI drafted an estimate.",
                 leaseAi.Token, null,
-                new("Claude draft", 2, 40m, 20m, 0m, 20m, null),
+                // The AI path records no VAT policy of its own, so this draft
+                // carries the status the Engineer recorded on it before using it.
+                // What happens when none is recorded is proved by
+                // AnUnknownRepairerVatStatusBlocksUseAsCurrentUntilItOrTheCategoriesAreRecorded.
+                new("Claude draft", 2, 40m, 20m, 0m, 20m, null,
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [new("repair", null, "Repair nearside door", 3m, null, false, null, null, "estimated", "judgement", "Visible damage")],
                 new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
                 job.JobId),
@@ -953,7 +960,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var original = await save.ExecuteAsync(
             new(caseId, saveLease.Version, engineer, "estimate-frozen-save",
                 "Recorded the repairer's estimate.", saveLease.Token, null,
-                new("Repairer", 3, 40m, 25m, 0m, 20m, null),
+                new("Repairer", 3, 40m, 25m, 0m, 20m, null,
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
                         "confirmed", "official", null, Quantity: 1),
@@ -1051,7 +1059,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await harness.AcquireLeaseAsync(caseId, version, engineer, key);
 
         Task<RepairSpecificationVersion> SaveAsync(
-            CaseEditLease lease, string key, Guid? estimateId, string name, EstimateVatPolicy vat) =>
+            CaseEditLease lease, string key, Guid? estimateId, string name, EstimateVatPolicy? vat) =>
             save.ExecuteAsync(
                 new(caseId, lease.Version, engineer, key, "Recorded an estimate.", lease.Token,
                     estimateId,
@@ -1062,6 +1070,22 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ],
                     new(RepairSpecificationSourceRoute.Manual, null, null, null)),
                 CancellationToken.None);
+
+        // A save that records no policy at all is Unknown too — the VAT
+        // percentage never states a repairer's VAT position (B08), so the
+        // row reads back Unknown and charges VAT on nothing.
+        var unrecordedLease = await LeaseAsync("estimate-vat-lease-unrecorded");
+        var unrecorded = await SaveAsync(
+            unrecordedLease, "estimate-vat-save-unrecorded", null, "Unrecorded", vat: null);
+        version++;
+        var unrecordedRead = (await harness.RepairSpecifications.GetVersionAsync(
+            caseId, unrecorded.SpecificationId, CancellationToken.None))!;
+        Assert.Equal(RepairerVatStatus.Unknown, unrecordedRead.Details.VatPolicy.RepairerStatus);
+        Assert.Equal(EstimateVatCategories.None, unrecordedRead.Details.VatPolicy.Categories);
+        Assert.False(unrecordedRead.Details.VatPolicy.CategoriesOverridden);
+        Assert.True(unrecordedRead.Details.VatPolicy.BlocksAcceptance);
+        Assert.Equal(20m, unrecordedRead.Details.VatPercent);
+        Assert.Equal(0m, EstimateTotals.Compute(unrecordedRead).Printed.Vat);
 
         var unknownLease = await LeaseAsync("estimate-vat-lease-unknown");
         var unknown = await SaveAsync(

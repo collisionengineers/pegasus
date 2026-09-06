@@ -12,6 +12,8 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Pages.Cases;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -519,6 +521,192 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(620.20m, line.Price);
     }
 
+    /// <summary>
+    /// B08: the estimate header's VAT status, the categories its percentage is
+    /// charged on and its four discounts are the editor's own controls. A save
+    /// records exactly what was posted, and the reload renders it back — the
+    /// status selected, the category boxes checked, the discounts as the
+    /// percentages they were typed as.
+    /// </summary>
+    [Fact]
+    public async Task TheEditorPostsAndRendersTheVatPolicyAndTheDiscounts()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate=new");
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(html)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateName", "Repairer"),
+            new("estimateLabourRate", "52.50"),
+            new("estimateVatPercent", "20"),
+            new("lineOperation", "Replace"),
+            new("lineDescription", "Front bumper"),
+            new("lineQuantity", "1"),
+            new("linePartPounds", "620.20"),
+        };
+        // A registered repairer charging VAT on all four categories: the
+        // status's own defaults, so nothing is recorded as an override.
+        fields.AddRange(HeaderFields(
+            EstimateVatPolicy.For(RepairerVatStatus.Registered),
+            new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m)));
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var saved = Assert.Single(store.SavedEstimates);
+        Assert.Equal(RepairerVatStatus.Registered, saved.Details.Vat!.RepairerStatus);
+        Assert.Equal(EstimateVatCategories.All, saved.Details.Vat.Categories);
+        Assert.False(saved.Details.Vat.CategoriesOverridden);
+        Assert.Equal(new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m), saved.Details.Discounts);
+
+        var reloaded = await GetHtmlAsync(
+            client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
+        Assert.Contains(
+            "<option value=\"Registered\" selected=\"selected\">Registered</option>",
+            reloaded,
+            StringComparison.Ordinal);
+        foreach (var category in CaseWorkspaceLabels.EstimateVat.Categories)
+        {
+            var field = DetailsModel.VatCategoryField(category);
+            Assert.Contains(
+                $"id=\"{field}\" name=\"{field}\" type=\"checkbox\" value=\"true\"",
+                reloaded,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                $"<input type=\"hidden\" name=\"{field}\" value=\"false\" />",
+                reloaded,
+                StringComparison.Ordinal);
+        }
+
+        // The percentages round-trip as percentages, not as the fractions Core
+        // validates.
+        Assert.Contains(
+            "name=\"estimateDiscountParts\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" inputmode=\"decimal\" class=\"tabular\" value=\"12.5\"",
+            reloaded,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "name=\"estimateDiscountOverall\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" inputmode=\"decimal\" class=\"tabular\" value=\"2.5\"",
+            reloaded,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// B08: an Unknown repairer status charges VAT on nothing and blocks Use
+    /// estimate, so the Engineer who selects the categories by hand is making
+    /// the override that unblocks it. The screen records that override without
+    /// a control of its own — the checked set differing from the status's own
+    /// default is what the override means.
+    /// </summary>
+    [Fact]
+    public async Task PostingUnknownWithCategoriesRecordsTheOverrideThatUnblocksUseEstimate()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate=new");
+        // A new estimate opens on Unknown, charging VAT on nothing.
+        Assert.Contains(
+            "<option value=\"Unknown\" selected=\"selected\">Unknown</option>",
+            html,
+            StringComparison.Ordinal);
+
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(html)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateName", "Repairer"),
+            new("estimateLabourRate", "52.50"),
+            new("estimateVatPercent", "20"),
+            new("lineOperation", "Replace"),
+            new("lineDescription", "Front bumper"),
+            new("lineQuantity", "1"),
+            new("linePartPounds", "620.20"),
+        };
+        fields.AddRange(HeaderFields(
+            new EstimateVatPolicy(
+                RepairerVatStatus.Unknown,
+                EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+                true),
+            EstimateDiscounts.None));
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var saved = Assert.Single(store.SavedEstimates);
+        Assert.Equal(RepairerVatStatus.Unknown, saved.Details.Vat!.RepairerStatus);
+        Assert.Equal(
+            EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+            saved.Details.Vat.Categories);
+        Assert.True(saved.Details.Vat.CategoriesOverridden);
+        Assert.False(saved.Details.Vat.BlocksAcceptance);
+        Assert.Equal(EstimateDiscounts.None, saved.Details.Discounts);
+
+        // Unblocked, so the reload offers the live control rather than the
+        // gated one.
+        var reloaded = await GetHtmlAsync(
+            client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
+        Assert.Contains("handler=SetCurrentEstimate", reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition,
+            reloaded,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// B08: Core refuses to make an estimate Current while its repairer VAT
+    /// status is unrecorded, so the screen never offers the control that would
+    /// be refused — it renders the workspace's gated shape naming the
+    /// condition.
+    /// </summary>
+    [Fact]
+    public async Task AnUnrecordedRepairerVatStatusGatesUseEstimateWithItsCondition()
+    {
+        var caseId = Guid.NewGuid();
+        var seeded = DraftSpecification(caseId);
+        var draft = seeded with { Details = seeded.Details with { Vat = null } };
+        var store = new RecordingStores(caseId) { CurrentDraft = draft };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        Assert.True(draft.Details.VatPolicy.BlocksAcceptance);
+        var html = await GetHtmlAsync(
+            client, $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
+
+        Assert.Contains(
+            $"<span class=\"gated\" data-condition=\"{CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition}\">",
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SetCurrentEstimate", html, StringComparison.Ordinal);
+
+        // The same estimate with its status recorded offers the live control.
+        store.CurrentDraft = seeded;
+        var recordedHtml = await GetHtmlAsync(
+            client, $"/Cases/{caseId:D}?section=estimate&estimate={seeded.SpecificationId:D}");
+        Assert.Contains("handler=SetCurrentEstimate", recordedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition,
+            recordedHtml,
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task DuplicateEstimatePostsToTheNamedEstimateUseCase()
     {
@@ -559,9 +747,9 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// unconditionally, so a line the operator had just changed stayed
     /// credited to whoever last touched it. Posting the real editor form with
     /// one line's amount changed must stamp that line with this Engineer and
-    /// the host's clock, leave the untouched line's own stamp alone, and keep
-    /// every header fact the editor does not show - the discounts, the VAT
-    /// categories and the rate card - across the reload.
+    /// the host's clock, leave the untouched line's own stamp alone, and land
+    /// the header the editor renders - the discounts and the VAT policy it now
+    /// posts (B08), and the rate card it does not show - across the reload.
     /// </summary>
     [Fact]
     public async Task SavingTheEditorStampsTheChangedLineAndKeepsTheUntouchedOnes()
@@ -596,6 +784,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("estimateVatPercent", details.VatPercent.ToString(CultureInfo.InvariantCulture)),
             new("estimateNotes", details.Notes ?? string.Empty),
         };
+        fields.AddRange(HeaderFields(details.VatPolicy, details.AppliedDiscounts));
         foreach (var line in seeded.Lines.OrderBy(line => line.Position))
         {
             // Only the first line's amount moves; every other posted value is
@@ -644,7 +833,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(SeededAmendedBy, untouched.AmendedBy);
         Assert.Equal(SeededAmendedAtUtc, untouched.AmendedAtUtc);
 
-        // The header facts the editor never renders survive the round trip.
+        // The header facts survive the round trip: the discounts and the VAT
+        // policy the editor posted back unchanged, and the rate card it never
+        // renders at all.
         Assert.Equal(details.Discounts, reloaded.Details.Discounts);
         Assert.Equal(details.Vat, reloaded.Details.Vat);
         Assert.Equal(details.Rate, reloaded.Details.Rate);
@@ -739,7 +930,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         null,
         null,
         null,
-        new("Estimate 1", null, null, null, null, 20m, null));
+        new("Estimate 1", null, null, null, null, 20m, null,
+            Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
 
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory, RecordingStores store) =>
@@ -830,6 +1022,34 @@ public sealed partial class AssessmentEstimateImportWebTests
         values.Select(value => new KeyValuePair<string, string>(value.Name, value.Value));
 
     private static string NewOperationKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// The estimate header's VAT policy and discounts as the browser posts
+    /// them (B08): each category box carries the hidden false companion that
+    /// makes an unchecked box submit, and a discount is a percentage.
+    /// </summary>
+    private static IEnumerable<KeyValuePair<string, string>> HeaderFields(
+        EstimateVatPolicy vat, EstimateDiscounts discounts)
+    {
+        yield return new("estimateVatStatus", vat.RepairerStatus.ToString());
+        foreach (var category in CaseWorkspaceLabels.EstimateVat.Categories)
+        {
+            if (vat.Charges(category))
+            {
+                yield return new(DetailsModel.VatCategoryField(category), "true");
+            }
+
+            yield return new(DetailsModel.VatCategoryField(category), "false");
+        }
+
+        yield return new("estimateDiscountParts", PercentField(discounts.Parts));
+        yield return new("estimateDiscountMaterials", PercentField(discounts.Materials));
+        yield return new("estimateDiscountSpecialist", PercentField(discounts.Specialist));
+        yield return new("estimateDiscountOverall", PercentField(discounts.Overall));
+    }
+
+    private static string PercentField(decimal fraction) =>
+        (fraction * 100m).ToString(CultureInfo.InvariantCulture);
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {

@@ -330,7 +330,7 @@ public sealed class AssessmentReportRenderingTests
                 Line(2, "new_part", "Door skin", workUnits: null, price: 50m),
             ],
             null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
-            new EstimateDetails("Repairer", null, 30m, 20m, 5m, vatPercent, null),
+            new EstimateDetails("Repairer", null, 30m, 20m, 5m, vatPercent, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             IsCurrent: true));
 
     private static CaseEstimateLineRecord Line(

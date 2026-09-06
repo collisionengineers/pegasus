@@ -104,10 +104,11 @@ public sealed record EstimateRateSnapshot(
 /// <remarks>
 /// D9 reconciliation: the B04 plan writes VAT as 20 %, this repository keeps
 /// the free per-estimate percentage and computes VAT as
-/// <c>Taxable × VatPercent / 100</c>. An estimate that records no
-/// <see cref="Vat"/> policy is read at its own percentage over every
-/// category, and its repairer status is read from that percentage — the one
-/// rule that <c>BasisFor</c> used to apply on its own.
+/// <c>Taxable × VatPercent / 100</c>. The percentage never states a
+/// repairer's VAT position: an estimate that records no <see cref="Vat"/>
+/// policy stands on <see cref="RepairerVatStatus.Unknown"/> and charges VAT
+/// on nothing until an Engineer records the status or selects the
+/// categories, which is also what blocks it from being made Current.
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,
@@ -126,8 +127,7 @@ public sealed record EstimateDetails(
 
     public EstimateDiscounts AppliedDiscounts => Discounts ?? EstimateDiscounts.None;
 
-    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(
-        VatPercent > 0 ? RepairerVatStatus.Registered : RepairerVatStatus.NotRegistered);
+    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
 }
 
 /// <summary>

@@ -219,7 +219,7 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void TheCurrentEstimateSuppliesTheCanonicalBreakdownAndTheLists()
     {
-        var estimate = CurrentEstimate(new("Repairer", 2, 45m, 60m, 15m, 5m, null));
+        var estimate = CurrentEstimate(new("Repairer", 2, 45m, 60m, 15m, 5m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
         var input = ReadyInput() with { CurrentEstimate = estimate };
 
         var result = AssessmentReportProjection.Project(input);
@@ -297,7 +297,8 @@ public sealed class AssessmentReportProjectionTests
         var costs = AssessmentReportProjection
             .Project(ReadyInput() with
             {
-                CurrentEstimate = CurrentEstimate(new("Repairer", 2, 45m, 60m, 15m, 20m, null)),
+                CurrentEstimate = CurrentEstimate(
+                    new("Repairer", 2, 45m, 60m, 15m, 20m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered))),
             })
             .Snapshot!.Costs;
 
@@ -459,7 +460,8 @@ public sealed class AssessmentReportProjectionTests
             Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null },
         ],
         null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
-        new EstimateDetails("Repairer", null, 30m, 20m, 5m, 20m, null), IsCurrent: true);
+        new EstimateDetails("Repairer", null, 30m, 20m, 5m, 20m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+        IsCurrent: true);
 
     private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details) => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
