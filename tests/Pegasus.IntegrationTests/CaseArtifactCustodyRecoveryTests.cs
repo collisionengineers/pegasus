@@ -42,7 +42,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         }
         await using var scope = database.CreateAsyncScope();
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var artifacts = new CountingArtifactStore();
+        var artifacts = new CountingArtifactStore("abc"u8.ToArray());
         var reader = new LocalLogicalDocumentVersionReader(
             factory,
             new FailFirstContentStore(),
@@ -64,6 +64,25 @@ public sealed class CaseArtifactCustodyRecoveryTests
             CancellationToken.None));
 
         Assert.Equal(0, artifacts.ReadCount);
+
+        var worker = ActionActor.SystemWorker("intake-processing");
+        await using (var content = await reader.OpenAsync(
+            new(worker, null, null, assetId, caseId, receiptId, hash, 3),
+            CancellationToken.None))
+        {
+            var bytes = new byte[3];
+            await content.Content.ReadExactlyAsync(bytes);
+            Assert.Equal("abc"u8.ToArray(), bytes);
+        }
+        Assert.Equal(1, artifacts.ReadCount);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => reader.OpenAsync(
+            new(worker, null, null, assetId, Guid.NewGuid(), receiptId, hash, 3),
+            CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => reader.OpenAsync(
+            new(ActionActor.RequestLink(Guid.NewGuid()), null, null, assetId, caseId, receiptId, hash, 3),
+            CancellationToken.None));
+        Assert.Equal(1, artifacts.ReadCount);
     }
 
     [Fact]
@@ -616,7 +635,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new InvalidOperationException("A failed save must not delete remote content.");
     }
 
-    private sealed class CountingArtifactStore : IIntakeArtifactStore
+    private sealed class CountingArtifactStore(ReadOnlyMemory<byte>? content = null) : IIntakeArtifactStore
     {
         public int ReadCount { get; private set; }
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
@@ -624,7 +643,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken)
         {
             ReadCount++;
-            return Task.FromResult<ReadOnlyMemory<byte>?>(null);
+            return Task.FromResult(content);
         }
     }
 

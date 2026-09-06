@@ -64,21 +64,26 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
-    public async Task ColdExactVersionBecomesWarmAndSuccessfulAccessExtendsIdleExpiry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ColdExactVersionBecomesWarmAndSuccessfulAccessExtendsIdleExpiry(bool systemWorker)
     {
         var bytes = "cached exact version"u8.ToArray();
         var estate = await Estate.CreateAsync(bytes);
         await using (estate)
         {
-            await using var cold = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+            var request = systemWorker
+                ? estate.Request with { Actor = ActionActor.SystemWorker("intake-processing") }
+                : estate.Request;
+            await using var cold = await estate.Reader.OpenAsync(request, CancellationToken.None);
             Assert.Equal(bytes, await ReadAsync(cold.Content));
             Assert.Equal(1, estate.Box.Downloads);
             Assert.Equal("box-version-1", estate.Box.RequestedVersion);
 
             estate.Clock.Advance(TimeSpan.FromHours(5));
             estate.Box.Unavailable = true;
-            await using var warm = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+            await using var warm = await estate.Reader.OpenAsync(request, CancellationToken.None);
             Assert.Equal(bytes, await ReadAsync(warm.Content));
             Assert.Equal(1, estate.Box.Downloads);
             await using var db = await estate.Database.CreateContextAsync();
