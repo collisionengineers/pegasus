@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -15,6 +15,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
@@ -33,6 +34,12 @@ public sealed partial class DetailsModel(
     ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
+    IGenerateCaseReport generateReport,
+    IGeneratedCaseArtifactStore generatedArtifacts,
+    ICaseReportGenerationStore reportGenerations,
+    IPrepareCaseReportDelivery prepareReportDelivery,
+    ISendPreparedCaseReport sendPreparedReport,
+    ICaseReportDeliveryPreparationStore deliveryPreparations,
     IListCaseEstimates listEstimates,
     ISaveEstimate saveEstimate,
     IDuplicateEstimate duplicateEstimate,
@@ -346,6 +353,20 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<AssessmentReadinessItem> ReportDraftReasons =>
         ReportDraftPreparation?.Reasons ?? [];
 
+    /// <summary>
+    /// The Case's current generated report snapshot (B05): the newest
+    /// generation that no later material change has superseded, with every
+    /// artifact it was asked for. Null until the first generation.
+    /// </summary>
+    public CaseReportGenerationRecord? CurrentReportGeneration { get; private set; }
+
+    /// <summary>
+    /// The current generation's latest delivery preparation (B07), if one
+    /// exists. Recipient facts are read from the structured contacts; the
+    /// operator never types an address into the Report section.
+    /// </summary>
+    public CaseReportDeliveryPreparationRecord? CurrentDeliveryPreparation { get; private set; }
+
     public string? OpenDialog { get; private set; }
 
     public string ImportOperationKey { get; private set; } = NewOperationKey();
@@ -361,6 +382,12 @@ public sealed partial class DetailsModel(
     public string SendOperationKey { get; private set; } = NewOperationKey();
 
     public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
+
+    public string GenerateReportOperationKey { get; private set; } = NewOperationKey();
+
+    public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
+
+    public string SendPreparedReportOperationKey { get; private set; } = NewOperationKey();
 
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -487,6 +514,10 @@ public sealed partial class DetailsModel(
         ReportDraftPreparation = AssessmentReportProjection.Prepare(
             Assessment,
             currentEstimate: AcceptedSpecification);
+        CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, cancellationToken);
+        CurrentDeliveryPreparation = CurrentReportGeneration is null
+            ? null
+            : await deliveryPreparations.GetCurrentAsync(actor, id, cancellationToken);
         await EvaluateEngineerSectionConditionsAsync(cancellationToken);
         OpenDialog = dialog switch
         {
@@ -913,6 +944,295 @@ public sealed partial class DetailsModel(
             _ => File(result.Draft!.Pdf, "application/pdf"),
         };
     }
+
+    /// <summary>
+    /// B05's immutable generation: freezes the accepted snapshot inside the
+    /// store's short transaction and renders through the registered
+    /// renderer, one artifact per request. The draft handlers above stay for
+    /// the labelled ungenerated working preview; this is the real report.
+    /// </summary>
+    public Task<IActionResult> OnPostGenerateReportAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+
+    public Task<IActionResult> OnPostGenerateFeeNoteAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, CaseReportArtifactKind.FeeNote, cancellationToken);
+
+    private async Task<IActionResult> GenerateArtifactAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CaseReportArtifactKind kind,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        CaseReportGenerationResult result;
+        try
+        {
+            result = await generateReport.ExecuteAsync(
+                new(
+                    actor,
+                    id,
+                    currentCaseVersion,
+                    editLeaseToken!,
+                    operationKey,
+                    kind,
+                    kind == CaseReportArtifactKind.AssessmentReport
+                        ? "Generate the immutable case report"
+                        : "Generate the immutable fee note"),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or IOException
+            or TimeoutException
+            or ReportRenderRejectedException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception,
+                "The artifact could not be generated. Retry the operation.");
+            return RedirectToReport(id);
+        }
+
+        switch (result.Outcome)
+        {
+            case CaseReportGenerationOutcome.NotFound:
+                return NotFound();
+            case CaseReportGenerationOutcome.NotReady:
+                TempData["CaseError"] = string.Join(
+                    " ",
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationNotReady + ":",
+                    string.Join("; ", result.Reasons.Select(reason =>
+                        $"{reason.Requirement}: {reason.WhyOutstanding}")));
+                return RedirectToReport(id);
+            case CaseReportGenerationOutcome.Pending:
+                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
+                return RedirectToReport(id);
+            case CaseReportGenerationOutcome.Failed:
+                TempData["CaseError"] =
+                    "The artifact could not be generated. Retry the operation.";
+                return RedirectToReport(id);
+            default:
+                ClearLeaseState();
+                TempData["CaseStatus"] = kind == CaseReportArtifactKind.AssessmentReport
+                    ? Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated
+                    : Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteGenerated;
+                return RedirectToReport(id);
+        }
+    }
+
+    /// <summary>
+    /// Reopens a confirmed artifact's immutable bytes — never a regeneration
+    /// and never a Pending, Failed or Unknown artifact (the store refuses
+    /// those; the page does not decide).
+    /// </summary>
+    public async Task<IActionResult> OnGetGeneratedArtifactAsync(
+        Guid id,
+        Guid generationId,
+        Guid artifactId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var content = await generatedArtifacts.OpenAsync(
+            actor, id, generationId, artifactId, cancellationToken);
+        await using (content)
+        {
+            return File(content.Content, content.MediaType, content.FileName);
+        }
+    }
+
+    /// <summary>
+    /// B07 delivery preparation: pins the current generation's confirmed
+    /// artifacts and the addressing resolved from the Case's structured
+    /// contacts. Nothing is sent and no Sent state is claimed here.
+    /// </summary>
+    public async Task<IActionResult> OnPostPrepareReportDeliveryAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid generationId,
+        long expectedGenerationVersion,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await prepareReportDelivery.ExecuteAsync(
+                new(
+                    actor,
+                    id,
+                    currentCaseVersion,
+                    editLeaseToken!,
+                    generationId,
+                    expectedGenerationVersion,
+                    operationKey),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception,
+                "The report delivery could not be prepared. Retry the operation.");
+            return RedirectToReport(id);
+        }
+
+        ClearLeaseState();
+        TempData["CaseStatus"] =
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DeliveryPrepared + ".";
+        return RedirectToReport(id);
+    }
+
+    /// <summary>
+    /// The one page caller of A's staff send transport. It presents the
+    /// preparation's exact version; the send boundary re-checks recipients,
+    /// freshness and attachment hashes, and A's returned state is reported
+    /// as-is — an Unknown outcome never claims a Sent fact.
+    /// </summary>
+    public async Task<IActionResult> OnPostSendPreparedReportAsync(
+        Guid id,
+        string operationKey,
+        Guid preparationId,
+        long expectedPreparationVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToReport(id);
+        }
+
+        StaffMailOperation operation;
+        try
+        {
+            operation = await sendPreparedReport.ExecuteAsync(
+                new(actor, id, preparationId, expectedPreparationVersion, operationKey),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception,
+                "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
+            return RedirectToReport(id);
+        }
+
+        TempData["CaseStatus"] = operation.State switch
+        {
+            StaffMailState.Failed => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendFailed,
+            StaffMailState.Unknown => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown,
+            _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted,
+        };
+        return RedirectToReport(id);
+    }
+
+    /// <summary>
+    /// The Report-section mutation guard: the estimate guard's rules
+    /// (Engineer, writable case, valid form, live lease, current version)
+    /// with the Report section's redirect target.
+    /// </summary>
+    private async Task<IActionResult?> GuardReportCommandAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true)
+        {
+            return NotFound();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["CaseError"] = "Only an Engineer can generate or deliver reports.";
+            return RedirectToReport(id);
+        }
+        if (access.IsReadOnly)
+        {
+            TempData["CaseError"] = "The case is read-only once Complete.";
+            return RedirectToReport(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToReport(id);
+        }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["CaseError"] = NotInEditMode;
+            return RedirectToReport(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        currentCaseVersion = details.Workflow.Version;
+        return null;
+    }
+
+    private RedirectToPageResult RedirectToReport(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "report" });
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(
         Guid id,
