@@ -87,23 +87,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         VehicleLookupObservations
         VehicleLookupRequests
         WorkflowConfigurations
-        AppliedValuationSnapshots
-        CaseReportDeliveryIntents
-        CaseReportGenerations
-        ClaimSources
-        DocumentContentCacheEntries
-        GeneratedCaseArtifacts
-        GlassRepairEstimateSessions
-        IntakeOcrOperations
-        IntakeSourceCandidates
-        OrganizationDirectoryEntries
-        PublicUploadOccurrences
-        PublicUploadSessions
-        RetainedInstructionAnalyses
-        StaffMailSendOperations
-        TriageSequences
-        UserExternalCredentials
-        ValuationPresets
         """;
 
     private const string ExpectedWebGrantSpec = """
@@ -175,23 +158,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         VehicleLookupObservations:SELECT
         VehicleLookupRequests:SELECT,INSERT
         WorkflowConfigurations:SELECT,UPDATE
-        AppliedValuationSnapshots:SELECT,INSERT
-        CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
-        CaseReportGenerations:SELECT,INSERT
-        ClaimSources:SELECT,INSERT,UPDATE
-        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
-        GeneratedCaseArtifacts:SELECT,INSERT
-        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
-        IntakeOcrOperations:SELECT
-        IntakeSourceCandidates:SELECT
-        OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
-        PublicUploadOccurrences:SELECT,INSERT
-        PublicUploadSessions:SELECT,INSERT,UPDATE
-        RetainedInstructionAnalyses:SELECT
-        StaffMailSendOperations:SELECT,INSERT,UPDATE
-        TriageSequences:SELECT,INSERT,UPDATE
-        UserExternalCredentials:SELECT,INSERT,UPDATE
-        ValuationPresets:SELECT,INSERT,UPDATE
         """;
 
     private const string ExpectedWorkerGrantSpec = """
@@ -214,7 +180,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         EmailResponseEvidence:SELECT,INSERT
         ExternalWorkItems:SELECT,UPDATE
         InstructionDrafts:SELECT,INSERT,UPDATE
-        IntakeAssets:SELECT,INSERT,UPDATE
+        IntakeAssets:SELECT,INSERT
         IntakeEvaluations:SELECT,INSERT
         IntakeMailRouteDecisions:SELECT,INSERT,UPDATE
         IntakeManualAssociations:SELECT
@@ -232,12 +198,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         TriageResponseEvidenceLinks:SELECT,INSERT
         VehicleLookupObservations:INSERT
         VehicleLookupRequests:SELECT
-        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
-        IntakeOcrOperations:SELECT,INSERT,UPDATE
-        IntakeSourceCandidates:SELECT,INSERT
-        RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
-        StaffMailSendOperations:SELECT,INSERT,UPDATE
-        TriageSequences:SELECT,INSERT,UPDATE
         """;
 
     private const string ExpectedWebDeleteTableSpec = """
@@ -245,6 +205,55 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         CaseDataFields
         OrganizationRoles
         TriageResponseEvidenceLinks
+        """;
+
+    private const string FoundationTableSpec = """
+        AppliedValuationSnapshots
+        CaseReportDeliveryIntents
+        CaseReportGenerations
+        ClaimSources
+        DocumentContentCacheEntries
+        GeneratedCaseArtifacts
+        GlassRepairEstimateSessions
+        IntakeOcrOperations
+        IntakeSourceCandidates
+        OrganizationDirectoryEntries
+        PublicUploadOccurrences
+        PublicUploadSessions
+        RetainedInstructionAnalyses
+        StaffMailSendOperations
+        TriageSequences
+        UserExternalCredentials
+        ValuationPresets
+        """;
+
+    private const string FoundationWebGrantSpec = """
+        AppliedValuationSnapshots:SELECT,INSERT
+        CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
+        CaseReportGenerations:SELECT,INSERT
+        ClaimSources:SELECT,INSERT,UPDATE
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        GeneratedCaseArtifacts:SELECT,INSERT
+        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
+        IntakeOcrOperations:SELECT
+        IntakeSourceCandidates:SELECT
+        OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
+        PublicUploadOccurrences:SELECT,INSERT
+        PublicUploadSessions:SELECT,INSERT,UPDATE
+        RetainedInstructionAnalyses:SELECT
+        StaffMailSendOperations:SELECT,INSERT,UPDATE
+        TriageSequences:SELECT,INSERT,UPDATE
+        UserExternalCredentials:SELECT,INSERT,UPDATE
+        ValuationPresets:SELECT,INSERT,UPDATE
+        """;
+
+    private const string FoundationWorkerGrantSpec = """
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        IntakeOcrOperations:SELECT,INSERT,UPDATE
+        IntakeSourceCandidates:SELECT,INSERT
+        RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
+        StaffMailSendOperations:SELECT,INSERT,UPDATE
+        TriageSequences:SELECT,INSERT,UPDATE
         """;
 
     [Fact]
@@ -564,6 +573,45 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                  OR permission.[state] NOT IN ('G', 'D')
                  OR (permission.[state] = 'D' AND permission.permission_name <> N'DELETE'))
             """));
+    }
+
+    [Fact]
+    public async Task LatestMigrationGivesFoundationTablesTheirExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var tables = ParseLines(FoundationTableSpec);
+        Assert.Equal(
+            tables,
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT name
+                FROM sys.tables
+                WHERE name IN ({string.Join(", ", tables.Select(table => $"N'{table}'"))})
+                """));
+        Assert.Equal(
+            ParseGrantSpec(FoundationWebGrantSpec),
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => tables.Any(table => value.StartsWith($"{table}:", StringComparison.Ordinal)))
+                .ToArray());
+        Assert.Equal(
+            ParseGrantSpec(FoundationWorkerGrantSpec)
+                .Append("IntakeAssets:UPDATE")
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToArray(),
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value == "IntakeAssets:UPDATE"
+                    || tables.Any(table => value.StartsWith($"{table}:", StringComparison.Ordinal)))
+                .ToArray());
+        foreach (var role in new[] { WebRole, WorkerRole })
+        {
+            Assert.Equal(tables, (await ReadDeniedDeleteTablesAsync(database, role))
+                .Where(tables.Contains)
+                .ToArray());
+        }
     }
 
     [Fact]
