@@ -45,7 +45,7 @@ public sealed partial class TestUiSnapshotTests
                 "<p>No mail has been received.</p>", "status--red\">Unavailable<"),
             ["inbox--unavailable"] = new(">Unavailable<"),
             ["inbox--default"] = new("<h1>Inbox</h1>"),
-            ["operations--partial-data"] = new(">Service health</strong>"),
+            ["operations--partial-data"] = new(">Partial data</strong>"),
             ["operations--empty"] = new(">No retryable external work<"),
             ["queues--empty"] = new("class=\"muted\">0 items</span>"),
             ["upload--validation"] = new("validation-summary-errors"),
