@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
@@ -20,6 +21,8 @@ public sealed class EfOrganizationAdministration(
     private const string UpdateOrganizationRolesKind = "update_organization_roles";
     private const string CreatePrincipalKind = "create_principal";
     private const string UpdatePrincipalEvaSubmissionKind = "update_principal_eva_submission";
+    private const string UpdatePrincipalDefaultInspectionLocationKind =
+        "update_principal_default_inspection_location";
     private const string ReplacePrincipalKind = "replace_principal";
     private const string PolicyVersion = "organization-principal-administration/v1";
     private const int MaximumProjectedPrincipals = 100;
@@ -64,6 +67,13 @@ public sealed class EfOrganizationAdministration(
         CancellationToken cancellationToken) =>
         ExecuteWithConcurrencyRetryAsync(
             token => UpdatePrincipalEvaSubmissionOnceAsync(request, token),
+            cancellationToken);
+
+    public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
+        UpdatePrincipalDefaultInspectionLocationRequest request,
+        CancellationToken cancellationToken) =>
+        ExecuteWithConcurrencyRetryAsync(
+            token => UpdatePrincipalDefaultInspectionLocationOnceAsync(request, token),
             cancellationToken);
 
     private async Task<Organization> CreateOrganizationOnceAsync(
@@ -239,8 +249,7 @@ public sealed class EfOrganizationAdministration(
             request.OrganizationId,
             request.Code,
             inspectionMode = ProviderInspectionModePolicy.ToCode(request.InspectionMode),
-            request.EvaManualSubmission,
-            request.EvaAutomaticSubmission
+            request.EvaManualSubmission
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -273,8 +282,7 @@ public sealed class EfOrganizationAdministration(
             request.Code,
             codeAlreadyExists,
             request.InspectionMode,
-            request.EvaManualSubmission,
-            request.EvaAutomaticSubmission);
+            request.EvaManualSubmission);
         var lineage = new PrincipalSequenceLineageEntity
         {
             Id = lineageId,
@@ -345,7 +353,6 @@ public sealed class EfOrganizationAdministration(
             request.PrincipalId,
             request.ExpectedVersion,
             request.EvaManualSubmission,
-            request.EvaAutomaticSubmission,
             request.Reason
         });
 
@@ -371,8 +378,7 @@ public sealed class EfOrganizationAdministration(
         var result = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
             before,
             request.ExpectedVersion,
-            request.EvaManualSubmission,
-            request.EvaAutomaticSubmission);
+            request.EvaManualSubmission);
 
         entity.EvaManualSubmission = result.EvaManualSubmission;
         entity.EvaAutomaticSubmission = result.EvaAutomaticSubmission;
@@ -397,6 +403,104 @@ public sealed class EfOrganizationAdministration(
             request.Reason,
             before,
             result);
+        await SaveChangesAsync(context, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// EXT-18/S05 item 6: the principal's one default inspection-location
+    /// choice. Writes only the directory-facing summary columns F/G1 added to
+    /// <see cref="PrincipalEntity"/> — the shared <see cref="Principal"/>
+    /// record and B's separate CE assessment method are untouched.
+    /// </summary>
+    private async Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationOnceAsync(
+        UpdatePrincipalDefaultInspectionLocationRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var requestHash = HashRequest(new
+        {
+            command = UpdatePrincipalDefaultInspectionLocationKind,
+            actor = ActorMaterial(request.Actor),
+            request.PrincipalId,
+            request.ExpectedVersion,
+            kind = request.Kind.ToString(),
+            request.Label,
+            request.Address,
+            request.Postcode,
+            request.SourceKind,
+            request.SourceRecordId,
+            request.SourceVersion,
+            request.Reason
+        });
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
+        if (receipt is not null)
+        {
+            var replay = ReadReplay<PrincipalAdministrationSummary>(
+                receipt,
+                UpdatePrincipalDefaultInspectionLocationKind,
+                requestHash);
+            await transaction.CommitAsync(cancellationToken);
+            return replay;
+        }
+
+        var entity = await context.Principals
+            .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
+            ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        if (entity.Version != request.ExpectedVersion)
+        {
+            throw Error(OrganizationAdministrationError.StaleVersion);
+        }
+        if (!entity.IsActive)
+        {
+            throw Error(OrganizationAdministrationError.PrincipalInactive);
+        }
+
+        var isImageBased = request.Kind == InspectionAddressEvidenceKind.ImageBasedAssessment;
+        var changed = entity.DefaultInspectionLocationLabel != request.Label
+            || entity.DefaultInspectionAddress != (isImageBased ? null : request.Address)
+            || entity.DefaultInspectionPostcode != request.Postcode
+            || entity.DefaultInspectionSourceKind != request.SourceKind
+            || entity.DefaultInspectionSourceRecordId != request.SourceRecordId?.ToString("D")
+            || entity.DefaultInspectionSourceVersion != request.SourceVersion;
+
+        entity.DefaultInspectionLocationLabel = request.Label;
+        entity.DefaultInspectionAddress = isImageBased ? null : request.Address;
+        entity.DefaultInspectionPostcode = request.Postcode;
+        entity.DefaultInspectionSourceKind = request.SourceKind;
+        entity.DefaultInspectionSourceRecordId = request.SourceRecordId?.ToString("D");
+        entity.DefaultInspectionSourceVersion = request.SourceVersion;
+        entity.Version = changed ? checked(entity.Version + 1) : entity.Version;
+
+        var allocatedCaseCount = await context.Cases
+            .AsNoTracking()
+            .CountAsync(item => item.PrincipalId == entity.Id, cancellationToken);
+        var result = ToSummary(entity, allocatedCaseCount);
+        var now = _timeProvider.GetUtcNow();
+        AddReceipt(
+            context,
+            request.OperationKey,
+            UpdatePrincipalDefaultInspectionLocationKind,
+            requestHash,
+            result,
+            now);
+        AddHistory(
+            context,
+            "principal",
+            entity.Id,
+            "principal_default_inspection_location_updated",
+            request.Actor,
+            request.OperationKey,
+            now,
+            request.Reason,
+            before: null,
+            after: result);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -553,7 +657,12 @@ public sealed class EfOrganizationAdministration(
                         0,
                         principal.InspectionMode,
                         principal.EvaManualSubmission,
-                        principal.EvaAutomaticSubmission))
+                        principal.DefaultInspectionLocationLabel,
+                        principal.DefaultInspectionAddress,
+                        principal.DefaultInspectionPostcode,
+                        principal.DefaultInspectionSourceKind,
+                        principal.DefaultInspectionSourceRecordId,
+                        principal.DefaultInspectionSourceVersion))
                     .ToArray()))
             .ToArrayAsync(cancellationToken);
 
@@ -642,7 +751,12 @@ public sealed class EfOrganizationAdministration(
                         principal.Cases.Count,
                         principal.InspectionMode,
                         principal.EvaManualSubmission,
-                        principal.EvaAutomaticSubmission))
+                        principal.DefaultInspectionLocationLabel,
+                        principal.DefaultInspectionAddress,
+                        principal.DefaultInspectionPostcode,
+                        principal.DefaultInspectionSourceKind,
+                        principal.DefaultInspectionSourceRecordId,
+                        principal.DefaultInspectionSourceVersion))
                     .ToArray()))
             .SingleOrDefaultAsync(cancellationToken);
         if (row is null)
@@ -668,6 +782,30 @@ public sealed class EfOrganizationAdministration(
             row.Principals.Take(MaximumProjectedPrincipals).Select(ToSummary).ToArray(),
             row.Principals.Length > MaximumProjectedPrincipals);
 
+    private static PrincipalAdministrationSummary ToSummary(
+        PrincipalEntity entity,
+        int allocatedCaseCount) =>
+        new(
+            entity.Id,
+            entity.OrganizationId,
+            entity.Code,
+            entity.SequenceLineageId,
+            entity.PredecessorId,
+            entity.SuccessorId,
+            entity.IsActive,
+            entity.Version,
+            allocatedCaseCount,
+            ProviderInspectionModePolicy.Parse(entity.InspectionMode),
+            entity.EvaManualSubmission,
+            entity.DefaultInspectionLocationLabel,
+            entity.DefaultInspectionAddress,
+            entity.DefaultInspectionPostcode,
+            entity.DefaultInspectionSourceKind,
+            entity.DefaultInspectionSourceRecordId is { Length: > 0 } sourceRecordId
+                ? Guid.Parse(sourceRecordId)
+                : null,
+            entity.DefaultInspectionSourceVersion);
+
     private static PrincipalAdministrationSummary ToSummary(PrincipalProjection row) =>
         new(
             row.Id,
@@ -681,7 +819,14 @@ public sealed class EfOrganizationAdministration(
             row.AllocatedCaseCount,
             ProviderInspectionModePolicy.Parse(row.InspectionMode),
             row.EvaManualSubmission,
-            row.EvaAutomaticSubmission);
+            row.DefaultInspectionLocationLabel,
+            row.DefaultInspectionAddress,
+            row.DefaultInspectionPostcode,
+            row.DefaultInspectionSourceKind,
+            row.DefaultInspectionSourceRecordId is { Length: > 0 } sourceRecordId
+                ? Guid.Parse(sourceRecordId)
+                : null,
+            row.DefaultInspectionSourceVersion);
 
     private static Organization ToOrganization(OrganizationEntity entity) =>
         new(
@@ -957,5 +1102,10 @@ public sealed class EfOrganizationAdministration(
         int AllocatedCaseCount,
         string InspectionMode,
         bool EvaManualSubmission,
-        bool EvaAutomaticSubmission);
+        string? DefaultInspectionLocationLabel,
+        string? DefaultInspectionAddress,
+        string? DefaultInspectionPostcode,
+        string? DefaultInspectionSourceKind,
+        string? DefaultInspectionSourceRecordId,
+        long? DefaultInspectionSourceVersion);
 }
