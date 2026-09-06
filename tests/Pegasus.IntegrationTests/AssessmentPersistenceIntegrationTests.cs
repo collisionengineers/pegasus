@@ -379,8 +379,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["assessment.category"] = "S",
                     ["assessment.salvage_value"] = "1500.00",
                     ["assessment.values.retail"] = "12000",
-                    ["assessment.values.trade"] = "10500",
-                    ["assessment.values.engineer"] = "12000"
+                    ["assessment.values.trade"] = "10500"
+                    // assessment.values.engineer is deliberately absent: the
+                    // Engineer's Value is adopted only by the valuation Apply
+                    // command (B03/AUTO-015), and a field save that posted it
+                    // is now refused rather than recorded.
                 },
                 [
                     new("repair", null, "Repair nearside door", 3.5m, null, false, null, null,
@@ -723,7 +726,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairSpecificationState.Accepted, currentA.State);
         Assert.True(currentA.IsCurrent);
         var totalsA = EstimateTotals.Compute(currentA);
-        Assert.Equal(220.40m + 100m + 70m, totalsA.Subtotal);
+        // The canonical B04 arithmetic: the one 40.00 hourly rate prices
+        // panel (2.5h = 100.00) and paint (1.5h = 60.00) alike — the
+        // separate paint rate is gone — and the estimate-level paint
+        // materials (25.00) join Materials.
+        Assert.Equal(220.40m + 100m + 60m + 25m, totalsA.Subtotal);
         Assert.Equal(totalsA.Total, currentA.CalculationBasis!.Total);
         Assert.Equal(totalsA.Vat, currentA.CalculationBasis.Vat);
         Assert.Equal(currentA.SpecificationId,

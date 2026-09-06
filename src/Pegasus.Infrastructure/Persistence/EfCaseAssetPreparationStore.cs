@@ -90,6 +90,11 @@ public sealed class EfCaseAssetPreparationStore(
             Serialize(result),
             now);
         CaseMutationGuard.Complete(workflow);
+        // Prepared image role, order, rotation and crop are frozen report
+        // inputs: this edit stales the Case's current generation in the same
+        // transaction.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context, request.CaseId, "asset_preparation_changed", now, cancellationToken);
 
         try
         {
@@ -229,6 +234,11 @@ public sealed class EfCaseAssetPreparationStore(
             Serialize(result),
             now);
         CaseMutationGuard.Complete(workflow);
+        // A reset changes the presentation a frozen report pinned just as a
+        // save does; the current generation goes stale in the same
+        // transaction.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context, request.CaseId, "asset_preparation_changed", now, cancellationToken);
 
         try
         {
