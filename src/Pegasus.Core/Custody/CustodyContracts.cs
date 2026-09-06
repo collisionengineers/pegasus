@@ -717,9 +717,21 @@ public sealed record CaseArtifactCustodyRequest(
 public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,
-    string? MediaType, string? FailureCode);
+    string? MediaType, string? FailureCode, string? PendingContentStorageKey);
 public interface ICaseArtifactCustody
 {
     Task<CaseArtifactCustodyResult> RetainAsync(
         CaseArtifactCustodyRequest request, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Reads the durable state of an exact Case artifact version. A pending result
+/// retains its logical identities so callers can retry after process restart.
+/// This is custody state, not report readiness or permission to send.
+/// </summary>
+public interface ICaseArtifactCustodyStatus
+{
+    Task<CaseArtifactCustodyResult> GetAsync(
+        ActionActor actor, Guid caseId, Guid documentId, Guid versionId,
+        CancellationToken cancellationToken);
 }
