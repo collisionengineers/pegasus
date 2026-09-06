@@ -252,3 +252,7 @@ R-10 (finding filed against an issuer row with an empty label for scan-only sour
 ## Wave 21 (C07 caller `3c0e1931c`): C lanes green, architecture red
 
 Build 0/0, core 16/16, integration 58/59 (+1 skip), a-owned 1/5 (A's seeded-QDOS duplicate only). Architecture 99/100: `CoreHasNoInfrastructureOrHostDependencies` — the correction's `exception is HttpRequestException` in `RetainIncomingArtifact.cs` (`05d9a0e49`) makes Core reference `System.Net.Http`. C07 caller round 2 queued (drop the transport-type test from Core). Wave 22 (C05 `b506c3b8d`) + re-review running. Editors: C06 r3, C08 r1.
+
+## Wave 22 (C05 `b506c3b8d`): 2 failures remain
+
+Build/core 29/architecture PASS; corpus 12/13 — the new `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate` finds a JohnRBell `identity.issuer` row (Disposition Missing) with no source label; web 9/15 — `ReprocessingTheSameRetainedBytes…` sees 1 outcome where 2 are expected (the driven re-evaluation pass still emits none). Re-review in progress will bind the causes; C05 round 3 queued with C07 caller round 2 behind the two active editors (C06 r3, C08 r1).
