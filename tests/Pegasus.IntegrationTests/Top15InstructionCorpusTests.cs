@@ -98,6 +98,17 @@ public sealed class Top15InstructionCorpusTests
         string? InspectionLocation,
         string Circumstances);
 
+    private sealed record QclExpectation(
+        string PackRelativePath,
+        string Sha256,
+        string Claimant,
+        string Reference,
+        string Registration,
+        string Vehicle,
+        DateOnly IncidentDate,
+        DateOnly InstructionDate,
+        string Location);
+
     private const string CorpusRoot = "principal-docs/original-mapper-instruction-corpus";
 
     /// <summary>
@@ -301,6 +312,40 @@ public sealed class Top15InstructionCorpusTests
                 new("Claimant name", "Asaad", "Third Party Name."),
                 new("Vehicle registration", "AP10FBF", "Third Party Reg."),
                 new("Vehicle make", "Toyota VERSO", "The third party's vehicle.")
+            ]),
+        new(
+            "QCL",
+            $"{CorpusRoot}/QCL 01.docx",
+            "cb6b0f120d2e8d06a2e79e0b97f6326ab12395a1c9cfc60cc3f8ad6e1744bac7",
+            new("Mr Hamza Ahmad", "225880.TA", "AY19LTW", new(2026, 5, 4), new(2026, 5, 6)),
+            [
+                new("Claimant name", "Complex Reports", "The intermediary named in the address block.")
+            ]),
+        new(
+            "QCL",
+            $"{CorpusRoot}/QCL 02.docx",
+            "94f1c9c9af4881d20a18a6ba3819970273dc1c66ebe71b18f8d29ed6807131c7",
+            new("Mr Masroor Amjad", "225882.TA", "SC67LBV", new(2026, 4, 29), new(2026, 5, 5)),
+            [new("Claimant name", "Complex Reports", "The intermediary named in the address block.")]),
+        new(
+            "QCL",
+            $"{CorpusRoot}/QCL 03.docx",
+            "a0cc054eb8060172428cad0cc8621cd019c45efa929fb453d42960782dbff474",
+            new("Mr Syed Azhar Hussain", "225873.TA", "LY63XKP", new(2026, 4, 30), new(2026, 5, 1)),
+            [new("Claimant name", "Complex Reports", "The intermediary named in the address block.")]),
+        new(
+            "QCL",
+            $"{CorpusRoot}/QCL 04.docx",
+            "e37143b3f73ada187db9ff4e196778f40ddd4ca7f302508d5285cdcae7170a2e",
+            new("Mr Bilal Hussain", "225871.TA", "FG70UJS", new(2026, 4, 30), new(2026, 5, 1)),
+            [new("Claimant name", "Complex Reports", "The intermediary named in the address block.")]),
+        new(
+            "QCL",
+            $"{CorpusRoot}/QCL 05.docx",
+            "4cee9b8ef41dccdbc2db90685ec1fef3fc00eba13dd28da8b09d44503259433a",
+            new("Mr Chaudhary Ameer", "225870.TA", "MX67PXS", new(2026, 4, 29), new(2026, 5, 1)),
+            [
+                new("Claimant name", "Complex Reports", "The intermediary named in the address block.")
             ])
     ];
 
@@ -341,11 +386,46 @@ public sealed class Top15InstructionCorpusTests
             "Our Clients Vehicle Was Parked On Lancefield St When Tp Drove By And Hit His Rear Passenger Side On Our Clients Front Side Causing Damage To The Vehicle And Client Seen The Whole Thing As He Was Not Far From The Vehicle")
     ];
 
+    private static readonly QclExpectation[] QclExpectations =
+    [
+        new(
+            $"{CorpusRoot}/QCL 01.docx",
+            "cb6b0f120d2e8d06a2e79e0b97f6326ab12395a1c9cfc60cc3f8ad6e1744bac7",
+            "Mr Hamza Ahmad", "225880.TA", "AY19LTW", "BMW X3",
+            new(2026, 5, 4), new(2026, 5, 6),
+            "54 Street Austell Drive Heald Green Cheadle SK8 3EG"),
+        new(
+            $"{CorpusRoot}/QCL 02.docx",
+            "94f1c9c9af4881d20a18a6ba3819970273dc1c66ebe71b18f8d29ed6807131c7",
+            "Mr Masroor Amjad", "225882.TA", "SC67LBV", "Hyundai Ioniq",
+            new(2026, 4, 29), new(2026, 5, 5),
+            "8 Dunley Close Manchester M12 4TE"),
+        new(
+            $"{CorpusRoot}/QCL 03.docx",
+            "a0cc054eb8060172428cad0cc8621cd019c45efa929fb453d42960782dbff474",
+            "Mr Syed Azhar Hussain", "225873.TA", "LY63XKP", "Toyota Prius Hybrid",
+            new(2026, 4, 30), new(2026, 5, 1),
+            "Flat 5 Dale House 204 London Road Hazel Grove Stockport SK7 4DF"),
+        new(
+            $"{CorpusRoot}/QCL 04.docx",
+            "e37143b3f73ada187db9ff4e196778f40ddd4ca7f302508d5285cdcae7170a2e",
+            "Mr Bilal Hussain", "225871.TA", "FG70UJS", "Toyota Corolla Icon",
+            new(2026, 4, 30), new(2026, 5, 1),
+            "333 Brinnington Road Stockport SK5 8AF"),
+        new(
+            $"{CorpusRoot}/QCL 05.docx",
+            "4cee9b8ef41dccdbc2db90685ec1fef3fc00eba13dd28da8b09d44503259433a",
+            "Mr Chaudhary Ameer", "225870.TA", "MX67PXS", "Toyota Prius",
+            new(2026, 4, 29), new(2026, 5, 1),
+            "34 Avon Way Colchester CO4 3TP")
+    ];
+
     private static IInstructionExtractionPolicy[] Policies() =>
         [
             new QdosInstructionExtractionPolicy(),
             new PchInstructionExtractionPolicy(),
-            new FwInstructionExtractionPolicy()
+            new FwInstructionExtractionPolicy(),
+            new QclInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -504,6 +584,57 @@ public sealed class Top15InstructionCorpusTests
             Assert.DoesNotContain(result.Fields, field => field.HasConflict);
             Assert.All(result.Fields.SelectMany(field => field.Candidates), candidate =>
                 Assert.Contains("message body", candidate.SourceLabel, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    [ReferencePackFact]
+    public async Task QcLawOriginalsProduceExactBoundedInstructionFields()
+    {
+        var root = PackRoot();
+        var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
+        var policy = new QclInstructionExtractionPolicy();
+        var selector = new InstructionExtractionPolicySelector([policy]);
+
+        foreach (var expectation in QclExpectations)
+        {
+            var absolute = Path.Combine(
+                root,
+                expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            var bytes = await File.ReadAllBytesAsync(absolute);
+            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            Assert.Equal(expectation.Sha256, sha256);
+
+            var read = await reader.ReadAsync(
+                Source(bytes, Path.GetFileName(absolute), sha256),
+                CancellationToken.None);
+            Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
+            Assert.False(read.IsIncomplete);
+            var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
+            Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+
+            var result = policy.Extract(
+                read,
+                ProcessedAtUtc,
+                new("QCL", policy.DocumentProfileKey, policy.DocumentProfileVersion));
+            var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+            Assert.Equal(expectation.Claimant, draft.ClaimantName);
+            Assert.Equal(expectation.Reference, draft.ClaimNumber);
+            Assert.Equal(expectation.Registration, draft.VehicleRegistration);
+            Assert.Equal(expectation.Vehicle, draft.VehicleMake);
+            Assert.Null(draft.VehicleModel);
+            Assert.Equal(expectation.IncidentDate, draft.DateOfIncident);
+            Assert.Equal(expectation.InstructionDate, draft.InstructionDate);
+            Assert.Equal(expectation.Location, draft.InspectionAddress);
+            Assert.Null(draft.InspectionDate);
+            Assert.Null(Assert.Single(
+                result.Fields,
+                field => field.Name == "Report deadline").SuggestedValue);
+            Assert.Equal("QC Law", Assert.Single(
+                result.Fields,
+                field => field.Name == "Document issuer").SuggestedValue);
+            Assert.Equal("Complex Reports", Assert.Single(
+                result.Fields,
+                field => field.Name == "Intermediary").SuggestedValue);
         }
     }
 
