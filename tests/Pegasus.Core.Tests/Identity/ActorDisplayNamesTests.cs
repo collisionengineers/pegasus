@@ -93,7 +93,7 @@ public sealed class ActorDisplayNamesTests
         {
             RequestedIds.Add(staffId);
             return Task.FromResult(staffId == knownId
-                ? new StaffAccountSummary(staffId, knownUserName, true, false, [StaffRole.User], null)
+                ? new StaffAccountSummary(staffId, knownUserName, true, false, [StaffRole.User])
                 : null);
         }
 

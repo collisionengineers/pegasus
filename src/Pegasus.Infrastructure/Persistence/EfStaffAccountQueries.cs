@@ -5,7 +5,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The read side of staff account lookup: username, enabled state, roles and
-/// last access review, straight off the Identity tables via EF. Unlike
+/// current account state, straight off the Identity tables via EF. Unlike
 /// <see cref="EfStaffAccountAdministration"/> (which owns the mutations and
 /// needs <c>UserManager</c> for password and security-stamp handling), this
 /// class depends only on <see cref="PegasusDbContext"/> — so a host that never
@@ -13,8 +13,30 @@ namespace Pegasus.Infrastructure.Persistence;
 /// host) can still resolve <see cref="IStaffAccountQueries"/> to look up a
 /// staff display name.
 /// </summary>
-public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAccountQueries
+public sealed class EfStaffAccountQueries(PegasusDbContext context)
+    : IStaffAccountQueries,
+      IStaffHeldCaseEditLeaseQueries,
+      ICaseEngineerChoices
 {
+    public async Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var engineerRoleName = StaffRoleNames.Engineer.ToUpperInvariant();
+        return await context.Users.AsNoTracking()
+            .Where(user => user.IsEnabled
+                && user.UserName != null
+                && context.UserRoles
+                .Join(context.Roles, userRole => userRole.RoleId, role => role.Id,
+                    (userRole, role) => new { userRole.UserId, role.NormalizedName })
+                .Any(role => role.UserId == user.Id && role.NormalizedName == engineerRoleName))
+            .OrderBy(user => user.UserName)
+            .ThenBy(user => user.Id)
+            .Select(user => new CaseEngineerChoice(user.Id, user.UserName!))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<StaffAccountQuerySlice> ListAsync(
         int offset,
         int limit,
@@ -45,27 +67,6 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
             where userIds.Contains(userRole.UserId)
             select new { userRole.UserId, RoleName = role.Name! })
             .ToListAsync(cancellationToken);
-        var aggregateIds = userIds.Select(id => id.ToString("D")).ToArray();
-        var reviews = await context.ActionHistory
-            .AsNoTracking()
-            .Where(item => item.AggregateType == "staff_account"
-                && item.EventKind == "access_reviewed"
-                && aggregateIds.Contains(item.AggregateId))
-            .GroupBy(item => item.AggregateId)
-            .Select(group => new
-            {
-                AggregateId = group.Key,
-                OccurredAtUtc = group.Max(item => item.OccurredAtUtc)
-            })
-            // Nullable on purpose: the lookup below reads a missing account
-            // with GetValueOrDefault, and a non-nullable DateTimeOffset would
-            // hand back 0001-01-01 rather than nothing — which reads as "this
-            // account was reviewed" and makes Core's ReviewIsOutstanding
-            // permanently false (PLAT-027).
-            .ToDictionaryAsync(
-                item => item.AggregateId,
-                item => (DateTimeOffset?)item.OccurredAtUtc,
-                cancellationToken);
         var rolesByUser = roleRows.ToLookup(
             item => item.UserId,
             item => ParseRole(item.RoleName));
@@ -73,8 +74,7 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
         return new(
             users.Select(user => Summary(
                     user,
-                    rolesByUser[user.Id].OrderBy(role => role).ToArray(),
-                    reviews.GetValueOrDefault(user.Id.ToString("D"))))
+                    rolesByUser[user.Id].OrderBy(role => role).ToArray()))
                 .ToArray(),
             hasMoreAccounts);
     }
@@ -97,17 +97,31 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
             where userRole.UserId == staffId
             select role.Name!)
             .ToListAsync(cancellationToken);
-        var lastReviewAtUtc = await context.ActionHistory
-            .AsNoTracking()
-            .Where(item => item.AggregateType == "staff_account"
-                && item.AggregateId == staffId.ToString("D")
-                && item.EventKind == "access_reviewed")
-            .Select(item => (DateTimeOffset?)item.OccurredAtUtc)
-            .MaxAsync(cancellationToken);
         return Summary(
             user,
-            roles.Select(ParseRole).OrderBy(role => role).ToArray(),
-            lastReviewAtUtc);
+            roles.Select(ParseRole).OrderBy(role => role).ToArray());
+    }
+
+    public async Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var holder = staffId.ToString("D");
+        return await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.EditLeaseHolderKind == nameof(ActorKind.Staff)
+                && item.EditLeaseHolder == holder
+                && item.EditLeaseTokenHash != null
+                && item.EditLeaseExpiresAtUtc > now)
+            .OrderBy(item => item.Case.Reference)
+            .ThenBy(item => item.CaseId)
+            .Select(item => new StaffHeldCaseEditLease(
+                item.CaseId,
+                item.Case.Reference,
+                item.EditLeaseGeneration,
+                item.EditLeaseExpiresAtUtc!.Value))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
@@ -164,16 +178,14 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAcco
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
     internal static StaffAccountSummary Summary(
         PegasusIdentityUser user,
-        IReadOnlyCollection<StaffRole> roles,
-        DateTimeOffset? lastAccessReviewAtUtc) =>
+        IReadOnlyCollection<StaffRole> roles) =>
         new(
             user.Id,
             user.UserName ?? throw new InvalidOperationException(
                 "A staff account has no username."),
             user.IsEnabled,
             user.MustChangePassword,
-            roles.OrderBy(role => role).ToArray(),
-            lastAccessReviewAtUtc)
+            roles.OrderBy(role => role).ToArray())
         {
             SignOff = new(
                 user.IsSignOffEngineer,

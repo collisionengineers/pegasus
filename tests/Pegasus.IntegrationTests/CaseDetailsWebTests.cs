@@ -1867,10 +1867,11 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
-    private sealed class StubStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
+    private sealed class StubStaffAccounts(Guid staffId, string userName)
+        : IStaffAccountQueries, IStaffHeldCaseEditLeaseQueries
     {
         private readonly StaffAccountSummary account =
-            new(staffId, userName, true, false, [StaffRole.User], null);
+            new(staffId, userName, true, false, [StaffRole.User]);
 
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
@@ -1882,6 +1883,11 @@ public sealed partial class CaseDetailsWebTests
             Guid requestedStaffId,
             CancellationToken cancellationToken) =>
             Task.FromResult<StaffAccountSummary?>(requestedStaffId == staffId ? account : null);
+
+        public Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
+            Guid requestedStaffId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffHeldCaseEditLease>>([]);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

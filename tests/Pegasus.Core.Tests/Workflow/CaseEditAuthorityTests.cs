@@ -344,7 +344,7 @@ public sealed class CaseEditAuthorityTests
             Requested = requestedStaffId;
             return Task.FromResult<StaffAccountSummary?>(
                 requestedStaffId == staffId
-                    ? new(staffId, userName, true, false, [StaffRole.User], null)
+                    ? new(staffId, userName, true, false, [StaffRole.User])
                     : null);
         }
 
