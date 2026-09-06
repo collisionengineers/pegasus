@@ -159,7 +159,23 @@ public static class DependencyInjection
         services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
-        services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
+        services.AddSingleton<QdosInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy>(provider =>
+            provider.GetRequiredService<QdosInstructionExtractionPolicy>());
+        services.AddSingleton<IInstructionExtractionPolicy, AlsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, AxInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, BcInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, BlackInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, DfdInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, FwInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, KbsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, MpInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, OakInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, PchInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, QclInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, RjsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, SblInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, YmlInstructionExtractionPolicy>();
         services.AddScoped<InstructionExtractionPolicySelector>();
         services.AddScoped<EfRetainedInstructionAnalysisStore>();
         services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
@@ -488,7 +504,10 @@ public static class DependencyInjection
             services.AddScoped<IIntakeSourceReader>(provider =>
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
-            services.AddScoped<ProcessIntake>();
+            services.AddScoped(provider =>
+                ActivatorUtilities.CreateInstance<ProcessIntake>(
+                    provider,
+                    provider.GetRequiredService<QdosInstructionExtractionPolicy>()));
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -78,7 +78,8 @@ public sealed record RetainedInstructionCandidate(
     string ReaderVersion,
     string PolicyKey,
     string PolicyVersion,
-    SourceCandidateDisposition Disposition);
+    SourceCandidateDisposition Disposition,
+    IntakeSourceLocator? Locator = null);
 
 public sealed record RetainedInstructionAnalysis(
     Guid Id,
@@ -169,13 +170,26 @@ public sealed class GetLatestRetainedInstructionAnalysis(
     }
 }
 
+/// <summary>
+/// The analysis command as its callers need it. Automatic re-analysis after an
+/// OCR reading depends on the behaviour, not on the class, so the OCR path can
+/// be exercised without standing up a reader, a selector and a store it has no
+/// business knowing about.
+/// </summary>
+public interface IAnalyzeRetainedInstruction
+{
+    Task<AnalyzeRetainedInstructionResult> ExecuteAsync(
+        AnalyzeRetainedInstructionRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class AnalyzeRetainedInstruction(
     IIntakeReceiptQueries receiptQueries,
     IReadLogicalDocumentVersion documentReader,
     IIntakeSourceReader sourceReader,
     InstructionExtractionPolicySelector selector,
     IRetainedInstructionAnalysisStore store,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : IAnalyzeRetainedInstruction
 {
     /// <summary>
     /// The field name a matching document's proposed principal is recorded
@@ -185,6 +199,13 @@ public sealed class AnalyzeRetainedInstruction(
     public const string SuggestedPrincipalField = "Suggested principal code";
 
     public const string PrincipalPartyRole = "principal";
+
+    /// <summary>
+    /// The field name the matched accepted template variant is recorded under,
+    /// where the profile has more than one. Separate from the suggested
+    /// principal: which template a principal used is not who the principal is.
+    /// </summary>
+    public const string MatchedTemplateVariantField = "Matched template variant";
 
     /// <summary>
     /// The policy key recorded when no profile matched, or several did: the
@@ -312,7 +333,12 @@ public sealed class AnalyzeRetainedInstruction(
                 false);
         }
 
-        var selection = selector.Select(readResult);
+        // Selection is by document signature AND document role: this use case
+        // reads instructions, so a profile written for another document role
+        // is not a candidate for it.
+        var selection = selector.Select(
+            readResult,
+            InstructionDocumentSignature.InstructionRole);
         var completedAtUtc = timeProvider.GetUtcNow();
         if (selection.Outcome != InstructionPolicySelectionOutcome.Selected)
         {
@@ -362,7 +388,9 @@ public sealed class AnalyzeRetainedInstruction(
             profile,
             policy.PrincipalCode,
             readResult.ReaderKey,
-            readResult.ReaderVersion);
+            readResult.ReaderVersion,
+            selection.MatchedVariantKeys,
+            policy as IInstructionFieldRoles);
 
         var (analysis, isReplay) = await store.RecordAsync(
             new(
@@ -395,7 +423,9 @@ public sealed class AnalyzeRetainedInstruction(
         IInstructionDocumentProfile profile,
         string principalCode,
         string readerKey,
-        string readerVersion)
+        string readerVersion,
+        IReadOnlyList<string> matchedVariantKeys,
+        IInstructionFieldRoles? fieldRoles)
     {
         var policyVersion = profile.DocumentProfileVersion.ToString(CultureInfo.InvariantCulture);
         var documentRole = profile.Signature.DocumentRole;
@@ -423,16 +453,46 @@ public sealed class AnalyzeRetainedInstruction(
                 SourceCandidateDisposition.Usable)
         };
 
+        // Which accepted template of the profile the document matched. One is
+        // a reading; two are recorded as ambiguous rather than resolved,
+        // because the principal is settled and the template is not.
+        var variantDisposition = matchedVariantKeys.Count > 1
+            ? SourceCandidateDisposition.Ambiguous
+            : SourceCandidateDisposition.Usable;
+        var variantOccurrence = 0;
+        foreach (var variantKey in matchedVariantKeys)
+        {
+            candidates.Add(new(
+                Guid.NewGuid(),
+                documentRole,
+                MatchedTemplateVariantField,
+                null,
+                null,
+                variantKey,
+                variantKey,
+                null,
+                null,
+                $"{profile.DocumentProfileKey} template variant",
+                null,
+                variantOccurrence++,
+                readerKey,
+                readerVersion,
+                profile.DocumentProfileKey,
+                policyVersion,
+                variantDisposition));
+        }
+
         foreach (var field in extraction.Fields)
         {
             if (field.Candidates.Count == 0)
             {
+                var missingRole = Role(fieldRoles, field.Name);
                 candidates.Add(new(
                     Guid.NewGuid(),
                     documentRole,
                     field.Name,
-                    null,
-                    null,
+                    missingRole.PartyRole,
+                    missingRole.ReferenceRole,
                     null,
                     field.SuggestedValue,
                     null,
@@ -448,18 +508,24 @@ public sealed class AnalyzeRetainedInstruction(
                 continue;
             }
 
+            // Two readings the document itself supports are AMBIGUOUS, not
+            // conflicting: nothing has contradicted a confirmed fact, the
+            // document simply says two things and neither may be picked here.
+            // Conflicting stays reserved for a candidate that contradicts a
+            // fact staff or an Engineer already confirmed.
             var disposition = field.HasConflict
-                ? SourceCandidateDisposition.Conflicting
+                ? SourceCandidateDisposition.Ambiguous
                 : SourceCandidateDisposition.Usable;
             var occurrence = 0;
+            var role = Role(fieldRoles, field.Name);
             foreach (var candidate in field.Candidates)
             {
                 candidates.Add(new(
                     Guid.NewGuid(),
                     documentRole,
                     field.Name,
-                    null,
-                    null,
+                    role.PartyRole,
+                    role.ReferenceRole,
                     candidate.Value,
                     // The engine canonicalizes only the field it accepted; a
                     // competing candidate of a conflicting field has no
@@ -469,18 +535,31 @@ public sealed class AnalyzeRetainedInstruction(
                     null,
                     null,
                     candidate.SourceLabel,
-                    PageFrom(candidate.SourceLabel),
+                    // The reader's own locator states the page; the source
+                    // label is parsed only for a fragment that carries none.
+                    candidate.Locator?.Page ?? PageFrom(candidate.SourceLabel),
                     occurrence++,
                     readerKey,
                     readerVersion,
                     profile.DocumentProfileKey,
                     policyVersion,
-                    disposition));
+                    disposition,
+                    candidate.Locator));
             }
         }
 
         return candidates.ToArray();
     }
+
+    /// <summary>
+    /// The role the reading policy declares for one of its own fields. A
+    /// policy that declares none leaves both roles unstated, which is the
+    /// truth about a candidate whose owner nobody has said.
+    /// </summary>
+    private static InstructionFieldRole Role(IInstructionFieldRoles? fieldRoles, string field) =>
+        fieldRoles is not null && fieldRoles.FieldRoles.TryGetValue(field, out var role)
+            ? role
+            : new(null, null);
 
     /// <summary>
     /// The reader records a page only inside the fragment's own source label,
@@ -507,17 +586,67 @@ public sealed class AnalyzeRetainedInstruction(
     /// <summary>
     /// The locator recorded with each candidate. One JSON shape, written here
     /// once, so persistence never invents a second.
+    ///
+    /// Version 2 carries the structured locator the reader produced — page,
+    /// table cell, PDF form field, bounded region, message part and occurrence —
+    /// beside the source label version 1 recorded. A version 1 envelope still
+    /// reads: its structured half is simply absent, which is the truth about a
+    /// candidate recorded before the reader reported structure.
     /// </summary>
-    public static string LocatorJson(string sourceLabel, int? page) =>
-        JsonSerializer.Serialize(new LocatorEnvelope(1, sourceLabel, page));
+    public static string LocatorJson(string sourceLabel, int? page, IntakeSourceLocator? locator = null) =>
+        JsonSerializer.Serialize(new LocatorEnvelope(
+            locator is null ? 1 : 2,
+            sourceLabel,
+            page ?? locator?.Page,
+            locator?.Kind,
+            locator?.Table,
+            locator?.Row,
+            locator?.Column,
+            locator?.FormField,
+            locator?.Region,
+            locator?.MessagePart,
+            locator?.Occurrence));
 
-    public static (string SourceLabel, int? Page) ReadLocator(string locatorJson)
+    public static (string SourceLabel, int? Page, IntakeSourceLocator? Locator) ReadLocator(string locatorJson)
     {
         var envelope = JsonSerializer.Deserialize<LocatorEnvelope>(locatorJson);
-        return envelope is null ? (string.Empty, null) : (envelope.SourceLabel, envelope.Page);
+        return envelope is null
+            ? (string.Empty, null, null)
+            : (envelope.SourceLabel, envelope.Page, ReadLocator(envelope));
     }
 
-    public sealed record LocatorEnvelope(int Version, string SourceLabel, int? Page);
+    /// <summary>
+    /// The stored envelope back as the reader's own locator, or null when the
+    /// row carries none. Nothing is invented: a version 1 envelope that recorded
+    /// only a page comes back as a page locator, and one that recorded nothing
+    /// comes back null.
+    /// </summary>
+    private static IntakeSourceLocator? ReadLocator(LocatorEnvelope envelope) =>
+        envelope.Kind is not { } kind
+            ? envelope.Page is { } onlyPage ? IntakeSourceLocator.ForPage(onlyPage) : null
+            : new(
+                kind,
+                envelope.Page,
+                envelope.Table,
+                envelope.Row,
+                envelope.Column,
+                envelope.FormField,
+                envelope.Region,
+                envelope.MessagePart ?? IntakeMessagePart.None,
+                envelope.Occurrence ?? 0);
+
+    public sealed record LocatorEnvelope(
+        int Version,
+        string SourceLabel,
+        int? Page,
+        IntakeLocatorKind? Kind = null,
+        int? Table = null,
+        int? Row = null,
+        int? Column = null,
+        string? FormField = null,
+        string? Region = null,
+        IntakeMessagePart? MessagePart = null,
+        int? Occurrence = null);
 
     /// <summary>
     /// The receipt's own retained source asset by default; an explicit id picks

@@ -110,6 +110,27 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionProfileComposesAllInstructionProfilesAndTheIntakeProcessor()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var policies = services.GetServices<IInstructionExtractionPolicy>().ToArray();
+        Assert.Equal(15, policies.Length);
+        Assert.Equal(
+            policies.Length,
+            policies.Select(policy => policy.PrincipalCode).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(policies, policy => Assert.IsAssignableFrom<IInstructionDocumentProfile>(policy));
+
+        var qdos = services.GetRequiredService<QdosInstructionExtractionPolicy>();
+        Assert.Same(qdos, Assert.Single(policies, policy => policy is QdosInstructionExtractionPolicy));
+
+        Assert.NotNull(services.GetRequiredService<ProcessIntake>());
+        Assert.NotNull(services.GetRequiredService<InstructionExtractionPolicySelector>());
+    }
+
+    [Fact]
     public void ProductionProfileKeepsUploadLinksUnavailableWithoutAcceptedLimits()
     {
         // INT-31 is not on the alpha path and its limits are an open decision, so
