@@ -461,6 +461,17 @@ public sealed class Top15InstructionCorpusTests
         ,new("KBS", $"{CorpusRoot}/KBS 03.pdf", "ab970f4d2b22e4665ba0240f26129f3247e7a091822e734c0a129b7c5b99f22f", new("Mr Saeed Ahmed", "SK.506039", "DX18FCG", new(2026, 3, 27), new(2026, 5, 5)), [])
         ,new("KBS", $"{CorpusRoot}/KBS 04.pdf", "cbc01789c2808a572006880a02bc97962c3a57252e23b94061bc5a35d0c87b0e", new("Mr Khayam Ahmed", "AA.303669", "GL18EVC", new(2026, 5, 1), new(2026, 5, 6)), [])
         ,new("KBS", $"{CorpusRoot}/KBS 05.pdf", "7bdd91f82cb2877de5e231bdacf2335f65b8d2e3308c96f479c39eb1a8d4c3fe", new("Mr Aasam Fareed", "AA.506036", "LO21GNN", new(2026, 4, 30), new(2026, 5, 4)), [])
+        ,new("MP", $"{CorpusRoot}/MP PDF 01.pdf", "79097baeec1eac46bb9a34afe67945d398df93a621857179c793f2cff5d5d3f4", new("Mr Ali Ahmed Qurban", "RA6458832", "FG21DGV", new(2026, 4, 15), new(2026, 4, 20)), [])
+        ,new("MP", $"{CorpusRoot}/MP PDF 02.pdf", "bf8092e4bd7e47407590a20784173bc185b5d68b265451a7b71d4a6214eafe82", new("Mr Ali Mohamed Sharif", "RA6458834", "LB18GZE", new(2026, 4, 18), new(2026, 4, 21)), [])
+        ,new("MP", $"{CorpusRoot}/MP PDF 03.pdf", "b33f7e55b179a8a12b2f1a59d2360f12f8b1e49fd65b673e8b7544ce913967f5", new("Mr Nukadin Ali Adan", "RA6458839", "GV70OVZ", new(2026, 4, 20), new(2026, 4, 22)), [])
+        ,new("MP", $"{CorpusRoot}/MP PDF 04.pdf", "6f799851135947ec05c90d464eb6266bad570f0fe1a7e13ae9992b1b6071e917", new("Mr David Busuioc", "RA6458838", null, new(2026, 4, 20), new(2026, 4, 22)), [])
+        ,new("MP", $"{CorpusRoot}/MP Weird 01.pdf", "277b0531273e350ebd60f5820024e9a40e45b71d7d5e0157d11c84c1ac9a0541", new("Mr Mohamed Patel", "RA6458842", "OW75EHD", new(2026, 4, 23), null), [])
+        ,new("MP", $"{CorpusRoot}/MP Weird 02.pdf", "89413ad58022e75f3592c377d0c0f572d8ba8325722090775334178ca94be098", new("Mr Ali Nuuh", "RA6458827", "JAV8R", new(2026, 4, 7), null), [])
+        ,new("MP", $"{CorpusRoot}/MP Word 01.doc", "fcd72fbe7d3058f27c1552c2e91d910b055a15834e22177e27c1c67e1fda83d3", new("Miss Shakila Hussain", "RA6458825", "GF14RUC", new(2026, 4, 7), new(2026, 4, 21)), [])
+        ,new("MP", $"{CorpusRoot}/MP Word 02.doc", "cd2b104f88a4674ba99251e1940268c709ff1c78a90eba4a7dfdb4ff5e66e0f3", new("Mr Dubow Ali", "RA6458845", "EN70EAE", new(2026, 4, 29), new(2026, 4, 30)), [])
+        ,new("MP", $"{CorpusRoot}/MP Word 03.doc", "18fa98723d35429de6ff75e955beaee59cdd63c87b3169092566178b2f43b654", new("MONTREAL PRESTIGE LTD", "RA6458812", "MA22CHZ", new(2026, 3, 22), new(2026, 3, 25)), [])
+        ,new("MP", $"{CorpusRoot}/MP Word 04.doc", "b494d5e063beb991b4ab4239f11465dc189a3d8ec29afcebb7976490b357ad56", new("Miss Waseema Kola", "RA6458668", "WA55KYK", new(2025, 9, 22), null), [])
+        ,new("MP", $"{CorpusRoot}/MP Word 05.doc", "c0aa299d0affab6ef2696ac11b7e5edb83d504d4ffcb5893874161c9159d53b5", new("Mr Sukhchain Singh", "RA6458806", "SF15GXT", new(2026, 3, 6), new(2026, 3, 17)), [])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -554,7 +565,8 @@ public sealed class Top15InstructionCorpusTests
             new BlackInstructionExtractionPolicy(),
             new RjsInstructionExtractionPolicy(),
             new DfdInstructionExtractionPolicy(),
-            new KbsInstructionExtractionPolicy()
+            new KbsInstructionExtractionPolicy(),
+            new MpInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
