@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Pegasus.Core.Intake;
 
 /// <summary>Reads AX engineer instructions without treating repairer or deadline facts as inspection facts.</summary>
@@ -12,6 +14,7 @@ public sealed class AxInstructionExtractionPolicy
 
     private const string DeadlineField = "Report deadline";
     private const string RepairerAddressField = "Repairer address";
+    private const string RepairerTelephoneField = "Repairer telephone";
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
@@ -29,10 +32,11 @@ public sealed class AxInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Inspection address", ["Inspection Location"], IsRequired: false, PartyRole: "instruction"),
-        new("Accident circumstances", ["Accident Circumstances"], IsRequired: false, PartyRole: "claimant"),
+        new("Accident circumstances", ["Accident circumstances"], IsRequired: false, PartyRole: "claimant"),
         new("VAT status", ["VAT Registered"], IsRequired: false, PartyRole: "claimant"),
         new("Repairer name", ["Repairer name"], IsRequired: false, PartyRole: "repairer"),
         new(RepairerAddressField, [RepairerAddressField], IsRequired: false, PartyRole: "repairer"),
+        new(RepairerTelephoneField, [RepairerTelephoneField], IsRequired: false, PartyRole: "repairer"),
         new(DeadlineField, [DeadlineField], IsRequired: false, PartyRole: "deadline")
     ];
 
@@ -82,33 +86,85 @@ public sealed class AxInstructionExtractionPolicy
         var text = fragment.Text.Replace("\r\n", "\n", StringComparison.Ordinal);
         var client = text.IndexOf("Client Details", StringComparison.OrdinalIgnoreCase);
         if (client < 0) yield break;
-        var bodyshop = text.IndexOf("Bodyshop Details", client, StringComparison.OrdinalIgnoreCase);
-        var thirdParty = text.IndexOf("Third Party Details", client, StringComparison.OrdinalIgnoreCase);
-        var clientEnd = bodyshop >= 0 ? bodyshop : thirdParty >= 0 ? thirdParty : text.Length;
+        var bodyshop = text.IndexOf("Bodyshop Details", StringComparison.OrdinalIgnoreCase);
+        var thirdParty = text.IndexOf("Third Party Details", StringComparison.OrdinalIgnoreCase);
+        var clientEnd = NextSection(text.Length, client, bodyshop, thirdParty);
         var header = text[..client];
         var headerDate = header.Split('\n').Select(line => line.Trim()).FirstOrDefault(line =>
             InstructionFieldEngine.ParseDate(line) is not null);
         var deadline = header.Split('\n').FirstOrDefault(line => line.Contains("Report Due on", StringComparison.OrdinalIgnoreCase));
         yield return fragment with { Text = text[client..clientEnd] };
-        yield return fragment with { Text = $"AX Reference: {ValueAfter(header, "AX Reference")}" };
+        yield return fragment with { Text = $"AX Reference: {FirstColumnValueAfter(header, "AX Reference")}" };
         if (headerDate is not null) yield return fragment with { Text = $"Instruction date: {headerDate}" };
         if (deadline is not null && DateToken(deadline) is { } deadlineDate)
             yield return fragment with { Text = $"{DeadlineField}: {deadlineDate}" };
+        if (Circumstances(text[client..clientEnd]) is { } circumstances)
+            yield return fragment with { Text = $"Accident circumstances: {circumstances}" };
         if (bodyshop >= 0)
         {
-            var end = thirdParty >= 0 ? thirdParty : text.Length;
+            var end = NextSection(text.Length, bodyshop, client, thirdParty);
             var block = text[bodyshop..end];
-            yield return fragment with { Text = $"Repairer name: {ValueAfter(block, "Name")}" };
-            yield return fragment with { Text = $"{RepairerAddressField}: {ValueAfter(block, "Address")}" };
+            yield return fragment with { Text = $"Repairer name: {FirstColumnValueAfter(block, "Name")}" };
+            var address = Address(block);
+            if (address is not null)
+                yield return fragment with { Text = $"{RepairerAddressField}: {address}" };
+            var telephone = FirstColumnValueAfter(block, "Telephone");
+            if (telephone.Length > 0)
+                yield return fragment with { Text = $"{RepairerTelephoneField}: {telephone}" };
         }
     }
 
-    private static string ValueAfter(string text, string label)
+    private static int NextSection(int fallback, int after, params int[] candidates) =>
+        candidates.Where(candidate => candidate > after).DefaultIfEmpty(fallback).Min();
+
+    private static string FirstColumnValueAfter(string text, string label)
     {
         var index = text.IndexOf(label, StringComparison.OrdinalIgnoreCase);
         if (index < 0) return string.Empty;
         var value = text[(index + label.Length)..].TrimStart(' ', '\t', ':');
-        return value.Split('\n')[0].Trim();
+        return Regex.Split(value.Split('\n')[0], @"\s{2,}", RegexOptions.CultureInvariant)[0].Trim();
+    }
+
+    private static string? Circumstances(string clientBlock)
+    {
+        var lines = clientBlock.Split('\n', StringSplitOptions.TrimEntries);
+        var start = Array.FindIndex(lines, line => line.StartsWith("Accident", StringComparison.OrdinalIgnoreCase)
+            && !line.StartsWith("Accident Date", StringComparison.OrdinalIgnoreCase));
+        if (start < 0) return null;
+        var values = new List<string>();
+        for (var index = start; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (index > start && (line.StartsWith("Pre Existing", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("Bodyshop Details", StringComparison.OrdinalIgnoreCase))) break;
+            line = Regex.Replace(line, @"^(?:Accident\s*)?(?:Circumstances\s*:?)?\s*", string.Empty,
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
+            if (line.Length > 0) values.Add(line);
+        }
+        return values.Count == 0 ? null : string.Join(' ', values);
+    }
+
+    private static string? Address(string bodyshopBlock)
+    {
+        var lines = bodyshopBlock.Split('\n', StringSplitOptions.TrimEntries);
+        var start = Array.FindIndex(lines, line => line.StartsWith("Address", StringComparison.OrdinalIgnoreCase));
+        if (start < 0) return null;
+        var values = new List<string>();
+        var first = FirstColumnValueAfter(lines[start], "Address");
+        if (first.Length > 0) values.Add(first);
+        for (var index = start + 1; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (line.StartsWith("Telephone", StringComparison.OrdinalIgnoreCase)) break;
+            if (line.StartsWith("Postcode", StringComparison.OrdinalIgnoreCase))
+            {
+                var postcode = FirstColumnValueAfter(line, "Postcode");
+                if (postcode.Length > 0) values.Add(postcode);
+                continue;
+            }
+            if (line.Length > 0 && !line.EndsWith(':')) values.Add(line);
+        }
+        return values.Count == 0 ? null : string.Join(", ", values.Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
     private static string? DateToken(string text) => text
