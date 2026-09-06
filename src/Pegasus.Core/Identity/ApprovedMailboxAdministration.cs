@@ -5,7 +5,8 @@ namespace Pegasus.Core.Identity;
 public enum ApprovedMailboxRouteScope
 {
     InboundIntake,
-    SentEvidence
+    SentEvidence,
+    StaffSend
 }
 
 public enum ApprovedMailboxState
@@ -25,7 +26,9 @@ public sealed record ApprovedMailbox(
     bool IdentityIsBound,
     DateTimeOffset? ActivatedAtUtc,
     int Version,
-    IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings);
+    IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings,
+    long Generation = 0,
+    long? VerifiedEncodedMessageSizeLimit = null);
 
 public sealed record ApprovedMailboxFolderBinding(
     MailLogicalFolderType FolderType,
