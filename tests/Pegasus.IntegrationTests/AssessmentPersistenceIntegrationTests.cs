@@ -731,9 +731,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // panel (2.5h = 100.00) and paint (1.5h = 60.00) alike — the
         // separate paint rate is gone — and the estimate-level paint
         // materials (25.00) join Materials.
-        Assert.Equal(220.40m + 100m + 60m + 25m, totalsA.Subtotal);
-        Assert.Equal(totalsA.Total, currentA.CalculationBasis!.Total);
-        Assert.Equal(totalsA.Vat, currentA.CalculationBasis.Vat);
+        Assert.Equal(220.40m + 100m + 60m + 25m, totalsA.Printed.Net);
+        Assert.Equal(totalsA.Printed.Gross, currentA.CalculationBasis!.Total);
+        Assert.Equal(totalsA.Printed.Vat, currentA.CalculationBasis.Vat);
         Assert.Equal(currentA.SpecificationId,
             (await harness.RepairSpecifications.GetCurrentAcceptedAsync(caseId, CancellationToken.None))!.SpecificationId);
         // Replay returns the same estimate without a second mutation.
