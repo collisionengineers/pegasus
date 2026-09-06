@@ -1401,6 +1401,12 @@
         // which merely provides the dialog's open/close plumbing.
         var trigger = document.querySelector('[data-dialog-open="command-dialog"]');
         var source = opener || document.activeElement || trigger;
+        if (!dialog.hidden) {
+            input.value = seed || '';
+            filter();
+            input.focus();
+            return;
+        }
         if (dialog.pegasusOpen) {
             dialog.pegasusOpen(source);
         } else if (trigger) {

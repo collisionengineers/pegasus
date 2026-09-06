@@ -247,6 +247,27 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(GetOperationsSnapshot.MaximumNeedsAttention, snapshot.NeedsAttention.Count);
     }
 
+    [Theory]
+    [InlineData(GetOperationsSnapshot.MaximumAttentionRows)]
+    [InlineData(GetOperationsSnapshot.MaximumAttentionRows + 1)]
+    public async Task NotificationAttentionRowsStopAtTheShellLimit(int available)
+    {
+        var recorder = new RecordingDashboardQueries();
+        var rows = Enumerable.Range(1, available)
+            .Select(index => NewUnidentified(Guid.NewGuid(), $"U{2000 + index}"))
+            .ToArray();
+
+        var attention = await ExecuteAttentionRowsAsync(
+            recorder,
+            NowUtc,
+            unidentified: new StubUnidentifiedQueue { Rows = rows });
+
+        Assert.Equal(Math.Min(available, GetOperationsSnapshot.MaximumAttentionRows), attention.Count);
+        Assert.Equal(
+            rows.Take(GetOperationsSnapshot.MaximumAttentionRows).Select(row => row.Id),
+            attention.Select(row => row.Id));
+    }
+
     private static async Task<OperationsSnapshot> ExecuteAsync(
         RecordingDashboardQueries recorder,
         DateTimeOffset nowUtc,

@@ -67,6 +67,29 @@ public sealed class OuterShellBrowserTests
             await support.Page.EvaluateAsync<string>("document.activeElement.id"));
     }
 
+    [Fact]
+    public async Task RepeatedCtrlKDoesNotReplaceTheDialogReleaseOrFocusOwner()
+    {
+        await using var support = await BrowserTestSupport.StartAsync(
+            useIntegrationTestAuthentication: true);
+        await support.GoToAsync("/Search");
+
+        var opener = support.Page.Locator("#global-search");
+        var dialog = support.Page.Locator("[data-dialog=\"command-dialog\"]");
+        await opener.FocusAsync();
+        await support.Page.Keyboard.PressAsync("Control+K");
+        await dialog.WaitForAsync(new() { State = WaitForSelectorState.Visible });
+        await support.Page.Keyboard.PressAsync("Control+K");
+        await support.Page.Keyboard.PressAsync("Escape");
+        await dialog.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
+
+        Assert.False(await support.Page.EvaluateAsync<bool>(
+            "Array.from(document.querySelectorAll('[inert]')).some(element => !element.closest('[data-dialog=command-dialog]'))"));
+        Assert.Equal(
+            "global-search",
+            await support.Page.EvaluateAsync<string>("document.activeElement.id"));
+    }
+
     [Theory]
     [InlineData(390)]
     [InlineData(1280)]
