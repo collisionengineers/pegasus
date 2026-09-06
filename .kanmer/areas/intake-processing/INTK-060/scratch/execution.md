@@ -284,3 +284,7 @@ Merge conflict resolved (`Admin.Health = "Service health"`), G14 taken; admin ra
 ## Checkpoint — C07 caller round 2 at `f55a5adac`
 
 R-12 (uncertainty by Core semantics; `System.Net.Http` gone from the built Core assembly), R-13 (cancellation → unknown, proved), R-14 (double enforces A's staff-only status read; exposes the contract gap — public Pending cannot self-reconcile; handoff with two shapes posted to A, plus A04 refusal-type instruction). Re-review dispatched; wave 25 starts when wave 24 (C08) releases LocalDB. C05 round 3 dispatched (Opus) for R-16 and R-6. Editors: C06 r4, C05 r3.
+
+## Checkpoint — GitHub relays and C06 round 4
+
+Board sync paused for A: C07 status-read contract gap + two options posted as PR 673 comment 5560698342. B handoff (comment 5560632798) answered in comment 5560702xxx: `_Layout.cshtml` `case-workspace.css` link goes into C08's next shell commit; Case-vehicle labels stay B-owned; documents/chase `RequestUploadPolicy` Recipient/Reason + labels to be answered from the CASE-047 B01 table with the C07 slice. C06 round 4 at `f1519a2f9` (fixture fixes only; R-23 disclosed; R-24/R-25 deferred); re-review dispatched; wave 26 queued behind wave 24 (C08) and wave 25 (C07 caller) on LocalDB. Editors: C05 r3 only; C08 round 2 (B's stylesheet link + wave-24 findings) next.
