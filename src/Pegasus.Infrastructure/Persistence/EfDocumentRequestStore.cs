@@ -19,21 +19,13 @@ namespace Pegasus.Infrastructure.Persistence;
 /// command that talks to custody. Custody creates the document and version and
 /// says what state they are in; nothing here writes a custody status.
 /// </para>
-/// <para>
-/// <paramref name="retention"/> is optional because the Web host composes this
-/// store before the custody adapter behind that command exists. When it is
-/// absent the submission path refuses before writing a single row: an upload
-/// that cannot reach custody must not leave an occurrence claiming it did.
-/// This is the same optional-bridge shape the C01 and C08 stores use for their
-/// unregistered ports.
-/// </para>
 /// </remarks>
 internal sealed class EfDocumentRequestStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     RequestUploadPolicy uploadPolicy,
     RequestUploadLimits uploadLimits,
     TimeProvider timeProvider,
-    RetainIncomingArtifact? retention = null) :
+    RetainIncomingArtifact retention) :
     ICreateRequestUploadLink,
     IRevokeRequestUploadLink,
     IUploadToRequest,
@@ -223,14 +215,6 @@ internal sealed class EfDocumentRequestStore(
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.File);
-
-        // Fail closed before anything is read or written. Without the
-        // retention command there is nothing to hand the bytes to, so an
-        // occurrence recorded here would claim a custody that never happened.
-        if (retention is null)
-        {
-            return Unavailable();
-        }
 
         Guid linkId;
         try

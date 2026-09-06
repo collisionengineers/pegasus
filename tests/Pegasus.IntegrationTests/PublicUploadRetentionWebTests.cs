@@ -1179,10 +1179,16 @@ public sealed partial class PublicUploadRetentionWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         var foreignActor = ActionActor.RequestLink(foreignLinkId);
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
+        await Assert.ThrowsAsync<FileNotFoundException>(() => status.GetAsync(
             foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
+        Assert.Null(await status.FindByOperationKeyAsync(
             foreignActor, owner.CaseId, scopedOperationKey, CancellationToken.None));
+
+        var wrongCaseId = Guid.NewGuid();
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
+            foreignActor, wrongCaseId, documentId, versionId, CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
+            foreignActor, wrongCaseId, scopedOperationKey, CancellationToken.None));
 
         var ownResult = await status.GetAsync(
             ActionActor.RequestLink(owner.LinkId),
@@ -1867,7 +1873,7 @@ internal sealed class RecordingCaseArtifactCustody(
                     && item.CreatedBy == createdBy, cancellationToken);
             if (!ownsVersion)
             {
-                throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+                throw new FileNotFoundException("The document version was not found.");
             }
         }
         return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
@@ -1914,17 +1920,6 @@ internal sealed class RecordingCaseArtifactCustody(
             intents = intents.Where(item => item.CreatedBy == createdBy);
         }
         var intent = await intents.SingleOrDefaultAsync(cancellationToken);
-        if (intent is null && linkId is not null)
-        {
-            var foreignIntentExists = await context.Set<DocumentOccurrenceEntity>()
-                .AsNoTracking()
-                .AnyAsync(item => item.CaseId == caseId && item.OperationKey == operationKey,
-                    cancellationToken);
-            if (foreignIntentExists)
-            {
-                throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
-            }
-        }
         return intent is null
             ? null
             : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken);
