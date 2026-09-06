@@ -953,7 +953,7 @@ public sealed class StaffCorrespondenceWebTests
             await context.SaveChangesAsync();
         }
 
-        await scope.ServiceProvider.GetRequiredService<IRetainedMailboxMessageStore>().RetainAsync(
+        await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
             new(
                 mailboxId,
                 mailboxAddress,
