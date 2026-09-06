@@ -3,9 +3,12 @@
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Triage.DetailsModel
 @{
-    ViewData["Title"] = $"Triage {Model.Triage.Record.NormalizedVehicleRegistration}";
-
     var record = Model.Triage.Record;
+    // The Triage now has a permanent reference of its own, so the page is
+    // titled by it rather than by the vehicle registration.
+    var reference = record.Reference ?? record.NormalizedVehicleRegistration;
+    ViewData["Title"] = $"Triage {reference}";
+
     var mutable = record.State is not (TriageState.Completed or TriageState.Cancelled);
     // The one condition that gates completion, stated once so the control and
     // its wording cannot drift apart.
@@ -27,7 +30,7 @@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Triage</p>
-        <h1>@record.NormalizedVehicleRegistration</h1>
+        <h1>@reference</h1>
     </div>
     <div class="page-actions">
         <a class="btn" asp-page="/Cases/Index" asp-route-tab="triage">
@@ -53,7 +56,7 @@
 
 <article class="record">
     <header class="record-head">
-        <strong>@record.NormalizedVehicleRegistration</strong>
+        <strong>@reference</strong>
         <span class="record-identity">
             <span>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</span>
             <span>Opened @OperatorLabels.OfficeDate(Model.Triage.CreatedAtUtc)</span>
@@ -72,19 +75,34 @@
         @if (mutable)
         {
             <span class="record-bar-end">
-                @if (record.AssigneeId is null)
+                @* The engineer is chosen from the eligible roster, never
+                   defaulted to whoever is signed in. The control is drawn only
+                   when that roster is available, because an empty picker would
+                   offer an assignment it cannot make. *@
+                @if (Model.EngineerChoices.Count > 0)
                 {
-                    <button type="button" class="btn" data-dialog-open="triage-assign-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                        <span>Assign to me</span>
-                    </button>
+                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                        <input type="hidden" name="actionName" value="assign" />
+                        <input type="hidden" name="expectedVersion" value="@record.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                        <label class="req" for="triage-assignee">Engineer</label>
+                        <select id="triage-assignee" name="assigneeId" required>
+                            <option value=""></option>
+                            @foreach (var engineer in Model.EngineerChoices)
+                            {
+                                <option value="@engineer.StaffId" selected="@(record.AssigneeId == engineer.StaffId ? "selected" : null)">@engineer.DisplayName</option>
+                            }
+                        </select>
+                        <label class="req" for="triage-assign-reason">Reason for action</label>
+                        <input id="triage-assign-reason" name="reason" required maxlength="500" />
+                        <button type="submit" class="btn">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                            <span>@(record.AssigneeId is null ? "Assign" : "Reassign")</span>
+                        </button>
+                    </form>
                 }
-                else
+                @if (record.AssigneeId is not null)
                 {
-                    <button type="button" class="btn" data-dialog-open="triage-assign-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                        <span>Reassign to me</span>
-                    </button>
                     <button type="button" class="btn" data-dialog-open="triage-unassign-dialog">
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                         <span>Unassign</span>
@@ -230,6 +248,18 @@
                 <div class="panel-head"><h2 id="triage-source-title">Source</h2></div>
                 <div class="panel-body stack">
                     <div class="definition-list">
+                        <dl class="definition">
+                            <dt>@OperatorLabels.TriageReference</dt>
+                            <dd>@reference</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Registration</dt>
+                            <dd>@record.NormalizedVehicleRegistration</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>@OperatorLabels.Principal</dt>
+                            <dd>@(Model.Triage.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</dd>
+                        </dl>
                         <dl class="definition">
                             <dt>Material</dt>
                             <dd>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</dd>
@@ -389,16 +419,34 @@
             </section>
         }
 
-        @* EPIC-011 §1.5 calls this the "Notes panel". The name shipped on
-           `dev` before this port is "Permanent history" (origin/dev
-           Details.cshtml:348), QdosTriageIntegrationTests.cs:477 pins it, and
-           frd-03-triage.md owns the term — Triage has no note entity; every
-           entry is a retained business event. §1.5's entry shape
-           (Date/Time/ID + text) is kept exactly; only the name diverges, and
-           that divergence is UIIMP-012's to settle. *@
+        @* The panel is "Notes" (EPIC-011 §1.5). Its entries are still the one
+           permanent, attributed, versioned history: an operator note is an
+           entry in that stream, not a second, editable record beside it. The
+           entry shape (Date/Time/ID + text) is unchanged. *@
         <section class="panel section-gap" aria-labelledby="triage-history-title">
-            <div class="panel-head"><h2 id="triage-history-title">Permanent history</h2></div>
+            <div class="panel-head"><h2 id="triage-history-title">Notes</h2></div>
             <div class="panel-body">
+                @if (mutable && Model.CanRecordNotes)
+                {
+                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                        <input type="hidden" name="actionName" value="note" />
+                        <input type="hidden" name="expectedVersion" value="@record.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+                        <input type="hidden" name="reason" value="Operator note" />
+                        <div class="field">
+                            <label class="req" for="triage-note">Note</label>
+                            @* The bound is Core's, so the form cannot offer
+                               more than the history entry accepts. *@
+                            <textarea id="triage-note" name="note" rows="3" required maxlength="@TriageNotes.MaximumLength"></textarea>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--dark">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                <span>Add note</span>
+                            </button>
+                        </div>
+                    </form>
+                }
                 <div class="notes-list">
                     @foreach (var entry in Model.Triage.History.OrderByDescending(history => history.OccurredAtUtc))
                     {
@@ -421,25 +469,11 @@
 
 @if (mutable)
 {
-    @if (record.AssigneeId is null)
+    @* Assignment is an inline choice from the eligible roster, so it has no
+       dialog. Unassignment removes a person's hold on the record and keeps
+       its reasoned confirmation. *@
+    @if (record.AssigneeId is not null)
     {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "triage-assign-dialog",
-            ["DialogTitle"] = "Assign to me",
-            ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "assign" }
-        })" />
-    }
-    else
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "triage-assign-dialog",
-            ["DialogTitle"] = "Reassign to me",
-            ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "assign" }
-        })" />
         <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
         {
             ["DialogId"] = "triage-unassign-dialog",

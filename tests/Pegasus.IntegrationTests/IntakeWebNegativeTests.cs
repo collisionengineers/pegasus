@@ -10,29 +10,41 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class IntakeWebNegativeTests
 {
-    private static readonly (string Table, long ExpectedCount)[] BusinessTableBaselines =
+    /// <summary>
+    /// The business tables a negative request must never write to. The shared
+    /// foundation migration seeds the documented principal estate (fifteen
+    /// principals with their organizations and lineages), so the row counts
+    /// that a fresh factory starts with are not fixed literals here — each
+    /// test reads its own factory's starting counts via
+    /// <see cref="CaptureBusinessTableCountsAsync"/> before it makes its
+    /// negative request, then <see cref="AssertNoBusinessPersistenceAsync"/>
+    /// re-reads and compares against that baseline, so the guard is exactly
+    /// "no negative request changes any business table" regardless of what
+    /// the seed happens to contain.
+    /// </summary>
+    private static readonly string[] BusinessTables =
     [
-        ("IntakeReceipts", 0),
-        ("IntakeAssets", 0),
-        ("InstructionDrafts", 0),
-        ("IntakeReceiptEvents", 0),
-        ("IntakeStagedReceipts", 0),
-        ("IntakeWorkItems", 0),
-        ("IntakeEvaluations", 0),
-        ("Organizations", 1),
-        ("OrganizationRoles", 1),
-        ("PrincipalSequenceLineages", 1),
-        ("Principals", 1),
-        ("CaseSequences", 0),
-        ("Cases", 0),
-        ("CaseHistory", 0),
-        ("ExternalWorkItems", 0),
-        ("CaseIntakeLinks", 0),
-        ("CaseDocuments", 0),
-        ("RequestUploadLinks", 0),
-        ("DocumentVersions", 0),
-        ("DocumentOccurrences", 0),
-        ("RequestUploadReceipts", 0)
+        "IntakeReceipts",
+        "IntakeAssets",
+        "InstructionDrafts",
+        "IntakeReceiptEvents",
+        "IntakeStagedReceipts",
+        "IntakeWorkItems",
+        "IntakeEvaluations",
+        "Organizations",
+        "OrganizationRoles",
+        "PrincipalSequenceLineages",
+        "Principals",
+        "CaseSequences",
+        "Cases",
+        "CaseHistory",
+        "ExternalWorkItems",
+        "CaseIntakeLinks",
+        "CaseDocuments",
+        "RequestUploadLinks",
+        "DocumentVersions",
+        "DocumentOccurrences",
+        "RequestUploadReceipts"
     ];
 
     [Fact]
@@ -110,6 +122,7 @@ public sealed class IntakeWebNegativeTests
     public async Task MissingAntiforgeryTokenIsRejectedBeforePersistence()
     {
         using var factory = new IntakeWebApplicationFactory();
+        var baseline = await CaptureBusinessTableCountsAsync(factory);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var result = await IntakeWebDriver.PostUploadAsync(
@@ -121,13 +134,14 @@ public sealed class IntakeWebNegativeTests
             "cccccccccccccccccccccccccccccccc");
 
         Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
-        await AssertNoBusinessPersistenceAsync(factory);
+        await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
     [Fact]
     public async Task TamperedAntiforgeryTokenIsRejectedBeforePersistence()
     {
         using var factory = new IntakeWebApplicationFactory();
+        var baseline = await CaptureBusinessTableCountsAsync(factory);
         using var client = IntakeWebDriver.CreateClient(factory);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
 
@@ -135,13 +149,14 @@ public sealed class IntakeWebNegativeTests
             client, "tampered", "payload.pdf", "application/octet-stream", [0x01], form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
-        await AssertNoBusinessPersistenceAsync(factory);
+        await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
     [Fact]
     public async Task MissingUploadReturnsValidationAndDoesNotPersist()
     {
         using var factory = new IntakeWebApplicationFactory();
+        var baseline = await CaptureBusinessTableCountsAsync(factory);
         using var client = IntakeWebDriver.CreateClient(factory);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
 
@@ -153,7 +168,7 @@ public sealed class IntakeWebNegativeTests
             "Choose a file to upload.",
             result.ResponseBody,
             StringComparison.Ordinal);
-        await AssertNoBusinessPersistenceAsync(factory);
+        await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
     [Fact]
@@ -178,6 +193,7 @@ public sealed class IntakeWebNegativeTests
     public async Task EmptyUploadReturnsValidationAndDoesNotPersist()
     {
         using var factory = new IntakeWebApplicationFactory();
+        var baseline = await CaptureBusinessTableCountsAsync(factory);
         using var client = IntakeWebDriver.CreateClient(factory);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
 
@@ -186,7 +202,7 @@ public sealed class IntakeWebNegativeTests
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
         Assert.Contains("That file is empty.", result.ResponseBody, StringComparison.Ordinal);
-        await AssertNoBusinessPersistenceAsync(factory);
+        await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
     [Fact]
@@ -218,6 +234,7 @@ public sealed class IntakeWebNegativeTests
     public async Task TenMiBPlusOneReturnsValidationAndDoesNotPersist()
     {
         using var factory = new IntakeWebApplicationFactory();
+        var baseline = await CaptureBusinessTableCountsAsync(factory);
         using var client = IntakeWebDriver.CreateClient(factory);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
 
@@ -231,13 +248,14 @@ public sealed class IntakeWebNegativeTests
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
         Assert.Contains("Files must be 10.0 MB or smaller.", result.ResponseBody, StringComparison.Ordinal);
-        await AssertNoBusinessPersistenceAsync(factory);
+        await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
     [Fact]
     public async Task InvalidExternalReceiptTokenReturnsValidationAndDoesNotPersist()
     {
         using var factory = new IntakeWebApplicationFactory();
+        var baseline = await CaptureBusinessTableCountsAsync(factory);
         using var client = IntakeWebDriver.CreateClient(factory);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
 
@@ -254,7 +272,7 @@ public sealed class IntakeWebNegativeTests
             "upload receipt is invalid",
             result.ResponseBody,
             StringComparison.Ordinal);
-        await AssertNoBusinessPersistenceAsync(factory);
+        await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
     [Fact]
@@ -359,7 +377,14 @@ public sealed class IntakeWebNegativeTests
             .GetRequiredService<IIntakeReceiptQueries>().GetAsync(id, CancellationToken.None));
     }
 
-    private static async Task AssertNoBusinessPersistenceAsync(IntakeWebApplicationFactory factory)
+    /// <summary>
+    /// Reads the current row count of every <see cref="BusinessTables"/> table.
+    /// Called once before a test's negative request (to record the seeded
+    /// baseline) and once after (via <see cref="AssertNoBusinessPersistenceAsync"/>)
+    /// to prove the request left every count exactly as it found it.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, long>> CaptureBusinessTableCountsAsync(
+        IntakeWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -367,17 +392,31 @@ public sealed class IntakeWebNegativeTests
         await context.Database.OpenConnectionAsync();
         try
         {
-            foreach (var (table, expectedCount) in BusinessTableBaselines)
+            var counts = new Dictionary<string, long>(BusinessTables.Length, StringComparer.Ordinal);
+            foreach (var table in BusinessTables)
             {
                 await using var command = context.Database.GetDbConnection().CreateCommand();
                 command.CommandText = $"SELECT COUNT(*) FROM [{table}]";
-                Assert.Equal(expectedCount, Convert.ToInt64(await command.ExecuteScalarAsync(),
-                    System.Globalization.CultureInfo.InvariantCulture));
+                counts[table] = Convert.ToInt64(await command.ExecuteScalarAsync(),
+                    System.Globalization.CultureInfo.InvariantCulture);
             }
+
+            return counts;
         }
         finally
         {
             await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task AssertNoBusinessPersistenceAsync(
+        IntakeWebApplicationFactory factory,
+        IReadOnlyDictionary<string, long> baseline)
+    {
+        var current = await CaptureBusinessTableCountsAsync(factory);
+        foreach (var (table, expectedCount) in baseline)
+        {
+            Assert.Equal(expectedCount, current[table]);
         }
     }
 
