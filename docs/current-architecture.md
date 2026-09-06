@@ -587,6 +587,14 @@ redelivery is refused by the unique index on mailbox and message identity, so
 what the row records is what arrived. The Worker holds `SELECT, INSERT` on
 those tables and Web holds `SELECT` alone.
 
+The retained read model also stores structured reply targets in nullable JSON.
+Graph and local ingestion obtain the ordered MIME Reply-To addresses, using
+the original From addresses only when the header is absent. A present unusable
+header produces an empty list. SQL NULL means that the metadata was not
+retained; `GetRetainedMail` preserves that distinction without substituting
+transport Sender, To or Cc. This projection is available to the correspondence
+caller; it does not establish that the complete reply UI has passed acceptance.
+
 That read model stores `BodyPlainText`, not only the excerpt. The alternative —
 re-reading the retained MIME artifact on every view, or waiting for the
 processed receipt's evidence — leaves the viewer blank exactly where it is most
