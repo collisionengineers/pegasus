@@ -415,6 +415,57 @@ public sealed class EfUnidentifiedStore(
             : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
     }
 
+    public async Task<KeysetPage<UnidentifiedQueueRow>> ListQueueByCursorAsync(
+        UnidentifiedMediaKind? mediaKind,
+        KeysetPosition? after,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var openState = UnidentifiedState.Open.ToString();
+
+        var items = context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            .Where(item => item.State == openState);
+        if (after is { } position)
+        {
+            // The composite keyset predicate, written out rather than as a
+            // tuple comparison: SQL Server translates this form, and it is the
+            // whole of the stability guarantee - a row equal on the timestamp
+            // is included only when its id is strictly greater, so no row is
+            // skipped or repeated when the queue changes under the reader.
+            items = items.Where(item =>
+                item.CreatedAtUtc > position.SortKey
+                || (item.CreatedAtUtc == position.SortKey && item.Id.CompareTo(position.Id) > 0));
+        }
+
+        // The media kind is derived at read time from the origin receipt, so it
+        // cannot be filtered in SQL. One extra row is fetched to learn whether a
+        // next page exists; a media filter is applied after the join and the
+        // page is re-cut, so the continuation is exact either way.
+        var joined = await (
+            from item in items
+            join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking()
+                .Include(entity => entity.MailRouteDecision)
+                on item.OriginId equals receipt.Id into receiptGroup
+            from receipt in receiptGroup.DefaultIfEmpty()
+            orderby item.CreatedAtUtc, item.Id
+            select new { item, receipt })
+            .Take(mediaKind is null ? limit + 1 : limit * 4 + 1)
+            .ToArrayAsync(cancellationToken);
+
+        var rows = joined
+            .Select(row => (Row: MapQueueRow(row.item, row.receipt), row.item.CreatedAtUtc, row.item.Id))
+            .Where(row => mediaKind is null || row.Row.MediaKind == mediaKind.Value)
+            .ToArray();
+
+        var page = rows.Take(limit).ToArray();
+        var next = rows.Length > page.Length && page.Length > 0
+            ? new KeysetPosition(page[^1].CreatedAtUtc, page[^1].Id)
+            : null;
+        return new(page.Select(row => row.Row).ToArray(), next);
+    }
+
     private static UnidentifiedQueueRow MapQueueRow(UnidentifiedItemEntity item, IntakeReceiptEntity? receipt)
     {
         // The nullable overload owns the no-receipt fallback (a
