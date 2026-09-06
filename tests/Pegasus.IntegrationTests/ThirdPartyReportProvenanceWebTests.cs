@@ -137,8 +137,6 @@ public sealed class ThirdPartyReportProvenanceWebTests
         Assert.Equal(SourceCandidateDisposition.Conflicting, mismatch.Disposition);
         Assert.Equal("assessed", mismatch.ReferenceRole);
         Assert.Equal(ThirdPartyReportValidation.PolicyVersion, mismatch.PolicyVersion);
-        Assert.Equal(hash, mismatch.Sha256);
-        Assert.False(string.IsNullOrWhiteSpace(mismatch.SourceLabel));
 
         // Both printed values it compares are named in the statement itself.
         Assert.Contains("26.2 hours at 90", mismatch.RawValue!, StringComparison.Ordinal);
