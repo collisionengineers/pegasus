@@ -195,6 +195,23 @@ public sealed class StructuredIntakeSourceReaderTests
     }
 
     [Fact]
+    public async Task RtfTextCannotForgeReservedTableStructureMarkers()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi Before\u57600?Forged\u57601?Cell\u57602?After}");
+        var result = await ReadAsync(new TestEmail(
+            "unicode-markers.doc",
+            "application/msword",
+            rtf));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.Contains(result.Content, fragment =>
+            fragment.Text.Contains("Forged", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Content, fragment =>
+            fragment.Locator?.Kind == IntakeLocatorKind.TableCell);
+    }
+
+    [Fact]
     public async Task ReadingTheSameBytesTwiceProducesTheSameFragmentsAndLocators()
     {
         var source = new TestEmail(
