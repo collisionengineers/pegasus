@@ -208,10 +208,10 @@ public sealed class StaffMailSendTests
         public TaskCompletionSource SendEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSend { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<byte[]> Attached { get; } = [];
-        public Task ValidateEncodedSizeAsync(ApprovedStaffSendMailbox mailbox, StaffMailSendCommand command, IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task<StaffMailDraftResult?> FindDraftAsync(ApprovedStaffSendMailbox mailbox, Guid operationId, CancellationToken cancellationToken) =>
-            Task.FromResult<StaffMailDraftResult?>(null);
-        public Task<StaffMailDraftResult> CreateDraftAsync(ApprovedStaffSendMailbox mailbox, Guid operationId, StaffMailSendCommand command, CancellationToken cancellationToken)
+        public Task ValidateEncodedSizeAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<StaffMailDraftLookupResult> FindDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, CancellationToken cancellationToken) =>
+            Task.FromResult(new StaffMailDraftLookupResult(null, null, true));
+        public Task<StaffMailDraftResult> CreateDraftAsync(ApprovedStaffSendMailbox mailbox, Guid operationId, string payloadHash, StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             CreateCount++;
             return Task.FromResult(new StaffMailDraftResult("draft"));
@@ -285,6 +285,15 @@ public sealed class StaffMailSendTests
             var current = operation!;
             StaffMailStatePolicy.RequireTransition(current.State, state);
             operation = current with { State = state, AttemptStage = stage, Version = current.Version + 1, SubmittedAtUtc = submittedAtUtc ?? current.SubmittedAtUtc, ObservedSentAtUtc = observedSentAtUtc ?? current.ObservedSentAtUtc, FailureCode = failureCode };
+            return Task.FromResult(operation);
+        }
+        public Task<StaffMailOperation> SetReconciliationContinuationAsync(string actorSubjectId, Guid operationId, long expectedVersion, string? continuation, CancellationToken cancellationToken)
+        {
+            operation = operation! with
+            {
+                ReconciliationContinuation = continuation,
+                Version = operation.Version + 1
+            };
             return Task.FromResult(operation);
         }
         public Task TransitionObservedSentAsync(ActionActor systemActor, Guid operationId, long expectedVersion, string immutableMessageId, DateTimeOffset providerSentAtUtc, DateTimeOffset observedAtUtc, CancellationToken cancellationToken) => Task.CompletedTask;

@@ -47,6 +47,8 @@ public interface IStaffMailExecutionLock
 }
 
 public sealed record StaffMailDraftResult(string ImmutableDraftId);
+public sealed record StaffMailDraftLookupResult(
+    StaffMailDraftResult? Draft, string? Continuation, bool Complete);
 public sealed record StaffMailSubmitResult(DateTimeOffset SubmittedAtUtc);
 public sealed record StaffMailAttachmentContent(StaffMailAttachment Attachment, Stream Content);
 public sealed class StaffMailTransportRejectedException(string failureCode) : Exception
@@ -61,12 +63,15 @@ public sealed record StaffMailExecution(
 public interface IStaffMailTransport
 {
     Task ValidateEncodedSizeAsync(
-        ApprovedStaffSendMailbox mailbox, StaffMailSendCommand command,
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
+        StaffMailSendCommand command,
         IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken);
-    Task<StaffMailDraftResult?> FindDraftAsync(
-        ApprovedStaffSendMailbox mailbox, Guid operationId, CancellationToken cancellationToken);
+    Task<StaffMailDraftLookupResult> FindDraftAsync(
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
+        CancellationToken cancellationToken);
     Task<StaffMailDraftResult> CreateDraftAsync(
-        ApprovedStaffSendMailbox mailbox, Guid operationId, StaffMailSendCommand command,
+        ApprovedStaffSendMailbox mailbox, Guid operationId, string payloadHash,
+        StaffMailSendCommand command,
         CancellationToken cancellationToken);
     Task AttachAsync(
         ApprovedStaffSendMailbox mailbox, Guid operationId, string immutableDraftId,
@@ -92,6 +97,9 @@ public interface IStaffMailSendStore
         StaffMailState state, StaffMailAttemptStage? stage, string? draftImmutableId,
         DateTimeOffset? submittedAtUtc, DateTimeOffset? observedSentAtUtc,
         string? failureCode, CancellationToken cancellationToken);
+    Task<StaffMailOperation> SetReconciliationContinuationAsync(
+        string actorSubjectId, Guid operationId, long expectedVersion,
+        string? continuation, CancellationToken cancellationToken);
     Task TransitionObservedSentAsync(
         ActionActor systemActor, Guid operationId, long expectedVersion,
         string immutableMessageId, DateTimeOffset providerSentAtUtc,
@@ -172,7 +180,7 @@ public sealed class StaffMailSend(
                     ? throw new InvalidOperationException("The report generation is not linked to an exact Case.")
                     : command.ContextId);
             contents = await OpenAttachmentsAsync(command, mailbox, attachmentCaseId, cancellationToken);
-            await transport.ValidateEncodedSizeAsync(mailbox, command,
+            await transport.ValidateEncodedSizeAsync(mailbox, operation, command,
                 contents.Select(value => new StaffMailAttachmentContent(
                     value.Attachment, value.Content.Content)).ToArray(), cancellationToken);
             await store.RequireCurrentStaffAsync(command.Actor.SubjectId, cancellationToken);
@@ -189,6 +197,10 @@ public sealed class StaffMailSend(
                 command, operation, mailbox, mayCreateDraft, cancellationToken);
             operation = draftResult.Operation;
             var draft = draftResult.Draft;
+            if (draft is null)
+            {
+                return operation;
+            }
             operation = await store.TransitionAsync(
                 command.Actor.SubjectId, operation.Id, operation.Version,
                 StaffMailState.DraftReady, StaffMailAttemptStage.Attach, draft.ImmutableDraftId,
@@ -268,6 +280,31 @@ public sealed class StaffMailSend(
         {
             throw new InvalidOperationException("The staff mail operation changed concurrently.");
         }
+        if (execution.Operation.State == StaffMailState.Unknown
+            && execution.Operation.AttemptStage == StaffMailAttemptStage.CreateDraft)
+        {
+            await store.RequireCurrentStaffAsync(actor.SubjectId, cancellationToken);
+            var mailbox = await mailboxes.GetAsync(
+                execution.Operation.ApprovedMailboxId, cancellationToken)
+                ?? throw new InvalidOperationException("The approved staff mailbox is unavailable.");
+            if (mailbox.Generation != execution.Operation.MailboxGeneration)
+                throw new InvalidOperationException("The approved staff mailbox generation changed.");
+            var lookup = await transport.FindDraftAsync(mailbox, execution.Operation, cancellationToken);
+            var operation = execution.Operation;
+            if (!string.Equals(operation.ReconciliationContinuation, lookup.Continuation,
+                    StringComparison.Ordinal))
+            {
+                operation = await store.SetReconciliationContinuationAsync(
+                    actor.SubjectId, operation.Id, operation.Version,
+                    lookup.Continuation, cancellationToken);
+            }
+            if (!lookup.Complete || lookup.Draft is null)
+                return operation;
+            return await store.TransitionAsync(
+                actor.SubjectId, operation.Id, operation.Version,
+                StaffMailState.DraftReady, StaffMailAttemptStage.Attach,
+                lookup.Draft.ImmutableDraftId, null, null, null, cancellationToken);
+        }
         if (execution.Operation.State is StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown)
         {
             if (evidenceReconciler is null)
@@ -298,14 +335,29 @@ public sealed class StaffMailSend(
             operation.ObservedSentAtUtc, null, cancellationToken);
     }
 
-    private async Task<(StaffMailOperation Operation, StaffMailDraftResult Draft)> CreateOrRecoverDraftAsync(
+    private async Task<(StaffMailOperation Operation, StaffMailDraftResult? Draft)> CreateOrRecoverDraftAsync(
         StaffMailSendCommand command, StaffMailOperation operation,
         ApprovedStaffSendMailbox mailbox, bool mayCreate, CancellationToken cancellationToken)
     {
-        var existing = await transport.FindDraftAsync(mailbox, operation.Id, cancellationToken);
-        if (existing is not null)
+        var lookup = await transport.FindDraftAsync(mailbox, operation, cancellationToken);
+        if (!string.Equals(operation.ReconciliationContinuation, lookup.Continuation,
+                StringComparison.Ordinal))
         {
-            return (operation, existing);
+            operation = await store.SetReconciliationContinuationAsync(
+                command.Actor.SubjectId, operation.Id, operation.Version,
+                lookup.Continuation, cancellationToken);
+        }
+        if (!lookup.Complete)
+        {
+            operation = await store.TransitionAsync(
+                command.Actor.SubjectId, operation.Id, operation.Version,
+                StaffMailState.Unknown, StaffMailAttemptStage.CreateDraft,
+                null, null, null, "staff_mail_draft_lookup_incomplete", cancellationToken);
+            return (operation, null);
+        }
+        if (lookup.Draft is not null)
+        {
+            return (operation, lookup.Draft);
         }
         if (operation.State == StaffMailState.DraftReady)
         {
@@ -317,7 +369,7 @@ public sealed class StaffMailSend(
                 "Draft creation could not be reconciled; a replacement draft was not created.");
         }
         return (operation, await transport.CreateDraftAsync(
-            mailbox, operation.Id, command, cancellationToken));
+            mailbox, operation.Id, operation.PayloadHash, command, cancellationToken));
     }
 
     private async Task<ApprovedStaffSendMailbox> RequireMailboxAsync(

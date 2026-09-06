@@ -18,10 +18,11 @@ internal sealed class GraphStaffMailSender(
     private const int UploadChunkSize = 10 * 320 * 1024;
 
     public async Task ValidateEncodedSizeAsync(
-        ApprovedStaffSendMailbox mailbox, StaffMailSendCommand command,
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
+        StaffMailSendCommand command,
         IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken)
     {
-        var message = BuildMimeMessage(Guid.Empty, command);
+        var message = BuildMimeMessage(operation.Id, operation.PayloadHash, command);
         var builder = new BodyBuilder { TextBody = command.Body };
         foreach (var attachment in attachments)
         {
@@ -49,11 +50,22 @@ internal sealed class GraphStaffMailSender(
         }
     }
 
-    public async Task<StaffMailDraftResult?> FindDraftAsync(
-        ApprovedStaffSendMailbox mailbox, Guid operationId, CancellationToken cancellationToken)
+    public async Task<StaffMailDraftLookupResult> FindDraftAsync(
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
+        CancellationToken cancellationToken)
     {
-        System.Uri? uri = BuildMailboxUri(mailbox,
-            $"messages?$filter=isDraft eq true&$select=id,internetMessageHeaders&$top=25");
+        if (operation.DraftImmutableId is { Length: > 0 } recordedDraftId)
+            return await ReadRecordedDraftAsync(mailbox, operation, recordedDraftId, cancellationToken);
+        if (operation.AttemptRequestedAtUtc is not { } requestedAtUtc)
+            throw new InvalidDataException("The draft creation attempt time is unavailable.");
+        var cursor = ParseCursor(operation.ReconciliationContinuation, requestedAtUtc);
+        System.Uri? uri = cursor.NextLink is null
+            ? BuildMailboxUri(mailbox,
+                "mailFolders/drafts/messages?$filter="
+                + Uri.EscapeDataString($"createdDateTime ge {cursor.WindowStartUtc:O} and createdDateTime le {cursor.WindowEndUtc:O}")
+                + "&$select=id,internetMessageHeaders,createdDateTime&$top=50")
+            : ValidateContinuation(mailbox, cursor.NextLink);
+        var matchedId = cursor.MatchedImmutableId;
         for (var page = 0; uri is not null && page < 10; page++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -65,28 +77,34 @@ internal sealed class GraphStaffMailSender(
             foreach (var value in document.RootElement.GetProperty("value").EnumerateArray())
             {
                 if (value.TryGetProperty("internetMessageHeaders", out var headers)
-                    && headers.EnumerateArray().Any(header =>
-                        string.Equals(header.GetProperty("name").GetString(), "x-pegasus-operation-id", StringComparison.OrdinalIgnoreCase)
-                        && string.Equals(header.GetProperty("value").GetString(), operationId.ToString("D"), StringComparison.Ordinal)))
+                    && HasHeader(headers, StaffMailCorrelationHeaders.OperationId, operation.Id.ToString("D"))
+                    && HasHeader(headers, StaffMailCorrelationHeaders.MailboxId, mailbox.Id.ToString("D"))
+                    && HasHeader(headers, StaffMailCorrelationHeaders.MailboxGeneration, operation.MailboxGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    && HasHeader(headers, StaffMailCorrelationHeaders.PayloadSha256, operation.PayloadHash))
                 {
-                    return new(value.GetProperty("id").GetString()
-                        ?? throw new InvalidDataException("Microsoft Graph returned a draft without an identifier."));
+                    var candidateId = value.GetProperty("id").GetString()
+                        ?? throw new InvalidDataException("Microsoft Graph returned a draft without an identifier.");
+                    if (matchedId is not null && !string.Equals(matchedId, candidateId, StringComparison.Ordinal))
+                        throw new InvalidDataException("Draft reconciliation found multiple matching drafts.");
+                    matchedId = candidateId;
                 }
             }
             uri = document.RootElement.TryGetProperty("@odata.nextLink", out var next)
-                ? new System.Uri(next.GetString()
+                ? ValidateContinuation(mailbox, next.GetString()
                     ?? throw new InvalidDataException("Microsoft Graph returned an invalid draft continuation."))
                 : null;
         }
         if (uri is not null)
         {
-            throw new InvalidDataException("Draft reconciliation exceeded its bounded page limit.");
+            return new(null, JsonSerializer.Serialize(new DraftCursor(
+                uri.AbsoluteUri, matchedId, cursor.WindowStartUtc, cursor.WindowEndUtc)), false);
         }
-        return null;
+        return new(matchedId is null ? null : new(matchedId), null, true);
     }
 
     public async Task<StaffMailDraftResult> CreateDraftAsync(
-        ApprovedStaffSendMailbox mailbox, Guid operationId, StaffMailSendCommand command,
+        ApprovedStaffSendMailbox mailbox, Guid operationId, string payloadHash,
+        StaffMailSendCommand command,
         CancellationToken cancellationToken)
     {
         var path = command.ComposeMode switch
@@ -97,7 +115,7 @@ internal sealed class GraphStaffMailSender(
             StaffMailComposeMode.Forward => $"messages/{Escape(command.OriginalMessage!.ImmutableMessageId)}/createForward",
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
-        var message = BuildMimeMessage(operationId, command);
+        var message = BuildMimeMessage(operationId, payloadHash, command);
         await using var mime = new MemoryStream();
         await message.WriteToAsync(mime, cancellationToken);
         var payload = Convert.ToBase64String(mime.ToArray());
@@ -114,7 +132,8 @@ internal sealed class GraphStaffMailSender(
             ?? throw new InvalidDataException("Microsoft Graph returned a draft without an identifier."));
     }
 
-    private static MimeMessage BuildMimeMessage(Guid operationId, StaffMailSendCommand command)
+    private static MimeMessage BuildMimeMessage(
+        Guid operationId, string? payloadHash, StaffMailSendCommand command)
     {
         var message = new MimeMessage { Subject = command.Subject };
         foreach (var recipient in command.To)
@@ -126,7 +145,13 @@ internal sealed class GraphStaffMailSender(
             message.Cc.Add(new MailboxAddress(recipient.DisplayName ?? string.Empty, recipient.Address));
         }
         if (operationId != Guid.Empty)
-            message.Headers.Add("X-Pegasus-Operation-Id", operationId.ToString("D"));
+        {
+            message.Headers.Add(StaffMailCorrelationHeaders.OperationId, operationId.ToString("D"));
+            message.Headers.Add(StaffMailCorrelationHeaders.MailboxId, command.ApprovedMailboxId.ToString("D"));
+            message.Headers.Add(StaffMailCorrelationHeaders.MailboxGeneration,
+                command.ExpectedMailboxGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            message.Headers.Add(StaffMailCorrelationHeaders.PayloadSha256, payloadHash!);
+        }
         if (command.OriginalMessage?.InternetMessageId is { Length: > 0 } replyTo)
         {
             message.InReplyTo = replyTo;
@@ -135,6 +160,76 @@ internal sealed class GraphStaffMailSender(
         message.Body = new TextPart(TextFormat.Plain) { Text = command.Body };
         return message;
     }
+
+    private static bool HasHeader(JsonElement headers, string name, string expected) =>
+        headers.EnumerateArray().Any(header =>
+            string.Equals(header.GetProperty("name").GetString(), name, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(header.GetProperty("value").GetString(), expected, StringComparison.Ordinal));
+
+    private static DraftCursor ParseCursor(string? serialized, DateTimeOffset requestedAtUtc)
+    {
+        var expectedStart = requestedAtUtc.AddMinutes(-5);
+        var expectedEnd = requestedAtUtc.AddHours(1);
+        if (serialized is null)
+            return new(null, null, expectedStart, expectedEnd);
+        if (serialized.Length > 16 * 1024)
+            throw new InvalidDataException("The draft reconciliation continuation is invalid.");
+        try
+        {
+            var cursor = JsonSerializer.Deserialize<DraftCursor>(serialized)
+                ?? throw new InvalidDataException("The draft reconciliation continuation is invalid.");
+            if (cursor.WindowStartUtc != expectedStart || cursor.WindowEndUtc != expectedEnd
+                || string.IsNullOrWhiteSpace(cursor.NextLink)
+                || cursor.MatchedImmutableId is { Length: 0 })
+                throw new InvalidDataException("The draft reconciliation continuation is invalid.");
+            return cursor;
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The draft reconciliation continuation is invalid.", exception);
+        }
+    }
+
+    private Uri ValidateContinuation(ApprovedStaffSendMailbox mailbox, string continuation)
+    {
+        if (!Uri.TryCreate(continuation, UriKind.Absolute, out var candidate))
+            throw new InvalidDataException("The draft reconciliation continuation is invalid.");
+        var expected = BuildMailboxUri(mailbox, "mailFolders/drafts/messages");
+        if (!string.Equals(candidate.Scheme, expected.Scheme, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(candidate.Host, expected.Host, StringComparison.OrdinalIgnoreCase)
+            || candidate.Port != expected.Port
+            || !string.Equals(candidate.AbsolutePath, expected.AbsolutePath, StringComparison.Ordinal))
+            throw new InvalidDataException("The draft reconciliation continuation is outside the approved mailbox.");
+        return candidate;
+    }
+
+    private async Task<StaffMailDraftLookupResult> ReadRecordedDraftAsync(
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
+        string recordedDraftId, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            BuildMailboxUri(mailbox, $"messages/{Escape(recordedDraftId)}?$select=id,isDraft,internetMessageHeaders"));
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var response = await client.SendStaffAsync(request, cancellationToken);
+        RequireSuccess(response);
+        using var document = JsonDocument.Parse(await ReadBoundedAsync(
+            response.Content, 256 * 1024, cancellationToken));
+        var root = document.RootElement;
+        if (!string.Equals(root.GetProperty("id").GetString(), recordedDraftId, StringComparison.Ordinal)
+            || !root.TryGetProperty("isDraft", out var isDraft) || !isDraft.GetBoolean()
+            || !root.TryGetProperty("internetMessageHeaders", out var headers)
+            || !HasHeader(headers, StaffMailCorrelationHeaders.OperationId, operation.Id.ToString("D"))
+            || !HasHeader(headers, StaffMailCorrelationHeaders.MailboxId, mailbox.Id.ToString("D"))
+            || !HasHeader(headers, StaffMailCorrelationHeaders.MailboxGeneration,
+                operation.MailboxGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            || !HasHeader(headers, StaffMailCorrelationHeaders.PayloadSha256, operation.PayloadHash))
+            throw new InvalidDataException("The recorded Graph draft does not match the frozen staff mail operation.");
+        return new(new(recordedDraftId), null, true);
+    }
+
+    private sealed record DraftCursor(
+        string? NextLink, string? MatchedImmutableId,
+        DateTimeOffset WindowStartUtc, DateTimeOffset WindowEndUtc);
 
     public async Task AttachAsync(
         ApprovedStaffSendMailbox mailbox, Guid operationId, string immutableDraftId,

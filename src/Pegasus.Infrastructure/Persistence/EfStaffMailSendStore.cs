@@ -203,7 +203,17 @@ internal sealed class EfStaffMailSendStore(
         entity.State = state;
         entity.AttemptStage = stage;
         entity.DraftImmutableId = draftImmutableId ?? entity.DraftImmutableId;
-        entity.LastAttemptAtUtc = DateTimeOffset.UtcNow;
+        DateTimeOffset occurredAtUtc;
+        if (state != StaffMailState.Unknown || stage != StaffMailAttemptStage.CreateDraft)
+        {
+            occurredAtUtc = DateTimeOffset.UtcNow;
+            entity.LastAttemptAtUtc = occurredAtUtc;
+        }
+        else
+        {
+            occurredAtUtc = entity.LastAttemptAtUtc
+                ?? throw new InvalidOperationException("The draft creation attempt time is unavailable.");
+        }
         entity.SubmittedAtUtc = submittedAtUtc ?? entity.SubmittedAtUtc;
         entity.ObservedSentAtUtc = observedSentAtUtc ?? entity.ObservedSentAtUtc;
         entity.LastError = failureCode;
@@ -211,7 +221,7 @@ internal sealed class EfStaffMailSendStore(
         entity.ConcurrencyToken = Guid.NewGuid();
         var currentRoles = await CurrentRoleNamesAsync(db, actorSubjectId, cancellationToken);
         db.ActionHistory.Add(History(entity, ActorKind.Staff, actorSubjectId, currentRoles,
-            $"staff-mail-{state.ToString().ToLowerInvariant()}", entity.LastAttemptAtUtc.Value,
+            $"staff-mail-{state.ToString().ToLowerInvariant()}", occurredAtUtc,
             entity.OperationKey, failureCode, before, Map(entity)));
         try
         {
@@ -222,6 +232,23 @@ internal sealed class EfStaffMailSendStore(
             throw new InvalidOperationException(
                 "The staff mail operation changed concurrently.", exception);
         }
+        return Map(entity);
+    }
+
+    public async Task<StaffMailOperation> SetReconciliationContinuationAsync(
+        string actorSubjectId, Guid operationId, long expectedVersion,
+        string? continuation, CancellationToken cancellationToken)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Set<StaffMailSendOperationEntity>().SingleOrDefaultAsync(
+            value => value.Id == operationId && value.ActorSubjectId == actorSubjectId,
+            cancellationToken) ?? throw new KeyNotFoundException("The staff mail operation was not found.");
+        if (entity.Version != expectedVersion)
+            throw new InvalidOperationException("The staff mail operation changed concurrently.");
+        entity.ReconciliationContinuation = continuation;
+        entity.Version = checked(entity.Version + 1);
+        entity.ConcurrencyToken = Guid.NewGuid();
+        await db.SaveChangesAsync(cancellationToken);
         return Map(entity);
     }
 
@@ -346,7 +373,8 @@ internal sealed class EfStaffMailSendStore(
         value.Id, value.State, value.AttemptStage, value.Version,
         value.CreatedAtUtc, value.SubmittedAtUtc, value.ObservedSentAtUtc,
         value.LastError, value.MailboxId, value.MailboxGeneration, value.PayloadHash,
-        value.LastAttemptAtUtc, value.UploadSessionExpiresAtUtc);
+        value.LastAttemptAtUtc, value.UploadSessionExpiresAtUtc,
+        value.ReconciliationContinuation, value.DraftImmutableId);
 
     private sealed record Recipients(
         IReadOnlyList<StaffMailRecipient> To,
