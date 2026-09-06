@@ -29,12 +29,11 @@ public sealed class DetailsModel(
     IUnlinkTriageCase unlinkCase,
     IGetIntake getIntake,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
-    // Both are composition-gated: the note command and the eligible-engineer
-    // list have no adapter registered yet, so their controls are not drawn
-    // until one is. Neither is a fallback for the other, and neither is
-    // claimed as delivered while its port is absent.
-    IAddTriageNote? addNote = null,
-    ICaseEngineerChoices? engineerChoices = null) : StaffPageModel
+    ICaseEngineerChoices engineerChoices,
+    // Composition-gated: nothing registers the note command yet, so the note
+    // form is not drawn until something does. It is a closed gate, not a
+    // partially shipped feature.
+    IAddTriageNote? addNote = null) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -72,9 +71,8 @@ public sealed class DetailsModel(
     public string? Message { get; private set; }
 
     /// <summary>
-    /// The engineers this Triage may be assigned to. Empty until the
-    /// eligible-engineer adapter is registered, which is what closes the
-    /// assignment control rather than opening it onto a guess.
+    /// The engineers this Triage may be assigned to — the enabled accounts
+    /// holding the Engineer role, and nobody else.
     /// </summary>
     public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
 
@@ -92,9 +90,7 @@ public sealed class DetailsModel(
             return NotFound();
         }
 
-        EngineerChoices = engineerChoices is null
-            ? []
-            : await engineerChoices.GetAsync(actor, cancellationToken);
+        EngineerChoices = await engineerChoices.GetAsync(actor, cancellationToken);
 
         Message = TempData["TriageStatus"] as string;
         if (TempData["TriageUnavailableCase"] is string unavailableCase)
@@ -133,7 +129,6 @@ public sealed class DetailsModel(
         {
             return Forbid();
         }
-        var actor = actionActor.SubjectId;
 
         OperationKey = operationKey;
         try
@@ -141,7 +136,7 @@ public sealed class DetailsModel(
             var mutation = new TriageMutationRequest(
                 id,
                 expectedVersion,
-                actor,
+                actionActor,
                 operationKey,
                 reason);
             switch (actionName)
@@ -161,7 +156,7 @@ public sealed class DetailsModel(
                             id,
                             expectedVersion,
                             chosenEngineer,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
@@ -173,7 +168,7 @@ public sealed class DetailsModel(
                     }
 
                     await addNote.ExecuteAsync(
-                        new(id, expectedVersion, actor, operationKey, note ?? string.Empty),
+                        new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty),
                         cancellationToken);
                     break;
                 case "unassign":
@@ -187,7 +182,7 @@ public sealed class DetailsModel(
                         new(
                             id,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason,
                             roadworthiness,
@@ -200,7 +195,7 @@ public sealed class DetailsModel(
                         new(
                             id,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason,
                             roadworthiness,
@@ -217,7 +212,7 @@ public sealed class DetailsModel(
                             candidate.PollOutcomeId,
                             candidate.SentEvidenceId,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
@@ -229,7 +224,7 @@ public sealed class DetailsModel(
                             id,
                             sentEvidenceId ?? Guid.Empty,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);

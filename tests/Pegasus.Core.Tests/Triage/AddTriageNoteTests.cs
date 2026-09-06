@@ -1,3 +1,4 @@
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 
@@ -7,8 +8,12 @@ public sealed class AddTriageNoteTests
 {
     private static readonly Guid TriageId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
+    private static ActionActor StaffActor() => ActionActor.Staff(
+        Guid.Parse("44444444-4444-4444-4444-444444444444"),
+        [StaffRole.Engineer]);
+
     private static AddTriageNoteRequest Request(string note = "The repairer confirmed the vehicle is on site.") =>
-        new(TriageId, 3, "operator-1", "note-op-1", note);
+        new(TriageId, 3, StaffActor(), "note-op-1", note);
 
     [Fact]
     public async Task ANoteIsAppendedThroughTheOneReplayProbedHistory()

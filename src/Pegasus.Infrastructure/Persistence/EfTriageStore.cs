@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -29,7 +30,7 @@ public sealed class EfTriageStore(
     {
         ValidateCreate(request);
         var operationKey = request.OperationKey.Trim();
-        var actor = request.Actor.Trim();
+        var actor = request.Actor;
         var vrm = request.NormalizedVehicleRegistration.Trim().ToUpperInvariant();
         var sourceChannel = ToCode(request.Origin.SourceIdentity.Channel);
         var sourceToken = request.Origin.SourceIdentity.ExternalReceiptToken.Trim();
@@ -38,7 +39,7 @@ public sealed class EfTriageStore(
         var matcherKey = acceptedMatch.MatcherKey!.Trim();
         var matchSignal = acceptedMatch.Signal.Trim();
         var requestHash = Hash(
-            $"create|{request.Origin.ReceiptId:N}|{sourceChannel}|{sourceToken}|{sourceHash}|{request.Origin.EvaluationRevisionId:N}|{vrm}|{acceptedMatch.Source}|{acceptedMatch.Strength}|{acceptedMatch.Finding}|{matcherKey}|{acceptedMatch.MatcherVersion}|{matchSignal}|{acceptedMatch.Detail.Trim()}|{actor}");
+            $"create|{request.Origin.ReceiptId:N}|{sourceChannel}|{sourceToken}|{sourceHash}|{request.Origin.EvaluationRevisionId:N}|{vrm}|{acceptedMatch.Source}|{acceptedMatch.Strength}|{acceptedMatch.Finding}|{matcherKey}|{acceptedMatch.MatcherVersion}|{matchSignal}|{acceptedMatch.Detail.Trim()}|{actor.Kind}|{actor.SubjectId}");
 
         // The replay probe runs before the transaction, holding nothing: a
         // retry of a committed creation returns its original reference without
@@ -244,7 +245,7 @@ public sealed class EfTriageStore(
             request.OperationKey,
             request.Reason,
             "triage_assigned",
-            Hash($"assign|{request.TriageId:N}|{request.ExpectedVersion}|{request.AssigneeId:N}|{request.Actor.Trim()}|{request.Reason.Trim()}"),
+            Hash($"assign|{request.TriageId:N}|{request.ExpectedVersion}|{request.AssigneeId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}"),
             item =>
             {
                 if (item.AssigneeId == request.AssigneeId)
@@ -368,7 +369,7 @@ public sealed class EfTriageStore(
     }
 
     private static string NoteRequestHash(AddTriageNoteRequest request) =>
-        Hash($"note|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Trim()}|{request.Note.Trim()}");
+        Hash($"note|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Note.Trim()}");
 
     public async Task LinkResponseEvidenceAsync(
         TriageResponseEvidenceLinkRequest request,
@@ -463,7 +464,7 @@ public sealed class EfTriageStore(
                 MimeSha256 = outcome.MimeSha256!,
                 SentAtUtc = outcome.SentAtUtc!.Value,
                 DiscoveredAtUtc = outcome.RecordedAtUtc,
-                Actor = request.Actor.Trim(),
+                Actor = request.Actor.SubjectId,
                 OperationKey = operationKey,
                 RequestHash = requestHash
             });
@@ -478,7 +479,7 @@ public sealed class EfTriageStore(
             Triage = triage,
             SentEvidenceId = sent.Id,
             SentEvidence = sent,
-            Actor = request.Actor.Trim(),
+            Actor = request.Actor.SubjectId,
             OperationKey = operationKey,
             Reason = request.Reason.Trim(),
             LinkedAtUtc = UtcNow()
@@ -487,7 +488,7 @@ public sealed class EfTriageStore(
             context,
             triage,
             "triage_response_linked",
-            request.Actor.Trim(),
+            request.Actor,
             operationKey,
             request.Reason.Trim(),
             requestHash);
@@ -559,7 +560,7 @@ public sealed class EfTriageStore(
             context,
             triage,
             "triage_response_unlinked",
-            request.Actor.Trim(),
+            request.Actor,
             operationKey,
             request.Reason.Trim(),
             requestHash);
@@ -892,13 +893,13 @@ public sealed class EfTriageStore(
             Roadworthiness = request.Roadworthiness is null ? null : ToCode(request.Roadworthiness.Value),
             Assessment = request.Assessment is null ? null : ToCode(request.Assessment.Value),
             SupersedesFindingId = request.SupersedesFindingId,
-            Actor = request.Actor.Trim(),
+            Actor = request.Actor.SubjectId,
             OperationKey = request.OperationKey.Trim(),
             Reason = request.Reason.Trim(),
             RecordedAtUtc = UtcNow()
         });
         triage.State = ToCode(TriageState.FindingRecorded);
-        AppendHistory(context, triage, eventType, request.Actor.Trim(), request.OperationKey.Trim(), request.Reason.Trim(), requestHash);
+        AppendHistory(context, triage, eventType, request.Actor, request.OperationKey.Trim(), request.Reason.Trim(), requestHash);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -918,7 +919,7 @@ public sealed class EfTriageStore(
             request.OperationKey,
             request.Reason,
             eventType,
-            Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Trim()}|{request.Reason.Trim()}"),
+            Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}"),
             mutation,
             cancellationToken);
     }
@@ -926,7 +927,7 @@ public sealed class EfTriageStore(
     private async Task<TriageRecord> MutateAsync(
         Guid triageId,
         long expectedVersion,
-        string actor,
+        ActionActor actor,
         string operationKey,
         string reason,
         string eventType,
@@ -963,7 +964,7 @@ public sealed class EfTriageStore(
                 "Triage completion requires exactly one replied Sent email evidence link.");
         }
         mutation(triage);
-        AppendHistory(context, triage, eventType, actor.Trim(), operationKey, reason.Trim(), requestHash);
+        AppendHistory(context, triage, eventType, actor, operationKey, reason.Trim(), requestHash);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -978,7 +979,7 @@ public sealed class EfTriageStore(
         ValidateMutation(
             request.TriageId,
             request.ExpectedTriageVersion,
-            request.Actor.SubjectId,
+            request.Actor,
             request.OperationKey,
             request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CaseEditLeaseToken);
@@ -1075,7 +1076,7 @@ public sealed class EfTriageStore(
             context,
             triage,
             eventType,
-            request.Actor.SubjectId,
+            request.Actor,
             operationKey,
             request.Reason.Trim(),
             requestHash);
@@ -1119,7 +1120,7 @@ public sealed class EfTriageStore(
     private static string FindingRequestHash(
         RecordTriageFindingRequest request,
         string eventType) =>
-        Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Roadworthiness}|{request.Assessment}|{request.SupersedesFindingId:N}|{request.Actor.Trim()}|{request.Reason.Trim()}");
+        Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Roadworthiness}|{request.Assessment}|{request.SupersedesFindingId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static string StateEventType(TriageState targetState) =>
         $"triage_state_{ToCode(targetState)}";
@@ -1127,7 +1128,7 @@ public sealed class EfTriageStore(
     private static string StateRequestHash(
         TriageMutationRequest request,
         TriageState targetState) =>
-        Hash($"state|{request.TriageId:N}|{request.ExpectedVersion}|{ToCode(targetState)}|{request.Actor.Trim()}|{request.Reason.Trim()}");
+        Hash($"state|{request.TriageId:N}|{request.ExpectedVersion}|{ToCode(targetState)}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static Task<TriageHistoryEntity?> FindReplayAsync(
         PegasusDbContext context,
@@ -1169,7 +1170,7 @@ public sealed class EfTriageStore(
         PegasusDbContext context,
         TriageEntity triage,
         string eventType,
-        string actor,
+        ActionActor actor,
         string operationKey,
         string reason,
         string requestHash,
@@ -1186,7 +1187,8 @@ public sealed class EfTriageStore(
             TriageId = triage.Id,
             Triage = triage,
             EventType = eventType,
-            Actor = actor,
+            Actor = actor.SubjectId,
+            ActorKind = actor.Kind.ToString(),
             Reason = reason,
             OperationKey = operationKey,
             RequestHash = requestHash,
@@ -1308,12 +1310,12 @@ public sealed class EfTriageStore(
     private static string LinkResponseRequestHash(
         TriageResponseEvidenceLinkRequest request) =>
         Hash(
-            $"link_response|{request.TriageId:N}|{request.ExpectedVersion}|{request.PollOutcomeId:N}|{request.SentEvidenceId:N}|{request.Actor.Trim()}|{request.Reason.Trim()}");
+            $"link_response|{request.TriageId:N}|{request.ExpectedVersion}|{request.PollOutcomeId:N}|{request.SentEvidenceId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static string UnlinkResponseRequestHash(
         TriageResponseEvidenceUnlinkRequest request) =>
         Hash(
-            $"unlink_response|{request.TriageId:N}|{request.ExpectedVersion}|{request.SentEvidenceId:N}|{request.Actor.Trim()}|{request.Reason.Trim()}");
+            $"unlink_response|{request.TriageId:N}|{request.ExpectedVersion}|{request.SentEvidenceId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static string[] DeserializeInReplyToIdentities(
         ApprovedSentPollOutcomeEntity outcome)
@@ -1457,7 +1459,7 @@ public sealed class EfTriageStore(
     private static void ValidateMutation(
         Guid triageId,
         long expectedVersion,
-        string actor,
+        ActionActor actor,
         string operationKey,
         string reason)
     {
@@ -1470,7 +1472,7 @@ public sealed class EfTriageStore(
     }
 
 
-    private static void ValidateIdentityAndOperation(Guid id, string actor, string operationKey)
+    private static void ValidateIdentityAndOperation(Guid id, ActionActor actor, string operationKey)
     {
         ValidateIdentity(id, actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
@@ -1480,10 +1482,10 @@ public sealed class EfTriageStore(
         }
     }
 
-    private static void ValidateIdentity(Guid id, string actor)
+    private static void ValidateIdentity(Guid id, ActionActor actor)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
-        if (id == Guid.Empty || actor.Trim().Length > 200)
+        ArgumentNullException.ThrowIfNull(actor);
+        if (id == Guid.Empty || actor.SubjectId.Length > 200)
         {
             throw new ArgumentException("A valid identity and bounded actor are required.");
         }
@@ -1543,6 +1545,7 @@ public sealed class EfTriageStore(
         entity.TriageId,
         entity.EventType,
         entity.Actor,
+        entity.ActorKind,
         entity.Reason,
         entity.OperationKey,
         entity.OccurredAtUtc,

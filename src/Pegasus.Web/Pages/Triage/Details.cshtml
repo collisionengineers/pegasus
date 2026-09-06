@@ -435,7 +435,9 @@
                         <input type="hidden" name="reason" value="Operator note" />
                         <div class="field">
                             <label class="req" for="triage-note">Note</label>
-                            <textarea id="triage-note" name="note" rows="3" required maxlength="2000"></textarea>
+                            @* The bound is Core's, so the form cannot offer
+                               more than the history entry accepts. *@
+                            <textarea id="triage-note" name="note" rows="3" required maxlength="@TriageNotes.MaximumLength"></textarea>
                         </div>
                         <div class="button-row">
                             <button type="submit" class="btn btn--dark">
