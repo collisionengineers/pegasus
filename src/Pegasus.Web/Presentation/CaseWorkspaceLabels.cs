@@ -1,4 +1,6 @@
+using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Documents;
 
 namespace Pegasus.Web.Presentation;
 
@@ -88,6 +90,78 @@ public static class CaseWorkspaceLabels
         public const string Specialist = "Specialist";
         public const string Net = "Net";
         public const string Gross = "Gross";
+    }
+
+    /// <summary>
+    /// The report-image preparation surface (B06): the Files section's
+    /// per-image controls and the Report section's prepared cards read every
+    /// name from here, so the two sections cannot label the same preparation
+    /// two different ways.
+    /// </summary>
+    public static class ReportImages
+    {
+        public const string SectionTitle = "Report images";
+        public const string Role = "Role";
+        public const string Order = "Order";
+        public const string Rotation = "Rotation";
+        public const string Crop = "Crop";
+        public const string CropLeft = "Left";
+        public const string CropTop = "Top";
+        public const string CropWidth = "Width";
+        public const string CropHeight = "Height";
+        public const string Save = "Save";
+        public const string Reset = "Reset";
+        public const string MoveUp = "Move up";
+        public const string MoveDown = "Move down";
+        public const string RotateLeft = "Rotate left";
+        public const string RotateRight = "Rotate right";
+        public const string FullFrame = "Full frame";
+
+        /// <summary>The reason each preparation command records on the case.</summary>
+        public const string SaveReason = "Report images prepared.";
+        public const string ResetReason = "Report image preparation reset.";
+        public const string WasSaved = "The report image preparation was saved.";
+        public const string WasReset = "The report image preparation was reset.";
+        public const string SaveRefused =
+            "The report image preparation was not saved. Retry the operation.";
+        public const string ResetRefused =
+            "The report image preparation was not reset. Retry the operation.";
+
+        public static string RoleLabel(CaseAssetReportRole role) => role switch
+        {
+            CaseAssetReportRole.NotUsed => "Not used",
+            CaseAssetReportRole.CloseUp => "Close-up",
+            CaseAssetReportRole.Overview => "Overview",
+            CaseAssetReportRole.Supporting => "Supporting",
+            _ => role.ToString(),
+        };
+
+        public static string RotationLabel(CaseAssetRotation rotation) =>
+            rotation == CaseAssetRotation.None
+                ? "None"
+                : ((int)rotation).ToString(CultureInfo.InvariantCulture) + "°";
+
+        /// <summary>
+        /// The crop as a value: the whole rotated source, or the four
+        /// fractions that select part of it.
+        /// </summary>
+        public static string CropLabel(CaseAssetCrop crop)
+        {
+            ArgumentNullException.ThrowIfNull(crop);
+            return crop.IsFull
+                ? FullFrame
+                : string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} {1:0.##} · {2} {3:0.##} · {4} {5:0.##} · {6} {7:0.##}",
+                    CropLeft,
+                    crop.Left,
+                    CropTop,
+                    crop.Top,
+                    CropWidth,
+                    crop.Width,
+                    CropHeight,
+                    crop.Height);
+        }
     }
 
     /// <summary>
