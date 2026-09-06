@@ -765,3 +765,305 @@ Two red lanes is the verdict. `pass` requires all five green with only the known
 3. C05-R-17, C05-R-18 as cheap guards; C05-R-19, C05-R-20 are comment-only.
 
 Nothing here needs an A-owned file, a contract change, or a redesign.
+
+---
+
+# SUPERSEDING ATTESTATION — C05 correction round 3
+
+```yaml
+verdict: pass
+ticket: INTK-060
+slice: C05 — extract third-party reports as source evidence
+head: eb46b7a7d
+review_head: eb46b7a7d (reviewed in the worktree at merged head 7467190b1)
+supersedes: 868e7a5ea (needs-changes, C05-R-16 / C05-R-6 open majors)
+base_of_correction: b506c3b8d
+diff_reviewed: git diff b506c3b8d..eb46b7a7d (6 files, +302/-49, 3 commits)
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c05
+branch: c05-third-party
+reviewer: pegasus-reviewer (subagent; not the implementer of this slice)
+independent: true
+ownership: PASS
+frozen_contracts: PASS (ThirdPartyReportContracts.cs blob d024366c8 at b506c3b8d and eb46b7a7d)
+stop_conditions: none tripped
+lanes_seen: 1-build PASS, 2-core PASS, 3-corpus PASS, 4-web PASS-WITH-KNOWN-SKIPS, 5-architecture PASS
+majors_open: 0
+minors_open: 3
+notes_open: 2
+review_round: 3
+test_evidence: wave 28, C:/Users/PGUSER/AppData/Local/Temp/claude/C--Users-PGUSER-documents-github-pegasus/e752479c-0f90-4a5e-bc40-b525ea3bf932/scratchpad/wave1/wave28-tests/
+skill_sha256:
+  - file: C:/Users/PGUSER/documents/github/pegasus/.agents/skills/kanmer-review/SKILL.md
+    sha256: addf26c9981cefa755a9db3a1ee06383432230708641b076ee336d64a1096741
+```
+
+## Verdict
+
+**pass** at `eb46b7a7d`. Both open majors are closed, all five lanes are green, and the two cases
+that were red at `868e7a5ea` are the two that now prove the fixes:
+
+- **C05-R-16** is fixed in the way the last round asked for — a real document-level locator on the
+  no-evidence issuer row — and not by relaxing the assertion. Lane 3's
+  `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate`, the case that failed at line 453 last
+  round, passes and now additionally pins the row's label, its `Missing` disposition and its absent
+  value on both scan-only originals. I checked the file name is a locator and never evidence:
+  `context.SourceLabel` has exactly one read site in the tree, it is a `sourceLabel:` argument, and
+  it is absent from `DeterministicId`'s key.
+- **C05-R-6** is closed the right way. The implementer did not narrow the case to make it green; it
+  root-caused the missing second outcome to a real, pre-existing, A-owned product defect, and every
+  step of that chain checks out against source I read myself. The test now asserts what actually
+  happens — including the durable work item's exact failure code, which is a tripwire that goes red
+  when A fixes the path — and the replay-guard mechanism the old case only claimed is proved
+  separately against the real store and SQL Server.
+
+Three minors and two notes are open. None of them is a data, security or correctness risk: two are
+tests that do not state a guarantee the code does hold (C05-R-21, C05-R-22) and one is a one-line
+defensive guard on the input the C05-R-16 fix consumes (C05-R-23). They are recorded as residual
+risk rather than a fourth round.
+
+## Ownership, frozen contracts, scope — PASS
+
+`git diff --name-status b506c3b8d..eb46b7a7d` touches exactly six paths, every one of them in
+`pegasus_pack/astra_output/v1_implementation_plans/streams/C-intake.md` "### C05 files":
+
+- `src/Pegasus.Core/Intake/ProcessIntake.cs`
+- `src/Pegasus.Core/Intake/ThirdPartyReports/ThirdPartyReportExtraction.cs`
+- `src/Pegasus.Core/Intake/ThirdPartyReports/ThirdPartyReportProfiles.cs`
+- `tests/Pegasus.Core.Tests/Intake/ThirdPartyReports/ThirdPartyReportExtractionTests.cs`
+- `tests/Pegasus.IntegrationTests/ThirdPartyReportCorpusTests.cs`
+- `tests/Pegasus.IntegrationTests/ThirdPartyReportProvenanceWebTests.cs`
+
+`ThirdPartyReportContracts.cs` is the identical blob `d024366c8` at `b506c3b8d` and `eb46b7a7d` —
+untouched, as required. No `DurableIntake.cs`, no `EfIntakeWorkStore.cs`, no `ProcessIntakeTests.cs`,
+no `DependencyInjection.cs`, no migration, no entity, no `Details.cshtml`, no `OperatorLabels.cs`,
+no `MultiFormatGenuineCorpusWebTests.cs` — and the A-owned defect this round root-caused sits in
+exactly the first two of those, which were correctly left alone. The round-3 diff contains zero BOM
+bytes (C05-R-14 not repeated). Worktree clean (`git status --porcelain` empty), `--git-common-dir`
+resolves to the primary `C:/Users/PGUSER/Documents/github/pegasus/.git`, `branch --show-current`
+is `c05-third-party`.
+
+**Nothing was weakened.** The only assertions removed anywhere in the diff are the four inside the
+one renamed web case — `Assert.Equal(2, recorded.Count)`, `Assert.Contains("recorded", …)`,
+`Assert.Contains("recorded_reading_stands", …)` and `Assert.DoesNotContain("not_recorded", …)` —
+replaced by `Assert.Equal("recorded", Assert.Single(recorded))`, which is strictly stronger than
+all four, plus three assertions the case did not have before (`Assert.NotEmpty(first)`, the durable
+work item's `Failed` status, and its exact `FailureCode`). Case counts: core file 25 → 26, corpus
+file 13 → 13 with three assertions added, web file 3 → 4. No case deleted; two added.
+
+## Prior findings — dispositions
+
+| id | severity | disposition | evidence |
+| --- | --- | --- | --- |
+| C05-R-16 | major | **fixed** | Verified by reading (below) and by lane 3, where `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate` was the red case at `868e7a5ea` and is green here. |
+| C05-R-6 | major | **closed — root-caused to an A-owned product defect** | Attribution verified from source, not from the report. ASSUMPTION 8 and PR 673 comment `5560823100` both exist and are accurate. Detail below. |
+| C05-R-17 | minor | **fixed** | `AReadingWithNoPageAtAllStillNamesTheSourceOnEveryRowItRecords` (core) builds exactly the reading C05-R-17 named — `Readable`, no pages, no scan-only pages, `RequiresOcr: true` — and asserts `Assert.All(result.Candidates, row => Assert.Equal("uploaded report.pdf", row.SourceLabel))`, every row rather than only the finding row. It also asserts `IsRecordable(result)`, so the rows it checks are the ones that reach storage. The producer invariant is now a stated case. |
+| C05-R-18 | minor | **fixed in code, unproven by test** | The catch now calls `ConflictOutcomeAsync`, which reads the row back via `FindByOperationKeyAsync` and returns `recorded_reading_stands` only when `stored.ReceiptId == receiptId && stored.IntakeAssetId == assetId`, else `analysis_key_bound_elsewhere`, else `recorded_reading_unverified` on a recoverable probe fault. I checked the mapping against the store's two throw sites: `EfRetainedInstructionAnalysisStore.RecordAsync` throws first on the matching `(receipt, asset, key)` triple with a moved `ExpectedReceiptVersion` — where the stored row *does* name this receipt and asset — and second on `AnyAsync(item => item.OperationKey == key)`, where by construction it does not. The mapping is right. The probe takes its own `DbContext` from the factory, so the failed serializable transaction cannot affect it. Residual: C05-R-22. |
+| C05-R-13 | note | **accepted** | Corrected in the round-2 report section; no further change needed. |
+| C05-R-14 | note | **not repeated** | Zero BOM bytes in the round-3 diff; encodings and CRLF endings preserved. |
+| C05-R-15 | note | **taken** | The three early returns are now tagged `not_composed`, `source_not_readable` and `no_single_source_asset`, so no path through `RecordThirdPartyReportSourceAsync` is silent. |
+| C05-R-19 | note | **fixed** | The operation-key comment now says the conflict, not the replay, is the ordinary outcome of a second pass over one asset. |
+| C05-R-20 | note | **fixed** | The `DeterministicId` comment records the ordinal's renumbering behaviour and why it is the same version boundary a changed raw value crosses. |
+
+### C05-R-16 — fixed, and the file name really is a locator
+
+`ThirdPartyReportSourceContext` gained a trailing optional `string SourceLabel = ""`;
+`ProcessIntake.cs:359` supplies `asset.FileName`; `ThirdPartyReportProfiles.Verdict` now uses
+`evidence?.SourceLabel is { Length: > 0 } label ? label : context.SourceLabel`.
+
+**Is the file name a locator and never evidence?** Yes, and structurally rather than by intent.
+`context.SourceLabel` has exactly **one** read site in the whole tree
+(`ThirdPartyReportProfiles.cs:430`), and it is the `sourceLabel:` argument of the issuer row. It is
+never passed to `CompiledSignature.Matches`, `Describe`, `Compile`, any `ThirdPartyRegex`, any
+field rule, `rawValue` or `normalizedValue`. The corpus case asserts the row it lands on is
+`Missing` with a null `NormalizedValue` — a locator on a row that states no issuer at all.
+`TheIssuerIsNeverTakenFromTheFileNameOrTheRetainedPrincipal` is untouched and green in lane 2.
+It is also **not** in the derived id: `DeterministicId`'s key is
+`(Sha256, Occurrence, field, partyRole, referenceRole, page, rawValue, disposition, ordinal)` with
+no `sourceLabel`, so the report's claim that candidate ids are unchanged this round is true.
+The new parameter is trailing and optional, and the record has only three construction sites — all
+three in C05 files — so nothing outside the slice is source-affected.
+
+**Is any Missing row left unlabelled?** I enumerated every `ThirdPartySourceCandidates.Create`
+call site and the reachability of an empty `sourceLabel` at each:
+
+- issuer row (`Profiles.cs:428`) — was the defect; now falls back to `context.SourceLabel`.
+- scan-only page rows (`Extraction.cs:880`) — `$"{page.SourceLabel}, page {n}"`, never blank.
+- finding rows (`Extraction.cs:783`) — `Locator(...)`, whose final `?? issuer` now carries the
+  document-level locator; this is exactly what C05-R-17's new case states.
+- declared-but-unobserved `Missing` field rows (`Extraction.cs:972`) and `Describe`'s cross-page
+  fallback (`Profiles.cs:479`) — both `pages.Count > 0 ? pages[0].SourceLabel : string.Empty`.
+  The empty arm is unreachable: both sit on paths that require a matched signature, and a signature
+  matches only against text flattened from readable pages, so `pages` cannot be empty there.
+- `Media` photograph rows (`Extraction.cs:897`) — `asset.SourceLabel`, `Usable` rather than
+  `Missing`, pre-existing and unchanged, and unreachable alone because `IsRecordable` needs a match
+  or a finding.
+
+So every reachable production path now names its source. The one residual dependency is that
+`context.SourceLabel` itself be non-empty — C05-R-23.
+
+### C05-R-6 — the root cause is correct, the attribution is correct, nothing is fabricated
+
+I verified every load-bearing claim from source rather than from the report:
+
+1. `ProcessQueuedIntake.ExecuteAsync`'s first stage `artifact_read_and_retain` does
+   `artifactStore.ReadAsync(stagedReceipt.StorageKey, ct) ?? throw new IntakeArtifactIntegrityException()`
+   (`DurableIntake.cs:680-681`).
+2. A successful first pass calls `TryDeleteCompletedStagingAsync(stagedReceipt.StorageKey, ct)`
+   (`DurableIntake.cs:759`), which marks the staged artifact `Completed` and calls
+   `artifactStore.DeleteCompletedStagedAsync` (`:1032`). Both the file-system and the Azure Blob
+   store implement that delete, so this is core behaviour rather than a harness artefact.
+3. `EfIntakeWorkStore.ScheduleReevaluationAsync` sets `item.State = pending` for **any** work item,
+   guarding only against one already `processing` under a live lease (`EfIntakeWorkStore.cs:502-525`).
+   A `completed` item is therefore made claimable again.
+4. `IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync`'s own doc comment states the invariant
+   being broken, verbatim: a completed work item must never be made claimable again, because that
+   "would force a re-claim through the artifact-reading path, whose staged copy is already deleted
+   once a receipt has completed once" — and it says it "Mirrors the join
+   `EfIntakeMutationStore.ScheduleReevaluationAsync` performs inline for the staff-facing
+   reevaluation command" (`DurableIntake.cs:249-257`).
+5. `TerminalInputFailureCode(IntakeArtifactIntegrityException) => "staged_artifact_integrity_failure"`
+   (`DurableIntake.cs:1071`), reached by the `catch (…) when (TerminalInputFailureCode(exception) is { } failureCode)`
+   at `:727`, which calls `FailProcessingAsync(terminal: true, …)` and returns
+   `QueuedIntakeProcessingOutcome.Failed`. So `Failed` plus that exact code is the predicted durable
+   state, not a guess.
+
+The chain is exactly as the implementer described. The defect is real, pre-existing, and lives in
+`DurableIntake.cs` and `EfIntakeWorkStore.cs`, neither of which is a C05 file. The attribution is
+correct.
+
+**Is the deviation from the dispatch's `Equal(2, …)` honest?** Yes. The dispatch asked for a
+sequence that cannot occur: no path in this codebase runs `ProcessIntake` twice over one asset, so
+`Assert.Equal(2, recorded.Count)` could only ever have been made green by faking the second pass.
+Asserting it would have been the dishonest option. ASSUMPTION 8 is recorded on `scratch/c05-notes`
+in the required form with the decision, the reason and three named-and-rejected alternatives; M8 is
+satisfied and no second dependent decision was taken on top of it.
+
+**Does the new case really prove the reading is left standing under the only re-evaluation path
+that exists?** Yes, and it proves it the honest way.
+`AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas` drives the real `IReevaluateIntake`
+command and a real `DispatchPendingIntakeWork` over `IntakeWebDriver.CreateProcessor(services)`,
+asserts the dispatcher claimed exactly one item, then asserts `first.Count == second.Count` and the
+ordered id sets are equal, that the durable work item is `Failed` with
+`FailureCode == "staged_artifact_integrity_failure"`, and
+`Assert.Equal("recorded", Assert.Single(recorded))` over the receipt-keyed outcome list. What it
+proves is narrower than the old name claimed and exactly as wide as the new name claims: the
+recorded reading is undisturbed, and the reason is read from the durable record rather than
+inferred. The failure-code assertion is a deliberate tripwire that goes red the moment A's fix makes
+re-evaluation re-read; both the report and the PR comment say so.
+
+**Is the replay guard proved separately?** Yes, at the boundary that enforces it.
+`RecordingTheSameReadingAgainReplaysItAndAMovedVersionIsRefused` runs against the real
+`IRetainedInstructionAnalysisStore` and SQL Server, on the rows a real report produced: the identical
+request returns `IsReplay: true` with the stored id unchanged; the same request with
+`ExpectedReceiptVersion + 1` throws `RetainedInstructionAnalysisConflictException`; and the candidate
+id set is unchanged after both. That refusal is precisely the exception `ProcessIntake`'s catch
+converts to `recorded_reading_stands`, and every re-evaluation moves the version, so it is the
+branch a second pass would take. The one link it does not exercise is `ProcessIntake`'s catch
+itself — C05-R-22.
+
+**Is it acceptable for the slice with the A handoff posted?** Yes. I read PR 673 comment
+`5560823100` (posted 2026-09-06T17:11:52Z by `collisionengineers`): it names the defect, the two
+owning files, the exact failure code, cites `FindStagedReceiptIdForReceiptAsync`'s doc comment as
+the codebase's own statement of the rule, and says what C did and what C will re-point when A fixes
+it. Every claim in it matches the source I read. C05's own guarantee — a report reading reaches
+storage, names its source on every row, and is never written twice or overwritten — is fully
+delivered inside C05's files and proved by cases that ran. Nothing in the slice depends on the A
+defect being fixed first.
+
+## New findings (round 3)
+
+### C05-R-21 (minor) — the "never from the file name" case does not exercise the new file-name channel
+
+Round 3 introduced a genuinely new input into extraction: `ThirdPartyReportSourceContext.SourceLabel`,
+carrying the uploaded file's own name. The case whose whole job is to hold that boundary,
+`TheIssuerIsNeverTakenFromTheFileNameOrTheRetainedPrincipal`, plants its decoy issuer in the **page**
+source label (`Readable(…, label: "uploaded MontgomeryRepairable1.pdf, page 1")`) and takes
+`Context()`, which now supplies `SourceLabel: "uploaded report.pdf"` — a name with no issuer in it.
+So the case does not put a misleading file name through the channel that was just added, and would
+not catch a future change that fed `context.SourceLabel` into signature or field matching. The
+invariant does hold today — I verified `context.SourceLabel` has exactly one read site and it is not
+a matching input — but this is again a guarantee resting on something no test states, which is the
+same shape as C05-R-17. Cheapest fix, entirely inside a C05 file: give that case a second `Extract`
+whose context carries `SourceLabel: "MontgomeryRepairable1.pdf"` over the Connexus body and assert
+the family is still Connexus, and over the non-report body assert it is still `NotApplicable`.
+
+### C05-R-22 (minor) — `ConflictOutcomeAsync` and all six new outcome tags are unasserted
+
+C05-R-18's fix and C05-R-15's three early-return tags are new production code with no test anywhere:
+`not_composed`, `source_not_readable`, `no_single_source_asset`, `analysis_key_bound_elsewhere` and
+`recorded_reading_unverified` appear only at their `SetTag` sites, and `recorded_reading_stands`
+appears elsewhere only in a doc comment. The one tag any test asserts is `"recorded"`. The
+`ConflictOutcomeAsync` branch selection is therefore verified by reading only — which I did, and it
+is correct — but a change to `EfRetainedInstructionAnalysisStore`'s throw ordering would flip
+`recorded_reading_stands` to `analysis_key_bound_elsewhere` silently, and that tag is what this
+slice's telemetry story rests on. Note also that ASSUMPTION 8's rejected alternative (b) is slightly
+overstated: the constraint is not visibility. `ExecuteRetainedAsync` is `internal` and
+`Pegasus.Core.csproj` carries `<InternalsVisibleTo Include="Pegasus.Core.Tests" />`, so it is
+reachable from `ThirdPartyReportExtractionTests.cs`, which **is** a C05 file in that assembly. What
+actually makes such a case expensive is `ProcessIntake`'s dependency graph, not the file map. That
+is a fair reason to defer, but it should be the stated one. Not blocking: the branch is correct as
+written, and what it most affects is telemetry rather than data.
+
+### C05-R-23 (minor) — the C05-R-16 fix rests on a `context.SourceLabel` nothing guarantees
+
+`ThirdPartyReportSourceContext.SourceLabel` defaults to `""`, and when it is empty the scan-only
+issuer row is unlabelled again and `Locator`'s final `?? issuer` returns a blank-label row for
+findings too — C05-R-16 reappears exactly. Production supplies `asset.FileName`, which
+`ProcessIntake` derives at `:88` as `Path.GetFileName(source.FileName)` **after** the
+`ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName)` at `:81`, and `Path.GetFileName`
+returns `""` for a value ending in a separator — so the guard does not cover the value that is
+actually stored and passed here. Low likelihood, and the consequence is a poor locator rather than
+lost or wrong data, but the fix is one line inside a C05 file: validate the record's `SourceLabel`
+non-empty where it is constructed, or make `Verdict`'s fallback resolve to something stable when the
+label is blank.
+
+### C05-R-24 (note) — the corpus-wide "names a source" assertion still covers only two originals
+
+`Assert.All(recorded, … !IsNullOrWhiteSpace(row.SourceLabel))` runs over every recorded row of the
+two scan-only originals (`ThirdPartyReportCorpusTests.cs:453-457`) and over the eleven recorded
+finding rows (`:331-333`), but not over every recorded row of all 29 originals. The uncovered rows
+are closed by construction — a signature-matched original necessarily has readable pages, so both
+`pages[0].SourceLabel` fallbacks are non-empty — so this is not a gap in the guarantee, only in what
+states it. Hoisting that one `Assert.All` into the existing whole-corpus loop would state it for
+every original at no extra runtime.
+
+### C05-R-25 (note) — a non-recoverable fault inside the conflict handler now escapes the method
+
+`ConflictOutcomeAsync` is awaited from inside `catch (RetainedInstructionAnalysisConflictException)`,
+so an exception it raises is not seen by the sibling
+`catch (…) when (IntakeExceptionPolicy.IsRecoverable(exception))` that exists precisely to stop
+supplementary report evidence failing an already-stored receipt. Before this round the conflict path
+could not throw at all. In practice the escaping set is only `OperationCanceledException`,
+`OutOfMemoryException` and `AccessViolationException` (`IntakeContracts.cs:592-595`), and letting
+those propagate is the codebase's deliberate policy everywhere else — so this is recorded as an
+observation rather than a defect.
+
+## Test evidence (wave 28, lanes 1-5, all present, all green)
+
+| lane | result | detail |
+| --- | --- | --- |
+| 1-build | PASS | exit 0, `Build succeeded. 0 Warning(s) 0 Error(s)`, 17.65 s. |
+| 2-core | PASS | 30 passed, 0 failed, 0 skipped (29 → 30: `AReadingWithNoPageAtAllStillNamesTheSourceOnEveryRowItRecords` added for C05-R-17). Pack-gated facts ran. |
+| 3-corpus | PASS | 13 passed, 0 failed, 0 skipped. `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate` — red at line 453 last round, the C05-R-16 case — is green, as are `EveryRecordedFindingIsPersistedAsItsOwnSourceRow`, `NoTwoRecordedRowsOfOneOriginalShareAnIdentifier` and `ReadingTheWholeCorpusTwiceProducesTheIdenticalRecord`. |
+| 4-web | PASS-WITH-KNOWN-SKIPS | 11 passed, 0 failed, 5 skipped (15 → 16 cases: the fourth C05 web case added). The five skips are exactly the known absent-pinned-sample `MultiFormatGenuineCorpusWebTests` skips; the skip list contains no `ThirdPartyReportProvenanceWebTests` entry, so all four C05 web cases ran — including both new ones, `AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas` and `RecordingTheSameReadingAgainReplaysItAndAMovedVersionIsRefused`. |
+| 5-architecture | PASS | 100 passed, 0 failed, 0 skipped. |
+
+The web lane passing is what makes the C05-R-6 disposition evidence rather than argument: the
+`Failed` / `staged_artifact_integrity_failure` assertion is a claim about the real durable path
+under a real re-evaluation, and it held.
+
+## Residual risk accepted
+
+- C05-R-21, C05-R-22, C05-R-23 (minors) and C05-R-24, C05-R-25 (notes) above, dispositioned and not
+  blocking.
+- The A-owned defect itself: a staff re-evaluation of any completed receipt fails as
+  `staged_artifact_integrity_failure` rather than re-reading the retained source. Pre-existing,
+  outside C05's file map, handed off on PR 673 comment `5560823100`, and recorded as ASSUMPTION 8
+  plus a HANDOFF line on `scratch/c05-notes`. C05 does not depend on it being fixed; when it is,
+  `AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas` goes red and names the change.
+- The "Finding" chip deferred to C04/C08 (ASSUMPTION 7) and the `valuation.adjustment` contract
+  change requested-not-applied (ASSUMPTION 3), both carried from earlier rounds and unchanged here.
+- Candidate ids are unchanged relative to `b506c3b8d`: no raw value, disposition, page, role or
+  ordinal moved, and `sourceLabel` is not part of the derived key. Verified by reading
+  `DeterministicId`, and consistent with `ReadingTheWholeCorpusTwiceProducesTheIdenticalRecord`
+  staying green.
