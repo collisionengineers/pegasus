@@ -205,6 +205,9 @@ public sealed class StructuredIntakeSourceReaderTests
             rtf));
 
         Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.True(result.IsIncomplete);
+        Assert.Contains(result.Issues, issue =>
+            issue.Code == "doc-rtf-reserved-structure-text");
         Assert.Contains(result.Content, fragment =>
             fragment.Text.Contains("Forged", StringComparison.Ordinal));
         Assert.DoesNotContain(result.Content, fragment =>
