@@ -76,6 +76,79 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_artifact_confirmed"));
     }
 
+    /// <summary>
+    /// B09 review (lifecycle): a stale current generation is history, not a
+    /// deliverable snapshot. Regenerating the same material after a stale
+    /// must create a NEW current generation - never reuse the stale row and
+    /// report it as already generated while it stays undeliverable.
+    /// </summary>
+    [Fact]
+    public async Task RegeneratingAfterAStaleCreatesANewCurrentGeneration()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness);
+        var first = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var firstGeneration = Assert.IsType<CaseReportGenerationRecord>(first.Generation);
+        Assert.Equal(CaseReportGenerationState.Confirmed, firstGeneration.State);
+
+        await harness.Store.MarkStaleAsync(harness.CaseId, "test-material-change", CancellationToken.None);
+
+        // A new operation key is a new generation request; the material is
+        // unchanged, so the hash matches the stale generation anyway.
+        var second = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(operationKey: "case-report-regenerate"), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, second.Outcome);
+        var secondGeneration = Assert.IsType<CaseReportGenerationRecord>(second.Generation);
+        Assert.Equal(CaseReportGenerationState.Confirmed, secondGeneration.State);
+        Assert.NotEqual(firstGeneration.Id, secondGeneration.Id);
+
+        var rows = await harness.GenerationRowsAsync();
+        var stale = Assert.Single(rows, row => row.Id == firstGeneration.Id);
+        Assert.Equal(CaseReportGenerationState.Stale, stale.State);
+        Assert.Equal(secondGeneration.Id, stale.SupersededById);
+    }
+
+    /// <summary>
+    /// The uniqueness the schema keeps after G16 relaxes it for Stale rows:
+    /// one Case never holds two live generations of the same material. The
+    /// second row is written past the store on purpose, because the store's
+    /// own lookup would have reused the first.
+    /// </summary>
+    [Fact]
+    public async Task TwoLiveGenerationsOfTheSameMaterialAreStillRejected()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var live = Assert.IsType<CaseReportGenerationRecord>(first.Generation);
+        Assert.Equal(CaseReportGenerationState.Confirmed, live.State);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        context.Set<CaseReportGenerationEntity>().Add(new CaseReportGenerationEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = harness.CaseId,
+            CaseVersion = live.CaseVersion,
+            SnapshotHash = live.SnapshotHash,
+            SnapshotJson = "{}",
+            TemplateVersion = live.TemplateVersion,
+            RendererVersion = live.RendererVersion,
+            State = nameof(CaseReportGenerationState.Pending),
+            GeneratedAtUtc = Harness.StartUtc,
+            Version = 1,
+        });
+
+        var refused = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+
+        Assert.Contains(
+            "IX_CaseReportGenerations_CaseId_SnapshotHash",
+            refused.InnerException?.Message,
+            StringComparison.Ordinal);
+        Assert.Single(await harness.GenerationRowsAsync());
+    }
+
     [Fact]
     public async Task APendingArtifactIsConfirmedFromTheCustodyStatusQueryAfterARestart()
     {
