@@ -628,6 +628,48 @@ public sealed partial class ThirdPartyReportExtractionTests
         Assert.Null(images.Candidate);
     }
 
+    /// <summary>
+    /// The reading with nothing to point at: a source whose text could not be
+    /// read, which declares that it needs OCR and yet names no scan-only page.
+    /// The two production readers cannot produce it today
+    /// (<c>MimeKitPdfPigOpenXmlIntakeSourceReader</c> derives the flag from the
+    /// OCR pages it found, and the provider reader never sets it), so the
+    /// guarantee that every persisted row names its source rested on a producer
+    /// invariant no test stated — a hand-built read result, a future reader or a
+    /// changed one would have broken it silently (C05-R-17).
+    ///
+    /// Here the document-level locator is the whole answer: there is no page,
+    /// no signature evidence and no scan-only row to borrow a locator from, so
+    /// the source's own name is what both the verdict and the finding it raises
+    /// are filed under.
+    /// </summary>
+    [Fact]
+    public void AReadingWithNoPageAtAllStillNamesTheSourceOnEveryRowItRecords()
+    {
+        var result = ThirdPartyReportExtraction.Extract(
+            new IntakeSourceReadResult(
+                IntakeSourceReadStatus.Readable,
+                [],
+                [],
+                [],
+                RequiresOcr: true),
+            Context());
+
+        Assert.Equal(
+            ThirdPartySelectionReason.TextUnavailableRequiresOcr,
+            result.Selection.Reason);
+        Assert.Equal(
+            ThirdPartyFindingCodes.SourceRequiresOcr,
+            Assert.Single(result.Findings).Code);
+        Assert.All(
+            result.Candidates,
+            row => Assert.Equal("uploaded report.pdf", row.SourceLabel));
+
+        // And it is still recordable, so those rows are the ones that reach
+        // storage rather than being computed and dropped at the gate.
+        Assert.True(ThirdPartyReportAnalysis.IsRecordable(result));
+    }
+
     [Fact]
     public void ReadingTheSameBytesTwiceProducesTheIdenticalRecord()
     {
@@ -782,7 +824,8 @@ public sealed partial class ThirdPartyReportExtractionTests
             new string('a', 64),
             Occurrence: 0,
             IntakeAssetId: Guid.Parse("22222222-2222-2222-2222-222222222222"),
-            ReaderVersion: "1");
+            ReaderVersion: "1",
+            SourceLabel: "uploaded report.pdf");
 
     private static SourceFieldCandidate? Row(
         ThirdPartyReportExtractionResult result,

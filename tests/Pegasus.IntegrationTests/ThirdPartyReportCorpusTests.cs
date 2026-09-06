@@ -455,6 +455,18 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
                 row => Assert.False(
                     string.IsNullOrWhiteSpace(row.SourceLabel),
                     $"{name}: a {row.Field} row names no source."));
+
+            // The verdict row is the one that had nothing to point at: it
+            // matched no signature, so it carries no signature evidence and no
+            // page, and the document-level locator is what stops it naming
+            // nothing at all (C05-R-16). It states the absence rather than an
+            // issuer: Missing, with no value.
+            var issuer = Assert.Single(
+                recorded,
+                row => row.Field == ThirdPartyReportFields.Issuer);
+            Assert.Equal(name, issuer.SourceLabel);
+            Assert.Equal(SourceCandidateDisposition.Missing, issuer.Disposition);
+            Assert.Null(issuer.NormalizedValue);
         }
 
         // John R Bell is the worked case: its per-page rows and both findings
@@ -605,7 +617,12 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
                     hash.ToUpperInvariant(),
                     Occurrence: 0,
                     IntakeAssetId: Guid.NewGuid(),
-                    ReaderVersion: readResult.ReaderVersion));
+                    ReaderVersion: readResult.ReaderVersion,
+                    // What ProcessIntake passes: the retained file's own name,
+                    // so a row with no page of its own still names the document
+                    // it is about. Reading the corpus without it would prove a
+                    // locator production does not have.
+                    SourceLabel: name));
             ordinal++;
         }
 
