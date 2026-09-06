@@ -24,11 +24,10 @@ public sealed class OrganizationDirectoryPersistenceTests
     public async Task SearchMatchesByNamePrefixAndExcludesInactiveEntries()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        await SeedAsync(host, "Northgate Repairs", "NORTHGATE REPAIRS", "storage", "N1 1AA", "N11AA", active: true);
-        await SeedAsync(host, "Northgate Storage Depot", "NORTHGATE STORAGE DEPOT", "storage", "N2 2BB", "N22BB", active: false);
+        await SeedAsync(factory, "Northgate Repairs", "NORTHGATE REPAIRS", "storage", "N1 1AA", "N11AA", active: true);
+        await SeedAsync(factory, "Northgate Storage Depot", "NORTHGATE STORAGE DEPOT", "storage", "N2 2BB", "N22BB", active: false);
 
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var directory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectoryQueries>();
         var results = await directory.SearchAsync(
             new(Staff, "Northgate", Role: null),
@@ -43,10 +42,9 @@ public sealed class OrganizationDirectoryPersistenceTests
     public async Task SearchMatchesByPostcodePrefix()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        await SeedAsync(host, "Eastfield Bodyshop", "EASTFIELD BODYSHOP", "repairer", "EF4 5GH", "EF45GH", active: true);
+        await SeedAsync(factory, "Eastfield Bodyshop", "EASTFIELD BODYSHOP", "repairer", "EF4 5GH", "EF45GH", active: true);
 
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var directory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectoryQueries>();
         var results = await directory.SearchAsync(
             new(Staff, "EF4", Role: null),
@@ -60,11 +58,10 @@ public sealed class OrganizationDirectoryPersistenceTests
     public async Task SearchFiltersByRole()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        await SeedAsync(host, "Combined Site Alpha", "COMBINED SITE ALPHA", "repairer", null, null, active: true);
-        await SeedAsync(host, "Combined Site Beta", "COMBINED SITE BETA", "storage", null, null, active: true);
+        await SeedAsync(factory, "Combined Site Alpha", "COMBINED SITE ALPHA", "repairer", null, null, active: true);
+        await SeedAsync(factory, "Combined Site Beta", "COMBINED SITE BETA", "storage", null, null, active: true);
 
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var directory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectoryQueries>();
         var results = await directory.SearchAsync(
             new(Staff, "Combined", OrganizationDirectoryRole.Storage),
@@ -78,11 +75,10 @@ public sealed class OrganizationDirectoryPersistenceTests
     public async Task SearchOrdersAnExactNormalizedMatchBeforeAPrefixMatch()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        await SeedAsync(host, "Fenwick", "FENWICK", "storage", null, null, active: true);
-        await SeedAsync(host, "Fenwick Extended Yard", "FENWICK EXTENDED YARD", "storage", null, null, active: true);
+        await SeedAsync(factory, "Fenwick", "FENWICK", "storage", null, null, active: true);
+        await SeedAsync(factory, "Fenwick Extended Yard", "FENWICK EXTENDED YARD", "storage", null, null, active: true);
 
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var directory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectoryQueries>();
         var results = await directory.SearchAsync(
             new(Staff, "Fenwick", Role: null),
@@ -96,8 +92,7 @@ public sealed class OrganizationDirectoryPersistenceTests
     public async Task SearchDeniesAnActorWithoutCaseworkAccess()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        using var host = factory.WithC06Adapters();
-        await using var scope = host.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var directory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectoryQueries>();
         var externalActor = ActionActor.RequestLink(Guid.NewGuid());
 

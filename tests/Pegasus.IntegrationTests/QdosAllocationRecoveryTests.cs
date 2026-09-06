@@ -608,6 +608,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
             spy,
             clock,
+            services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             services.GetService<IImageIntakeAutomation>());
 
         // First pass: processes to a definitive receipt, but the automatic
@@ -761,6 +762,7 @@ public sealed class QdosAllocationRecoveryTests
             providerAssociationStore,
             allocateIntake,
             clock,
+            services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             automaticMailCaseAssociation: automaticMailCaseAssociation);
 
     private sealed class RecordingProviderAssociationStore(List<string> events)
