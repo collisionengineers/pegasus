@@ -193,3 +193,7 @@ Build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port integra
 ## C head `15518699c` pushed
 
 Wave 14: build/architecture PASS; integration 62/70 — 5 corpus skips (local pinned samples absent), 3 A-owned failures (two obsolete OperationsWebTests health tests A is removing; QdosAllocationRecoveryTests seeded-QDOS precondition fixed by A at `8e6f3b21d`). Pushed; A notified with the MSG correction detail for the combined genuine rerun.
+
+## Checkpoint — C06 correction round 1 at `556a26b1a`
+
+Optional directory bridge on `InspectionAddressChoicesQueries` (ASSUMPTION 6), test-side composition helper `C06AdapterRegistrations.WithC06Adapters`, bridge-proof test, seeded-QDOS reuse in two `OrganizationAdministrationPersistenceTests` (ASSUMPTION 7). C head `15518699c` merged → `c94e3dddc`; wave 15 (build/core/integration/host/architecture) running; independent review dispatched against `556a26b1a`. C05 correction round 1 dispatched (Opus) at `975bf107b` for review majors/minors. C07 caller still running. C08 correction waits for a slot (its worktree holds the in-progress merge with the one `OperatorLabels.Admin.Health` conflict).
