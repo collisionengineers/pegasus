@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
@@ -125,8 +126,8 @@ public sealed class AssessmentReportProjectionTests
 
         var result = AssessmentReportProjection.Prepare(
             assessment,
-            input.Costs,
-            signatory: input.Signatory);
+            input.CurrentEstimate,
+            input.Signatory);
 
         Assert.True(result.CanGenerate);
         Assert.Empty(result.Reasons);
@@ -207,19 +208,19 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void MissingRepairCostsIsNotReadyNamingTheAcceptedFormulaGap()
     {
-        // Without a Current estimate (and no hand-typed costs) the draft
-        // fails closed naming the missing estimate (EXT-09).
-        var result = AssessmentReportProjection.Project(ReadyInput() with { Costs = null });
+        // There is no hand-typed cost path: without a Current estimate the
+        // draft fails closed naming the missing estimate (EXT-09).
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = null });
 
         var reason = AssertNotReady(result, AssessmentReportProjection.RepairCostRequirement);
         Assert.Contains("EXT-09", reason.WhyOutstanding, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TheCurrentEstimateSuppliesTheCostBlockAndTheListsWithItsOwnVat()
+    public void TheCurrentEstimateSuppliesTheCanonicalBreakdownAndTheLists()
     {
         var estimate = CurrentEstimate(new("Repairer", 2, 45m, 32m, 60m, 15m, 5m, null));
-        var input = ReadyInput() with { Costs = null, CurrentEstimate = estimate };
+        var input = ReadyInput() with { CurrentEstimate = estimate };
 
         var result = AssessmentReportProjection.Project(input);
 
@@ -228,22 +229,150 @@ public sealed class AssessmentReportProjectionTests
         var costs = result.Snapshot!.Costs;
         Assert.Equal(45m, costs.HourlyRate);
         Assert.Equal(3m, costs.LabourHours);
-        Assert.Equal(totals.Parts, costs.Parts);
-        Assert.Equal(totals.Paint, costs.PaintMaterials);
-        Assert.Equal(totals.Other, costs.SpecialistOther);
-        Assert.Equal(totals.Subtotal, costs.Subtotal);
-        // 5 % from the estimate, not the built-in 20 % rule, and charged on
-        // the unrounded taxable base rather than on the printed net (B04).
-        Assert.Equal(totals.Vat, costs.Vat);
+        Assert.Equal(2.5m, costs.PaintHours);
+        // The one owner of estimate money is carried, never re-derived.
+        Assert.Equal(totals.Printed, costs.Printed);
+        Assert.Equal(totals.Printed.Gross, costs.Total);
+        // 5 % from the estimate, not a built-in 20 % rule, and charged on the
+        // unrounded taxable base rather than on the printed net (B04).
+        Assert.Equal(5m, costs.VatPercent);
+        Assert.Equal("VAT (5%)", costs.VatLabel);
         Assert.Equal(
             decimal.Round(totals.Raw.Taxable * 0.05m, 2, MidpointRounding.AwayFromZero),
-            costs.Vat);
-        Assert.Equal(totals.Total, costs.Total);
+            costs.Printed.Vat);
         Assert.Equal(["Bonnet"], result.Snapshot.NewParts);
         Assert.Equal(["Repair wing"], result.Snapshot.Repairs);
         Assert.Equal(["Paint wing"], result.Snapshot.Operations);
         Assert.Equal(2, result.Snapshot.Settlement.RepairDays);
         result.Snapshot.Validate();
+    }
+
+    [Fact]
+    public void ThePrintedComponentsReconcileToThePrintedTotal()
+    {
+        var costs = AssessmentReportProjection
+            .Project(ReadyInput() with
+            {
+                CurrentEstimate = CurrentEstimate(new("Repairer", 2, 45m, 32m, 60m, 15m, 20m, null)),
+            })
+            .Snapshot!.Costs;
+
+        Assert.Equal(
+            costs.Printed.Net,
+            costs.Printed.Parts + costs.Printed.PanelLabour + costs.Printed.PaintLabour
+                + costs.Printed.Materials + costs.Printed.Specialist);
+        Assert.Equal(costs.Printed.Gross, costs.Printed.Net + costs.Printed.Vat);
+        costs.Validate();
+    }
+
+    [Fact]
+    public void TheRetiredD18EngineerFieldsAreNoLongerReadinessItems()
+    {
+        // B02 removed the D18 name/qualifications/signature items: the
+        // selected sign-off account owns those facts now.
+        var input = ReadyInput();
+        var withoutD18 = input.Assessment.Fields
+            .Where(field => field.Path is not (AssessmentVocabulary.EngineerName
+                or AssessmentVocabulary.EngineerQualifications
+                or AssessmentVocabulary.EngineerSignature))
+            .ToArray();
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = withoutD18 } });
+
+        Assert.True(result.IsReady);
+        Assert.Empty(result.Reasons);
+    }
+
+    [Fact]
+    public void AReportDateIsSetOnlyWhenOneIsStated()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            AssessmentReportProjection.Project(ReadyInput() with { ReportDate = null }));
+    }
+
+    [Fact]
+    public void ARecordedOverrideWinsOverTheGenerationDate()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
+            .Append(Field(AssessmentVocabulary.ReportDate, "2026-07-04"))
+            .ToArray();
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        Assert.Equal(new DateOnly(2026, 7, 4), result.Snapshot!.ReportDate);
+        Assert.True(result.Snapshot.ReportDateOverridden);
+    }
+
+    [Fact]
+    public void PersistedDatesParseUnderANonGregorianCulture()
+    {
+        // ENG-037: a th-TH workstation reads a Buddhist-calendar year unless
+        // the invariant culture is stated at every persisted-date parse.
+        var original = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("th-TH");
+        try
+        {
+            var snapshot = AssessmentReportProjection.Project(ReadyInput()).Snapshot!;
+
+            Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
+            Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
+            Assert.Equal(new DateOnly(2026, 8, 3), snapshot.Assessed);
+            Assert.Equal(new DateOnly(2026, 8, 20), snapshot.Settlement.SalvageSettled);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void TheThreeReportContentChoicesAreIndependentAndDefaultOff(
+        bool discloseGuideSource, bool includeUnrelatedDamage)
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(
+                AssessmentVocabulary.ReportDiscloseGuideSource,
+                discloseGuideSource ? "true" : "false"))
+            .Append(Field(
+                AssessmentVocabulary.ReportIncludeUnrelatedDamage,
+                includeUnrelatedDamage ? "true" : "false"))
+            .ToArray();
+
+        var snapshot = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with { Fields = fields },
+            Guides = new ReportGuideSources([ValuationSource.Glasses]),
+        }).Snapshot!;
+
+        Assert.Equal(discloseGuideSource, snapshot.Content.DiscloseGuideSource);
+        Assert.Equal(includeUnrelatedDamage, snapshot.Content.IncludeUnrelatedDamage);
+        Assert.False(snapshot.Content.IncludeValuationCommentary);
+        Assert.Equal(discloseGuideSource, snapshot.PrintsGuideDisclosure);
+    }
+
+    [Fact]
+    public void TheGuideSentenceIsOmittedWhenNoGlassesGuideWasUsed()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.ReportDiscloseGuideSource, "true"))
+            .ToArray();
+
+        var snapshot = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with { Fields = fields },
+            Guides = new ReportGuideSources([ValuationSource.Cazana]),
+        }).Snapshot!;
+
+        Assert.True(snapshot.Content.DiscloseGuideSource);
+        Assert.False(snapshot.PrintsGuideDisclosure);
     }
 
     [Fact]
@@ -267,10 +396,26 @@ public sealed class AssessmentReportProjectionTests
         var estimate = CurrentEstimate(new("Repairer", null, null, null, null, null, 20m, null));
 
         var result = AssessmentReportProjection.Project(
-            ReadyInput() with { Costs = null, CurrentEstimate = estimate });
+            ReadyInput() with { CurrentEstimate = estimate });
 
         AssertNotReady(result, AssessmentReportProjection.LabourRateRequirement);
     }
+
+    /// <summary>
+    /// The Current estimate every ready input carries: 50 parts, five panel
+    /// hours at 30, 20 materials and 5 specialist, giving a printed net of
+    /// 225, 20 per cent VAT of 45 and a printed gross of 270.
+    /// </summary>
+    private static RepairSpecificationVersion DefaultCurrentEstimate() => new(
+        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
+        new(RepairSpecificationSourceRoute.Manual, null, null, null),
+        [
+            Line(1, "repair", "Nearside door") with { WorkUnits = 5m, Price = null },
+            Line(2, "new_part", "Door skin") with { WorkUnits = null, Price = 50m, Quantity = 1 },
+            Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null },
+        ],
+        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
+        new EstimateDetails("Repairer", null, 30m, null, 20m, 5m, 20m, null), IsCurrent: true);
 
     private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details) => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
@@ -290,6 +435,12 @@ public sealed class AssessmentReportProjectionTests
         var reason = Assert.Single(result.Reasons, item => item.Requirement == requirement);
         return reason;
     }
+
+    /// <summary>The complete Review assessment the report fixtures share.</summary>
+    internal static CaseAssessmentProjection ReadyAssessment() => ReadyInput().Assessment;
+
+    /// <summary>The Current estimate the report fixtures share.</summary>
+    internal static RepairSpecificationVersion ReadyCurrentEstimate() => DefaultCurrentEstimate();
 
     private static AssessmentReportProjectionInput ReadyInput()
     {
@@ -405,7 +556,7 @@ public sealed class AssessmentReportProjectionTests
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
             Sources: [source],
-            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true),
+            CurrentEstimate: DefaultCurrentEstimate(),
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
     }
 

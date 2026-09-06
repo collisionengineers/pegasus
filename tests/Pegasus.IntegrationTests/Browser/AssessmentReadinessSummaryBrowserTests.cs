@@ -108,7 +108,7 @@ public sealed class AssessmentReadinessSummaryBrowserTests
         ReportDate: new DateOnly(2026, 8, 20),
         Photos: [],
         Sources: [],
-        Costs: null,
+        CurrentEstimate: null,
         Signatory: null);
 
     private sealed class FakeGetCase(Guid caseId) : IGetCase

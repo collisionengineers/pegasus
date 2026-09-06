@@ -209,7 +209,12 @@ tbody tr:nth-child(even) td { background: #f5f5f5; }
 .tile-value { display: block; font-size: 11pt; font-weight: 700; margin-top: 1mm; }
 .page-break { break-before: page; }
 .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
-.vehicle-photo { border: .4pt solid #bebebe; height: 48mm; object-fit: cover; width: 100%; break-inside: avoid; }
+.photo-frame { aspect-ratio: 1 / 1; border: .4pt solid #bebebe; break-inside: avoid; margin: 0; overflow: hidden; position: relative; }
+.photo-crop { position: absolute; }
+.vehicle-photo { display: block; height: 100%; object-fit: cover; width: 100%; }
+.vehicle-photo.rot90 { transform: rotate(90deg); }
+.vehicle-photo.rot180 { transform: rotate(180deg); }
+.vehicle-photo.rot270 { transform: rotate(270deg); }
 .work-list { margin-bottom: 4mm; }
 
 /* ============================================================================
