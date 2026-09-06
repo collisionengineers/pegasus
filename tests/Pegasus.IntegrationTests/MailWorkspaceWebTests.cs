@@ -1982,6 +1982,7 @@ public sealed class MailWorkspaceWebTests
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],
                         [],
+                        [],
                         $"Message {index} from {mailboxId}",
                         "Please inspect the vehicle at the address supplied.",
                         [new("estimate.pdf", "application/pdf", 2048)],

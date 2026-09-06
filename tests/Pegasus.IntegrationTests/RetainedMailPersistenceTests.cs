@@ -26,6 +26,64 @@ public sealed class RetainedMailPersistenceTests
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task LocalEmailDisplayUsesStructuredReplyToInsteadOfOtherAddressHeaders()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.Sender = new MailboxAddress("Transport", "transport@example.invalid");
+            message.ReplyTo.Add(new MailboxAddress("Replies", "replies@example.invalid"));
+            message.To.Add(new MailboxAddress("To", "to@example.invalid"));
+            message.Cc.Add(new MailboxAddress("Copy", "copy@example.invalid"));
+        });
+
+        Assert.Equal(["replies@example.invalid"], display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task LocalEmailDisplayUsesActualFromMailboxesOnlyWhenReplyToIsAbsent()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("First", "first@example.invalid"));
+            message.From.Add(new MailboxAddress("Second", "second@example.invalid"));
+            message.Sender = new MailboxAddress("Transport", "transport@example.invalid");
+            message.To.Add(new MailboxAddress("To", "to@example.invalid"));
+        });
+
+        Assert.Equal(
+            ["first@example.invalid", "second@example.invalid"],
+            display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task LocalEmailDisplayPreservesMultipleReplyToMailboxOrder()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.ReplyTo.Add(new MailboxAddress("First reply", "first-reply@example.invalid"));
+            message.ReplyTo.Add(new MailboxAddress("Second reply", "second-reply@example.invalid"));
+        });
+
+        Assert.Equal(
+            ["first-reply@example.invalid", "second-reply@example.invalid"],
+            display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task PresentButUnusableReplyToDoesNotFallBackToFrom()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.Headers.Add(HeaderId.ReplyTo, string.Empty);
+        });
+
+        Assert.Empty(display.ReplyToAddresses);
+    }
+
+    [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {
         var message = new MimeMessage();
@@ -164,10 +222,35 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal("conversation-1", detail.ConversationId);
         Assert.Equal(["intake@collisionengineers.co.uk"], detail.ToAddresses);
         Assert.Equal(["copied@collisionengineers.co.uk"], detail.CcAddresses);
+        Assert.Equal(["reply@example.invalid"], detail.ReplyToAddresses);
         Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
         var attachment = Assert.Single(detail.Attachments);
         Assert.Equal("estimate.pdf", attachment.FileName);
         Assert.Equal(2048, attachment.ContentLength);
+    }
+
+    [Fact]
+    public async Task MissingStoredReplyToMetadataRemainsUnavailable()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message("message-without-reply-metadata"));
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.RetainedMailboxMessages.ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.ReplyToAddressesJson, (string?)null));
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(
+                await database.ScalarAsync<Guid>(
+                    "SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = 'message-without-reply-metadata';"),
+                CancellationToken.None));
+
+        Assert.Null(detail.ReplyToAddresses);
     }
 
     [Fact]
@@ -1422,6 +1505,20 @@ public sealed class RetainedMailPersistenceTests
         return output.ToArray();
     }
 
+    private static async Task<LocalEmailDisplay> ReadDisplayAsync(Action<MimeMessage> configure)
+    {
+        var message = new MimeMessage
+        {
+            Subject = "Reply target fixture",
+            Body = new TextPart("plain") { Text = "Body" }
+        };
+        configure(message);
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        stream.Position = 0;
+        return await LocalEmailDisplayReader.ReadAsync(stream, CancellationToken.None);
+    }
+
     private static RetainedMailboxMessage Message(
         string immutableMessageId,
         string? subject = "An instruction",
@@ -1447,6 +1544,7 @@ public sealed class RetainedMailPersistenceTests
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
+            ["reply@example.invalid"],
             subject,
             bodyPlainText,
             [new("estimate.pdf", "application/pdf", 2048)],
@@ -1601,6 +1699,7 @@ public sealed class RetainedMailPersistenceTests
                 "Sender",
                 [MailboxAddress],
                 [],
+                ["sender@example.invalid"],
                 "Subject",
                 "Body",
                 [],
