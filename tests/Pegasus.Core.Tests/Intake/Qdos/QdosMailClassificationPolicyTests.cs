@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(7, QdosMailClassificationPolicy.Version);
+        Assert.Equal(8, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -101,6 +101,15 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
         Assert.True(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
+    }
+
+    [Fact]
+    public void CrLfTriageLetterClassifiesAsOneCategoryCandidate()
+    {
+        var result = Classify(document: TriageLetter().Replace("\n", "\r\n", StringComparison.Ordinal));
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
     }
 
     [Fact]
