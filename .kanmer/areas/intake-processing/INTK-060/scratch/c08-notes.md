@@ -109,3 +109,58 @@ Head SHA now c64d9cf83. Full solution build (`dotnet build ./Pegasus.slnx
 --configuration Release --no-restore`) green. READY_FOR_TESTS unchanged
 otherwise — see the earlier note in this file for the full slice summary and
 the other two deviations (Reply/Forward blocked; Compose's two assumptions).
+
+## Correction round 1 (wave-9 defects)
+
+**ASSUMPTION 4 (C08, correction round 1) replaces ASSUMPTION 2's placeholder:**
+Compose's `ExpectedMailboxGeneration` now reads `ApprovedMailbox.Generation`
+(G14's shared field) instead of `ApprovedMailbox.Version` (Administration's
+own optimistic-concurrency counter for mailbox edits — a different field this
+page no longer conflates it with). `LoadSendableMailboxesAsync` now offers a
+mailbox when it is Approved and carries `StaffSend` (G14's dedicated
+capability for this exact command) **or**, as a fallback, `SentEvidence` (the
+pre-G14 placeholder scope) — because `EfApprovedMailboxStore.Routes`
+(A-owned, `src/Pegasus.Infrastructure/Persistence/EfApprovedMailboxStore.cs`)
+does not map its backing `AllowStaffSend` column into `RouteScopes` at all
+yet; filtering on `StaffSend` alone today would offer no mailbox to anyone.
+Alternatives considered: filter solely on `StaffSend` (correct per contract,
+but breaks Compose completely until A's mapping lands); leave filtering on
+`SentEvidence` only (ignores the new capability G14 added). Revert to
+`StaffSend`-only once `EfApprovedMailboxStore.Routes` maps `AllowStaffSend`.
+`ApprovedMailbox.VerifiedEncodedMessageSizeLimit` (G14) has nothing to
+enforce yet — this slice always sends `Attachments: []` — so a null
+(unverified) limit is correctly never substituted with a guessed number; a
+future attachment slice must read the chosen mailbox's real value.
+
+**Defect (c) investigation — `OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts`
+still 404s; root cause not confirmed.** Traced `GetRetainedMail` (Core) and
+`EfRetainedMailboxMessageStore.GetAsync` (Infrastructure, A-owned, read-only
+for me): `LoadClassificationAsync` is a `private static` method called
+directly on `this`/`context`, never through the `IRetainedMailClassificationStore`
+interface — so the test's `RecordingClassificationStore` swap (which always
+returns null from `GetClassificationAsync`) cannot be what 404s Preview; this
+matches the class's own doc comment ("no read/open/preview/filter path calls
+it"). Messages seeded via `RetainAsync` in this test carry no `IntakeReceipts`
+row, so `detail.Classification` stays null and `RecommendFolderAsync` returns
+before ever calling `IApprovedMailboxStore` — ruling that branch out too.
+`IntakeWebApplicationFactory` provisions an isolated database per factory
+instance (`LocalDbTestDatabase`), ruling out cross-test "instructions"
+mailbox-literal pollution. I could not reproduce or pin the exact throwing
+line by static reading alone with `dotnet test` unavailable to me this
+session (build-only per dispatch). Rather than guess at a production fix I
+can't verify, I added a diagnostic to the test itself: on a non-OK preview
+response it now fails with the status, response body, and whether the seeded
+row still exists in the DB, so the runner's next pass names the real cause
+directly instead of only "OK != NotFound". If the runner's failure message
+points at a specific line/exception, that is the next round's fix target —
+no production change was made for this defect since I could not verify one.
+
+**Defect (a)/(b) fixes are production changes** (`site.css` `.admin-nav`
+narrow-width rule now wraps with `overflow:visible` instead of
+`overflow-x:auto` leaving `overflow-y:hidden`; `site.js`'s command palette
+now threads the real opener — the search box on Enter, the focused element
+on Ctrl+K — through a new `dialog.pegasusOpen` so Escape's focus-return
+targets it instead of the generic "open another record" trigger button) —
+no assumptions needed, both were deterministic code-reading fixes.
+
+## Step 3 note (pending — will append after `_AdminNav.cshtml` route audit)
