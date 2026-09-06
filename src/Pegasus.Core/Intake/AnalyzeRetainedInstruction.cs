@@ -201,6 +201,13 @@ public sealed class AnalyzeRetainedInstruction(
     public const string PrincipalPartyRole = "principal";
 
     /// <summary>
+    /// The field name the matched accepted template variant is recorded under,
+    /// where the profile has more than one. Separate from the suggested
+    /// principal: which template a principal used is not who the principal is.
+    /// </summary>
+    public const string MatchedTemplateVariantField = "Matched template variant";
+
+    /// <summary>
     /// The policy key recorded when no profile matched, or several did: the
     /// analysis row still exists (so the receipt shows that the question was
     /// asked and answered) but no policy owns it.
@@ -326,7 +333,12 @@ public sealed class AnalyzeRetainedInstruction(
                 false);
         }
 
-        var selection = selector.Select(readResult);
+        // Selection is by document signature AND document role: this use case
+        // reads instructions, so a profile written for another document role
+        // is not a candidate for it.
+        var selection = selector.Select(
+            readResult,
+            InstructionDocumentSignature.InstructionRole);
         var completedAtUtc = timeProvider.GetUtcNow();
         if (selection.Outcome != InstructionPolicySelectionOutcome.Selected)
         {
@@ -376,7 +388,9 @@ public sealed class AnalyzeRetainedInstruction(
             profile,
             policy.PrincipalCode,
             readResult.ReaderKey,
-            readResult.ReaderVersion);
+            readResult.ReaderVersion,
+            selection.MatchedVariantKeys,
+            policy as IInstructionFieldRoles);
 
         var (analysis, isReplay) = await store.RecordAsync(
             new(
@@ -409,7 +423,9 @@ public sealed class AnalyzeRetainedInstruction(
         IInstructionDocumentProfile profile,
         string principalCode,
         string readerKey,
-        string readerVersion)
+        string readerVersion,
+        IReadOnlyList<string> matchedVariantKeys,
+        IInstructionFieldRoles? fieldRoles)
     {
         var policyVersion = profile.DocumentProfileVersion.ToString(CultureInfo.InvariantCulture);
         var documentRole = profile.Signature.DocumentRole;
@@ -437,16 +453,46 @@ public sealed class AnalyzeRetainedInstruction(
                 SourceCandidateDisposition.Usable)
         };
 
+        // Which accepted template of the profile the document matched. One is
+        // a reading; two are recorded as ambiguous rather than resolved,
+        // because the principal is settled and the template is not.
+        var variantDisposition = matchedVariantKeys.Count > 1
+            ? SourceCandidateDisposition.Ambiguous
+            : SourceCandidateDisposition.Usable;
+        var variantOccurrence = 0;
+        foreach (var variantKey in matchedVariantKeys)
+        {
+            candidates.Add(new(
+                Guid.NewGuid(),
+                documentRole,
+                MatchedTemplateVariantField,
+                null,
+                null,
+                variantKey,
+                variantKey,
+                null,
+                null,
+                $"{profile.DocumentProfileKey} template variant",
+                null,
+                variantOccurrence++,
+                readerKey,
+                readerVersion,
+                profile.DocumentProfileKey,
+                policyVersion,
+                variantDisposition));
+        }
+
         foreach (var field in extraction.Fields)
         {
             if (field.Candidates.Count == 0)
             {
+                var missingRole = Role(fieldRoles, field.Name);
                 candidates.Add(new(
                     Guid.NewGuid(),
                     documentRole,
                     field.Name,
-                    null,
-                    null,
+                    missingRole.PartyRole,
+                    missingRole.ReferenceRole,
                     null,
                     field.SuggestedValue,
                     null,
@@ -471,14 +517,15 @@ public sealed class AnalyzeRetainedInstruction(
                 ? SourceCandidateDisposition.Ambiguous
                 : SourceCandidateDisposition.Usable;
             var occurrence = 0;
+            var role = Role(fieldRoles, field.Name);
             foreach (var candidate in field.Candidates)
             {
                 candidates.Add(new(
                     Guid.NewGuid(),
                     documentRole,
                     field.Name,
-                    null,
-                    null,
+                    role.PartyRole,
+                    role.ReferenceRole,
                     candidate.Value,
                     // The engine canonicalizes only the field it accepted; a
                     // competing candidate of a conflicting field has no
@@ -503,6 +550,16 @@ public sealed class AnalyzeRetainedInstruction(
 
         return candidates.ToArray();
     }
+
+    /// <summary>
+    /// The role the reading policy declares for one of its own fields. A
+    /// policy that declares none leaves both roles unstated, which is the
+    /// truth about a candidate whose owner nobody has said.
+    /// </summary>
+    private static InstructionFieldRole Role(IInstructionFieldRoles? fieldRoles, string field) =>
+        fieldRoles is not null && fieldRoles.FieldRoles.TryGetValue(field, out var role)
+            ? role
+            : new(null, null);
 
     /// <summary>
     /// The reader records a page only inside the fragment's own source label,

@@ -23,6 +23,31 @@ internal static partial class InstructionFieldEngine
     /// says which party it is asking about. Without it every viable column is
     /// returned and the field is ambiguous rather than guessed.
     /// </param>
+    /// <param name="PartyRole">
+    /// Which separate role this field's value belongs to — claimant, driver,
+    /// repairer, third party, principal, instruction. The roles the intake
+    /// invariants keep apart are kept apart HERE, on the definition, so a
+    /// policy cannot declare a field without saying whose fact it is and a
+    /// second role map cannot drift from the definition list.
+    /// </param>
+    /// <param name="ReferenceRole">
+    /// For a reference or claim number, whose reference it is: the principal's
+    /// own, an insurer's policy or claim number, a solicitor's file. Two
+    /// numbers printed on one instruction are two roles, never two spellings
+    /// of one field.
+    /// </param>
+    /// <param name="DefaultsToProcessedDate">
+    /// Whether an absent value is filled from the injected clock. Only a field
+    /// a profile has explicitly opted in carries this: today's date is not an
+    /// extracted fact, so a profile that does not ask for the default records
+    /// the absence instead (INTK-060 C03).
+    /// </param>
+    /// <param name="AllowsSoleUnlabelledRegistration">
+    /// Whether the document's single unlabelled registration-shaped value may
+    /// stand in when no labelled one was found. Opt-in per definition rather
+    /// than keyed on a field's name, so the rule belongs to the profile that
+    /// wants it.
+    /// </param>
     internal sealed record FieldDefinition(
         string Name,
         string[] Labels,
@@ -33,7 +58,11 @@ internal static partial class InstructionFieldEngine
         string[]? GuardedPrefixes = null,
         bool PrefersLatestFragment = false,
         string[]? FormFields = null,
-        string? ColumnHeader = null);
+        string? ColumnHeader = null,
+        string? PartyRole = null,
+        string? ReferenceRole = null,
+        bool DefaultsToProcessedDate = false,
+        bool AllowsSoleUnlabelledRegistration = false);
 
     /// <summary>
     /// Regexes whose patterns depend on a field definition's labels. The QDOS
@@ -424,7 +453,7 @@ internal static partial class InstructionFieldEngine
                 .Select(entry => entry.Candidate)
                 .ToArray();
 
-            if (candidates.Length == 0 && definition.Name == "Instruction date")
+            if (candidates.Length == 0 && definition.DefaultsToProcessedDate)
             {
                 var defaultValue = DateOnly.FromDateTime(processedAtUtc.UtcDateTime)
                     .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -442,7 +471,7 @@ internal static partial class InstructionFieldEngine
                 continue;
             }
 
-            if (candidates.Length == 0 && definition.Name == "Vehicle registration")
+            if (candidates.Length == 0 && definition.AllowsSoleUnlabelledRegistration)
             {
                 var soleRegistration = FindSoleUnlabelledRegistration(fragments);
                 if (soleRegistration is not null)
