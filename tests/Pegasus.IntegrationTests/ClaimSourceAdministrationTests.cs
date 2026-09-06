@@ -24,8 +24,7 @@ public sealed partial class ClaimSourceAdministrationTests
     public async Task CreateEditAndDisableRoundTripAllSixDataFieldsThroughCoreEfCallers()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var host = factory.WithC06Adapters();
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
@@ -137,8 +136,7 @@ public sealed partial class ClaimSourceAdministrationTests
     public async Task EditRefusesAStalePostedExpectedVersion()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var host = factory.WithC06Adapters();
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
@@ -237,8 +235,7 @@ public sealed partial class ClaimSourceAdministrationTests
     public async Task CreateReplayWithTheSameOperationKeyNeverCreatesASecondRow()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var host = factory.WithC06Adapters();
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
@@ -281,8 +278,7 @@ public sealed partial class ClaimSourceAdministrationTests
     public async Task DirectClaimSourceRoutesDenyNonAdministratorSession()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: false);
-        using var host = factory.WithC06Adapters();
-        await using (var scope = host.Services.CreateAsyncScope())
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
             var userManager = scope.ServiceProvider
                 .GetRequiredService<UserManager<PegasusIdentityUser>>();
@@ -293,7 +289,7 @@ public sealed partial class ClaimSourceAdministrationTests
                 user,
                 StaffRoleNames.Administrator)).Succeeded);
         }
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
