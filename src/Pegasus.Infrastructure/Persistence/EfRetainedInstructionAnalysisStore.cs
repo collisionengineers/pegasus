@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -133,7 +133,7 @@ public sealed class EfRetainedInstructionAnalysisStore(
                 Unit = candidate.Unit,
                 Currency = candidate.Currency,
                 LocatorJson = AnalyzeRetainedInstruction.LocatorJson(
-                    candidate.SourceLabel, candidate.Page),
+                    candidate.SourceLabel, candidate.Page, candidate.Locator),
                 ReaderKey = candidate.ReaderKey,
                 ReaderVersion = candidate.ReaderVersion,
                 PolicyKey = candidate.PolicyKey,
@@ -180,7 +180,7 @@ public sealed class EfRetainedInstructionAnalysisStore(
 
         return rows.Select(row =>
         {
-            var (sourceLabel, page) = AnalyzeRetainedInstruction.ReadLocator(row.LocatorJson);
+            var (sourceLabel, page, locator) = AnalyzeRetainedInstruction.ReadLocator(row.LocatorJson);
             return new SourceFieldCandidate(
                 row.Id,
                 receiptId,
@@ -201,9 +201,9 @@ public sealed class EfRetainedInstructionAnalysisStore(
                 row.Currency,
                 sourceLabel,
                 page,
-                Cell: null,
-                FormField: null,
-                Region: null,
+                locator?.Cell,
+                locator?.FormField,
+                locator?.Region,
                 row.ReaderVersion,
                 row.PolicyVersion,
                 Enum.Parse<SourceCandidateDisposition>(row.Disposition));
@@ -234,7 +234,7 @@ public sealed class EfRetainedInstructionAnalysisStore(
 
     private static RetainedInstructionCandidate Map(IntakeSourceCandidateEntity entity)
     {
-        var (sourceLabel, page) = AnalyzeRetainedInstruction.ReadLocator(entity.LocatorJson);
+        var (sourceLabel, page, locator) = AnalyzeRetainedInstruction.ReadLocator(entity.LocatorJson);
         return new(
             entity.Id,
             entity.DocumentRole,
@@ -252,6 +252,7 @@ public sealed class EfRetainedInstructionAnalysisStore(
             entity.ReaderVersion,
             entity.PolicyKey,
             entity.PolicyVersion,
-            Enum.Parse<SourceCandidateDisposition>(entity.Disposition));
+            Enum.Parse<SourceCandidateDisposition>(entity.Disposition),
+            locator);
     }
 }

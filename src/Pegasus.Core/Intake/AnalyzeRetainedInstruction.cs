@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -78,7 +78,8 @@ public sealed record RetainedInstructionCandidate(
     string ReaderVersion,
     string PolicyKey,
     string PolicyVersion,
-    SourceCandidateDisposition Disposition);
+    SourceCandidateDisposition Disposition,
+    IntakeSourceLocator? Locator = null);
 
 public sealed record RetainedInstructionAnalysis(
     Guid Id,
@@ -448,8 +449,13 @@ public sealed class AnalyzeRetainedInstruction(
                 continue;
             }
 
+            // Two readings the document itself supports are AMBIGUOUS, not
+            // conflicting: nothing has contradicted a confirmed fact, the
+            // document simply says two things and neither may be picked here.
+            // Conflicting stays reserved for a candidate that contradicts a
+            // fact staff or an Engineer already confirmed.
             var disposition = field.HasConflict
-                ? SourceCandidateDisposition.Conflicting
+                ? SourceCandidateDisposition.Ambiguous
                 : SourceCandidateDisposition.Usable;
             var occurrence = 0;
             foreach (var candidate in field.Candidates)
@@ -469,13 +475,16 @@ public sealed class AnalyzeRetainedInstruction(
                     null,
                     null,
                     candidate.SourceLabel,
-                    PageFrom(candidate.SourceLabel),
+                    // The reader's own locator states the page; the source
+                    // label is parsed only for a fragment that carries none.
+                    candidate.Locator?.Page ?? PageFrom(candidate.SourceLabel),
                     occurrence++,
                     readerKey,
                     readerVersion,
                     profile.DocumentProfileKey,
                     policyVersion,
-                    disposition));
+                    disposition,
+                    candidate.Locator));
             }
         }
 
@@ -507,17 +516,67 @@ public sealed class AnalyzeRetainedInstruction(
     /// <summary>
     /// The locator recorded with each candidate. One JSON shape, written here
     /// once, so persistence never invents a second.
+    ///
+    /// Version 2 carries the structured locator the reader produced — page,
+    /// table cell, PDF form field, bounded region, message part and occurrence —
+    /// beside the source label version 1 recorded. A version 1 envelope still
+    /// reads: its structured half is simply absent, which is the truth about a
+    /// candidate recorded before the reader reported structure.
     /// </summary>
-    public static string LocatorJson(string sourceLabel, int? page) =>
-        JsonSerializer.Serialize(new LocatorEnvelope(1, sourceLabel, page));
+    public static string LocatorJson(string sourceLabel, int? page, IntakeSourceLocator? locator = null) =>
+        JsonSerializer.Serialize(new LocatorEnvelope(
+            locator is null ? 1 : 2,
+            sourceLabel,
+            page ?? locator?.Page,
+            locator?.Kind,
+            locator?.Table,
+            locator?.Row,
+            locator?.Column,
+            locator?.FormField,
+            locator?.Region,
+            locator?.MessagePart,
+            locator?.Occurrence));
 
-    public static (string SourceLabel, int? Page) ReadLocator(string locatorJson)
+    public static (string SourceLabel, int? Page, IntakeSourceLocator? Locator) ReadLocator(string locatorJson)
     {
         var envelope = JsonSerializer.Deserialize<LocatorEnvelope>(locatorJson);
-        return envelope is null ? (string.Empty, null) : (envelope.SourceLabel, envelope.Page);
+        return envelope is null
+            ? (string.Empty, null, null)
+            : (envelope.SourceLabel, envelope.Page, ReadLocator(envelope));
     }
 
-    public sealed record LocatorEnvelope(int Version, string SourceLabel, int? Page);
+    /// <summary>
+    /// The stored envelope back as the reader's own locator, or null when the
+    /// row carries none. Nothing is invented: a version 1 envelope that recorded
+    /// only a page comes back as a page locator, and one that recorded nothing
+    /// comes back null.
+    /// </summary>
+    private static IntakeSourceLocator? ReadLocator(LocatorEnvelope envelope) =>
+        envelope.Kind is not { } kind
+            ? envelope.Page is { } onlyPage ? IntakeSourceLocator.ForPage(onlyPage) : null
+            : new(
+                kind,
+                envelope.Page,
+                envelope.Table,
+                envelope.Row,
+                envelope.Column,
+                envelope.FormField,
+                envelope.Region,
+                envelope.MessagePart ?? IntakeMessagePart.None,
+                envelope.Occurrence ?? 0);
+
+    public sealed record LocatorEnvelope(
+        int Version,
+        string SourceLabel,
+        int? Page,
+        IntakeLocatorKind? Kind = null,
+        int? Table = null,
+        int? Row = null,
+        int? Column = null,
+        string? FormField = null,
+        string? Region = null,
+        IntakeMessagePart? MessagePart = null,
+        int? Occurrence = null);
 
     /// <summary>
     /// The receipt's own retained source asset by default; an explicit id picks

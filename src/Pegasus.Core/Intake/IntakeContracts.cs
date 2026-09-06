@@ -250,10 +250,133 @@ public sealed record IntakeSource(
     string Actor,
     IntakeSourceIdentity SourceIdentity);
 
+/// <summary>
+/// What kind of place in a source a locator names. One enumeration, because a
+/// candidate is read from exactly one kind of place: a whole document, a page,
+/// a table cell, a PDF form field, a bounded text region, or a part of an
+/// e-mail message.
+/// </summary>
+public enum IntakeLocatorKind
+{
+    Document,
+    Page,
+    TableCell,
+    FormField,
+    Region,
+    MessagePart
+}
+
+/// <summary>
+/// Which part of a transported message a fragment came from. An outer
+/// transport envelope, the message a sender actually wrote, the history quoted
+/// beneath it and an attachment are four different pieces of evidence about
+/// four possibly different senders, and collapsing them is how a forwarding
+/// desk comes to be recorded as the instructing party.
+/// </summary>
+public enum IntakeMessagePart
+{
+    None,
+    OuterTransport,
+    CurrentBody,
+    QuotedHistory,
+    Attachment
+}
+
+/// <summary>
+/// The smallest useful statement of WHERE in a source something was read.
+///
+/// One locator serves every shape the intake pipeline actually meets — page,
+/// table cell, PDF form field, bounded text region and message part — because a
+/// second document model is exactly what the stream is forbidden to grow. The
+/// fields a given kind does not use stay null; nothing infers a page from a
+/// cell or a cell from a label.
+/// </summary>
+/// <param name="Table">
+/// The table's own identity within its source (its ordinal, as the reader met
+/// it). Paired with <paramref name="Row"/> and <paramref name="Column"/> it
+/// makes <see cref="Cell"/>, the frozen projection's cell string.
+/// </param>
+/// <param name="Region">
+/// A bounded region of the source text or page, written as the reader chose to
+/// bound it. Never a global positional line number: a region is meaningful only
+/// against the source it names.
+/// </param>
+/// <param name="Occurrence">
+/// Which repetition of the same evidence this is within its source, counted
+/// from zero. Identical bytes are evidence twice when a document says a thing
+/// twice.
+/// </param>
+public sealed record IntakeSourceLocator(
+    IntakeLocatorKind Kind,
+    int? Page = null,
+    int? Table = null,
+    int? Row = null,
+    int? Column = null,
+    string? FormField = null,
+    string? Region = null,
+    IntakeMessagePart MessagePart = IntakeMessagePart.None,
+    int Occurrence = 0,
+    string? Sha256 = null,
+    string? DocumentRole = null)
+{
+    /// <summary>
+    /// The cell string the frozen <see cref="SourceFieldCandidate"/> projection
+    /// carries, or null when this locator does not name a cell. Written in one
+    /// place so a store and a page cannot spell it differently.
+    /// </summary>
+    public string? Cell => Table is null || Row is null || Column is null
+        ? null
+        : $"T{Table}R{Row}C{Column}";
+
+    public static IntakeSourceLocator ForPage(int page, int occurrence = 0) =>
+        new(IntakeLocatorKind.Page, Page: page, Occurrence: occurrence);
+
+    public static IntakeSourceLocator ForCell(
+        int table,
+        int row,
+        int column,
+        int? page = null,
+        int occurrence = 0) =>
+        new(
+            IntakeLocatorKind.TableCell,
+            Page: page,
+            Table: table,
+            Row: row,
+            Column: column,
+            Occurrence: occurrence);
+
+    public static IntakeSourceLocator ForFormField(
+        string formField,
+        int? page = null,
+        string? region = null,
+        int occurrence = 0) =>
+        new(
+            IntakeLocatorKind.FormField,
+            Page: page,
+            FormField: formField,
+            Region: region,
+            Occurrence: occurrence);
+
+    public static IntakeSourceLocator ForMessagePart(
+        IntakeMessagePart messagePart,
+        string? region = null,
+        int occurrence = 0) =>
+        new(
+            IntakeLocatorKind.MessagePart,
+            Region: region,
+            MessagePart: messagePart,
+            Occurrence: occurrence);
+}
+
+/// <param name="Locator">
+/// Where in the source the fragment was read. Null when the reader could offer
+/// nothing better than the whole source, which is honest rather than guessed.
+/// </param>
 public sealed record IntakeContentFragment(
     IntakeEvidenceSource Source,
     string SourceLabel,
-    string Text);
+    string Text,
+    IntakeSourceLocator? Locator = null);
 
 public enum IntakeSenderIdentityKind
 {
@@ -364,10 +487,27 @@ public sealed record IntakeEvidence(
     string? MatcherKey = null,
     int? MatcherVersion = null);
 
+/// <param name="Value">
+/// The value as the extraction engine bounded it — trimmed, with runs of
+/// whitespace collapsed. It is not a normalized value: no field is
+/// canonicalized here.
+/// </param>
+/// <param name="RawValue">
+/// The source text exactly as it was printed, before the engine trimmed or
+/// collapsed anything. Null when it is identical to <paramref name="Value"/>.
+/// Normalization never destroys the source value, so the raw form is what an
+/// operator reviewing a conflict is shown.
+/// </param>
 public sealed record InstructionFieldCandidate(
     string Value,
     IntakeEvidenceSource Source,
-    string SourceLabel);
+    string SourceLabel,
+    IntakeSourceLocator? Locator = null,
+    string? RawValue = null)
+{
+    /// <summary>The printed value: the raw text when one was kept, else the bounded value.</summary>
+    public string SourceValue => RawValue ?? Value;
+}
 
 public sealed record InstructionReviewField(
     string Name,
