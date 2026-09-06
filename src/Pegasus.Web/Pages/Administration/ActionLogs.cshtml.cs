@@ -6,7 +6,9 @@ using Pegasus.Core.Operations;
 namespace Pegasus.Web.Pages.Administration;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class ActionLogsModel(ListActionLogs listActionLogs) : AdministrationPageModel
+public sealed class ActionLogsModel(
+    ListActionLogs listActionLogs,
+    TimeProvider timeProvider) : AdministrationPageModel
 {
     [BindProperty(SupportsGet = true)] public DateTimeOffset? From { get; set; }
     [BindProperty(SupportsGet = true)] public DateTimeOffset? To { get; set; }
@@ -50,8 +52,10 @@ public sealed class ActionLogsModel(ListActionLogs listActionLogs) : Administrat
         CancellationToken cancellationToken = default)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        var to = To ?? DateTimeOffset.UtcNow;
+        var to = To ?? timeProvider.GetUtcNow();
         var from = From ?? to.AddDays(-31);
+        From = from;
+        To = to;
         CurrentPage = page;
         OldestFirst = string.Equals(Sort, "oldest", StringComparison.Ordinal);
         try
