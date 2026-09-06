@@ -808,6 +808,13 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             // earlier sender wrote.
             var quotedAt = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(body);
             var hasQuotedHistory = quotedAt.Success && quotedAt.Index > 0;
+            var quotedStart = quotedAt.Index;
+            while (hasQuotedHistory
+                && quotedStart < body.Length
+                && (body[quotedStart] == '\r' || body[quotedStart] == '\n'))
+            {
+                quotedStart++;
+            }
             result.Content.Add(new(
                 IntakeEvidenceSource.EmailBody,
                 $"{sourceLabel}, email body",
@@ -822,12 +829,12 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 result.Content.Add(new(
                     IntakeEvidenceSource.EmailBody,
                     $"{sourceLabel}, quoted history",
-                    body[quotedAt.Index..],
+                    body[quotedStart..],
                     IntakeSourceLocator.ForMessagePart(
                         IntakeMessagePart.QuotedHistory,
                         string.Create(
                             CultureInfo.InvariantCulture,
-                            $"chars {quotedAt.Index}-{body.Length}"))));
+                            $"chars {quotedStart}-{body.Length}"))));
             }
 
             if (senderIdentityKind == IntakeSenderIdentityKind.Transport
