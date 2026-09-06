@@ -747,3 +747,319 @@ remaining open items are one layering regression, one narrow unrecorded
 re-offer path, and one unproved authorization on the new status port. None of
 them touches the accounting or the sender-facing claim, which are the two
 things round 0 blocked on.
+
+# SUPERSEDING ATTESTATION — correction round 2
+
+This section supersedes both attestations above in full. The frontmatter block
+below is the machine-facing record for head `f55a5adac`; the two above are
+retained only as the history of rounds 0 and 1.
+
+```yaml
+kind: review-attestation
+pr: "none (controller override: no PR; worktree head review)"
+head_sha: "f55a5adac9e4b84fdb1869213d422ed9cd1d6036"
+verdict: needs-changes
+reviewer: "pegasus-reviewer (INTK-060 C07b, attempt 3 — correction round 2)"
+independent: true
+plan_hash: "pegasus_pack/astra_output/v1_implementation_plans/streams/C-intake.md @ f55a5adac (INTK-060 doc plan version 62649b22a7e43d77)"
+ticket_updated: "INTK-060 scratch/c07-notes version 55f148c196c0e40c; scratch/review-c07b version fe52d464aa49961a"
+board_sha: "28e7ba102879dca36f734addbaff18802014c045"
+expected_reviewers: []
+threads_snapshot:
+  - source: manual
+    id: "PR 673 comment 5560704411 (Stream A), relayed by the controller"
+    author: "stream-a"
+    resolved: false
+    finding: C07B-R-3a
+  - source: manual
+    id: "PR 673 comment 5560704411 (Stream A), second point, relayed by the controller"
+    author: "stream-a"
+    resolved: false
+    finding: C07B-R-22
+findings:
+  - id: C07B-R-12
+    severity: major
+    disposition: fixed
+    summary: "The layering regression is gone. IsUncertainHandOver no longer names HttpRequestException; no code in src/Pegasus.Core references any System.Net.Http type, so the compiler emits no reference. The only two mentions in Core source are explanatory comments (RetainIncomingArtifact.cs:221 and the pre-existing EvaSubmissionWorkItem.cs:192-193). Lane 5 is 100/100. The predicate that replaced it is sound in shape but rests on a refusal contract A has now contradicted — tracked as C07B-R-22, not as this finding."
+  - id: C07B-R-13
+    severity: minor
+    disposition: fixed
+    summary: "A cancelled hand-over is uncertain like any other and the Unknown record is written on CancellationToken.None. The proof is structural, not a comment: RecordingStore.RecordAsync calls ThrowIfCancellationRequested and ThrowingCustody cancels the source after reading the bytes, so AHandOverCancelledAfterTheBytesWereReadIsUncertainAndIsStillRecorded fails if the fresh token is ever removed."
+  - id: C07B-R-14
+    severity: minor
+    disposition: fixed
+    summary: "RecordingCaseArtifactCustody.GetAsync now calls StaffAuthorization.Require(actor, PerformCasework) — counted before the rule is applied so a test can prove the read was attempted and refused — CustodyRefusesEveryAuthorityThatIsNotThisExactActiveLink gained the direct status-path case, and ReconcileAsync catches the refusal and returns the retention unchanged. The Core-side double throws UnreachableException if the rule ever stops refusing, so it cannot decay into a no-op."
+  - id: C07B-R-14a
+    severity: minor
+    disposition: accepted-risk
+    summary: "New residual this round records rather than hides: a public Pending that custody later confirms earns no RequestUploadReceipt and never opens the fixed session window, because both belong to the accept path and a reconciliation does not re-enter it. Reason: accepted. It does not breach plan item 7 — pending/failed/unknown are still persisted and rendered, still never render success, and the logical document/version identities are still kept for a reading authority (Project carries DocumentId/VersionId for every disposition), which is what lets AStaffReconciliationConfirmsAPendingArrivalWithoutASecondHandOver converge. Item 7 nowhere requires the public sender to be the reconciling authority; item 6's window is defined on a file whose custody is accepted, which this never becomes on that path. Closing it is one of A's two handoff shapes on scratch/c07-notes."
+  - id: C07B-R-3a
+    severity: major
+    disposition: open
+    summary: "RE-DISPOSITIONED from accepted-risk on Stream A's evidence (PR 673 comment 5560704411). An Unknown recorded from a thrown hand-over names no DocumentId/DocumentVersionId, so ReconcileAsync has nothing to ask with; rounds 0-2 all treated 'Request.cshtml.cs mints a fresh operation key per GET, so no sender is locked out' as the mitigation. It is the duplicate vector instead. AuthorizeAndRecordArrivalAsync dedupes only on (SessionId, scopedOperationKey) (EfDocumentRequestStore.cs:396-428) and nothing dedupes on Sha256, so a sender who does exactly what the page tells them — reload, send the same file again — arrives under a NEW key, matches no occurrence, and offers custody bytes it may already hold from the ambiguous first hand-over. That is a duplicate retained copy, on the ordinary page flow, not a scripted-client edge. Fix (both halves): C's retry must reconcile the existing arrived/unknown/pending occurrence for that link and content instead of minting a new key and re-offering bytes — the occurrence row already carries Sha256 per session, so the lookup exists — and the status read that resolves an Unknown carrying no document identities is A's contract change (an operation-key- or content-addressed read on ICaseArtifactCustodyStatus)."
+  - id: C07B-R-22
+    severity: major
+    disposition: open
+    summary: "The premise under the inverted classifier is false against A's real adapter. IsUncertainHandOver treats StaffAuthorizationException and ArgumentException as 'the two refusals custody raises before it has read anything' (RetainIncomingArtifact.cs:200-234, and the same sentence in the report and in the new Core test's name). Stream A (PR 673 comment 5560704411) states its adapter rechecks authority AFTER reading the bytes and before committing, so a StaffAuthorizationException can be raised with the bytes already staged. Such a throw is classified as a refusal: nothing is recorded, the occurrence stays 'arrived', FindAsync reports no retention, and the same or a fresh key re-offers bytes custody may be holding in staging — the exact re-offer C07B-R-3 was raised about, reintroduced through the refusal branch. The same argument applies to ArgumentException, which library internals raise mid-stream as readily as a validation gate does. The classifier cannot be written from Core's guesses about when custody throws: it needs A's explicit refusal contract (which exception types mean 'nothing was staged', guaranteed, and raised only before the stream is touched), recorded on scratch/c07-notes and reflected in both the predicate and the double. Until then, either the named-refusal set shrinks to types A guarantees are pre-read, or a refusal must also record a durable arrival state that the next attempt reconciles."
+  - id: C07B-R-18
+    severity: minor
+    disposition: open
+    summary: "StaffAuthorizationException derives straight from Exception (StaffAuthorization.cs:76) and is NOT on the public page's recoverable filter (Request.cshtml.cs:178-186, which lists ArgumentException, InvalidOperationException, IOException, UnauthorizedAccessException, HttpRequestException, TimeoutException, SocketException, DbUpdateException). This round makes it one of exactly two types that surface from a hand-over, and the handoff instructs A to use it for a refusal that must surface. A link revoked between C's arrival transaction and the hand-over — which deliberately runs outside that transaction — therefore reaches the page unhandled: the generic /Error page instead of the plain retry message, and LogPublicRequestUploadFailure never runs. Fix: one entry on the same filter C07B-R-6 already extended, or map the refusal to NotRetained in EfDocumentRequestStore. May be retired rather than fixed by C07B-R-22."
+  - id: C07B-R-19
+    severity: note
+    disposition: superseded
+    summary: "Superseded by C07B-R-22, which is the same defect with A's evidence behind it. Raised here as: the handoff states one half of the exception contract ('do not raise InvalidOperationException for a refusal you want to surface') and not the other — that a refusal must be raised before the content stream is touched, and that nothing raised after it may be an ArgumentException."
+  - id: C07B-R-20
+    severity: note
+    disposition: accepted-risk
+    summary: "ReconcileAsync's catch does not distinguish which actor was refused and Core records nothing about the refusal, so a mis-wired staff or system-worker authority on the status port is indistinguishable from the expected public refusal: the retention silently keeps its state and a sweep looks like it ran. Reason: accepted. It matches the two silent 'cannot ask' returns the method already had, Core commands here carry no logger, and no state is falsified."
+  - id: C07B-R-21
+    severity: note
+    disposition: open
+    summary: "Evidence hygiene. The report's round-2 commit table names 955bd7558 for the C07B-R-14 commit. That object exists but is on no branch (git branch --contains is empty); the branch carries f55a5adac, which is 955bd7558 plus one blank line in RetainIncomingArtifact.cs (git diff 955bd7558 f55a5adac = 1 insertion). No behavioural difference, but the report's SHA does not name a commit on the branch. Fix: correct the table to 4b7e9930d / f55a5adac."
+  - id: C07B-R-9
+    severity: note
+    disposition: accepted-risk
+    summary: "Carried forward unchanged. EfPublicUploadRetentionStore.FindAsync is a global SingleOrDefaultAsync on OperationKey with no matching index; the index is A-owned and the table is empty-to-small in v1."
+  - id: C07B-R-10
+    severity: note
+    disposition: accepted-risk
+    summary: "Carried forward unchanged. DocumentVersionEntity.BoxFileId/BoxVersionId has two writers; idempotent, Confirmed-only, no third writer added this round."
+  - id: C07B-R-11
+    severity: note
+    disposition: rejected-with-reason
+    summary: "Carried forward. DocumentCustodyDurabilityTests.cs is untouched by this round — git diff --name-status 3c0e1931c..f55a5adac lists three files and none is A-owned."
+  - id: C07B-R-15
+    severity: note
+    disposition: accepted-risk
+    summary: "Carried forward unchanged. A Pending reconciled to Failed leaves the link's totals one file high until the next accepted arrival recomputes them, and an Exhausted link never recovers."
+  - id: C07B-R-16
+    severity: note
+    disposition: accepted-risk
+    summary: "Carried forward unchanged. LockLinkAsync hard-codes [RequestUploadLinks] in raw SQL, matching six other stores."
+  - id: C07B-R-17
+    severity: note
+    disposition: rejected-with-reason
+    summary: "Carried forward. System.Data.Common is not on ForbiddenCoreDependencyPrefixes and predates this slice."
+```
+
+**Verdict: needs-changes.** Head `f55a5adac`. Open: **2 majors** (C07B-R-3a,
+C07B-R-22), **1 minor** (C07B-R-18), 2 open notes (C07B-R-19 superseded,
+C07B-R-21). Round 1's own three findings — the major C07B-R-12 and the minors
+C07B-R-13 and C07B-R-14 — are all **fixed**, and fixed well. Ownership:
+**PASS** — three files, all C-owned.
+
+Both open majors are the same discovery arriving from two directions: **Core
+cannot decide what a custody exception means by reasoning about when custody
+probably throws.** Neither is a defect in the corrections this round made; both
+are those corrections meeting Stream A's actual adapter for the first time.
+
+## Scope of this round
+
+`git diff --name-status 3c0e1931c..f55a5adac`: `RetainIncomingArtifact.cs`,
+`RetainIncomingArtifactTests.cs`, `PublicUploadRetentionWebTests.cs`. Nothing
+A-owned: no `CustodyContracts.cs`, no `DocumentCustodyDurabilityTests.cs`, no
+DI registration, no migration, no `DependencyDirectionTests.cs`, no
+`OperatorLabels.cs`. Two commits: `4b7e9930d` (R-12, R-13) and `f55a5adac`
+(R-14).
+
+## C07B-R-12 — the layering fix holds; the rule that replaced it does not
+
+The mechanical part is settled. `grep -rn
+"System.Net.Http\|HttpRequestException" src/Pegasus.Core --include=*.cs`
+returns exactly two comment sites: `RetainIncomingArtifact.cs:221` and the
+pre-existing `EvaSubmissionWorkItem.cs:192-193`. No code names the type.
+`obj/`'s `GlobalUsings.g.cs` still carries `global using System.Net.Http;` from
+`ImplicitUsings`, which is why the architecture test passed for years before
+this slice existed: a using directive emits no assembly reference, only a used
+type does. `IntakeExceptionPolicy` keeps live callers elsewhere and both `<see
+cref>`s in the new remarks resolve (`IsRecoverable` at `IntakeContracts.cs:592`,
+`IntakeDependencyUnavailableException` at `:930`), so nothing dead was left
+behind. Lane 5 is back to 100/100.
+
+The `try` wraps only `custody.RetainAsync` (`:158-173`), so `Validate`'s own
+two throws cannot reach the filter — inside it, those types can only have come
+from custody. That much of the design is right.
+
+**But the premise is wrong, and A says so.** The rule reads "everything is
+uncertain except the two refusals custody raises *before it has read
+anything*". A's adapter rechecks authority after reading the bytes and before
+committing. So `StaffAuthorizationException` is not a pre-read refusal, and a
+throw from that recheck lands on the refusal branch: nothing is recorded, the
+occurrence stays `arrived`, and bytes that are already staged inside custody
+are eligible to be offered again. That is C07B-R-22, and it is the one
+misclassification direction that is *not* safe.
+
+I had reached the weaker form of this independently before A's comment arrived,
+about `ArgumentException` rather than `StaffAuthorizationException` — the type
+is raised from library internals mid-stream as readily as from a validation
+gate, and `ArgumentNullException`/`ArgumentOutOfRangeException` inherit it. That
+was C07B-R-19, a note asking for one sentence of handoff. A's evidence makes it
+a major and makes the fix structural rather than documentary: **Core must be
+told which types mean "nothing was staged", guaranteed; it cannot infer them.**
+
+Two shapes, either acceptable:
+
+1. **Shrink the named set to what A guarantees is pre-read.** If A can promise
+   a distinct refusal raised before the stream is touched — and only there —
+   name that, and treat every post-read throw, authority failures included, as
+   uncertain. This keeps the inversion and its whole benefit.
+2. **Make a refusal durable too.** If a refusal can arrive after staging, then
+   a refusal must also record an arrival state the next attempt reconciles,
+   rather than leaving the occurrence `arrived`. More code, but it stops
+   depending on a promise about throw ordering.
+
+What must not survive is the current shape plus a comment asserting an ordering
+A does not implement. The Core test's own name —
+`TheTwoRefusalsCustodyRaisesBeforeReadingAnythingSurfaceUnrecorded` — asserts
+that ordering as fact, so it has to change with the rule.
+
+## C07B-R-3a — the "fresh key per GET" mitigation is the duplicate vector
+
+Rounds 0, 1 and 2 all leaned on the same sentence: an Unknown that named no
+document is a dead end for that key, but `Request.cshtml.cs:59,68` mints a new
+`NewOperationKey()` on every GET, so a real sender retrying through the page is
+a new occurrence that succeeds and nobody is locked out. I repeated it in my own
+first pass at this head. It is wrong in the direction that matters, and A is
+right to force it open.
+
+The dedupe is only `(SessionId, scopedOperationKey)`
+(`EfDocumentRequestStore.cs:396-428`); the occurrence row stores `Sha256` but
+nothing ever matches on it, and the only content check is *within* one key
+(same key + different bytes → `OperationConflict`). So the sequence is:
+
+1. hand-over throws or is cancelled; C records Unknown with no document
+   identities and returns `NotRetained`;
+2. the page tells the sender "The document could not be retained. Try again
+   using the same upload operation" — but reloading the page, which is what a
+   sender does, mints a **different** key;
+3. the retry matches no occurrence, passes every guard, and offers the same
+   bytes to custody a second time;
+4. if the first hand-over did reach custody — which is precisely what "Unknown"
+   means — the link now holds two retained copies of one file, and both count.
+
+So the honest statement is not "no sender is locked out": it is "the sender's
+natural retry can duplicate the file". The same path is now reached by every
+exception type the inverted classifier does not name, not only transport
+faults, which widens it rather than narrowing it.
+
+**Fix, both halves.** C's half is reachable in C-owned code today: a retry must
+find the existing non-terminal occurrence for this link and this content —
+`arrived`, `unknown` or `pending`, keyed on `(SessionId, Sha256)`, which the row
+already carries — and reconcile *that* occurrence under its original operation
+key rather than creating a second one. A's half is the read that can actually
+resolve an Unknown carrying no document identities: a status lookup addressed
+by operation key or content hash on `ICaseArtifactCustodyStatus`, which is a
+change to A's frozen `CustodyContracts.cs` and not C's to make. Neither half
+alone closes it: without A's read the reconciled occurrence stays Unknown
+(honestly, and without duplicating), and without C's lookup A's read is never
+reached.
+
+## C07B-R-13 — closed
+
+`store.RecordAsync(uncertain, CancellationToken.None)` at `:191` with the
+reason beside it, and the proof is the store rather than the comment:
+`RecordingStore.RecordAsync` calls `ThrowIfCancellationRequested` and
+`ThrowingCustody` cancels the source *after* `CopyTo`, so the test fails if the
+fresh token is ever removed. That is the shape a proof of a cancellation
+ordering rule has to have.
+
+One consequence worth stating: a cancelled hand-over no longer propagates
+`OperationCanceledException` out of `ExecuteAsync` — it returns an Unknown
+retention. On the public path the caller returns `NotRetained` and the response
+is written to a socket the sender already dropped, so nothing observable
+changes and the durable record is the point. That Unknown is one of the ones
+C07B-R-3a is about.
+
+## C07B-R-14 — closed, and the gap it exposed does not breach plan item 7
+
+The double enforces the rule now, counted before it is applied so a test can
+prove the read was attempted rather than skipped; `ReconcileAsync` catches the
+refusal and returns `existing`; and three tests show refusal and staff
+reconciliation side by side rather than one standing in for the other.
+
+Plan item 7 requires: persist and render `Pending`/`Confirmed`/`Failed`/
+`Unknown`; pending/failed/unknown never renders upload success, never consumes
+finalization, never ages out from staging; a confirmed replay returns the same
+logical document/version; re-evaluation reads that exact logical version
+through A04. All four hold at this head. The last two are what `Project`
+preserves by carrying `DocumentId`/`VersionId` for every disposition
+(`:308-320`), which is exactly what lets a *staff* reconciliation converge.
+Item 7 nowhere makes the public sender the reconciling authority, so the
+residual is acceptable pending A's contract choice and is recorded as
+C07B-R-14a rather than waved through.
+
+What the round changed in the sender's world is narrower than it looks: before,
+a public retry of a Pending reconciled and earned the receipt and the window —
+but only because the double was permissive about an authority A04 refuses. That
+green was a fiction, and replacing it with the refusal is the honest move even
+though it costs a receipt.
+
+## The consequential change — the double's holding refusal
+
+`InvalidOperationException` → `StaffAuthorizationException` for "a request-link
+actor cannot retain into holding". Correct for the double under the classifier
+as written, and **the production caller depends on neither type**: the only
+production caller is `EfDocumentRequestStore.ExecuteAsync`, which passes
+`arrival.CaseId` — the link's own recorded Case, read inside the authorizing
+transaction — so the null-destination branch is unreachable from the public
+path, and the store catches no custody exception type at all (its one `catch
+(ArgumentException)` is around the token-digest lookup at `:236`). Nothing in
+`src/` reads a custody refusal by type. The cost the implementer states — the
+holding case losing its distinct type — is real and is stated in the test's own
+comment.
+
+It is the *page* that has the gap, and that is C07B-R-18: the type this round
+promotes to "the refusal that surfaces" is the one type the page's recoverable
+filter does not name.
+
+## The three review questions
+
+**Did the plan miss anything the ticket implies?** Yes, and it is what both
+majors are about. Plan item 7 fixes the four states, the operation key and the
+logical-version recovery, but says nothing about the exception or authority
+contract of `ICaseArtifactCustody`/`ICaseArtifactCustodyStatus` — and "never
+blindly resubmitted" depends entirely on that contract. It also assumes the
+operation key is the only identity a retry needs, which C07B-R-3a shows is
+false once a hand-over can fail without naming a document. C did not invent the
+missing contract; it recorded what it needed as an A handoff with two named
+shapes. That was the right instinct, one round too small.
+
+**Did the implementation miss anything in the plan?** Not in the plan's own
+terms — every item-7 property holds at this head. It missed something the
+ticket implies: item 7's "never blindly resubmitted" is defeated by the
+fresh-key path in C07B-R-3a, which is C-owned code and was treated as a
+mitigation rather than a hole in all three rounds, mine included.
+
+**Did the simplification pass run with honest dispositions?** Yes, and
+specifically enough to check. The reuse claim (dropping `IsTransientFailure`
+because it answers "is this worth a bounded retry", a different question) is
+right, and the policy keeps its other callers. The dead-code claim checks out:
+`RecordingCustodyStatus` keeps its two tests, `RefusingCustodyStatus` has one,
+`ThrowingCustody`'s new optional parameter has exactly one caller. The altitude
+claim — that A's status rule deliberately did *not* move into Core — is the
+right call. It also states a cost it could have hidden. What it does not notice
+is that the *other* rule it moved **into** Core is A's throw-ordering rule,
+which Core has no way to enforce and A does not implement; that is C07B-R-22.
+
+## Ownership and dead code — PASS
+
+Three files, all C-owned, confirmed by `git diff --name-status`. No new
+concept, no new query, no new column, no new registration. `Request.cshtml.cs`
+was correctly left alone for the layering fix (`Pegasus.Web` is not under the
+Core dependency rule).
+
+## Test lanes seen (wave 25, at `f55a5adac`)
+
+| Lane | Result | Detail |
+| --- | --- | --- |
+| 1-build | **PASS** | exit 0, `Build succeeded. 0 Warning(s) 0 Error(s)`. |
+| 2-core | **PASS** | Failed 0, Passed 19 (16 at `6490623c3`: three net new proofs, one renamed). |
+| 3-integration | **PASS** | Failed 0, Passed 59, Skipped 1. One more than round 1's 58 — the new staff-reconciliation test. The skip is the pre-existing `[QdosMappingCustodyFact]` corpus gate. |
+| 4-a-owned | **FAIL (4), A-owned — exactly as stated** | Failed 4, Passed 1. All four fail in `DocumentCustodyDurabilityTests` seeding with `SqlException: Cannot insert duplicate key row in object 'dbo.Principals' with unique index 'IX_Principals_Code'. The duplicate key value is (QDOS).` Identical in count, tests and message to waves 18 and 21. Nothing else. |
+| 5-architecture | **PASS** | Failed 0, Passed **100** — back from 99/100 at `6490623c3`. `CoreHasNoInfrastructureOrHostDependencies` is green, which is the mechanical confirmation that C07B-R-12's layering half is fixed. |
+
+The dispatch's pass condition on lanes is met in full: 1, 2, 3 and 5 PASS and
+lane 4 fails only for the stated A-owned seed collision. The lanes do not
+change the verdict: the two open majors decide it on their own, and neither is
+a test failure — both are behaviour the suite currently asserts as correct.
