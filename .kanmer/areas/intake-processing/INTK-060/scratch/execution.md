@@ -189,3 +189,7 @@ Build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port integra
 - Wave 13 (C06 at `7c7f724dd`): build/core 54/architecture PASS; integration 6/30 — all 24 failures one root cause: `InspectionAddressChoicesQueries` (A-registered) gained a required `IOrganizationDirectoryQueries` dependency → host scope validation fails for every page. C06 correction round 1 dispatched: optional bridge + test-side composition of the C06 adapters + seeded-QDOS reuse in the replacement test.
 - C05 review (`scratch/review-c05`): needs-changes, 1 major (`ProcessIntake` persists candidates but discards `Findings`), 8 minors. Correction round queued.
 - C07 retention caller (Opus) running in `v1-intake-c07b`. C08 correction queued. Editors: 2 (C06 correction, C07 caller).
+
+## C head `15518699c` pushed
+
+Wave 14: build/architecture PASS; integration 62/70 — 5 corpus skips (local pinned samples absent), 3 A-owned failures (two obsolete OperationsWebTests health tests A is removing; QdosAllocationRecoveryTests seeded-QDOS precondition fixed by A at `8e6f3b21d`). Pushed; A notified with the MSG correction detail for the combined genuine rerun.
