@@ -71,6 +71,15 @@ public static class ThirdPartyReportFields
     public const string PreAccidentValue = "valuation.pav";
     public const string MileageAdjustment = "valuation.mileage.adjustment";
     public const string ConditionAdjustment = "valuation.condition.adjustment";
+
+    /// <summary>
+    /// A printed value adjustment whose label is neither mileage nor condition
+    /// (Montgomery prints "Urban edition adjustment"). The frozen C-B02
+    /// projection types only the mileage and condition slots, so this one stays
+    /// a source row: its printed label is kept in the raw text and the
+    /// reconciliation reads the row rather than inventing a typed slot for it.
+    /// </summary>
+    public const string ValuationAdjustment = "valuation.adjustment";
     public const string FinalValue = "valuation.final";
     public const string SalvageCategory = "valuation.salvage.category";
     public const string SalvageValue = "valuation.salvage.value";
@@ -88,6 +97,13 @@ public static class ThirdPartyReportFields
     public const string SupplementReason = "declaration.supplement.reason";
     public const string Declaration = "declaration.declaration";
     public const string Signatory = "declaration.signatory";
+
+    /// <summary>
+    /// A page whose text the reader could not take. It is a locator, not a
+    /// value: the row is always Missing, and it exists so a scan-only page is
+    /// visible as unread rather than silently absent.
+    /// </summary>
+    public const string PageRequiresHumanVerification = "source.page.requires-human-verification";
 
     public const string Photograph = "media.photograph";
     public const string Diagram = "media.diagram";
@@ -151,6 +167,23 @@ internal enum ThirdPartyValueKind
 /// which is how an embedded fee invoice is kept out of the repair totals
 /// without any positional reasoning.
 /// </summary>
+/// <param name="Pattern">
+/// May contain the token <c>#END#</c>, which compiles to the end of a printed
+/// cell: a run of two or more spaces, the end of the line, or the next printed
+/// label. That is what makes a free-text cell readable whether the PDF text
+/// engine preserves the column padding or collapses it to one space — the two
+/// engines behind the reference pack and the production reader differ, and a
+/// rule that depended on the padding would silently read nothing.
+/// </param>
+/// <param name="Until">
+/// The labels that may follow this value on the same printed row, overriding
+/// the family's shared label list in <c>#END#</c>.
+/// </param>
+/// <param name="RawWholeMatch">
+/// Keeps the whole matched text as the raw value instead of the captured
+/// group, so a printed label the projection has no typed slot for is still
+/// preserved beside its number.
+/// </param>
 internal sealed record ThirdPartyFieldRule(
     string Field,
     ThirdPartyValueKind Kind,
@@ -161,7 +194,17 @@ internal sealed record ThirdPartyFieldRule(
     string? Unit = null,
     bool Multiple = false,
     bool Section = false,
-    SourceCandidateDisposition? Force = null);
+    SourceCandidateDisposition? Force = null,
+    string? Until = null,
+    bool RawWholeMatch = false);
+
+/// <summary>
+/// One family's bounded rules plus the printed labels that end a cell in its
+/// layout. The labels are evidence from the reference corpus, never a guess.
+/// </summary>
+internal sealed record ThirdPartyFamilyRules(
+    string LabelBoundary,
+    IReadOnlyList<ThirdPartyFieldRule> Rules);
 
 /// <summary>
 /// The typed third-party report candidate plus every source row behind it.
@@ -242,7 +285,10 @@ public static class ThirdPartyReportExtraction
     /// <summary>Versioned with the rule tables; recorded on every candidate.</summary>
     public const string ProfileVersion = "third-party-report-extraction/1";
 
-    private const string Money = @"£\s*(?<v>-?[\d,]+(?:\.\d{2})?)";
+    // Printed money is not always two decimals — Laird prints "£1686.7" — and
+    // a two-decimal-only pattern silently dropped the tenth, which is exactly
+    // the kind of quiet edit to a source value the invariants forbid.
+    private const string Money = @"£\s*(?<v>-?[\d,]+(?:\.\d{1,2})?)";
     private const string BareMoney = @"(?<v>-?[\d,]+\.\d{2})";
     private const string PoundSign = "£";
     private const string SupplementaryHeading = @"Supplementary\s+Report";
@@ -262,63 +308,66 @@ public static class ThirdPartyReportExtraction
         new(F.Revision, K.Text, @"REPORT\s*-\s*(?<v>Amended\s+Report|Supplementary\s+Report)"),
         new(F.EngineerName, K.Text,
             @"^[ \t]*(?<v>[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+)+?)(?:[ \t]+[A-Z]{2,6})*[ \t]*\n[ \t]*(?:Connexus|Exclusive)\s*Vehicle\s*Assessors"),
+        // The name repetition is lazy so the qualifications keep every printed
+        // post-nominal: a greedy name would swallow "AQP CAE" and leave only
+        // the last one behind.
         new(F.EngineerQualifications, K.Text,
-            @"^[ \t]*[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+)+[ \t]+(?<v>[A-Z]{2,6}(?:[ \t]+[A-Z]{2,6})*)[ \t]*\n[ \t]*(?:Connexus|Exclusive)\s*Vehicle\s*Assessors"),
+            @"^[ \t]*[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+)+?[ \t]+(?<v>[A-Z]{2,6}(?:[ \t]+[A-Z]{2,6})*)[ \t]*\n[ \t]*(?:Connexus|Exclusive)\s*Vehicle\s*Assessors"),
         new(F.Claimant, K.Text, @"^[ \t]*Client(?:/Insured)?:[ \t]*(?<v>[^\n]{2,80}?)[ \t]*$", PartyRole: "claimant"),
 
         // The narrative prints one combined vehicle description and never
         // separates make from model, so the printed text is recorded as
         // Ambiguous rather than split into two facts the source does not make.
-        new(F.Model, K.Text, @"Vehicle:[ \t]*(?<v>[A-Z0-9][^\n]*?)[ \t]{2,}Colour:",
-            Force: SourceCandidateDisposition.Ambiguous),
+        new(F.Model, K.Text, @"Vehicle:[ \t]*(?<v>[A-Z0-9][^\n]*?)#END#",
+            Until: "Colour", Force: SourceCandidateDisposition.Ambiguous),
 
-        new(F.Registration, K.Registration, @"Reg No:[ \t]*(?<v>[A-Z0-9]{1,4} ?[A-Z0-9]{1,4})"),
-        new(F.Vin, K.Text, @"Vin No:[ \t]*(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
+        new(F.Registration, K.Registration, @"Reg\s+No:[ \t]*(?<v>[A-Z0-9]{1,4} ?[A-Z0-9]{1,4})"),
+        new(F.Vin, K.Text, @"Vin\s+No:[ \t]*(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
         new(F.Mileage, K.Mileage, @"Speedo:[ \t]*(?<v>[\d,]+)", Unit: "miles"),
         new(F.MileageUnit, K.Text, @"Speedo:[ \t]*[\d,]*[ \t]*(?<v>Miles|Km)\b"),
         new(F.AccidentDate, K.Date, @"Incident:[ \t]*(?<v>\d{1,2}/\d{1,2}/\d{4})"),
         new(F.Severity, K.Text, @"Damage:[ \t]*(?<v>Light|Moderate|Heavy|Medium|Severe)\b"),
         new(F.DamageZone, K.Text,
-            @"Damage:[ \t]*(?:Light|Moderate|Heavy|Medium|Severe)[ \t]+(?<v>[A-Za-z/ ]{3,40}?)[ \t]{2,}",
-            Multiple: true),
+            @"Damage:[ \t]*(?:Light|Moderate|Heavy|Medium|Severe)[ \t]+(?<v>[A-Za-z/ ]{3,40}?)#END#",
+            Until: "Incident", Multiple: true),
         new(F.Roadworthiness, K.Text, @"Roadworthy:[ \t]*(?<v>Yes|No)\b"),
         new(F.OutcomeReason, K.Text,
-            @"not roadworthy at the time of (?:our|my) inspection as a result of the damage sustained due\s+to\s+(?<v>[^\n.]{2,120})\."),
-        new(F.Narrative, K.Text, @"^\s*NATURE OF (?:INCIDENT|DAMAGE)\s*$", Section: true),
-        new(F.Comments, K.Text, @"^\s*ENGINEER'S COMMENTS\s*$", Section: true),
-        new(F.ObservedInspectionMethod, K.Text, @"^\s*(?<v>DESKTOP ASSESSMENT)\s*$"),
-        new(F.Repairer, K.Text, @"The repairers,\s*(?<v>[^,\n]{3,80}),", PartyRole: "repairer"),
-        new(F.Repairer, K.Text, @"estimate has been obtained from\s*(?<v>[^,\n]{3,80}),", PartyRole: "repairer"),
+            @"not\s+roadworthy\s+at\s+the\s+time\s+of\s+(?:our|my)\s+inspection\s+as\s+a\s+result\s+of\s+the\s+damage\s+sustained\s+due\s+to\s+(?<v>[^\n.]{2,120})\."),
+        new(F.Narrative, K.Text, @"^\s*NATURE\s+OF\s+(?:INCIDENT|DAMAGE)\s*$", Section: true),
+        new(F.Comments, K.Text, @"^\s*ENGINEER'S\s+COMMENTS\s*$", Section: true),
+        new(F.ObservedInspectionMethod, K.Text, @"^\s*(?<v>DESKTOP\s+ASSESSMENT)\s*$"),
+        new(F.Repairer, K.Text, @"The\s+repairers,\s*(?<v>[^,\n]{3,80}),", PartyRole: "repairer"),
+        new(F.Repairer, K.Text, @"estimate\s+has\s+been\s+obtained\s+from\s*(?<v>[^,\n]{3,80}),", PartyRole: "repairer"),
         new(F.Declaration, K.Text,
-            @"(?<v>In preparing this report I confirm that I understand my overriding duty to the court[^.]{0,200}\.)"),
+            @"(?<v>In\s+preparing\s+this\s+report\s+I\s+confirm\s+that\s+I\s+understand\s+my\s+overriding\s+duty\s+to\s+the\s+court[^.]{0,200}\.)"),
 
-        new(F.Gross, K.Money, @"Repair Cost:\s*" + Money + @"\s*inc\s*VAT", ReferenceRole: R.Agreed),
-        new(F.Net, K.Money, @"Repair Cost:\s*" + Money + @"\s*exc\s*VAT", ReferenceRole: R.Agreed),
-        new(F.LabourAmount, K.Money, @"in the sum of\s*" + Money, ReferenceRole: R.Initial),
-        new(F.PaintMaterials, K.Money, @"plus\s*" + Money + @"\s*for paint and materials", ReferenceRole: R.Initial),
-        new(F.SpecialistCharges, K.Money, @"plus\s*" + Money + @"\s*for specialist/sundry charges", ReferenceRole: R.Initial),
+        new(F.Gross, K.Money, @"Repair\s+Cost:\s*" + Money + @"\s*inc\s*VAT", ReferenceRole: R.Agreed),
+        new(F.Net, K.Money, @"Repair\s+Cost:\s*" + Money + @"\s*exc\s*VAT", ReferenceRole: R.Agreed),
+        new(F.LabourAmount, K.Money, @"in\s+the\s+sum\s+of\s*" + Money, ReferenceRole: R.Initial),
+        new(F.PaintMaterials, K.Money, @"plus\s*" + Money + @"\s*for\s+paint\s+and\s+materials", ReferenceRole: R.Initial),
+        new(F.SpecialistCharges, K.Money, @"plus\s*" + Money + @"\s*for\s+specialist/sundry\s+charges", ReferenceRole: R.Initial),
         new(F.LabourAmount, K.Money,
-            @"(?:agreed an amended labour figure of|agreed a labour figure of|consider a labour charge of)\s*" + Money,
+            @"(?:agreed\s+an\s+amended\s+labour\s+figure\s+of|agreed\s+a\s+labour\s+figure\s+of|consider\s+a\s+labour\s+charge\s+of)\s*" + Money,
             ReferenceRole: R.Agreed),
-        new(F.LabourHours, K.Number, @"labour charge is based on\s*(?<v>[\d.,]+)\s*hours",
+        new(F.LabourHours, K.Number, @"labour\s+charge\s+is\s+based\s+on\s*(?<v>[\d.,]+)\s*hours",
             ReferenceRole: R.Agreed, Unit: "hours"),
-        new(F.LabourRate, K.Money, @"hours at a rate of\s*" + Money, ReferenceRole: R.Agreed, Unit: "per hour"),
-        new(F.PaintMaterials, K.Money, @"cost of paint and materials (?:will|should) be limited to\s*" + Money,
+        new(F.LabourRate, K.Money, @"hours\s+at\s+a\s+rate\s+of\s*" + Money, ReferenceRole: R.Agreed, Unit: "per hour"),
+        new(F.PaintMaterials, K.Money, @"cost\s+of\s+paint\s+and\s+materials\s+(?:will|should)\s+be\s+limited\s+to\s*" + Money,
             ReferenceRole: R.Agreed),
-        new(F.Parts, K.Money, @"replacement parts will be approximately\s*" + Money, ReferenceRole: R.Agreed),
-        new(F.SpecialistCharges, K.Money, @"specialist/sundry charges will be\s*" + Money, ReferenceRole: R.Agreed),
-        new(F.VatAmount, K.Money, @"VAT liability on this repair will amount to some\s*" + Money, ReferenceRole: R.Agreed),
-        new(F.Gross, K.Money, @"total repair cost of\s*" + Money + @"\s*including VAT", ReferenceRole: R.Agreed),
+        new(F.Parts, K.Money, @"replacement\s+parts\s+will\s+be\s+approximately\s*" + Money, ReferenceRole: R.Agreed),
+        new(F.SpecialistCharges, K.Money, @"specialist/sundry\s+charges\s+will\s+be\s*" + Money, ReferenceRole: R.Agreed),
+        new(F.VatAmount, K.Money, @"VAT\s+liability\s+on\s+this\s+repair\s+will\s+amount\s+to\s+some\s*" + Money, ReferenceRole: R.Agreed),
+        new(F.Gross, K.Money, @"total\s+repair\s+cost\s+of\s*" + Money + @"\s*including\s+VAT", ReferenceRole: R.Agreed),
 
         new(F.ValuationGuide, K.Text, @"corresponding\s+(?<v>[A-Za-z]+(?:'s)?)\s+Guide"),
-        new(F.Retail, K.Money, @"adjusted retail value[^£]{0,240}" + Money),
-        new(F.Trade, K.Money, @"trade value is\s*" + Money),
-        new(F.Mid, K.Money, @"mid value is\s*" + Money),
-        new(F.PreAccidentValue, K.Money, @"Vehicle Value:\s*" + Money),
-        new(F.PreAccidentValue, K.Money, @"pre-accident value of this particular [A-Za-z]+ at\s*" + Money),
-        new(F.Reserve, K.Money, @"repair reserve of\s*" + Money),
-        new(F.MinimumRepairDays, K.Number, @"take some\s*(?<v>\d+)\s*to\s*\d+\s*working days", Unit: "days"),
-        new(F.MaximumRepairDays, K.Number, @"take some\s*\d+\s*to\s*(?<v>\d+)\s*working days", Unit: "days")
+        new(F.Retail, K.Money, @"adjusted\s+retail\s+value[^£]{0,240}" + Money),
+        new(F.Trade, K.Money, @"trade\s+value\s+is\s*" + Money),
+        new(F.Mid, K.Money, @"mid\s+value\s+is\s*" + Money),
+        new(F.PreAccidentValue, K.Money, @"Vehicle\s+Value:\s*" + Money),
+        new(F.PreAccidentValue, K.Money, @"pre-accident\s+value\s+of\s+this\s+particular [A-Za-z]+ at\s*" + Money),
+        new(F.Reserve, K.Money, @"repair\s+reserve\s+of\s*" + Money),
+        new(F.MinimumRepairDays, K.Number, @"take\s+some\s*(?<v>\d+)\s*to\s*\d+\s*working\s+days", Unit: "days"),
+        new(F.MaximumRepairDays, K.Number, @"take\s+some\s*\d+\s*to\s*(?<v>\d+)\s*working\s+days", Unit: "days")
     ];
 
     /// <summary>
@@ -329,34 +378,50 @@ public static class ThirdPartyReportExtraction
     /// </summary>
     private static readonly ThirdPartyFieldRule[] LairdRules =
     [
-        new(F.ReportReference, K.Reference, @"(?<v>\d{2}-\s*\d{6,}/\d{6,})", ReferenceRole: "our-ref"),
+        // One printed reference cell, whether the text engine kept it on a
+        // single line ("26-1918326/2561054") or broke it around the
+        // neighbouring header columns. Both halves keep their printed shape.
+        new(F.ReportReference, K.Reference,
+            @"(?<v>\d{2}-)(?:[^\n]*\n[ \t]*)?(?<v2>\d{6,}/\d{6,})", ReferenceRole: "our-ref"),
         new(F.ClaimReference, K.Reference, @"(?<v>[A-Z]{2,4}(?:/[A-Z]{2,4})?/\d{4,}/\d)", ReferenceRole: "your-ref"),
         new(F.ReportDate, K.Date,
             @"Our Reference\s+Your Reference\s+Date[^\n]*\n[^£]{0,200}?(?<v>\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]{3,9}\s+\d{4})"),
         new(F.Revision, K.Text, @"^\s*(?<v>Supplementary Report)\s*$"),
-        new(F.Claimant, K.Text, @"Claimant[ \t]{2,}(?<v>[^\n]{2,60}?)[ \t]*$", PartyRole: "claimant"),
+        new(F.Claimant, K.Text, @"Claimant[ \t]+(?<v>[^\n]{2,60}?)#END#", PartyRole: "claimant"),
         new(F.Claimant, K.Text, @"^\s*Re:\s*(?<v>[^\n]{2,60}?)\s*$", PartyRole: "claimant"),
-        new(F.Make, K.Text, @"^[ \t]*Make[ \t]{2,}(?<v>[A-Za-z][A-Za-z\-]{1,20})"),
-        new(F.Model, K.Text, @"^[ \t]*Model[ \t]{2,}(?<v>[^\n]{2,40}?)[ \t]*$"),
-        new(F.Registration, K.Registration, @"Registration[ \t]{2,}(?<v>[A-Z0-9]{5,8})"),
+        new(F.Make, K.Text, @"^[ \t]*Make[ \t]+(?<v>[A-Za-z][A-Za-z\- ]{1,24}?)#END#"),
+        new(F.Model, K.Text, @"^[ \t]*Model[ \t]+(?<v>[^\n]{2,40}?)#END#"),
+        new(F.Registration, K.Registration, @"^[ \t]*Registration[ \t]+(?<v>[A-Z0-9]{5,8})[ \t]*$"),
         new(F.Registration, K.Registration, @"registration\s+(?<v>[A-Z]{2}\d{2} ?[A-Z]{3})\b"),
-        new(F.AccidentDate, K.Date, @"Accident Date[ \t]{2,}(?<v>\d{1,2}/\d{1,2}/\d{4})"),
+        new(F.AccidentDate, K.Date, @"Accident Date[ \t]+(?<v>\d{1,2}/\d{1,2}/\d{4})"),
         new(F.AccidentDate, K.Date, @"Road Traffic Accident on\s*(?<v>\d{1,2}/\d{1,2}/\d{4})"),
-        new(F.Repairability, K.Text, @"^[ \t]*Status[ \t]{2,}(?<v>[A-Za-z ]{3,30}?)[ \t]*$"),
-        new(F.Roadworthiness, K.Text, @"Legal Status[ \t]{2,}(?<v>[A-Za-z]{3,20})"),
-        new(F.Severity, K.Text, @"Impact Magnitude[ \t]{2,}(?<v>[A-Za-z]{3,20})"),
-        new(F.PreAccidentValue, K.Money, @"Engineer's Value[ \t]{2,}" + Money),
+        new(F.Repairability, K.Text, @"^[ \t]*Status[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,29}?)#END#"),
+        new(F.Roadworthiness, K.Text, @"Legal Status[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,19}?)#END#"),
+        new(F.Severity, K.Text, @"Impact Magnitude[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,29}?)#END#"),
+        new(F.PreAccidentValue, K.Money, @"Engineer's Value[ \t]+" + Money),
+        new(F.Retail, K.Money, @"Retail Value[ \t]+" + Money),
+        new(F.Trade, K.Money, @"Trade Value[ \t]+" + Money),
+        // Laird prints these two labels UNDER their value, so each rule is
+        // anchored on the label in whichever order the cell was laid out. The
+        // label still proves the value; only the side it sits on changes.
+        new(F.ValuationGuide, K.Text,
+            @"(?:Valuation|Source)[ \t]*\n[ \t]*(?<v>Glass'?e?s'?)\b"),
+        new(F.Mileage, K.Mileage,
+            @"(?<v>[\d,]+)[ \t]+(?:Miles|Km)\b[^\n]*\n[ \t]*Odometer\b", Unit: "miles"),
+        new(F.MileageUnit, K.Text,
+            @"[\d,]+[ \t]+(?<v>Miles|Km)\b[^\n]*\n[ \t]*Odometer\b"),
+        new(F.Deduction, K.Money, @"we have deducted[ \t]*" + Money, Multiple: true),
 
-        new(F.LabourHours, K.Number, @"^[ \t]*Hours[ \t]{2,}(?<v>[\d.,]+)[ \t]*$",
+        new(F.LabourHours, K.Number, @"^[ \t]*Hours[ \t]+(?<v>[\d.,]+)[ \t]*$",
             ReferenceRole: R.Assessed, Unit: "hours"),
-        new(F.LabourRate, K.Money, @"Hourly Rate[ \t]{2,}" + Money, ReferenceRole: R.Assessed, Unit: "per hour"),
-        new(F.LabourAmount, K.Money, @"Total Labour[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
-        new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
-        new(F.PaintMaterials, K.Money, @"Paints\s*/\s*Materials[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
-        new(F.SpecialistCharges, K.Money, @"Specialist\s*/\s*Other Items[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
-        new(F.Net, K.Money, @"Sub Total[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
-        new(F.VatAmount, K.Money, @"^[ \t]*VAT[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
-        new(F.Gross, K.Money, @"Total Estimated Cost[ \t]{2,}" + Money, ReferenceRole: R.Assessed),
+        new(F.LabourRate, K.Money, @"Hourly Rate[ \t]+" + Money, ReferenceRole: R.Assessed, Unit: "per hour"),
+        new(F.LabourAmount, K.Money, @"Total Labour[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.PaintMaterials, K.Money, @"Paints\s*/\s*Materials[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.SpecialistCharges, K.Money, @"Specialist\s*/\s*Other Items[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.Net, K.Money, @"Sub Total[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.VatAmount, K.Money, @"^[ \t]*VAT[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.Gross, K.Money, @"Total Estimated Cost[ \t]+" + Money, ReferenceRole: R.Assessed),
 
         new(F.LabourAmount, K.Money, @"Labour:[ \t]*" + Money,
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
@@ -374,7 +439,11 @@ public static class ThirdPartyReportExtraction
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
         new(F.VatAmount, K.Money, @"VAT:[ \t]*" + Money,
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
-        new(F.Gross, K.Money, @"Total:[ \t]*" + Money,
+
+        // Anchored at the start of the printed line, so the subtotal line is
+        // not read a second time as the total: "Subtotal:" ends in "total:"
+        // and an unanchored rule invents a conflict the document does not have.
+        new(F.Gross, K.Money, @"^[ \t]*Total:[ \t]*" + Money,
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
         new(F.SupplementReason, K.Text, @"^\s*(?<v>The repairing garage[^\n]{10,200})",
             CoLabel: SupplementaryHeading),
@@ -386,44 +455,51 @@ public static class ThirdPartyReportExtraction
         new(F.ReportReference, K.Reference, @"Our Reference No:[ \t]*(?<v>[A-Za-z]{1,3}/\d{1,6})", ReferenceRole: "our-ref"),
         new(F.ClaimReference, K.Reference, @"Your Reference No:[ \t]*(?<v>[A-Za-z0-9/]+)", ReferenceRole: "your-ref"),
         new(F.Outcome, K.Text, @"^\s*(?<v>TOTAL LOSS|REPAIR)\s*$"),
-        new(F.Claimant, K.Text, @"Client Name[ \t]{2,}(?<v>[^\n]{2,60}?)[ \t]*$", PartyRole: "claimant"),
-        new(F.VehicleLocation, K.Text, @"Inspection address[ \t]{2,}(?<v>[^\n]{2,120}?)[ \t]*$"),
+        new(F.Claimant, K.Text, @"Client Name[ \t]+(?<v>[^\n]{2,60}?)#END#", PartyRole: "claimant"),
+        new(F.VehicleLocation, K.Text, @"Inspection address[ \t]+(?<v>[^\n]{2,120}?)[ \t]*$"),
         new(F.AccidentDate, K.Date, @"Date of loss[ \t]+(?<v>\d{1,2}/\d{1,2}/\d{4})"),
         new(F.InspectionDate, K.Date, @"Date of Inspection[ \t]+(?<v>\d{1,2}/\d{1,2}/\d{4})"),
-        new(F.Make, K.Text, @"^[ \t]*Make[ \t]{2,}(?<v>[A-Za-z][A-Za-z \-]{1,25}?)[ \t]{2,}"),
-        new(F.Model, K.Text, @"^[ \t]*Model[ \t]{2,}(?<v>[^\n]{1,40}?)[ \t]{2,}"),
-        new(F.Registration, K.Registration, @"Registration[ \t]{2,}(?<v>[A-Z0-9]{5,8})"),
-        new(F.Vin, K.Text, @"V\.I\.N[ \t]{2,}(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
-        new(F.Mileage, K.Mileage, @"Odometer[ \t]{2,}(?<v>[\d,]+)", Unit: "miles"),
-        new(F.Roadworthiness, K.Text, @"Roadworthy[ \t]{2,}(?<v>YES|NO)\b"),
-        new(F.OutcomeReason, K.Text, @"Reason[ \t]{2,}(?<v>[^\n]{2,60}?)[ \t]*$"),
-        new(F.Airbags, K.Text, @"Airbag[ \t]{2,}(?<v>YES|NO)\b"),
-        new(F.Restraints, K.Text, @"Pre-tensioners[ \t]{2,}(?<v>YES|NO)\b"),
+        new(F.Make, K.Text, @"^[ \t]*Make[ \t]+(?<v>[A-Za-z][A-Za-z \-]{1,24}?)#END#"),
+        new(F.Model, K.Text, @"^[ \t]*Model[ \t]+(?<v>[^\n]{1,40}?)#END#"),
+        new(F.Registration, K.Registration, @"Registration[ \t]+(?<v>[A-Z0-9]{5,8})\b"),
+        new(F.Vin, K.Text, @"V\.I\.N[ \t]+(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
+        new(F.Mileage, K.Mileage, @"Odometer[ \t]+(?<v>[\d,]+)", Unit: "miles"),
+        new(F.Roadworthiness, K.Text, @"Roadworthy[ \t]+(?<v>YES|NO)\b"),
+        new(F.OutcomeReason, K.Text, @"Reason[ \t]+(?<v>[^\n]{2,60}?)[ \t]*$"),
+        new(F.Airbags, K.Text, @"Airbag[ \t]+(?<v>YES|NO)\b"),
+        new(F.Restraints, K.Text, @"Pre-tensioners[ \t]+(?<v>YES|NO)\b"),
         new(F.Severity, K.Text, @"severity of the damage was\s*(?<v>[A-Za-z]{3,12})"),
         new(F.Tyres, K.Text, @"^[ \t]*(?<v>\d+mm[^\n]*\d+mm,?)[ \t]*$"),
         new(F.Narrative, K.Text, @"^\s*Summary\s*$", Section: true),
         new(F.Comments, K.Text, @"^\s*Comments\s*$", Section: true),
         new(F.EngineerName, K.Text, @"Consulting Motor Engineers[^\n]*\n[ \t]*(?<v>[A-Z][a-z]+ [A-Z][a-z]+)"),
 
-        new(F.LabourHours, K.Number, @"^[ \t]*Hours[ \t]{2,}(?<v>[\d.,]+)[ \t]*$",
+        new(F.LabourHours, K.Number, @"^[ \t]*Hours[ \t]+(?<v>[\d.,]+)[ \t]*$",
             ReferenceRole: R.Assessed, Unit: "hours"),
-        new(F.LabourRate, K.Money, @"Hourly rate[ \t]{2,}" + BareMoney,
+        new(F.LabourRate, K.Money, @"Hourly rate[ \t]+" + BareMoney,
             ReferenceRole: R.Assessed, Unit: "per hour"),
-        new(F.LabourAmount, K.Money, @"Total Labour[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.PaintMaterials, K.Money, @"Paint/Materials[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.SpecialistCharges, K.Money, @"^[ \t]*Specialist[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.Net, K.Money, @"Sub Total[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.VatAmount, K.Money, @"^[ \t]*VAT[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.Gross, K.Money, @"Total Reserve[ \t]{2,}" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.LabourAmount, K.Money, @"Total Labour[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.PaintMaterials, K.Money, @"Paint/Materials[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.SpecialistCharges, K.Money, @"^[ \t]*Specialist[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.Net, K.Money, @"Sub Total[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.VatAmount, K.Money, @"^[ \t]*VAT[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.Gross, K.Money, @"Total Reserve[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
 
-        new(F.ValuationGuide, K.Text, @"^[ \t]*(?<v>Glass'?e?s'?)[ \t]{2,}[\d,]"),
-        new(F.Trade, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]{2,}(?<v>[\d,]+)[ \t]{2,}[\d,]+"),
-        new(F.Retail, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]{2,}[\d,]+[ \t]{2,}(?<v>[\d,]+)"),
-        new(F.PreAccidentValue, K.Money, @"^[ \t]*Valuation[ \t]{2,}(?<v>[\d,]+)[ \t]*$"),
-        new(F.ConditionAdjustment, K.Money, @"edition adjustment[ \t]{2,}(?<v>[\d,]+)"),
+        new(F.ValuationGuide, K.Text, @"^[ \t]*(?<v>Glass'?e?s'?)[ \t]+[\d,]"),
+        new(F.Trade, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]+(?<v>[\d,]+)[ \t]+[\d,]+"),
+        new(F.Retail, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]+[\d,]+[ \t]+(?<v>[\d,]+)"),
+        new(F.PreAccidentValue, K.Money, @"^[ \t]*Valuation[ \t]+(?<v>[\d,]+)[ \t]*$"),
+
+        // The printed label ("Urban edition adjustment") is not one of the two
+        // typed adjustment slots, so the whole printed cell is kept as the raw
+        // value and the reconciliation reads the row. Nothing is renamed.
+        new(F.ValuationAdjustment, K.Money,
+            @"^[ \t]*(?:[A-Za-z][A-Za-z ]{0,30})?adjustment[ \t]+(?<v>[\d,]+)[ \t]*$",
+            Multiple: true, RawWholeMatch: true),
+
         new(F.FinalValue, K.Money, @"VEHICLE VALUE[ \t]*" + Money),
-        new(F.SalvageValue, K.Money, @"Salvage value[ \t]{2,}(?<v>[\d,]+(?:\.\d{2})?)")
+        new(F.SalvageValue, K.Money, @"Salvage value[ \t]+(?<v>[\d,]+(?:\.\d{2})?)")
     ];
 
     private static readonly ThirdPartyFieldRule[] SPrintRules =
@@ -434,10 +510,10 @@ public static class ThirdPartyReportExtraction
         new(F.InspectionDate, K.Date, @"Date of Inspection[ \t]*:[ \t]*(?<v>\d{1,2} [A-Za-z]{3,9} \d{4})"),
         new(F.AccidentDate, K.Date, @"Date of Accident[ \t]*:[ \t]*(?<v>\d{1,2} [A-Za-z]{3,9} \d{4})"),
         new(F.Claimant, K.Text, @"Insured[ \t]*:[ \t]*(?<v>[^\n]{2,60}?)[ \t]*$", PartyRole: "claimant"),
-        new(F.Registration, K.Registration, @"Reg No[ \t]*:[ \t]*(?<v>[A-Z0-9]{5,8})"),
-        new(F.Make, K.Text, @"Make[ \t]*:[ \t]*(?<v>[A-Z][A-Z\- ]{1,20}?)[ \t]{2,}"),
-        new(F.Model, K.Text, @"Model[ \t]*:[ \t]*(?<v>[A-Z][A-Z0-9\- ]{1,25}?)[ \t]{2,}"),
-        new(F.Variant, K.Text, @"Spec[ \t]*:[ \t]*(?<v>[A-Z0-9][^\n]{1,40}?)[ \t]{2,}"),
+        new(F.Registration, K.Registration, @"Reg No[ \t]*:[ \t]*(?<v>[A-Z0-9]{5,8})\b"),
+        new(F.Make, K.Text, @"Make[ \t]*:[ \t]*(?<v>[A-Z][A-Z\- ]{1,19}?)#END#"),
+        new(F.Model, K.Text, @"Model[ \t]*:[ \t]*(?<v>[A-Z][A-Z0-9\- ]{1,24}?)#END#"),
+        new(F.Variant, K.Text, @"Spec[ \t]*:[ \t]*(?<v>[A-Z0-9][^\n]{1,39}?)#END#"),
         new(F.Vin, K.Text, @"Chassis No[ \t]*:[ \t]*(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
         new(F.Mileage, K.Mileage, @"Mileage[ \t]*:[ \t]*(?<v>[\d,]+)", Unit: "miles"),
         new(F.MileageUnit, K.Text, @"Mileage[ \t]*:[ \t]*[\d,]+[ \t]*(?<v>Miles|Km)\b"),
@@ -466,6 +542,23 @@ public static class ThirdPartyReportExtraction
         // total: the ordinary totals may legitimately be zero beside it.
         new(F.Net, K.Money, @"Contract Repair[ \t]*" + Money, ReferenceRole: R.ContractRepair),
 
+        // The notes name the original amounts explicitly ("NOTING ORIGINAL
+        // LABOUR £3303, PARTS, £2652 ..."). They are a third printed role, so
+        // they are read from their own labels and never merged with either the
+        // zero ordinary totals or the contract figure.
+        // Each is anchored on the note's own opening words, so none of them can
+        // reach the ordinary totals table printed above it — those legitimately
+        // read zero, and letting a rule match both would invent a conflict
+        // between two amounts the document keeps apart on purpose.
+        new(F.LabourAmount, K.Money,
+            @"NOTING\s+ORIGINAL\s+LABOUR[ \t]*" + Money, ReferenceRole: R.Initial),
+        new(F.Parts, K.Money,
+            @"NOTING\s+ORIGINAL[\s\S]{0,120}?PARTS,?[ \t]*" + Money, ReferenceRole: R.Initial),
+        new(F.PaintMaterials, K.Money,
+            @"NOTING\s+ORIGINAL[\s\S]{0,120}?MATERIALS[ \t]*" + Money, ReferenceRole: R.Initial),
+        new(F.SpecialistCharges, K.Money,
+            @"NOTING\s+ORIGINAL[\s\S]{0,120}?SPEC[ \t]*" + Money, ReferenceRole: R.Initial),
+
         new(F.Excess, K.Money, @"^[ \t]*Excess[ \t]*" + Money),
         new(F.PreAccidentValue, K.Money, @"Vehicle Market Value[ \t]*" + Money),
         new(F.Retail, K.Money, @"Glass\S{0,2}s Retail Value[ \t]*" + Money),
@@ -481,21 +574,49 @@ public static class ThirdPartyReportExtraction
     /// observed and no rule is guessed for it — its fields stay unavailable
     /// until OCR text reaches this engine (INTK-032).
     /// </summary>
-    private static readonly Dictionary<ThirdPartyReportFamily, IReadOnlyList<ThirdPartyFieldRule>> Rules = new()
+    /// <summary>
+    /// The printed labels that end a cell in the shared narrative block. They
+    /// come from the corpus's own vehicle table, so a value stops where the
+    /// next label starts however the PDF engine spaced the columns.
+    /// </summary>
+    private const string NarrativeLabels =
+        @"Colour|Speedo|Reg No|Registered|Type|Trans|Vin No|MOT Exp|Mods|Cond|Audio|Manf'd"
+        + @"|Brakes|Tax Exp|Steering|Fuel|Extras|C\.C\.|Air Bags|BHP|Deployed|Damage|Incident"
+        + @"|Vehicle Value|Repair Cost|Roadworthy|Spare Tyre|Centre Belt|[LR]/H/[FR]"
+        + @"|Date|Our Ref|Your Ref|Claim No|Client|Continued|Page";
+
+    private const string LairdLabels =
+        @"Claimant|Accident Date|Instruction Date|Impact Diagram|Registration Date|Gearbox"
+        + @"|Body Type|VIN|Condition|Engine|Fuel|Trade Value|Retail Value|Make|Model|Status"
+        + @"|Impact Magnitude|Odometer|Colour|Driven Axle|Valuation|Source|Euro NCAP"
+        + @"|Vehicle Width|Vehicle Length|Rating|Value";
+
+    private const string MontgomeryLabels =
+        @"Registration|Type|V\.I\.N|Tax Expiry|Date of Reg|Gearbox|Brakes|Condition|Interior"
+        + @"|Exterior|Reason|Pre-tensioners|deployed|Odometer|Colour|Engine|Fuel|Steering"
+        + @"|Extras|Modifications|Roadworthy|Airbag|Make|Model|Trade|Retail";
+
+    private const string SPrintLabels =
+        @"OSF|NSF|OSR|NSR|Others|Steering|Footbrake|Handbrake|Seatbelts|Mechanical|Body"
+        + @"|Inspection Location|Vehicle Status|Pre-Accident Condition|Cause of Damage"
+        + @"|Date of Report|Date of Inspection|Date Instructed|Date of Accident|Miles|Km";
+
+    private static readonly Dictionary<ThirdPartyReportFamily, ThirdPartyFamilyRules> Rules = new()
     {
-        [ThirdPartyReportFamily.Connexus] = NarrativeRules,
-        [ThirdPartyReportFamily.ExclusiveErehr] = NarrativeRules,
-        [ThirdPartyReportFamily.EvaBodyshop] = NarrativeRules,
-        [ThirdPartyReportFamily.Laird] = LairdRules,
-        [ThirdPartyReportFamily.Montgomery] = MontgomeryRules,
-        [ThirdPartyReportFamily.SPrint] = SPrintRules,
-        [ThirdPartyReportFamily.JohnRBell] = []
+        [ThirdPartyReportFamily.Connexus] = new(NarrativeLabels, NarrativeRules),
+        [ThirdPartyReportFamily.ExclusiveErehr] = new(NarrativeLabels, NarrativeRules),
+        [ThirdPartyReportFamily.EvaBodyshop] = new(NarrativeLabels, NarrativeRules),
+        [ThirdPartyReportFamily.Laird] = new(LairdLabels, LairdRules),
+        [ThirdPartyReportFamily.Montgomery] = new(MontgomeryLabels, MontgomeryRules),
+        [ThirdPartyReportFamily.SPrint] = new(SPrintLabels, SPrintRules),
+        [ThirdPartyReportFamily.JohnRBell] = new(string.Empty, [])
     };
 
     private static readonly Dictionary<ThirdPartyReportFamily, IReadOnlyList<CompiledRule>> CompiledRules =
         Rules.ToDictionary(
             entry => entry.Key,
-            entry => (IReadOnlyList<CompiledRule>)[.. entry.Value.Select(CompiledRule.Compile)]);
+            entry => (IReadOnlyList<CompiledRule>)
+                [.. entry.Value.Rules.Select(rule => CompiledRule.Compile(rule, entry.Value.LabelBoundary))]);
 
     private static readonly Regex WhitespaceRegex = new(
         @"\s+",
@@ -504,7 +625,7 @@ public static class ThirdPartyReportExtraction
 
     /// <summary>The families that carry bounded label rules today.</summary>
     public static IReadOnlyList<ThirdPartyReportFamily> ExtractableFamilies =>
-        [.. Rules.Where(entry => entry.Value.Count > 0).Select(entry => entry.Key).Order()];
+        [.. Rules.Where(entry => entry.Value.Rules.Count > 0).Select(entry => entry.Key).Order()];
 
     /// <summary>
     /// Reads one source into a third-party report candidate. A source with no
@@ -522,6 +643,13 @@ public static class ThirdPartyReportExtraction
         var selection = ThirdPartyReportProfiles.Select(pages, context);
         var rows = new List<SourceFieldCandidate> { selection.Issuer };
 
+        // Every scan-only page is recorded with its own locator before any
+        // field is read. That is the John R Bell case: a page whose text the
+        // reader could not take is a page whose critical values a person must
+        // check against the original, and the row says exactly which page.
+        var scannedPages = ScannedPages(readResult, context, selection);
+        rows.AddRange(scannedPages);
+
         if (selection.Outcome != ThirdPartySelectionOutcome.Selected || selection.Family is not { } family)
         {
             return new(
@@ -533,7 +661,7 @@ public static class ThirdPartyReportExtraction
 
         var documentRole = ThirdPartyReportProfiles.DocumentRoleCode(selection.DocumentRole);
         var observed = Observe(family, pages, context, documentRole);
-        rows.AddRange(observed.Values.SelectMany(field => field));
+        rows.AddRange(observed.Order.SelectMany(key => observed.Rows[key]));
         rows.AddRange(Media(readResult, context, documentRole));
 
         var candidate = Project(selection, observed, rows, context);
@@ -543,6 +671,30 @@ public static class ThirdPartyReportExtraction
             rows,
             ThirdPartyReportValidation.Check(selection, candidate, rows, readResult.RequiresOcr));
     }
+
+    /// <summary>
+    /// One row per page the reader marked scan-only: the page's fields are
+    /// unavailable (Missing, never invented) and the locator is kept so the
+    /// operator can open that exact page. No OCR engine is added here — the
+    /// approved OCR boundary is the existing reader's, and until it supplies
+    /// text these pages stay explicitly unread.
+    /// </summary>
+    private static IReadOnlyList<SourceFieldCandidate> ScannedPages(
+        IntakeSourceReadResult readResult,
+        ThirdPartyReportSourceContext context,
+        ThirdPartyReportSelection selection) =>
+        [.. readResult.ScannedPdfPages
+            .OrderBy(page => page.PageNumber)
+            .Select(page => ThirdPartySourceCandidates.Create(
+                context,
+                F.PageRequiresHumanVerification,
+                ThirdPartyReportProfiles.DocumentRoleCode(selection.DocumentRole),
+                rawValue: null,
+                normalizedValue: null,
+                page: page.PageNumber,
+                sourceLabel: $"{page.SourceLabel}, page {page.PageNumber}",
+                policyVersion: ProfileVersion,
+                disposition: SourceCandidateDisposition.Missing))];
 
     private static IReadOnlyList<SourceFieldCandidate> Media(
         IntakeSourceReadResult readResult,
@@ -566,7 +718,7 @@ public static class ThirdPartyReportExtraction
     /// distinct value is Usable, several are all persisted as Conflicting, and a
     /// declared field with none is persisted as Missing.
     /// </summary>
-    private static Dictionary<FieldKey, List<SourceFieldCandidate>> Observe(
+    private static ObservedFields Observe(
         ThirdPartyReportFamily family,
         IReadOnlyList<ThirdPartySourcePage> pages,
         ThirdPartyReportSourceContext context,
@@ -589,12 +741,18 @@ public static class ThirdPartyReportExtraction
                     continue;
                 }
 
+                // A section rule reads its heading's body; a label rule reads
+                // the captured value, and keeps the whole printed cell as the
+                // raw text where the projection has no typed slot for its
+                // label. Normalization always runs on the captured value.
                 var raws = rule.Rule.Section
-                    ? ThirdPartySections.Read(page.Text, rule.Value)
-                    : rule.Value.Matches(page.Text).Select(match => match.Groups["v"].Value);
-                foreach (var raw in raws)
+                    ? ThirdPartySections.Read(page.Text, rule.Value).Select(body => (body, body))
+                    : rule.Value.Matches(page.Text).Select(match => (
+                        Value: Captured(match),
+                        Raw: rule.Rule.RawWholeMatch ? match.Value : Captured(match)));
+                foreach (var (value, raw) in raws)
                 {
-                    var normalized = Normalize(rule.Rule.Kind, raw);
+                    var normalized = Normalize(rule.Rule.Kind, value);
                     if (normalized is null)
                     {
                         continue;
@@ -649,12 +807,12 @@ public static class ThirdPartyReportExtraction
             ];
         }
 
-        return rows;
+        return new(declared, rows);
     }
 
     private static ThirdPartyReportCandidate Project(
         ThirdPartyReportSelection selection,
-        Dictionary<FieldKey, List<SourceFieldCandidate>> observed,
+        ObservedFields observed,
         IReadOnlyList<SourceFieldCandidate> rows,
         ThirdPartyReportSourceContext context)
     {
@@ -829,16 +987,45 @@ public static class ThirdPartyReportExtraction
 
     private static string Collapse(string value) => WhitespaceRegex.Replace(value, " ").Trim();
 
+    /// <summary>
+    /// The printed value: group <c>v</c>, plus group <c>v2</c> where a rule
+    /// reads one cell the text engine broke across two lines. Nothing else is
+    /// ever joined — two separate printed cells stay two observations.
+    /// </summary>
+    private static string Captured(Match match) =>
+        match.Groups["v2"].Success
+            ? match.Groups["v"].Value + match.Groups["v2"].Value
+            : match.Groups["v"].Value;
+
     private static IReadOnlyList<CompiledRule> Compiled(ThirdPartyReportFamily family) =>
         CompiledRules.TryGetValue(family, out var compiled) ? compiled : [];
 
     private sealed record CompiledRule(ThirdPartyFieldRule Rule, Regex Value, Regex? CoLabel)
     {
-        public static CompiledRule Compile(ThirdPartyFieldRule rule) =>
-            new(
+        /// <summary>
+        /// The token every free-text rule ends with. A printed cell ends at a
+        /// run of two or more spaces, at the end of its line, or where the next
+        /// printed label begins — the three shapes the reference pack's text
+        /// engine and the production reader between them produce.
+        /// </summary>
+        private const string EndToken = "#END#";
+
+        public static CompiledRule Compile(ThirdPartyFieldRule rule, string labelBoundary)
+        {
+            var boundary = rule.Until ?? labelBoundary;
+            var pattern = rule.Pattern.Contains(EndToken, StringComparison.Ordinal)
+                ? rule.Pattern.Replace(
+                    EndToken,
+                    boundary.Length == 0
+                        ? @"(?=[ \t]{2,}|[ \t]*$)"
+                        : $@"(?=[ \t]{{2,}}|[ \t]*$|[ \t]+(?:{boundary})\b)",
+                    StringComparison.Ordinal)
+                : rule.Pattern;
+            return new(
                 rule,
-                ThirdPartyRegex.CreateMultiline(rule.Pattern),
+                ThirdPartyRegex.CreateMultiline(pattern),
                 rule.CoLabel is null ? null : ThirdPartyRegex.CreateMultiline(rule.CoLabel));
+        }
     }
 
     private sealed record Observation(
@@ -850,12 +1037,22 @@ public static class ThirdPartyReportExtraction
     private readonly record struct FieldKey(string Field, string ReferenceRole, string PartyRole);
 
     /// <summary>
+    /// The observed rows plus the order their rules declared them in. The order
+    /// is what makes a replay byte-identical: a dictionary's enumeration order
+    /// is not part of any contract, and two fields that both list values would
+    /// otherwise be free to swap places between runs.
+    /// </summary>
+    private sealed record ObservedFields(
+        IReadOnlyList<FieldKey> Order,
+        Dictionary<FieldKey, List<SourceFieldCandidate>> Rows);
+
+    /// <summary>
     /// Reads the typed projection off the persisted rows. A conflicting field
     /// exposes no single value: both rows stay in the candidate list, and the
     /// typed fact carries the conflict rather than a chosen winner.
     /// </summary>
     private sealed class Lookup(
-        Dictionary<FieldKey, List<SourceFieldCandidate>> rows,
+        ObservedFields observed,
         SourceFieldCandidate issuer)
     {
         public ThirdPartyReportFact<string?>? Text(
@@ -917,14 +1114,20 @@ public static class ThirdPartyReportExtraction
             row.Disposition == SourceCandidateDisposition.Usable;
 
         private SourceFieldCandidate? First(string field, string referenceRole, string partyRole) =>
-            rows.TryGetValue(new(field, referenceRole, partyRole), out var found) && found.Count > 0
+            observed.Rows.TryGetValue(new(field, referenceRole, partyRole), out var found)
+            && found.Count > 0
                 ? found[0]
                 : null;
 
+        /// <summary>
+        /// Every observed row of one field, walked in the rule table's declared
+        /// order rather than a dictionary's, so replaying the same bytes yields
+        /// the same list in the same order.
+        /// </summary>
         private IEnumerable<SourceFieldCandidate> All(string field) =>
-            rows
-                .Where(entry => entry.Key.Field == field)
-                .SelectMany(entry => entry.Value)
+            observed.Order
+                .Where(key => key.Field == field)
+                .SelectMany(key => observed.Rows[key])
                 .Where(row => row.Disposition != SourceCandidateDisposition.Missing);
     }
 }

@@ -33,6 +33,7 @@ public sealed record ThirdPartyReportFinding(
 public static class ThirdPartyFindingCodes
 {
     public const string SourceRequiresOcr = "source-requires-ocr";
+    public const string PageRequiresHumanVerification = "page-requires-human-verification";
     public const string DocumentSignatureAmbiguous = "document-signature-ambiguous";
     public const string ReportFieldsUnavailableWithoutOcr = "report-fields-unavailable-without-ocr";
     public const string FieldConflict = "field-conflict";
@@ -88,6 +89,23 @@ public static class ThirdPartyReportValidation
                 ThirdPartyFindingKind.Information,
                 "The source has scan-only pages; their fields are unavailable until OCR text exists.",
                 [selection.Issuer]));
+        }
+
+        // Named page by page, because "some pages need checking" is not
+        // actionable and the operator has to open a specific page.
+        var scanned = rows
+            .Where(row => row.Field == F.PageRequiresHumanVerification)
+            .ToList();
+        if (scanned.Count > 0)
+        {
+            findings.Add(new(
+                ThirdPartyFindingCodes.PageRequiresHumanVerification,
+                ThirdPartyFindingKind.Information,
+                "A person must check these pages against the original; their text could not be read: "
+                + string.Join(
+                    ", ",
+                    scanned.Select(row => row.Page?.ToString(CultureInfo.InvariantCulture) ?? "unnumbered")),
+                scanned));
         }
 
         if (selection.Outcome == ThirdPartySelectionOutcome.Ambiguous)
@@ -371,13 +389,23 @@ public static class ThirdPartyReportValidation
             yield break;
         }
 
+        // Adjustments come from the typed mileage and condition slots plus
+        // every other printed adjustment row, which has no typed slot in the
+        // frozen projection. Reading the rows keeps the printed label intact
+        // instead of filing "Urban edition adjustment" under a slot it is not.
+        var adjustmentRows = rows
+            .Where(row => row.Field == F.ValuationAdjustment
+                          && row.Disposition != SourceCandidateDisposition.Missing)
+            .ToList();
         var adjustments = (valuation.MileageAdjustment?.Value ?? 0m)
-                          + (valuation.ConditionAdjustment?.Value ?? 0m);
+                          + (valuation.ConditionAdjustment?.Value ?? 0m)
+                          + adjustmentRows.Sum(Amount);
         var evidence = rows
             .Where(row => row.Field == F.PreAccidentValue
                           || row.Field == F.FinalValue
                           || row.Field == F.MileageAdjustment
-                          || row.Field == F.ConditionAdjustment)
+                          || row.Field == F.ConditionAdjustment
+                          || row.Field == F.ValuationAdjustment)
             .ToList();
         yield return Math.Abs(pav + adjustments - final) <= Tolerance
             ? new(
@@ -414,4 +442,13 @@ public static class ThirdPartyReportValidation
 
     private static string Text(decimal value) =>
         value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static decimal Amount(SourceFieldCandidate row) =>
+        decimal.TryParse(
+            row.NormalizedValue,
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var parsed)
+            ? parsed
+            : 0m;
 }
