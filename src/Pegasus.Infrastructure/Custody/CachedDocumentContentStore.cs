@@ -65,7 +65,11 @@ internal sealed class CachedDocumentContentStore(
         CancellationToken cancellationToken)
     {
         ValidateRequest(request);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        StaffAuthorization.Require(
+            request.Actor,
+            request.Actor.Kind == ActorKind.SystemWorker
+                ? StaffAccessRight.ExecuteSystemWork
+                : StaffAccessRight.PerformCasework);
         await RequireCurrentActorAsync(request.Actor, cancellationToken);
         var source = await ResolveAuthorizedSourceAsync(request, cancellationToken);
         if (source.Length != request.ExpectedContentLength
