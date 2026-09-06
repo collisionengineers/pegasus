@@ -484,6 +484,8 @@ public sealed class RetainIncomingArtifactTests
     {
         public int Calls { get; private set; }
 
+        public int LookupCalls { get; private set; }
+
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor,
             Guid caseId,
@@ -492,6 +494,24 @@ public sealed class RetainIncomingArtifactTests
             CancellationToken cancellationToken)
         {
             Calls++;
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+            throw new UnreachableException("The staff-only rule refuses above.");
+        }
+
+        /// <summary>
+        /// The lookup carries the same fence this double puts on
+        /// <see cref="GetAsync"/>, so an actor it refuses is refused whichever
+        /// read the command reaches for. Implemented explicitly rather than
+        /// left to a default, because a status port that silently answered
+        /// would prove nothing about the refusal.
+        /// </summary>
+        public Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+            ActionActor actor,
+            Guid caseId,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            LookupCalls++;
             StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
             throw new UnreachableException("The staff-only rule refuses above.");
         }
