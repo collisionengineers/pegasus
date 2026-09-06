@@ -143,12 +143,16 @@ public sealed class IncomingArtifactCustodyTests
     /// </summary>
     private static async Task<SeededSession> SeedSessionAsync(IServiceProvider services)
     {
+        // The receipt store is scoped, so the seeding runs in a request scope
+        // like every other caller of the suite's fixtures.
+        await using var scope = services.CreateAsyncScope();
+        var scopedServices = scope.ServiceProvider;
         var receiptId = await TriageQueuesWebTests.StoreMinimalReceiptAsync(
-            services,
+            scopedServices,
             "incoming-artifact-custody.pdf");
-        var caseId = await ImageIntakeTestData.SeedCaseAsync(services, receiptId, "CUST01", "Review");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(scopedServices, receiptId, "CUST01", "Review");
 
-        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var contextFactory = scopedServices.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         var linkId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
