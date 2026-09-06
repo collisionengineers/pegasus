@@ -456,6 +456,11 @@ public sealed class Top15InstructionCorpusTests
         ,new("DFD", $"{CorpusRoot}/DFD 03.pdf", "bc276820f055a184e8ca0f977b59e5bcdeb703ed15ebff24772f24511d0760d1", new("Farid Erfani", "RJP/81513", "DA17PGO", new(2026, 4, 24), new(2026, 4, 27)), [])
         ,new("DFD", $"{CorpusRoot}/DFD 04.pdf", "6b27e492c18fbb4fde08ec059acbc3a79a18e2db4fa5036dfbae32224d96744b", new("Ali Abdul", "RJP/81509", "KJ17HHR", new(2026, 4, 14), new(2026, 5, 16)), [])
         ,new("DFD", $"{CorpusRoot}/DFD 05.pdf", "ee4fab522c6f4bb5b3fbc693f405ac6282aa166d9af5bf9868f0f9a0d728019d", new("Alan Joseph", "RJP/81508", "GV12RHF", new(2026, 4, 1), new(2026, 4, 15)), [])
+        ,new("KBS", $"{CorpusRoot}/KBS 01.docx", "bcc96a21cb4418349f0a720c1b64545560b058d8ea7d19162bd2e8d1b2397730", new("Mr Muzamal Hussain", "-.303671", "VX17GBU", new(2026, 5, 2), new(2026, 5, 6)), [])
+        ,new("KBS", $"{CorpusRoot}/KBS 02.pdf", "882c6ed6d2c78599b1d5bab4013a25288f1d9cc64b9c3ab0b58b4e68df5e7db8", new("Mr Obaider Khan", "AA.506044", "KA58MMM", new(2026, 5, 3), new(2026, 5, 6)), [])
+        ,new("KBS", $"{CorpusRoot}/KBS 03.pdf", "ab970f4d2b22e4665ba0240f26129f3247e7a091822e734c0a129b7c5b99f22f", new("Mr Saeed Ahmed", "SK.506039", "DX18FCG", new(2026, 3, 27), new(2026, 5, 5)), [])
+        ,new("KBS", $"{CorpusRoot}/KBS 04.pdf", "cbc01789c2808a572006880a02bc97962c3a57252e23b94061bc5a35d0c87b0e", new("Mr Khayam Ahmed", "AA.303669", "GL18EVC", new(2026, 5, 1), new(2026, 5, 6)), [])
+        ,new("KBS", $"{CorpusRoot}/KBS 05.pdf", "7bdd91f82cb2877de5e231bdacf2335f65b8d2e3308c96f479c39eb1a8d4c3fe", new("Mr Aasam Fareed", "AA.506036", "LO21GNN", new(2026, 4, 30), new(2026, 5, 4)), [])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -548,7 +553,8 @@ public sealed class Top15InstructionCorpusTests
             new SblInstructionExtractionPolicy(),
             new BlackInstructionExtractionPolicy(),
             new RjsInstructionExtractionPolicy(),
-            new DfdInstructionExtractionPolicy()
+            new DfdInstructionExtractionPolicy(),
+            new KbsInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
