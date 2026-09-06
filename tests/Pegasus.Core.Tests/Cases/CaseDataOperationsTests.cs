@@ -191,6 +191,85 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
+    public void PhysicalTreatmentRefusesABlankAddressAndTheImageBasedLiteral()
+    {
+        // Every CE assessment is desktop, so the report-address treatment is
+        // stated by the operator and never inferred from the text of an
+        // address. A physical vehicle location therefore needs a real address,
+        // and the accepted Image Based Assessment instruction is not one.
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
+            CaseReportAddressTreatment.PhysicalVehicleLocation,
+            null));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
+            CaseReportAddressTreatment.PhysicalVehicleLocation,
+            "   "));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
+            CaseReportAddressTreatment.PhysicalVehicleLocation,
+            "Image Based Assessment"));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
+            CaseReportAddressTreatment.PhysicalVehicleLocation,
+            "IMAGE BASED ASSESSMENT"));
+
+        Assert.Equal(
+            ("5 Repairer Way, Leeds", CaseInspectionMode.PhysicalAddress),
+            CaseDataPolicy.ResolveInspection(
+                CaseReportAddressTreatment.PhysicalVehicleLocation,
+                " 5 Repairer Way, Leeds "));
+    }
+
+    [Fact]
+    public void UndeterminedTreatmentSavesNeitherAddressNorMode()
+    {
+        Assert.Equal(
+            (null, (CaseInspectionMode?)null),
+            CaseDataPolicy.ResolveInspection(CaseReportAddressTreatment.Undetermined, null));
+        Assert.Equal(
+            (null, (CaseInspectionMode?)null),
+            CaseDataPolicy.ResolveInspection(CaseReportAddressTreatment.Undetermined, "  "));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
+            CaseReportAddressTreatment.Undetermined,
+            "5 Repairer Way, Leeds"));
+    }
+
+    [Fact]
+    public void ImageBasedTreatmentAlwaysStoresTheAcceptedInstructionValue()
+    {
+        Assert.Equal(
+            ("Image Based Assessment", CaseInspectionMode.ImageBasedAssessment),
+            CaseDataPolicy.ResolveInspection(CaseReportAddressTreatment.ImageBasedAssessment, null));
+        Assert.Equal(
+            ("Image Based Assessment", CaseInspectionMode.ImageBasedAssessment),
+            CaseDataPolicy.ResolveInspection(
+                CaseReportAddressTreatment.ImageBasedAssessment,
+                " Image Based Assessment "));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
+            CaseReportAddressTreatment.ImageBasedAssessment,
+            "image based assessment"));
+    }
+
+    [Fact]
+    public void ZeroOdometerIsAPresentValueNotAnAbsentOne()
+    {
+        var normalized = CaseDataPolicy.Normalize(
+            new(VehicleMileage: 0, VehicleMileageUnit: "miles"));
+
+        Assert.Equal(0, normalized.VehicleMileage);
+        Assert.Equal("miles", normalized.VehicleMileageUnit);
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(VehicleMileage: 0)));
+    }
+
+    [Fact]
+    public void TheOdometerDisplayUnitMustBeOneOfTheTwoUnitsTheRecordConvertsBetween()
+    {
+        Assert.Equal(
+            "kilometres",
+            CaseDataPolicy.Normalize(new(VehicleMileageDisplayUnit: " KM ")).VehicleMileageDisplayUnit);
+        Assert.Throws<ArgumentException>(() => CaseDataPolicy.Normalize(
+            new(VehicleMileageDisplayUnit: "furlongs")));
+    }
+
+    [Fact]
     public async Task SaveCaseNormalizesExplicitConfirmedValuesWithoutAnIdentityField()
     {
         var store = new RecordingStore();

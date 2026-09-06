@@ -112,6 +112,55 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task ReviewGatedTransitionsRefuseOnIncompletePersistedFacts()
+    {
+        // CASE-046: the gate reads the case's own Instruction complete and
+        // Images complete columns inside the transition's transaction. The
+        // request still carries the old readiness envelope claiming both are
+        // true, and it changes nothing.
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET InstructionComplete = {false} WHERE Id = {harness.CaseId}");
+        }
+
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-return-refused"),
+            default);
+        await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
+            harness.Store.ReturnToReviewAsync(
+                new(
+                    harness.CaseId,
+                    0,
+                    actor,
+                    "return-to-review-refused",
+                    "Claimed readiness the record does not hold",
+                    lease.Token,
+                    new(true, true, "case-completeness-projection")),
+                default));
+
+        await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
+            harness.Store.AssignEngineerAsync(
+                new(
+                    harness.CaseId,
+                    0,
+                    actor,
+                    "assign-engineer-refused",
+                    "Claimed readiness the record does not hold",
+                    lease.Token,
+                    Guid.NewGuid(),
+                    new(true, true, "case-completeness-projection")),
+                null,
+                default));
+
+        var workflow = Assert.IsType<CaseWorkflowRecord>(
+            await harness.Store.GetAsync(harness.CaseId, default));
+        Assert.Equal(0, workflow.Version);
+    }
+
+    [Fact]
     public async Task StartRejectsEngineerDisabledAfterAssignment()
     {
         await using var harness = await WorkflowHarness.CreateAsync();

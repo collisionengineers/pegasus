@@ -577,10 +577,22 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, "case_returned_to_review", (context, workflow, now) =>
         {
+            RequireReviewReadiness(workflow);
             workflow.State = nameof(CaseLifecycleState.Review);
             CaseChaseState.Stop(workflow);
             return Task.CompletedTask;
         }, cancellationToken);
+
+    /// <summary>
+    /// CASE-046: the Review gate reads the case's own persisted completeness
+    /// facts inside this transaction. A caller cannot present its own answer,
+    /// so a forged or merely stale posted boolean can no longer open Review.
+    /// </summary>
+    private static void RequireReviewReadiness(CaseWorkflowEntity workflow) =>
+        CaseLifecycleRules.RequireReviewReadiness(
+            workflow.CaseId,
+            workflow.Case.InstructionComplete,
+            workflow.Case.ImagesComplete);
 
     public Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
@@ -588,6 +600,7 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "case_engineer_assigned", (context, workflow, now) =>
         {
+            RequireReviewReadiness(workflow);
             workflow.AssignedEngineerId = request.EngineerId;
             workflow.SignOffEngineerId = signOffEngineerId;
             return Task.CompletedTask;
@@ -745,6 +758,11 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, $"case_reopened_{request.Destination}", (context, workflow, now) =>
         {
+            if (request.Destination == CaseReopenDestination.Review)
+            {
+                RequireReviewReadiness(workflow);
+            }
+
             workflow.State = request.Destination.ToString();
             workflow.ClosureOutcome = null;
             if (request.Destination == CaseReopenDestination.NotReady)
