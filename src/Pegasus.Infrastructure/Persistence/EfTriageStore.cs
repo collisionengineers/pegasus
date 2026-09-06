@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -535,10 +536,81 @@ public sealed class EfTriageStore(
         var rows = await TriageWithDraftQuery(
             context,
             stateCode is null ? null : item => item.State == stateCode).ToListAsync(cancellationToken);
+        // The same newest-first order the keyset page uses, so the two read
+        // paths cannot disagree about what "the next row" is.
         return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
-            .ThenBy(row => row.Item.Id)
+            .ThenByDescending(row => row.Item.Sequence)
             .Select(ToSummary)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The keyset page. Both the order and the continuation bound are expressed
+    /// in SQL over the <c>(State, CreatedAtUtc)</c> index rather than in memory,
+    /// so a later page never materialises the rows before it and a Triage
+    /// created between two requests never shifts a page boundary. One extra row
+    /// is read to learn whether a next page exists without a second count.
+    /// </summary>
+    /// <remarks>
+    /// The position the caller carries is the pair the order is defined by —
+    /// the instant and the Triage identity — but the tie-break is applied on
+    /// the row's allocation <c>Sequence</c>, which is unique, ordered and
+    /// unambiguous in SQL, where <c>uniqueidentifier</c> ordering is not the
+    /// ordering <see cref="Guid.CompareTo(Guid)"/> defines. Resolving the
+    /// cursor's identity to its sequence costs one primary-key read per
+    /// continuation page and rejects a cursor naming a Triage that is not
+    /// there.
+    /// </remarks>
+    public async Task<TriageListSlice> ListPageAsync(
+        TriageState? state,
+        TriageListPosition? after,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (state is not null && !Enum.IsDefined(state.Value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(state));
+        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+        if (after is { } position && position.Id == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A keyset position requires a Triage identity.",
+                nameof(after));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var stateCode = state is null ? null : ToCode(state.Value);
+        var query = TriageWithDraftQuery(
+            context,
+            stateCode is null ? null : item => item.State == stateCode);
+        if (after is { } cursor)
+        {
+            var afterSequence = await context.Triage.AsNoTracking()
+                .Where(item => item.Id == cursor.Id)
+                .Select(item => (long?)item.Sequence)
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new CursorRejectedException(
+                    "The cursor names a Triage that is no longer listed.");
+            var afterCreatedAtUtc = cursor.CreatedAtUtc;
+            // Strictly after the position in the newest-first order: an older
+            // row, or the same instant with an earlier allocation.
+            query = query.Where(row =>
+                row.Item.CreatedAtUtc < afterCreatedAtUtc
+                || (row.Item.CreatedAtUtc == afterCreatedAtUtc && row.Item.Sequence < afterSequence));
+        }
+
+        var rows = await query
+            .OrderByDescending(row => row.Item.CreatedAtUtc)
+            .ThenByDescending(row => row.Item.Sequence)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+        var hasMore = rows.Count > limit;
+        var page = (hasMore ? rows.Take(limit) : rows).Select(ToSummary).ToArray();
+        var next = hasMore && page.Length > 0
+            ? new TriageListPosition(page[^1].CreatedAtUtc, page[^1].Id)
+            : null;
+        return new(page, next);
     }
 
     /// <summary>

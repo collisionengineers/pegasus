@@ -367,11 +367,44 @@ public sealed record TriageDetail(
     /// </summary>
     string? PrincipalCode = null);
 
+/// <summary>
+/// A decoded keyset position in the Triage list: the newest-first order is
+/// <c>CreatedAtUtc</c> descending with the identity as the tie-break, so a
+/// position is exactly that pair. Both are absent on the first page. This is
+/// the store's own currency — the opaque cursor that carries it between
+/// requests is minted above the store, by <see cref="ListTriagePage"/>.
+/// </summary>
+public sealed record TriageListPosition(DateTimeOffset CreatedAtUtc, Guid Id);
+
+/// <summary>
+/// One keyset page and the position the next page continues from. A null
+/// <see cref="NextPosition"/> means this page reached the end.
+/// </summary>
+public sealed record TriageListSlice(
+    IReadOnlyList<TriageSummary> Items,
+    TriageListPosition? NextPosition);
+
 public interface ITriageQueries
 {
     Task<IReadOnlyList<TriageSummary>> ListAsync(
         TriageState? state,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The keyset continuation behind the Triage list: at most
+    /// <paramref name="limit"/> rows strictly after <paramref name="after"/> in
+    /// the newest-first order, with the position the caller continues from. The
+    /// database applies both the filter and the bound, so a later page never
+    /// reads the rows before it and a row inserted between requests never
+    /// shifts a page boundary.
+    /// </summary>
+    Task<TriageListSlice> ListPageAsync(
+        TriageState? state,
+        TriageListPosition? after,
+        int limit,
+        CancellationToken cancellationToken) =>
+        Task.FromException<TriageListSlice>(
+            new NotSupportedException("Triage keyset continuation is not available."));
 
     Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 
