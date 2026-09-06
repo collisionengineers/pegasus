@@ -346,6 +346,42 @@ public sealed class Top15InstructionCorpusTests
             new("Mr Chaudhary Ameer", "225870.TA", "MX67PXS", new(2026, 4, 29), new(2026, 5, 1)),
             [
                 new("Claimant name", "Complex Reports", "The intermediary named in the address block.")
+            ]),
+        new(
+            "OAK",
+            $"{CorpusRoot}/OAK 01.DOC",
+            "2253a09ce674ef3e52548694f14d9b00e989789212acb210f4766ecd35979da7",
+            new("Mr Sam Graham", "TJD/GRAHAM/S486562.001", "B24SRG", new(2026, 5, 5), new(2026, 5, 5)),
+            [
+                new("Claimant name", "O'malley Recovery", "The separately labelled Source/Introducer."),
+                new("Claim reference", "05/05/26", "The aligned header Date is not Our Ref.")
+            ]),
+        new(
+            "OAK",
+            $"{CorpusRoot}/OAK 02.DOC",
+            "22395559092263e89dd7440e61e26521a0f693e87355ccdaf5f64bae77b06d4e",
+            new("Ms Anna Pachla", "TJD/PACHLA/S486035.001", "EN18KEJ", new(2026, 4, 27), new(2026, 5, 5)),
+            [new("Claimant name", "Hfdrz Ltd Taxi", "The separately labelled Source/Introducer.")]),
+        new(
+            "OAK",
+            $"{CorpusRoot}/OAK 03.DOC",
+            "c48c8702830036066d21ddacc9f3d224a0bfe5db15d5d68ad45d76a42a46f19a",
+            new("Mr Lewis Morgan", "JAA/MORGAN/S486439.001", "CV68OVM", new(2026, 5, 4), new(2026, 5, 5)),
+            [new("Claimant name", "Wilson Breakdown Recovery", "The separately labelled Source/Introducer.")]),
+        new(
+            "OAK",
+            $"{CorpusRoot}/OAK 04.DOC",
+            "191ac025ab19d0174375e8bf831ea6083f1ed2ef61be182e4055fe01cd5cfaa2",
+            new("Mr Mohammad Butt", "GHE/BUTT/S486424.001", "SG12BLS", new(2026, 5, 3), new(2026, 5, 5)),
+            [new("Claimant name", "Undent It", "The separately labelled Source/Introducer.")]),
+        new(
+            "OAK",
+            $"{CorpusRoot}/OAK 05.DOC",
+            "70424671cf11e236e570db5bf0f806a23499d7d663f857f0a2c73c67e3c89b41",
+            new("Mr James O'Donnell", "JPS/O'DONNELL/S486079.001", "MF17WYH", new(2026, 4, 17), new(2026, 5, 1)),
+            [
+                new("Claimant name", "Spray Tek Accident Repair Centre Ltd", "The separately labelled Source/Introducer."),
+                new(null, "cost of replacement if beyond repair", "Requested work is not an accepted report outcome.")
             ])
     ];
 
@@ -425,7 +461,8 @@ public sealed class Top15InstructionCorpusTests
             new QdosInstructionExtractionPolicy(),
             new PchInstructionExtractionPolicy(),
             new FwInstructionExtractionPolicy(),
-            new QclInstructionExtractionPolicy()
+            new QclInstructionExtractionPolicy(),
+            new OakInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
