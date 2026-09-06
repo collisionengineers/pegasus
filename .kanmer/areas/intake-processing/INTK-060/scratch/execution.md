@@ -384,3 +384,7 @@ Build 0/0, core 61, integration 35, host 131, browser 2, architecture 100. Clean
 ## Checkpoint — C02 READY at `494767d30` (merged `ca3ec9abb`)
 
 All seven C02 items; OCR persistence on F's `IntakeOcrOperations` (no new table), `LocatorJson` v2 envelope, `EfIntakeOcrOperationStore.cs` disclosed deviation; `intake_ocr` enqueue deliberately not built (kind must come from A's `ExternalWorkKinds`) — exact A hunks in the report; INCONCLUSIVE: provider correctness (no genuine DI response), AcroForm locators. Review dispatched; wave 32 queued behind wave 31 (C08). C03 worktree `v1-intake-c03` (`c03-profiles`) created on the C02 merged head so profiles build on the structured extraction; batch 1 (QDOS extension + PCH) dispatches next. Editors: C07b r4 + C03 b1.
+
+## C06 cleanup integrated — C head `92f98b749`
+
+Review `pass` at `fea0c0e78` (zero open findings; R-24/R-25 accepted-risk). Merged `--no-ff`, build 0/0, pushed, reported on PR 673. C06 now proves its bindings on the real host. Remaining C06 residual: R-24 needs an A migration; B's picker consumption; catalogue routes (A).
