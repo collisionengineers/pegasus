@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
@@ -740,6 +740,27 @@ public interface IIntakeReceiptQueries
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One keyset page of received items, newest first: strictly after
+    /// <paramref name="after"/> in (ReceivedAtUtc DESC, Id DESC) order, or from
+    /// the newest row when it is null.
+    ///
+    /// Offset paging cannot be made stable for a caller that pages over time. A
+    /// receipt arriving while a connector reads page after page shifts every
+    /// later row by one, so a row is silently skipped; a receipt resolved out of
+    /// the filter shifts them back and a row is delivered twice. The sort key
+    /// plus the id names an exact row instead of a position in a list that
+    /// moves. <see cref="ListAsync"/> stays the right shape for a staff screen,
+    /// which wants a total and a page number.
+    /// </summary>
+    Task<KeysetPage<IntakeReceiptSummary>> ListByCursorAsync(
+        IntakeDecision? decision,
+        KeysetPosition? after,
+        int limit,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "This intake receipt query does not support keyset continuation.");
+
     Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     Task<IntakeAssetRecord?> GetAssetAsync(
@@ -910,6 +931,20 @@ public sealed class IntakeDependencyUnavailableException(string message, Excepti
     : Exception(message, innerException);
 
 public sealed class IntakeAssociationConflictException(string message) : Exception(message);
+
+/// <summary>
+/// API-01 is create-only: a declared provider instruction whose identity facts
+/// match existing Case work is refused rather than allocated or associated. The
+/// envelope is still durably received — the refusal happens in processing, so
+/// the submission terminates under this one code and no Case, PO, association
+/// or Case mutation is produced. Updating an existing Case through the API
+/// awaits a separate authorised contract (FRD-09, operator decision 2026-09-02).
+/// </summary>
+public sealed class ProviderExistingCaseMatchException()
+    : Exception("The provider submission matches existing Case work; API-01 cannot update it.")
+{
+    public const string FailureCode = "provider_existing_case_match";
+}
 
 public interface IResolveIntake
 {
