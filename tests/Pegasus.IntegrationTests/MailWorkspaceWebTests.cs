@@ -121,6 +121,19 @@ public sealed class MailWorkspaceWebTests
         var classificationStore = new RecordingClassificationStore();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        for (var index = 0; index < ids.Length; index++)
+        {
+            await StoreMailClassificationAsync(
+                baseFactory,
+                FirstMailboxId,
+                $"{FirstMailboxId}-{index}",
+                MailClassificationResult.Classified(
+                    MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                    [],
+                    "A receiving-work message was recognised.",
+                    "fixture",
+                    1));
+        }
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
