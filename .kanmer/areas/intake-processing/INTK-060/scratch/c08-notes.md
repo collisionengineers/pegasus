@@ -79,3 +79,33 @@ or Index.cshtml(.cs)'s MailActivity usage.
   in this repo at all — Compose is wired against the Core contract only).
 - docs/design/test-ui/**: /Inbox/Compose needs a catalogue.json entry (route,
   classification, states) — out of my file scope.
+
+## Controller correction — RailCountsPageFilter optional resolution (commit c64d9cf83)
+
+ASSUMPTION 3 (implementer, attempt 1, per controller instruction): resolve
+`IGetAttentionRows` per request from `HttpContext.RequestServices.GetService<IGetAttentionRows>()`
+in `RailCountsPageFilter` instead of the constructor — because Stream A's
+registration for it has not yet landed on this branch, and a required
+constructor dependency on an unregistered service broke every authenticated
+page in every A- and C-owned web test. A null service now sets no
+`ViewData["AttentionRows"]` (the dialog renders no list content) rather than
+failing the whole page. This is the same optional-resolution bridge C01 used
+for its analysis panel. A's registration patch makes the dependency required
+again in the combined checkout — `RailCountsPageFilter` should revert to
+constructor injection once that lands; alternatives considered: leaving the
+required constructor dependency and waiting for A's patch to merge first
+(rejected by the controller — it blocks every other web test on this branch
+in the meantime).
+
+Also added (build green, same commit):
+- `ShellAndStatusPageWebTests.NotificationsMenuShowsAttentionRowsOnceTheQueryIsRegistered`
+  — registers a stub `IGetAttentionRows` via `factory.WithWebHostBuilder` and
+  proves the rows reach the rendered `/Search` page.
+- `ShellAndStatusPageWebTests.ShellStillRendersWhenTheAttentionRowsQueryIsNotRegistered`
+  — proves the shell renders (notifications dialog present) with no
+  registration at all, today's state on this branch.
+
+Head SHA now c64d9cf83. Full solution build (`dotnet build ./Pegasus.slnx
+--configuration Release --no-restore`) green. READY_FOR_TESTS unchanged
+otherwise — see the earlier note in this file for the full slice summary and
+the other two deviations (Reply/Forward blocked; Compose's two assumptions).

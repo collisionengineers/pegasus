@@ -81,3 +81,8 @@ Labelling pass dispatched (Sonnet, read-only): independent expected-candidate se
 ## 12:05Z — C08 slice 1 READY_FOR_TESTS (`32f9f3ee1`)
 
 Items 1,2,3,5,7,8 delivered; item 4 dropped (A07 hunk branch instead); item 6 partial: Compose/New done, Reply/ReplyAll/Forward blocked on A-owned `RetainedMailDetail` lacking the immutable Graph identity and on a mailbox generation/send-enabled query (both requested from A for the next G). Correction requested: `RailCountsPageFilter` must resolve `IGetAttentionRows` optionally until A's DI patch, otherwise every authenticated page test fails on the standalone branch. C08 wave queued after wave 2. Snapshot/catalogue changes handed to A (`/Inbox/Compose` entry).
+
+## 12:25Z — G10 merged; typed-actor hunks published; C05 started
+
+- G10 `9c5ddf454` merged `--no-ff` after G9 → C head `e5c9b1f43`, pushed; wave 2 baseline lane repointed at it. Typed-actor helper commit `fda3a35bb` (12 C-owned files at the G9 boundary) published as `task/pegasus-v1-c-typed-actor-hunks`; the four A-owned sites and the entity property are on PLAT-075 `scratch/c-stream-notes`.
+- C08 correction (optional `IGetAttentionRows` resolution) in progress; C05 Core slice (profiles/extraction/validation + Core and corpus tests) dispatched on `v1-intake-c05` (Opus). Editors: C08 + C05 = 2. Wave 2 runner on group C (C01) then the baseline.
