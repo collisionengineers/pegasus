@@ -18,6 +18,9 @@ public sealed partial class TestUiSnapshotTests
     private static readonly IReadOnlyDictionary<string, StateMatch> StateMatches =
         new Dictionary<string, StateMatch>(StringComparer.Ordinal)
         {
+            ["administration-claim-sources--empty"] = new("Create claim source", "Current claim sources"),
+            ["administration-claim-source-edit--default"] = new("Edit Web Caller Claim Source</h1>", "Renamed"),
+            ["mail-compose--default"] = new("<h1>Compose</h1>", "validation-summary-errors"),
             ["sign-in--validation"] = new("validation-summary-errors"),
             ["sign-in--signed-out"] = new("You are signed out"),
             ["administration-accounts--empty"] = new("No staff accounts are available."),
