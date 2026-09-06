@@ -482,6 +482,11 @@ public sealed class Top15InstructionCorpusTests
         ,new("ALS", $"{CorpusRoot}/ALS 03.DOC", "a70a4e486150780f7ea05c3776aeea696091c3b80cc369659786b8c38be94911", new("Mrs Lisa Bell", "159133", "EF15AOS", new(2026, 4, 20), new(2026, 4, 30)), [new("Claimant name","Peter Bell","Vehicle owner column.")])
         ,new("ALS", $"{CorpusRoot}/ALS 04.DOC", "ed85af2000f47314f4b0d3a6620b62e8a316b0de8dab98e9d50ce607bbf4c7be", new("Mr Lee Kennedy", "158920", "KE54DYS", new(2026, 4, 19), new(2026, 4, 29)), [])
         ,new("ALS", $"{CorpusRoot}/ALS 05.DOC", "f53eaceac1c0b31b8052af04ecda4272be0e0030aac996d25ead38b471c0586b", new("Mr David Bennett", "158804", "MM72GNY", new(2026, 4, 8), new(2026, 4, 28)), [new("Claimant name","Miss Donna Cameron","Vehicle owner column.")])
+        ,new("BC", $"{CorpusRoot}/BC 01.DOC", "a917a59c8ac78c4f5887f14544497899612b8503f443b7841601e66567f65544", new("Mr Sabih Tariq", "RTA135646.001/NE/Usayd Ibrahim", "FM18UUS", new(2026, 4, 29), new(2026, 5, 6)), [])
+        ,new("BC", $"{CorpusRoot}/BC 02.DOC", "44b4f5665b21723befa2e13712a553d236e23d862ed2061f964212477eb33adf", new("Mr Arslan Tariq", "RTA135650.001/NE/Usayd Ibrahim", "BR19AYT", new(2026, 4, 20), new(2026, 5, 6)), [])
+        ,new("BC", $"{CorpusRoot}/BC 03.DOC", "b031745bb46d740cad472cc4be29705a338e819ebf3c7981033fad447cbd3809", new("Mr Humayun Tufail", "RTA135633.001/NE/Usayd Ibrahim", "NL22HNZ", new(2026, 4, 30), new(2026, 5, 5)), [])
+        ,new("BC", $"{CorpusRoot}/BC 04.DOC", "4240c22b2de79ba94dbbe87aeab675e329b9c8507af864bd2250ce35b664a87c", new("Mr Muhammad Aon", "RTA135598.001/NE/Usayd Ibrahim", "DE61CYJ", new(2026, 4, 24), new(2026, 5, 5)), [])
+        ,new("BC", $"{CorpusRoot}/BC 05.DOC", "1363d914b187c57d6a75f26da31c183c61ce30862c160b9120926153aae1efe5", new("Mr Muhammad Shahid Ramzan", "RTA135610.001/NE/Usayd Ibrahim", "LH12BKD", new(2026, 4, 28), new(2026, 4, 30)), [])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -578,7 +583,8 @@ public sealed class Top15InstructionCorpusTests
             new KbsInstructionExtractionPolicy(),
             new MpInstructionExtractionPolicy(),
             new YmlInstructionExtractionPolicy(),
-            new AlsInstructionExtractionPolicy()
+            new AlsInstructionExtractionPolicy(),
+            new BcInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
