@@ -99,7 +99,6 @@ public sealed class EfRepairSpecificationStore(
             VatPercent = predecessor?.VatPercent ?? EstimatePolicy.DefaultVatPercent,
             RepairDays = predecessor?.RepairDays,
             LabourRate = predecessor?.LabourRate,
-            PaintLabourRate = predecessor?.PaintLabourRate,
             PaintMaterials = predecessor?.PaintMaterials,
             OtherCosts = predecessor?.OtherCosts,
             Notes = predecessor?.Notes,
