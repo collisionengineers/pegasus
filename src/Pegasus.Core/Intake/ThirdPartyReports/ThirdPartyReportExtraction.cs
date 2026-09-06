@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using F = Pegasus.Core.Intake.ThirdPartyReports.ThirdPartyReportFields;
 using K = Pegasus.Core.Intake.ThirdPartyReports.ThirdPartyValueKind;
@@ -107,6 +107,30 @@ public static class ThirdPartyReportFields
 
     public const string Photograph = "media.photograph";
     public const string Diagram = "media.diagram";
+
+    /// <summary>
+    /// The namespace every reconciliation finding is recorded under. A finding
+    /// is not a printed value, so it never shares a field name with one: the
+    /// finding code follows the prefix, which is what tells a reader — and the
+    /// Received screen — that the row states an observation ABOUT the printed
+    /// values rather than one of them.
+    /// </summary>
+    public const string FindingPrefix = "finding.";
+
+    /// <summary>The field name one finding code is recorded under.</summary>
+    public static string Finding(string code)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        return FindingPrefix + code;
+    }
+
+    /// <summary>
+    /// Whether a persisted row states a finding rather than a printed value.
+    /// A surface that lists printed values filters on this; one that shows the
+    /// document's contradictions selects on it.
+    /// </summary>
+    public static bool IsFinding(string field) =>
+        field is not null && field.StartsWith(FindingPrefix, StringComparison.Ordinal);
 }
 
 /// <summary>The printed amount roles, as they appear on a persisted source row.</summary>
@@ -641,35 +665,121 @@ public static class ThirdPartyReportExtraction
 
         var pages = ThirdPartySourcePage.Read(readResult);
         var selection = ThirdPartyReportProfiles.Select(pages, context);
+        var documentRole = ThirdPartyReportProfiles.DocumentRoleCode(selection.DocumentRole);
         var rows = new List<SourceFieldCandidate> { selection.Issuer };
 
         // Every scan-only page is recorded with its own locator before any
         // field is read. That is the John R Bell case: a page whose text the
         // reader could not take is a page whose critical values a person must
         // check against the original, and the row says exactly which page.
-        var scannedPages = ScannedPages(readResult, context, selection);
-        rows.AddRange(scannedPages);
+        rows.AddRange(ScannedPages(readResult, context, documentRole));
 
         if (selection.Outcome != ThirdPartySelectionOutcome.Selected || selection.Family is not { } family)
         {
-            return new(
-                selection,
-                null,
-                rows,
-                ThirdPartyReportValidation.Check(selection, null, rows, readResult.RequiresOcr));
+            return Complete(selection, null, rows, readResult.RequiresOcr, context, documentRole);
         }
 
-        var documentRole = ThirdPartyReportProfiles.DocumentRoleCode(selection.DocumentRole);
         var observed = Observe(family, pages, context, documentRole);
         rows.AddRange(observed.Order.SelectMany(key => observed.Rows[key]));
         rows.AddRange(Media(readResult, context, documentRole));
 
         var candidate = Project(selection, observed, rows, context);
-        return new(
-            selection,
-            candidate,
-            rows,
-            ThirdPartyReportValidation.Check(selection, candidate, rows, readResult.RequiresOcr));
+        return Complete(selection, candidate, rows, readResult.RequiresOcr, context, documentRole);
+    }
+
+    /// <summary>
+    /// Reconciles the rows that were read and records each finding as its own
+    /// source row beside them (INTK-056).
+    ///
+    /// A finding is computed from the printed values only, and it reaches
+    /// storage as an ordinary <see cref="SourceFieldCandidate"/> under the
+    /// <see cref="ThirdPartyReportFields.FindingPrefix"/> namespace: raw text
+    /// is the finding's own statement including the printed values it compared,
+    /// normalized value is the stable finding code, and the locator is the one
+    /// the compared rows carry. No printed value is edited, replaced or
+    /// recomputed on the way — the row that says "26.2 hours at 90 is 2358, not
+    /// the printed labour 1582.2" sits beside three rows that still read 26.20,
+    /// 90.00 and 1582.20.
+    ///
+    /// Findings are appended after the reconciliation has run, so a finding is
+    /// never itself an input to one.
+    /// </summary>
+    private static ThirdPartyReportExtractionResult Complete(
+        ThirdPartyReportSelection selection,
+        ThirdPartyReportCandidate? candidate,
+        List<SourceFieldCandidate> rows,
+        bool requiresOcr,
+        ThirdPartyReportSourceContext context,
+        string documentRole)
+    {
+        var findings = ThirdPartyReportValidation.Check(selection, candidate, rows, requiresOcr);
+        rows.AddRange(FindingRows(findings, context, documentRole, selection.Issuer));
+        return new(selection, candidate, rows, findings);
+    }
+
+    /// <summary>
+    /// One row per finding, in the order the reconciliation raised them. Each
+    /// carries the document, version, occurrence and hash of the rows it
+    /// compares (from the shared context), the reader version, and the
+    /// <see cref="ThirdPartyReportValidation.PolicyVersion"/> that stamps the
+    /// finding rules rather than the extraction rules — a later change to the
+    /// arithmetic is then distinguishable from a later change to the reading.
+    /// </summary>
+    private static IEnumerable<SourceFieldCandidate> FindingRows(
+        IReadOnlyList<ThirdPartyReportFinding> findings,
+        ThirdPartyReportSourceContext context,
+        string documentRole,
+        SourceFieldCandidate issuer)
+    {
+        foreach (var finding in findings)
+        {
+            // The locator of the rows the finding compared, so an operator
+            // opens the page the contradiction is printed on. Where a finding
+            // has no evidence row of its own, the issuer row's locator is the
+            // honest fallback: it is the page the document was identified from.
+            var locator = finding.Evidence.Count > 0 ? finding.Evidence[0] : issuer;
+            yield return ThirdPartySourceCandidates.Create(
+                context,
+                F.Finding(finding.Code),
+                documentRole,
+                rawValue: finding.Message,
+                normalizedValue: finding.Code,
+                page: locator.Page,
+                sourceLabel: locator.SourceLabel,
+                policyVersion: ThirdPartyReportValidation.PolicyVersion,
+                disposition: FindingDisposition(finding.Kind),
+                referenceRole: FindingRole(finding),
+                region: "finding");
+        }
+    }
+
+    /// <summary>
+    /// What the operator must do with a finding, expressed in the only
+    /// vocabulary a source row has. A printed contradiction is
+    /// <see cref="SourceCandidateDisposition.Conflicting"/>; every other
+    /// finding is <see cref="SourceCandidateDisposition.Ambiguous"/> — an
+    /// observation to weigh. A finding is never Usable, because a finding is
+    /// not a value: nothing may accept one as a figure.
+    /// </summary>
+    private static SourceCandidateDisposition FindingDisposition(ThirdPartyFindingKind kind) =>
+        kind == ThirdPartyFindingKind.Conflict
+            ? SourceCandidateDisposition.Conflicting
+            : SourceCandidateDisposition.Ambiguous;
+
+    /// <summary>
+    /// The printed amount role a finding is about, taken from the rows it
+    /// compared rather than restated: a finding that spans two roles (an
+    /// initial figure against an agreed one) carries none, because naming
+    /// either would misfile it.
+    /// </summary>
+    private static string FindingRole(ThirdPartyReportFinding finding)
+    {
+        var roles = finding.Evidence
+            .Select(row => row.ReferenceRole)
+            .Where(role => role.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return roles.Count == 1 ? roles[0] : string.Empty;
     }
 
     /// <summary>
@@ -682,13 +792,13 @@ public static class ThirdPartyReportExtraction
     private static IReadOnlyList<SourceFieldCandidate> ScannedPages(
         IntakeSourceReadResult readResult,
         ThirdPartyReportSourceContext context,
-        ThirdPartyReportSelection selection) =>
+        string documentRole) =>
         [.. readResult.ScannedPdfPages
             .OrderBy(page => page.PageNumber)
             .Select(page => ThirdPartySourceCandidates.Create(
                 context,
                 F.PageRequiresHumanVerification,
-                ThirdPartyReportProfiles.DocumentRoleCode(selection.DocumentRole),
+                documentRole,
                 rawValue: null,
                 normalizedValue: null,
                 page: page.PageNumber,

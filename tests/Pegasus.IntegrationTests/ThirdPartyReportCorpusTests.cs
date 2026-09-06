@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -101,6 +101,29 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
         ("Bodyshopreport236502-V1-sPrintAssessors-repairable2.pdf", ThirdPartyReportFields.Net, "assessed", "0.00"),
         ("Bodyshopreport236502-V1-sPrintAssessors-repairable2.pdf", ThirdPartyReportFields.Net, "contract-repair", "8250.00"),
         ("Bodyshopreport236502-V1-sPrintAssessors-repairable2.pdf", ThirdPartyReportFields.PreAccidentValue, "", "11790.00")
+    ];
+
+    /// <summary>
+    /// The findings the extraction review named, each against the original it
+    /// belongs to. Every one of them must reach storage as its own source row:
+    /// a reconciliation that is computed and discarded is the same as one that
+    /// was never run.
+    /// </summary>
+    private static readonly (string File, string Code)[] RecordedFindings =
+    [
+        ("MontgomeryRepairable1.pdf", ThirdPartyFindingCodes.LabourHoursRateMismatch),
+        ("MontgomeryRepairable1.pdf", ThirdPartyFindingCodes.ComponentSumReconciles),
+        ("MontgomeryRepairable1.pdf", ThirdPartyFindingCodes.NetVatGrossReconciles),
+        ("MontgomeryRepairable1.pdf", ThirdPartyFindingCodes.ModelOdometerConflict),
+        ("Bodyshopreport236502-V1-sPrintAssessors-repairable2.pdf",
+            ThirdPartyFindingCodes.ZeroTotalsWithContractRepair),
+        ("Bodyshopreport236502-V1-sPrintAssessors-repairable2.pdf",
+            ThirdPartyFindingCodes.ContractRepairBasisNotPrinted),
+        ("Report 00077570.pdf", ThirdPartyFindingCodes.NetNotPrinted),
+        ("Report 00077570.pdf", ThirdPartyFindingCodes.InitialAndAgreedDiffer),
+        ("LairdRepairable1.pdf", ThirdPartyFindingCodes.SupplementWithoutProvedBase),
+        ("JohnRBell1.pdf", ThirdPartyFindingCodes.SourceRequiresOcr),
+        ("JohnRBell1.pdf", ThirdPartyFindingCodes.PageRequiresHumanVerification)
     ];
 
     /// <summary>
@@ -266,6 +289,122 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
         Assert.Contains(
             result.Findings,
             finding => finding.Code == ThirdPartyFindingCodes.PageRequiresHumanVerification);
+    }
+
+    /// <summary>
+    /// Every finding the review named is persisted as its own source row, with
+    /// the finding rules' version, the locator of the rows it compares and the
+    /// same document identity they carry. A finding is an observation about the
+    /// printed values, so it is recorded beside them rather than instead of one
+    /// and never as a value anything may accept.
+    /// </summary>
+    [ReferencePackFact]
+    public async Task EveryRecordedFindingIsPersistedAsItsOwnSourceRow()
+    {
+        var read = await Corpus.Value;
+        var missing = new List<string>();
+
+        foreach (var (file, code) in RecordedFindings)
+        {
+            var result = read[file];
+            var row = result.Candidates.FirstOrDefault(candidate =>
+                candidate.Field == ThirdPartyReportFields.Finding(code));
+            if (row is null)
+            {
+                missing.Add($"{file}: no persisted row for {code}");
+                continue;
+            }
+
+            Assert.Equal(code, row.NormalizedValue);
+            Assert.False(string.IsNullOrWhiteSpace(row.RawValue));
+            Assert.False(string.IsNullOrWhiteSpace(row.SourceLabel));
+            Assert.Equal(ThirdPartyReportValidation.PolicyVersion, row.PolicyVersion);
+
+            // Never Usable and never Missing: a finding is not a value, and it
+            // is not an unstated one either.
+            Assert.Contains(
+                row.Disposition,
+                new[]
+                {
+                    SourceCandidateDisposition.Conflicting,
+                    SourceCandidateDisposition.Ambiguous
+                });
+
+            // It carries the source identity of the rows it is about, so it is
+            // read back with them rather than floating free of the document.
+            var value = result.Candidates.First(candidate =>
+                !ThirdPartyReportFields.IsFinding(candidate.Field));
+            Assert.Equal(value.Sha256, row.Sha256);
+            Assert.Equal(value.Occurrence, row.Occurrence);
+            Assert.Equal(value.IntakeAssetId, row.IntakeAssetId);
+            Assert.Equal(value.DocumentRole, row.DocumentRole);
+            Assert.Equal(value.ReaderVersion, row.ReaderVersion);
+        }
+
+        Report("findings", missing.Count == 0 ? ["all persisted"] : missing);
+        Assert.True(missing.Count == 0, string.Join("; ", missing));
+    }
+
+    /// <summary>
+    /// The persisted finding rows are exactly the findings that were raised,
+    /// one for one and in the same order. Neither half can drift from the other
+    /// without this failing.
+    /// </summary>
+    [ReferencePackFact]
+    public async Task ThePersistedFindingRowsAreExactlyTheFindingsRaised()
+    {
+        var read = await Corpus.Value;
+
+        foreach (var (_, result) in read)
+        {
+            Assert.Equal(
+                result.Findings.Select(finding => finding.Code),
+                result.Candidates
+                    .Where(row => ThirdPartyReportFields.IsFinding(row.Field))
+                    .Select(row => row.NormalizedValue!));
+        }
+    }
+
+    /// <summary>
+    /// A negative original states no contradiction about figures it does not
+    /// print. The three that carry text raise no finding at all; the two
+    /// scan-only ones raise only the OCR and page-verification findings, which
+    /// are the record that a person must read those pages against the original.
+    /// </summary>
+    [ReferencePackFact]
+    public async Task NoNegativeOriginalCarriesAFindingAboutRepairFigures()
+    {
+        var read = await Corpus.Value;
+        var permitted = new[]
+        {
+            ThirdPartyFindingCodes.SourceRequiresOcr,
+            ThirdPartyFindingCodes.PageRequiresHumanVerification
+        };
+
+        foreach (var (name, result) in read)
+        {
+            if (Expected[name] is "Connexus" or "ExclusiveErehr" or "EvaBodyshop"
+                or "Laird" or "Montgomery" or "SPrint")
+            {
+                continue;
+            }
+
+            var codes = result.Candidates
+                .Where(row => ThirdPartyReportFields.IsFinding(row.Field))
+                .Select(row => row.NormalizedValue!)
+                .ToList();
+            var isScanOnly =
+                name.Equals("JohnRBell1.pdf", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("TonBridgeAccidentRepair1.pdf", StringComparison.OrdinalIgnoreCase);
+            if (isScanOnly)
+            {
+                Assert.NotEmpty(codes);
+                Assert.All(codes, code => Assert.Contains(code, permitted));
+                continue;
+            }
+
+            Assert.Empty(codes);
+        }
     }
 
     [ReferencePackFact]
