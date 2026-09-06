@@ -401,7 +401,9 @@ public sealed record ManagedDocumentContentAddress(
     int Version,
     DocumentSemanticRole SemanticRole,
     string FileName,
-    string MediaType);
+    string MediaType,
+    string? BoxFileId = null,
+    string? BoxVersionId = null);
 
 public enum DocumentContentWriteDisposition
 {
