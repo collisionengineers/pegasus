@@ -137,7 +137,27 @@ public sealed class MailWorkspaceWebTests
         var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=all&unread=true&sort=asc";
         await GetHtmlAsync(client, "/Inbox");
         await GetHtmlAsync(client, $"/Inbox?{query}");
-        await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={ids[0]:D}");
+
+        // Diagnostic for a non-OK preview: confirm whether the seeded row is
+        // still present (rules out a seeding/dedup gap) before asserting, so a
+        // failure names the actual cause instead of only the status code.
+        using (var previewResponse = await client.GetAsync($"/Inbox?handler=Preview&id={ids[0]:D}"))
+        {
+            if (previewResponse.StatusCode != HttpStatusCode.OK)
+            {
+                var previewBody = await previewResponse.Content.ReadAsStringAsync();
+                await using var scope = factory.Services.CreateAsyncScope();
+                var contextFactory = scope.ServiceProvider
+                    .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+                await using var context = await contextFactory.CreateDbContextAsync();
+                var rowExists = await context.RetainedMailboxMessages
+                    .AsNoTracking()
+                    .AnyAsync(item => item.Id == ids[0]);
+                Assert.Fail(
+                    $"Preview for {ids[0]:D} returned {(int)previewResponse.StatusCode} "
+                    + $"{previewResponse.StatusCode} (row exists in DB: {rowExists}). Body: {previewBody}");
+            }
+        }
 
         var messageHtml = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?{query}");
         // "Back to Inbox" carries the mailbox the operator navigated with —
