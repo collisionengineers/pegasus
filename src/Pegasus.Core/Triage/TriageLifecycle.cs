@@ -412,7 +412,7 @@ public static class TriageLifecycleRules
 
         ArgumentNullException.ThrowIfNull(request.Actor);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        ValidateActorAndOperation(request.Actor.SubjectId, request.OperationKey);
+        ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
         RequireText(
             request.CaseEditLeaseToken,
@@ -539,12 +539,30 @@ public static class TriageLifecycleRules
         }
     }
 
-    private static void ValidateActorAndOperation(string actor, string operationKey)
+    private static void ValidateActorAndOperation(ActionActor actor, string operationKey)
     {
-        RequireText(actor, "An actor is required.", 200, nameof(actor));
+        RequireActor(actor);
         RequireText(operationKey, "An operation key is required.", 100, nameof(operationKey));
     }
 
+    /// <summary>
+    /// Triage carries the acting identity, not a subject string, so the history
+    /// can record what kind of actor made each mutation. The kinds accepted here
+    /// are exactly the ones the subject convention already admitted: an operator,
+    /// the authorised Automation Actor, and the intake system worker that opens a
+    /// Triage from a receipt. Nothing infers a kind from a prefix and nothing
+    /// defaults to Staff.
+    /// </summary>
+    private static void RequireActor(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind is not (ActorKind.Staff or ActorKind.Automation or ActorKind.SystemWorker))
+        {
+            throw new UnauthorizedAccessException("This actor cannot mutate Triage material.");
+        }
+
+        RequireText(actor.SubjectId, "An actor is required.", 200, nameof(actor));
+    }
 
     private static void RequireText(string value, string message, int maximumLength, string parameterName)
     {
