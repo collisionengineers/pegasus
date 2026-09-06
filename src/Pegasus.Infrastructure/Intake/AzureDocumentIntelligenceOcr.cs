@@ -69,10 +69,12 @@ public sealed class AzureDocumentIntelligenceOcr(
     public async Task<IntakeOcrResult> AnalyzeAsync(
         IntakeOcrRequest request,
         Stream content,
+        Func<string, Task> onAccepted,
         CancellationToken cancellationToken)
     {
         IntakeOcrRequest.Validate(request);
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(onAccepted);
 
         using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
@@ -138,6 +140,7 @@ public sealed class AzureDocumentIntelligenceOcr(
                     Retryable: false));
         }
 
+        await onAccepted(providerOperationId);
         return await PollAsync(request, operationLocation, providerOperationId, cancellationToken);
     }
 
