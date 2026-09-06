@@ -1,8 +1,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
-using Pegasus.Web.Pages.Cases;
 
-namespace Pegasus.IntegrationTests;
+namespace Pegasus.Core.Tests.Assessment;
 
 /// <summary>
 /// CASE-047 B04: the Case estimate editor replaces the whole line collection
@@ -39,9 +38,9 @@ public sealed class EstimateLineAmendmentTests
     public void AnUnchangedLineKeepsTheAttributionItAlreadyCarried()
     {
         var (amendedBy, amendedAtUtc) =
-            EstimateLineAmendment.Stamp(Saved(), Loaded(), Actor, SavedAtUtc);
+            EstimatePolicy.StampAmendment(Saved(), Loaded(), Actor, SavedAtUtc);
 
-        Assert.True(EstimateLineAmendment.IsUnchanged(Saved(), Loaded()));
+        Assert.True(EstimatePolicy.IsAmendmentUnchanged(Saved(), Loaded()));
         Assert.Equal(PriorActor, amendedBy);
         Assert.Equal(PriorAmendedAtUtc, amendedAtUtc);
     }
@@ -59,7 +58,7 @@ public sealed class EstimateLineAmendmentTests
         var saved = Saved() with { Type = "paint_repair", PartNumber = null, Quantity = null };
 
         var (amendedBy, amendedAtUtc) =
-            EstimateLineAmendment.Stamp(saved, loaded, Actor, SavedAtUtc);
+            EstimatePolicy.StampAmendment(saved, loaded, Actor, SavedAtUtc);
 
         Assert.Equal(PriorActor, amendedBy);
         Assert.Equal(PriorAmendedAtUtc, amendedAtUtc);
@@ -71,10 +70,10 @@ public sealed class EstimateLineAmendmentTests
         string field, EstimateLineInput saved)
     {
         var (amendedBy, amendedAtUtc) =
-            EstimateLineAmendment.Stamp(saved, Loaded(), Actor, SavedAtUtc);
+            EstimatePolicy.StampAmendment(saved, Loaded(), Actor, SavedAtUtc);
 
         Assert.False(
-            EstimateLineAmendment.IsUnchanged(saved, Loaded()),
+            EstimatePolicy.IsAmendmentUnchanged(saved, Loaded()),
             $"A changed {field} is an amendment.");
         Assert.Equal(Actor, amendedBy);
         Assert.Equal(SavedAtUtc, amendedAtUtc);
@@ -89,7 +88,7 @@ public sealed class EstimateLineAmendmentTests
         var saved = Saved() with { Price = null };
 
         var (amendedBy, amendedAtUtc) =
-            EstimateLineAmendment.Stamp(saved, Loaded(), Actor, SavedAtUtc);
+            EstimatePolicy.StampAmendment(saved, Loaded(), Actor, SavedAtUtc);
 
         Assert.Equal(Actor, amendedBy);
         Assert.Equal(SavedAtUtc, amendedAtUtc);
@@ -106,7 +105,7 @@ public sealed class EstimateLineAmendmentTests
         var loaded = Loaded() with { AmendedBy = null, AmendedAtUtc = null };
 
         var (amendedBy, amendedAtUtc) =
-            EstimateLineAmendment.Stamp(Saved(), loaded, Actor, SavedAtUtc);
+            EstimatePolicy.StampAmendment(Saved(), loaded, Actor, SavedAtUtc);
 
         Assert.Null(amendedBy);
         Assert.Null(amendedAtUtc);
