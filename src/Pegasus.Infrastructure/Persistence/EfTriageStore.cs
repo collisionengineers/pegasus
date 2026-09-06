@@ -626,9 +626,15 @@ public sealed class EfTriageStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var stateCode = state is null ? null : ToCode(state.Value);
-        var query = TriageWithDraftQuery(
-            context,
-            stateCode is null ? null : item => item.State == stateCode);
+        // The filter, the keyset bound, the order and the limit are all
+        // expressed on the Triage entity itself, before the instruction-draft
+        // join and the projection: EF cannot order by a member of a
+        // constructed row type, and the database must do the paging anyway.
+        var triage = context.Triage.AsNoTracking();
+        if (stateCode is not null)
+        {
+            triage = triage.Where(item => item.State == stateCode);
+        }
         if (after is { } cursor)
         {
             var afterSequence = await context.Triage.AsNoTracking()
@@ -640,18 +646,26 @@ public sealed class EfTriageStore(
             var afterCreatedAtUtc = cursor.CreatedAtUtc;
             // Strictly after the position in the newest-first order: an older
             // row, or the same instant with an earlier allocation.
-            query = query.Where(row =>
-                row.Item.CreatedAtUtc < afterCreatedAtUtc
-                || (row.Item.CreatedAtUtc == afterCreatedAtUtc && row.Item.Sequence < afterSequence));
+            triage = triage.Where(item =>
+                item.CreatedAtUtc < afterCreatedAtUtc
+                || (item.CreatedAtUtc == afterCreatedAtUtc && item.Sequence < afterSequence));
         }
 
-        var rows = await query
+        var bounded = triage
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Sequence)
+            .Take(limit + 1);
+        var rows = await ProjectWithDraft(context, bounded).ToListAsync(cancellationToken);
+        var hasMore = rows.Count > limit;
+        // The join above may not preserve the bounded query's order, so the
+        // page is put back in order here. It is at most `limit` rows and the
+        // database has already chosen which ones they are.
+        var page = rows
             .OrderByDescending(row => row.Item.CreatedAtUtc)
             .ThenByDescending(row => row.Item.Sequence)
-            .Take(limit + 1)
-            .ToListAsync(cancellationToken);
-        var hasMore = rows.Count > limit;
-        var page = (hasMore ? rows.Take(limit) : rows).Select(ToSummary).ToArray();
+            .Take(limit)
+            .Select(ToSummary)
+            .ToArray();
         var next = hasMore && page.Length > 0
             ? new TriageListPosition(page[^1].CreatedAtUtc, page[^1].Id)
             : null;
@@ -678,12 +692,23 @@ public sealed class EfTriageStore(
             triage = triage.Where(triagePredicate);
         }
 
-        return from item in triage
-            join draft in context.InstructionDrafts.AsNoTracking()
-                on item.OriginReceiptId equals draft.IntakeReceiptId into drafts
-            from draft in drafts.DefaultIfEmpty()
-            select new TriageWithDraftRow(item, draft == null ? null : draft.ClaimNumber, draft == null ? null : draft.SuggestedPrincipalCode);
+        return ProjectWithDraft(context, triage);
     }
+
+    /// <summary>
+    /// The LEFT JOIN and projection alone, over whatever Triage query the
+    /// caller has already filtered, ordered and bounded. Split out so the
+    /// keyset page can do all of that on entity columns — EF cannot translate
+    /// an order by a member of the constructed row.
+    /// </summary>
+    private static IQueryable<TriageWithDraftRow> ProjectWithDraft(
+        PegasusDbContext context,
+        IQueryable<TriageEntity> triage) =>
+        from item in triage
+        join draft in context.InstructionDrafts.AsNoTracking()
+            on item.OriginReceiptId equals draft.IntakeReceiptId into drafts
+        from draft in drafts.DefaultIfEmpty()
+        select new TriageWithDraftRow(item, draft == null ? null : draft.ClaimNumber, draft == null ? null : draft.SuggestedPrincipalCode);
 
     private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
         row.Item.Id,

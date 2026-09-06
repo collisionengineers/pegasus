@@ -55,7 +55,11 @@ public sealed class AddTriageNoteTests
     public async Task ANoteOverTheBoundIsRefusedAndASettledTriageTakesNoMoreNotes()
     {
         var store = new NoteStore(Record(3));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        // Triage's own convention (TriageLifecycleRules.RequireText): missing
+        // text is an ArgumentException, text past its bound is an
+        // ArgumentOutOfRangeException. A note is bounded like every other
+        // Triage text.
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             new AddTriageNote(store).ExecuteAsync(
                 Request(new string('n', TriageNotes.MaximumLength + 1))));
 

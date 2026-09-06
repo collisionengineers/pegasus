@@ -785,7 +785,7 @@ public sealed class TriageQueuesWebTests
     /// (<c>IIntakeWorkStore.ReceiveAsync</c>/<c>CompleteProcessingAsync</c>)
     /// without going through the full mail-decision pipeline.
     /// </summary>
-    private static async Task<Guid> StageAndCompleteEvaluationAsync(IServiceProvider services, Guid processedReceiptId)
+    internal static async Task<Guid> StageAndCompleteEvaluationAsync(IServiceProvider services, Guid processedReceiptId)
     {
         var workStore = services.GetRequiredService<IIntakeWorkStore>();
         var now = DateTimeOffset.UtcNow;
@@ -921,7 +921,7 @@ public sealed class TriageQueuesWebTests
             CancellationToken.None);
     }
 
-    private static async Task<Guid> StoreMinimalReceiptAsync(
+    internal static async Task<Guid> StoreMinimalReceiptAsync(
         IServiceProvider services,
         string sourceFileName,
         InstructionDraft? instructionDraft = null,
