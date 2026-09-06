@@ -28,12 +28,13 @@ namespace Pegasus.IntegrationTests;
 public sealed class ProductionCompositionTests
 {
     [Fact]
-    public async Task DevelopmentOfflineComposesAFailClosedReportSendWithoutMailTransport()
+    public async Task DevelopmentOfflineComposesFailClosedStaffMailWithoutMailTransport()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var sender = services.GetRequiredService<IStaffReportSend>();
+        var reportSender = services.GetRequiredService<IStaffReportSend>();
+        var mailSender = services.GetRequiredService<IStaffMailSend>();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var generationId = Guid.NewGuid();
         var attachments = Array.Empty<StaffMailAttachment>();
@@ -46,12 +47,16 @@ public sealed class ProductionCompositionTests
                 actor, Guid.NewGuid(), 1, generationId, 1, Guid.NewGuid(), 1, attachments));
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sender.SendAsync(command, CancellationToken.None));
+            () => reportSender.SendAsync(command, CancellationToken.None));
 
         Assert.Equal(
             "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
             error.Message);
-        Assert.Null(services.GetService<IStaffMailSend>());
+        var mailError = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => mailSender.SendAsync(command.Mail, CancellationToken.None));
+        Assert.Equal(error.Message, mailError.Message);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => mailSender.GetAsync(actor, Guid.NewGuid(), new CancellationToken(canceled: true)));
         Assert.Null(services.GetService<IStaffMailTransport>());
         Assert.Null(services.GetService<GraphMailClient>());
     }
