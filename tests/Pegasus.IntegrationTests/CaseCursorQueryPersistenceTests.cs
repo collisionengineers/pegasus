@@ -1,26 +1,46 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Tasks;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// CASE-047: the four B-owned cursor queries against a real SQL Server
-/// engine — keyset pagination that stays disjoint and complete across a
-/// page boundary (including when several rows tie on the sort column),
+/// engine and A's real <see cref="DataProtectionCursorProtector"/> (G9) —
+/// keyset pagination that stays disjoint and complete across a page
+/// boundary (including when several rows tie on the sort column),
 /// terminates with a null <c>NextCursor</c>, enforces the limit bound, and
 /// refuses a cursor minted for a different actor, filter set, order, or
-/// case. <see cref="SearchCasesByCursor"/>'s own ordering is also proved
-/// identical to the numbered <see cref="SearchCases"/> for the same filters.
+/// case, or tampered with in transit. <see cref="SearchCasesByCursor"/>'s
+/// own ordering is also proved identical to the numbered
+/// <see cref="SearchCases"/> for the same filters.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseCursorQueryPersistenceTests
 {
     private static readonly DateTimeOffset BaseUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// Composes A's real protector the way <c>DataProtectionCursorTests</c>
+    /// does — an ephemeral Data Protection provider, not a codec these tests
+    /// own — so a store test proves the same cryptographic scope binding
+    /// production wiring gets from <c>Program.cs</c>'s singleton
+    /// registration.
+    /// </summary>
+    private static DataProtectionCursorProtector CreateProtector()
+    {
+        var services = new ServiceCollection();
+        services.AddDataProtection().UseEphemeralDataProtectionProvider();
+        return new DataProtectionCursorProtector(services.BuildServiceProvider()
+            .GetRequiredService<IDataProtectionProvider>());
+    }
 
     [Fact]
     public async Task SearchPagesAreDisjointAndCompleteAcrossABoundaryWithEqualSortValuesTiesBrokenById()
@@ -35,7 +55,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
-        var search = new SearchCasesByCursor(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+        var search = new SearchCasesByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
         var filters = new CaseSearchFilters(Principal: "CURS");
 
         var (seen, pages) = await DrainAsync(
@@ -61,7 +82,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
-        var search = new SearchCasesByCursor(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+        var search = new SearchCasesByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
         var filters = new CaseSearchFilters(Principal: "LIMT");
 
         var accepted = await search.ExecuteAsync(new(actor, filters, Limit: 100), CancellationToken.None);
@@ -84,7 +106,8 @@ public sealed class CaseCursorQueryPersistenceTests
         var actorA = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var actorB = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
-        var search = new SearchCasesByCursor(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+        var search = new SearchCasesByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
         var filters = new CaseSearchFilters(Principal: "FRGN");
 
         var firstPage = await search.ExecuteAsync(new(actorA, filters, Limit: 1), CancellationToken.None);
@@ -99,6 +122,29 @@ public sealed class CaseCursorQueryPersistenceTests
 
         await Assert.ThrowsAsync<CursorRejectedException>(() => search.ExecuteAsync(
             new(actorA, filters, CaseSearchOrder.ReferenceAsc, firstPage.NextCursor, 1), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ATamperedRealTokenIsRefused()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "TMPR");
+        await SeedCaseAsync(database, principalId, lineageId, "TMPR31001", 1, BaseUtcNow);
+        await SeedCaseAsync(database, principalId, lineageId, "TMPR31002", 2, BaseUtcNow);
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var search = new SearchCasesByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
+        var filters = new CaseSearchFilters(Principal: "TMPR");
+
+        var firstPage = await search.ExecuteAsync(new(actor, filters, Limit: 1), CancellationToken.None);
+        var cursor = firstPage.NextCursor;
+        Assert.NotNull(cursor);
+        var tampered = cursor[..^1] + (cursor[^1] == 'A' ? 'B' : 'A');
+
+        await Assert.ThrowsAsync<CursorRejectedException>(() => search.ExecuteAsync(
+            new(actor, filters, Cursor: tampered, Limit: 1), CancellationToken.None));
     }
 
     [Fact]
@@ -120,7 +166,7 @@ public sealed class CaseCursorQueryPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<ICaseQueryStore>();
         var numbered = new SearchCases(store);
-        var cursorSearch = new SearchCasesByCursor(store);
+        var cursorSearch = new SearchCasesByCursor(store, CreateProtector());
         var filters = new CaseSearchFilters(Principal: "MTCH");
 
         var numberedResult = await numbered.ExecuteAsync(new(actor, filters, 1, 50), CancellationToken.None);
@@ -189,7 +235,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
-        var list = new ListCaseDocumentsByCursor(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+        var list = new ListCaseDocumentsByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
 
         var (seen, pages) = await DrainAsync(
             cursor => list.ExecuteAsync(new(actor, caseId, cursor, 2), CancellationToken.None),
@@ -234,7 +281,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
-        var list = new ListCaseHistoryByCursor(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+        var list = new ListCaseHistoryByCursor(
+            scope.ServiceProvider.GetRequiredService<ICaseQueryStore>(), CreateProtector());
 
         var (seen, pages) = await DrainAsync(
             cursor => list.ExecuteAsync(new(actor, caseId, cursor, 2), CancellationToken.None),
@@ -275,7 +323,8 @@ public sealed class CaseCursorQueryPersistenceTests
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await using var scope = database.CreateAsyncScope();
-        var list = new ListCaseEstimatesByCursor(scope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>());
+        var list = new ListCaseEstimatesByCursor(
+            scope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>(), CreateProtector());
 
         var firstPage = await list.ExecuteAsync(new(actor, caseId, Limit: 2), CancellationToken.None);
         Assert.Equal([3, 2], firstPage.Items.Select(item => item.Version).ToArray());
@@ -287,6 +336,99 @@ public sealed class CaseCursorQueryPersistenceTests
 
         await Assert.ThrowsAsync<CursorRejectedException>(() => list.ExecuteAsync(
             new(actor, otherCaseId, firstPage.NextCursor, 2), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// CASE-047, Stream A review: <see cref="ICaseQueryStore.GetHeaderAsync"/>
+    /// returns the same summary/workflow facts <see cref="GetCase"/> would,
+    /// with the document, history and open-task lists reduced to counts.
+    /// </summary>
+    [Fact]
+    public async Task GetHeaderReturnsCountsWithoutMaterializingTheFullDetails()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "HEAD");
+        var caseId = await SeedCaseAsync(database, principalId, lineageId, "HEAD31001", 1, BaseUtcNow);
+        await using (var context = await database.CreateContextAsync())
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                var documentId = Guid.NewGuid();
+                context.Add(new CaseDocumentEntity
+                {
+                    Id = documentId,
+                    CaseId = caseId,
+                    Ordinal = i,
+                    SourceOccurrenceIdentity = $"header-doc:{documentId:N}"
+                });
+            }
+            for (var i = 0; i < 3; i++)
+            {
+                var entryId = Guid.NewGuid();
+                context.Add(new CaseWorkflowEventEntity
+                {
+                    Id = entryId,
+                    CaseId = caseId,
+                    EventType = "header_test_event",
+                    OperationKey = $"header-history:{entryId:N}",
+                    RequestHash = new string('0', 64),
+                    ActorKind = nameof(ActorKind.Staff),
+                    ActorSubjectId = Guid.NewGuid().ToString(),
+                    ActorRolesJson = "[]",
+                    Reason = "Header fixture.",
+                    OccurredAtUtc = BaseUtcNow,
+                    BeforeVersion = i,
+                    AfterVersion = i + 1
+                });
+            }
+            context.AddRange(
+                new CaseTaskEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = caseId,
+                    Description = "Open header task",
+                    State = nameof(CaseTaskState.Open),
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                new CaseTaskEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = caseId,
+                    Description = "Completed header task",
+                    State = nameof(CaseTaskState.Completed),
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+            await context.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var getHeader = new GetCaseHeader(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+
+        var header = await getHeader.ExecuteAsync(new(caseId, actor), CancellationToken.None);
+
+        Assert.NotNull(header);
+        Assert.Equal(caseId, header!.Summary.CaseId);
+        Assert.Equal(caseId, header.Workflow.CaseId);
+        Assert.Null(header.ActiveEditLease);
+        Assert.Equal(2, header.DocumentCount);
+        Assert.Equal(3, header.HistoryCount);
+        Assert.Equal(1, header.OpenTaskCount);
+    }
+
+    [Fact]
+    public async Task GetHeaderReturnsNullForACaseThatDoesNotExist()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var getHeader = new GetCaseHeader(scope.ServiceProvider.GetRequiredService<ICaseQueryStore>());
+
+        var header = await getHeader.ExecuteAsync(new(Guid.NewGuid(), actor), CancellationToken.None);
+
+        Assert.Null(header);
     }
 
     /// <summary>

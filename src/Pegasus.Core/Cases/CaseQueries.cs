@@ -1,9 +1,4 @@
-using System.Buffers.Text;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
@@ -183,6 +178,22 @@ public sealed record CaseDetails(
 
 public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
 
+/// <summary>
+/// A bounded read of a case (CASE-047, Stream A review): everything
+/// <see cref="GetCaseQuery"/> reads except the document, history and task
+/// lists, which collapse to their counts so a host that only needs to know
+/// how much a case carries never pays to read it all.
+/// </summary>
+public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
+
+public sealed record CaseHeader(
+    CaseSearchItem Summary,
+    CaseWorkflowRecord Workflow,
+    CaseEditLeaseSnapshot? ActiveEditLease,
+    int DocumentCount,
+    int HistoryCount,
+    int OpenTaskCount);
+
 public interface ICaseQueryStore
 {
     Task<SearchCasesResult> SearchAsync(
@@ -191,6 +202,16 @@ public interface ICaseQueryStore
 
     Task<CaseDetails?> GetAsync(
         GetCaseQuery query,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The bounded sibling of <see cref="GetAsync"/> (CASE-047, Stream A
+    /// review): the same summary/workflow/edit-lease facts, with the case's
+    /// document, history and open-task lists reduced to their counts instead
+    /// of materializing every row.
+    /// </summary>
+    Task<CaseHeader?> GetHeaderAsync(
+        GetCaseHeaderQuery query,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -248,6 +269,36 @@ public interface IGetCase
     Task<CaseDetails?> ExecuteAsync(
         GetCaseQuery query,
         CancellationToken cancellationToken);
+}
+
+public interface IGetCaseHeader
+{
+    Task<CaseHeader?> ExecuteAsync(
+        GetCaseHeaderQuery query,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The bounded sibling of <see cref="GetCase"/> (CASE-047, Stream A review):
+/// the same actor boundary and case-identifier validation, delegated
+/// straight to the store's counted read.
+/// </summary>
+public sealed class GetCaseHeader(ICaseQueryStore store) : IGetCaseHeader
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<CaseHeader?> ExecuteAsync(
+        GetCaseHeaderQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        return _store.GetHeaderAsync(query, cancellationToken);
+    }
 }
 
 public static class CaseRegistration
@@ -463,128 +514,11 @@ public sealed class GetCase(
 
 
 /// <summary>
-/// The one opaque-cursor codec every CASE-047 cursor query shares: a
-/// versioned <c>{ v, k, id, f }</c> payload, base64url encoded so it travels
-/// safely as a URL query value or an MCP tool argument. <c>k</c> is the sort
-/// value and <c>id</c> the immutable row identifier the next page's keyset
-/// predicate resumes from; an offset is never encoded. <c>f</c> is a
-/// fingerprint over the actor and query shape the cursor was minted for, so
-/// it can never be replayed against a different actor, filter set, or order.
-/// </summary>
-internal static class CursorToken
-{
-    private const int SupportedVersion = 1;
-
-    public static string Encode(string sortKey, Guid id, string fingerprint)
-    {
-        ArgumentNullException.ThrowIfNull(sortKey);
-        ArgumentNullException.ThrowIfNull(fingerprint);
-        var json = JsonSerializer.SerializeToUtf8Bytes(
-            new Payload(SupportedVersion, sortKey, id, fingerprint));
-        return Base64Url.EncodeToString(json);
-    }
-
-    /// <summary>
-    /// Decodes and validates a cursor against the caller's expected
-    /// fingerprint. Any structural problem, an unsupported token version, or
-    /// a fingerprint mismatch is <see cref="CursorRejectedException"/> —
-    /// never a generic parse exception reaching the caller.
-    /// </summary>
-    public static (string SortKey, Guid Id) Decode(string cursor, string expectedFingerprint)
-    {
-        if (string.IsNullOrWhiteSpace(cursor))
-        {
-            throw new CursorRejectedException("The cursor is malformed.");
-        }
-
-        Payload? payload;
-        try
-        {
-            payload = JsonSerializer.Deserialize<Payload>(Base64Url.DecodeFromChars(cursor));
-        }
-        catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
-        {
-            throw new CursorRejectedException("The cursor is malformed.");
-        }
-
-        if (payload is null || string.IsNullOrEmpty(payload.SortKey) || string.IsNullOrEmpty(payload.Fingerprint))
-        {
-            throw new CursorRejectedException("The cursor is malformed.");
-        }
-        if (payload.Version != SupportedVersion)
-        {
-            throw new CursorRejectedException("The cursor was issued by an unsupported token version.");
-        }
-        if (!string.Equals(payload.Fingerprint, expectedFingerprint, StringComparison.Ordinal))
-        {
-            throw new CursorRejectedException(
-                "The cursor was issued for a different actor, filter set, or order.");
-        }
-
-        return (payload.SortKey, payload.Id);
-    }
-
-    /// <summary>
-    /// The after-position a cursor query resumes from, or null when the
-    /// caller asked for the first page.
-    /// </summary>
-    public static (string SortKey, Guid Id)? DecodePosition(string? cursor, string expectedFingerprint) =>
-        cursor is { Length: > 0 } value ? Decode(value, expectedFingerprint) : null;
-
-    /// <summary>
-    /// <see cref="DecodePosition"/> for the ticks-keyed cursors, split into
-    /// the after-values a store's keyset predicate takes; both null on the
-    /// first page.
-    /// </summary>
-    public static (DateTimeOffset? AfterValue, Guid? AfterId) DecodeTicksPosition(
-        string? cursor,
-        string expectedFingerprint)
-    {
-        if (DecodePosition(cursor, expectedFingerprint) is not { } position)
-        {
-            return (null, null);
-        }
-
-        return (DecodeTicks(position.SortKey), position.Id);
-    }
-
-    /// <summary>
-    /// A 16-hex fingerprint over the actor and query shape a cursor was
-    /// minted for.
-    /// </summary>
-    public static string Fingerprint(params string?[] parts)
-    {
-        var joined = string.Join('\u001f', parts.Select(part => part ?? string.Empty));
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(joined));
-        return Convert.ToHexString(hash)[..16].ToLowerInvariant();
-    }
-
-    /// <summary>The sort-key encoding shared by every <see cref="DateTimeOffset"/>-ordered cursor.</summary>
-    public static string EncodeTicks(DateTimeOffset value) =>
-        value.UtcTicks.ToString(CultureInfo.InvariantCulture);
-
-    public static DateTimeOffset DecodeTicks(string sortKey)
-    {
-        if (!long.TryParse(sortKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
-        {
-            throw new CursorRejectedException("The cursor is malformed.");
-        }
-
-        return new DateTimeOffset(ticks, TimeSpan.Zero);
-    }
-
-    private sealed record Payload(
-        [property: JsonPropertyName("v")] int Version,
-        [property: JsonPropertyName("k")] string SortKey,
-        [property: JsonPropertyName("id")] Guid Id,
-        [property: JsonPropertyName("f")] string Fingerprint);
-}
-
-/// <summary>
 /// The one page-assembly rule every CASE-047 cursor query shares: a store is
 /// asked for one row more than the limit, and that extra row is what says
 /// another page follows. It is dropped from the returned items, and the last
-/// kept row mints the next cursor; when it is absent the page is the last one
+/// kept row mints the next cursor through the shared <see
+/// cref="ICursorProtector"/> (G9); when it is absent the page is the last one
 /// and carries no cursor.
 /// </summary>
 internal static class CursorPageBuilder
@@ -592,7 +526,8 @@ internal static class CursorPageBuilder
     public static CursorPage<T> Build<T>(
         IReadOnlyList<T> rows,
         int limit,
-        string fingerprint,
+        ICursorProtector protector,
+        string scope,
         Func<T, string> sortKeyOf,
         Func<T, Guid> idOf)
     {
@@ -603,7 +538,7 @@ internal static class CursorPageBuilder
 
         var items = rows.Take(limit).ToArray();
         var last = items[^1];
-        return new(items, CursorToken.Encode(sortKeyOf(last), idOf(last), fingerprint));
+        return new(items, protector.Protect(scope, sortKeyOf(last), idOf(last)));
     }
 }
 
@@ -633,9 +568,10 @@ public interface ISearchCasesByCursor
 /// (<see cref="CaseSearchQueryValidation"/>) so the two search entry points
 /// can never disagree about what a valid query is.
 /// </summary>
-public sealed class SearchCasesByCursor(ICaseQueryStore store) : ISearchCasesByCursor
+public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector protector) : ISearchCasesByCursor
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
 
     public async Task<CursorPage<CaseSearchItem>> ExecuteAsync(
         SearchCasesCursorQuery query,
@@ -646,20 +582,33 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store) : ISearchCasesByC
         var limit = CursorPaging.NormalizeLimit(query.Limit);
         var filters = CaseSearchQueryValidation.ValidateAndNormalize(query.Filters, query.Order);
 
-        var fingerprint = CursorToken.Fingerprint(
-            query.Actor.SubjectId,
-            query.Actor.Kind.ToString(),
-            JsonSerializer.Serialize(filters),
+        var scope = CursorPaging.CreateScope(
+            "SearchCases",
+            query.Actor,
+            filters.CaseReference,
+            filters.Registration,
+            filters.Claimant,
+            filters.ClaimNumber,
+            filters.Principal,
+            filters.State?.ToString(),
+            filters.EngineerId?.ToString(),
+            InvariantDate(filters.ReceivedDate),
+            InvariantDate(filters.InstructionDate),
+            InvariantDate(filters.FromDate),
+            InvariantDate(filters.ToDate),
+            filters.Origin,
+            filters.Query,
             query.Order.ToString());
 
         DateTimeOffset? afterReceivedAtUtc = null;
         string? afterSortText = null;
         Guid? afterId = null;
-        if (CursorToken.DecodePosition(query.Cursor, fingerprint) is { } position)
+        if (query.Cursor is { Length: > 0 } cursor)
         {
+            var position = _protector.Unprotect(cursor, scope);
             if (IsReceivedDateOrder(query.Order))
             {
-                afterReceivedAtUtc = CursorToken.DecodeTicks(position.SortKey);
+                afterReceivedAtUtc = CursorPaging.DecodeUtcTimestamp(position.SortKey);
             }
             else
             {
@@ -674,9 +623,10 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store) : ISearchCasesByC
         return CursorPageBuilder.Build(
             rows,
             limit,
-            fingerprint,
+            _protector,
+            scope,
             item => IsReceivedDateOrder(query.Order)
-                ? CursorToken.EncodeTicks(item.ReceivedAtUtc)
+                ? CursorPaging.EncodeUtcTimestamp(item.ReceivedAtUtc)
                 : SortTextOf(item, query.Order),
             item => item.CaseId);
     }
@@ -692,6 +642,9 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store) : ISearchCasesByC
         CaseSearchOrder.PrincipalAsc or CaseSearchOrder.PrincipalDesc => item.Principal,
         _ => throw new ArgumentOutOfRangeException(nameof(order), order, "Unsupported cursor sort order.")
     };
+
+    private static string? InvariantDate(DateOnly? value) =>
+        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
 /// <summary>
@@ -720,9 +673,11 @@ public interface IListCaseHistoryByCursor
 /// (<see cref="StaffAccessRight.PerformCasework"/>) before reading a case's
 /// documents, newest occurrence first then document id.
 /// </summary>
-public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store) : IListCaseDocumentsByCursor
+public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store, ICursorProtector protector)
+    : IListCaseDocumentsByCursor
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
 
     public async Task<CursorPage<CaseDocument>> ExecuteAsync(
         CaseListCursorQuery query,
@@ -735,9 +690,16 @@ public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store) : IListCase
             throw new ArgumentException("A case identifier is required.", nameof(query));
         }
         var limit = CursorPaging.NormalizeLimit(query.Limit);
-        var fingerprint = CaseListCursorFingerprint.For(query.Actor, query.CaseId);
+        var scope = CaseListCursorScope.For("ListCaseDocuments", query.Actor, query.CaseId);
 
-        var (afterRecordedAtUtc, afterId) = CursorToken.DecodeTicksPosition(query.Cursor, fingerprint);
+        DateTimeOffset? afterRecordedAtUtc = null;
+        Guid? afterId = null;
+        if (query.Cursor is { Length: > 0 } cursor)
+        {
+            var position = _protector.Unprotect(cursor, scope);
+            afterRecordedAtUtc = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            afterId = position.Id;
+        }
 
         var rows = await _store.ListDocumentsByCursorAsync(
             query.CaseId, afterRecordedAtUtc, afterId, limit + 1, cancellationToken);
@@ -745,8 +707,9 @@ public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store) : IListCase
         return CursorPageBuilder.Build(
             rows,
             limit,
-            fingerprint,
-            document => CursorToken.EncodeTicks(NewestOccurrence(document)),
+            _protector,
+            scope,
+            document => CursorPaging.EncodeUtcTimestamp(NewestOccurrence(document)),
             document => document.Id);
     }
 
@@ -760,9 +723,11 @@ public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store) : IListCase
 /// Applies the same actor boundary <see cref="GetCase"/> applies before
 /// reading a case's history, newest event first then entry id.
 /// </summary>
-public sealed class ListCaseHistoryByCursor(ICaseQueryStore store) : IListCaseHistoryByCursor
+public sealed class ListCaseHistoryByCursor(ICaseQueryStore store, ICursorProtector protector)
+    : IListCaseHistoryByCursor
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
 
     public async Task<CursorPage<CaseHistoryEntry>> ExecuteAsync(
         CaseListCursorQuery query,
@@ -775,9 +740,16 @@ public sealed class ListCaseHistoryByCursor(ICaseQueryStore store) : IListCaseHi
             throw new ArgumentException("A case identifier is required.", nameof(query));
         }
         var limit = CursorPaging.NormalizeLimit(query.Limit);
-        var fingerprint = CaseListCursorFingerprint.For(query.Actor, query.CaseId);
+        var scope = CaseListCursorScope.For("ListCaseHistory", query.Actor, query.CaseId);
 
-        var (afterOccurredAtUtc, afterId) = CursorToken.DecodeTicksPosition(query.Cursor, fingerprint);
+        DateTimeOffset? afterOccurredAtUtc = null;
+        Guid? afterId = null;
+        if (query.Cursor is { Length: > 0 } cursor)
+        {
+            var position = _protector.Unprotect(cursor, scope);
+            afterOccurredAtUtc = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            afterId = position.Id;
+        }
 
         var rows = await _store.ListHistoryByCursorAsync(
             query.CaseId, afterOccurredAtUtc, afterId, limit + 1, cancellationToken);
@@ -785,23 +757,24 @@ public sealed class ListCaseHistoryByCursor(ICaseQueryStore store) : IListCaseHi
         return CursorPageBuilder.Build(
             rows,
             limit,
-            fingerprint,
-            entry => CursorToken.EncodeTicks(entry.OccurredAtUtc),
+            _protector,
+            scope,
+            entry => CursorPaging.EncodeUtcTimestamp(entry.OccurredAtUtc),
             entry => entry.EntryId);
     }
 }
 
 /// <summary>
-/// The one fingerprint rule every <see cref="CaseListCursorQuery"/>-shaped
-/// cursor (documents, history, and Estimates.cs' estimates) shares: an
-/// actor plus the case identifier, since these lists carry no separate
-/// filter or order for a cursor to be minted against.
+/// The one scope rule every <see cref="CaseListCursorQuery"/>-shaped cursor
+/// (documents, history, and Estimates.cs' estimates) shares: the query name
+/// plus an actor and the case identifier, since these lists carry no
+/// separate filter or order for a cursor to be minted against. Binding the
+/// query name into the scope (<see cref="CursorPaging.CreateScope"/>) also
+/// keeps a documents cursor from being replayed against the history or
+/// estimates list for the same case.
 /// </summary>
-internal static class CaseListCursorFingerprint
+internal static class CaseListCursorScope
 {
-    public static string For(ActionActor actor, Guid caseId)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        return CursorToken.Fingerprint(actor.SubjectId, actor.Kind.ToString(), caseId.ToString());
-    }
+    public static string For(string query, ActionActor actor, Guid caseId) =>
+        CursorPaging.CreateScope(query, actor, caseId.ToString());
 }

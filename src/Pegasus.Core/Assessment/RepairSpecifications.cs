@@ -321,9 +321,13 @@ public interface IRepairSpecificationStore
     /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
     /// (CASE-047): newest version first, then estimate id. The after-values
     /// are the decoded cursor's sort position, both null on the first page;
-    /// <paramref name="fetchCount"/> is the caller's limit plus one.
+    /// <paramref name="fetchCount"/> is the caller's limit plus one. Returns
+    /// the bounded <see cref="CaseEstimatePageItem"/> header projection
+    /// (Stream A review) rather than the full <see
+    /// cref="RepairSpecificationVersion"/> — the page never needs, and never
+    /// pays to read, a specification's lines.
     /// </summary>
-    Task<IReadOnlyList<RepairSpecificationVersion>> ListByCursorAsync(
+    Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
         Guid caseId,
         int? afterVersion,
         Guid? afterId,
