@@ -97,3 +97,10 @@ Items 1,2,3,5,7,8 delivered; item 4 dropped (A07 hunk branch instead); item 6 pa
 ## 13:10Z — G11 merged (`b06a71b96`)
 
 G11 retires the dashboard activity projections (carrying C's A07 hunks and the corpus-locator correction) and adds `UnidentifiedCount` from the open-Unidentified query. C08 (`c64d9cf83`) must merge the C branch and reconcile `OperationsSnapshot.cs`/`Index.cshtml(.cs)` before its wave; the A07 helper branch is superseded by G11 and stays as evidence. Editors: C07 round 2 + C05.
+
+## 13:40Z checkpoint
+
+- C07 round 2 `7000842ed` (replay probe → counter first under UPDLOCK/HOLDLOCK → writes): wave 3 (build/core/integration ×2/architecture) queued behind the baseline lane; independent review (pegasus-reviewer) running in parallel.
+- C01 round 1 `ea4848acd` (G10/G11 merged; ambiguous Provider API fixture seeds a genuine duplicate index row; whole-receipt assertion narrowed; `not_ready` was C's fixture spelling into `CaseWorkflows.State`): wave appended after C07's; independent review running.
+- C06 relaunched (merges the C branch first); C05 running. Editors: C05 + C06.
+- G12 (typed actor, atomic) pending from A; C07 resolves the Triage conflicts in-stream after the merge.
