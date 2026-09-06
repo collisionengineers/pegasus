@@ -1,4 +1,4 @@
-﻿<!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
+<!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
 # Kanmer operating instructions
 
 This repo's work is tracked on a Kanmer board in `.kanmer/`. In a Git repo set up
@@ -15,17 +15,19 @@ old refs. Agents must not mutate protected refs, branch protection, or repositor
 variables; stop and report when the observed branch and configured convention
 disagree.
 
+- **Resolve the request before starting a workflow.** Explaining code, reviewing a reference the owner supplied, or producing an isolated artifact is direct work: no ticket, no branch, no worktree. Track work when it changes this repo's shipped behaviour or when the owner asks. Then pick the profile by consequence, not size — a two-line change to authorization, schema, release behaviour or irreversible data still owes its profile's evidence. Never bypass a gate through late-stage creation or an empty `custom` profile.
 - Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
 - **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
 - Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
 - **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
 - An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
-- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
+- Read what the current step needs: the ticket body, `get_doc_gates`, the governing decision, the relevant plan/checklist section and the latest proof/review pointer. Documents are folders (`research/`, `plan/`, …) so a type can hold several files — pull older attempts only when a claim or a failure investigation needs them. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
 - Work each fresh ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage. A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
 - Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
-- Proof is written on merged `main`, after review and the merge, not before.
+- Proof is written on the configured integration branch after review and the merge, not before. Read it from `get_status` → `delivery.integrationBranch` (default `main`); never hardcode a branch name. Ordinary Done means integrated and accepted there. Deployment belongs to a release or an explicitly deployment-scoped ticket and is never a condition of ordinary Done.
+- **One heavy verification owner per host.** Full rails, packaging and installer builds serialize behind the named verifier recorded in the repo's operating index. A second agent waits for that run — or reuses a matching completed CI result — instead of starting a competing whole-repository build. Lightweight file checks do not queue behind it.
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
-- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
+- Skills run in this order **when a tracked ticket walks the full pipeline**: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. Direct work runs none of them. How far a tracked ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
 - Each skill ends by naming what comes next — read that line before improvising a hand-off.
 
 The local MCP convention is `KANMER_BOARD_BRANCH` in each project-scoped
@@ -475,6 +477,31 @@ every task carries:
   use immutable local copies or an explicitly approved test mailbox.
 
 ## Repository task workflow
+
+### Approved v1 three-stream exception
+
+The 6 September 2026 implementation uses three owner tickets: PLAT-075
+(A/platform and Foundation), CASE-047 (B/casework), and INTK-060 (C/intake).
+Their branches are `task/pegasus-v1-platform`, `task/pegasus-v1-casework`, and
+`task/pegasus-v1-intake`, based on common dev commit
+`3284f93fc3ea9fd3bbbea9405ec92dc7818378f2`. Each machine records its actual
+worktree on its own owner ticket. The approved sibling worktree convention is
+`../pegasus-worktrees/v1-<stream>`.
+
+A alone authors the common Foundation contracts, schema, migration, grants and
+composition. B/C fast-forward to the exact reviewed Foundation commit before
+domain work; later shared corrections use the same common commit identity.
+The owner-ticket plans carry exact file ownership and contract exceptions.
+Existing claims, branches, commits and dirty files remain preserved. One
+verification process per host owns builds and full tests; PLAT-075 records the
+Codex host's verifier. Other agents perform disjoint work without competing
+builds.
+
+The stop is three reviewed PRs to dev, open and unmerged. Local combined
+verification creates no fourth PR or published integration branch. No merge,
+deployment, reset, real email, Outlook mutation, Box write or live Glass's/EVA
+operation is authorized by this implementation. This exception governs the
+three owners only; ordinary task rules below continue to apply elsewhere.
 
 Multiple agents may work in parallel. One task uses one `task/<slug>` branch,
 one worktree, and one PR. **The claimable unit is a Kanmer ticket** on the board

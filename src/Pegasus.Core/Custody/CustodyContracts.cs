@@ -707,3 +707,18 @@ public interface IProcessQueuedCustody
 {
     Task ExecuteAsync(Guid workId, CancellationToken cancellationToken);
 }
+
+public enum CaseArtifactCustodyDisposition { Confirmed, Pending, Failed, Unknown }
+public sealed record CaseArtifactCustodyRequest(
+    ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
+    string OperationKey, string FileName, string MediaType, long ContentLength,
+    string Sha256, Stream Content);
+public sealed record CaseArtifactCustodyResult(
+    CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId,
+    string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,
+    string? MediaType, string? FailureCode);
+public interface ICaseArtifactCustody
+{
+    Task<CaseArtifactCustodyResult> RetainAsync(
+        CaseArtifactCustodyRequest request, CancellationToken cancellationToken);
+}

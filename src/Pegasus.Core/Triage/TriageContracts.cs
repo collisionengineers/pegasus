@@ -38,7 +38,9 @@ public sealed record TriageRecord(
     TriageState State,
     Guid? AssigneeId,
     Guid? LinkedCaseId,
-    long Version);
+    long Version,
+    string? Reference = null,
+    Guid? PrincipalId = null);
 
 
 public sealed class TriageVersionConflictException(

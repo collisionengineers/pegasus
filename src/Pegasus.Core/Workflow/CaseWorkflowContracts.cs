@@ -116,7 +116,10 @@ public sealed record CaseEditLease(
     string Token,
     string Holder,
     long Version,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc)
+{
+    public long Generation { get; init; }
+}
 
 public sealed class CaseVersionConflictException(Guid caseId, long expectedVersion, long actualVersion)
     : InvalidOperationException($"Case '{caseId}' is at version {actualVersion}, not expected version {expectedVersion}.")
@@ -185,6 +188,21 @@ public sealed record ReleaseCaseEditLeaseRequest(
     ActionActor Actor,
     string OperationKey,
     string LeaseToken);
+
+public sealed record ClearCaseEditLeaseRequest(
+    Guid CaseId,
+    Guid ExpectedHolderUserId,
+    long ExpectedLeaseGeneration,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason);
+
+public sealed record ClearCaseEditLeaseResult(
+    Guid CaseId,
+    Guid HolderUserId,
+    long LeaseGeneration,
+    long CaseVersion,
+    DateTimeOffset ClearedAtUtc);
 
 public abstract record CaseMutationRequest(
     Guid CaseId,
@@ -355,6 +373,13 @@ public interface ILeaseCaseForEdit
         CancellationToken cancellationToken);
 
     Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken);
+}
+
+public interface IAdministrativeCaseEditLeaseStore
+{
+    Task<ClearCaseEditLeaseResult> ClearAsync(
+        ClearCaseEditLeaseRequest request,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

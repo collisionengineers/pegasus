@@ -25,13 +25,15 @@ internal static class AdministrationPolicyModelConfiguration
 
         builder.Entity<ApprovedMailboxEntity>(entity =>
         {
-            entity.ToTable("ApprovedMailboxes");
+            entity.ToTable("ApprovedMailboxes", table =>
+                table.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Address).HasMaxLength(320).IsRequired();
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.MailboxIdentity).HasMaxLength(100);
             entity.Property(item => item.InboxFolderIdentity).HasMaxLength(200);
             entity.Property(item => item.SentFolderIdentity).HasMaxLength(200);
+            entity.Property(item => item.SendLimitVerifiedBy).HasMaxLength(200);
             entity.HasIndex(item => item.Address).IsUnique();
             // A supplied Graph identity is exclusive to one approved mailbox.
             entity.HasIndex(item => item.MailboxIdentity)

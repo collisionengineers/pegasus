@@ -87,6 +87,23 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         VehicleLookupObservations
         VehicleLookupRequests
         WorkflowConfigurations
+        AppliedValuationSnapshots
+        CaseReportDeliveryIntents
+        CaseReportGenerations
+        ClaimSources
+        DocumentContentCacheEntries
+        GeneratedCaseArtifacts
+        GlassRepairEstimateSessions
+        IntakeOcrOperations
+        IntakeSourceCandidates
+        OrganizationDirectoryEntries
+        PublicUploadOccurrences
+        PublicUploadSessions
+        RetainedInstructionAnalyses
+        StaffMailSendOperations
+        TriageSequences
+        UserExternalCredentials
+        ValuationPresets
         """;
 
     private const string ExpectedWebGrantSpec = """
@@ -158,6 +175,23 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         VehicleLookupObservations:SELECT
         VehicleLookupRequests:SELECT,INSERT
         WorkflowConfigurations:SELECT,UPDATE
+        AppliedValuationSnapshots:SELECT,INSERT
+        CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
+        CaseReportGenerations:SELECT,INSERT
+        ClaimSources:SELECT,INSERT,UPDATE
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        GeneratedCaseArtifacts:SELECT,INSERT
+        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
+        IntakeOcrOperations:SELECT
+        IntakeSourceCandidates:SELECT
+        OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
+        PublicUploadOccurrences:SELECT,INSERT
+        PublicUploadSessions:SELECT,INSERT,UPDATE
+        RetainedInstructionAnalyses:SELECT
+        StaffMailSendOperations:SELECT,INSERT,UPDATE
+        TriageSequences:SELECT,INSERT,UPDATE
+        UserExternalCredentials:SELECT,INSERT,UPDATE
+        ValuationPresets:SELECT,INSERT,UPDATE
         """;
 
     private const string ExpectedWorkerGrantSpec = """
@@ -180,7 +214,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         EmailResponseEvidence:SELECT,INSERT
         ExternalWorkItems:SELECT,UPDATE
         InstructionDrafts:SELECT,INSERT,UPDATE
-        IntakeAssets:SELECT,INSERT
+        IntakeAssets:SELECT,INSERT,UPDATE
         IntakeEvaluations:SELECT,INSERT
         IntakeMailRouteDecisions:SELECT,INSERT,UPDATE
         IntakeManualAssociations:SELECT
@@ -198,6 +232,12 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         TriageResponseEvidenceLinks:SELECT,INSERT
         VehicleLookupObservations:INSERT
         VehicleLookupRequests:SELECT
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        IntakeOcrOperations:SELECT,INSERT,UPDATE
+        IntakeSourceCandidates:SELECT,INSERT
+        RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
+        StaffMailSendOperations:SELECT,INSERT,UPDATE
+        TriageSequences:SELECT,INSERT,UPDATE
         """;
 
     private const string ExpectedWebDeleteTableSpec = """
@@ -755,6 +795,77 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                   AND permission.minor_id = 0
                   AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
                 """));
+    }
+
+    // PLAT-035: catalog-grant checks alone run as the LocalDB administrator and
+    // therefore cannot detect a real runtime save denied by SQL Server. These
+    // loginless users have only their corresponding Pegasus runtime role.
+    [Fact]
+    public async Task V1FoundationRuntimeRolesCanPerformOnlyTheirRepresentativeWrites()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        await database.ExecuteAsync(
+            $"""
+            CREATE USER [pegasus_test_web_runtime] WITHOUT LOGIN;
+            CREATE USER [pegasus_test_worker_runtime] WITHOUT LOGIN;
+            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_web_runtime];
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_worker_runtime];
+            """);
+
+        var claimSourceId = Guid.NewGuid();
+        var webConcurrencyToken = Guid.NewGuid();
+
+        await database.ExecuteAsync(
+            $"""
+            EXECUTE AS USER = N'pegasus_test_web_runtime';
+            INSERT INTO [dbo].[ClaimSources] (
+                [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
+            VALUES (
+                '{claimSourceId:D}', N'restricted-role-fixture', 1, N'test',
+                '2031-05-06T10:30:00+00:00', 0, '{webConcurrencyToken:D}');
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            UPDATE [dbo].[TriageSequences]
+            SET [LastAllocatedSequence] = 1
+            WHERE [Id] = 1;
+            REVERT;
+            """);
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM [dbo].[ClaimSources] WHERE [Id] = '{claimSourceId:D}'"));
+        Assert.Equal(1L, await database.ScalarAsync<long>(
+            "SELECT [LastAllocatedSequence] FROM [dbo].[TriageSequences] WHERE [Id] = 1"));
+
+        await database.ExecuteAsync(
+            $"""
+            EXECUTE AS USER = N'pegasus_test_web_runtime';
+            BEGIN TRY
+                DELETE FROM [dbo].[ClaimSources] WHERE [Id] = '{claimSourceId:D}';
+                THROW 51000, 'Web runtime unexpectedly deleted a ClaimSource.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            BEGIN TRY
+                INSERT INTO [dbo].[ClaimSources] (
+                    [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
+                VALUES (
+                    '{Guid.NewGuid():D}', N'forbidden', 1, N'test',
+                    '2031-05-06T10:30:00+00:00', 0, '{Guid.NewGuid():D}');
+                THROW 51000, 'Worker runtime unexpectedly inserted a ClaimSource.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+            """);
     }
 
     [Fact]

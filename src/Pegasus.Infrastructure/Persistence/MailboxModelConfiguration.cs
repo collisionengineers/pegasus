@@ -8,7 +8,7 @@ internal static class MailboxModelConfiguration
     {
         builder.Entity<ApprovedInboxPollStateEntity>(entity =>
         {
-            entity.ToTable("ApprovedInboxPollStates");
+            entity.ToTable("ApprovedInboxPollStates", t => t.HasCheckConstraint("CK_ApprovedInboxPollStates_Generation", "[Generation] >= 0"));
             entity.HasKey(item => item.ApprovedMailboxId);
             entity.Property(item => item.MailboxAddress).HasMaxLength(320).IsRequired();
             entity.Property(item => item.ScopeFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
@@ -129,11 +129,12 @@ internal static class MailboxModelConfiguration
 
         builder.Entity<ApprovedSentPollStateEntity>(entity =>
         {
-            entity.ToTable("ApprovedSentPollStates");
+            entity.ToTable("ApprovedSentPollStates", t => t.HasCheckConstraint("CK_ApprovedSentPollStates_Generation", "[Generation] >= 0"));
             entity.HasKey(item => item.MailboxId);
             entity.Property(item => item.MailboxId).HasMaxLength(100);
             entity.Property(item => item.MailboxAddress).HasMaxLength(320).IsRequired();
             entity.Property(item => item.SentFolderIdentity).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ScopeFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.LeaseToken).HasMaxLength(64);
             entity.Property(item => item.LastFailureCode).HasMaxLength(100);
             entity.HasIndex(item => item.MailboxAddress).IsUnique();

@@ -1650,6 +1650,11 @@ internal static class AllocationTestData
         string code,
         bool isActive = true)
     {
+        if (code == QdosPrincipal.Code && isActive)
+        {
+            return (await SeededPrincipals.QdosAsync(services)).SequenceLineageId;
+        }
+
         var organizationId = Guid.NewGuid();
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
