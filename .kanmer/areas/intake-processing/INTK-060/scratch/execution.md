@@ -440,3 +440,7 @@ R-24 conditional-write transitions (two-context race proof), R-25 `GetAsync` und
 ## A CI (isolated A) fixture failures — confirmed covered on C (PR 673 5561316238 / reply posted)
 
 Six `IntakeWebNegativeTests` (one-principal assumption) fixed at C01 `e80862f37`; two `OrganizationAdministrationPersistenceTests` fixed at C06 `556a26b1a`; both on the C head `0efc1d0df` and passing in C waves. No C rewrite. A's MIME boundary test is A's.
+
+## Wave 34 (C07 caller `2c427c643`): C lanes PASS
+
+Build 0/0, core 25, integration 68/69 (+1 skip); a-owned 1/5 (A seed); architecture 98/100 = the C-head A-owned standalone gap (`IReadLogicalDocumentVersion` unregistered in `WorkerDependencyInjection`), not the slice. Reviewer told to bind on the slice's lanes.
