@@ -896,8 +896,8 @@ internal sealed class EfDocumentRequestStore(
         entity.AcceptedFileCount,
         entity.AcceptedByteCount,
         entity.LimitsVersion,
-        RequireStoredRecipient(entity.Recipient),
-        entity.Reason,
+        ValidateStoredRecipient(entity.Recipient),
+        ValidateStoredReason(entity.Reason),
         entity.Version);
 
     private sealed record RequestUploadHistoryValue(
@@ -914,11 +914,32 @@ internal sealed class EfDocumentRequestStore(
         string? Reason,
         long Version);
 
-    private static string RequireStoredRecipient(string? recipient) =>
-        string.IsNullOrWhiteSpace(recipient)
-            ? throw new InvalidDataException(
-                "The upload-request link is missing its required recipient.")
-            : recipient;
+    private static string ValidateStoredRecipient(string? recipient)
+    {
+        if (string.IsNullOrWhiteSpace(recipient)
+            || recipient.Length > 500
+            || !string.Equals(recipient, recipient.Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The upload-request link has an invalid recipient.");
+        }
+
+        return recipient;
+    }
+
+    private static string? ValidateStoredReason(string? reason)
+    {
+        if (reason is not null
+            && (string.IsNullOrWhiteSpace(reason)
+                || reason.Length > 1000
+                || !string.Equals(reason, reason.Trim(), StringComparison.Ordinal)))
+        {
+            throw new InvalidDataException(
+                "The upload-request link has an invalid reason.");
+        }
+
+        return reason;
+    }
 
     private static RequestUploadLink ToCreatedUploadLink(
         RequestUploadLinkEntity current,
@@ -926,8 +947,11 @@ internal sealed class EfDocumentRequestStore(
     {
         var snapshot =
             DocumentActionHistory.Deserialize<RequestUploadHistoryValue>(history.AfterJson);
-        if (string.IsNullOrWhiteSpace(snapshot.Recipient)
-            || snapshot.RequestId != current.Id
+        var snapshotRecipient = ValidateStoredRecipient(snapshot.Recipient);
+        var snapshotReason = ValidateStoredReason(snapshot.Reason);
+        var currentRecipient = ValidateStoredRecipient(current.Recipient);
+        var currentReason = ValidateStoredReason(current.Reason);
+        if (snapshot.RequestId != current.Id
             || snapshot.CaseId != current.CaseId
             || !string.Equals(
                 snapshot.Status,
@@ -942,8 +966,8 @@ internal sealed class EfDocumentRequestStore(
                 snapshot.LimitsVersion,
                 current.LimitsVersion,
                 StringComparison.Ordinal)
-            || !string.Equals(snapshot.Recipient, current.Recipient, StringComparison.Ordinal)
-            || !string.Equals(snapshot.Reason, current.Reason, StringComparison.Ordinal)
+            || !string.Equals(snapshotRecipient, currentRecipient, StringComparison.Ordinal)
+            || !string.Equals(snapshotReason, currentReason, StringComparison.Ordinal)
             || snapshot.Version != 1)
         {
             throw new InvalidDataException(
@@ -962,8 +986,8 @@ internal sealed class EfDocumentRequestStore(
             AcceptedByteCount: 0,
             snapshot.LimitsVersion,
             snapshot.Version,
-            snapshot.Recipient,
-            snapshot.Reason);
+            snapshotRecipient,
+            snapshotReason);
     }
 
     private static void EnsureExpectedVersion(long actual, long expected, string aggregate)
@@ -987,8 +1011,8 @@ internal sealed class EfDocumentRequestStore(
         value.AcceptedByteCount,
         value.LimitsVersion,
         value.Version,
-        RequireStoredRecipient(value.Recipient),
-        value.Reason);
+        ValidateStoredRecipient(value.Recipient),
+        ValidateStoredReason(value.Reason));
 
     private static UploadToRequestResult Unavailable() =>
         new(RequestUploadDecision.Unavailable, null, false);
