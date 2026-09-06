@@ -28,13 +28,14 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
-        var priorIds = await CloneCasesAsync(factory, currentId, 1);
+        using var host = factory.WithC06Adapters();
+        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        var priorIds = await CloneCasesAsync(host, currentId, 1);
         var priorId = priorIds[0];
 
-        await SaveClaimantAddressAsync(factory, currentId, "Riverside House, AB1 2CD");
-        await SaveInspectionAddressAsync(factory, priorId, "Riverside Garage, AB1 9ZZ");
-        await using (var scope = factory.Services.CreateAsyncScope())
+        await SaveClaimantAddressAsync(host, currentId, "Riverside House, AB1 2CD");
+        await SaveInspectionAddressAsync(host, priorId, "Riverside Garage, AB1 9ZZ");
+        await using (var scope = host.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -59,7 +60,7 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = factory.Services.CreateAsyncScope();
+        await using var verificationScope = host.Services.CreateAsyncScope();
         var choices = await verificationScope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, currentId, "Riverside"), CancellationToken.None);
@@ -78,10 +79,11 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchExcludesTheCurrentCaseFromItsOwnPriorPrincipalLocations()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
-        await SaveInspectionAddressAsync(factory, caseId, "Meadow Lane Depot, CD3 4EF");
+        using var host = factory.WithC06Adapters();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        await SaveInspectionAddressAsync(host, caseId, "Meadow Lane Depot, CD3 4EF");
 
-        await using var scope = factory.Services.CreateAsyncScope();
+        await using var scope = host.Services.CreateAsyncScope();
         var choices = await scope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Meadow"), CancellationToken.None);
@@ -95,8 +97,9 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchRequiresAtLeastTwoNormalizedCharacters()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
-        await using var scope = factory.Services.CreateAsyncScope();
+        using var host = factory.WithC06Adapters();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        await using var scope = host.Services.CreateAsyncScope();
         var choices = await scope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "R"), CancellationToken.None);
@@ -108,9 +111,10 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchCapsAtTwentyEvenWithManyMatchingDirectoryEntries()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        using var host = factory.WithC06Adapters();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
 
-        await using (var scope = factory.Services.CreateAsyncScope())
+        await using (var scope = host.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -138,7 +142,7 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = factory.Services.CreateAsyncScope();
+        await using var verificationScope = host.Services.CreateAsyncScope();
         var choices = await verificationScope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Bounded"), CancellationToken.None);
@@ -150,9 +154,10 @@ public sealed class InspectionAddressSuggestionTests
     public async Task SearchNeverReturnsAnInactiveDirectoryEntry()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        using var host = factory.WithC06Adapters();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
 
-        await using (var scope = factory.Services.CreateAsyncScope())
+        await using (var scope = host.Services.CreateAsyncScope())
         {
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -177,7 +182,7 @@ public sealed class InspectionAddressSuggestionTests
             await context.SaveChangesAsync();
         }
 
-        await using var verificationScope = factory.Services.CreateAsyncScope();
+        await using var verificationScope = host.Services.CreateAsyncScope();
         var choices = await verificationScope.ServiceProvider
             .GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Withdrawn"), CancellationToken.None);

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -23,7 +24,12 @@ public sealed partial class ClaimSourceAdministrationTests
     public async Task CreateEditAndDisableRoundTripAllSixDataFieldsThroughCoreEfCallers()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var host = factory.WithC06Adapters();
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
 
         using var indexGet = await client.GetAsync("/Administration/ClaimSources");
         var indexHtml = await indexGet.Content.ReadAsStringAsync();
@@ -121,8 +127,8 @@ public sealed partial class ClaimSourceAdministrationTests
     public async Task DirectClaimSourceRoutesDenyNonAdministratorSession()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: false);
-        _ = factory.Services;
-        await using (var scope = factory.Services.CreateAsyncScope())
+        using var host = factory.WithC06Adapters();
+        await using (var scope = host.Services.CreateAsyncScope())
         {
             var userManager = scope.ServiceProvider
                 .GetRequiredService<UserManager<PegasusIdentityUser>>();
@@ -133,7 +139,11 @@ public sealed partial class ClaimSourceAdministrationTests
                 user,
                 StaffRoleNames.Administrator)).Succeeded);
         }
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
 
         var id = Guid.Parse("2eeea2b1-3e1d-4a0a-8205-0c25396206e9");
         string[] routes =
