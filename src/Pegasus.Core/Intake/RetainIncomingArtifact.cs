@@ -149,23 +149,57 @@ public sealed class RetainIncomingArtifact(
             }
         }
 
-        var result = await custody.RetainAsync(
-            new(
-                actor,
-                occurrence.CaseId,
-                occurrence.IntakeReceiptId,
-                occurrence.OccurrenceId.ToString("N"),
+        CaseArtifactCustodyResult result;
+        try
+        {
+            result = await custody.RetainAsync(
+                new(
+                    actor,
+                    occurrence.CaseId,
+                    occurrence.IntakeReceiptId,
+                    occurrence.OccurrenceId.ToString("N"),
+                    occurrence.OperationKey,
+                    occurrence.ProposedFileName,
+                    occurrence.MediaType,
+                    occurrence.ContentLength,
+                    occurrence.Sha256,
+                    content),
+                cancellationToken);
+        }
+        catch (Exception exception) when (IsUncertainHandOver(exception))
+        {
+            // The call neither confirmed nor refused, so custody may be
+            // holding these exact bytes. Recording Unknown - rather than
+            // leaving the arrival in whatever state it was offered from - is
+            // what makes the next attempt ask about it instead of offering
+            // the same bytes a second time.
+            var uncertain = new RetainedIncomingArtifact(
+                occurrence.OccurrenceId,
                 occurrence.OperationKey,
-                occurrence.ProposedFileName,
-                occurrence.MediaType,
-                occurrence.ContentLength,
-                occurrence.Sha256,
-                content),
-            cancellationToken);
+                IncomingArtifactCustodyState.Unknown,
+                occurrence.CaseId);
+            await store.RecordAsync(uncertain, cancellationToken);
+            return uncertain;
+        }
+
         var retained = Project(occurrence, result);
         await store.RecordAsync(retained, cancellationToken);
         return retained;
     }
+
+    /// <summary>
+    /// A hand-over that failed in a way that does not say whether custody took
+    /// the bytes: transport, timeout and database faults, including one
+    /// wrapped inside another, which is how a client library surfaces a
+    /// dropped connection. An authorization refusal or a malformed request is
+    /// deliberately not one of these - nothing was ever offered, so nothing
+    /// about it is uncertain, and it must surface rather than be recorded as
+    /// an unreconcilable arrival.
+    /// </summary>
+    private static bool IsUncertainHandOver(Exception exception) =>
+        exception is HttpRequestException
+        || IntakeExceptionPolicy.IsTransientFailure(exception)
+        || (exception.InnerException is { } inner && IsUncertainHandOver(inner));
 
     /// <summary>
     /// Asks custody what became of an uncertain hand-over. Without a status
