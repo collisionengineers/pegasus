@@ -45,7 +45,10 @@ Azure cache validates hashes and expires after 24 hours idle.
 Request-link custody checks the current upload-link identity and Case binding.
 A short SQL transaction orders revocation against the Pending custody intent;
 provider storage runs after that acceptance commit. Worker retention uses its
-system-work right, while custody reads retain their staff/automation boundary.
+system-work right. Custody status reads also admit the exact active upload link
+for its own accepted artifacts. The status lookup can recover logical identities
+by the original operation key after a lost response; an absent row does not
+prove that an in-flight acceptance cannot commit or permit a new operation key.
 
 The `/mcp` adapters use persistent signing/encryption certificates and separate
 grant attribution. Authorized metadata precedes content reads; large documents
