@@ -20,7 +20,7 @@ namespace Pegasus.Core.Intake;
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 7;
+    public const int Version = 8;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -372,13 +372,13 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     private static partial Regex TriageSubjectRegex();
 
     [GeneratedRegex(
-        @"(?im)^[ \t]*Please\s+provide\s+an\s+initial\s+assessment\s+of\s+whether\s+the\s+vehicle\s+is\s+roadworthy\s+(?:and|and/or)\s+repairable\.[ \t]*$",
+        @"(?im)^[ \t]*Please\s+provide\s+an\s+initial\s+assessment\s+of\s+whether\s+the\s+vehicle\s+is\s+roadworthy\s+(?:and|and/or)\s+repairable\.[ \t]*\r?$",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex InitialAssessmentRequestRegex();
 
     [GeneratedRegex(
-        @"(?im)^[ \t]*(?:An?\s+)?official\s+inspection\s+instruction\s+will\s+follow\.[ \t]*$",
+        @"(?im)^[ \t]*(?:An?\s+)?official\s+inspection\s+instruction\s+will\s+follow\.[ \t]*\r?$",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex OfficialInspectionWillFollowRegex();
