@@ -69,8 +69,11 @@ public sealed class StaffMailSendTests
                 StaffMailState.Sending));
     }
 
-    [Fact]
-    public async Task FreshOperationCreatesOnceAttachesExactBytesAndBecomesSubmitted()
+    [Theory]
+    [InlineData("Body")]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task FreshOperationCreatesOnceAttachesExactBytesAndBecomesSubmitted(string body)
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var bytes = new byte[] { 1, 2, 3, 4 };
@@ -78,7 +81,7 @@ public sealed class StaffMailSendTests
             Guid.NewGuid(), Guid.NewGuid(),
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
             bytes.Length, "report.pdf", "application/pdf");
-        var command = Command(actor) with { Attachments = [attachment] };
+        var command = Command(actor) with { Body = body, Attachments = [attachment] };
         var store = new Store();
         var transport = new Transport();
         var send = new StaffMailSend(
@@ -95,6 +98,23 @@ public sealed class StaffMailSendTests
         Assert.Equal(1, transport.SendCount);
         Assert.Equal(bytes, Assert.Single(transport.Attached));
         Assert.Equal(4, store.CurrentStaffChecks);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task EmptyMailWithoutAttachmentsRefusesBeforePersistenceOrTransport(string body)
+    {
+        var command = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])) with { Body = body };
+        var store = new Store();
+        var transport = new Transport();
+        var send = new StaffMailSend(store, null!, null!, transport, TimeProvider.System, new ExecutionLock());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => send.SendAsync(command, CancellationToken.None));
+
+        Assert.Null(store.Operation);
+        Assert.Equal(0, transport.CreateCount);
+        Assert.Equal(0, transport.SendCount);
     }
 
     [Fact]
