@@ -426,7 +426,7 @@
         <section class="panel section-gap" aria-labelledby="triage-history-title">
             <div class="panel-head"><h2 id="triage-history-title">Notes</h2></div>
             <div class="panel-body">
-                @if (mutable && Model.CanRecordNotes)
+                @if (mutable)
                 {
                     <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
                         <input type="hidden" name="actionName" value="note" />
