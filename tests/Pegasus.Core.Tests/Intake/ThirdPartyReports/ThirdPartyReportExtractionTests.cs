@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -161,6 +161,28 @@ public sealed partial class ThirdPartyReportExtractionTests
         Comments / Repair Notes   :
         THE ABOVE VEHICLE HAS SUSTAINED HEAVY REAR IMPACT DAMAGE, NO ESTIMATES WERE RAISED.
         NOTING ORIGINAL LABOUR £3303, PARTS, £2652, MATERIALS £1554, SPEC £287.
+        """;
+
+    /// <summary>
+    /// The same sPrint header with the ordinary totals table absent, and a
+    /// contract repair printed beside it. A role that prints no total is not a
+    /// role that prints a zero.
+    /// </summary>
+    private const string SPrintContractRepairWithoutTotals = """
+                                                             EMAIL:   sprintassessors@btinternet.com
+                                                                               Consulting Engineers
+        1 CHERRYTREE CRESCENT, SALFORD PRIORS, WR11 8XF.            Automotive Claims Assessors
+
+        Our Ref       :  17289                             Date of Report     :  19 August 2026
+
+        Insured            : MRS. J FURNELL
+
+        Reg No           : YH70TKZ
+
+        Labour Rate        £  85.00
+        Repair Time In Days  :   10
+
+        Contract Repair          £       8250.00
         """;
 
     [Fact]
@@ -411,6 +433,49 @@ public sealed partial class ThirdPartyReportExtractionTests
         Assert.Contains(
             result.Findings,
             finding => finding.Code == ThirdPartyFindingCodes.ZeroTotalsWithContractRepair);
+    }
+
+    [Fact]
+    public void AnUnprintedTotalIsNotReadAsAPrintedZeroBesideAContractRepair()
+    {
+        var result = Read(SPrintContractRepairWithoutTotals);
+
+        Assert.Equal(ThirdPartyReportFamily.SPrint, result.Selection.Family);
+        Assert.Equal("8250.00", Value(result, ThirdPartyReportFields.Net, "contract-repair"));
+
+        // This document prints no ordinary totals at all, so they are
+        // unavailable rather than zero. "The ordinary repair totals are zero"
+        // would be a statement about figures the document does not make.
+        Assert.Null(Value(result, ThirdPartyReportFields.Net, "assessed"));
+        Assert.Null(Value(result, ThirdPartyReportFields.Gross, "assessed"));
+        Assert.Null(Value(result, ThirdPartyReportFields.LabourAmount, "assessed"));
+        Assert.DoesNotContain(
+            result.Findings,
+            finding => finding.Code == ThirdPartyFindingCodes.ZeroTotalsWithContractRepair);
+
+        // What the document does print is still reported: a contract repair
+        // figure with no stated VAT basis.
+        Assert.Contains(
+            result.Findings,
+            finding => finding.Code == ThirdPartyFindingCodes.ContractRepairBasisNotPrinted);
+    }
+
+    [Fact]
+    public void ALairdSupplementThatNamesAnAppendedImageIsStillOnlyALairdReport()
+    {
+        var result = Read(LairdSupplement + "\n  ClientVehicleDamageImage1jpg-V1.jpg\n");
+
+        // The image-evidence signature denies the Laird domain and the
+        // Supplementary heading, so an appended image filename cannot make a
+        // report match two signatures, turn Ambiguous, and lose every value
+        // the document actually prints.
+        Assert.Equal(ThirdPartySelectionOutcome.Selected, result.Selection.Outcome);
+        Assert.Equal(ThirdPartyReportFamily.Laird, result.Selection.Family);
+        Assert.Single(result.Selection.Matches);
+        Assert.Equal("9891.39", Value(result, ThirdPartyReportFields.Net, "supplement"));
+        Assert.DoesNotContain(
+            result.Findings,
+            finding => finding.Code == ThirdPartyFindingCodes.DocumentSignatureAmbiguous);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using F = Pegasus.Core.Intake.ThirdPartyReports.ThirdPartyReportFields;
 using R = Pegasus.Core.Intake.ThirdPartyReports.ThirdPartyEstimateRoles;
 
@@ -316,10 +316,14 @@ public static class ThirdPartyReportValidation
         var ordinary = candidate.Estimates
             .Where(estimate => estimate.Role != ThirdPartyEstimateRole.ContractRepair)
             .ToList();
+        // Each amount must be PRESENT and zero. A printed 0.00 is evidence; an
+        // amount the document does not print is unavailable, and treating the
+        // absence as a zero would manufacture the one conflict this reading
+        // exists to keep honest.
         if (ordinary.Exists(estimate =>
-                (estimate.Net?.Value ?? 0m) == 0m
-                && (estimate.Gross?.Value ?? 0m) == 0m
-                && (estimate.LabourAmount?.Value ?? 0m) == 0m))
+                estimate.Net?.Value is 0m
+                && estimate.Gross?.Value is 0m
+                && estimate.LabourAmount?.Value is 0m))
         {
             yield return new(
                 ThirdPartyFindingCodes.ZeroTotalsWithContractRepair,

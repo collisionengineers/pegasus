@@ -315,7 +315,10 @@ public static class ThirdPartyReportExtraction
     private const string Money = @"£\s*(?<v>-?[\d,]+(?:\.\d{1,2})?)";
     private const string BareMoney = @"(?<v>-?[\d,]+\.\d{2})";
     private const string PoundSign = "£";
-    private const string SupplementaryHeading = @"Supplementary\s+Report";
+    // The same printed heading the Laird signature is gated on, so the
+    // document's own words have one owner rather than two spellings.
+    private const string SupplementaryHeading =
+        ThirdPartyReportProfiles.SupplementaryReportTitle;
 
     /// <summary>
     /// The Connexus, Exclusive EREHR and EVA bodyshop reports share one printed

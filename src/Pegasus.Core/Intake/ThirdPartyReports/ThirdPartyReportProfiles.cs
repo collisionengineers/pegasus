@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -183,6 +183,13 @@ public static class ThirdPartyReportProfiles
     private const string ErehrClaimReference = @"Your\s+Ref\s*:?\s*(?:ER)?EHR\s*\d{4,}";
     private const string RepairableReportTitle = @"REPAIRABLE\s+REPORT";
 
+    /// <summary>
+    /// The printed heading that distinguishes a Laird supplement from a full
+    /// assessment report. The extraction rules gate on this same constant, so
+    /// the document's own words are spelled in one place.
+    /// </summary>
+    internal const string SupplementaryReportTitle = @"Supplementary\s+Report";
+
     private static readonly ThirdPartyDocumentSignature[] SignatureTable =
     [
         // Connexus prints its own signature block; note that its body text also
@@ -208,7 +215,7 @@ public static class ThirdPartyReportProfiles
         // names "Laird Assessors" as a dealer without being a Laird report.
         new("laird/1", "1", "Laird Assessors", ThirdPartyReportFamily.Laird,
             ThirdPartyDocumentRole.EngineerReport, @"laird-assessors\.com",
-            [@"(?:Repairable\s+Damage\s+Assessment\s+Report|Supplementary\s+Report)"], []),
+            [@"(?:Repairable\s+Damage\s+Assessment\s+Report|" + SupplementaryReportTitle + ")"], []),
 
         new("montgomery/1", "1", "Montgomery Assessors", ThirdPartyReportFamily.Montgomery,
             ThirdPartyDocumentRole.EngineerReport, @"Montgomery\s*Assessors",
@@ -245,13 +252,20 @@ public static class ThirdPartyReportProfiles
                 @"Automotive\s+Claims\s+Assessors", @"Montgomery\s*Assessors"
             ]),
 
+        // The Laird domain and the Supplementary heading are denied here for
+        // the same reason the invoice signature denies them: a report that
+        // prints an appended image filename would otherwise match this
+        // signature as well as its issuer's, become Ambiguous, and yield no
+        // candidate at all. The negatives are the report signals every other
+        // negative signature already denies.
         new("image-evidence/1", "1", null, null,
             ThirdPartyDocumentRole.ImageEvidence, @"\.(?:jpe?g|png)\b",
             [],
             [
                 RepairableReportTitle, @"Vehicle\s*Assessors", @"Assessment\s+Report",
                 @"Full\s+Estimate\s+Report", @"Vehicle\s+History\s+Check",
-                @"Consulting\s+Motor\s+Engineers", @"Automotive\s+Claims\s+Assessors"
+                @"Consulting\s+Motor\s+Engineers", @"Automotive\s+Claims\s+Assessors",
+                @"laird-assessors\.com", SupplementaryReportTitle
             ])
     ];
 
