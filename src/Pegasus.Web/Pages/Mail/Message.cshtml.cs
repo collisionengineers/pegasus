@@ -116,6 +116,9 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "compose")]
     public string? CorrespondenceMode { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "mailOperationId")]
+    public Guid? CorrespondenceOperationId { get; set; }
+
     [BindProperty]
     public long ExpectedCorrespondenceCaseVersion { get; set; }
 
@@ -215,6 +218,8 @@ public sealed class MessageModel(
 
     public bool CorrespondenceSendBlocked { get; private set; }
 
+    public StaffMailOperation? CorrespondenceOperation { get; private set; }
+
     public bool CanCorrespond => !CorrespondenceSendBlocked
         && CorrespondenceMailbox is not null
         && CorrespondenceCase is not null;
@@ -264,6 +269,14 @@ public sealed class MessageModel(
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
+        if (CorrespondenceOperationId is { } operationId)
+        {
+            CorrespondenceOperation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
+            CorrespondenceSendBlocked = CorrespondenceOperation is not null
+                && CorrespondenceOperation.State is not StaffMailState.Sent
+                    and not StaffMailState.Failed
+                    and not StaffMailState.Cancelled;
+        }
         if (!await LoadCorrespondenceContextAsync(actor, initializeForm: true, cancellationToken))
         {
             CorrespondenceMode = null;
@@ -279,6 +292,38 @@ public sealed class MessageModel(
 
     public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
+
+    public async Task<IActionResult> OnPostReconcileCorrespondenceAsync(
+        Guid id,
+        Guid mailOperationId,
+        long expectedOperationVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+            return Forbid();
+        try
+        {
+            await staffMailSend.ReconcileAsync(
+                actor, mailOperationId, expectedOperationVersion, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        return RedirectToPage(new
+        {
+            id,
+            mailbox = MailboxFilter,
+            folder = FolderRouteValue,
+            pageNumber = PageRouteValue,
+            search = SearchTerm,
+            queue = QueueFilter,
+            unread = UnreadOnly ? "true" : null,
+            sort = OldestFirst ? "oldest" : null,
+            compose = CorrespondenceMode,
+            mailOperationId
+        });
+    }
 
     public async Task<IActionResult> OnPostCreateQueryResponseAsync(
         Guid id,
@@ -841,16 +886,9 @@ public sealed class MessageModel(
                     Attachments: [],
                     CorrespondenceOperationKey.Trim()),
                 cancellationToken);
+            CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)
                 CorrespondenceNotice = "Correspondence sent.";
-            else if (operation.State == StaffMailState.Unknown)
-            {
-                CorrespondenceMode = null;
-                ModelState.AddModelError(string.Empty, "Send outcome unavailable.");
-                var page = await ReloadAsync(actor, id, cancellationToken);
-                CorrespondenceSendBlocked = true;
-                return page;
-            }
         }
         catch (StaffAuthorizationException)
         {
@@ -872,7 +910,8 @@ public sealed class MessageModel(
             queue = QueueFilter,
             unread = UnreadOnly ? "true" : null,
             sort = OldestFirst ? "oldest" : null,
-            compose = ModeCode(mode)
+            compose = ModeCode(mode),
+            mailOperationId = CorrespondenceOperation?.Id
         });
     }
 

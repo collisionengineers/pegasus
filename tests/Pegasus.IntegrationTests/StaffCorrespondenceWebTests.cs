@@ -457,7 +457,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task UnknownRetainedReplyReplaysWithoutResendingOrExposingUnboundStatus()
+    public async Task UnknownRetainedReplyReplaysAndReconcilesWithoutResending()
     {
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -482,18 +482,56 @@ public sealed class StaffCorrespondenceWebTests
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
         using var replay = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
-        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         Assert.Equal(1, send.SendCalls);
-        var firstHtml = await first.Content.ReadAsStringAsync();
-        var replayHtml = await replay.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("notice--success", firstHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Send status", firstHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("ReconcileCorrespondence", firstHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Reply", firstHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("handler=Reply", replayHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ExtractOperationId(first.Headers.Location!), ExtractOperationId(replay.Headers.Location!));
+        using var status = await client.GetAsync(replay.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Contains("Send status", statusHtml, StringComparison.Ordinal);
+        Assert.Contains("ReconcileCorrespondence", statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
+        using var reconcile = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=ReconcileCorrespondence",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
+                ["mailOperationId"] = ExtractOperationId(replay.Headers.Location!).ToString("D"),
+                ["expectedOperationVersion"] = "1"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, reconcile.StatusCode);
         Assert.Equal(1, send.SendCalls);
-        Assert.Equal(0, send.ReconcileCalls);
+        Assert.Equal(1, send.ReconcileCalls);
+    }
+
+    [Fact]
+    public async Task SubmittedRetainedReplyShowsStatusAndBlocksASecondFreshAction()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Submitted };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 SUBMITTED", "SC08-MSG-SUBMITTED");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+                ["CorrespondenceSubject"] = "Re: Source subject",
+                ["CorrespondenceBody"] = "Reviewed response."
+            }));
+        using var status = await client.GetAsync(post.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, send.SendCalls);
     }
 
     [Fact]
