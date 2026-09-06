@@ -355,6 +355,48 @@ public sealed partial class ThirdPartyReportExtractionTests
             finding => finding.Code == ThirdPartyFindingCodes.NetVatGrossReconciles);
     }
 
+    /// <summary>
+    /// A persisted row says which printed cell it was read from. Where the
+    /// printed label names something other than the field — a trade value read
+    /// from a "Glasses" guide row, a pre-accident value printed as "Valuation",
+    /// a gross printed as "Total Reserve" — the label stays in the raw text, so
+    /// the smallest useful layout locator survives persistence rather than only
+    /// the number surviving it.
+    /// </summary>
+    [Fact]
+    public void APrintedLabelThatNamesSomethingOtherThanTheFieldIsKeptInTheRawText()
+    {
+        var montgomery = Read(MontgomeryCosts);
+
+        var trade = Row(montgomery, ThirdPartyReportFields.Trade, "")!;
+        Assert.Equal("14223", trade.NormalizedValue);
+        Assert.Contains("Glasses", trade.RawValue!, StringComparison.Ordinal);
+
+        var retail = Row(montgomery, ThirdPartyReportFields.Retail, "")!;
+        Assert.Equal("18880", retail.NormalizedValue);
+        Assert.Contains("Glasses", retail.RawValue!, StringComparison.Ordinal);
+
+        var value = Row(montgomery, ThirdPartyReportFields.PreAccidentValue, "")!;
+        Assert.Equal("18880", value.NormalizedValue);
+        Assert.Contains("Valuation", value.RawValue!, StringComparison.Ordinal);
+
+        var gross = Row(montgomery, ThirdPartyReportFields.Gross, "assessed")!;
+        Assert.Equal("19277.42", gross.NormalizedValue);
+        Assert.Contains("Total Reserve", gross.RawValue!, StringComparison.Ordinal);
+
+        // The supplement's subtotal and its total are two printed cells that
+        // differ by one printed word, and each row now carries its own.
+        var laird = Read(LairdSupplement);
+        Assert.StartsWith(
+            "Subtotal:",
+            Row(laird, ThirdPartyReportFields.Net, "supplement")!.RawValue,
+            StringComparison.Ordinal);
+        Assert.StartsWith(
+            "Total:",
+            Row(laird, ThirdPartyReportFields.Gross, "supplement")!.RawValue,
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TheMontgomeryModelAndOdometerConflictStaysVisible()
     {

@@ -191,8 +191,19 @@ internal enum ThirdPartyValueKind
 /// </param>
 /// <param name="RawWholeMatch">
 /// Keeps the whole matched text as the raw value instead of the captured
-/// group, so a printed label the projection has no typed slot for is still
-/// preserved beside its number.
+/// group, so the printed label survives beside the value it labelled.
+///
+/// Set on every rule whose printed label names a different concept from the
+/// field: Laird prints its pre-accident value under "Engineer's Value",
+/// Montgomery prints trade and retail in a "Glasses" guide row, and a net and
+/// a gross are told apart in the narrative layout only by the printed "exc
+/// VAT" and "inc VAT" that follow them. Without the label the persisted row
+/// reads "valuation.pav = 1686.7" with no trace of which cell said so, and the
+/// smallest useful layout locator the invariants ask for is gone.
+///
+/// Not set where the label repeats the field name, where the match IS the
+/// value, or where the pattern spans a sentence rather than a printed cell —
+/// a paragraph is not a locator.
 /// </param>
 internal sealed record ThirdPartyFieldRule(
     string Field,
@@ -332,11 +343,11 @@ public static class ThirdPartyReportExtraction
         // separates make from model, so the printed text is recorded as
         // Ambiguous rather than split into two facts the source does not make.
         new(F.Model, K.Text, @"Vehicle:[ \t]*(?<v>[A-Z0-9][^\n]*?)#END#",
-            Until: "Colour", Force: SourceCandidateDisposition.Ambiguous),
+            Until: "Colour", Force: SourceCandidateDisposition.Ambiguous, RawWholeMatch: true),
 
         new(F.Registration, K.Registration, @"Reg\s+No:[ \t]*(?<v>[A-Z0-9]{1,4} ?[A-Z0-9]{1,4})"),
         new(F.Vin, K.Text, @"Vin\s+No:[ \t]*(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
-        new(F.Mileage, K.Mileage, @"Speedo:[ \t]*(?<v>[\d,]+)", Unit: "miles"),
+        new(F.Mileage, K.Mileage, @"Speedo:[ \t]*(?<v>[\d,]+)", Unit: "miles", RawWholeMatch: true),
         new(F.MileageUnit, K.Text, @"Speedo:[ \t]*[\d,]*[ \t]*(?<v>Miles|Km)\b"),
         new(F.AccidentDate, K.Date, @"Incident:[ \t]*(?<v>\d{1,2}/\d{1,2}/\d{4})"),
         new(F.Severity, K.Text, @"Damage:[ \t]*(?<v>Light|Moderate|Heavy|Medium|Severe)\b"),
@@ -354,8 +365,13 @@ public static class ThirdPartyReportExtraction
         new(F.Declaration, K.Text,
             @"(?<v>In\s+preparing\s+this\s+report\s+I\s+confirm\s+that\s+I\s+understand\s+my\s+overriding\s+duty\s+to\s+the\s+court[^.]{0,200}\.)"),
 
-        new(F.Gross, K.Money, @"Repair\s+Cost:\s*" + Money + @"\s*inc\s*VAT", ReferenceRole: R.Agreed),
-        new(F.Net, K.Money, @"Repair\s+Cost:\s*" + Money + @"\s*exc\s*VAT", ReferenceRole: R.Agreed),
+        // The one printed label distinguishes these two: the same "Repair
+        // Cost:" cell is a net or a gross only by the "exc VAT"/"inc VAT" that
+        // follows it, so the row keeps the whole printed phrase.
+        new(F.Gross, K.Money, @"Repair\s+Cost:\s*" + Money + @"\s*inc\s*VAT",
+            ReferenceRole: R.Agreed, RawWholeMatch: true),
+        new(F.Net, K.Money, @"Repair\s+Cost:\s*" + Money + @"\s*exc\s*VAT",
+            ReferenceRole: R.Agreed, RawWholeMatch: true),
         new(F.LabourAmount, K.Money, @"in\s+the\s+sum\s+of\s*" + Money, ReferenceRole: R.Initial),
         new(F.PaintMaterials, K.Money, @"plus\s*" + Money + @"\s*for\s+paint\s+and\s+materials", ReferenceRole: R.Initial),
         new(F.SpecialistCharges, K.Money, @"plus\s*" + Money + @"\s*for\s+specialist/sundry\s+charges", ReferenceRole: R.Initial),
@@ -376,7 +392,7 @@ public static class ThirdPartyReportExtraction
         new(F.Retail, K.Money, @"adjusted\s+retail\s+value[^£]{0,240}" + Money),
         new(F.Trade, K.Money, @"trade\s+value\s+is\s*" + Money),
         new(F.Mid, K.Money, @"mid\s+value\s+is\s*" + Money),
-        new(F.PreAccidentValue, K.Money, @"Vehicle\s+Value:\s*" + Money),
+        new(F.PreAccidentValue, K.Money, @"Vehicle\s+Value:\s*" + Money, RawWholeMatch: true),
         new(F.PreAccidentValue, K.Money, @"pre-accident\s+value\s+of\s+this\s+particular [A-Za-z]+ at\s*" + Money),
         new(F.Reserve, K.Money, @"repair\s+reserve\s+of\s*" + Money),
         new(F.MinimumRepairDays, K.Number, @"take\s+some\s*(?<v>\d+)\s*to\s*\d+\s*working\s+days", Unit: "days"),
@@ -408,22 +424,31 @@ public static class ThirdPartyReportExtraction
         new(F.Registration, K.Registration, @"registration\s+(?<v>[A-Z]{2}\d{2} ?[A-Z]{3})\b"),
         new(F.AccidentDate, K.Date, @"Accident Date[ \t]+(?<v>\d{1,2}/\d{1,2}/\d{4})"),
         new(F.AccidentDate, K.Date, @"Road Traffic Accident on\s*(?<v>\d{1,2}/\d{1,2}/\d{4})"),
-        new(F.Repairability, K.Text, @"^[ \t]*Status[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,29}?)#END#"),
-        new(F.Roadworthiness, K.Text, @"Legal Status[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,19}?)#END#"),
-        new(F.Severity, K.Text, @"Impact Magnitude[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,29}?)#END#"),
-        new(F.PreAccidentValue, K.Money, @"Engineer's Value[ \t]+" + Money),
+        new(F.Repairability, K.Text, @"^[ \t]*Status[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,29}?)#END#",
+            RawWholeMatch: true),
+        new(F.Roadworthiness, K.Text, @"Legal Status[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,19}?)#END#",
+            RawWholeMatch: true),
+        new(F.Severity, K.Text, @"Impact Magnitude[ \t]+(?<v>[A-Za-z][A-Za-z ]{2,29}?)#END#",
+            RawWholeMatch: true),
+
+        // "Engineer's Value" is a third party's printed valuation cell, not a
+        // Pegasus Engineer's accepted figure. The printed label is the only
+        // thing on the record that says so, so the row keeps it.
+        new(F.PreAccidentValue, K.Money, @"Engineer's Value[ \t]+" + Money, RawWholeMatch: true),
         new(F.Retail, K.Money, @"Retail Value[ \t]+" + Money),
         new(F.Trade, K.Money, @"Trade Value[ \t]+" + Money),
         // Laird prints these two labels UNDER their value, so each rule is
         // anchored on the label in whichever order the cell was laid out. The
         // label still proves the value; only the side it sits on changes.
         new(F.ValuationGuide, K.Text,
-            @"(?:Valuation|Source)[ \t]*\n[ \t]*(?<v>Glass'?e?s'?)\b"),
+            @"(?:Valuation|Source)[ \t]*\n[ \t]*(?<v>Glass'?e?s'?)\b", RawWholeMatch: true),
         new(F.Mileage, K.Mileage,
-            @"(?<v>[\d,]+)[ \t]+(?:Miles|Km)\b[^\n]*\n[ \t]*Odometer\b", Unit: "miles"),
+            @"(?<v>[\d,]+)[ \t]+(?:Miles|Km)\b[^\n]*\n[ \t]*Odometer\b",
+            Unit: "miles", RawWholeMatch: true),
         new(F.MileageUnit, K.Text,
-            @"[\d,]+[ \t]+(?<v>Miles|Km)\b[^\n]*\n[ \t]*Odometer\b"),
-        new(F.Deduction, K.Money, @"we have deducted[ \t]*" + Money, Multiple: true),
+            @"[\d,]+[ \t]+(?<v>Miles|Km)\b[^\n]*\n[ \t]*Odometer\b", RawWholeMatch: true),
+        new(F.Deduction, K.Money, @"we have deducted[ \t]*" + Money,
+            Multiple: true, RawWholeMatch: true),
 
         new(F.LabourHours, K.Number, @"^[ \t]*Hours[ \t]+(?<v>[\d.,]+)[ \t]*$",
             ReferenceRole: R.Assessed, Unit: "hours"),
@@ -432,9 +457,11 @@ public static class ThirdPartyReportExtraction
         new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]+" + Money, ReferenceRole: R.Assessed),
         new(F.PaintMaterials, K.Money, @"Paints\s*/\s*Materials[ \t]+" + Money, ReferenceRole: R.Assessed),
         new(F.SpecialistCharges, K.Money, @"Specialist\s*/\s*Other Items[ \t]+" + Money, ReferenceRole: R.Assessed),
-        new(F.Net, K.Money, @"Sub Total[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.Net, K.Money, @"Sub Total[ \t]+" + Money,
+            ReferenceRole: R.Assessed, RawWholeMatch: true),
         new(F.VatAmount, K.Money, @"^[ \t]*VAT[ \t]+" + Money, ReferenceRole: R.Assessed),
-        new(F.Gross, K.Money, @"Total Estimated Cost[ \t]+" + Money, ReferenceRole: R.Assessed),
+        new(F.Gross, K.Money, @"Total Estimated Cost[ \t]+" + Money,
+            ReferenceRole: R.Assessed, RawWholeMatch: true),
 
         new(F.LabourAmount, K.Money, @"Labour:[ \t]*" + Money,
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
@@ -449,7 +476,7 @@ public static class ThirdPartyReportExtraction
         new(F.SpecialistCharges, K.Money, @"Specialist:[ \t]*" + Money,
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
         new(F.Net, K.Money, @"Subtotal:[ \t]*" + Money,
-            ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
+            ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading, RawWholeMatch: true),
         new(F.VatAmount, K.Money, @"VAT:[ \t]*" + Money,
             ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
 
@@ -457,7 +484,7 @@ public static class ThirdPartyReportExtraction
         // not read a second time as the total: "Subtotal:" ends in "total:"
         // and an unanchored rule invents a conflict the document does not have.
         new(F.Gross, K.Money, @"^[ \t]*Total:[ \t]*" + Money,
-            ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading),
+            ReferenceRole: R.Supplement, CoLabel: SupplementaryHeading, RawWholeMatch: true),
         new(F.SupplementReason, K.Text, @"^\s*(?<v>The repairing garage[^\n]{10,200})",
             CoLabel: SupplementaryHeading),
         new(F.Signatory, K.Text, @"Yours faithfully\s*\n\s*(?<v>[A-Za-z][^\n]{2,40}?)[ \t]*$")
@@ -476,7 +503,7 @@ public static class ThirdPartyReportExtraction
         new(F.Model, K.Text, @"^[ \t]*Model[ \t]+(?<v>[^\n]{1,40}?)#END#"),
         new(F.Registration, K.Registration, @"Registration[ \t]+(?<v>[A-Z0-9]{5,8})\b"),
         new(F.Vin, K.Text, @"V\.I\.N[ \t]+(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
-        new(F.Mileage, K.Mileage, @"Odometer[ \t]+(?<v>[\d,]+)", Unit: "miles"),
+        new(F.Mileage, K.Mileage, @"Odometer[ \t]+(?<v>[\d,]+)", Unit: "miles", RawWholeMatch: true),
         new(F.Roadworthiness, K.Text, @"Roadworthy[ \t]+(?<v>YES|NO)\b"),
         new(F.OutcomeReason, K.Text, @"Reason[ \t]+(?<v>[^\n]{2,60}?)[ \t]*$"),
         new(F.Airbags, K.Text, @"Airbag[ \t]+(?<v>YES|NO)\b"),
@@ -495,14 +522,23 @@ public static class ThirdPartyReportExtraction
         new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
         new(F.PaintMaterials, K.Money, @"Paint/Materials[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
         new(F.SpecialistCharges, K.Money, @"^[ \t]*Specialist[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.Net, K.Money, @"Sub Total[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.Net, K.Money, @"Sub Total[ \t]+" + BareMoney,
+            ReferenceRole: R.Assessed, RawWholeMatch: true),
         new(F.VatAmount, K.Money, @"^[ \t]*VAT[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
-        new(F.Gross, K.Money, @"Total Reserve[ \t]+" + BareMoney, ReferenceRole: R.Assessed),
+        new(F.Gross, K.Money, @"Total Reserve[ \t]+" + BareMoney,
+            ReferenceRole: R.Assessed, RawWholeMatch: true),
 
         new(F.ValuationGuide, K.Text, @"^[ \t]*(?<v>Glass'?e?s'?)[ \t]+[\d,]"),
-        new(F.Trade, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]+(?<v>[\d,]+)[ \t]+[\d,]+"),
-        new(F.Retail, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]+[\d,]+[ \t]+(?<v>[\d,]+)"),
-        new(F.PreAccidentValue, K.Money, @"^[ \t]*Valuation[ \t]+(?<v>[\d,]+)[ \t]*$"),
+
+        // Trade and retail are two columns of one printed guide row, and the
+        // row names the guide. Keeping it means a persisted trade value still
+        // says which guide and which row it was read from.
+        new(F.Trade, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]+(?<v>[\d,]+)[ \t]+[\d,]+",
+            RawWholeMatch: true),
+        new(F.Retail, K.Money, @"^[ \t]*Glass'?e?s'?[ \t]+[\d,]+[ \t]+(?<v>[\d,]+)",
+            RawWholeMatch: true),
+        new(F.PreAccidentValue, K.Money, @"^[ \t]*Valuation[ \t]+(?<v>[\d,]+)[ \t]*$",
+            RawWholeMatch: true),
 
         // The printed label ("Urban edition adjustment") is not one of the two
         // typed adjustment slots, so the whole printed cell is kept as the raw
@@ -511,7 +547,7 @@ public static class ThirdPartyReportExtraction
             @"^[ \t]*(?:[A-Za-z][A-Za-z ]{0,30})?adjustment[ \t]+(?<v>[\d,]+)[ \t]*$",
             Multiple: true, RawWholeMatch: true),
 
-        new(F.FinalValue, K.Money, @"VEHICLE VALUE[ \t]*" + Money),
+        new(F.FinalValue, K.Money, @"VEHICLE VALUE[ \t]*" + Money, RawWholeMatch: true),
         new(F.SalvageValue, K.Money, @"Salvage value[ \t]+(?<v>[\d,]+(?:\.\d{2})?)")
     ];
 
@@ -526,16 +562,21 @@ public static class ThirdPartyReportExtraction
         new(F.Registration, K.Registration, @"Reg No[ \t]*:[ \t]*(?<v>[A-Z0-9]{5,8})\b"),
         new(F.Make, K.Text, @"Make[ \t]*:[ \t]*(?<v>[A-Z][A-Z\- ]{1,19}?)#END#"),
         new(F.Model, K.Text, @"Model[ \t]*:[ \t]*(?<v>[A-Z][A-Z0-9\- ]{1,24}?)#END#"),
-        new(F.Variant, K.Text, @"Spec[ \t]*:[ \t]*(?<v>[A-Z0-9][^\n]{1,39}?)#END#"),
-        new(F.Vin, K.Text, @"Chassis No[ \t]*:[ \t]*(?<v>[A-HJ-NPR-Z0-9]{11,17})"),
+        new(F.Variant, K.Text, @"Spec[ \t]*:[ \t]*(?<v>[A-Z0-9][^\n]{1,39}?)#END#",
+            RawWholeMatch: true),
+        new(F.Vin, K.Text, @"Chassis No[ \t]*:[ \t]*(?<v>[A-HJ-NPR-Z0-9]{11,17})",
+            RawWholeMatch: true),
         new(F.Mileage, K.Mileage, @"Mileage[ \t]*:[ \t]*(?<v>[\d,]+)", Unit: "miles"),
         new(F.MileageUnit, K.Text, @"Mileage[ \t]*:[ \t]*[\d,]+[ \t]*(?<v>Miles|Km)\b"),
         new(F.VehicleLocation, K.Text, @"Inspection Location[ \t]*:[ \t]*(?<v>[^\n]{2,40}?)[ \t]*$"),
         new(F.Repairer, K.Text, @"Repairer[ \t]*:[ \t]*(?<v>[^\n]{3,120}?)[ \t]*$", PartyRole: "repairer"),
-        new(F.Repairability, K.Text, @"Vehicle Status[ \t]*:[ \t]*(?<v>[A-Z]{4,20})"),
+        new(F.Repairability, K.Text, @"Vehicle Status[ \t]*:[ \t]*(?<v>[A-Z]{4,20})",
+            RawWholeMatch: true),
         new(F.Roadworthiness, K.Text, @"\b(?<v>UNROADWORTHY|ROADWORTHY)\b"),
-        new(F.Severity, K.Text, @"Body[ \t]*:[ \t]*(?<v>HEAVY|MODERATE|LIGHT|MEDIUM|SEVERE)\b"),
-        new(F.MinimumRepairDays, K.Number, @"Repair Time In Days[ \t]*:[ \t]*(?<v>\d+)", Unit: "days"),
+        new(F.Severity, K.Text, @"Body[ \t]*:[ \t]*(?<v>HEAVY|MODERATE|LIGHT|MEDIUM|SEVERE)\b",
+            RawWholeMatch: true),
+        new(F.MinimumRepairDays, K.Number, @"Repair Time In Days[ \t]*:[ \t]*(?<v>\d+)",
+            Unit: "days", RawWholeMatch: true),
         new(F.Comments, K.Text, @"^\s*Comments\s*/\s*Repair Notes[ \t]*:\s*$", Section: true),
         new(F.Declaration, K.Text,
             @"(?<v>I confirm that I have made clear which facts and matters referred to in this report are within my own knowledge and which are not\.)"),
@@ -545,15 +586,18 @@ public static class ThirdPartyReportExtraction
         new(F.PaintMaterials, K.Money, @"Paint\s*/\s*Materials[ \t]*" + Money, ReferenceRole: R.Assessed),
         new(F.Parts, K.Money, @"^[ \t]*Parts[ \t]*" + Money, ReferenceRole: R.Assessed),
         new(F.SpecialistCharges, K.Money, @"^[ \t]*Specialist[ \t]*" + Money, ReferenceRole: R.Assessed),
-        new(F.Net, K.Money, @"Total Exc VAT[ \t]*" + Money, ReferenceRole: R.Assessed),
-        new(F.Gross, K.Money, @"Total Inc VAT[ \t]*" + Money, ReferenceRole: R.Assessed),
+        new(F.Net, K.Money, @"Total Exc VAT[ \t]*" + Money,
+            ReferenceRole: R.Assessed, RawWholeMatch: true),
+        new(F.Gross, K.Money, @"Total Inc VAT[ \t]*" + Money,
+            ReferenceRole: R.Assessed, RawWholeMatch: true),
         new(F.VatRate, K.Number, @"V\.A\.T[ \t]*@[ \t]*(?<v>\d{1,2})[ \t]*%",
             ReferenceRole: R.Assessed, Unit: "percent"),
         new(F.VatAmount, K.Money, @"V\.A\.T[ \t]*@[ \t]*\d{1,2}[ \t]*%[ \t]*" + Money, ReferenceRole: R.Assessed),
 
         // A contract repair figure is its own printed role, never the ordinary
         // total: the ordinary totals may legitimately be zero beside it.
-        new(F.Net, K.Money, @"Contract Repair[ \t]*" + Money, ReferenceRole: R.ContractRepair),
+        new(F.Net, K.Money, @"Contract Repair[ \t]*" + Money,
+            ReferenceRole: R.ContractRepair, RawWholeMatch: true),
 
         // The notes name the original amounts explicitly ("NOTING ORIGINAL
         // LABOUR £3303, PARTS, £2652 ..."). They are a third printed role, so
@@ -563,14 +607,21 @@ public static class ThirdPartyReportExtraction
         // reach the ordinary totals table printed above it — those legitimately
         // read zero, and letting a rule match both would invent a conflict
         // between two amounts the document keeps apart on purpose.
+        // The whole printed note is the raw text: it is what tells an operator
+        // that this amount is the ORIGINAL figure being noted, not the zero the
+        // totals table above prints for the same concept.
         new(F.LabourAmount, K.Money,
-            @"NOTING\s+ORIGINAL\s+LABOUR[ \t]*" + Money, ReferenceRole: R.Initial),
+            @"NOTING\s+ORIGINAL\s+LABOUR[ \t]*" + Money,
+            ReferenceRole: R.Initial, RawWholeMatch: true),
         new(F.Parts, K.Money,
-            @"NOTING\s+ORIGINAL[\s\S]{0,120}?PARTS,?[ \t]*" + Money, ReferenceRole: R.Initial),
+            @"NOTING\s+ORIGINAL[\s\S]{0,120}?PARTS,?[ \t]*" + Money,
+            ReferenceRole: R.Initial, RawWholeMatch: true),
         new(F.PaintMaterials, K.Money,
-            @"NOTING\s+ORIGINAL[\s\S]{0,120}?MATERIALS[ \t]*" + Money, ReferenceRole: R.Initial),
+            @"NOTING\s+ORIGINAL[\s\S]{0,120}?MATERIALS[ \t]*" + Money,
+            ReferenceRole: R.Initial, RawWholeMatch: true),
         new(F.SpecialistCharges, K.Money,
-            @"NOTING\s+ORIGINAL[\s\S]{0,120}?SPEC[ \t]*" + Money, ReferenceRole: R.Initial),
+            @"NOTING\s+ORIGINAL[\s\S]{0,120}?SPEC[ \t]*" + Money,
+            ReferenceRole: R.Initial, RawWholeMatch: true),
 
         new(F.Excess, K.Money, @"^[ \t]*Excess[ \t]*" + Money),
         new(F.PreAccidentValue, K.Money, @"Vehicle Market Value[ \t]*" + Money),
