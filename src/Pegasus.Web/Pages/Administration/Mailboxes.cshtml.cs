@@ -16,6 +16,8 @@ public sealed class MailboxesModel(
     IApprovedMailboxPollStatusQueries pollStatusQueries,
     IApprovedMailboxSubscriptionStore subscriptionStore,
     IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity,
+    ICheckApprovedMailboxAccess checkApprovedMailboxAccess,
+    TimeProvider timeProvider,
     ListApprovedOutlookCategories listCategories,
     UpdateApprovedOutlookCategory updateCategory)
     : AdministrationPageModel
@@ -89,7 +91,11 @@ public sealed class MailboxesModel(
             ? null
             : Mailboxes.SingleOrDefault(mailbox => mailbox.Id == input.MailboxId);
         ApprovedMailboxIdentityResolution? resolution = null;
-        if (ModelState.IsValid && isNewMailbox)
+        var requiresIdentityCheck = isNewMailbox
+            || existingMailbox is { State: ApprovedMailboxState.Disabled }
+                && (state == ApprovedMailboxState.Approved
+                    || !string.Equals(input.Address, existingMailbox.Address, StringComparison.OrdinalIgnoreCase));
+        if (ModelState.IsValid && requiresIdentityCheck)
         {
             string normalizedAddress;
             try
@@ -115,6 +121,12 @@ public sealed class MailboxesModel(
                         nameof(MailboxFormInput.Address),
                         "The address could not be found in the mail system.");
                 }
+                else if (!await CanReadInboxAsync(resolution, cancellationToken))
+                {
+                    ModelState.AddModelError(
+                        nameof(MailboxFormInput.Address),
+                        "Pegasus could not verify read access to this mailbox. The change was not saved.");
+                }
             }
         }
 
@@ -135,7 +147,8 @@ public sealed class MailboxesModel(
                         resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
                         resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity,
-                        resolution?.FolderBindings),
+                        resolution?.FolderBindings ?? existingMailbox?.FolderBindings,
+                        input.VerifiedEncodedMessageSizeLimit),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"The mailbox policy for {updated.Address} was saved.";
@@ -215,7 +228,8 @@ public sealed class MailboxesModel(
                         mailbox.MailboxIdentity,
                         mailbox.InboxFolderIdentity,
                         mailbox.SentFolderIdentity,
-                        resolution!.FolderBindings ?? []),
+                        resolution!.FolderBindings ?? [],
+                        mailbox.VerifiedEncodedMessageSizeLimit),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"{updated.FolderBindings.Count} logical folder bindings were saved for {updated.Address}.";
@@ -322,11 +336,26 @@ public sealed class MailboxesModel(
             ? input.SelectedState == state.ToString()
             : mailbox.State == state;
 
+    public long? VerifiedSendLimitFor(ApprovedMailbox mailbox) =>
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.VerifiedEncodedMessageSizeLimit
+            : mailbox.VerifiedEncodedMessageSizeLimit;
+
     public string NewAddress =>
         MailboxForm is { ExpectedVersion: 0 } input ? input.Address : string.Empty;
 
     public string NewReason =>
         MailboxForm is { ExpectedVersion: 0 } input ? input.Reason : string.Empty;
+
+    public long? NewVerifiedSendLimit =>
+        MailboxForm is { ExpectedVersion: 0 } input ? input.VerifiedEncodedMessageSizeLimit : null;
+
+    public ApprovedMailboxPollStatus? PollStatusForMailbox(ApprovedMailbox mailbox) =>
+        PollStatuses.SingleOrDefault(item =>
+            string.Equals(item.MailboxAddress, mailbox.Address, StringComparison.OrdinalIgnoreCase));
+
+    public string PollFreshnessFor(ApprovedMailboxPollStatus status) =>
+        status.IsFresh(timeProvider.GetUtcNow()) ? "Fresh" : "Stale";
 
     public bool IsNewRouteSelected(ApprovedMailboxRouteScope routeScope) =>
         MailboxForm is { ExpectedVersion: 0 } input
@@ -455,6 +484,22 @@ public sealed class MailboxesModel(
         return routeScopes;
     }
 
+    private async Task<bool> CanReadInboxAsync(
+        ApprovedMailboxIdentityResolution resolution,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await (resolveApprovedMailboxIdentity as ICheckApprovedMailboxAccess
+                    ?? checkApprovedMailboxAccess)
+                .CanReadInboxAsync(resolution, cancellationToken);
+        }
+        catch (ApprovedMailboxAccessDeniedException)
+        {
+            return false;
+        }
+    }
+
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         AutomationComposed =
@@ -518,6 +563,8 @@ public sealed class MailboxesModel(
                 "This mailbox's address cannot be changed once saved. Disable it and add a new one.",
             ApprovedMailboxUpdateError.DuplicateMailboxIdentity =>
                 "That address already resolves to a mailbox approved under another row.",
+            ApprovedMailboxUpdateError.MissingVerifiedSendLimit =>
+                "Record the verified encoded-message size limit before enabling staff send.",
             _ => "The approved-mailbox change was not accepted."
         };
 
@@ -555,6 +602,9 @@ public sealed class MailboxesModel(
         public string Reason { get; set; } = string.Empty;
 
         public string OperationKey { get; set; } = string.Empty;
+
+        [Range(1, long.MaxValue)]
+        public long? VerifiedEncodedMessageSizeLimit { get; set; }
     }
 
     [ValidateNever]

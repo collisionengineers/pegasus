@@ -91,6 +91,11 @@ public sealed record RetainedMailPage(
         : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
+public sealed record RetainedMailCursorPage(
+    IReadOnlyList<RetainedMailSummary> Items,
+    bool HasMore,
+    bool HasUnretainedHistory);
+
 public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
@@ -376,6 +381,13 @@ public interface IRetainedMailQueries
         int pageSize,
         CancellationToken cancellationToken);
 
+    Task<RetainedMailCursorPage> ListByCursorAsync(
+        MailWorkspaceScope scope,
+        DateTimeOffset? beforeReceivedAtUtc,
+        Guid? beforeId,
+        int limit,
+        CancellationToken cancellationToken);
+
     /// <summary>How many retained messages the scope holds — the scope list's count wells.</summary>
     Task<int> CountAsync(
         MailWorkspaceScope scope,
@@ -430,6 +442,28 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
         ArgumentNullException.ThrowIfNull(scope);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         return await queries.CountAsync(Normalize(scope), cancellationToken);
+    }
+
+    public async Task<RetainedMailCursorPage> ExecuteCursorAsync(
+        ActionActor actor,
+        MailWorkspaceScope scope,
+        DateTimeOffset? beforeReceivedAtUtc,
+        Guid? beforeId,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if ((beforeReceivedAtUtc is null) != (beforeId is null))
+        {
+            throw new ArgumentException("Both retained-mail cursor values are required together.");
+        }
+        if (limit is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit));
+        }
+        return await queries.ListByCursorAsync(
+            Normalize(scope), beforeReceivedAtUtc, beforeId, limit, cancellationToken);
     }
 
     private static MailWorkspaceScope Normalize(MailWorkspaceScope scope)

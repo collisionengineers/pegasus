@@ -20,6 +20,7 @@ public static class AutomationMcp
     /// </summary>
     public const string ClientDisplayName = "Pegasus Automation Actor";
     public const string EndpointPolicy = "AutomationMcpEndpoint";
+    public const string DocumentsEndpointPolicy = "AutomationMcpDocumentsEndpoint";
     public const string RateLimitPolicy = "AutomationMcp";
     public const string Audience = "pegasus-automation-mcp";
     public const string TokenEndpointPath = "/connect/token";
@@ -32,6 +33,7 @@ public static class AutomationMcp
     public const string AssessmentScope = "automation.assessment";
     public const string MailScope = "automation.mail";
     public const string JobsScope = "automation.jobs";
+    public const string GrantIdentityClaim = "pegasus_automation_grant";
     public const int RequestsPerClientPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
@@ -51,7 +53,11 @@ public sealed record AutomationMcpOptions(
     string ClientSecret,
     Uri PublicOrigin,
     TimeSpan RegistrationCacheLifetime,
-    IReadOnlyList<Uri> RedirectUris)
+    IReadOnlyList<Uri> RedirectUris,
+    bool UseDevelopmentKeys,
+    Uri? KeyVaultUri,
+    IReadOnlyList<Uri> SigningCertificateSecretUris,
+    IReadOnlyList<Uri> EncryptionCertificateSecretUris)
 {
     public Uri ResourceUri => new(PublicOrigin, AutomationMcp.McpEndpointPath);
 
@@ -121,11 +127,79 @@ public sealed record AutomationMcpOptions(
             redirectUris.Add(redirectUri);
         }
 
+        var production = string.Equals(
+            configuration["Runtime:Profile"], "Production", StringComparison.Ordinal);
+        var useDevelopmentKeys = configuration.GetValue<bool>(
+            "AutomationMcp:UseDevelopmentKeys");
+        if (production && useDevelopmentKeys)
+        {
+            throw new InvalidOperationException(
+                "AutomationMcp:UseDevelopmentKeys cannot be enabled in Production.");
+        }
+        Uri? keyVaultUri = null;
+        var configuredVault = configuration["AutomationMcp:KeyVaultUri"];
+        if (!string.IsNullOrWhiteSpace(configuredVault)
+            && (!Uri.TryCreate(configuredVault, UriKind.Absolute, out keyVaultUri)
+                || keyVaultUri.Scheme != Uri.UriSchemeHttps
+                || !keyVaultUri.Host.EndsWith(".vault.azure.net", StringComparison.OrdinalIgnoreCase)
+                || !keyVaultUri.IsDefaultPort
+                || keyVaultUri.UserInfo.Length != 0
+                || keyVaultUri.AbsolutePath != "/"
+                || keyVaultUri.Query.Length != 0
+                || keyVaultUri.Fragment.Length != 0))
+        {
+            throw new InvalidOperationException("AutomationMcp:KeyVaultUri must be an Azure Key Vault HTTPS origin.");
+        }
+        var signingCertificates = LoadSecretUris(
+            configuration.GetSection("AutomationMcp:SigningCertificateSecretUris").Get<string[]>(),
+            "AutomationMcp:SigningCertificateSecretUris", keyVaultUri);
+        var encryptionCertificates = LoadSecretUris(
+            configuration.GetSection("AutomationMcp:EncryptionCertificateSecretUris").Get<string[]>(),
+            "AutomationMcp:EncryptionCertificateSecretUris", keyVaultUri);
+        if (!useDevelopmentKeys
+            && (keyVaultUri is null || signingCertificates.Count == 0 || encryptionCertificates.Count == 0))
+        {
+            throw new InvalidOperationException(
+                "Separate AutomationMcp signing and encryption certificates are required.");
+        }
+
         return new(
             clientId,
             clientSecret,
             publicOrigin,
             TimeSpan.FromSeconds(cacheSeconds),
-            redirectUris);
+            redirectUris,
+            useDevelopmentKeys,
+            keyVaultUri,
+            signingCertificates,
+            encryptionCertificates);
+    }
+
+    private static List<Uri> LoadSecretUris(
+        IReadOnlyList<string>? configured,
+        string configurationKey,
+        Uri? keyVaultUri)
+    {
+        var secretUris = new List<Uri>();
+        foreach (var value in configured ?? [])
+        {
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                || uri.Scheme != Uri.UriSchemeHttps
+                || !uri.Host.EndsWith(".vault.azure.net", StringComparison.OrdinalIgnoreCase)
+                || !uri.IsDefaultPort
+                || uri.UserInfo.Length != 0
+                || keyVaultUri is null
+                || !string.Equals(uri.Host, keyVaultUri.Host, StringComparison.OrdinalIgnoreCase)
+                || uri.Query.Length != 0
+                || uri.Fragment.Length != 0
+                || uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries) is not
+                    ["secrets", { Length: > 0 }, { Length: > 0 }])
+            {
+                throw new InvalidOperationException(
+                    $"{configurationKey} entries must be exact versioned Azure Key Vault secret URIs.");
+            }
+            secretUris.Add(uri);
+        }
+        return secretUris;
     }
 }

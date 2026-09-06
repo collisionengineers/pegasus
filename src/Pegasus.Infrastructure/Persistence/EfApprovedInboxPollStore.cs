@@ -58,7 +58,9 @@ internal sealed class EfApprovedInboxPollStore(
                 ApprovedMailboxId = approvedMailboxId,
                 MailboxAddress = mailboxAddress,
                 ScopeFingerprint = scopeFingerprint,
+                Generation = mailbox.Generation,
                 ActivatedAtUtc = activatedAtUtc,
+                StartBoundaryUtc = activatedAtUtc,
                 DueAtUtc = nowUtc
             };
             context.ApprovedInboxPollStates.Add(state);
@@ -76,10 +78,13 @@ internal sealed class EfApprovedInboxPollStore(
             mailbox.GraphMailboxId,
             mailbox.InboxFolderIdentity);
         if (!string.Equals(state.ScopeFingerprint, currentScopeFingerprint, StringComparison.Ordinal)
-            || state.ActivatedAtUtc != activatedAtUtc)
+            || state.ActivatedAtUtc != activatedAtUtc
+            || state.Generation != mailbox.Generation)
         {
             state.ScopeFingerprint = currentScopeFingerprint;
             state.ActivatedAtUtc = activatedAtUtc;
+            state.StartBoundaryUtc = activatedAtUtc;
+            state.Generation = mailbox.Generation;
             state.Cursor = null;
             state.DueAtUtc = nowUtc;
             state.LeaseToken = null;
@@ -112,7 +117,9 @@ internal sealed class EfApprovedInboxPollStore(
             mailbox.InboxFolderIdentity,
             activatedAtUtc,
             state.Cursor,
-            state.LeaseToken);
+            state.LeaseToken,
+            state.StartBoundaryUtc,
+            state.Generation);
     }
 
     public Task AdvanceAsync(

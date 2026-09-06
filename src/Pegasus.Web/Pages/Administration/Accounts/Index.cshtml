@@ -95,6 +95,7 @@
                                 <td>
                                     @if (account.Roles.Contains(StaffRole.Engineer))
                                     {
+                                        <a asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" class="btn">Glass's</a>
                                         <button type="button" class="btn" data-dialog-open="sign-off-@staffId">
                                             <span>@OperatorLabels.StaffAccounts.Settings</span>
                                         </button>
