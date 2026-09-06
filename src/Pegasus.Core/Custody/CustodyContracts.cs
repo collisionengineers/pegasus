@@ -734,4 +734,14 @@ public interface ICaseArtifactCustodyStatus
     Task<CaseArtifactCustodyResult> GetAsync(
         ActionActor actor, Guid caseId, Guid documentId, Guid versionId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Finds an accepted intent after a response was lost, without offering
+    /// content again. Null means no committed intent was observed; it does not
+    /// authorize a new operation key or prove an in-flight call cannot commit.
+    /// Request links may read only intents accepted through that exact link.
+    /// </summary>
+    Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+        ActionActor actor, Guid caseId, string operationKey,
+        CancellationToken cancellationToken);
 }
