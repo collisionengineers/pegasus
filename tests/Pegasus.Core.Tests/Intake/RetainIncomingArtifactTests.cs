@@ -438,6 +438,18 @@ public sealed class RetainIncomingArtifactTests
     {
         public int Calls { get; private set; }
 
+        /// <summary>
+        /// The committed intents this double will own up to, keyed by the
+        /// operation key each was accepted under. A key absent here has no
+        /// committed intent to report, which is not permission to start a new
+        /// one.
+        /// </summary>
+        public Dictionary<string, CaseArtifactCustodyResult> Committed { get; } = [];
+
+        public int LookupCalls { get; private set; }
+
+        public List<(Guid CaseId, string OperationKey)> Lookups { get; } = [];
+
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor,
             Guid caseId,
@@ -447,6 +459,20 @@ public sealed class RetainIncomingArtifactTests
         {
             Calls++;
             return Task.FromResult(result);
+        }
+
+        // The lookup answers under the same actor rule this double applies to
+        // GetAsync — it does not gate on the actor — so the only thing that
+        // separates an answer from null is what was recorded, never who asked.
+        public Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+            ActionActor actor,
+            Guid caseId,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            LookupCalls++;
+            Lookups.Add((caseId, operationKey));
+            return Task.FromResult(Committed.GetValueOrDefault(operationKey));
         }
     }
 
