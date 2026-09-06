@@ -231,7 +231,7 @@ public sealed class StaffMailSendTests
         public Task ValidateEncodedSizeAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<StaffMailDraftLookupResult> FindDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, CancellationToken cancellationToken) =>
             Task.FromResult(new StaffMailDraftLookupResult(null, null, true));
-        public Task<StaffMailDraftResult> CreateDraftAsync(ApprovedStaffSendMailbox mailbox, Guid operationId, string payloadHash, StaffMailSendCommand command, CancellationToken cancellationToken)
+        public Task<StaffMailDraftResult> CreateDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             CreateCount++;
             return Task.FromResult(new StaffMailDraftResult("draft"));
