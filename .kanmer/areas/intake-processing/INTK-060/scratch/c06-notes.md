@@ -49,3 +49,84 @@ by a new numbered assumption — the fix it proposed (unregistered optional
 `IUpdatePrincipalDefaultInspectionLocation`, ADR-0018 remark) is unrelated and
 still stands; only its claim about non-nullable `[BindProperty]` validation
 timing was wrong.
+
+## Correction round 4 — C06-R-21/R-22 fixture fixes, R-23 deviation, R-24/R-25 dispositions
+
+Read `wave1/c06-review.md` (round-3 superseding review, verdict needs-changes at
+head `dc24438e2`) and wave 23 lane 3 (`wave1/wave23-tests/3-integration.md`).
+Production is correct on both blockers; only the round-3 test fixtures were
+wrong.
+
+- **C06-R-21 (blocker, fixed, `f1519a2f9`)**:
+  `SearchMatchesAPriorLocationWhoseStoredWhitespaceIsIrregular` seeded through
+  `SaveInspectionAddressAsync` → `ISaveCase`, whose `CaseDataOperations.Text`
+  collapses every whitespace run on write, so the doubled space it asserted on
+  could never reach the stored row. Replaced with a new
+  `SeedConfirmedInspectionAddressAsync` helper that adds a
+  `CaseDataFieldEntity` row directly through `IDbContextFactory`/
+  `PegasusDbContext` (mirroring the existing `OrganizationDirectoryEntryEntity`
+  direct-seed precedent already in this file), matching the values the
+  intake-acceptance path (`CaseDataSnapshotFactory.UpsertConfirmed` via
+  `Ext18InspectionAddressPolicy.Evaluate`, which only `Trim()`s) actually
+  writes. Verified the adapter itself is innocent before touching the test:
+  `InspectionAddressChoicesQueries.AddIfMatches` passes the raw `address`
+  parameter straight into `InspectionLocationChoice.Address` — normalization
+  (`NormalizeNamePrefix`) is used only for the `StartsWith` match, never to
+  rewrite the stored value — so no production change was needed; the review's
+  own read of the adapter was correct.
+- **C06-R-22 (blocker, fixed, `99985b6af`)**:
+  `SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory` called
+  `SaveStorageLocationAsync` as a second, separate `SaveEditableDataAsync` after
+  `SaveClaimantAddressAsync`; that second call posts a `CaseEditableData` with
+  every field null except `StorageLocation`, and
+  `EfCaseDataStore.SetConfirmed` deletes a confirmed field whenever its
+  incoming value is null — wiping the just-confirmed `ClaimantAddress`. Fixed
+  by seeding both confirmed fields (`ClaimantAddress`, `StorageLocation`) in
+  one `SaveEditableDataAsync` call instead of two. Took the review's smaller
+  option (seed both in one save) over its "better fix" option (make
+  `SaveEditableDataAsync` merge onto `current.Data` for every caller) — the
+  merge would change behaviour for all three save helpers and every other test
+  using them, a larger surface than a corrective round 4 should touch without
+  a second look; recording this choice here per M8 rather than a numbered
+  ASSUMPTION since it does not gate any further decision. `SaveStorageLocationAsync`
+  became unused as a result and was removed; replaced in place by the new
+  `SeedConfirmedInspectionAddressAsync` helper.
+- **C06-R-23 (minor, deviation recorded, no code change)**: round 3's
+  `src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs` edit
+  (widening `IsOperationKeyValid` to `string?`, commit `9710ef998`) is outside
+  "### C06 files". It is behaviour-neutral (proved by the round-3 review: the
+  method body is byte-identical, `Guid.TryParseExact` already returned false
+  on null) and was the round-2 review's own prescribed fix option 1 for
+  C06-R-16, so it is authorized in substance but was never disclosed as a
+  scope deviation until now. Recording it here per the round-3 review's
+  instruction: **DEVIATION — `AdministrationPageModel.cs` was edited outside
+  the C06 files map in round 3 (commit `9710ef998`), authorized by the
+  round-2 review's C06-R-16 fix option 1, behaviour-neutral, not reverted.**
+- **C06-R-24 (minor, disposition: deferred, not fixed)**: the SQL pre-filter
+  chain in `InspectionAddressChoicesQueries.cs` is narrower than
+  `NormalizeNamePrefix` (misses NBSP/U+000B/U+000C/U+2000-200A, and a leading
+  NBSP/form-feed survives SQL Server's `LTRIM(RTRIM())`), and is non-sargable
+  (7 `REPLACE`s + `LTRIM(RTRIM())` per row before `TOP 500`). The review's own
+  preferred fix (a persisted, normalized computed column) needs an A-owned
+  migration — out of scope for a C-side correction round. Its fallback fix
+  (narrow the comment to name the two known gaps) is a comment-only change
+  with no test coverage forcing it and no build-gate impact; deferring rather
+  than editing prose under time pressure risks introducing a stale claim of
+  its own. Left as a named, tracked gap for the next C-owned pass or an A
+  handoff, not applied this round.
+- **C06-R-25 (minor, disposition: deferred, not fixed)**: `DescribeValidationErrorsAsync`
+  and its two regex fields are duplicated verbatim across
+  `OrganizationAdministrationWebTests.cs` and `OrganizationDirectoryWebTests.cs`
+  (following the file's own `InputTagRegex` precedent), and the assertion
+  message is built eagerly on every passing call. Test-only, no production
+  risk, and the controller's round-4 scope names only R-21/R-22 as fixes plus
+  R-23/dispositions — moving the helper to the shared `IntakeWebTestSupport`
+  base and lazying the message construction touches two files beyond the ones
+  this round's fixes needed. Left as a named, tracked minor for the
+  simplification pass on a future round rather than folded in here.
+
+Build gate after both fixture fixes:
+`dotnet build ./Pegasus.slnx --configuration Release --no-restore` — 0
+Warning(s), 0 Error(s) (first attempt hit MSB3027 on `Pegasus.Core.dll`; one
+`dotnet build-server shutdown` plus retry succeeded per the controller's
+override).
