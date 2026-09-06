@@ -168,7 +168,11 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
-        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
+        services.AddScoped<EfStaffAccountQueries>();
+        services.AddScoped<IStaffAccountQueries>(provider =>
+            provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<ICaseEngineerChoices>(provider =>
+            provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>

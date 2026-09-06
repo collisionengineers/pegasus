@@ -13,8 +13,29 @@ namespace Pegasus.Infrastructure.Persistence;
 /// host) can still resolve <see cref="IStaffAccountQueries"/> to look up a
 /// staff display name.
 /// </summary>
-public sealed class EfStaffAccountQueries(PegasusDbContext context) : IStaffAccountQueries
+public sealed class EfStaffAccountQueries(PegasusDbContext context)
+    : IStaffAccountQueries,
+      ICaseEngineerChoices
 {
+    public async Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var engineerRoleName = StaffRoleNames.Engineer.ToUpperInvariant();
+        return await context.Users.AsNoTracking()
+            .Where(user => user.IsEnabled
+                && user.UserName != null
+                && context.UserRoles
+                .Join(context.Roles, userRole => userRole.RoleId, role => role.Id,
+                    (userRole, role) => new { userRole.UserId, role.NormalizedName })
+                .Any(role => role.UserId == user.Id && role.NormalizedName == engineerRoleName))
+            .OrderBy(user => user.UserName)
+            .ThenBy(user => user.Id)
+            .Select(user => new CaseEngineerChoice(user.Id, user.UserName!))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<StaffAccountQuerySlice> ListAsync(
         int offset,
         int limit,

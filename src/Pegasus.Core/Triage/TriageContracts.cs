@@ -139,13 +139,13 @@ public sealed record CreateTriageFromIntakeRequest(
     TriageOrigin Origin,
     string NormalizedVehicleRegistration,
     IntakeEvidence AcceptedMatchEvidence,
-    string Actor,
+    ActionActor Actor,
     string OperationKey);
 
 public sealed record TriageMutationRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -153,7 +153,7 @@ public sealed record AssignTriageRequest(
     Guid TriageId,
     long ExpectedVersion,
     Guid AssigneeId,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -169,7 +169,7 @@ public sealed record AssignTriageRequest(
 public sealed record AddTriageNoteRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Note);
 
@@ -181,7 +181,16 @@ public static class TriageNotes
     /// </summary>
     public const string EventType = "operator_note";
 
-    public const int MaximumLength = 2000;
+    /// <summary>
+    /// A note is the entry's reason, so it is bounded by what a Triage history
+    /// entry holds — the same 500 characters every other entry's reason is
+    /// bounded by, and what `TriageHistory.Reason` stores. Stating a larger
+    /// bound here would accept a note the store then refuses. A longer note
+    /// needs that column widened first.
+    /// </summary>
+    public const int MaximumLength = TriageReasonLength;
+
+    internal const int TriageReasonLength = 500;
 }
 
 public interface IAddTriageNote
@@ -194,7 +203,7 @@ public interface IAddTriageNote
 public sealed record RecordTriageFindingRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason,
     RoadworthinessFinding? Roadworthiness,
@@ -216,7 +225,7 @@ public sealed record TriageResponseEvidenceLinkRequest(
     Guid PollOutcomeId,
     Guid SentEvidenceId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -224,7 +233,7 @@ public sealed record TriageResponseEvidenceUnlinkRequest(
     Guid TriageId,
     Guid SentEvidenceId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -343,6 +352,7 @@ public sealed record TriageHistoryEntry(
     Guid TriageId,
     string EventType,
     string Actor,
+    string ActorKind,
     string Reason,
     string OperationKey,
     DateTimeOffset OccurredAtUtc,

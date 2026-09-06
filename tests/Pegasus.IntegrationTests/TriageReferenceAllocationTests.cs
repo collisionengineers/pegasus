@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Web.Authentication;
@@ -153,7 +154,9 @@ public sealed class TriageReferenceAllocationTests
             new TriageMutationRequest(
                 created.Id,
                 created.Version,
-                DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    [StaffRole.Administrator]),
                 $"alloc-immutable-await:{Guid.NewGuid():N}",
                 "Further retained information is required"),
             CancellationToken.None);
@@ -241,7 +244,9 @@ public sealed class TriageReferenceAllocationTests
                     prepared.EvaluationRevisionId),
                 prepared.Registration,
                 prepared.AcceptedMatch,
-                "test-actor",
+                // Creation is the intake worker's route, the one that admits
+                // the system worker.
+                ActionActor.SystemWorker("test-worker"),
                 operationKey),
             CancellationToken.None);
     }
