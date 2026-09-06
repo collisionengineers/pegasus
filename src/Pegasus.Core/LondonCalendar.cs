@@ -4,10 +4,6 @@ namespace Pegasus.Core;
 /// Converts Europe/London civil dates and times to deterministic UTC instants. Invalid local
 /// times advance to the first valid minute; ambiguous local times select the later instant.
 /// </summary>
-/// <remarks>
-/// <see cref="DayAndWeekBoundariesAt"/> falls back to UTC when the platform cannot resolve the
-/// zone. Other conversions surface that configuration failure to their callers.
-/// </remarks>
 public static class LondonCalendar
 {
     private const string TimeZoneId = "Europe/London";
@@ -40,7 +36,7 @@ public static class LondonCalendar
         DateTimeOffset WeekStartUtc)
         DayAndWeekBoundariesAt(DateTimeOffset instant)
     {
-        var timeZone = ResolveTimeZone();
+        var timeZone = GetTimeZone();
         var date = DateAt(instant, timeZone);
         var daysSinceMonday = ((int)date.DayOfWeek + 6) % 7;
         return (
@@ -51,6 +47,12 @@ public static class LondonCalendar
 
     public static DateTimeOffset ToUtc(DateTime localTime) =>
         ToUtc(localTime, GetTimeZone());
+
+    public static DateTime TimeAt(DateTimeOffset instant) =>
+        LocalAt(instant).DateTime;
+
+    public static DateTimeOffset LocalAt(DateTimeOffset instant) =>
+        TimeZoneInfo.ConvertTime(instant, GetTimeZone());
 
     private static DateTimeOffset StartOfDay(DateOnly date, TimeZoneInfo timeZone) =>
         ToUtc(date.ToDateTime(TimeOnly.MinValue), timeZone);
@@ -75,19 +77,4 @@ public static class LondonCalendar
     private static TimeZoneInfo GetTimeZone() =>
         TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId);
 
-    private static TimeZoneInfo ResolveTimeZone()
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId);
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.Utc;
-        }
-        catch (InvalidTimeZoneException)
-        {
-            return TimeZoneInfo.Utc;
-        }
-    }
 }
