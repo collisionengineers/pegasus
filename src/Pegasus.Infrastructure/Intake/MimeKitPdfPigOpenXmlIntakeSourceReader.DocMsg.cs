@@ -21,6 +21,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         ReadAccumulator result,
         CancellationToken cancellationToken)
     {
+        if (bytes.Span.StartsWith("{\\rtf"u8))
+        {
+            return ReadRtfDoc(bytes, sourceLabel, result, cancellationToken);
+        }
+
         WordBinaryExtractionResult parsed;
         try
         {
@@ -83,6 +88,75 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         }
 
         return ReadOutcome.Readable;
+    }
+
+    private static ReadOutcome ReadRtfDoc(
+        ReadOnlyMemory<byte> bytes,
+        string sourceLabel,
+        ReadAccumulator result,
+        CancellationToken cancellationToken)
+    {
+        var issues = new List<MsgIssue>();
+        string text;
+        try
+        {
+            text = PassiveRtfText.Extract(bytes.Span, issues, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return AddUnreadableContainerFallback(
+                "unreadable-doc-file",
+                $"{sourceLabel} could not be read as an RTF Word document and is retained for review.",
+                result);
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return AddUnreadableContainerFallback(
+                "unreadable-doc-file",
+                $"{sourceLabel} contains no readable RTF document text and is retained for review.",
+                result);
+        }
+
+        result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
+        AddRtfTableCells(text, sourceLabel, result);
+        result.Issues.Add(new(
+            "doc-rtf-engine",
+            $"{sourceLabel} RTF text was read passively; embedded objects and scripts were not opened.",
+            IntakeEvidenceSource.DocumentContent));
+        if (issues.Any(issue => string.Equals(issue.Code, "MSG_RTF_GROUP_INVALID", StringComparison.Ordinal)))
+        {
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "doc-rtf-partial-extraction",
+                $"{sourceLabel} contains malformed or skipped RTF structures, so some content may be missing.",
+                IntakeEvidenceSource.DocumentContent));
+        }
+
+        return ReadOutcome.Readable;
+    }
+
+    private static void AddRtfTableCells(string text, string sourceLabel, ReadAccumulator result)
+    {
+        var row = 0;
+        foreach (var line in text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+        {
+            if (!line.Contains('\t'))
+                continue;
+            row++;
+            var cells = line.TrimEnd('\r').Split('\t');
+            for (var column = 0; column < cells.Length; column++)
+            {
+                var value = cells[column].Trim();
+                if (value.Length == 0)
+                    continue;
+                result.Content.Add(new(
+                    IntakeEvidenceSource.DocumentContent,
+                    $"{sourceLabel}, table 1 row {row} column {column + 1}",
+                    value,
+                    IntakeSourceLocator.ForCell(1, row, column + 1)));
+            }
+        }
     }
 
     private static async Task<ReadOutcome> ReadMsgAsync(
