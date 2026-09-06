@@ -911,6 +911,20 @@ public sealed class IntakeDependencyUnavailableException(string message, Excepti
 
 public sealed class IntakeAssociationConflictException(string message) : Exception(message);
 
+/// <summary>
+/// API-01 is create-only: a declared provider instruction whose identity facts
+/// match existing Case work is refused rather than allocated or associated. The
+/// envelope is still durably received — the refusal happens in processing, so
+/// the submission terminates under this one code and no Case, PO, association
+/// or Case mutation is produced. Updating an existing Case through the API
+/// awaits a separate authorised contract (FRD-09, operator decision 2026-09-02).
+/// </summary>
+public sealed class ProviderExistingCaseMatchException()
+    : Exception("The provider submission matches existing Case work; API-01 cannot update it.")
+{
+    public const string FailureCode = "provider_existing_case_match";
+}
+
 public interface IResolveIntake
 {
     Task<IntakeReceipt> ExecuteAsync(

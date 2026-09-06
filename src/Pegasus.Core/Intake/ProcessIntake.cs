@@ -495,8 +495,9 @@ public sealed class ProcessIntake(
             // applies. A source with no retained submission binding is refused
             // rather than guessed at.
             var binding = await FindProviderBindingAsync(sourceIdentity, cancellationToken);
-            return binding is null
-                ? new(
+            if (binding is null)
+            {
+                return new(
                     IntakeDecision.NeedsSorting,
                     "The submission this source belongs to was not found.",
                     readerEvidence,
@@ -507,8 +508,41 @@ public sealed class ProcessIntake(
                     null,
                     null,
                     null,
-                    null)
-                : DeclaredAssessment(binding, readerEvidence, processedAtUtc);
+                    null);
+            }
+
+            // Existing-Case rejection, before any draft, review field,
+            // completeness evaluation or allocation. The keys are the four
+            // DECLARED identity facts only — nothing is read out of the
+            // submitted files — normalized by the Principal's own policy.
+            //
+            // Assumption: the authenticated Principal's code and the work
+            // provider code are one vocabulary. They are matched by ordinal
+            // equality against IProviderCaseMatchPolicy.WorkProviderCode, and
+            // DeclaredAssessment already feeds binding.PrincipalCode to
+            // ProviderInstructionPolicy.ToDraft as the provider code. A
+            // Principal with no case-match policy yields null and is not
+            // blocked from creating cases.
+            var instruction = binding.Instruction;
+            var providerMatchDecision = await caseMatchEvaluator.ExecuteDeclaredAsync(
+                binding.PrincipalCode,
+                new(
+                    instruction.ClaimNumber,
+                    instruction.VehicleRegistration,
+                    instruction.ClaimantName,
+                    instruction.DateOfIncident),
+                cancellationToken);
+            if (providerMatchDecision?.Outcome is CaseMatchOutcome.UniqueMatch
+                or CaseMatchOutcome.Ambiguous)
+            {
+                throw new ProviderExistingCaseMatchException();
+            }
+
+            return DeclaredAssessment(
+                binding,
+                readerEvidence,
+                processedAtUtc,
+                providerMatchDecision);
         }
 
         var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel);
@@ -753,7 +787,8 @@ public sealed class ProcessIntake(
     private static IntakeAssessment DeclaredAssessment(
         ProviderSubmissionBinding binding,
         IReadOnlyList<IntakeEvidence> readerEvidence,
-        DateTimeOffset processedAtUtc)
+        DateTimeOffset processedAtUtc,
+        CaseMatchEvaluationResult? caseMatchDecision)
     {
         var instruction = binding.Instruction;
         var isTriage = instruction.Kind == ProviderInstructionKind.Triage;
@@ -795,7 +830,13 @@ public sealed class ProcessIntake(
             null,
             ProviderInstructionPolicy.PolicyKey,
             ProviderInstructionPolicy.PolicyVersion,
-            null);
+            // No mail route and no mail classification apply to a declared
+            // instruction; the case-match decision is now recorded even when it
+            // is NoMatch or NoKeys, so the receipt carries the evidence that
+            // the existing-Case check ran.
+            null,
+            null,
+            caseMatchDecision);
     }
 
     private static EstablishedPrincipalContext? EstablishPrincipalContext(
