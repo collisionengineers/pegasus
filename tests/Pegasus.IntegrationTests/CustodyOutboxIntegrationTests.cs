@@ -22,6 +22,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -2472,7 +2473,11 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
-                services.GetRequiredService<TimeProvider>())
+                services.GetRequiredService<TimeProvider>(),
+                // A first pass over a staged source, so nothing here re-reads a
+                // retained one. A reader that refuses says so out loud if that
+                // ever changes; standalone C composes no concrete reader.
+                RecordingLogicalDocumentVersionReader.Refusing())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
             await services.GetRequiredService<IIntakeReceiptStore>()

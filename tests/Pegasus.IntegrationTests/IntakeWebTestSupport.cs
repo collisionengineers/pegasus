@@ -16,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -691,9 +692,25 @@ internal static partial class IntakeWebDriver
     /// <summary>
     /// The Worker's processor, built by hand because the Web host deliberately
     /// does not register it: tests that need to drain work must say so.
+    ///
+    /// Processing now requires <see cref="IReadLogicalDocumentVersion"/> to
+    /// re-read a retained source after its staged copy is deleted. A04's
+    /// concrete readers are Stream A's and are supplied by the combined host,
+    /// so where a host composes one it is used; where none is composed — which
+    /// is every standalone C host — the processor is built on a double that
+    /// refuses, so a pass that unexpectedly re-reads fails by name instead of
+    /// on an unresolved service. A test whose scenario does re-read registers
+    /// the reader it means to exercise and gets that one.
     /// </summary>
-    internal static ProcessQueuedIntake CreateProcessor(IServiceProvider services) =>
-        ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+    internal static ProcessQueuedIntake CreateProcessor(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return services.GetService<IReadLogicalDocumentVersion>() is null
+            ? ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(
+                services,
+                RecordingLogicalDocumentVersionReader.Refusing())
+            : ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+    }
 
     /// <summary>
     /// Runs the Worker's grouped-image reconcile sweep once, standing in for
