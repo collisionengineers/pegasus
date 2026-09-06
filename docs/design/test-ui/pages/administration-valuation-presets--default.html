@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Case QDOS3100042 · Pegasus</title>
+    <title>Valuation presets · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -91,7 +91,7 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                         <span>Upload</span>
                     </a>
-                <a class="nav-link" aria-current="page" href="queues--default.html">
+                <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
                         <span class="nav-count" aria-label="0 outstanding">0</span>
@@ -105,7 +105,7 @@
                         <span>Operations</span>
                     </a>
                     <div class="nav-label">Manage</div>
-                    <a class="nav-link" href="administration--default.html">
+                    <a class="nav-link" aria-current="page" href="administration--default.html">
                         <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
                         <span>Administration</span>
                     </a>
@@ -157,427 +157,263 @@
                   data-workspace-label="">
                 <div class="content">
 
-
-
 <header class="page-header">
     <div class="page-title">
-        <p class="eyebrow">Case workspace · AB12CDE</p>
-        <h1>QDOS3100042</h1>
-    </div>
-    <div class="page-actions">
-        <a class="btn" href="queues--default.html">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-            <span>Back to Cases</span>
-        </a>
-        <form method="get" data-refresh-form>
-            <input type="hidden" name="section" value="overview" />
-            <button type="submit" class="btn btn--small" title="Refresh">
-                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
+            <p class="eyebrow">Administration</p>
+        <h1>Valuation presets</h1>
     </div>
 </header>
 
-    <div class="notice notice--danger mb-2" role="alert">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span>Edit mode could not be entered because the case changed or is being edited by another member of staff.</span>
-    </div>
 
-<article class="record">
-    <div class="case-sticky" data-case-sticky>
-    <div class="record-ribbon" aria-label="Case identity">
-        <div class="ribbon-item ribbon-ref">
-            <div class="ribbon-label">Case/PO</div>
-            <div class="ribbon-value">QDOS3100042</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Registration</div>
-            <div class="ribbon-value">AB12CDE</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Claimant</div>
-            <div class="ribbon-value">Case claimant</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Principal</div>
-            <div class="ribbon-value">QDOS</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Engineer</div>
-            <div class="ribbon-value">Not recorded</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">Sign-off Engineer</div>
-            <div class="ribbon-value">Unassigned</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">State</div>
-            <div class="ribbon-value"><span class="status status--amber">Not ready</span>
-</div>
-        </div>
-    </div>
-
-        <div class="presence-strip" role="status">
-            <span class="presence-dot" aria-hidden="true"></span>
-            <span data-edit-authority>Case locked - AI is editing. Editing cannot be taken over.</span>
-        </div>
-    <div class="record-bar">
-    </div>
-
-
-    <nav class="section-nav" aria-label="Case sections" data-section-nav>
-        <a class="section-link" href="#section-overview" data-section-link="overview"
-           aria-current="true">
-            <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-            <span>Overview</span>
-        </a>
-        <a class="section-link" href="#section-engineer-notes" data-section-link="engineer-notes"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-            <span>Engineer notes</span>
-        </a>
-        <a class="section-link" href="#section-inspection" data-section-link="inspection"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
-            <span>Inspection</span>
-        </a>
-        <a class="section-link" href="#section-vehicle" data-section-link="vehicle"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
-            <span>Vehicle</span>
-        </a>
-        <a class="section-link" href="#section-damage" data-section-link="damage"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-            <span>Damage</span>
-        </a>
-        <a class="section-link" href="#section-valuation" data-section-link="valuation"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-            <span>Valuation</span>
-        </a>
-        <a class="section-link" href="#section-estimate" data-section-link="estimate"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
-            <span>Estimate</span>
-        </a>
-        <a class="section-link" href="#section-settlement" data-section-link="settlement"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
-            <span>Settlement</span>
-        </a>
-        <a class="section-link" href="#section-report" data-section-link="report"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
-            <span>Report</span>
-        </a>
-        <a class="section-link" href="#section-files" data-section-link="files"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-            <span>Files</span>
-        </a>
-        <a class="section-link" href="#section-notes" data-section-link="notes"
-           aria-current="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-            <span>Notes</span>
-        </a>
+<div class="admin-layout">
+    <nav class="admin-nav panel" aria-label="Administration areas">
+    <a href="administration-accounts--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+    </a>
+    <a href="administration-principals--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Principals</span>
+    </a>
+    <a href="administration-configuration--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+    </a>
+    <a href="administration-mailboxes--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+    </a>
 </nav>
 
-    </div>
-
-    <div class="case-workspace">
-        <div class="case-main" id="case-main">
-                <section class="case-section" id="section-overview" data-section="overview">
-
-<div class="stack">
-
-    <ol class="workflow-stepper" aria-label="Case workflow">
-            <li class="workflow-step is-current">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
-                </span>
-                <span>Not ready</span>
-            </li>
-            <li class="workflow-step">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                </span>
-                <span>Review</span>
-            </li>
-            <li class="workflow-step">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                </span>
-                <span>With Engineer</span>
-            </li>
-            <li class="workflow-step">
-                <span class="workflow-step-icon">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                </span>
-                <span>Complete</span>
-            </li>
-    </ol>
+    <div class="stack">
 
 
-</div>
-
-
-
-<section class="panel case-overview-panel" aria-labelledby="case-overview-title">
-    <div class="panel-head"><h2 id="case-overview-title">Case overview</h2></div>
-    <div class="panel-body">
-        <div class="case-overview-grid">
-            <section aria-labelledby="case-overview-work">
-                <h3 id="case-overview-work">Work</h3>
-                <div class="overview-facts">
-                    <dl><dt>Case type</dt><dd>Inspection</dd></dl>
-                    <dl><dt>Provider reference</dt><dd>CLM-42</dd></dl>
-                    <dl><dt>Inspection</dt><dd>1 Depot Road</dd></dl>
-                    <dl><dt>Engineer</dt><dd>Unassigned</dd></dl>
-                    <dl><dt>Sign-off Engineer</dt><dd>Unassigned</dd></dl>
-                    <dl><dt>Received</dt><dd>04 May 2031 11:30</dd></dl>
-                    <dl><dt>Due</dt><dd>10 May 2031</dd></dl>
-                </div>
-            </section>
-            <section aria-labelledby="case-overview-parties">
-                <h3 id="case-overview-parties">Parties</h3>
-                <div class="overview-facts">
-                    <dl><dt>Principal</dt><dd>QDOS</dd></dl>
-                    <dl><dt>Claimant</dt><dd>Case claimant</dd></dl>
-                    <dl><dt>Repairer / holder</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Intermediary</dt><dd>Not recorded</dd></dl>
-                    <dl><dt>Origin</dt><dd>Email</dd></dl>
-                </div>
-            </section>
-        </div>
-        <section class="accident-card" aria-labelledby="case-accident-title">
-            <div class="accident-card-title">
-                <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                <h3 id="case-accident-title">Accident circumstances</h3>
+        <section class="panel" aria-labelledby="valuation-presets-title">
+            <div class="panel-head">
+                <h2 id="valuation-presets-title">Valuation presets</h2>
+                <span class="muted">5</span>
             </div>
-            <p>Rear impact</p>
-            <div class="accident-meta">
-                <span><b>Incident detail</b>Not recorded</span>
-                <span><b>Vehicle</b>AB12CDE &#xB7; Ford Transit</span>
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">Valuation presets</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Label</th>
+                                <th scope="col">Amount</th>
+                                <th scope="col">State</th>
+                                <th scope="col">Version</th>
+                                <th scope="col">Change</th>
+                                <th scope="col">Save</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Camper conversion</td>
+                                <td class="tabular">&#xA3;0.00</td>
+                                <td>
+                                    <span class="status status--navy">Enabled</span>
+
+                                </td>
+                                <td class="tabular">1</td>
+                                <td>
+                                    <form id="preset-test-ui-guid-1" method="post" class="field" action="administration-valuation-presets--default.html">
+                                        <input type="hidden" name="presetId" value="test-ui-guid-1" />
+                                        <input type="hidden" name="expectedVersion" value="1" />
+                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                        <label class="req" for="preset-test-ui-guid-1-label">Label</label>
+                                        <input id="preset-test-ui-guid-1-label" name="label" value="Camper conversion"
+                                               required maxlength="200" />
+                                        <label class="req" for="preset-test-ui-guid-1-amount">Amount</label>
+                                        <input id="preset-test-ui-guid-1-amount" name="amount" type="number" step="0.01" min="0" required
+                                               value="0.00" />
+                                        <label class="req" for="preset-test-ui-guid-1-reason">Reason</label>
+                                        <input id="preset-test-ui-guid-1-reason" name="reason" required maxlength="1000"
+                                               value="" />
+                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                </td>
+                                <td>
+                                    <button type="submit" form="preset-test-ui-guid-1" class="btn"
+                                            name="active" value="true">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                        <span>Save</span>
+                                    </button>
+                                    <button type="submit" form="preset-test-ui-guid-1" class="btn"
+                                            name="active" value="false">
+                                        <span>Disable</span>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Decals</td>
+                                <td class="tabular">&#xA3;500.00</td>
+                                <td>
+                                    <span class="status status--navy">Enabled</span>
+
+                                </td>
+                                <td class="tabular">1</td>
+                                <td>
+                                    <form id="preset-test-ui-guid-2" method="post" class="field" action="administration-valuation-presets--default.html">
+                                        <input type="hidden" name="presetId" value="test-ui-guid-2" />
+                                        <input type="hidden" name="expectedVersion" value="1" />
+                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                        <label class="req" for="preset-test-ui-guid-2-label">Label</label>
+                                        <input id="preset-test-ui-guid-2-label" name="label" value="Decals"
+                                               required maxlength="200" />
+                                        <label class="req" for="preset-test-ui-guid-2-amount">Amount</label>
+                                        <input id="preset-test-ui-guid-2-amount" name="amount" type="number" step="0.01" min="0" required
+                                               value="500.00" />
+                                        <label class="req" for="preset-test-ui-guid-2-reason">Reason</label>
+                                        <input id="preset-test-ui-guid-2-reason" name="reason" required maxlength="1000"
+                                               value="" />
+                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                </td>
+                                <td>
+                                    <button type="submit" form="preset-test-ui-guid-2" class="btn"
+                                            name="active" value="true">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                        <span>Save</span>
+                                    </button>
+                                    <button type="submit" form="preset-test-ui-guid-2" class="btn"
+                                            name="active" value="false">
+                                        <span>Disable</span>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Driving tuition</td>
+                                <td class="tabular">&#xA3;500.00</td>
+                                <td>
+                                    <span class="status status--navy">Enabled</span>
+
+                                </td>
+                                <td class="tabular">1</td>
+                                <td>
+                                    <form id="preset-test-ui-guid-3" method="post" class="field" action="administration-valuation-presets--default.html">
+                                        <input type="hidden" name="presetId" value="test-ui-guid-3" />
+                                        <input type="hidden" name="expectedVersion" value="1" />
+                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                        <label class="req" for="preset-test-ui-guid-3-label">Label</label>
+                                        <input id="preset-test-ui-guid-3-label" name="label" value="Driving tuition"
+                                               required maxlength="200" />
+                                        <label class="req" for="preset-test-ui-guid-3-amount">Amount</label>
+                                        <input id="preset-test-ui-guid-3-amount" name="amount" type="number" step="0.01" min="0" required
+                                               value="500.00" />
+                                        <label class="req" for="preset-test-ui-guid-3-reason">Reason</label>
+                                        <input id="preset-test-ui-guid-3-reason" name="reason" required maxlength="1000"
+                                               value="" />
+                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                </td>
+                                <td>
+                                    <button type="submit" form="preset-test-ui-guid-3" class="btn"
+                                            name="active" value="true">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                        <span>Save</span>
+                                    </button>
+                                    <button type="submit" form="preset-test-ui-guid-3" class="btn"
+                                            name="active" value="false">
+                                        <span>Disable</span>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>PCO plated</td>
+                                <td class="tabular">&#xA3;1,500.00</td>
+                                <td>
+                                    <span class="status status--navy">Enabled</span>
+
+                                </td>
+                                <td class="tabular">1</td>
+                                <td>
+                                    <form id="preset-test-ui-guid-4" method="post" class="field" action="administration-valuation-presets--default.html">
+                                        <input type="hidden" name="presetId" value="test-ui-guid-4" />
+                                        <input type="hidden" name="expectedVersion" value="1" />
+                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                        <label class="req" for="preset-test-ui-guid-4-label">Label</label>
+                                        <input id="preset-test-ui-guid-4-label" name="label" value="PCO plated"
+                                               required maxlength="200" />
+                                        <label class="req" for="preset-test-ui-guid-4-amount">Amount</label>
+                                        <input id="preset-test-ui-guid-4-amount" name="amount" type="number" step="0.01" min="0" required
+                                               value="1500.00" />
+                                        <label class="req" for="preset-test-ui-guid-4-reason">Reason</label>
+                                        <input id="preset-test-ui-guid-4-reason" name="reason" required maxlength="1000"
+                                               value="" />
+                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                </td>
+                                <td>
+                                    <button type="submit" form="preset-test-ui-guid-4" class="btn"
+                                            name="active" value="true">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                        <span>Save</span>
+                                    </button>
+                                    <button type="submit" form="preset-test-ui-guid-4" class="btn"
+                                            name="active" value="false">
+                                        <span>Disable</span>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Tow bar</td>
+                                <td class="tabular">&#xA3;300.00</td>
+                                <td>
+                                    <span class="status status--navy">Enabled</span>
+
+                                </td>
+                                <td class="tabular">1</td>
+                                <td>
+                                    <form id="preset-test-ui-guid-5" method="post" class="field" action="administration-valuation-presets--default.html">
+                                        <input type="hidden" name="presetId" value="test-ui-guid-5" />
+                                        <input type="hidden" name="expectedVersion" value="1" />
+                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                                        <label class="req" for="preset-test-ui-guid-5-label">Label</label>
+                                        <input id="preset-test-ui-guid-5-label" name="label" value="Tow bar"
+                                               required maxlength="200" />
+                                        <label class="req" for="preset-test-ui-guid-5-amount">Amount</label>
+                                        <input id="preset-test-ui-guid-5-amount" name="amount" type="number" step="0.01" min="0" required
+                                               value="300.00" />
+                                        <label class="req" for="preset-test-ui-guid-5-reason">Reason</label>
+                                        <input id="preset-test-ui-guid-5-reason" name="reason" required maxlength="1000"
+                                               value="" />
+                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                </td>
+                                <td>
+                                    <button type="submit" form="preset-test-ui-guid-5" class="btn"
+                                            name="active" value="true">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                        <span>Save</span>
+                                    </button>
+                                    <button type="submit" form="preset-test-ui-guid-5" class="btn"
+                                            name="active" value="false">
+                                        <span>Disable</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+        </section>
+
+        <section class="panel" aria-labelledby="valuation-preset-create-title">
+            <div class="panel-head">
+                <h2 id="valuation-preset-create-title">Create preset</h2>
             </div>
+            <form method="post" class="field" action="administration-valuation-presets--default.html">
+                <input type="hidden" name="presetId" value="test-ui-guid-6" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <label class="req" for="create-label">Label</label>
+                <input id="create-label" name="label" required maxlength="200"
+                       value="" />
+                <label class="req" for="create-amount">Amount</label>
+                <input id="create-amount" name="amount" type="number" step="0.01" min="0" required />
+                <label class="req" for="create-reason">Reason</label>
+                <input id="create-reason" name="reason" required maxlength="1000" value="" />
+                <button type="submit" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Create preset</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
         </section>
     </div>
-</section>
-
-                </section>
-                    <section class="case-section section-placeholder" id="section-engineer-notes"
-                             data-section="engineer-notes" data-lazy="engineer-notes"
-                             aria-label="Engineer notes"></section>
-                <section class="case-section" id="section-inspection" data-section="inspection">
-
-<div class="stack">
-    <section class="panel" aria-labelledby="case-inspection-address-title">
-        <div class="panel-head">
-            <h2 id="case-inspection-address-title">Inspection address</h2>
-        </div>
-        <div class="panel-body">
-            <div class="definition-list">
-                <dl class="definition">
-                    <dt>Inspect at</dt>
-                    <dd>
-                        1 Depot Road
-                            <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-</span>
-
-                    </dd>
-                </dl>
-                <dl class="definition">
-                    <dt>Source</dt>
-                    <dd>Manual entry</dd>
-                </dl>
-                    <dl class="definition">
-                        <dt>Inspection</dt>
-                        <dd>
-                            Physical address
-                            <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
-    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-</span>
-
-                        </dd>
-                    </dl>
-                <dl class="definition">
-                    <dt>Storage location</dt>
-                    <dd>14 Storage Lane</dd>
-                </dl>
-            </div>
-        </div>
-    </section>
-
 </div>
-
-                </section>
-                    <section class="case-section section-placeholder" id="section-vehicle"
-                             data-section="vehicle" data-lazy="vehicle"
-                             aria-label="Vehicle"></section>
-                <section class="case-section" id="section-damage" data-section="damage">
-
-<section class="panel" aria-labelledby="section-damage-title">
-    <div class="panel-head"><h2 id="section-damage-title">Damage</h2></div>
-    <div class="panel-body">
-        <dl class="detail-list">
-            <div><dt>Impact location</dt><dd>Not recorded</dd></div>
-            <div><dt>Impact severity</dt><dd>Not recorded</dd></div>
-            <div><dt>Incident narrative</dt><dd>Not recorded</dd></div>
-        </dl>
-    </div>
-</section>
-
-                </section>
-                    <section class="case-section section-placeholder" id="section-valuation"
-                             data-section="valuation" data-lazy="valuation"
-                             aria-label="Valuation"></section>
-                <section class="case-section" id="section-estimate" data-section="estimate">
-
-<div class="stack">
-    <section class="panel" aria-labelledby="section-estimate-title">
-        <div class="panel-head">
-            <h2 id="section-estimate-title">Estimate</h2>
-        </div>
-    </section>
-
-    <section class="panel">
-        <div class="panel-head"><h2>Estimates</h2></div>
-        <div class="panel-body">
-            <div class="assessment-estimates">
-                    <div class="empty estimate-empty">No estimates recorded</div>
-
-            </div>
-        </div>
-    </section>
-</div>
-
-
-
-
-
-                </section>
-                <section class="case-section" id="section-settlement" data-section="settlement">
-
-<section class="panel" aria-labelledby="section-settlement-title">
-    <div class="panel-head"><h2 id="section-settlement-title">Settlement</h2></div>
-    <div class="panel-body">
-        <dl class="detail-list">
-            <div><dt>Outcome</dt><dd>Not recorded</dd></div>
-            <div><dt>Salvage category</dt><dd>Not recorded</dd></div>
-            <div><dt>Salvage value</dt><dd>Not recorded</dd></div>
-            <div><dt>Recovery charge</dt><dd>Not recorded</dd></div>
-            <div><dt>Storage charge</dt><dd>Not recorded</dd></div>
-            <div><dt>Repairer VAT registered</dt><dd>Not recorded</dd></div>
-        </dl>
-    </div>
-</section>
-
-                </section>
-                <section class="case-section" id="section-report" data-section="report">
-
-<section class="panel" aria-labelledby="section-report-title">
-    <div class="panel-head">
-        <h2 id="section-report-title">Report</h2>
-    </div>
-    <div class="panel-body stack">
-        <dl class="detail-list">
-            <div><dt>Engineer&#x27;s comments</dt><dd>Not recorded</dd></div>
-            <div><dt>History check</dt><dd>Not recorded</dd></div>
-            <div><dt>Agreed fee</dt><dd>Not recorded</dd></div>
-            <div><dt>Fee description</dt><dd>Not recorded</dd></div>
-            <div><dt>Statement of truth</dt><dd>Not recorded</dd></div>
-        </dl>
-    </div>
-</section>
-
-                </section>
-                    <section class="case-section section-placeholder" id="section-files"
-                             data-section="files" data-lazy="files"
-                             aria-label="Files"></section>
-                    <section class="case-section section-placeholder" id="section-notes"
-                             data-section="notes" data-lazy="notes"
-                             aria-label="Notes"></section>
-        </div>
-
-        <aside class="case-context stack" aria-label="Case context">
-            <section class="context-card">
-                <div class="panel-head"><h2>Current position</h2></div>
-                <div class="panel-body">
-                    <div class="decision-row"><span>State</span><strong><span class="status status--amber">Not ready</span>
-</strong></div>
-                    <div class="decision-row"><span>Version</span><strong>7</strong></div>
-                    <div class="decision-row"><span>Due</span><strong>10 May 2031</strong></div>
-                    <div class="decision-row"><span>Engineer</span><strong>Unassigned</strong></div>
-                    <div class="decision-row"><span>Sign-off Engineer</span><strong>Unassigned</strong></div>
-                    <div class="decision-row">
-                        <span>Edit authority</span>
-                        <strong>
-AI                        </strong>
-                    </div>
-                </div>
-            </section>
-        </aside>
-    </div>
-</article>
-
-<div id="evidence-viewer"
-     class="dialog-backdrop evidence-viewer"
-     data-evidence-viewer
-     hidden>
-    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
-        <div class="dialog-head">
-            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
-            <span class="muted tabular" data-evidence-position></span>
-            <a class="btn btn--small" data-evidence-download download>
-                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                <span>Save as</span>
-            </a>
-            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
-                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
-            </button>
-            <button type="button" class="dialog-close" data-evidence-close>
-                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                <span class="sr-only">Close</span>
-            </button>
-        </div>
-        <div class="dialog-body">
-            <div class="viewer-stage" data-evidence-stage data-rotate-target>
-                <img data-evidence-image alt="" hidden />
-                <iframe data-evidence-document title="" hidden></iframe>
-            </div>
-        </div>
-        <div class="dialog-foot cluster--between">
-            <button type="button" class="btn" data-evidence-previous>
-                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
-                <span>Previous</span>
-            </button>
-            <button type="button" class="btn" data-evidence-next>
-                <span>Next</span>
-                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
-            </button>
-        </div>
-    </section>
-</div>
-
-<div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
-    <div class="reason-dialog">
-        <h2 id="edit-finish-title">Save your changes before finishing?</h2>
-        <p>Values not saved are not kept.</p>
-        <div class="button-row">
-            <button type="button" class="secondary-action" data-edit-finish-keep>Keep editing</button>
-            <button type="button" class="secondary-action" data-edit-finish-discard>Discard</button>
-            <button type="button" class="primary-action" data-edit-finish-save>Save changes</button>
-        </div>
-    </div>
-</div>
-
-
-
-
-
-
 
                 </div>
             </main>
