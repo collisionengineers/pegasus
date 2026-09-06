@@ -28,11 +28,12 @@ refs:
 commits:
   - de69bdcb5
   - 0c00c74a7
+  - 3483cd4f0
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/672'
 archived: false
 created: '2026-09-06T05:33:42.471Z'
-updated: '2026-09-06T08:46:47.640Z'
+updated: '2026-09-06T08:48:48.839Z'
 ---
 
 ## What
