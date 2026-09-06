@@ -208,3 +208,7 @@ Optional directory bridge on `InspectionAddressChoicesQueries` (ASSUMPTION 6), t
 ## Checkpoint — C07 caller slice at `6c8b945bd`
 
 Wave 16 build failed: the reverted A-owned `DocumentCustodyDurabilityTests.cs` still passed the removed `IDocumentContentStore` ctor argument. Controller applied a one-line compile-only accommodation (`6c8b945bd`), solution build 0/0; wave 18 (build/core/integration/a-owned/architecture) running; reviewer re-bound to `6c8b945bd`. The A-owned lane is expected to fail for A's reasons (seeded-QDOS duplicate in `SeedCaseAsync`, legacy content-write premise) — hunk posted to A (PR 673 comment 5560181686). C branch `d2b50f46e` pushed (A snapshot update, hash lane 7/7).
+
+## C06 review at `556a26b1a`: needs-changes (2 blockers, 3 majors, 10 minors)
+
+Blockers = the two wave-15 failures (EvaSubmission required dependency; two non-nullable Reason/OperationKey pairs invalidating ModelState). Majors: default-location history written with `before: null`; item 6 untested (QDOS→IBA unasserted); unordered `.Take(500)` before in-memory prefix filter. Forwarded to the running round-2 implementer to fold in; wave + targeted re-review follow. Wave 18 (C07 caller `6c8b945bd`): build/core 11/architecture PASS, integration 58/60 with the only failures A-owned durability seeds; C07b review pending.
