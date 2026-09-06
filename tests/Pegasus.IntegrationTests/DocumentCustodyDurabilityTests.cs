@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
@@ -329,11 +330,17 @@ public sealed class DocumentCustodyDurabilityTests
             var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
             var contentStore = new ManagedOnlyDocumentContentStore(
                 new LocalDocumentContentStore(Path.Combine(root, "custody")));
+            var custody = new RecordingCaseArtifactCustody(contextFactory, timeProvider);
+            var retention = new RetainIncomingArtifact(
+                custody,
+                new EfPublicUploadRetentionStore(contextFactory),
+                custody);
             IUploadToRequest upload = new EfDocumentRequestStore(
                 contextFactory,
                 new RequestUploadPolicy(limits, timeProvider),
                 limits,
-                timeProvider);
+                timeProvider,
+                retention);
             var command = new UploadToRequestCommand(
                 token.Secret.Token,
                 new(
