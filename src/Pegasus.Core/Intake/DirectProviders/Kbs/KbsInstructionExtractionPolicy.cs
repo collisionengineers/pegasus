@@ -12,7 +12,7 @@ public sealed partial class KbsInstructionExtractionPolicy
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
         new("Claimant name", ["Our Client"], PartyRole: "claimant"),
-        new("Claim reference", ["Our Ref"], PartyRole: "principal", ReferenceRole: "principal"),
+        new("Claim reference", ["Our Ref"], CanonicalValue: value => value.Replace('‐', '-'), PartyRole: "principal", ReferenceRole: "principal"),
         new("Vehicle registration", ["Registration"], IsValidTyped: InstructionFieldEngine.IsUkRegistration, CanonicalValue: InstructionFieldEngine.NormalizeRegistration, PartyRole: "claimant"),
         new("Vehicle make", ["Our Client's Vehicle"], PartyRole: "claimant"),
         new("Vehicle model", ["Vehicle model"], IsRequired: false, PartyRole: "claimant"),
@@ -62,7 +62,7 @@ public sealed partial class KbsInstructionExtractionPolicy
         var dear = DearRegex().Match(text); var signature = SignatureRegex().Match(text);
         if (!dear.Success || !signature.Success || signature.Index <= dear.Index) yield break;
         var header = text[..dear.Index]; var body = text[dear.Index..signature.Index];
-        foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Ref", match.Groups["value"].Value);
+        foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Ref", ProtectLeadingHyphen(match.Groups["value"].Value));
         foreach (Match match in HeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", match.Groups["value"].Value);
         foreach (var (regex, label) in LineFields) foreach (Match match in regex.Matches(body)) yield return Label(fragment, label, match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
@@ -73,6 +73,7 @@ public sealed partial class KbsInstructionExtractionPolicy
     private static readonly (Regex Regex, string Label)[] LineFields = [(ClaimantRegex(), "Our Client"), (VehicleRegex(), "Our Client's Vehicle"), (RegistrationRegex(), "Registration"), (AccidentRegex(), "Date of Accident"), (MileageRegex(), "Mileage"), (InspectionDateRegex(), "Completed inspection date"), (VatRegex(), "VAT status")];
     private static IntakeContentFragment Label(IntakeContentFragment origin, string label, string value) => origin with { Text = $"{label}: {Clean(value)}" };
     private static string Clean(string value) => WhitespaceRegex().Replace(value, " ").Trim();
+    private static string ProtectLeadingHyphen(string value) => value.TrimStart() is { Length: > 0 } trimmed && trimmed[0] == '-' ? $"‐{trimmed[1..]}" : value;
     [GeneratedRegex(@"(?im)^\s*Dear\s+Sirs,?\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex DearRegex();
     [GeneratedRegex(@"(?im)^\s*KNIGHTSBRIDGE\s+SOLICITORS\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex SignatureRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Ref\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
