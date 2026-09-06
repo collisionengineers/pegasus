@@ -135,12 +135,8 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     /// <summary>
-    /// C08: <see cref="RailCountsPageFilter"/> resolves <see cref="IGetAttentionRows"/>
-    /// per request rather than through the constructor, because this branch
-    /// does not yet carry Stream A's registration for it. This is the half of
-    /// that bridge that proves the rows still reach the notifications menu
-    /// once the query is registered — through the ordinary DI path a real
-    /// registration would use, not a page-specific hand-off.
+    /// C08: the required <see cref="IGetAttentionRows"/> dependency supplies
+    /// the notifications menu through ordinary production composition.
     /// </summary>
     [Fact]
     public async Task NotificationsMenuShowsAttentionRowsOnceTheQueryIsRegistered()
@@ -172,24 +168,6 @@ public sealed class ShellAndStatusPageWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Contains("AB12 CDE", html, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The other half of the bridge: with no registration at all (today's
-    /// state on this branch), the shell still renders — the notifications
-    /// menu simply carries no list content, never a failed page.
-    /// </summary>
-    [Fact]
-    public async Task ShellStillRendersWhenTheAttentionRowsQueryIsNotRegistered()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync("/Search");
-
-        response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("data-dialog=\"notifications-dialog\"", html, StringComparison.Ordinal);
     }
 
     private sealed class StubAttentionRows(IReadOnlyList<NeedsAttentionItem> rows) : IGetAttentionRows
