@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -115,8 +115,10 @@ public sealed class AnalyzeRetainedInstructionTests
             .OrderBy(candidate => candidate.Occurrence)
             .ToArray();
         Assert.Equal(2, conflicting.Length);
+        // Two readings the document itself supports are Ambiguous. Conflicting
+        // is reserved for a candidate that contradicts a confirmed fact (C02).
         Assert.All(conflicting, candidate =>
-            Assert.Equal(SourceCandidateDisposition.Conflicting, candidate.Disposition));
+            Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
         Assert.Equal(["AB12CDE", "XY34ZZZ"], conflicting.Select(candidate => candidate.RawValue));
         Assert.Equal([0, 1], conflicting.Select(candidate => candidate.Occurrence));
         Assert.Equal([1, 3], conflicting.Select(candidate => candidate.Page));
