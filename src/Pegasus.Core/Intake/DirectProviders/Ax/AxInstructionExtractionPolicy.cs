@@ -136,6 +136,8 @@ public sealed class AxInstructionExtractionPolicy
         {
             var line = lines[index];
             if (index > start && (line.StartsWith("Pre Existing", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("Damage", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("VAT Registered", StringComparison.OrdinalIgnoreCase)
                 || line.StartsWith("Bodyshop Details", StringComparison.OrdinalIgnoreCase))) break;
             line = Regex.Replace(line, @"^(?:Accident\s*)?(?:Circumstances\s*:?)?\s*", string.Empty,
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
