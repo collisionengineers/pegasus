@@ -292,3 +292,7 @@ Board sync paused for A: C07 status-read contract gap + two options posted as PR
 ## B01 C handoff (PR 670) queued as C07 follow-up
 
 F carries `RequestUploadLinkEntity.Recipient/Reason`; C owes `CreateRequestUploadLinkCommand`/`RequestUploadLink` Recipient (required ≤500) / Reason (optional ≤1000), `NormalizeCreate`, store replay-snapshot compare + projections, and `OperatorLabels.CaseWorkspace.{Recipient,Reason,Content,RecordChase}` (C08 labels batch). Shapes posted to B on PR 673; the policy/store half lands as the next C07 commit set after the retention-caller slice integrates (same files). `IntakePersistenceIntegrationTests` migration-list item is moot under the single v1 migration.
+
+## Checkpoint — A option 1 in progress; C07 caller published for inspection
+
+Helper `task/pegasus-v1-c-retention-caller` = `f55a5adac` pushed; PR 673 comment posted with exact caller files. Per A: identityless-Unknown + fresh-key duplicate risk reopened as an open finding (C will re-issue the same operation key while an arrived/unknown/pending occurrence exists for link+content; A owns an identity-less status lookup); refusal timing — A's adapter rechecks authority after reading bytes, so C's pre-read exception list needs A's explicit refusal contract. Reviewer told to keep both open. Wave 25 (C07 caller) running; C08 round 2 dispatched (Compose test posts its key; preview fake must delegate reads; B's `case-workspace.css` link; `CaseWorkspace` labels). Editors: C05 r3, C08 r2.
