@@ -26,7 +26,14 @@ public sealed class BcInstructionExtractionPolicyTests
         var reversedResult = policy.Extract(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "BC instruction", reversed)], [], [], false), DateTimeOffset.UtcNow, new("BC", BcInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
         Assert.All(reversedResult.Fields, field => Assert.Null(field.SuggestedValue));
         var selector = new InstructionExtractionPolicySelector([policy]);
-        Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selector.Select(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "wrong principal", text.Replace("Baker & Coleman", "Auto Logistic Solutions", StringComparison.Ordinal))], [], [], false), InstructionDocumentSignature.InstructionRole).Outcome);
+        var wrongPrincipal = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"Baker\s*&\s*Coleman",
+            "Auto Logistic Solutions",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        Assert.NotEqual(text, wrongPrincipal);
+        Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selector.Select(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "wrong principal", wrongPrincipal)], [], [], false), InstructionDocumentSignature.InstructionRole).Outcome);
         Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selector.Select(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "incomplete", text)], [], [], true), InstructionDocumentSignature.InstructionRole).Outcome);
     }
     static string? D(DateOnly? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture); static string Root() => Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT") ?? throw new InvalidOperationException();
