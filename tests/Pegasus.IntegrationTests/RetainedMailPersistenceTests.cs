@@ -222,10 +222,35 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal("conversation-1", detail.ConversationId);
         Assert.Equal(["intake@collisionengineers.co.uk"], detail.ToAddresses);
         Assert.Equal(["copied@collisionengineers.co.uk"], detail.CcAddresses);
+        Assert.Equal(["reply@example.invalid"], detail.ReplyToAddresses);
         Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
         var attachment = Assert.Single(detail.Attachments);
         Assert.Equal("estimate.pdf", attachment.FileName);
         Assert.Equal(2048, attachment.ContentLength);
+    }
+
+    [Fact]
+    public async Task MissingStoredReplyToMetadataRemainsUnavailable()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message("message-without-reply-metadata"));
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.RetainedMailboxMessages.ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.ReplyToAddressesJson, (string?)null));
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(
+                await database.ScalarAsync<Guid>(
+                    "SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = 'message-without-reply-metadata';"),
+                CancellationToken.None));
+
+        Assert.Null(detail.ReplyToAddresses);
     }
 
     [Fact]
@@ -1519,6 +1544,7 @@ public sealed class RetainedMailPersistenceTests
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
+            ["reply@example.invalid"],
             subject,
             bodyPlainText,
             [new("estimate.pdf", "application/pdf", 2048)],
@@ -1686,6 +1712,7 @@ public sealed class RetainedMailPersistenceTests
                 "Sender",
                 [MailboxAddress],
                 [],
+                ["sender@example.invalid"],
                 "Subject",
                 "Body",
                 [],

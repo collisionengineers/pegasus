@@ -256,6 +256,7 @@ public sealed class MailWorkspaceBrowserTests
                 sender,
                 [MailboxAddress],
                 [],
+                [],
                 subject,
                 excerpt,
                 attachments,
