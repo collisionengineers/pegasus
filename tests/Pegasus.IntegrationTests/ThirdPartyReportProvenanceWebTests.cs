@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -77,7 +77,9 @@ public sealed class ThirdPartyReportProvenanceWebTests
         Assert.NotEmpty(candidates);
 
         // Every row names the versioned policy that read it, so a later change
-        // to the rules is distinguishable from this reading.
+        // to the rules is distinguishable from this reading. A finding row is
+        // stamped with the finding rules' own version, so a change to the
+        // arithmetic is distinguishable from a change to the reading.
         Assert.All(
             candidates,
             row => Assert.Contains(
@@ -85,7 +87,8 @@ public sealed class ThirdPartyReportProvenanceWebTests
                 new[]
                 {
                     ThirdPartyReportProfiles.ProfileVersion,
-                    ThirdPartyReportExtraction.ProfileVersion
+                    ThirdPartyReportExtraction.ProfileVersion,
+                    ThirdPartyReportValidation.PolicyVersion
                 }));
 
         // The issuer was read from the document, and the document's role says
@@ -119,6 +122,46 @@ public sealed class ThirdPartyReportProvenanceWebTests
                 && row.ReferenceRole == "assessed"
                 && row.NormalizedValue == "1582.20"
                 && row.Currency == "GBP");
+
+        // The printed contradiction reached storage as its own row. It is not
+        // a value and cannot be mistaken for one: its field is namespaced, its
+        // normalized value is the finding code, and its raw text is the
+        // statement an operator reads.
+        var mismatch = Assert.Single(
+            candidates,
+            row => row.Field == ThirdPartyReportFields.Finding(
+                ThirdPartyFindingCodes.LabourHoursRateMismatch));
+        Assert.Equal(ThirdPartyFindingCodes.LabourHoursRateMismatch, mismatch.NormalizedValue);
+        Assert.Equal(SourceCandidateDisposition.Conflicting, mismatch.Disposition);
+        Assert.Equal("assessed", mismatch.ReferenceRole);
+        Assert.Equal(ThirdPartyReportValidation.PolicyVersion, mismatch.PolicyVersion);
+        Assert.Equal(hash, mismatch.Sha256);
+        Assert.False(string.IsNullOrWhiteSpace(mismatch.SourceLabel));
+
+        // Both printed values it compares are named in the statement itself.
+        Assert.Contains("26.2 hours at 90", mismatch.RawValue!, StringComparison.Ordinal);
+        Assert.Contains("not the printed labour 1582.2", mismatch.RawValue!, StringComparison.Ordinal);
+
+        // And the three rows it compares still carry exactly what the document
+        // printed. Nothing wrote the arithmetic's answer back as a source value.
+        Assert.Equal("26.20", Normalized(candidates, ThirdPartyReportFields.LabourHours, "assessed"));
+        Assert.Equal("90.00", Normalized(candidates, ThirdPartyReportFields.LabourRate, "assessed"));
+        Assert.Equal("1582.20", Normalized(candidates, ThirdPartyReportFields.LabourAmount, "assessed"));
+        Assert.DoesNotContain(
+            candidates,
+            row => row.Field == ThirdPartyReportFields.LabourAmount
+                && row.NormalizedValue == "2358.00");
+
+        // The two reconciliations that do hold are recorded beside it, so the
+        // contradiction is read in the context of the figures that agree.
+        Assert.Contains(
+            candidates,
+            row => row.Field == ThirdPartyReportFields.Finding(
+                ThirdPartyFindingCodes.ComponentSumReconciles));
+        Assert.Contains(
+            candidates,
+            row => row.Field == ThirdPartyReportFields.Finding(
+                ThirdPartyFindingCodes.NetVatGrossReconciles));
 
         // And C wrote no Engineer or CE value anywhere: no Case exists, and the
         // receipt carries no accepted case.
@@ -162,6 +205,24 @@ public sealed class ThirdPartyReportProvenanceWebTests
         // A field the document does not state is shown as unstated rather than
         // being filled in or hidden.
         Assert.Contains("Not stated in the document", html, StringComparison.Ordinal);
+
+        // The finding is on the screen too, in the operator's words and beside
+        // the printed values it compares. Its namespaced field name is what
+        // distinguishes it from a printed value on the row list.
+        Assert.Contains(
+            ThirdPartyReportFields.Finding(ThirdPartyFindingCodes.LabourHoursRateMismatch),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("26.2 hours at 90", html, StringComparison.Ordinal);
+        Assert.Contains("not the printed labour 1582.2", html, StringComparison.Ordinal);
+        Assert.Contains("Conflicting statements", html, StringComparison.Ordinal);
+
+        // The reconciliations that hold are shown as well: the screen shows the
+        // whole reconciliation, not only its failures.
+        Assert.Contains(
+            ThirdPartyReportFields.Finding(ThirdPartyFindingCodes.ComponentSumReconciles),
+            html,
+            StringComparison.Ordinal);
 
         // The panel is composed, so the screen is showing candidates rather
         // than the "not available in this environment" notice.
@@ -219,6 +280,22 @@ public sealed class ThirdPartyReportProvenanceWebTests
         Assert.Equal(
             first.Select(row => row.Id).OrderBy(id => id),
             second.Select(row => row.Id).OrderBy(id => id));
+    }
+
+    /// <summary>
+    /// The normalized value of one printed field in one printed amount role,
+    /// or null where the document does not state it.
+    /// </summary>
+    private static string? Normalized(
+        IReadOnlyList<SourceFieldCandidate> candidates,
+        string field,
+        string referenceRole)
+    {
+        var row = candidates.FirstOrDefault(candidate =>
+            candidate.Field == field && candidate.ReferenceRole == referenceRole);
+        return row is null || row.Disposition == SourceCandidateDisposition.Missing
+            ? null
+            : row.NormalizedValue;
     }
 
     private static ActionActor StaffActor() => ActionActor.Staff(
