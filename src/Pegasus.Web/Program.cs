@@ -111,6 +111,7 @@ var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
 QueueClient? intakeWorkQueue = null;
+TokenCredential? automationMcpCredential = null;
 var allowLocalQueueCreation = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
     && !builder.Environment.IsDevelopment())
@@ -150,6 +151,7 @@ if (productionProfile)
         "Box:BaseUri",
         "Box:UploadUri",
         "Box:RootFolderId",
+        "Box:HoldingFolderId",
         "Box:ConfigJson",
         "Box:ClientSecret",
         // EXT-04. Listed here so a deployment missing EVA's credentials fails
@@ -190,6 +192,7 @@ if (productionProfile)
         ExcludeInteractiveBrowserCredential = true,
         ExcludeBrokerCredential = true
     });
+    automationMcpCredential = credential;
     builder.Services.AddDataProtection()
         .SetApplicationName("Pegasus")
         .PersistKeysToAzureBlobStorage(
@@ -672,7 +675,8 @@ documentStorage: !productionProfile
             builder.Configuration["Box:UploadUri"],
             builder.Configuration["Box:RootFolderId"],
             builder.Configuration["Box:ConfigJson"],
-            builder.Configuration["Box:ClientSecret"]))));
+            builder.Configuration["Box:ClientSecret"],
+            builder.Configuration["Box:HoldingFolderId"]))));
 // EXT-04: the manual Send to EVA route. Production only — the offline
 // profile reaches no vendor — and the options are read lazily for the same
 // PLAT-013 reason as Box's.
@@ -686,7 +690,11 @@ builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
-    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity, LocalApprovedMailboxIdentityResolver>();
+    builder.Services.AddSingleton<LocalApprovedMailboxIdentityResolver>();
+    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>
+        provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
+    builder.Services.AddSingleton<ICheckApprovedMailboxAccess>(provider =>
+        provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
 }
 else
 {
@@ -753,7 +761,10 @@ builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore
 builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 if (automationMcpOptions is not null)
 {
-    builder.Services.AddPegasusAutomationMcp(automationMcpOptions, productVersion);
+    builder.Services.AddPegasusAutomationMcp(
+        automationMcpOptions,
+        productVersion,
+        automationMcpCredential);
 }
 if (providerApiEnabled)
 {

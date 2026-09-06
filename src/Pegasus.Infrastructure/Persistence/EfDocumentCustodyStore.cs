@@ -15,6 +15,7 @@ internal sealed class EfDocumentCustodyStore(
     TimeProvider timeProvider) :
     IAddCaseDocument,
     IDownloadCaseDocument,
+    IGetCaseDocumentMetadata,
     IExportCaseDocuments,
     ILogicallyRemoveDocument,
     IConfirmThirdPartyVehicleEvidence,
@@ -120,7 +121,34 @@ internal sealed class EfDocumentCustodyStore(
             .Select(value => new CaseDocumentState(value.CaseId, value.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
-
+    async Task<CaseDocumentMetadata?> IGetCaseDocumentMetadata.ExecuteAsync(
+        GetCaseDocumentMetadataQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ValidateActor(query.Actor);
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await (
+            from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.DocumentId equals version.DocumentId
+            where occurrence.CaseId == query.CaseId
+                && occurrence.Id == query.OccurrenceId
+                && version.Id == query.VersionId
+                && version.DocumentId == occurrence.DocumentId
+                && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && !version.IsLogicallyRemoved
+            select new CaseDocumentMetadata(
+                query.CaseId,
+                occurrence.Id,
+                occurrence.DocumentId,
+                version.Id,
+                version.FileName,
+                version.MediaType,
+                version.ContentLength,
+                version.Sha256))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 
     async Task<DocumentDownload?> IDownloadCaseDocument.ExecuteAsync(
         DownloadCaseDocumentQuery query,
@@ -748,7 +776,9 @@ internal sealed class EfDocumentCustodyStore(
         version.Version,
         occurrence.SemanticRole,
         version.FileName,
-        version.MediaType);
+        version.MediaType,
+        version.BoxFileId,
+        version.BoxVersionId);
 
     internal static DocumentVersion ToVersion(DocumentVersionEntity value) => new(
         value.Id,
@@ -842,6 +872,8 @@ internal sealed class EfDocumentCustodyStore(
             command.Content,
             contentHash,
             cancellationToken);
+        version.BoxFileId = contentWrite.RemoteId;
+        version.BoxVersionId = contentWrite.BoxVersionId;
         return new(
             new(ToOccurrence(occurrence), ToVersion(version), false),
             version,

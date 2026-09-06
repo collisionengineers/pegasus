@@ -173,6 +173,56 @@ internal sealed class EfRetainedMailboxMessageStore(
             await HasUnretainedHistoryAsync(context, scope, cancellationToken));
     }
 
+    public async Task<RetainedMailCursorPage> ListByCursorAsync(
+        MailWorkspaceScope scope,
+        DateTimeOffset? beforeReceivedAtUtc,
+        Guid? beforeId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var searchTerm = scope.SearchTerm?.Trim();
+        var matches = BuildMatches(context, scope);
+        if (beforeReceivedAtUtc is not null)
+        {
+            var received = beforeReceivedAtUtc.Value;
+            var id = beforeId!.Value;
+            matches = matches.Where(item => item.ReceivedAtUtc < received
+                || (item.ReceivedAtUtc == received && item.Id.CompareTo(id) < 0));
+        }
+        var rows = await matches
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(limit + 1)
+            .Select(item => new SummaryRow(
+                item.Id, item.MailboxId, item.MailboxAddress, item.SenderAddress,
+                item.SenderDisplayName, item.Subject, item.BodyExcerpt, item.ReceivedAtUtc,
+                item.IsRead, item.Attachments.Count, item.ExternalReceiptToken,
+                searchTerm != null && context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.AttachmentFileName == null && document.Text != null
+                        && document.Text.Contains(searchTerm))),
+                context.RetainedMailFolderMoves
+                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
+                    .OrderByDescending(move => move.RecordedAtUtc).ThenByDescending(move => move.Id)
+                    .Select(move => move.FolderType).FirstOrDefault(),
+                item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600)))
+            .ToListAsync(cancellationToken);
+        var hasMore = rows.Count > limit;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+        if (searchTerm is not null && rows.Count > 0)
+        {
+            rows = await AddSearchMatchesAsync(context, rows, searchTerm, cancellationToken);
+        }
+        return new(
+            await MapSummariesAsync(context, rows, cancellationToken),
+            hasMore,
+            await HasUnretainedHistoryAsync(context, scope, cancellationToken));
+    }
+
     public async Task<RetainedMailDetail?> GetAsync(
         Guid id,
         CancellationToken cancellationToken,

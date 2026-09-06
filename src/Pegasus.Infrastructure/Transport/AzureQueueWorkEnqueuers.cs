@@ -64,7 +64,9 @@ public sealed class AzureQueueMailboxWakeEnqueuer(
     public async Task EnqueueAsync(
         Guid approvedMailboxId,
         Guid subscriptionId,
+        long generation,
         MailboxWakeKind wakeKind,
+        string? immutableMessageId,
         CancellationToken cancellationToken)
     {
         if (approvedMailboxId == Guid.Empty || subscriptionId == Guid.Empty)
@@ -81,7 +83,9 @@ public sealed class AzureQueueMailboxWakeEnqueuer(
             UnifiedWorkQueueMessage.FormatMailbox(
                 approvedMailboxId,
                 subscriptionId,
-                wakeKind),
+                generation,
+                wakeKind,
+                immutableMessageId),
             cancellationToken: cancellationToken);
     }
 }
@@ -146,41 +150,63 @@ public static class UnifiedWorkQueueMessage
     public static string FormatMailbox(
         Guid approvedMailboxId,
         Guid subscriptionId,
-        MailboxWakeKind wakeKind)
+        long generation,
+        MailboxWakeKind wakeKind,
+        string? immutableMessageId)
     {
         if (approvedMailboxId == Guid.Empty || subscriptionId == Guid.Empty)
         {
             throw new ArgumentException("Mailbox and subscription identifiers are required.");
         }
 
-        return $"{MailboxPrefix}{approvedMailboxId:D}:{subscriptionId:D}:{wakeKind}";
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(generation);
+        if (immutableMessageId is { } id
+            && (id.Length is 0 or > 500
+                || id.Any(character => char.IsControl(character) || char.IsWhiteSpace(character))))
+        {
+            throw new ArgumentException("The immutable message identity is invalid.", nameof(immutableMessageId));
+        }
+        var messageIdentity = immutableMessageId is null
+            ? "-"
+            : Uri.EscapeDataString(immutableMessageId);
+        return $"{MailboxPrefix}{approvedMailboxId:D}:{subscriptionId:D}:{generation}:{wakeKind}:{messageIdentity}";
     }
 
     public static bool TryParseMailbox(
         string? message,
         out Guid approvedMailboxId,
         out Guid subscriptionId,
-        out MailboxWakeKind wakeKind)
+        out long generation,
+        out MailboxWakeKind wakeKind,
+        out string? immutableMessageId)
     {
         approvedMailboxId = Guid.Empty;
         subscriptionId = Guid.Empty;
+        generation = 0;
         wakeKind = default;
+        immutableMessageId = null;
         if (message is null || !message.StartsWith(MailboxPrefix, StringComparison.Ordinal))
         {
             return false;
         }
 
         var parts = message[MailboxPrefix.Length..].Split(':');
-        return parts.Length == 3
-            && Guid.TryParseExact(parts[0], "D", out approvedMailboxId)
-            && approvedMailboxId != Guid.Empty
-            && Guid.TryParseExact(parts[1], "D", out subscriptionId)
-            && subscriptionId != Guid.Empty
-            && Enum.TryParse(parts[2], ignoreCase: false, out wakeKind)
-            && Enum.IsDefined(wakeKind)
-            && string.Equals(
-                message,
-                FormatMailbox(approvedMailboxId, subscriptionId, wakeKind),
-                StringComparison.Ordinal);
+        if (parts.Length != 5
+            || !Guid.TryParseExact(parts[0], "D", out approvedMailboxId)
+            || approvedMailboxId == Guid.Empty
+            || !Guid.TryParseExact(parts[1], "D", out subscriptionId)
+            || subscriptionId == Guid.Empty
+            || !long.TryParse(parts[2], out generation)
+            || generation <= 0
+            || !Enum.TryParse(parts[3], ignoreCase: false, out wakeKind)
+            || !Enum.IsDefined(wakeKind))
+        {
+            return false;
+        }
+        immutableMessageId = parts[4] == "-" ? null : Uri.UnescapeDataString(parts[4]);
+        return string.Equals(
+            message,
+            FormatMailbox(approvedMailboxId, subscriptionId, generation, wakeKind, immutableMessageId),
+            StringComparison.Ordinal);
     }
 }

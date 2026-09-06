@@ -113,8 +113,10 @@ public sealed class AuthorizeModel : AdministrationPageModel
             return Refuse(Errors.InvalidScope, "The connector requested no granted scope.");
         }
 
+        var grantId = $"grant:{Guid.NewGuid():N}";
         await registry.RecordConnectorDecisionAsync(
             actor,
+            grantId,
             RedirectUri(request),
             scopes,
             approved: true,
@@ -125,7 +127,10 @@ public sealed class AuthorizeModel : AdministrationPageModel
         // offline_access lets the connector refresh without a new consent
         // until the refresh token expires or the client is disabled.
         return SignIn(
-            AutomationPrincipal.Create(clientId, [.. scopes, Scopes.OfflineAccess]),
+            AutomationPrincipal.Create(
+                clientId,
+                grantId,
+                [.. scopes, Scopes.OfflineAccess]),
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
@@ -147,6 +152,7 @@ public sealed class AuthorizeModel : AdministrationPageModel
         var status = await registry.GetStatusAsync(actor, cancellationToken);
         await registry.RecordConnectorDecisionAsync(
             actor,
+            $"denied:{Guid.NewGuid():N}",
             RedirectUri(request),
             GrantedScopes(request, status),
             approved: false,

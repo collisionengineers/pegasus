@@ -37,6 +37,7 @@
             <section aria-labelledby="approved-mailboxes-title">
                 <div class="cluster cluster--between">
                     <h3 id="approved-mailboxes-title">@OperatorLabels.MailSettings.ApprovedMailboxes</h3>
+                    <a href="https://github.com/collisionengineers/pegasus/blob/dev/docs/runbook.md#approved-mailbox-estate">Mailbox setup</a>
                 </div>
                 <div class="table-wrap no-border">
                     <table>
@@ -72,7 +73,24 @@
                                 <tr>
                                     <td>@mailbox.Address</td>
                                     <td>@string.Join(", ", mailbox.RouteScopes.Select(OperatorLabels.RouteScope))</td>
-                                    <td>@Model.PollStatusFor(mailbox)</td>
+                                    <td>
+                                        @Model.PollStatusFor(mailbox)
+                                        @if (Model.PollStatusForMailbox(mailbox) is { } poll)
+                                        {
+                                            <details>
+                                                <summary class="btn btn--small">Health</summary>
+                                                <dl class="definition-list">
+                                                    <dt>Start boundary</dt><dd>@OperatorLabels.OfficeTime(poll.StartBoundaryUtc, "Not recorded")</dd>
+                                                    <dt>Generation</dt><dd>@poll.Generation</dd>
+                                                    <dt>Last success</dt><dd>@OperatorLabels.OfficeTime(poll.LastCompletedAtUtc, "Not yet polled")</dd>
+                                                    <dt>Last error</dt><dd>@(poll.LastFailureCode ?? "None")</dd>
+                                                    <dt>Freshness</dt><dd>@Model.PollFreshnessFor(poll)</dd>
+                                                    <dt>Subscription expiry</dt><dd>@OperatorLabels.OfficeTime(poll.SubscriptionExpiresAtUtc, "None")</dd>
+                                                    <dt>Capabilities</dt><dd>@string.Join(", ", (poll.Capabilities ?? mailbox.RouteScopes).Select(OperatorLabels.RouteScope))</dd>
+                                                </dl>
+                                            </details>
+                                        }
+                                    </td>
                                     <td>
                                         <partial name="Shared/_StatusChip"
                                                  model="@OperatorLabels.MailSettings.MailboxState(mailbox.State)" />
@@ -101,7 +119,7 @@
                                                     <div class="field">
                                                         <label class="req" for="@addressId">@OperatorLabels.MailSettings.ApprovedAddress</label>
                                                         <input id="@addressId" name="MailboxForm.Address" value="@Model.AddressFor(mailbox)"
-                                                               required maxlength="320" inputmode="email" readonly="@mailbox.IdentityIsBound" />
+                                                               required maxlength="320" inputmode="email" readonly="@(mailbox.IdentityIsBound && mailbox.State != ApprovedMailboxState.Disabled)" />
                                                     </div>
                                                     <fieldset class="stack">
                                                         <legend>@OperatorLabels.MailSettings.RouteScope</legend>
@@ -117,7 +135,18 @@
                                                                    checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" />
                                                             <span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span>
                                                         </label>
+                                                        <label class="cluster">
+                                                            <input type="checkbox" name="MailboxForm.SelectedRouteScopes"
+                                                                   value="StaffSend"
+                                                                   checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.StaffSend)" />
+                                                            <span>Staff send</span>
+                                                        </label>
                                                     </fieldset>
+                                                    <div class="field">
+                                                        <label for="mailbox-send-limit-@mailbox.Id">Verified encoded-message size limit (bytes)</label>
+                                                        <input id="mailbox-send-limit-@mailbox.Id" name="MailboxForm.VerifiedEncodedMessageSizeLimit"
+                                                               value="@Model.VerifiedSendLimitFor(mailbox)" type="number" min="1" step="1" />
+                                                    </div>
                                                     <div class="field">
                                                         <label for="@stateId">@OperatorLabels.MailSettings.State</label>
                                                         <select id="@stateId" name="MailboxForm.SelectedState">
@@ -185,7 +214,17 @@
                                        checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.SentEvidence)" />
                                 <span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span>
                             </label>
+                            <label class="cluster">
+                                <input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="StaffSend"
+                                       checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.StaffSend)" />
+                                <span>Staff send</span>
+                            </label>
                         </fieldset>
+                        <div class="field">
+                            <label for="new-mailbox-send-limit">Verified encoded-message size limit (bytes)</label>
+                            <input id="new-mailbox-send-limit" name="MailboxForm.VerifiedEncodedMessageSizeLimit"
+                                   value="@Model.NewVerifiedSendLimit" type="number" min="1" step="1" />
+                        </div>
                         <div class="field">
                             <label for="new-mailbox-state">@OperatorLabels.MailSettings.State</label>
                             <select id="new-mailbox-state" name="MailboxForm.SelectedState">
