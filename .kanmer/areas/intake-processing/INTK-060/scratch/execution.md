@@ -376,3 +376,7 @@ Test query `sort=oldest` (page vocabulary), unread token verified, round-trip as
 ## A INTK-027 coordination (PR 673 5561022593 / C ack 5561054246)
 
 A's re-evaluation fix makes `IReadLogicalDocumentVersion` a required `ProcessQueuedIntake` dependency; A adapts the two direct constructions in `QdosAllocationRecoveryTests.cs` (near 603 and 749) on its branch, assertions preserved; C takes the same two-argument change when the fix arrives via composition/G and edits nothing there meanwhile. C05 tripwire retarget remains C's after publication.
+
+## Wave 30 (C06 cleanup `fea0c0e78`): all six lanes PASS on production DI
+
+Build 0/0, core 61, integration 35, host 131, browser 2, architecture 100. Cleanup review binds; on pass, integrate and publish. Wave 31 (C08 `86e8659f5`) launched.
