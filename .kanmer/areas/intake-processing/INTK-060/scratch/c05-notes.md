@@ -227,3 +227,62 @@ No new assumption was needed this round; no test was run here (controller wave l
   finding's ordinal is its position in the raised order, so inserting a rule
   renumbers later findings — the same version boundary a changed raw value
   crosses.
+
+## ASSUMPTION 8 — CLOSED (retargeted), C integration round, 2026-09-06
+
+ASSUMPTION 8 recorded that a queued re-evaluation could not re-read a completed
+receipt's source: `ProcessQueuedIntake` read the staged copy, which is deleted once
+the evaluation is durably recorded, so the re-claimed pass failed with
+`staged_artifact_integrity_failure` before intake ran and only one pass ever tagged a
+third-party outcome. C05 pinned that outcome as a tripwire rather than working around a
+gap in the durable intake path.
+
+Stream A closed the gap (INTK-027, A commit 9028aa12b, applied here as the bounded
+caller patch at C 31e9857b8): `ProcessQueuedIntake` now takes a REQUIRED
+`IReadLogicalDocumentVersion` and a re-evaluation re-reads the exact retained source
+through it — by identity, as the system worker, against the recorded receipt/case/hash/
+length — after the staged copy is gone.
+
+So ASSUMPTION 8 is closed and its tripwire retargeted, not deleted. C-owned
+`ThirdPartyReportProvenanceWebTests.AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas`
+(commit 78cb51c2c) now drives the queued re-evaluation through the real dispatcher and
+asserts: the work item completes with no failure code; the third-party outcome sequence
+is `recorded` then `recorded_reading_stands`; the port was asked exactly once, for the
+receipt's own logical version with the recorded hash and length; and the candidate rows
+are the same rows, value for value, with no second candidate set.
+`RecordingTheSameReadingAgainReplaysItAndAMovedVersionIsRefused` is unchanged.
+
+Qualification, in Stream A's words (PR 673 comments 5561171653 and 5561151076):
+"C owns additional direct constructor adaptations and retargeting its C05 test. Any
+isolated test double of the reader is qualified boundary proof; do not add a production
+fallback or claim standalone C carries A04 adapters." — "A infrastructure/readers/tests
+stay A-owned and are supplied by the combined host." — "Do not add stubs or assume C
+standalone carries A04 concrete readers (it does not)." — "A positive and negative SQL
+tests already prove the real local reader and exact confirmed Box/cache Worker path
+separately."
+
+Accordingly the retargeted test registers the C-owned
+`tests/Pegasus.IntegrationTests/Support/RecordingLogicalDocumentVersionReader.cs` double
+(armed after retention with the retained source's exact bytes for that logical version;
+refusing anything else), and no production registration or fallback was added anywhere.
+
+### Deviation recorded (constructor adaptation, beyond the two named call sites)
+
+`git grep -n "new ProcessQueuedIntake(" -- tests src` named only
+`CustodyOutboxIntegrationTests.cs:2467` (C-owned; a first pass over a staged source, so
+it gets the double unarmed and refusing) and `QdosAllocationRecoveryTests.cs:602`
+(A-owned, already adapted by A — left alone).
+
+One further construction is not a `new` expression and so is not in that grep:
+`IntakeWebDriver.CreateProcessor` in the C-owned `IntakeWebTestSupport.cs` builds the
+processor with `ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)`, and
+standalone C registers `IReadLogicalDocumentVersion` nowhere — so every C test that
+drains queued work would have failed on an unresolved service rather than on anything it
+was testing. It now prefers a reader the host composed (so the combined host's A04
+adapter still wins) and falls back to the refusing double where none is registered, which
+is the same rule the controller set for the direct constructions, applied to the one
+shared indirect one. Still no production fallback: the fallback is test support only.
+
+Build gate on 78cb51c2c: `dotnet build ./Pegasus.slnx --configuration Release
+--no-restore` exit 0, 0 warnings, 0 errors (one MSB3027 file-lock retry after
+`dotnet build-server shutdown`). Tests are the controller's wave loop; none run here.
