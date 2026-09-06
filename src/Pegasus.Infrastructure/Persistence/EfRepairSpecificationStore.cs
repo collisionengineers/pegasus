@@ -21,7 +21,12 @@ public sealed class EfRepairSpecificationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : IRepairSpecificationStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    /// <summary>
+    /// The one serializer settings object this aggregate uses, for the
+    /// request hash, the history payloads and the estimate's own JSON
+    /// columns alike.
+    /// </summary>
+    internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<RepairSpecificationVersion> StartDraftAsync(
         StartRepairSpecificationDraftRequest request,
@@ -240,6 +245,7 @@ public sealed class EfRepairSpecificationStore(
         entity.LastOperationKey = request.OperationKey;
         ApplyDetails(entity, request.Details);
         AddLines(context, entity, request.Lines, request.Actor, now);
+        RecordBreakdown(entity);
         if (editingCurrent)
         {
             // Editing the current estimate changes the breakdown a frozen
@@ -293,19 +299,18 @@ public sealed class EfRepairSpecificationStore(
             Name = name.Length <= EstimatePolicy.MaximumNameLength
                 ? name
                 : name[..EstimatePolicy.MaximumNameLength],
-            RepairDays = original.RepairDays,
-            LabourRate = original.LabourRate,
-            PaintLabourRate = original.PaintLabourRate,
-            PaintMaterials = original.PaintMaterials,
-            OtherCosts = original.OtherCosts,
-            VatPercent = original.VatPercent,
-            Notes = original.Notes,
         };
+        // The header the copy keeps is the original's own canonical header —
+        // rate snapshot, discounts, VAT categories and percentage — applied
+        // through the single owner of that mapping.
+        ApplyDetails(entity, ReadDetails(original) with { Name = entity.Name });
         context.CaseRepairSpecifications.Add(entity);
         foreach (var line in original.Lines.OrderBy(item => item.Position))
         {
-            context.CaseEstimateLines.Add(CloneLine(line, entity, request.Actor, now));
+            context.CaseEstimateLines.Add(
+                CloneLine(line, entity, request.Actor, now, retainProvenance: false));
         }
+        RecordBreakdown(entity);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_duplicated", requestHash,
             new { entity.Id, entity.Version, entity.Name, SourceEstimateId = original.Id }, now);
@@ -387,7 +392,11 @@ public sealed class EfRepairSpecificationStore(
         EstimatePolicy.ValidateSetCurrent(candidate, request.Actor);
         if (candidate.State == RepairSpecificationState.Draft)
         {
-            Accept(entity, EstimatePolicy.BasisFor(candidate), request.Actor, now);
+            // One calculation: the accepted basis and the frozen breakdown
+            // are the same run of the one totals owner, never two.
+            var totals = EstimateTotals.Compute(candidate);
+            Accept(entity, EstimatePolicy.BasisFor(totals), request.Actor, now);
+            RecordBreakdown(entity, totals);
         }
 
         // The previous Current is cleared in the same transaction; the
@@ -550,14 +559,125 @@ public sealed class EfRepairSpecificationStore(
     /// </summary>
     internal static void ApplyDetails(CaseRepairSpecificationEntity entity, EstimateDetails details)
     {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(details);
         entity.Name = details.Name;
         entity.RepairDays = details.RepairDays;
-        entity.LabourRate = details.LabourRate;
+        // A header change invalidates the breakdown the row last recorded.
+        // Every path that has the lines to recompute it calls RecordBreakdown
+        // straight after; one that does not leaves no stale figures behind.
+        entity.CalculationBreakdownJson = null;
+        // One rate column. The rate snapshot's hourly rate is the estimate's
+        // labour rate — EstimateDetails.HourlyRate reads it that way — so the
+        // snapshot adds only the rate card it was taken from, never a second
+        // copy of the rate itself.
+        entity.LabourRate = details.Rate?.HourlyRate ?? details.LabourRate;
+        entity.RateCardId = details.Rate?.RateCardId;
+        entity.RateCardVersion = details.Rate?.RateCardVersion;
         entity.PaintLabourRate = details.PaintLabourRate;
         entity.PaintMaterials = details.PaintMaterials;
         entity.OtherCosts = details.OtherCosts;
         entity.VatPercent = details.VatPercent;
         entity.Notes = details.Notes;
+
+        // Discounts are fractions in Core and percentages in the column the
+        // schema named; four decimal places survive the conversion exactly.
+        entity.PartsDiscountPercent = Percent(details.Discounts?.Parts);
+        entity.MaterialsDiscountPercent = Percent(details.Discounts?.Materials);
+        entity.SpecialistDiscountPercent = Percent(details.Discounts?.Specialist);
+        entity.OverallDiscountPercent = Percent(details.Discounts?.Overall);
+
+        // The effective policy is always recorded, so an estimate saved
+        // without an explicit one keeps the meaning EstimateDetails gives it
+        // rather than reading back as an unrecorded status. The four
+        // applicable flags are written only for a hand-made override: their
+        // presence is what "the operator chose these categories" means.
+        var vat = details.VatPolicy;
+        entity.RepairerVatStatus = vat.RepairerStatus.ToString();
+        entity.LabourVatApplicable = Applicable(vat, EstimateVatCategories.Labour);
+        entity.PartsVatApplicable = Applicable(vat, EstimateVatCategories.Parts);
+        entity.MaterialsVatApplicable = Applicable(vat, EstimateVatCategories.Materials);
+        entity.SpecialistVatApplicable = Applicable(vat, EstimateVatCategories.Specialist);
+    }
+
+    private static decimal? Percent(decimal? fraction) => fraction * 100m;
+
+    private static bool? Applicable(EstimateVatPolicy policy, EstimateVatCategories category) =>
+        policy.CategoriesOverridden ? policy.Charges(category) : null;
+
+    /// <summary>
+    /// The reverse of <see cref="ApplyDetails"/>: the canonical header as the
+    /// row records it. A row that names no applicable categories carries the
+    /// status's own defaults; a row whose status was never recorded reads
+    /// back as <see cref="RepairerVatStatus.Unknown"/>, which is what blocks
+    /// it from being made Current until the status or the categories are.
+    /// </summary>
+    private static EstimateDetails ReadDetails(CaseRepairSpecificationEntity entity)
+    {
+        var status = Enum.Parse<RepairerVatStatus>(entity.RepairerVatStatus);
+        var overridden = entity.LabourVatApplicable is not null
+            || entity.PartsVatApplicable is not null
+            || entity.MaterialsVatApplicable is not null
+            || entity.SpecialistVatApplicable is not null;
+        var vat = overridden
+            ? new EstimateVatPolicy(
+                status,
+                Category(entity.LabourVatApplicable, EstimateVatCategories.Labour)
+                    | Category(entity.PartsVatApplicable, EstimateVatCategories.Parts)
+                    | Category(entity.MaterialsVatApplicable, EstimateVatCategories.Materials)
+                    | Category(entity.SpecialistVatApplicable, EstimateVatCategories.Specialist),
+                true)
+            : EstimateVatPolicy.For(status);
+
+        var discounts = entity.PartsDiscountPercent is null
+            && entity.MaterialsDiscountPercent is null
+            && entity.SpecialistDiscountPercent is null
+            && entity.OverallDiscountPercent is null
+            ? null
+            : new EstimateDiscounts(
+                Fraction(entity.PartsDiscountPercent),
+                Fraction(entity.MaterialsDiscountPercent),
+                Fraction(entity.SpecialistDiscountPercent),
+                Fraction(entity.OverallDiscountPercent));
+
+        var rate = entity.RateCardId is null && entity.RateCardVersion is null
+            ? null
+            : new EstimateRateSnapshot(
+                entity.RateCardId, entity.RateCardVersion, entity.LabourRate ?? 0m);
+
+        return new(
+            entity.Name, entity.RepairDays, entity.LabourRate, entity.PaintLabourRate,
+            entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes,
+            discounts, vat, rate);
+    }
+
+    private static EstimateVatCategories Category(bool? applicable, EstimateVatCategories category) =>
+        applicable == true ? category : EstimateVatCategories.None;
+
+    private static decimal Fraction(decimal? percent) => percent is { } value ? value / 100m : 0m;
+
+    /// <summary>
+    /// Freezes the one totals owner's own output on the row: the raw and
+    /// printed breakdowns and the calculation policy version it stamped. The
+    /// off-pattern values it retained are written on the lines that carry
+    /// them, so neither fact is stored twice.
+    /// </summary>
+    private static void RecordBreakdown(CaseRepairSpecificationEntity entity) =>
+        RecordBreakdown(entity, EstimateTotals.Compute(Map(entity)));
+
+    private static void RecordBreakdown(CaseRepairSpecificationEntity entity, EstimateTotals totals)
+    {
+        entity.CalculationBreakdownJson = JsonSerializer.Serialize(
+            new EstimateCalculationBreakdown(
+                totals.CalculationPolicyVersion, totals.VatPercent, totals.Raw, totals.Printed),
+            JsonOptions);
+        var anomalies = totals.OffPattern.ToLookup(anomaly => anomaly.Position);
+        foreach (var line in entity.Lines)
+        {
+            line.CurrentValuesJson = anomalies.Contains(line.Position)
+                ? JsonSerializer.Serialize(anomalies[line.Position].ToArray(), JsonOptions)
+                : null;
+        }
     }
 
     private static void Accept(
@@ -629,40 +749,82 @@ public sealed class EfRepairSpecificationStore(
     private static string Hash<T>(T request) =>
         CaseOperationReplay.Hash(JsonSerializer.Serialize(request, JsonOptions));
 
+    /// <summary>
+    /// A correction keeps the row's provenance — it is the same document's
+    /// line, corrected. A duplicate is the Engineer's own working estimate,
+    /// so it keeps the figures and drops where they came from.
+    /// </summary>
     private static CaseEstimateLineEntity CloneLine(
-        CaseEstimateLineEntity line, CaseRepairSpecificationEntity target, ActionActor actor, DateTimeOffset now) =>
+        CaseEstimateLineEntity line, CaseRepairSpecificationEntity target, ActionActor actor,
+        DateTimeOffset now, bool retainProvenance = true) =>
         NewLine(new(
             line.LineType, line.GuideCode, line.Description, line.WorkUnits, line.Price,
             line.Unpriced, line.PartNumber, line.Betterment, line.Status,
-            line.EvidenceLabel, line.Justification, line.PaintWorkUnits, line.Quantity),
+            line.EvidenceLabel, line.Justification, line.PaintWorkUnits, line.Quantity,
+            line.Materials,
+            retainProvenance ? ReadOrigin(line) : null,
+            retainProvenance ? line.SourceDocumentIdentity : null,
+            retainProvenance ? line.SourceDocumentVersionId : null,
+            retainProvenance ? line.SourceDocumentSha256 : null,
+            retainProvenance ? line.SourceRowIdentity : null,
+            retainProvenance ? line.AmendedBy : null,
+            retainProvenance ? line.AmendedAtUtc : null),
             line.Position, target, actor, now);
+
+    private static EstimateLineOrigin? ReadOrigin(CaseEstimateLineEntity line) =>
+        line.OriginalValuesJson is { Length: > 0 } json
+            ? JsonSerializer.Deserialize<EstimateLineOrigin>(json, JsonOptions)
+            : null;
 
     private static CaseEstimateLineEntity NewLine(
         EstimateLineInput line, int position, CaseRepairSpecificationEntity target,
         ActionActor actor, DateTimeOffset now) =>
         EstimateLineWriter.NewLine(line, position, target.CaseId, target.Case, target, actor, now);
 
-    internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity) => new(
-        entity.Id, entity.CaseId, entity.Version,
-        Enum.Parse<RepairSpecificationState>(entity.State),
-        new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
-            entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
-        entity.Lines.OrderBy(line => line.Position).Select(line => new CaseEstimateLineRecord(
-            line.Id, line.Position, line.LineType, line.GuideCode, line.Description,
-            line.WorkUnits, line.Price, line.Unpriced, line.PartNumber, line.Betterment,
-            line.Status, line.EvidenceLabel, line.Justification,
-            Enum.Parse<ActorKind>(line.RecordedByKind), line.RecordedBy, line.RecordedAtUtc,
-            line.ConfirmedBy, line.ConfirmedAtUtc, line.PaintWorkUnits, line.Quantity)).ToArray(),
-        entity.CalculationLabour is { } labour ? new(
-            labour, entity.CalculationParts!.Value, entity.CalculationPaintMaterials!.Value,
-            entity.CalculationSpecialistOther!.Value, entity.RepairerVatRegistered!.Value,
-            entity.CalculationVat!.Value, entity.CalculationTotal!.Value,
-            entity.CalculationPolicyVersion!) : null,
-        entity.CreatedBy, entity.CreatedAtUtc, entity.AcceptedBy, entity.AcceptedAtUtc,
-        entity.SupersedesSpecificationId, entity.SupersessionReason,
-        new(entity.Name, entity.RepairDays, entity.LabourRate, entity.PaintLabourRate,
-            entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes),
-        entity.IsCurrent, entity.AiJobId, entity.DiscardReason);
+    internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity)
+    {
+        var details = ReadDetails(entity);
+        return new(
+            entity.Id, entity.CaseId, entity.Version,
+            Enum.Parse<RepairSpecificationState>(entity.State),
+            new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
+                entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
+            entity.Lines.OrderBy(line => line.Position).Select(line => new CaseEstimateLineRecord(
+                line.Id, line.Position, line.LineType, line.GuideCode, line.Description,
+                line.WorkUnits, line.Price, line.Unpriced, line.PartNumber, line.Betterment,
+                line.Status, line.EvidenceLabel, line.Justification,
+                Enum.Parse<ActorKind>(line.RecordedByKind), line.RecordedBy, line.RecordedAtUtc,
+                line.ConfirmedBy, line.ConfirmedAtUtc, line.PaintWorkUnits, line.Quantity,
+                line.Materials, ReadOrigin(line), line.SourceDocumentIdentity,
+                line.SourceDocumentVersionId, line.SourceDocumentSha256, line.SourceRowIdentity,
+                line.AmendedBy, line.AmendedAtUtc)).ToArray(),
+            MapBasis(entity, details),
+            entity.CreatedBy, entity.CreatedAtUtc, entity.AcceptedBy, entity.AcceptedAtUtc,
+            entity.SupersedesSpecificationId, entity.SupersessionReason,
+            details,
+            entity.IsCurrent, entity.AiJobId, entity.DiscardReason);
+    }
+
+    /// <summary>
+    /// The accepted calculation basis as the row froze it: the four typed
+    /// component columns, and — when the acceptance recorded one — the
+    /// printed breakdown and the VAT categories that produced them.
+    /// </summary>
+    private static RepairCalculationBasis? MapBasis(
+        CaseRepairSpecificationEntity entity, EstimateDetails details) =>
+        entity.CalculationLabour is { } labour
+            ? new(labour, entity.CalculationParts!.Value, entity.CalculationPaintMaterials!.Value,
+                entity.CalculationSpecialistOther!.Value, entity.RepairerVatRegistered!.Value,
+                entity.CalculationVat!.Value, entity.CalculationTotal!.Value,
+                entity.CalculationPolicyVersion!,
+                details.VatPolicy,
+                ReadBreakdown(entity)?.Printed)
+            : null;
+
+    private static EstimateCalculationBreakdown? ReadBreakdown(CaseRepairSpecificationEntity entity) =>
+        entity.CalculationBreakdownJson is { Length: > 0 } json
+            ? JsonSerializer.Deserialize<EstimateCalculationBreakdown>(json, JsonOptions)
+            : null;
 
     /// <summary>
     /// The bounded <see cref="CaseEstimatePageItem"/> sibling of <see
@@ -676,11 +838,7 @@ public sealed class EfRepairSpecificationStore(
             entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
         entity.Name,
         entity.IsCurrent,
-        entity.CalculationLabour is { } labour ? new(
-            labour, entity.CalculationParts!.Value, entity.CalculationPaintMaterials!.Value,
-            entity.CalculationSpecialistOther!.Value, entity.RepairerVatRegistered!.Value,
-            entity.CalculationVat!.Value, entity.CalculationTotal!.Value,
-            entity.CalculationPolicyVersion!) : null);
+        MapBasis(entity, ReadDetails(entity)));
 
     private static void AddHistory(
         PegasusDbContext context, CaseWorkflowEntity workflow, ActionActor actor,
@@ -701,6 +859,19 @@ public sealed class EfRepairSpecificationStore(
             $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
             now);
 }
+
+/// <summary>
+/// The persisted form of one run of <see cref="EstimateTotals.Compute"/>:
+/// the unrounded arithmetic, its printed projection, and the calculation
+/// policy version that produced them. Nothing here is re-derived on read —
+/// the row states what the one totals owner computed when the estimate was
+/// saved or accepted.
+/// </summary>
+internal sealed record EstimateCalculationBreakdown(
+    int CalculationPolicyVersion,
+    decimal VatPercent,
+    EstimateRawTotals Raw,
+    EstimatePrintedTotals Printed);
 
 /// <summary>
 /// The one owner of an estimate's line rows. Replacing the lines of a Draft is
@@ -745,6 +916,21 @@ internal static class EstimateLineWriter
             Status = line.Status,
             EvidenceLabel = line.EvidenceLabel,
             Justification = line.Justification,
+            Materials = line.Materials,
+            // The editor's operation vocabulary, projected from the persisted
+            // line type by the one mapping that owns it. The line type stays
+            // the value every rule reads; this column only makes the row
+            // legible in the operation's own words.
+            Operation = EstimateOperations.FromLineType(line.Type).ToString(),
+            OriginalValuesJson = line.Origin is null
+                ? null
+                : JsonSerializer.Serialize(line.Origin, EfRepairSpecificationStore.JsonOptions),
+            SourceDocumentIdentity = line.SourceDocumentIdentity,
+            SourceDocumentVersionId = line.SourceDocumentVersionId,
+            SourceDocumentSha256 = line.SourceDocumentSha256,
+            SourceRowIdentity = line.SourceRowIdentity,
+            AmendedBy = line.AmendedBy,
+            AmendedAtUtc = line.AmendedAtUtc,
             RecordedByKind = actor.Kind.ToString(),
             RecordedBy = actor.SubjectId,
             RecordedAtUtc = now,

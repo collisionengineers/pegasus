@@ -70,9 +70,9 @@ public sealed class EstimateTests
 
         var totals = EstimateTotals.Compute(estimate);
 
-        Assert.Equal(50m, totals.Subtotal);
-        Assert.Equal(0m, totals.Vat);
-        Assert.Equal(50m, totals.Total);
+        Assert.Equal(50m, totals.Printed.Net);
+        Assert.Equal(0m, totals.Printed.Vat);
+        Assert.Equal(50m, totals.Printed.Gross);
     }
 
     [Fact]
@@ -239,8 +239,8 @@ public sealed class EstimateTests
 
         var basis = EstimatePolicy.BasisFor(draft);
         var totals = EstimateTotals.Compute(draft);
-        Assert.Equal(totals.Total, basis.Total);
-        Assert.Equal(totals.Vat, basis.Vat);
+        Assert.Equal(totals.Printed.Gross, basis.Total);
+        Assert.Equal(totals.Printed.Vat, basis.Vat);
         Assert.Equal("repair-specification/v3", basis.PolicyVersion);
         Assert.Equal(basis, RepairSpecificationPolicy.ValidateCalculationBasis(basis));
 

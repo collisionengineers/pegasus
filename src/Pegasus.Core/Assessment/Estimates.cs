@@ -264,10 +264,11 @@ public sealed record EstimateTotals(
     int CalculationPolicyVersion,
     IReadOnlyList<EstimateAnomaly> OffPattern)
 {
-    // Printed-equivalent projections of the pre-B04 flat totals, kept only
-    // while the report projection, the MCP estimate tool and the Case
-    // estimate partial still read the old member names. Remove with the
-    // ENG-039 totals wiring.
+    // Printed-equivalent projections of the pre-B04 flat totals. The report
+    // projection and the Case estimate partial now read the printed
+    // breakdown itself; the MCP estimate tool (Stream A's
+    // AssessmentMcpTools.MapEstimate) is the last reader, and these members
+    // go with the hunk that switches it.
     public decimal Parts => Printed.Parts;
 
     public decimal Labour => Printed.PanelLabour;
@@ -648,9 +649,16 @@ public static class EstimatePolicy
     /// basis derived by <see cref="EstimateTotals"/>; an already accepted
     /// estimate is simply switched to.
     /// </summary>
-    public static RepairCalculationBasis BasisFor(RepairSpecificationVersion estimate)
+    public static RepairCalculationBasis BasisFor(RepairSpecificationVersion estimate) =>
+        BasisFor(EstimateTotals.Compute(estimate));
+
+    /// <summary>
+    /// The same basis from a calculation already made, so a caller that also
+    /// records the breakdown (the store, on acceptance) computes once.
+    /// </summary>
+    public static RepairCalculationBasis BasisFor(EstimateTotals totals)
     {
-        var totals = EstimateTotals.Compute(estimate);
+        ArgumentNullException.ThrowIfNull(totals);
         var printed = totals.Printed;
         return new(
             printed.PanelLabour,
