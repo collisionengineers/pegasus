@@ -1044,6 +1044,39 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task LatestSchemaRetainsOneLabourRateAndRemovesTheObsoletePaintRate()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            migrate: false,
+            useTemplate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'[dbo].[CaseRepairSpecifications]')
+              AND name = N'PaintLabourRate'
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns AS column_value
+            INNER JOIN sys.types AS type_value
+                ON type_value.user_type_id = column_value.user_type_id
+            WHERE column_value.object_id = OBJECT_ID(N'[dbo].[CaseRepairSpecifications]')
+              AND column_value.name = N'LabourRate'
+              AND type_value.name = N'decimal'
+              AND column_value.[precision] = 18
+              AND column_value.scale = 2
+              AND column_value.is_nullable = 1
+            """));
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
     public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
