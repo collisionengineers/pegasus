@@ -85,7 +85,7 @@ public sealed partial class SblInstructionExtractionPolicy
             SupportedPrincipalCode,
             InstructionFieldEngine.TypedString(values["Claimant name"], 300),
             InstructionFieldEngine.TypedString(values["Claim reference"], 100),
-            InstructionFieldEngine.TypedString(values["Vehicle registration"], 20),
+            CanonicalRegistration(values["Vehicle registration"] ?? string.Empty),
             InstructionFieldEngine.TypedString(values["Vehicle make"], 100),
             InstructionFieldEngine.TypedString(values["Vehicle model"], 100),
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
@@ -163,15 +163,18 @@ public sealed partial class SblInstructionExtractionPolicy
     {
         if (section is null)
             yield break;
+        var readings = new List<string>();
         foreach (var (source, target) in labels)
         {
             foreach (Match match in LabelRegex(source).Matches(section))
             {
                 var value = Clean(match.Groups["value"].Value);
                 if (!IsPlaceholder(value))
-                    yield return Labelled(origin, target, value);
+                    readings.Add($"{target}: {value}");
             }
         }
+        if (readings.Count > 0)
+            yield return origin with { Text = string.Join(Environment.NewLine, readings) };
     }
 
     private static string? Section(string text, string heading, string nextHeading)
@@ -212,8 +215,10 @@ public sealed partial class SblInstructionExtractionPolicy
         && value.Any(char.IsLetterOrDigit)
         && value.All(character => char.IsLetterOrDigit(character) || character is ' ' or '-');
 
-    private static string CanonicalRegistration(string value) =>
-        InstructionFieldEngine.IsUkRegistration(value)
+    private static string? CanonicalRegistration(string value) =>
+        IsPlaceholder(value)
+            ? null
+            : InstructionFieldEngine.IsUkRegistration(value)
             ? InstructionFieldEngine.NormalizeRegistration(value)!
             : Clean(value);
 
