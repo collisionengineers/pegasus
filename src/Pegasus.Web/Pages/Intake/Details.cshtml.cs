@@ -61,6 +61,17 @@ public sealed partial class DetailsModel(
     public bool RetainedAnalysisNotComposed =>
         analyzeRetainedInstruction is null || latestRetainedInstructionAnalysis is null;
 
+    /// <summary>
+    /// Whether the analysis panel has anything to say about this receipt: it has
+    /// been analysed, or it carries a retained source that could be. A receipt
+    /// with neither would otherwise read "This retained instruction has not been
+    /// analysed" on an allocated Case's own receipt, which is true and useless.
+    /// Deliberately not keyed on the decision - the surface exists for material
+    /// no route identified, whatever decision was recorded for it.
+    /// </summary>
+    public bool ShowRetainedAnalysisPanel =>
+        RetainedAnalysis is not null || IntakeFileIdentity.SourceAsset(Receipt) is not null;
+
     public ImageIntakeDetail? ImageIntake { get; private set; }
 
     public IReadOnlyList<ImageVrmSuggestion> VrmSuggestions { get; private set; } = [];
@@ -553,10 +564,11 @@ public sealed partial class DetailsModel(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        var hasReadableSource = Receipt.AssetRecords.Count(
-            asset => asset.Kind == IntakeAssetKind.Source
-                && asset.Disposition == IntakeAssetDisposition.Source) == 1;
-        CanAnalyzeRetainedInstruction = hasReadableSource && !RetainedAnalysisNotComposed;
+        // The same owner the command itself resolves the source through, so the
+        // page can never offer an analysis the command would refuse, or withhold
+        // one it would accept.
+        CanAnalyzeRetainedInstruction = IntakeFileIdentity.SourceAsset(Receipt) is not null
+            && !RetainedAnalysisNotComposed;
         if (latestRetainedInstructionAnalysis is null)
         {
             return;
