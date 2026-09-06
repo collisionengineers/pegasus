@@ -2590,7 +2590,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseId", "SnapshotHash")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[State] <> N'Stale'");
 
                     b.ToTable("CaseReportGenerations", (string)null);
                 });
