@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 
@@ -556,4 +557,127 @@ internal sealed class EfDocumentRequestStore(
 
     private static UploadToRequestResult Unavailable() =>
         new(RequestUploadDecision.Unavailable, null, false);
+}
+
+/// <summary>
+/// Where a public submission's occurrences keep their custody state.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The operation key this port is addressed by is scoped by the session that
+/// issued the occurrence — <c>public-upload:{sessionId:N}:{key}</c>, minted by
+/// <see cref="ScopeOperationKey"/> — because a sender's own key is only unique
+/// inside their session and this lookup is global.
+/// </para>
+/// <para>
+/// Custody's remote identities are written onto the document version the
+/// occurrence points at, and only for a confirmed disposition: recording a Box
+/// file against a pending or failed retention would assert that custody holds
+/// bytes it has not said it holds.
+/// </para>
+/// </remarks>
+internal sealed class EfPublicUploadRetentionStore(
+    IDbContextFactory<PegasusDbContext> dbContextFactory) : IIncomingArtifactRetentionStore
+{
+    public static string ScopeOperationKey(Guid sessionId, string operationKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        return $"public-upload:{sessionId:N}:{operationKey.Trim()}";
+    }
+
+    public async Task<RetainedIncomingArtifact?> FindAsync(
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var row = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(occurrence => occurrence.OperationKey == operationKey)
+            .Select(occurrence => new
+            {
+                occurrence.Id,
+                occurrence.OperationKey,
+                occurrence.CustodyState,
+                occurrence.DocumentId,
+                occurrence.DocumentVersionId,
+                CaseId = context.Set<PublicUploadSessionEntity>()
+                    .Where(session => session.Id == occurrence.SessionId)
+                    .Join(
+                        context.Set<RequestUploadLinkEntity>(),
+                        session => session.RequestUploadLinkId,
+                        link => link.Id,
+                        (_, link) => (Guid?)link.CaseId)
+                    .FirstOrDefault(),
+                BoxFileId = context.Set<DocumentVersionEntity>()
+                    .Where(version => version.Id == occurrence.DocumentVersionId)
+                    .Select(version => version.BoxFileId)
+                    .FirstOrDefault(),
+                BoxVersionId = context.Set<DocumentVersionEntity>()
+                    .Where(version => version.Id == occurrence.DocumentVersionId)
+                    .Select(version => version.BoxVersionId)
+                    .FirstOrDefault()
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        return row is null
+            ? null
+            : new(
+                row.Id,
+                row.OperationKey,
+                ParseCustodyState(row.CustodyState),
+                row.CaseId,
+                row.DocumentId,
+                row.DocumentVersionId,
+                row.BoxFileId,
+                row.BoxVersionId);
+    }
+
+    public async Task RecordAsync(
+        RetainedIncomingArtifact artifact,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+            .SingleOrDefaultAsync(item => item.Id == artifact.OccurrenceId, cancellationToken)
+            ?? throw new KeyNotFoundException(
+                $"Public upload occurrence '{artifact.OccurrenceId}' was not found.");
+        occurrence.CustodyState = ToCode(artifact.State);
+        occurrence.DocumentId = artifact.DocumentId;
+        occurrence.DocumentVersionId = artifact.DocumentVersionId;
+
+        if (artifact.DocumentVersionId is { } versionId)
+        {
+            var version = await context.Set<DocumentVersionEntity>()
+                .SingleOrDefaultAsync(item => item.Id == versionId, cancellationToken);
+            if (version is not null)
+            {
+                var confirmed = artifact.State == IncomingArtifactCustodyState.Confirmed;
+                version.BoxFileId = confirmed ? artifact.BoxFileId : null;
+                version.BoxVersionId = confirmed ? artifact.BoxVersionId : null;
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    internal static string ToCode(IncomingArtifactCustodyState state) => state switch
+    {
+        IncomingArtifactCustodyState.Pending => "pending",
+        IncomingArtifactCustodyState.Confirmed => "confirmed",
+        IncomingArtifactCustodyState.Failed => "failed",
+        IncomingArtifactCustodyState.Unknown => "unknown",
+        _ => throw new ArgumentOutOfRangeException(nameof(state))
+    };
+
+    internal static IncomingArtifactCustodyState ParseCustodyState(string value) => value switch
+    {
+        "pending" => IncomingArtifactCustodyState.Pending,
+        "confirmed" => IncomingArtifactCustodyState.Confirmed,
+        "failed" => IncomingArtifactCustodyState.Failed,
+        "unknown" => IncomingArtifactCustodyState.Unknown,
+        // An unrecognised stored state is never read as success.
+        _ => throw new InvalidOperationException(
+            $"The retained occurrence custody state '{value}' is not recognized.")
+    };
 }
