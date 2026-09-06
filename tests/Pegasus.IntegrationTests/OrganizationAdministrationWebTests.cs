@@ -132,7 +132,10 @@ public sealed partial class OrganizationAdministrationWebTests
         using var evaSubmissionPost = await client.PostAsync(
             $"{evaSubmissionPath}?handler=UpdateEva",
             new FormUrlEncodedContent(evaSubmissionForm));
-        Assert.Equal(HttpStatusCode.Redirect, evaSubmissionPost.StatusCode);
+        Assert.True(
+            evaSubmissionPost.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {evaSubmissionPost.StatusCode}. " +
+                $"Validation errors: {await DescribeValidationErrorsAsync(evaSubmissionPost)}");
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
@@ -226,4 +229,31 @@ public sealed partial class OrganizationAdministrationWebTests
         "<input\\b(?=[^>]*\\bname=\"(?<name>[^\"]+)\")(?=[^>]*\\bvalue=\"(?<value>[^\"]*)\")[^>]*>",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex InputTagRegex();
+
+    // C06 review R-20: when a POST unexpectedly redisplays the page instead
+    // of redirecting, name the cause instead of leaving only a status-code
+    // mismatch behind.
+    private static async Task<string> DescribeValidationErrorsAsync(HttpResponseMessage response)
+    {
+        var html = await response.Content.ReadAsStringAsync();
+        var texts = ValidationSummaryRegex().Matches(html)
+            .Cast<Match>()
+            .Concat(FieldValidationErrorRegex().Matches(html).Cast<Match>())
+            .Select(match => WebUtility.HtmlDecode(
+                Regex.Replace(match.Groups["text"].Value, "<[^>]+>", string.Empty)).Trim())
+            .Where(text => text.Length > 0)
+            .Distinct(StringComparer.Ordinal);
+        var joined = string.Join(" | ", texts);
+        return joined.Length > 0 ? joined : "(none found in response body)";
+    }
+
+    [GeneratedRegex(
+        "<div[^>]*class=\"[^\"]*status-card--error[^\"]*\"[^>]*>(?<text>[\\s\\S]*?)</div>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ValidationSummaryRegex();
+
+    [GeneratedRegex(
+        "<span[^>]*class=\"[^\"]*field-validation-error[^\"]*\"[^>]*>(?<text>[\\s\\S]*?)</span>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex FieldValidationErrorRegex();
 }
