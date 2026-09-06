@@ -26,6 +26,52 @@ public sealed class RetainedMailPersistenceTests
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task LocalEmailDisplayUsesStructuredReplyToInsteadOfOtherAddressHeaders()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.Sender = new MailboxAddress("Transport", "transport@example.invalid");
+            message.ReplyTo.Add(new MailboxAddress("Replies", "replies@example.invalid"));
+            message.To.Add(new MailboxAddress("To", "to@example.invalid"));
+            message.Cc.Add(new MailboxAddress("Copy", "copy@example.invalid"));
+        });
+
+        Assert.Equal(["replies@example.invalid"], display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task LocalEmailDisplayUsesActualFromMailboxesOnlyWhenReplyToIsAbsent()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("First", "first@example.invalid"));
+            message.From.Add(new MailboxAddress("Second", "second@example.invalid"));
+            message.Sender = new MailboxAddress("Transport", "transport@example.invalid");
+            message.To.Add(new MailboxAddress("To", "to@example.invalid"));
+        });
+
+        Assert.Equal(
+            ["first@example.invalid", "second@example.invalid"],
+            display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task LocalEmailDisplayPreservesMultipleReplyToMailboxOrder()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.ReplyTo.Add(new MailboxAddress("First reply", "first-reply@example.invalid"));
+            message.ReplyTo.Add(new MailboxAddress("Second reply", "second-reply@example.invalid"));
+        });
+
+        Assert.Equal(
+            ["first-reply@example.invalid", "second-reply@example.invalid"],
+            display.ReplyToAddresses);
+    }
+
+    [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {
         var message = new MimeMessage();
@@ -1420,6 +1466,20 @@ public sealed class RetainedMailPersistenceTests
         using var output = new MemoryStream();
         message.WriteTo(output);
         return output.ToArray();
+    }
+
+    private static async Task<LocalEmailDisplay> ReadDisplayAsync(Action<MimeMessage> configure)
+    {
+        var message = new MimeMessage
+        {
+            Subject = "Reply target fixture",
+            Body = new TextPart("plain") { Text = "Body" }
+        };
+        configure(message);
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        stream.Position = 0;
+        return await LocalEmailDisplayReader.ReadAsync(stream, CancellationToken.None);
     }
 
     private static RetainedMailboxMessage Message(
