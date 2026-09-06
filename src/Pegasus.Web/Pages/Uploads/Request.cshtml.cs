@@ -27,6 +27,26 @@ public sealed partial class RequestModel(
     public string? StatusMessage { get; private set; }
     private const string CompletionStatusKey = "RequestUploadCompletion";
 
+    /// <summary>
+    /// What a confirmed submission is allowed to say. Custody holds the exact
+    /// bytes under a known identity, so the claim is true.
+    /// </summary>
+    private const string RetainedCompletionMessage =
+        "Your document was received and retained securely.";
+
+    /// <summary>
+    /// What a durable but unconfirmed submission is allowed to say. It states
+    /// only what is true — the document arrived and is being stored — and makes
+    /// no claim about custody, because custody has not made one.
+    /// </summary>
+    /// <remarks>
+    /// This belongs beside the other sender-facing strings in
+    /// <c>OperatorLabels</c> and moves there with C08's labels batch; that file
+    /// is not this slice's to edit.
+    /// </remarks>
+    private const string StoringCompletionMessage =
+        "Your document was received and is being stored. You do not need to send it again.";
+
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -109,7 +129,14 @@ public sealed partial class RequestModel(
             {
                 case RequestUploadDecision.Accepted:
                 case RequestUploadDecision.Replay:
-                    TempData[CompletionStatusKey] = "Your document was received and retained securely.";
+                    TempData[CompletionStatusKey] = RetainedCompletionMessage;
+                    return RedirectToPage("/Uploads/Request", new { token = Token });
+                case RequestUploadDecision.AcceptedPending:
+                    // Custody took the bytes durably but has not confirmed
+                    // them. The submission stands and must not be sent again,
+                    // and nothing here says "retained securely" before custody
+                    // has said so.
+                    TempData[CompletionStatusKey] = StoringCompletionMessage;
                     return RedirectToPage("/Uploads/Request", new { token = Token });
                 case RequestUploadDecision.RateLimited:
                     Response.StatusCode = StatusCodes.Status429TooManyRequests;

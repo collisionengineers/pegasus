@@ -104,7 +104,8 @@ public interface IIncomingArtifactRetentionStore
 /// retention once their surfaces land — retains through here, so there is one
 /// place that decides what "retained" means and one place that records it.
 /// The command never invents success: a disposition custody did not give is
-/// never upgraded, and an uncertain hand-over is reconciled through
+/// never upgraded, and a hand-over custody has not finished - a Pending one as
+/// much as an Unknown one - is reconciled through
 /// <see cref="ICaseArtifactCustodyStatus"/> under the same operation key rather
 /// than resubmitted, because resubmitting bytes custody may already hold is how
 /// duplicates are made.
@@ -142,8 +143,12 @@ public sealed class RetainIncomingArtifact(
                 return existing;
             }
 
-            // An uncertain hand-over is asked about, never repeated.
-            if (existing.State == IncomingArtifactCustodyState.Unknown)
+            // Pending and Unknown both mean custody may already hold these
+            // bytes, so both are asked about rather than repeated. Only a
+            // Failed retention - custody said no, and said so - is offered
+            // again under the same key.
+            if (existing.State is IncomingArtifactCustodyState.Pending
+                or IncomingArtifactCustodyState.Unknown)
             {
                 return await ReconcileAsync(actor, existing, cancellationToken);
             }
@@ -202,10 +207,11 @@ public sealed class RetainIncomingArtifact(
         || (exception.InnerException is { } inner && IsUncertainHandOver(inner));
 
     /// <summary>
-    /// Asks custody what became of an uncertain hand-over. Without a status
-    /// port, or without the identities to ask about, the retention stays
-    /// <see cref="IncomingArtifactCustodyState.Unknown"/> — which is honest,
-    /// and still never renders as success.
+    /// Asks custody what became of a hand-over that is neither confirmed nor
+    /// refused - a Pending one it has not finished, or an Unknown one it may
+    /// never have received. Without a status port, or without the identities
+    /// to ask about, the retention keeps the state it had, which is honest and
+    /// still never renders as success.
     /// </summary>
     private async Task<RetainedIncomingArtifact> ReconcileAsync(
         ActionActor actor,
@@ -226,11 +232,16 @@ public sealed class RetainIncomingArtifact(
             documentId,
             versionId,
             cancellationToken);
+        var state = ToState(status.Disposition);
+        var confirmed = state == IncomingArtifactCustodyState.Confirmed;
         var reconciled = existing with
         {
-            State = ToState(status.Disposition),
-            BoxFileId = status.BoxFileId ?? existing.BoxFileId,
-            BoxVersionId = status.BoxVersionId ?? existing.BoxVersionId,
+            State = state,
+            // The same rule a first hand-over follows: only a confirmed
+            // retention says where custody holds the bytes, so a reconciliation
+            // that comes back Pending or Failed carries no remote identity.
+            BoxFileId = confirmed ? status.BoxFileId ?? existing.BoxFileId : null,
+            BoxVersionId = confirmed ? status.BoxVersionId ?? existing.BoxVersionId : null,
             FailureCode = status.FailureCode ?? existing.FailureCode
         };
         if (reconciled != existing)
