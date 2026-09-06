@@ -914,6 +914,19 @@ public sealed class StaffCorrespondenceWebTests
             mailbox.AllowSentEvidence = true;
             mailbox.AllowStaffSend = true;
             mailbox.MailboxGeneration = mailboxGeneration;
+            if (!await context.ApprovedInboxPollStates.AnyAsync(
+                    item => item.ApprovedMailboxId == mailboxId))
+            {
+                context.ApprovedInboxPollStates.Add(new()
+                {
+                    ApprovedMailboxId = mailboxId,
+                    MailboxAddress = mailboxAddress,
+                    ScopeFingerprint = new string('A', 64),
+                    ActivatedAtUtc = NowUtc.AddDays(-1),
+                    DueAtUtc = NowUtc,
+                    LastCompletedAtUtc = NowUtc.AddMinutes(-1)
+                });
+            }
             var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
             if (workflow.Version <= 0)
                 workflow.Version = 1;
