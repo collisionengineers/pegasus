@@ -748,6 +748,14 @@ public sealed class RetainedMailTests
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
         }
 
+        public Task<RetainedMailCursorPage> ListByCursorAsync(
+            MailWorkspaceScope scope,
+            DateTimeOffset? beforeReceivedAtUtc,
+            Guid? beforeId,
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new RetainedMailCursorPage([], false, false));
+
         public Task<int> CountAsync(
             MailWorkspaceScope scope,
             CancellationToken cancellationToken)

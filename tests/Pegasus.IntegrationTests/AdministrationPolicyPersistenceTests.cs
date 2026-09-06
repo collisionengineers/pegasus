@@ -115,6 +115,10 @@ public sealed class AdministrationPolicyPersistenceTests
             initial.Address,
             ApprovedMailboxRouteScope.SentEvidence,
             default));
+        Assert.False(await policy.IsApprovedAsync(
+            initial.Address,
+            ApprovedMailboxRouteScope.StaffSend,
+            default));
         await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => command.ExecuteAsync(
                 request with { OperationKey = "approved-mailbox-stale-1" },

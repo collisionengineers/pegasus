@@ -57,6 +57,7 @@ public sealed class BoxManagedRevisionTests
         "002 1_CLVoffside-V1.jpg",
         "file",
         "0",
+        "2419892871001",
         Length,
         mediaType,
         CaseFolder);

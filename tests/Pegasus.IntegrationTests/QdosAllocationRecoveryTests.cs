@@ -1276,6 +1276,7 @@ public sealed class IntakeAllocationConsumerTests
         using var mcpFactory = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Features:AutomationMcp", "true");
+            builder.UseSetting("AutomationMcp:UseDevelopmentKeys", "true");
             builder.UseSetting("AutomationMcp:ClientId", AutomationClientId);
             builder.UseSetting("AutomationMcp:ClientSecret", AutomationClientSecret);
             builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");

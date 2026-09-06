@@ -286,18 +286,26 @@ public sealed class DependencyDirectionTests
         var message = UnifiedWorkQueueMessage.FormatMailbox(
             mailboxId,
             subscriptionId,
-            MailboxWakeKind.SubscriptionRemoved);
+            7,
+            MailboxWakeKind.SubscriptionRemoved,
+            null);
 
         Assert.True(UnifiedWorkQueueMessage.TryParseMailbox(
             message,
             out var parsedMailboxId,
             out var parsedSubscriptionId,
-            out var parsedKind));
+            out var parsedGeneration,
+            out var parsedKind,
+            out var parsedMessageId));
         Assert.Equal(mailboxId, parsedMailboxId);
         Assert.Equal(subscriptionId, parsedSubscriptionId);
+        Assert.Equal(7, parsedGeneration);
         Assert.Equal(MailboxWakeKind.SubscriptionRemoved, parsedKind);
+        Assert.Null(parsedMessageId);
         Assert.False(UnifiedWorkQueueMessage.TryParseMailbox(
             message.ToUpperInvariant(),
+            out _,
+            out _,
             out _,
             out _,
             out _));

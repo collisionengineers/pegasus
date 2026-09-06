@@ -202,7 +202,8 @@ internal sealed class AssessmentMcpTools(
                 AutomationMcpErrors.RequireId(documentId, "document identifier");
                 AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
                 if (!Enum.TryParse<RepairSpecificationSourceRoute>(sourceRoute, true, out var route)
-                    || route == RepairSpecificationSourceRoute.AiDraft)
+                    || !Enum.IsDefined(route)
+                    || !RepairSpecificationPolicy.IsDocumentRoute(route))
                 {
                     throw new McpException("The estimate source route is not importable.");
                 }

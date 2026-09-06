@@ -105,6 +105,7 @@ public sealed class WorkerActivationReleaseContractTests
         Directory.CreateDirectory(testRoot);
         try
         {
+            AssertTemporaryFixtureRoot(testRoot);
             CopyValidationFixtureFile(repositoryRoot, testRoot, "azure.yaml");
             CopyValidationFixtureFile(repositoryRoot, testRoot, "infra/main.bicep");
             CopyValidationFixtureFile(repositoryRoot, testRoot, "infra/main.parameters.json");
@@ -160,6 +161,7 @@ public sealed class WorkerActivationReleaseContractTests
             startInfo.ArgumentList.Add("Local");
             startInfo.ArgumentList.Add("-WorkerActivation");
             startInfo.ArgumentList.Add("disabled");
+            ScrubInheritedGitEnvironment(startInfo);
 
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException(
@@ -195,6 +197,7 @@ public sealed class WorkerActivationReleaseContractTests
         }
         finally
         {
+            AssertTemporaryFixtureRoot(testRoot);
             Directory.Delete(testRoot, recursive: true);
         }
     }
@@ -409,6 +412,7 @@ public sealed class WorkerActivationReleaseContractTests
                 UseShellExecute = false,
                 WorkingDirectory = repositoryRoot
             };
+            ScrubInheritedGitEnvironment(startInfo);
             startInfo.ArgumentList.Add("-NoLogo");
             startInfo.ArgumentList.Add("-NoProfile");
             startInfo.ArgumentList.Add("-File");
@@ -453,12 +457,14 @@ public sealed class WorkerActivationReleaseContractTests
         }
         finally
         {
+            AssertTemporaryFixtureRoot(testRoot);
             Directory.Delete(testRoot, recursive: true);
         }
     }
 
     private static void WriteFakeAzureCli(string testRoot)
     {
+        AssertTemporaryFixtureRoot(testRoot);
         if (OperatingSystem.IsWindows())
         {
             File.WriteAllText(
@@ -492,8 +498,33 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var sourcePath = Path.Combine(repositoryRoot, relativePath);
         var destinationPath = Path.Combine(testRoot, relativePath);
+        AssertTemporaryFixtureRoot(testRoot, destinationPath);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
         File.Copy(sourcePath, destinationPath);
+    }
+
+    private static void ScrubInheritedGitEnvironment(ProcessStartInfo startInfo)
+    {
+        foreach (var name in startInfo.Environment.Keys
+                     .Where(name => name.StartsWith("GIT_", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            startInfo.Environment.Remove(name);
+        }
+    }
+
+    private static void AssertTemporaryFixtureRoot(string testRoot, string? target = null)
+    {
+        var root = Path.GetFullPath(testRoot).TrimEnd(Path.DirectorySeparatorChar);
+        var temporaryParent = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        Assert.StartsWith(temporaryParent, root + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
+        if (target is not null)
+        {
+            Assert.StartsWith(root + Path.DirectorySeparatorChar, Path.GetFullPath(target),
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private sealed record WorkerSetting(

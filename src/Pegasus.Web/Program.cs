@@ -759,6 +759,9 @@ builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
 // view in every profile; the ingress itself stays behind the composition gate.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
 builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
+// Administration health remains available when the Automation ingress is disabled.
+builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
+builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
 if (automationMcpOptions is not null)
 {
     builder.Services.AddPegasusAutomationMcp(

@@ -333,6 +333,7 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Box:BaseUri"] = "https://api.box.com/2.0/",
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",
+            ["Box:HoldingFolderId"] = "test-holding-folder",
             ["Box:ConfigJson"] = TestBoxConfigJson,
             ["Box:ClientSecret"] = "test-client-secret",
             ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",

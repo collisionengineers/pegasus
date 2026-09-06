@@ -98,6 +98,25 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task NotificationBeforeTheMailboxBoundaryIsNotCountedAsHandled()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Notified = Message("historic", "unused") with
+        {
+            ReceivedAtUtc = FirstMailbox.ActivatedAtUtc.AddMinutes(-1)
+        };
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "historic",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(0, handled);
+    }
+
+    [Fact]
     public async Task EachMailboxReadsUnderItsOwnInboxFolderIdentity()
     {
         var harness = new Harness(FirstMailbox, SecondMailbox);
@@ -659,6 +678,8 @@ public sealed class PollApprovedInboxTests
 
         internal List<(string MailboxId, string InboxFolderIdentity)> Reads { get; } = [];
 
+        internal ApprovedInboxMessage? Notified { get; set; }
+
         internal void Enqueue(string mailboxId, ApprovedInboxMessage message)
         {
             if (!queued.TryGetValue(mailboxId, out var messages))
@@ -693,6 +714,12 @@ public sealed class PollApprovedInboxTests
             messages.RemoveRange(0, page.Length);
             return Task.FromResult(new ApprovedInboxPage(page, page[^1].NextCursor));
         }
+
+        public Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+            ApprovedInboxPollLease lease,
+            string immutableMessageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Notified);
     }
 
     private sealed class ArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore

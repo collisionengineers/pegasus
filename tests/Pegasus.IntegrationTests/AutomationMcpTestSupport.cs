@@ -34,6 +34,7 @@ internal static class AutomationMcpTestSupport
         factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Features:AutomationMcp", "true");
+            builder.UseSetting("AutomationMcp:UseDevelopmentKeys", "true");
             builder.UseSetting("AutomationMcp:ClientId", ClientId);
             builder.UseSetting("AutomationMcp:ClientSecret", ClientSecret);
             builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");

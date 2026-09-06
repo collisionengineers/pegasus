@@ -419,33 +419,11 @@ public sealed class DocumentCustodyDurabilityTests
     private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();
-        var organizationId = Guid.NewGuid();
-        var sequenceLineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
+        var seeded = await SeededPrincipals.QdosAsync(context);
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         var occurredAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         context.AddRange(
-            new OrganizationEntity
-            {
-                Id = organizationId,
-                Name = "Durability test organization",
-                Version = 0
-            },
-            new PrincipalSequenceLineageEntity
-            {
-                Id = sequenceLineageId,
-                CreatedAtUtc = occurredAtUtc
-            },
-            new PrincipalEntity
-            {
-                Id = principalId,
-                OrganizationId = organizationId,
-                Code = "QDOS",
-                SequenceLineageId = sequenceLineageId,
-                IsActive = true,
-                Version = 0
-            },
             new IntakeReceiptEntity
             {
                 Id = receiptId,
@@ -469,8 +447,8 @@ public sealed class DocumentCustodyDurabilityTests
             new CaseEntity
             {
                 Id = caseId,
-                PrincipalId = principalId,
-                SequenceLineageId = sequenceLineageId,
+                PrincipalId = seeded.Id,
+                SequenceLineageId = seeded.SequenceLineageId,
                 Year = 2031,
                 Sequence = 1,
                 Reference = "QDOS001",

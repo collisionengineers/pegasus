@@ -12,6 +12,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Eva;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -23,6 +24,33 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class ProductionCompositionTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExternalHttpClientsKeepIndependentTimeoutsAndHeaders(bool boxFirst)
+    {
+        var services = NewServices();
+        if (boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
+        services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        services.AddEvaApiSubmission(_ => throw new InvalidOperationException("No provider configuration is read by this client test."));
+        if (!boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
+        using var provider = services.BuildServiceProvider();
+        var factory = provider.GetRequiredService<IHttpClientFactory>();
+        using var box = factory.CreateClient(nameof(BoxContentClient));
+        using var graph = factory.CreateClient(nameof(GraphMailClient));
+        using var eva = factory.CreateClient(nameof(EvaApiTransport));
+
+        Assert.Equal(BoxJwtAuthorizationHeaderProvider.RequestTimeout, box.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+        box.DefaultRequestHeaders.Add("X-Composition-Only", "box");
+        box.Timeout = TimeSpan.FromSeconds(1);
+        Assert.False(graph.DefaultRequestHeaders.Contains("X-Composition-Only"));
+        Assert.False(eva.DefaultRequestHeaders.Contains("X-Composition-Only"));
+        Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+    }
+
     private const string BoxConfigJson = """
     {
       "boxAppSettings": {
@@ -232,7 +260,8 @@ public sealed class ProductionCompositionTests
                     "https://upload.box.com/api/2.0/",
                     "405543781910",
                     "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
-                    "client-secret")));
+                    "client-secret",
+                    "test-holding-folder")));
         using var provider = services.BuildServiceProvider();
 
         Assert.IsType<AzureBlobIntakeArtifactStore>(
@@ -265,7 +294,8 @@ public sealed class ProductionCompositionTests
         "https://upload.box.com/api/2.0/",
         "405543781910",
         BoxConfigJson,
-        "client-secret");
+        "client-secret",
+        "test-holding-folder");
 
     private sealed class CompositionCredential : TokenCredential
     {
