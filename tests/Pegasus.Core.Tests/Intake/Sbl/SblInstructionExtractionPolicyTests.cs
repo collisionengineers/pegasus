@@ -96,6 +96,24 @@ public sealed class SblInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void EqualDriverAndPolicyholderRemainTwoExplicitRoles()
+    {
+        var text = Template("""
+            Vehicle Make: Toyota Prius
+            Registration: AB12 CDE
+            Incident Circumstances: Stationary when struck
+            Agreed Value:
+            """).Replace("Driver Person", "Alex One", StringComparison.Ordinal);
+
+        var result = Extract(text);
+
+        Assert.Equal("Alex One", Field(result, "Claimant name").SuggestedValue);
+        Assert.Equal("Alex One", Field(result, "Driver").SuggestedValue);
+        Assert.Equal("claimant", new SblInstructionExtractionPolicy().FieldRoles["Claimant name"].PartyRole);
+        Assert.Equal("driver", new SblInstructionExtractionPolicy().FieldRoles["Driver"].PartyRole);
+    }
+
+    [Fact]
     public void SelectorUsesDocumentFingerprintWithoutActivatingASenderRoute()
     {
         var read = Read(Template("""

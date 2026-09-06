@@ -163,18 +163,18 @@ public sealed partial class SblInstructionExtractionPolicy
     {
         if (section is null)
             yield break;
-        var readings = new List<string>();
         foreach (var (source, target) in labels)
         {
+            var readings = new List<string>();
             foreach (Match match in LabelRegex(source).Matches(section))
             {
                 var value = Clean(match.Groups["value"].Value);
                 if (!IsPlaceholder(value))
                     readings.Add($"{target}: {value}");
             }
+            if (readings.Count > 0)
+                yield return origin with { Text = string.Join(Environment.NewLine, readings) };
         }
-        if (readings.Count > 0)
-            yield return origin with { Text = string.Join(Environment.NewLine, readings) };
     }
 
     private static string? Section(string text, string heading, string nextHeading)
