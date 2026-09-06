@@ -27,3 +27,9 @@ Pre-case/upload anchors (C04/C07) at D, with what the F candidate already suppli
 - `EfTriageStore.CreateAsync:72–80` re-verifies the exact accepted-match evidence detail string; bumping `QdosMailClassificationPolicy.Version` changes that string and can break Triage creation for receipts already in flight — C04 must handle the version transition.
 
 Labelling pass dispatched (Sonnet, read-only): independent expected-candidate sets for all 15 profiles (81 samples) under ignored `artifacts/evaluation/v1-intake/expected/`, to be used as test expectations by C03 rather than labels derived from the implementation.
+
+## Foundation F is validated and ready — proceed
+
+F_SHA = dc3cfd908348b38d69b5d5357c6d5899bfe5f812
+
+Fetch origin/task/pegasus-v1-platform and fast-forward your stream to that EXACT SHA now. It has passed required Foundation restore/build/ordered SQL/runtime-role/lease/architecture gates. The adoption handoff is already in plan/foundation-handoff on PLAT-075, CASE-047 and INTK-060. Do not continue waiting on candidate status: earlier candidate notes are superseded by this validation. G1 is a subsequent common correction for reviewed B/C/A requests, not a reason to postpone F adoption or independent domain work. Do not cherry-pick or merge A domain head. Record your exact FF consumption.

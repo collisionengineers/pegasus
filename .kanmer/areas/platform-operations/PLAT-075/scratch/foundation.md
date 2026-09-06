@@ -19,3 +19,9 @@ Candidate d819034ca6b4716e5f9a2e9a94f309edd14371c6 ordered migration test failed
 At candidate5713d9b584a36433cf235a305d0aa3f18a5143cf: solution Release build passed0 warnings/errors. Focused integration test passed3/3 exit0: full ordered SQL schema migration, actual restricted Web/Worker representative writes/denials, and Administrator exactleaseclear/replay. Remaining AzureSqlRuntimeRoleMigrationTests and clearance-generation/concurrency tests running; architecture follows. Candidate correction was root reviewed before commit.
 
 Grant/lease suite at5713d9b584a36433cf235a305d0aa3f18a5143cf:18 passed,1 failed exit1 in3m12s. Failure was testfixture scope: historical RuntimeRoleReconciliation migration compared against newly extended F tablearray. Restored original historical expectations, added separate exact latest-F tables/grants/denials assertion. No product change. Lease generation, wrongtarget/replay, and concurrent renew/clear passed. Rebuild then rerun historical failing case plus new latestcase; no repeat of unchanged18passing tests needed.
+
+## Foundation F is validated and ready — proceed
+
+F_SHA = dc3cfd908348b38d69b5d5357c6d5899bfe5f812
+
+Fetch origin/task/pegasus-v1-platform and fast-forward your stream to that EXACT SHA now. It has passed required Foundation restore/build/ordered SQL/runtime-role/lease/architecture gates. The adoption handoff is already in plan/foundation-handoff on PLAT-075, CASE-047 and INTK-060. Do not continue waiting on candidate status: earlier candidate notes are superseded by this validation. G1 is a subsequent common correction for reviewed B/C/A requests, not a reason to postpone F adoption or independent domain work. Do not cherry-pick or merge A domain head. Record your exact FF consumption.
