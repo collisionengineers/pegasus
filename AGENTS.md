@@ -82,69 +82,6 @@ local removal must confirm the alias is stopped before deleting its metadata.
 24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
 <!-- kanmer:instructions:end -->
 
-## Kanmer conventions for this repository
-
-The board branch convention is the repository variable `KANMER_BOARD_BRANCH`,
-falling back to `kanmer-board` when it is unset. A branch rename is an
-administrator handoff: retarget branch protection and required checks, update
-the repository variable, and only then reconcile the board worktree and remove
-old refs. Agents must not mutate protected refs, branch protection, or repository
-variables; stop and report when the observed branch and configured convention
-disagree.
-
-A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
-
-The local MCP convention is `KANMER_BOARD_BRANCH` in each project-scoped
-provider registration or exported local runtime, falling back to the default
-board branch when unset. GUI Connect writes the saved board-branch setting into local
-registrations. Hosted Actions should mirror the same value in the repository
-variable, but Actions variables are not inherited by local processes.
-When a native runtime supervisor launches Kanmer through an operator-private
-wrapper, that wrapper must export both `KANMER_PROVIDER_CWD` and
-`KANMER_BOARD_BRANCH` before invoking the stable launcher. Native
-The GUI's OpenAI tunnel controls manage the same long-lived native runtime
-alias through `tunnel-client runtimes connect/status/stop/rm`. Application quit
-does not stop that runtime; readiness requires structured non-stale status, and
-local removal must confirm the alias is stopped before deleting its metadata.
-
-## Agent conduct
-
-**Scope**
-
-1. **Scope is the brief.** “While I’m here” changes are follow-up tickets, not commits.
-2. **Never absorb another ticket’s scope.** Link it and let it be worked on its own record.
-3. **Release and remediation work ships no new features.**
-4. **The ticket precedes the branch.** No board record, no PR.
-5. **Stop at the stop condition.** Never merge your own PR or start the next ticket; report deviations instead of redesigning.
-
-**Build**
-
-6. **Greenfield has no legacy.** Unless the brief names users or data, add no fallback, compatibility, or deprecation path; delete what you replace.
-7. **Reuse before build.** Name the helper, port, or route you extend; report a genuinely unfit one instead of silently building a parallel copy.
-8. **One list per concept.** A second copy in another layer is duplication, even when it is “just strings”.
-9. **Paths are relative.** Use repo-root-relative or injected configuration, never machine-specific paths.
-10. **Dependencies are approvals.** Add no package unless the brief lists it.
-11. **Concurrency results are never discarded.** Retry, defer, or surface them; a swallowed conflict is data loss.
-12. **Errors surface.** No catch-all suppression or empty catch.
-13. **No fabricated domain data.** Fixtures use the documented estate.
-
-**Prove**
-
-14. **Done means wired.** New code needs a named production caller; registered-but-unreachable or test-only code is not done.
-15. **Runtime dependencies ship in the artifact.** Prove the deployed image carries every required browser, font, or package.
-16. **A schema change and its permissions ride the same diff.** Include migration, grants, and bootstrap census together.
-17. **Recorded commits must be reachable.** Ticket SHAs must exist on the merge target.
-18. **Stubs are not done.** Do not present TODOs, placeholders, or mocks as implementation.
-19. **Tests prove the claim.** Never weaken or delete an assertion to pass; a failing test stops and is reported.
-20. **Verify with exit codes.** Run stated commands and record outputs; INCONCLUSIVE is not PASS, and a later pass does not erase a failure. Done requires PASS; an explicitly disposed terminal non-PASS stays Verifying, is archived, and is released.
-21. **No speculative CI or tests.** Delete a gate that gates nothing.
-
-**Conduct**
-
-22. **Review findings get dispositions.** Fix, reject with reason, accept risk, or defer to a ticket; never silence them.
-23. **Secrets never appear in code, tickets, or proofs.**
-24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
-
 # Pegasus repository instructions
 
 Pegasus is Collision Engineers' clean-room case-management and reporting
@@ -166,6 +103,16 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 Identical on Windows and Linux (`pwsh` either way). Focused per-project forms
 and the two complementary integration-test filters are in
 [the runbook](docs/runbook.md#locked-restore-build-and-test).
+
+Reference-data generator checks run with
+`python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'`.
+Text snapshots marked `normalized-lf` hash and count normalized bytes; immutable
+domain evidence keeps its exact raw bytes.
+
+Release `PreProvision` validation requires the Box holding-folder identifier
+and both Automation MCP certificate URI lists. It validates versioned HTTPS
+Key Vault addresses before the read-only Worker smoke; see the release inputs
+in `docs/runbook.md`. This check does not authorize provisioning.
 
 After changing a routed Razor page, regenerate the Test UI snapshots with
 `./scripts/Update-TestUiSnapshots.ps1`, then prove them with
@@ -200,9 +147,8 @@ in the build lane and the catalogue check on every change set.
   as-built system shape and dependency direction, and
   [`docs/operations.md`](docs/operations.md) is deployed/runtime state.
 - `.kanmer/` — the Kanmer board (see Kanmer operating instructions above).
-- `workspaces/` — independently buildable, non-caller source imports; never
-  referenced by the application without a separately accepted integration
-  contract.
+- `workspaces/` — provenance for retired source imports. Accepted slices live
+  in the application; the historical imports are not active build units.
 - `corpus/` — local, ignored, immutable domain evidence; never committed,
   renamed, or modified.
 - `infra/` — deployment infrastructure.
@@ -252,7 +198,7 @@ in the build lane and the catalogue check on every change set.
   [`docs/operations.md`](docs/operations.md) in the same task; a deploy that
   leaves either stale is unfinished.
 - A ticket's `proof/proof.md` is required before it reaches Done, and is
-  written on merged `main` after review and merge, not before.
+  written on the configured integration branch after review and merge.
 
 ## Documentation model — PRD, FRD, ADR
 
@@ -339,6 +285,9 @@ ADRs are an append-only decision log of durable technical/architectural choices.
 
 ### New Markdown placement
 
+`NOW.md` is the explicitly approved v1 orientation index. It links the three
+owner tickets and canonical authorities; task plans and proof remain in Kanmer.
+
 A new repository Markdown file is one of: a **PRD** under `docs/prd/`, an
 **FRD** under `docs/frd/`, or a **technical ADR** under `docs/adr/`. Transient
 task research, plans, checklists, reviews, and proof live in the owning Kanmer
@@ -392,11 +341,6 @@ every task carries:
 - **Plans are proportional to their diff** — a plan longer than the change it
   describes, or carrying ritual steps, is itself over-engineered
   ([plan sizing](docs/engineering.md#plan-sizing)).
-- **Operator-facing explanation is a defect.** Labels, values, and at most
-  one consequence sentence on a destructive action; no field hints, no
-  how-it-works copy, no empty-state panels in read-only view. The design
-  authority's [No explanatory copy and page economy](docs/design/README.md#no-explanatory-copy-and-page-economy)
-  rules bind every UI change.
 - **Operator-facing explanation is a defect.** Labels, values, and at most
   one consequence sentence on a destructive action; no field hints, no
   how-it-works copy, no empty-state panels in read-only view. The design
@@ -467,7 +411,7 @@ every task carries:
 - A new top-level directory, project, store, runtime, migration stream, or
   deployment unit requires an accepted ADR proving the existing boundary cannot
   carry it.
-- `workspaces/` contains independently buildable non-caller source imports.
+- `workspaces/` retains provenance for retired source imports.
   Never add one to `Pegasus.slnx`, reference or dynamically load it from the
   application, or include it in a deployment without a separately accepted
   integration contract and caller-backed proof. A workspace, skill, prompt, or
@@ -503,75 +447,44 @@ deployment, reset, real email, Outlook mutation, Box write or live Glass's/EVA
 operation is authorized by this implementation. This exception governs the
 three owners only; ordinary task rules below continue to apply elsewhere.
 
-Multiple agents may work in parallel. One task uses one `task/<slug>` branch,
-one worktree, and one PR. **The claimable unit is a Kanmer ticket** on the board
-in `.kanmer/`. Taking a ticket with `take_ticket` records the branch, worktree,
-date, and agent and moves it to the working stage — that record *is* the claim.
+### Ordinary task rules
 
-1. **Take.** Orient with `get_status` and `list_items`, then `take_ticket` your
-   ticket with the real branch and worktree. Do not take work whose capability
-   IDs or files overlap an already-taken ticket. Check `git worktree list` and
-   `git branch --list 'task/*'` for same-machine work; if a ticket is already
-   taken, coordinate rather than passing `force`.
-2. **Worktree.** Create `../pegasus-worktrees/<slug>` on `task/<slug>` from
-   `origin/dev`.
-3. **Plan.** Work the owning Kanmer ticket's document pipeline: research and
-   file mapping, impact where needed, then plan and checklist before
-   implementation. The ticket plan owns whole-task scope, sequencing,
-   dependencies, acceptance conditions, commands, and verification; supporting
-   research belongs in named documents inside that ticket. A plan states, per
-   step, what existing code it reuses; research states which of its premises
-   were verified by a read-only check and which are assumed. `proof.md` is
-   required before the ticket reaches the final stage. Do not create transient
-   repository task-plan files.
-4. **Work and PR.** Implement and verify in the task worktree. For a task
-   that changes code, run the simplification pass over the branch's own diff
-   before opening the PR — reuse, simplification, efficiency, altitude
-   (`/simplify` plus the `code-simplifier` agent, or equivalent independent
-   lenses) — apply the behaviour-preserving fixes, and record findings and
-   dispositions in the ticket's plan under a dated "Simplification pass"
-   heading; a docs-only task records "n/a — docs-only". It is part of the
-   work, not a review stage. The PR targets `dev`. Keep the ticket's stage
-   and checklist current as you go.
-5. **Review and merge.** Before merge, an agent that did not implement the task
-   answers whether the plan missed anything implied by the ticket, whether
-   implementation missed anything in the plan, and whether the simplification
-   pass ran with honest dispositions (unapplied findings named, with a reason
-   or a ticket). For a docs-only task, review the PR diff and description for
-   missing or unauthorized scope. A task PR may merge
-   into `dev` only after that review passes and CI is green. A `dev` to `main`
-   release is an exact-SHA, non-force promotion governed by
-   [engineering](docs/engineering.md#branches-and-delivery), and needs
-   explicit `MERGE AUTH GRANTED` immediately before the `main` update.
-   Committing is not gated: commit to your own task branch freely and often, in
-   small logical slices, without operator authority. Only the `dev` → `main`
-   merge requires `MERGE AUTH GRANTED`.
-   DELIV-046 is the sole exception allowed to merge the authorised
-   `origin/main` head `32f8679d3695e0dcab8f310a1c20f8b129d20190` into its
-   task branch and deliver it through a merge-commit PR to `dev`; the exception
-   expires when that PR merges and grants no direct shared-ref update or
-   history rewrite.
-6. **Release or abandon.** After merge, a maintenance push may delete every
-   temporary-plan file owned by the task; then remove its worktree and branch and
-   move the ticket to the final stage. To abandon, discard only the task's own
-   unpushed work, release the ticket (`take_ticket action: "release"`), and
-   remove its worktree and branch.
+The managed Kanmer block owns ticket stages, leases, gates and ordinary
+worktree naming. The explicit three-stream exception above owns the v1
+branches, sibling worktrees, common foundation commits and three-PR stop.
+For other work, use the managed convention and branch from `origin/dev`.
+Record and reuse the exact branch and worktree on the owner ticket.
 
-A claim is stale and removable by anyone when its branch was never pushed within
-48 hours, or its taken ticket is older than 14 days with no branch activity.
-Temporary planning material with no matching active ticket is orphaned and may be
-removed after its shared ownership has been checked; a supporting file does not
-require its own ticket.
+Implement only the claimed scope. Put research, plans, checklists, review and
+verification records in the owning ticket. Apply the engineering
+simplification pass to the actual diff and record each finding's disposition.
+Commit and push reviewed logical slices on the owned branch. Open the task PR
+against `dev`; an independent reviewer assesses the requirements, code,
+tests and simplification dispositions. The author never merges its own PR.
 
-Never touch work that is not yours. Allowed operations are discarding only your
-own unpushed commits in your own task worktree, merging `origin/dev` into that
-branch, merging its green and independently reviewed PR into `dev`, deleting
-its merged branch and worktree, maintenance pushes to `dev` limited to task
-claims and owned temporary-plan deletions, and the authorised exact-SHA,
-non-force `dev` to `main` promotion specified in
-[engineering](docs/engineering.md#branches-and-delivery). The sole migration
-exception is DELIV-003: after DELIV-002 has merged to `dev` with green CI, its
-own `origin/dev`-based task branch may merge `origin/main` and deliver that
-merge through its reviewed PR to `dev`; it never permits a direct `dev` update
-and expires as that PR merges. Never force-push, rewrite `dev` or `main`,
-stash/reset/clean another person's work, or stage beyond the task.
+Ordinary integration proof is written after the authorized merge at the exact
+configured `get_status.delivery.integrationBranch` SHA. A branch test run is
+pre-merge validation, not that proof. Deployment and live operator acceptance
+are separate evidence. Only a separately authorized exact-SHA `dev` to `main`
+promotion may update the release branch; it requires `MERGE AUTH GRANTED` for
+that candidate immediately before the update. No v1 stream performs it.
+
+Preserve other agents' branches, commits, worktrees and dirty files. Never
+force-push, rewrite `dev` or `main`, manually push the board branch, or
+stash/reset/clean another owner's work. Reconcile an expired lease through
+Kanmer's owner-checked recovery; age alone never authorizes discarding work.
+Archive task evidence. Closeout or removal of preserved work follows its
+explicit scoped authorization, never an automatic maintenance push.
+
+Git regression fixtures must remove inherited `GIT_*` variables from child
+process environments, prove the resolved temporary repository root before
+writing, and check absolute cleanup targets remain inside their own temporary
+fixture. Tests must not mutate the invoking checkout's HEAD, index or config.
+CI change routing has one conditional infrastructure-plan owner; an empty diff
+is a supported no-change result. Whole-solution verification remains serialized
+behind the named host verifier.
+
+Do not add horizontal Common/Helpers/Utilities packages or version-suffixed
+replacement components. Classifier/extraction precedence must be explicit and
+covered by contradiction tests. Preserve terminal, transient and unknown
+provider outcomes; metrics count successful effects separately from attempts.
