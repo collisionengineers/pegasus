@@ -230,8 +230,7 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         && text.Contains("Our Ref", StringComparison.Ordinal)
         && text.Contains("Our Client", StringComparison.Ordinal)
         && text.Contains("Registration", StringComparison.Ordinal)
-        && text.Contains("roadworthy", StringComparison.OrdinalIgnoreCase)
-        && text.Contains("repairable", StringComparison.OrdinalIgnoreCase)
+        && InitialAssessmentRequestRegex().IsMatch(text)
         && OfficialInspectionWillFollowRegex().IsMatch(text);
 
     private static StandaloneAuditReportEvaluation? EvaluateStandaloneAuditReport(
@@ -345,7 +344,13 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     private static partial Regex TriageSubjectRegex();
 
     [GeneratedRegex(
-        @"(?is)official\s+inspection\s+instruction\b.{0,160}\b(?:will\s+)?follow\b",
+        @"(?is)\binitial\s+assessment\b.{0,100}\b(?:of|as\s+to)\s+whether\b.{0,40}\bthe\s+vehicle\s+is\s+(?!not\b)roadworthy\s+(?:and|and/or)\s+(?!not\b)repairable\b",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex InitialAssessmentRequestRegex();
+
+    [GeneratedRegex(
+        @"(?i)\b(?:an?\s+)?official\s+inspection\s+instruction\s+will\s+follow\b",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex OfficialInspectionWillFollowRegex();
