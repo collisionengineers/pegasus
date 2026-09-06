@@ -224,3 +224,7 @@ R-1…R-9 fixed (findings persisted as `finding.<code>` source rows; printed lab
 ## Wave 19 (C05 at `7b632169b`): 2 failures in the new correction code
 
 Build/core 27/architecture PASS; corpus 10/11 — `EveryRecordedFindingIsPersistedAsItsOwnSourceRow` fails at line 325 (a finding row has an empty `RawValue` or `SourceLabel`); web 9/15 — `ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates` observed outcomes `[no_report_signature, recorded]`, expected `recorded_reading_stands` on the re-evaluation (the reevaluate path is not recognising the report signature it recorded the first time — behaviour, not assertion). C05 round 2 queued behind the two-editor limit (C06 round 2, C07 caller correction active); re-review will bind to the next head.
+
+## Checkpoint — C06 round 2 at `8384e28bb` (merged `0be584782`)
+
+Both blockers, three majors and 7/10 minors fixed (R-6/R-11/R-15 dispositioned on `c06-notes`); root cause of the 302 defect: non-nullable Reason properties across two independent forms invalidating ModelState. Wave 20 + targeted re-review running. C05 round 2 dispatched (Opus) for the two wave-19 defects. Editors: C05 r2, C07 caller correction. C08 correction next in queue.
