@@ -436,3 +436,7 @@ Wave 33 at `78cb51c2c`: build 0/0, Core 801/801; integration 95/100 and architec
 ## Checkpoint — C07 caller round 4 at `6dfb0b8c8` (merged `2c427c643`)
 
 R-24 conditional-write transitions (two-context race proof), R-25 `GetAsync` under A's link fence, R-26 second file gets its own key (DECISION with A's caveat), R-27 `UnclaimedHandOverException`, R-28; A addendum: same-key re-offer for identityless G15-null claim with identical bytes, `HandOverContentMismatchException`, tests g/h/i. Wave 34 + re-review dispatched. C08 round 4 dispatched (Sonnet). Editors: C03 b1, C02 r1, C08 r4.
+
+## A CI (isolated A) fixture failures — confirmed covered on C (PR 673 5561316238 / reply posted)
+
+Six `IntakeWebNegativeTests` (one-principal assumption) fixed at C01 `e80862f37`; two `OrganizationAdministrationPersistenceTests` fixed at C06 `556a26b1a`; both on the C head `0efc1d0df` and passing in C waves. No C rewrite. A's MIME boundary test is A's.
