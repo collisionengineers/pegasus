@@ -609,13 +609,11 @@ internal sealed class EfPublicUploadRetentionStore(
                         link => link.Id,
                         (_, link) => (Guid?)link.CaseId)
                     .FirstOrDefault(),
-                BoxFileId = context.Set<DocumentVersionEntity>()
+                // One subquery for both identities: they live on the same row,
+                // so asking for them separately would read it twice.
+                Remote = context.Set<DocumentVersionEntity>()
                     .Where(version => version.Id == occurrence.DocumentVersionId)
-                    .Select(version => version.BoxFileId)
-                    .FirstOrDefault(),
-                BoxVersionId = context.Set<DocumentVersionEntity>()
-                    .Where(version => version.Id == occurrence.DocumentVersionId)
-                    .Select(version => version.BoxVersionId)
+                    .Select(version => new { version.BoxFileId, version.BoxVersionId })
                     .FirstOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -628,8 +626,8 @@ internal sealed class EfPublicUploadRetentionStore(
                 row.CaseId,
                 row.DocumentId,
                 row.DocumentVersionId,
-                row.BoxFileId,
-                row.BoxVersionId);
+                row.Remote?.BoxFileId,
+                row.Remote?.BoxVersionId);
     }
 
     public async Task RecordAsync(
