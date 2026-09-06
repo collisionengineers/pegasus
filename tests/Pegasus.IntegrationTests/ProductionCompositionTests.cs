@@ -4,11 +4,13 @@ using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
@@ -23,6 +25,18 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class ProductionCompositionTests
 {
+    [Fact]
+    public void CasePageAndCanonicalImportResolveTheirSelectedEstimateParsers()
+    {
+        using var provider = BuildProduction();
+        var parsers = provider.GetServices<IEstimateDocumentParser>().ToArray();
+
+        Assert.Equal(2, parsers.Length);
+        Assert.IsType<AudatexEstimatePdfParser>(provider.GetRequiredService<IEstimateDocumentParser>());
+        Assert.Same(provider.GetRequiredService<JsonEstimateParser>(), Assert.Single(parsers.OfType<JsonEstimateParser>()));
+        Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
+    }
+
     private const string BoxConfigJson = """
     {
       "boxAppSettings": {
