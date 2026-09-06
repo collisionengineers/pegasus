@@ -356,3 +356,11 @@ C07 caller round 3 at `4a92a06e4` (atomic claim `TryClaimHandOverAsync`, monoton
 ## Wave 29 (C07 caller `0a0e88975`): C lanes PASS
 
 Build 0/0, core 23, integration 66/67 (+1 skip), architecture 100; a-owned lane = A's seeded-QDOS duplicate only. Helper `task/pegasus-v1-c-retention-caller` moved to `0a0e88975`; A told what changed. Re-review pending; on pass, C07 caller integrates (then the B01 Recipient/Reason follow-up in the same files).
+
+## Checkpoint — C06 cleanup at `fea0c0e78`
+
+Directory and default-location dependencies required again; `C06AdapterRegistrations`/`WithC06Adapters` and the three bridge-proof tests deleted; C06 HTTP/persistence tests run on production DI (A's `306db9502`). Wave 30 + targeted review running. C08 round 3 (test query `sort=oldest`, page's unread token, round-trip assertion) dispatched. Editors: C02 (resumed), C08 r3. C07 caller re-review pending on `0a0e88975`.
+
+## A replies (PR 673 5560993657 / 5561005209)
+
+Re-evaluation defect accepted by A (INTK-027: re-read the logical confirmed Box version after staging expiry); C keeps and later retargets the tripwire test. `Adjustments` contract request withdrawn — source-row representation stands. A's combined run flagged the obsolete C06 no-registration test; already deleted in the C06 cleanup `fea0c0e78` (wave 30 running). Replied on PR 673.
