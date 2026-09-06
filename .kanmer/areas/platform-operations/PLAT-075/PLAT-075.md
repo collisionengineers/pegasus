@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-06T05:35:26.823Z'
 branch: task/pegasus-v1-platform
 worktree: ../pegasus-worktrees/v1-platform
-claim_expires_at: '2026-09-06T06:05:26.823Z'
+claim_expires_at: '2026-09-06T06:37:21.002Z'
 claim_controller: codex-astra
 lease_id: beb51d8a-5cb6-4498-9673-8eefd9778711
-lease_revision: 1
+lease_revision: 2
 lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus-worktrees\v1-platform'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-06T05:35:26.823Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-06T05:37:21.002Z'
 labels:
   - pegasus-v1
   - stream-a
@@ -27,7 +27,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-09-06T05:33:42.409Z'
-updated: '2026-09-06T05:35:26.823Z'
+updated: '2026-09-06T05:37:21.002Z'
 ---
 
 ## What
