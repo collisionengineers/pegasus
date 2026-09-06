@@ -457,7 +457,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task UnknownRetainedReplyReplaysWithoutResendingAndOffersReconcile()
+    public async Task UnknownRetainedReplyReplaysWithoutResendingOrExposingUnboundStatus()
     {
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -482,18 +482,182 @@ public sealed class StaffCorrespondenceWebTests
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
         using var replay = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
-        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
-        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         Assert.Equal(1, send.SendCalls);
-        Assert.Equal(ExtractOperationId(first.Headers.Location!), ExtractOperationId(replay.Headers.Location!));
-
-        using var status = await client.GetAsync(replay.Headers.Location);
-        var statusHtml = await status.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("notice--success", statusHtml, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), statusHtml, StringComparison.Ordinal);
-        Assert.Contains("handler=ReconcileCorrespondence", statusHtml, StringComparison.OrdinalIgnoreCase);
+        var firstHtml = await first.Content.ReadAsStringAsync();
+        var replayHtml = await replay.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("notice--success", firstHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Send status", firstHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReconcileCorrespondence", firstHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Reply", firstHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("handler=Reply", replayHtml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, send.SendCalls);
         Assert.Equal(0, send.ReconcileCalls);
+    }
+
+    [Fact]
+    public async Task InvalidRetainedComposeModeIsNotFoundWithoutSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 INVALID", "SC08-MSG-INVALID");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=resend");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Empty(send.Commands);
+    }
+
+    [Fact]
+    public async Task RolelessRetainedReplyIsForbiddenWithoutSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 ACTOR", "SC08-MSG-ACTOR");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Inbox/{seeded.MessageId:D}?handler=Reply");
+        request.Headers.Add("X-Test-Roleless", "1");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token
+        });
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(send.Commands);
+    }
+
+    [Theory]
+    [InlineData(false, ApprovedMailboxState.Approved, true, 1)]
+    [InlineData(true, ApprovedMailboxState.Disabled, true, 1)]
+    [InlineData(true, ApprovedMailboxState.Approved, false, 1)]
+    [InlineData(true, ApprovedMailboxState.Approved, true, 0)]
+    public async Task RetainedReplyRequiresApprovedStaffSendMailboxWithPositiveGeneration(
+        bool available,
+        ApprovedMailboxState state,
+        bool staffSend,
+        long generation)
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 MAILBOX", $"SC08-MSG-{state}-{staffSend}-{generation}");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        var mailbox = new ApprovedMailbox(
+            seeded.MailboxId,
+            seeded.MailboxAddress,
+            staffSend ? [ApprovedMailboxRouteScope.StaffSend] : [ApprovedMailboxRouteScope.SentEvidence],
+            state,
+            null, null, null, false, NowUtc, 1, [], generation);
+        using var configured = Configure(baseFactory, send);
+        using var factory = configured.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(
+                    new FixedApprovedMailboxStore(available ? [mailbox] : []));
+            }));
+        using var client = CreateClient(factory);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["ExpectedCorrespondenceCaseVersion"] = "1",
+                ["CorrespondenceOperationKey"] = $"mailbox-negative:{Guid.NewGuid():N}",
+                ["CorrespondenceSubject"] = "Re: Source subject",
+                ["CorrespondenceBody"] = "Reviewed response."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(send.Commands);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-an-address")]
+    public async Task RetainedReplyRejectsMissingOrMalformedStoredSender(string? sender)
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 SENDER", $"SC08-MSG-SENDER-{Guid.NewGuid():N}");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        await using (var scope = baseFactory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE RetainedMailboxMessages SET SenderAddress = {sender} WHERE Id = {seeded.MessageId}");
+        }
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["CorrespondenceSubject"] = "Re: Source subject",
+                ["CorrespondenceBody"] = "Reviewed response."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(send.Commands);
+    }
+
+    [Fact]
+    public async Task RetainedForwardRejectsEmptyRecipients()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 FORWARD", "SC08-MSG-FORWARD-EMPTY");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Forward",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["CorrespondenceTo"] = string.Empty,
+                ["CorrespondenceCc"] = string.Empty,
+                ["CorrespondenceSubject"] = "Fwd: Source subject",
+                ["CorrespondenceBody"] = "Forwarded material."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(send.Commands);
     }
 
     [Fact]

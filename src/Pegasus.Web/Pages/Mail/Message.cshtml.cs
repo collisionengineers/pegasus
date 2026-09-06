@@ -116,9 +116,6 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "compose")]
     public string? CorrespondenceMode { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "mailOperationId")]
-    public Guid? MailOperationId { get; set; }
-
     [BindProperty]
     public long ExpectedCorrespondenceCaseVersion { get; set; }
 
@@ -216,9 +213,11 @@ public sealed class MessageModel(
 
     public CaseDetails? CorrespondenceCase { get; private set; }
 
-    public StaffMailOperation? CorrespondenceOperation { get; private set; }
+    public bool CorrespondenceSendBlocked { get; private set; }
 
-    public bool CanCorrespond => CorrespondenceMailbox is not null && CorrespondenceCase is not null;
+    public bool CanCorrespond => !CorrespondenceSendBlocked
+        && CorrespondenceMailbox is not null
+        && CorrespondenceCase is not null;
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -280,49 +279,6 @@ public sealed class MessageModel(
 
     public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
-
-    public async Task<IActionResult> OnPostReconcileCorrespondenceAsync(
-        Guid id,
-        Guid operationId,
-        long expectedOperationVersion,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-            return Forbid();
-        if (!TryParseListContext(out _))
-            return NotFound();
-
-        try
-        {
-            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-            var detail = await getRetainedMail.ExecuteAsync(
-                actor, id, SearchTerm, cancellationToken);
-            if (detail is null)
-                return NotFound();
-            Detail = detail;
-            if (!await LoadCorrespondenceContextAsync(
-                    actor, initializeForm: false, cancellationToken))
-            {
-                return NotFound();
-            }
-            var operation = await staffMailSend.GetAsync(
-                actor, operationId, cancellationToken);
-            if (operation is null
-                || operation.ApprovedMailboxId != CorrespondenceMailbox!.Id)
-            {
-                return NotFound();
-            }
-            CorrespondenceOperation = await staffMailSend.ReconcileAsync(
-                actor, operationId, expectedOperationVersion, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-
-        MailOperationId = CorrespondenceOperation.Id;
-        return await ReloadAsync(actor, id, cancellationToken);
-    }
 
     public async Task<IActionResult> OnPostCreateQueryResponseAsync(
         Guid id,
@@ -868,7 +824,7 @@ public sealed class MessageModel(
             detail.ConversationId);
         try
         {
-            CorrespondenceOperation = await staffMailSend.SendAsync(
+            var operation = await staffMailSend.SendAsync(
                 new(
                     actor,
                     CorrespondenceMailbox!.Id,
@@ -885,6 +841,16 @@ public sealed class MessageModel(
                     Attachments: [],
                     CorrespondenceOperationKey.Trim()),
                 cancellationToken);
+            if (operation.State == StaffMailState.Sent)
+                CorrespondenceNotice = "Correspondence sent.";
+            else if (operation.State == StaffMailState.Unknown)
+            {
+                CorrespondenceMode = null;
+                ModelState.AddModelError(string.Empty, "Send outcome unavailable.");
+                var page = await ReloadAsync(actor, id, cancellationToken);
+                CorrespondenceSendBlocked = true;
+                return page;
+            }
         }
         catch (StaffAuthorizationException)
         {
@@ -896,9 +862,6 @@ public sealed class MessageModel(
             return await ReloadAsync(actor, id, cancellationToken);
         }
 
-        if (CorrespondenceOperation.State == StaffMailState.Sent)
-            CorrespondenceNotice = "Correspondence sent.";
-
         return RedirectToPage(new
         {
             id,
@@ -909,8 +872,7 @@ public sealed class MessageModel(
             queue = QueueFilter,
             unread = UnreadOnly ? "true" : null,
             sort = OldestFirst ? "oldest" : null,
-            compose = ModeCode(mode),
-            mailOperationId = CorrespondenceOperation.Id
+            compose = ModeCode(mode)
         });
     }
 
@@ -940,9 +902,6 @@ public sealed class MessageModel(
             && item.Generation > 0);
         if (CorrespondenceMailbox is null)
             return false;
-
-        if (MailOperationId is { } operationId)
-            CorrespondenceOperation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
 
         var mode = StaffMailComposeMode.New;
         if (CorrespondenceMode is not null
