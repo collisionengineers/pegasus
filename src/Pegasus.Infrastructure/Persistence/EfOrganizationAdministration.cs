@@ -470,6 +470,14 @@ public sealed class EfOrganizationAdministration(
             || entity.DefaultInspectionSourceRecordId != request.SourceRecordId?.ToString("D")
             || entity.DefaultInspectionSourceVersion != request.SourceVersion;
 
+        // The allocated-case count is unaffected by this mutation, so it is
+        // computed once and reused for both the before and after snapshots
+        // (EXT-18/S05 item 6: a staff override keeps the fact it replaced).
+        var allocatedCaseCount = await context.Cases
+            .AsNoTracking()
+            .CountAsync(item => item.PrincipalId == entity.Id, cancellationToken);
+        var before = ToSummary(entity, allocatedCaseCount);
+
         entity.DefaultInspectionLocationLabel = request.Label;
         entity.DefaultInspectionAddress = isImageBased ? null : request.Address;
         entity.DefaultInspectionPostcode = request.Postcode;
@@ -478,9 +486,6 @@ public sealed class EfOrganizationAdministration(
         entity.DefaultInspectionSourceVersion = request.SourceVersion;
         entity.Version = changed ? checked(entity.Version + 1) : entity.Version;
 
-        var allocatedCaseCount = await context.Cases
-            .AsNoTracking()
-            .CountAsync(item => item.PrincipalId == entity.Id, cancellationToken);
         var result = ToSummary(entity, allocatedCaseCount);
         var now = _timeProvider.GetUtcNow();
         AddReceipt(
@@ -499,8 +504,8 @@ public sealed class EfOrganizationAdministration(
             request.OperationKey,
             now,
             request.Reason,
-            before: null,
-            after: result);
+            before,
+            result);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
