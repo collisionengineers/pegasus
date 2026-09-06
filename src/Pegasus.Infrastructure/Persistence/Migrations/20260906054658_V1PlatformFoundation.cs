@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
@@ -11,6 +13,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseDataFields_FieldName",
+                table: "CaseDataFields");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseAssessmentFields_FieldPath",
+                table: "CaseAssessmentFields");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations");
+
             migrationBuilder.AddColumn<long>(
                 name: "ReconciledAssociationVersion",
                 table: "UnidentifiedItems",
@@ -118,6 +132,27 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "PrincipalId",
                 table: "ImageIntakes",
                 type: "uniqueidentifier",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "BoxFileId",
+                table: "DocumentVersions",
+                type: "nvarchar(200)",
+                maxLength: 200,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "BoxVersionId",
+                table: "DocumentVersions",
+                type: "nvarchar(200)",
+                maxLength: 200,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "PendingContentStorageKey",
+                table: "DocumentVersions",
+                type: "nvarchar(200)",
+                maxLength: 200,
                 nullable: true);
 
             migrationBuilder.AddColumn<decimal>(
@@ -294,6 +329,32 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 maxLength: 500,
                 nullable: true);
 
+            migrationBuilder.AlterColumn<decimal>(
+                name: "WorkUnits",
+                table: "CaseEstimateLines",
+                type: "decimal(18,6)",
+                precision: 18,
+                scale: 6,
+                nullable: true,
+                oldClrType: typeof(decimal),
+                oldType: "decimal(9,1)",
+                oldPrecision: 9,
+                oldScale: 1,
+                oldNullable: true);
+
+            migrationBuilder.AlterColumn<decimal>(
+                name: "PaintWorkUnits",
+                table: "CaseEstimateLines",
+                type: "decimal(18,6)",
+                precision: 18,
+                scale: 6,
+                nullable: true,
+                oldClrType: typeof(decimal),
+                oldType: "decimal(9,1)",
+                oldPrecision: 9,
+                oldScale: 1,
+                oldNullable: true);
+
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "AmendedAtUtc",
                 table: "CaseEstimateLines",
@@ -313,11 +374,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 type: "nvarchar(max)",
                 nullable: true);
 
-            migrationBuilder.AddColumn<string>(
+            migrationBuilder.AddColumn<decimal>(
                 name: "Materials",
                 table: "CaseEstimateLines",
-                type: "nvarchar(500)",
-                maxLength: 500,
+                type: "decimal(18,2)",
+                precision: 18,
+                scale: 2,
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
@@ -383,6 +445,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 type: "datetimeoffset",
                 nullable: false,
                 defaultValue: new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
+
+            migrationBuilder.AddColumn<long>(
+                name: "Generation",
+                table: "ApprovedMailboxSubscriptions",
+                type: "bigint",
+                nullable: false,
+                defaultValue: 0L);
 
             migrationBuilder.AddColumn<bool>(
                 name: "AllowStaffSend",
@@ -616,20 +685,43 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "LabourRateCards",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Label = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    PanelRate = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Active = table.Column<bool>(type: "bit", nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ConcurrencyToken = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LabourRateCards", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "OrganizationDirectoryEntries",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     OrganizationId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    Role = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    NormalizedName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Role = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    NormalizedName = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
                     Contact = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Address = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Postcode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    NormalizedPostcode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Postcode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    NormalizedPostcode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     SourceKind = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    SourceRecordId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SourceRecordId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Telephone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: true),
+                    SourceVersion = table.Column<long>(type: "bigint", nullable: false),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     Active = table.Column<bool>(type: "bit", nullable: false),
                     Version = table.Column<long>(type: "bigint", nullable: false),
                     ConcurrencyToken = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
@@ -698,10 +790,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ActorSubjectId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ActorSubjectId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     MailboxId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     MailboxGeneration = table.Column<long>(type: "bigint", nullable: false),
-                    OperationKey = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     PayloadHash = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
                     Purpose = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
                     ContextId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -784,10 +876,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Label = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Label = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     SuggestedAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Active = table.Column<bool>(type: "bit", nullable: false),
-                    UpdatedBy = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                     Version = table.Column<long>(type: "bigint", nullable: false),
                     ConcurrencyToken = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
@@ -839,7 +931,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_GeneratedCaseArtifacts", x => x.Id);
-                    table.CheckConstraint("CK_GeneratedCaseArtifacts_Custody", "([State] = 'Confirmed' AND [VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL) OR ([State] <> 'Confirmed' AND [VersionId] IS NULL)");
+                    table.CheckConstraint("CK_GeneratedCaseArtifacts_Custody", "[State] <> 'Confirmed' OR ([VersionId] IS NOT NULL AND [Sha256] IS NOT NULL AND [FailureCode] IS NULL)");
                     table.ForeignKey(
                         name: "FK_GeneratedCaseArtifacts_CaseReportGenerations_GenerationId",
                         column: x => x.GenerationId,
@@ -886,7 +978,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AnalysisId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    IntakeAssetId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DocumentVersionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IntakeAssetId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     SourceSha256 = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
                     Occurrence = table.Column<int>(type: "int", nullable: false),
                     DocumentRole = table.Column<string>(type: "nvarchar(max)", nullable: false),
@@ -907,6 +1000,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_IntakeSourceCandidates", x => x.Id);
+                    table.CheckConstraint("CK_IntakeSourceCandidates_Source", "([DocumentVersionId] IS NOT NULL AND [IntakeAssetId] IS NULL) OR ([DocumentVersionId] IS NULL AND [IntakeAssetId] IS NOT NULL)");
+                    table.ForeignKey(
+                        name: "FK_IntakeSourceCandidates_DocumentVersions_DocumentVersionId",
+                        column: x => x.DocumentVersionId,
+                        principalTable: "DocumentVersions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_IntakeSourceCandidates_IntakeAssets_IntakeAssetId",
                         column: x => x.IntakeAssetId,
@@ -926,12 +1026,27 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 keyColumn: "Id",
                 keyValue: new Guid("49f47eb9-c5b0-464f-b8f0-8c90ba061728"),
                 columns: new[] { "AllowStaffSend", "MailboxGeneration", "SendLimitVerifiedAtUtc", "SendLimitVerifiedBy", "VerifiedEncodedMessageSizeLimit" },
-                values: new object[] { false, 0L, null, null, null });
+                values: new object[] { false, 1L, null, null, null });
+
+            migrationBuilder.Sql(
+                "UPDATE [dbo].[ApprovedMailboxes] SET [MailboxGeneration] = 1 WHERE [State] = N'Approved';");
 
             migrationBuilder.InsertData(
                 table: "TriageSequences",
                 columns: new[] { "Id", "LastAllocatedSequence" },
                 values: new object[] { 1, 0L });
+
+            migrationBuilder.InsertData(
+                table: "ValuationPresets",
+                columns: new[] { "Id", "Active", "ConcurrencyToken", "Label", "SuggestedAmount", "UpdatedAtUtc", "UpdatedBy", "Version" },
+                values: new object[,]
+                {
+                    { new Guid("00000000-0000-4000-8000-00000000f001"), true, new Guid("00000000-0000-4000-8000-00000000f101"), "Tow bar", 300m, new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "system:v1-foundation", 1L },
+                    { new Guid("00000000-0000-4000-8000-00000000f002"), true, new Guid("00000000-0000-4000-8000-00000000f102"), "PCO plated", 1500m, new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "system:v1-foundation", 1L },
+                    { new Guid("00000000-0000-4000-8000-00000000f003"), true, new Guid("00000000-0000-4000-8000-00000000f103"), "Decals", 500m, new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "system:v1-foundation", 1L },
+                    { new Guid("00000000-0000-4000-8000-00000000f004"), true, new Guid("00000000-0000-4000-8000-00000000f104"), "Camper conversion", 0m, new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "system:v1-foundation", 1L },
+                    { new Guid("00000000-0000-4000-8000-00000000f005"), true, new Guid("00000000-0000-4000-8000-00000000f105"), "Driving tuition", 500m, new DateTimeOffset(new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "system:v1-foundation", 1L }
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Triage_PrincipalId",
@@ -976,6 +1091,32 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 sql: "[EditLeaseGeneration] >= 0");
 
             migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseDataFields_FieldName",
+                table: "CaseDataFields",
+                sql: "[FieldName] <> '' AND LEN([FieldName]) <= 60");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseAssessmentFields_FieldPath",
+                table: "CaseAssessmentFields",
+                sql: "[FieldPath] <> '' AND LEN([FieldPath]) <= 60");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations",
+                sql: "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch', 'Brego', 'SuperCap')");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc",
+                table: "AppliedValuationSnapshots",
+                columns: new[] { "CaseId", "AcceptedAtUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ValuationPresets_Label",
+                table: "ValuationPresets",
+                column: "Label",
+                unique: true);
+
+            migrationBuilder.AddCheckConstraint(
                 name: "CK_ApprovedSentPollStates_Generation",
                 table: "ApprovedSentPollStates",
                 sql: "[Generation] >= 0");
@@ -984,6 +1125,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "CK_ApprovedMailboxes_SendLimit",
                 table: "ApprovedMailboxes",
                 sql: "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_ApprovedMailboxes_MailboxGeneration",
+                table: "ApprovedMailboxes",
+                sql: "[MailboxGeneration] >= 0");
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_ApprovedInboxPollStates_Generation",
@@ -1089,9 +1235,24 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 column: "AnalysisId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_IntakeSourceCandidates_DocumentVersionId",
+                table: "IntakeSourceCandidates",
+                column: "DocumentVersionId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_IntakeSourceCandidates_IntakeAssetId",
                 table: "IntakeSourceCandidates",
                 column: "IntakeAssetId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OrganizationDirectoryEntries_Role_NormalizedName_Id",
+                table: "OrganizationDirectoryEntries",
+                columns: new[] { "Role", "NormalizedName", "Id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OrganizationDirectoryEntries_Role_NormalizedPostcode_Id",
+                table: "OrganizationDirectoryEntries",
+                columns: new[] { "Role", "NormalizedPostcode", "Id" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_PublicUploadOccurrences_SessionId_OperationKey",
@@ -1138,6 +1299,23 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "UserExternalCredentials",
                 column: "UserId");
 
+            if (string.Equals(ActiveProvider, "Microsoft.EntityFrameworkCore.SqlServer", StringComparison.Ordinal))
+            {
+                migrationBuilder.Sql("""
+                    DECLARE @seededAt datetimeoffset = SYSDATETIMEOFFSET();
+                    INSERT dbo.Organizations (Id,Name,Version) SELECT CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier),name,0 FROM (VALUES ('01',N'QDOS'),('02',N'Performance Car Hire / Parkhouse'),('03',N'AX'),('04',N'Fairway Legal'),('05',N'QC Law'),('06',N'Oakwood Solicitors'),('07',N'Smart Business Link'),('08',N'Blackstone Legal'),('09',N'Robert James Solicitors'),('0a',N'Davison Flynn Duke Solicitors'),('0b',N'Knightsbridge Solicitors'),('0c',N'Montreal Prestige'),('0d',N'YM Law / Network HD UK'),('0e',N'Auto Logistic Solutions Ltd'),('0f',N'Baker Coleman')) s(n,name);
+                    INSERT dbo.OrganizationRoles (OrganizationId,Role) SELECT CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier),N'work_provider' FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n);
+                    INSERT dbo.PrincipalSequenceLineages (Id,CreatedAtUtc) SELECT CAST('00000000-0000-4000-8000-00000000e0'+RIGHT('0'+n,2) AS uniqueidentifier),@seededAt FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n);
+                    INSERT dbo.Principals (Id,OrganizationId,Code,SequenceLineageId,IsActive,InspectionMode,EvaManualSubmission,EvaAutomaticSubmission,Version) SELECT CAST('00000000-0000-4000-8000-00000000c0'+RIGHT('0'+n,2) AS uniqueidentifier),CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier),code,CAST('00000000-0000-4000-8000-00000000e0'+RIGHT('0'+n,2) AS uniqueidentifier),1,CASE WHEN code='QDOS' THEN 'image_based_assessment' ELSE 'physical_address' END,0,0,0 FROM (VALUES ('01','QDOS'),('02','PCH'),('03','AX'),('04','FW'),('05','QCL'),('06','OAK'),('07','SBL'),('08','BLACK'),('09','RJS'),('0a','DFD'),('0b','KBS'),('0c','MP'),('0d','YML'),('0e','ALS'),('0f','BC')) s(n,code);
+                    """);
+                migrationBuilder.Sql("""
+                    IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL BEGIN GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[UserExternalCredentials] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[StaffMailSendOperations] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[ValuationPresets] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[LabourRateCards] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[AppliedValuationSnapshots] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[GlassRepairEstimateSessions] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[CaseReportGenerations] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[GeneratedCaseArtifacts] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[CaseReportDeliveryIntents] TO [pegasus_web_runtime_role]; GRANT SELECT ON OBJECT::[dbo].[RetainedInstructionAnalyses] TO [pegasus_web_runtime_role]; GRANT SELECT ON OBJECT::[dbo].[IntakeSourceCandidates] TO [pegasus_web_runtime_role]; GRANT SELECT ON OBJECT::[dbo].[IntakeOcrOperations] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[TriageSequences] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[DocumentContentCacheEntries] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[ClaimSources] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[OrganizationDirectoryEntries] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[PublicUploadSessions] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[PublicUploadOccurrences] TO [pegasus_web_runtime_role]; END;
+                    IF DATABASE_PRINCIPAL_ID('pegasus_worker_runtime_role') IS NOT NULL BEGIN GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[StaffMailSendOperations] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[RetainedInstructionAnalyses] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[IntakeSourceCandidates] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[IntakeOcrOperations] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE,DELETE ON OBJECT::[dbo].[DocumentContentCacheEntries] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[TriageSequences] TO [pegasus_worker_runtime_role]; GRANT UPDATE ON OBJECT::[dbo].[IntakeAssets] TO [pegasus_worker_runtime_role]; END;
+                    IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL DENY DELETE ON OBJECT::[dbo].[DocumentContentCacheEntries] TO [pegasus_web_runtime_role];
+                    DECLARE @denyTable sysname; DECLARE @denySql nvarchar(max); DECLARE deny_cursor CURSOR LOCAL FAST_FORWARD FOR SELECT value FROM STRING_SPLIT('UserExternalCredentials,StaffMailSendOperations,ValuationPresets,LabourRateCards,AppliedValuationSnapshots,GlassRepairEstimateSessions,CaseReportGenerations,GeneratedCaseArtifacts,CaseReportDeliveryIntents,RetainedInstructionAnalyses,IntakeSourceCandidates,IntakeOcrOperations,TriageSequences,ClaimSources,OrganizationDirectoryEntries,PublicUploadSessions,PublicUploadOccurrences', ','); OPEN deny_cursor; FETCH NEXT FROM deny_cursor INTO @denyTable; WHILE @@FETCH_STATUS = 0 BEGIN IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL BEGIN SET @denySql=N'DENY DELETE ON [dbo].'+QUOTENAME(@denyTable)+N' TO [pegasus_web_runtime_role]'; EXEC(@denySql); END; IF DATABASE_PRINCIPAL_ID('pegasus_worker_runtime_role') IS NOT NULL BEGIN SET @denySql=N'DENY DELETE ON [dbo].'+QUOTENAME(@denyTable)+N' TO [pegasus_worker_runtime_role]'; EXEC(@denySql); END; FETCH NEXT FROM deny_cursor INTO @denyTable; END; CLOSE deny_cursor; DEALLOCATE deny_cursor;
+                    """);
+            }
+
             migrationBuilder.AddForeignKey(
                 name: "FK_ImageIntakes_Principals_PrincipalId",
                 table: "ImageIntakes",
@@ -1145,47 +1323,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 principalTable: "Principals",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Restrict);
-            if (string.Equals(ActiveProvider, "Microsoft.EntityFrameworkCore.SqlServer", StringComparison.Ordinal))
-            {
-                migrationBuilder.Sql(
-                    """
-                    DECLARE @seededAt datetimeoffset = SYSDATETIMEOFFSET();
-                    INSERT dbo.Organizations (Id,Name,Version) SELECT CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier),name,0 FROM (VALUES
-                    ('01',N'QDOS'),('02',N'Performance Car Hire / Parkhouse'),('03',N'AX'),('04',N'Fairway Legal'),('05',N'QC Law'),('06',N'Oakwood Solicitors'),('07',N'Smart Business Link'),('08',N'Blackstone Legal'),('09',N'Robert James Solicitors'),('0a',N'Davison Flynn Duke Solicitors'),('0b',N'Knightsbridge Solicitors'),('0c',N'Montreal Prestige'),('0d',N'YM Law / Network HD UK'),('0e',N'Auto Logistic Solutions Ltd'),('0f',N'Baker Coleman')) s(n,name);
-                    INSERT dbo.OrganizationRoles (OrganizationId,Role)
-                    SELECT CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier),N'work_provider'
-                    FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n);
-                    INSERT dbo.PrincipalSequenceLineages (Id,CreatedAtUtc) SELECT CAST('00000000-0000-4000-8000-00000000e0'+RIGHT('0'+n,2) AS uniqueidentifier),@seededAt FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n);
-                    INSERT dbo.Principals (Id,OrganizationId,Code,SequenceLineageId,IsActive,InspectionMode,EvaManualSubmission,EvaAutomaticSubmission,Version)
-                    SELECT CAST('00000000-0000-4000-8000-00000000c0'+RIGHT('0'+n,2) AS uniqueidentifier),CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier),code,CAST('00000000-0000-4000-8000-00000000e0'+RIGHT('0'+n,2) AS uniqueidentifier),1,CASE WHEN code='QDOS' THEN 'image_based_assessment' ELSE 'physical_address' END,0,0,0 FROM (VALUES ('01','QDOS'),('02','PCH'),('03','AX'),('04','FW'),('05','QCL'),('06','OAK'),('07','SBL'),('08','BLACK'),('09','RJS'),('0a','DFD'),('0b','KBS'),('0c','MP'),('0d','YML'),('0e','ALS'),('0f','BC')) s(n,code);
-                    """);
-                migrationBuilder.Sql(
-                    """
-                    IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL BEGIN
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[UserExternalCredentials] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[StaffMailSendOperations] TO [pegasus_web_runtime_role];
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[ValuationPresets] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[AppliedValuationSnapshots] TO [pegasus_web_runtime_role];
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[GlassRepairEstimateSessions] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[CaseReportGenerations] TO [pegasus_web_runtime_role];
-                    GRANT SELECT,INSERT ON OBJECT::[dbo].[GeneratedCaseArtifacts] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[CaseReportDeliveryIntents] TO [pegasus_web_runtime_role];
-                    GRANT SELECT ON OBJECT::[dbo].[RetainedInstructionAnalyses] TO [pegasus_web_runtime_role]; GRANT SELECT ON OBJECT::[dbo].[IntakeSourceCandidates] TO [pegasus_web_runtime_role]; GRANT SELECT ON OBJECT::[dbo].[IntakeOcrOperations] TO [pegasus_web_runtime_role];
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[TriageSequences] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[DocumentContentCacheEntries] TO [pegasus_web_runtime_role];
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[ClaimSources] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[OrganizationDirectoryEntries] TO [pegasus_web_runtime_role];
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[PublicUploadSessions] TO [pegasus_web_runtime_role]; GRANT SELECT,INSERT ON OBJECT::[dbo].[PublicUploadOccurrences] TO [pegasus_web_runtime_role]; END;
-                    IF DATABASE_PRINCIPAL_ID('pegasus_worker_runtime_role') IS NOT NULL BEGIN
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[StaffMailSendOperations] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[RetainedInstructionAnalyses] TO [pegasus_worker_runtime_role];
-                    GRANT SELECT,INSERT ON OBJECT::[dbo].[IntakeSourceCandidates] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[IntakeOcrOperations] TO [pegasus_worker_runtime_role];
-                    GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[TriageSequences] TO [pegasus_worker_runtime_role]; GRANT SELECT,INSERT,UPDATE ON OBJECT::[dbo].[DocumentContentCacheEntries] TO [pegasus_worker_runtime_role];
-                    GRANT UPDATE ON OBJECT::[dbo].[IntakeAssets] TO [pegasus_worker_runtime_role]; END;
-                    DECLARE @denyTable sysname;
-                    DECLARE @denySql nvarchar(max);
-                    DECLARE deny_cursor CURSOR LOCAL FAST_FORWARD FOR SELECT value FROM STRING_SPLIT('UserExternalCredentials,StaffMailSendOperations,ValuationPresets,AppliedValuationSnapshots,GlassRepairEstimateSessions,CaseReportGenerations,GeneratedCaseArtifacts,CaseReportDeliveryIntents,RetainedInstructionAnalyses,IntakeSourceCandidates,IntakeOcrOperations,TriageSequences,DocumentContentCacheEntries,ClaimSources,OrganizationDirectoryEntries,PublicUploadSessions,PublicUploadOccurrences', ',');
-                    OPEN deny_cursor; FETCH NEXT FROM deny_cursor INTO @denyTable;
-                    WHILE @@FETCH_STATUS = 0 BEGIN
-                      IF DATABASE_PRINCIPAL_ID('pegasus_web_runtime_role') IS NOT NULL BEGIN SET @denySql=N'DENY DELETE ON [dbo].'+QUOTENAME(@denyTable)+N' TO [pegasus_web_runtime_role]'; EXEC(@denySql); END;
-                      IF DATABASE_PRINCIPAL_ID('pegasus_worker_runtime_role') IS NOT NULL BEGIN SET @denySql=N'DENY DELETE ON [dbo].'+QUOTENAME(@denyTable)+N' TO [pegasus_worker_runtime_role]'; EXEC(@denySql); END;
-                      FETCH NEXT FROM deny_cursor INTO @denyTable;
-                    END; CLOSE deny_cursor; DEALLOCATE deny_cursor;
-                    """);
-            }
 
             migrationBuilder.AddForeignKey(
                 name: "FK_Triage_Principals_PrincipalId",
@@ -1209,8 +1346,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             if (string.Equals(ActiveProvider, "Microsoft.EntityFrameworkCore.SqlServer", StringComparison.Ordinal))
             {
-                migrationBuilder.Sql(
-                    """
+                migrationBuilder.Sql("""
                     DELETE FROM [dbo].[Principals] WHERE [Id] IN (SELECT CAST('00000000-0000-4000-8000-00000000c0'+RIGHT('0'+n,2) AS uniqueidentifier) FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n));
                     DELETE FROM [dbo].[OrganizationRoles] WHERE [OrganizationId] IN (SELECT CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier) FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n));
                     DELETE FROM [dbo].[Organizations] WHERE [Id] IN (SELECT CAST('00000000-0000-4000-8000-00000000d0'+RIGHT('0'+n,2) AS uniqueidentifier) FROM (VALUES ('01'),('02'),('03'),('04'),('05'),('06'),('07'),('08'),('09'),('0a'),('0b'),('0c'),('0d'),('0e'),('0f')) s(n));
@@ -1241,6 +1377,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "IntakeSourceCandidates");
+
+            migrationBuilder.DropTable(
+                name: "LabourRateCards");
 
             migrationBuilder.DropTable(
                 name: "OrganizationDirectoryEntries");
@@ -1302,11 +1441,27 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "CaseWorkflows");
 
             migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseDataFields_FieldName",
+                table: "CaseDataFields");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseAssessmentFields_FieldPath",
+                table: "CaseAssessmentFields");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations");
+
+            migrationBuilder.DropCheckConstraint(
                 name: "CK_ApprovedSentPollStates_Generation",
                 table: "ApprovedSentPollStates");
 
             migrationBuilder.DropCheckConstraint(
                 name: "CK_ApprovedMailboxes_SendLimit",
+                table: "ApprovedMailboxes");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_ApprovedMailboxes_MailboxGeneration",
                 table: "ApprovedMailboxes");
 
             migrationBuilder.DropCheckConstraint(
@@ -1376,6 +1531,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             migrationBuilder.DropColumn(
                 name: "PrincipalId",
                 table: "ImageIntakes");
+
+            migrationBuilder.DropColumn(
+                name: "BoxFileId",
+                table: "DocumentVersions");
+
+            migrationBuilder.DropColumn(
+                name: "BoxVersionId",
+                table: "DocumentVersions");
+
+            migrationBuilder.DropColumn(
+                name: "PendingContentStorageKey",
+                table: "DocumentVersions");
 
             migrationBuilder.DropColumn(
                 name: "CropHeight",
@@ -1530,6 +1697,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "ApprovedSentPollStates");
 
             migrationBuilder.DropColumn(
+                name: "Generation",
+                table: "ApprovedMailboxSubscriptions");
+
+            migrationBuilder.DropColumn(
                 name: "AllowStaffSend",
                 table: "ApprovedMailboxes");
 
@@ -1556,6 +1727,47 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             migrationBuilder.DropColumn(
                 name: "StartBoundaryUtc",
                 table: "ApprovedInboxPollStates");
+
+            migrationBuilder.AlterColumn<decimal>(
+                name: "WorkUnits",
+                table: "CaseEstimateLines",
+                type: "decimal(9,1)",
+                precision: 9,
+                scale: 1,
+                nullable: true,
+                oldClrType: typeof(decimal),
+                oldType: "decimal(18,6)",
+                oldPrecision: 18,
+                oldScale: 6,
+                oldNullable: true);
+
+            migrationBuilder.AlterColumn<decimal>(
+                name: "PaintWorkUnits",
+                table: "CaseEstimateLines",
+                type: "decimal(9,1)",
+                precision: 9,
+                scale: 1,
+                nullable: true,
+                oldClrType: typeof(decimal),
+                oldType: "decimal(18,6)",
+                oldPrecision: 18,
+                oldScale: 6,
+                oldNullable: true);
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseDataFields_FieldName",
+                table: "CaseDataFields",
+                sql: "[FieldName] IN ('work_provider_code', 'claimant_name', 'claimant_contact_number', 'claimant_address', 'claim_number', 'vehicle_registration', 'vehicle_make', 'vehicle_model', 'vehicle_mileage', 'vehicle_mileage_unit', 'accident_circumstances', 'incident_date', 'contact_name', 'contact_email_address', 'contact_phone_number', 'instruction_date', 'vat_status', 'inspection_date', 'inspection_deadline', 'inspection_address', 'inspection_mode', 'storage_location')");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseAssessmentFields_FieldPath",
+                table: "CaseAssessmentFields",
+                sql: "[FieldPath] IN ('assessment.category', 'assessment.impact_location', 'assessment.impact_severity', 'assessment.legal_status', 'assessment.outcome', 'assessment.salvage_value', 'assessment.unroadworthy_reason', 'assessment.values.engineer', 'assessment.values.retail', 'assessment.values.trade', 'costs.recovery_charge', 'costs.repairer_vat_registered', 'costs.storage_charge', 'damage.impacts', 'damage.material_transfer', 'damage.tyres.centre_belt', 'damage.tyres.left_front.belt', 'damage.tyres.left_front.tyre', 'damage.tyres.left_rear.belt', 'damage.tyres.left_rear.tyre', 'damage.tyres.right_front.belt', 'damage.tyres.right_front.tyre', 'damage.tyres.right_rear.belt', 'damage.tyres.right_rear.tyre', 'damage.tyres.spare', 'damage.unrelated', 'damage.unrelated_deduction', 'engineer.name', 'engineer.qualifications', 'engineer.signature', 'fee.agreed_fee', 'fee.description_lines', 'incident.assessed', 'narrative.engineers_comments', 'narrative.history_check', 'narrative.nature_of_incident', 'rates.card', 'rates.class', 'rates.manufacturer_approved', 'rates.regional_uplift', 'settlement.betterment', 'settlement.claimant_vat_registered', 'settlement.diminution', 'settlement.excess', 'settlement.hire_daily_cost', 'settlement.hire_start', 'settlement.repair_delays', 'settlement.report_delay', 'settlement.reserve', 'settlement.salvage.agent', 'settlement.salvage.agent_reference', 'settlement.salvage.at', 'settlement.salvage.moved', 'settlement.salvage.owner_retains', 'settlement.salvage.settled', 'settlement.salvage.value_agreed', 'settlement.storage_per_day', 'statement_of_truth', 'vehicle.airbags_deployed', 'vehicle.body', 'vehicle.colour', 'vehicle.condition', 'vehicle.engine_cc', 'vehicle.fault_codes', 'vehicle.fuel', 'vehicle.mileage_source', 'vehicle.mot_expiry', 'vehicle.tax_expiry', 'vehicle.temporary_repair_cost', 'vehicle.temporary_repair_method', 'vehicle.temporary_repairs_possible', 'vehicle.transmission', 'vehicle.vehicle_type', 'vehicle.vin', 'vehicle.vin_checked', 'vehicle.year')");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_CaseValuations_Source",
+                table: "CaseValuations",
+                sql: "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch')");
         }
     }
 }

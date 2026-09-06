@@ -70,6 +70,18 @@ internal sealed class ValuationPresetEntity : IApplicationManagedConcurrencyToke
     public Guid ConcurrencyToken { get; set; }
 }
 
+internal sealed class LabourRateCardEntity : IApplicationManagedConcurrencyToken
+{
+    public Guid Id { get; set; }
+    public required string Label { get; set; }
+    public decimal PanelRate { get; set; }
+    public bool Active { get; set; }
+    public long Version { get; set; }
+    public required string UpdatedBy { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public Guid ConcurrencyToken { get; set; }
+}
+
 internal sealed class AppliedValuationSnapshotEntity
 {
     public Guid Id { get; set; }
@@ -167,7 +179,8 @@ internal sealed class IntakeSourceCandidateEntity
 {
     public Guid Id { get; set; }
     public Guid AnalysisId { get; set; }
-    public Guid IntakeAssetId { get; set; }
+    public Guid? DocumentVersionId { get; set; }
+    public Guid? IntakeAssetId { get; set; }
     public required string SourceSha256 { get; set; }
     public int Occurrence { get; set; }
     public required string DocumentRole { get; set; }
@@ -243,11 +256,16 @@ internal sealed class OrganizationDirectoryEntryEntity : IApplicationManagedConc
     public required string Name { get; set; }
     public required string NormalizedName { get; set; }
     public string? Contact { get; set; }
-    public string? Address { get; set; }
+    public required string Address { get; set; }
     public string? Postcode { get; set; }
     public string? NormalizedPostcode { get; set; }
     public required string SourceKind { get; set; }
-    public string? SourceRecordId { get; set; }
+    public Guid? SourceRecordId { get; set; }
+    public string? Telephone { get; set; }
+    public string? Email { get; set; }
+    public long SourceVersion { get; set; }
+    public required string UpdatedBy { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
     public bool Active { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
