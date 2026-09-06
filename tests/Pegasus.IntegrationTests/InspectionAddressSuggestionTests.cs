@@ -97,6 +97,16 @@ public sealed class InspectionAddressSuggestionTests
     /// doubled) whitespace must still prefix-match a query whose whitespace
     /// is regular.
     /// </summary>
+    /// <remarks>
+    /// C06 review R-21: the fixture cannot seed through <c>ISaveCase</c> —
+    /// <c>CaseDataOperations.Text</c> collapses whitespace on write, so the
+    /// doubled space would never reach the row. The intake-acceptance path
+    /// (<c>Ext18InspectionAddressPolicy.Evaluate</c>, which only
+    /// <c>Trim()</c>s, followed by
+    /// <c>CaseDataSnapshotFactory.UpsertConfirmed</c>) is the production
+    /// source of this irregular interior whitespace, so this seeds the
+    /// confirmed field row directly the same way that path leaves it.
+    /// </remarks>
     [Fact]
     public async Task SearchMatchesAPriorLocationWhoseStoredWhitespaceIsIrregular()
     {
@@ -106,7 +116,7 @@ public sealed class InspectionAddressSuggestionTests
         var priorIds = await CloneCasesAsync(host, currentId, 1);
         var priorId = priorIds[0];
 
-        await SaveInspectionAddressAsync(host, priorId, "12  High Street, AB1 2CD");
+        await SeedConfirmedInspectionAddressAsync(host, priorId, "12  High Street, AB1 2CD");
 
         await using var scope = host.Services.CreateAsyncScope();
         var choices = await scope.ServiceProvider
@@ -359,11 +369,45 @@ public sealed class InspectionAddressSuggestionTests
             caseId,
             new(InspectionAddress: inspectionAddress, InspectionMode: CaseInspectionMode.PhysicalAddress));
 
-    private static async Task SaveStorageLocationAsync(
+    /// <summary>
+    /// C06 review R-21: seeds a confirmed <c>inspection_address</c> field
+    /// directly at the row level, bypassing <c>ISaveCase</c> /
+    /// <c>CaseDataPolicy.Normalize</c> — whose <c>Text(...)</c> helper
+    /// collapses every whitespace run on write — the same way the
+    /// intake-acceptance path (<c>Trim()</c> only) can leave a stored value
+    /// with irregular interior whitespace. Not reachable through
+    /// <c>ISaveCase</c> at all, so this is the only route to that state.
+    /// </summary>
+    private static async Task SeedConfirmedInspectionAddressAsync(
         WebApplicationFactory<Program> factory,
         Guid caseId,
-        string storageLocation) =>
-        await SaveEditableDataAsync(factory, caseId, new(StorageLocation: storageLocation));
+        string inspectionAddress)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var originIntakeReceiptId = await context.CaseDataSnapshots.AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.OriginIntakeReceiptId)
+            .SingleAsync();
+        context.Set<CaseDataFieldEntity>().Add(new()
+        {
+            CaseId = caseId,
+            FieldName = CaseDataFieldNames.InspectionAddress,
+            ValueKind = CaseDataCodes.Confirmed,
+            ValueType = CaseDataCodes.Text,
+            Value = inspectionAddress,
+            SourceKind = CaseDataCodes.CaseAcceptance,
+            SourceIdentity = originIntakeReceiptId.ToString("D"),
+            SourceLabel = "accepted inspection address",
+            PolicyKey = Ext18InspectionAddressPolicy.PolicyKey,
+            PolicyVersion = Ext18InspectionAddressPolicy.PolicyVersion,
+            ConfirmedByActor = Administrator.SubjectId,
+            ConfirmedAtUtc = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+    }
 
     private static async Task SaveEditableDataAsync(
         WebApplicationFactory<Program> factory,
