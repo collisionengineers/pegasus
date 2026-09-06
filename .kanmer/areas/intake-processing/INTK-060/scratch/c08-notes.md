@@ -164,3 +164,29 @@ targets it instead of the generic "open another record" trigger button) —
 no assumptions needed, both were deterministic code-reading fixes.
 
 ## Step 3 note (pending — will append after `_AdminNav.cshtml` route audit)
+
+## Step 3 — `_AdminNav.cshtml` route audit (correction round 1)
+
+Checked all six C08 shell administration-area links against
+`src/Pegasus.Web/Pages/Administration/` as it stands on this branch after
+Step 0's two merges (`54a12dd7d`, `ecd546297`): `ls`/`find` under
+`Pages/Administration` finds no `ActionLogs`, `AiJobs`, `Reports`, `Health`,
+`ValuationPresets` or `ClaimSources` page anywhere (including the C06
+`ClaimSources` page the dispatch named — not present on this branch at this
+head). All six remain plain `href`s exactly as they already were; no markup
+change was needed. Still forward references, pending their owning slice's
+merge:
+
+- `/Administration/ActionLogs` — no owning slice identified in files reviewed
+  so far.
+- `/Administration/AiJobs` — no owning slice identified.
+- `/Administration/Reports` — no owning slice identified.
+- `/Administration/Health` — label now reads "Service health" (Step 0's merge
+  resolution, FRD-12 name); page itself not yet on this branch.
+- `/Administration/ValuationPresets` — no owning slice identified.
+- `/Administration/ClaimSources` — C06-owned per the dispatch; not on this
+  branch yet.
+
+The four `asp-page` links (Accounts, Principals, Configuration, Mailboxes)
+plus the conditional Automation link all resolve to pages that exist on this
+branch — verified present under `Pages/Administration/`.
