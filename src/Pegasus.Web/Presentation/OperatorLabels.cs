@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -199,6 +200,15 @@ public static class OperatorLabels
         public const string Configuration = "Workflow configuration";
         public const string Mail = "Mail settings";
         public const string Automation = "Automation & AI";
+
+        // C08 shell administration areas start
+        public const string ActionLogs = "Action logs";
+        public const string AiJobs = "AI jobs";
+        public const string Reports = "Reports";
+        public const string Health = "Health";
+        public const string ValuationPresets = "Valuation presets";
+        public const string ClaimSources = "Claim sources";
+        // C08 shell administration areas end
     }
 
     /// <summary>The freshness words the shell and every page header share.</summary>
@@ -701,7 +711,7 @@ public static class OperatorLabels
     /// nothing on the page to say which zone it meant.
     /// </remarks>
     public static string OfficeTime(DateTimeOffset value) =>
-        InOffice(value).ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+        LondonCalendar.LocalAt(value).ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A date and time in the office's zone, or <paramref name="absent"/> when
@@ -715,35 +725,14 @@ public static class OperatorLabels
     /// part of what the operator is deciding.
     /// </summary>
     public static string OfficeDate(DateTimeOffset value) =>
-        InOffice(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        LondonCalendar.DateAt(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The time of day in the office's zone, for the two-line surfaces that
     /// print the date above it.
     /// </summary>
     public static string OfficeClock(DateTimeOffset value) =>
-        InOffice(value).ToString("HH:mm", CultureInfo.InvariantCulture);
-
-    /// <summary>
-    /// The one conversion. It falls back to UTC rather than throwing, because
-    /// a missing zone database is an operational fault and a blank screen
-    /// would be a worse answer than an hour's offset.
-    /// </summary>
-    private static DateTimeOffset InOffice(DateTimeOffset value)
-    {
-        TimeZoneInfo office;
-        try
-        {
-            office = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-        }
-        catch (Exception exception) when (
-            exception is TimeZoneNotFoundException or InvalidTimeZoneException)
-        {
-            office = TimeZoneInfo.Utc;
-        }
-
-        return TimeZoneInfo.ConvertTime(value, office);
-    }
+        LondonCalendar.TimeAt(value).ToString("HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A file size the operator can act on. Bytes are an implementation detail
