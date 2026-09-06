@@ -280,3 +280,7 @@ R-16/R-18/R-20 closed; R-17's SQL predicate judged correct and needed. New: C06-
 ## Checkpoint — C08 round 1 at `8c5351296`
 
 Merge conflict resolved (`Admin.Health = "Service health"`), G14 taken; admin rail wraps at ≤980px; palette focus-return threads the real opener; Compose uses `Generation` + `StaffSend`/`SentEvidence`; labels batch (C07 AcceptedPending, C05 Finding). Preview-404 and Compose-redirect causes not confirmed statically — diagnostics added so wave 24 names them. Wave 24 running. C06 round 4 dispatched (fixture fixes R-21/R-22, deviation R-23). Editors: C07 caller r2, C06 r4. C05 round 3 next.
+
+## Checkpoint — C07 caller round 2 at `f55a5adac`
+
+R-12 (uncertainty by Core semantics; `System.Net.Http` gone from the built Core assembly), R-13 (cancellation → unknown, proved), R-14 (double enforces A's staff-only status read; exposes the contract gap — public Pending cannot self-reconcile; handoff with two shapes posted to A, plus A04 refusal-type instruction). Re-review dispatched; wave 25 starts when wave 24 (C08) releases LocalDB. C05 round 3 dispatched (Opus) for R-16 and R-6. Editors: C06 r4, C05 r3.
