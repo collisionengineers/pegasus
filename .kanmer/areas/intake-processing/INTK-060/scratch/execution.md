@@ -126,3 +126,7 @@ Conflicts resolved in `EfTriageStore.cs` (usings) and `Pages/Triage/Details.csht
 ## C01 review (9b4dd1ef2): needs-changes
 
 Independent reviewer: one major `C01-R-1` (Unidentified keyset continuation filters media kind after a window and can drop rows under a sparse filter), five minors (source-asset rule triplicated; stranded XML doc; `SingleOrDefaultAsync` on non-unique key; C03 deferral unrecorded; no simplification pass), four nits; PR 639/646 rows, analysis command, selector and A05 items verified faithful; no A-owned file touched. Correction round 2 dispatched to the C01 implementer; a targeted re-review and wave follow. C07 review running.
+
+## Corpus lane finding from A
+
+`MultiFormatGenuineCorpusWebTests.GenuineMsgIsRetainedInNeedsSortingWithoutReference` fails on A's immutable corpus (pinned MSG `7e4c50d5…`): expected `NeedsSorting`, actual `CaseCreated`. The sample is not in the reference pack and this machine has no `corpus/`, so C requested the receipt's route/classification/extraction evidence from A's lane before deciding between re-pointing the assertion to what a routed staff-uploaded instruction should prove (with a non-routed `.msg` pinned for the NeedsSorting case) and fixing a C route/classification defect. Evidence limit recorded: the genuine-format cohort and QDOS cohorts skip on this workstation (INCONCLUSIVE, never PASS); C relies on A's corpus lane for those.
