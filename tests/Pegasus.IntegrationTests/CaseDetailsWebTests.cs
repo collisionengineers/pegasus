@@ -421,6 +421,44 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// The create action requires the recipient server-side as well: a post
+    /// without one, or with only whitespace, is refused before the command
+    /// port is reached, and the editor keeps edit mode to correct it.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateUploadRequestWithoutARecipientNeverReachesTheCommand(string? recipient)
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICreateRequestUploadLink>(services, store));
+        var fields = new List<(string Name, string Value)>
+        {
+            ("id", store.CaseId.ToString("D")),
+            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            ("operationKey", "create-request-link-blank"),
+            ("editLeaseToken", store.LeaseToken),
+            ("reason", "Photographs of the rear damage")
+        };
+        if (recipient is not null)
+        {
+            fields.Add(("recipient", recipient));
+        }
+
+        using var refused = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            Form(workspace.AntiforgeryToken, [.. fields]));
+
+        AssertPrg(refused, store.CaseId);
+        Assert.Empty(store.RequestLinkCreations);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+    }
+
+    /// <summary>
     /// The frame's fragment handler answers with one section body and nothing
     /// of the record around it, so a mounted section cannot replace the frame
     /// or another section.
