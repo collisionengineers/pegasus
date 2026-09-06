@@ -178,6 +178,34 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.DoesNotContain("name=\"LocationOperationKey\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// C06 review R-4: item 6's expected output — the handoff's "QDOS
+    /// defaults to the Image Based Assessment location" — was otherwise
+    /// unasserted anywhere. Image Based Assessment is represented as every
+    /// <c>Default*</c> column being null, which is indistinguishable from
+    /// "never set" by reading the schema alone; this asserts what the page
+    /// actually renders for the seeded row.
+    /// </summary>
+    [Fact]
+    public async Task QdosPrincipalDefaultsToImageBasedAssessmentOnThePrincipalsIndex()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Administration/Principals");
+
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        var qdosRowStart = html.IndexOf("<td>QDOS</td>", StringComparison.Ordinal);
+        Assert.True(qdosRowStart >= 0, "The Principals index must list the seeded QDOS principal.");
+        var rowEnd = html.IndexOf("</tr>", qdosRowStart, StringComparison.Ordinal);
+        Assert.True(rowEnd >= 0, "The QDOS row must be a complete table row.");
+        Assert.Contains(
+            "Image Based Assessment",
+            html[qdosRowStart..rowEnd],
+            StringComparison.Ordinal);
+    }
+
     private static string InputValue(string html, string name)
     {
         var match = InputTagRegex().Matches(html)
