@@ -17,14 +17,30 @@ namespace Pegasus.Web.Pages.Mail;
 /// no Case is not representable by the contract as written, so this page
 /// requires one (a C08 deviation, recorded in scratch/execution.md).
 ///
-/// The command's <c>ExpectedMailboxGeneration</c> is read here from
-/// <see cref="ApprovedMailbox.Version"/> (<see cref="IApprovedMailboxStore"/>,
-/// the pre-existing Administration/Mailboxes query) filtered to the
-/// <see cref="ApprovedMailboxRouteScope.SentEvidence"/> scope. The
-/// approved-mailbox entity also carries a distinct <c>MailboxGeneration</c>/
-/// <c>AllowStaffSend</c> pair meant for this exact command, but no Core query
-/// yet exposes either to Web — a follow-up must add one and correct this
-/// mapping (recorded as a C08 deviation).
+/// The command's <c>ExpectedMailboxGeneration</c> is read here from the
+/// shared <see cref="ApprovedMailbox.Generation"/> field (G14), the exact
+/// field the command means — not <see cref="ApprovedMailbox.Version"/>
+/// (Administration's own optimistic-concurrency counter for mailbox edits, a
+/// different field this page no longer conflates it with).
+///
+/// A mailbox is offered to send from when it is Approved and carries either
+/// <see cref="ApprovedMailboxRouteScope.StaffSend"/> (G14's dedicated
+/// capability for this exact command) or, until
+/// <c>EfApprovedMailboxStore.Routes</c> (A-owned,
+/// <c>src/Pegasus.Infrastructure/Persistence/EfApprovedMailboxStore.cs</c>)
+/// maps its backing <c>AllowStaffSend</c> column into <c>RouteScopes</c> at
+/// all, <see cref="ApprovedMailboxRouteScope.SentEvidence"/> — the placeholder
+/// this page used before G14 landed. Filtering on <c>StaffSend</c> alone today
+/// would offer no mailbox to anyone, since no store implementation ever adds
+/// it to <c>RouteScopes</c> yet; recorded as a C08 assumption (scratch/c08-notes
+/// on INTK-060) pending that Infrastructure mapping.
+///
+/// <see cref="ApprovedMailbox.VerifiedEncodedMessageSizeLimit"/> (G14) is not
+/// yet enforced here: this page sends with <c>Attachments: []</c> always (no
+/// attachment picker exists in this slice), so there is nothing to measure
+/// against a limit. A null limit means unverified, not unlimited — a future
+/// attachment slice must read the chosen mailbox's actual value and must
+/// never substitute a guessed number for it.
 /// </remarks>
 public sealed class ComposeModel(
     IStaffMailSend staffMailSend,
@@ -150,7 +166,7 @@ public sealed class ComposeModel(
                 new(
                     actor,
                     mailbox.Id,
-                    mailbox.Version,
+                    mailbox.Generation,
                     StaffMailPurpose.GeneralCorrespondence,
                     details.Summary.CaseId,
                     details.Workflow.Version,
@@ -208,7 +224,8 @@ public sealed class ComposeModel(
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
         SendableMailboxes = mailboxes
             .Where(item => item.State == ApprovedMailboxState.Approved
-                && item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence))
+                && (item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+                    || item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)))
             .ToArray();
     }
 }
