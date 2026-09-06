@@ -12,7 +12,6 @@
     var externalWork = Model.Operations.Items
         .Where(item => item.Kind == RequestOperationKind.ExternalWork && item.CanRetry)
         .ToArray();
-    var serviceHealth = Model.ServiceHealth;
     var evaActivity = Model.EvaActivity;
     var evaFailures = Model.EvaFailures;
     var hasEvaHandoffs = evaActivity.PendingWorkCount > 0
@@ -39,21 +38,16 @@
     </div>
 }
 
+@* Service health is Administration-only (FRD-12); this page runs no health
+   query of its own and only points to where it lives (D37). *@
 @if (Model.Operations.LimitReached)
 {
     <div class="notice notice--warning" role="status">
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span><strong>@OperatorLabels.OperationsNotices.PartialData</strong></span>
-    </div>
-}
-
-@if (serviceHealth is not null
-    && ServiceHealthPolicy.HasPartialData(serviceHealth)
-    && User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
-{
-    <div class="notice notice--warning" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span><strong>@OperatorLabels.OperationsNotices.ServiceHealth</strong></span>
+        <span>
+            <strong>@OperatorLabels.OperationsNotices.PartialData</strong>
+            &mdash; <a href="/Administration/Health">@OperatorLabels.Admin.Health</a>
+        </span>
     </div>
 }
 
