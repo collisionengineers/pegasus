@@ -1,3 +1,4 @@
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 
@@ -7,7 +8,8 @@ public sealed class TriageReplayTests
 {
     private static readonly Guid TriageId = Guid.NewGuid();
     private static readonly Guid SupersededFindingId = Guid.NewGuid();
-    private const string Actor = "staff:triage-replay-test";
+    private static readonly ActionActor Actor =
+        ActionActor.Automation("triage-replay-test");
 
     [Theory]
     [InlineData(ReplayCommand.RecordFinding)]
