@@ -264,25 +264,6 @@ public sealed record EstimateTotals(
     int CalculationPolicyVersion,
     IReadOnlyList<EstimateAnomaly> OffPattern)
 {
-    // Printed-equivalent projections of the pre-B04 flat totals. The report
-    // projection and the Case estimate partial now read the printed
-    // breakdown itself; the MCP estimate tool (Stream A's
-    // AssessmentMcpTools.MapEstimate) is the last reader, and these members
-    // go with the hunk that switches it.
-    public decimal Parts => Printed.Parts;
-
-    public decimal Labour => Printed.PanelLabour;
-
-    public decimal Paint => Printed.PaintLabour + Printed.Materials;
-
-    public decimal Other => Printed.Specialist;
-
-    public decimal Subtotal => Printed.Net;
-
-    public decimal Vat => Printed.Vat;
-
-    public decimal Total => Printed.Gross;
-
     public static EstimateTotals Compute(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
