@@ -70,7 +70,7 @@ public interface IStaffMailTransport
         ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
         CancellationToken cancellationToken);
     Task<StaffMailDraftResult> CreateDraftAsync(
-        ApprovedStaffSendMailbox mailbox, Guid operationId, string payloadHash,
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
         StaffMailSendCommand command,
         CancellationToken cancellationToken);
     Task AttachAsync(
@@ -369,7 +369,7 @@ public sealed class StaffMailSend(
                 "Draft creation could not be reconciled; a replacement draft was not created.");
         }
         return (operation, await transport.CreateDraftAsync(
-            mailbox, operation.Id, operation.PayloadHash, command, cancellationToken));
+            mailbox, operation, command, cancellationToken));
     }
 
     private async Task<ApprovedStaffSendMailbox> RequireMailboxAsync(
