@@ -190,6 +190,118 @@ public sealed class InspectionAddressSuggestionTests
         Assert.Empty(choices);
     }
 
+    /// <summary>
+    /// C06 review R-7: the other half of the bridge proof for
+    /// <see cref="IOrganizationDirectoryQueries"/>. Every other test in this
+    /// file resolves <see cref="IInspectionLocationChoices"/> through
+    /// <c>WithC06Adapters</c>, which always supplies a directory — so "the
+    /// other three sources still work and nothing fakes a result" when it is
+    /// absent was proved only by reading the constructor remarks, not by a
+    /// test. Construct <see cref="InspectionAddressChoicesQueries"/> directly
+    /// with no directory (as it exists today, unregistered, on this branch)
+    /// and assert the claimant and prior-principal-location sources still
+    /// return their rows and no directory row is ever invented.
+    /// </summary>
+    [Fact]
+    public async Task SearchWithNoDirectoryStillReturnsTheOtherSourcesAndInventsNoDirectoryRow()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var currentId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        var priorIds = await CloneCasesAsync(factory, currentId, 1);
+        var priorId = priorIds[0];
+
+        await SaveClaimantAddressAsync(factory, currentId, "Riverside House, AB1 2CD");
+        await SaveInspectionAddressAsync(factory, priorId, "Riverside Garage, AB1 9ZZ");
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        // No IOrganizationDirectoryQueries argument: the same absent-bridge
+        // state as this branch's actual DI container today.
+        var choicesQuery = new InspectionAddressChoicesQueries(contextFactory);
+
+        var choices = await choicesQuery.SearchAsync(
+            new(Administrator, currentId, "Riverside"), CancellationToken.None);
+
+        Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Claimant
+            && choice.Address == "Riverside House, AB1 2CD");
+        Assert.Contains(choices, choice => choice.SourceKind == InspectionLocationSourceKind.PriorPrincipalLocation
+            && choice.Address == "Riverside Garage, AB1 9ZZ");
+        Assert.DoesNotContain(choices, choice => choice.SourceKind == InspectionLocationSourceKind.Directory);
+    }
+
+    /// <summary>
+    /// C06 review R-8: exact-before-prefix ordering and the source-record
+    /// identity (item 5's <see cref="InspectionLocationChoice.SourceRecordId"/>/
+    /// <see cref="InspectionLocationChoice.SourceVersion"/>) were asserted
+    /// only at <see cref="EfOrganizationDirectory"/>, never through
+    /// <see cref="IInspectionLocationChoices"/> itself, where the union's own
+    /// re-ranking runs. (Repairer-source coverage is deferred: nothing in
+    /// this codebase writes <c>CaseDataProjection.Inspection.RepairerAddress</c>
+    /// today — <see cref="EfCaseDataStore"/>'s map never populates it — so
+    /// there is no path to seed it through, a pre-existing gap outside C06.)
+    /// </summary>
+    [Fact]
+    public async Task SearchRanksAnExactMatchBeforeAPrefixMatchAndCarriesTheSourceRecordIdentity()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        using var host = factory.WithC06Adapters();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(host);
+        await SaveClaimantAddressAsync(host, caseId, "Ash House, AB1 2CD");
+
+        var directoryId = Guid.NewGuid();
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.Set<OrganizationDirectoryEntryEntity>().Add(new()
+            {
+                Id = directoryId,
+                Role = "repairer",
+                Name = "Ash",
+                NormalizedName = "ASH",
+                Address = "2 Ash Lane",
+                Postcode = "AB1 9ZZ",
+                NormalizedPostcode = "AB19ZZ",
+                SourceKind = "manual",
+                SourceRecordId = null,
+                SourceVersion = 3,
+                UpdatedBy = Administrator.SubjectId,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+                Active = true,
+                Version = 0
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using var verificationScope = host.Services.CreateAsyncScope();
+        var services = verificationScope.ServiceProvider;
+        var projection = await services.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        var choices = await services.GetRequiredService<IInspectionLocationChoices>()
+            .SearchAsync(new(Administrator, caseId, "Ash"), CancellationToken.None);
+
+        Assert.NotNull(projection);
+        // The directory entry's name "Ash" is an exact match for the search
+        // prefix; the claimant address "Ash House, AB1 2CD" only matches as
+        // a prefix (a claimant/repairer/storage/prior choice never carries a
+        // postcode, so it can only ever rank as exact via a whole-address
+        // equality that a real address will not hit) — so the exact match
+        // must sort first regardless of either candidate's alphabetical name.
+        Assert.Equal(InspectionLocationSourceKind.Directory, choices[0].SourceKind);
+        Assert.Equal(directoryId, choices[0].Id);
+        // The entry's own SourceRecordId is null, so the directory adapter's
+        // fallback (SourceRecordId ?? Id) must surface as the entry's id.
+        Assert.Equal(directoryId, choices[0].SourceRecordId);
+        Assert.Equal(3, choices[0].SourceVersion);
+
+        var claimantChoice = Assert.Single(
+            choices, choice => choice.SourceKind == InspectionLocationSourceKind.Claimant);
+        Assert.Equal(caseId, claimantChoice.SourceRecordId);
+        Assert.Equal(projection!.Version, claimantChoice.SourceVersion);
+    }
+
     private static async Task SaveClaimantAddressAsync(
         WebApplicationFactory<Program> factory,
         Guid caseId,
