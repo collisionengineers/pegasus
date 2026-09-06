@@ -245,14 +245,18 @@ public sealed record RequestUploadLink(
     int AcceptedFileCount,
     long AcceptedByteCount,
     string LimitsVersion,
-    long Version);
+    long Version,
+    string? Recipient = null,
+    string? Reason = null);
 
 public sealed record CreateRequestUploadLinkCommand(
     Guid CaseId,
     ActionActor Actor,
     string OperationKey,
     long ExpectedCaseVersion,
-    string EditLeaseToken);
+    string EditLeaseToken,
+    string? Recipient = null,
+    string? Reason = null);
 
 public sealed record CreateRequestUploadLinkResult(
     RequestUploadLink Link,
@@ -349,6 +353,17 @@ public sealed class RequestUploadPolicy
     }
 
     public static RequestUploadTokenIssue CreateToken() => RequestUploadToken.Create();
+
+    public static CreateRequestUploadLinkCommand NormalizeCreate(
+        CreateRequestUploadLinkCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return command with
+        {
+            Recipient = NormalizeMetadata(command.Recipient, 500, nameof(command.Recipient)),
+            Reason = NormalizeMetadata(command.Reason, 1000, nameof(command.Reason))
+        };
+    }
 
     public DateTimeOffset CalculateExpiry(DateTimeOffset createdAtUtc)
     {
@@ -462,6 +477,30 @@ public sealed class RequestUploadPolicy
             || safeFileName.Any(char.IsControl)
             ? null
             : safeFileName;
+    }
+
+    private static string? NormalizeMetadata(
+        string? value,
+        int maximumLength,
+        string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length == 0)
+        {
+            throw new ArgumentException("Upload-request metadata cannot be blank.", parameterName);
+        }
+        if (normalized.Length > maximumLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"Upload-request metadata cannot exceed {maximumLength} characters.");
+        }
+        return normalized;
     }
 
     private static RequestUploadAuthorization Unavailable() =>
