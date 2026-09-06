@@ -194,6 +194,17 @@ public sealed class EfCaseWorkspaceStore(
                 JsonOptions),
             $"{CaseWorkspacePolicy.PolicyKey}/v{CaseWorkspacePolicy.PolicyVersion}",
             now);
+        // The workspace save covers narrative, content and settlement facts
+        // a frozen report pins: the Case's current generation goes stale in
+        // this same transaction, so the change and the staleness it causes
+        // commit together or not at all. Engineer notes are a separate
+        // command and never reach this path.
+        await EfCaseReportGenerationStore.MarkStaleAsync(
+            context,
+            request.CaseId,
+            "case_workspace_saved",
+            now,
+            cancellationToken);
 
         try
         {
