@@ -944,7 +944,7 @@ public sealed class StaffCorrespondenceWebTests
                 SourceReaderKey = "fixture-reader",
                 SourceReaderVersion = "1",
                 Version = 0,
-                Decision = IntakeDecision.NeedsSorting.ToString(),
+                Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting),
                 DecisionReason = "Fixture retained correspondence.",
                 EvidenceJson = "[]",
                 FieldsJson = "[]",
