@@ -1081,11 +1081,18 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
-    public async Task FilteredReportGenerationIndexMigrationRefusesDowngradeWithoutChangingCurrentSchema()
+    public async Task FilteredReportGenerationIndexMigrationRefusesDowngradeWithoutChangingItsSchema()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(useTemplate: false);
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            migrate: false,
+            useTemplate: false);
         await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync(FilterActiveReportGenerationMigration);
         var appliedBefore = await context.Database.GetAppliedMigrationsAsync();
+        var pendingBefore = await context.Database.GetPendingMigrationsAsync();
+        Assert.Equal(FilterActiveReportGenerationMigration, appliedBefore.Last());
+        Assert.NotEmpty(pendingBefore);
 
         var exception = await Assert.ThrowsAsync<NotSupportedException>(
             () => context.Database.MigrateAsync(V1FoundationMigration));
@@ -1094,6 +1101,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             "This migration cannot be reverted after stale report generations may share a snapshot hash.",
             exception.Message);
         Assert.Equal(appliedBefore, await context.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(pendingBefore, await context.Database.GetPendingMigrationsAsync());
         Assert.Contains(FilterActiveReportGenerationMigration, appliedBefore);
         Assert.Equal(1, await database.ScalarAsync<int>(
             """
@@ -1105,7 +1113,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
               AND REPLACE(REPLACE(REPLACE(filter_definition, N' ', N''), N'(', N''), N')', N'')
                   = N'[State]<>N''Stale'''
             """));
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
         Assert.False(context.Database.HasPendingModelChanges());
     }
 
