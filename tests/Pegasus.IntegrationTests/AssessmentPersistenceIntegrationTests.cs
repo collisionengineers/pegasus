@@ -820,10 +820,120 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
 
+    /// <summary>
+    /// Stream A review (comments 5560764306/5560667174, one staleness root
+    /// cause): a manual valuation save or edit changes frozen report inputs —
+    /// guide figures, and the confirmed Engineer's Value field a manual
+    /// Engineer's Value record writes — so each stales the Case's current
+    /// generation inside its own transaction, replay returns before staling,
+    /// and a superseded generation never moves.
+    /// </summary>
     [Fact]
-    public async Task ValuationsSaveEditListAndOwnTheConfirmedEngineersValueField()
+    public async Task SavingAndEditingAValuationStaleOnlyTheCurrentGeneration()
     {
         await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("valuation-stale-accept");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveValuation(harness.Valuations);
+        var edit = new EditValuation(harness.Valuations);
+
+        var (currentId, supersededId) = await SeedGenerationsAsync(harness, caseId);
+
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "valuation-stale-save-lease");
+        var saveRequest = new SaveValuationRequest(
+            caseId,
+            lease.Version,
+            engineer,
+            "valuation-stale-save",
+            "Recorded the Engineer's Value.",
+            lease.Token,
+            new(ValuationSource.EngineersValue, new DateOnly(2031, 5, 8), new TimeOnly(9, 0), 42000, 12000m, 10000m));
+        var saved = await save.ExecuteAsync(saveRequest, CancellationToken.None);
+
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
+
+        // Replay of the same operation returns before any mutation, so the
+        // stale row count does not move.
+        Assert.Equal(saved, await save.ExecuteAsync(saveRequest, CancellationToken.None));
+        Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
+
+        // A fresh current generation goes stale on the edit the same way.
+        await harness.Database.ExecuteAsync(
+            $"UPDATE CaseReportGenerations SET State = 'Confirmed' WHERE Id = '{currentId:D}'");
+        var version = await harness.Database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+        var editLease = await harness.AcquireLeaseAsync(caseId, version, engineer, "valuation-stale-edit-lease");
+        await edit.ExecuteAsync(
+            new EditValuationRequest(
+                caseId,
+                editLease.Version,
+                engineer,
+                "valuation-stale-edit",
+                "Corrected the Engineer's Value.",
+                editLease.Token,
+                saved.ValuationId,
+                new(ValuationSource.EngineersValue, new DateOnly(2031, 5, 9), new TimeOnly(10, 0), 42125, 12500m, 10500m)),
+            CancellationToken.None);
+
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
+        Assert.Equal(2, await StaleRowCountAsync(harness, caseId));
+    }
+
+    private static async Task<(Guid CurrentId, Guid SupersededId)> SeedGenerationsAsync(
+        Harness harness,
+        Guid caseId)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var currentId = Guid.NewGuid();
+        var supersededId = Guid.NewGuid();
+        context.AddRange(
+            new CaseReportGenerationEntity
+            {
+                Id = supersededId,
+                CaseId = caseId,
+                CaseVersion = 0,
+                SnapshotHash = new string('1', 64),
+                SnapshotJson = "{\"operationKey\":\"seed-generation-superseded\"}",
+                TemplateVersion = "assessment-report/v1",
+                RendererVersion = "playwright/v1",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+                Version = 1
+            },
+            new CaseReportGenerationEntity
+            {
+                Id = currentId,
+                CaseId = caseId,
+                CaseVersion = 0,
+                SnapshotHash = new string('2', 64),
+                SnapshotJson = "{\"operationKey\":\"seed-generation-current\"}",
+                TemplateVersion = "assessment-report/v1",
+                RendererVersion = "playwright/v1",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero),
+                Version = 1
+            });
+        await context.SaveChangesAsync();
+        await harness.Database.ExecuteAsync(
+            $"UPDATE CaseReportGenerations SET SupersededById = '{Guid.NewGuid():D}' WHERE Id = '{supersededId:D}'");
+        return (currentId, supersededId);
+    }
+
+    private static Task<int> StaleRowCountAsync(Harness harness, Guid caseId) =>
+        harness.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'");
+
+    [Fact]
+    public async Task ValuationsSaveEditListAndOwnTheConfirmedEngineersValueField()
+    {        await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("valuation-accept-case");
         var caseId = outcome.Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -1697,6 +1807,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
+        public LocalDbTestDatabase Database => database;
         public Guid ReceiptId { get; }
         public SaveAssessment SaveAssessment { get; }
         public EfAiWorkRequestStore WorkRequests { get; }

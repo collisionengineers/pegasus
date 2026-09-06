@@ -1,3 +1,5 @@
+using Pegasus.Core.Assessment;
+
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
@@ -8,6 +10,41 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class CaseWorkspaceLabels
 {
+    /// <summary>
+    /// The Vehicle section's lookup-chip surface. These live here, not in the
+    /// shared OperatorLabels, because they are Case-only: the shared file is
+    /// Stream C's and B never edits it.
+    /// </summary>
+    public static class Vehicle
+    {
+        public const string LookupDvlaMot = "Look up DVLA & MOT";
+
+        public static string UseSuggestion(string value) => $"Use {value}";
+    }
+
+    /// <summary>
+    /// The Valuation section's source-card surface, same ownership rule as
+    /// Vehicle.
+    /// </summary>
+    public static class Valuation
+    {
+        public const string SectionTitle = "Valuation";
+        public const string AddValuation = "Add valuation";
+        public const string CazanaCondition = "not a live source";
+        public const string AbsentGuideMonth = "Not recorded";
+
+        public static string SourceLabel(ValuationSource source) => source switch
+        {
+            ValuationSource.Glasses => "Glass's",
+            ValuationSource.Cazana => "Cazana",
+            ValuationSource.EngineersValue => "Engineer's Value",
+            ValuationSource.AiMarketResearch => "AI market research",
+            ValuationSource.Brego => "Brego",
+            ValuationSource.SuperCap => "Super CAP",
+            _ => source.ToString(),
+        };
+    }
+
     /// <summary>
     /// The Report section's generation and delivery surface. Labels only —
     /// values come from the persisted generation and preparation records,
@@ -21,7 +58,7 @@ public static class CaseWorkspaceLabels
         public const string ReportGenerated = "The report was generated.";
         public const string FeeNoteGenerated = "The fee note was generated.";
         public const string GenerationPending =
-            "The artifact is awaiting custody confirmation. Retry in a moment.";
+            "The artifact is awaiting custody confirmation.";
         public const string GenerationNotReady = "Report not ready";
         public const string CurrentGeneration = "Generated";
         public const string GenerationState = "State";
@@ -36,8 +73,12 @@ public static class CaseWorkspaceLabels
         public const string SendAccepted = "The report send was accepted.";
         public const string SendInProgress = "The report send is in progress.";
         public const string SendCancelled = "The send was cancelled.";
-        public const string SendUnknown =
-            "The send result is not yet known. Check correspondence before retrying.";
-        public const string SendFailed = "The report send failed. Retry the operation.";
+        /// <summary>
+        /// One consequence sentence, no retry advice: an Unknown outcome must
+        /// never be blindly repeated (ENG-024), so the copy cannot invite a
+        /// retry.
+        /// </summary>
+        public const string SendUnknown = "The send result is not yet known.";
+        public const string SendFailed = "The report send failed.";
     }
 }

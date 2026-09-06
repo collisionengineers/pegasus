@@ -1,0 +1,9 @@
+/* Case workspace styles Stream B owns (CASE-047/B08). The shared shell and
+   site.css are Stream C's; every rule here is Case-only behaviour. */
+
+/* CASE-029 port: field-level lookup choices and valuation source cards. */
+.suggestion-chip { margin-top: var(--sp-2); padding: 2px var(--sp-3); border: 1px solid var(--ce-red); border-radius: 999px; background: var(--paper); color: var(--ce-red); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+.valuation-sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4); }
+.valuation-card { padding: var(--sp-4); border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.valuation-card h3 { margin: 0 0 var(--sp-3); }
+.valuation-card .figures { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin: 0 0 var(--sp-3); }

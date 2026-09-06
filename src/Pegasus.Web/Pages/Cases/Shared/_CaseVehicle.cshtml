@@ -4,211 +4,84 @@
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
-    var summary = details.Summary;
     var data = details.Data;
-    var evidence = details.VehicleEvidence;
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
-
-    string Value(string? text) => string.IsNullOrWhiteSpace(text) ? "Not recorded" : text;
-
-    var registration = evidence?.Confirmed?.Registration.Value
-        ?? data?.Vehicle.Registration.Confirmed?.Value
-        ?? summary.Registration;
-    var year = evidence?.LatestObservation?.Vehicle?.ManufactureYear;
-    var mileage = data?.Vehicle.Mileage.Confirmed?.Value;
-    var mileageUnit = data?.Vehicle.MileageUnit.Confirmed?.Value;
-    // A recorded figure with no recorded unit reads as the figure: assuming
-    // miles would state something the case does not hold.
-    var mileageText = mileage is { } miles
-        ? string.IsNullOrWhiteSpace(mileageUnit) ? miles.ToString("N0") : $"{miles:N0} {mileageUnit}"
+    string Value(string? text) => string.IsNullOrWhiteSpace(text)
+        ? OperatorLabels.CaseWorkspace.AbsentValue : text;
+    var registration = details.VehicleEvidence?.Confirmed?.Registration.Value
+        ?? data?.Vehicle.Registration.Current?.Value ?? details.Summary.Registration;
+    // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an
+    // unaccepted suggestion, which would render with no marker distinguishing
+    // it from a recorded value while the chip beside it still offers "Use …".
+    var make = data?.Vehicle.Make.Confirmed?.Value ?? data?.Vehicle.Make.Fact?.Value;
+    var model = data?.Vehicle.Model.Confirmed?.Value ?? data?.Vehicle.Model.Fact?.Value;
+    var mileage = data?.Vehicle.Mileage.Confirmed?.Value ?? data?.Vehicle.Mileage.Fact?.Value;
+    var unit = data?.Vehicle.MileageUnit.Confirmed?.Value ?? data?.Vehicle.MileageUnit.Fact?.Value;
+    var makeSuggestion = data?.Vehicle.Make.Suggestion;
+    var modelSuggestion = data?.Vehicle.Model.Suggestion;
+    var mileageSuggestion = data?.Vehicle.Mileage.Suggestion;
+    var unitSuggestion = data?.Vehicle.MileageUnit.Suggestion;
+    var showMake = makeSuggestion is not null
+        && !string.IsNullOrWhiteSpace(makeSuggestion.Value)
+        && !string.Equals(makeSuggestion.Value,
+            data?.Vehicle.Make.Confirmed?.Value ?? data?.Vehicle.Make.Fact?.Value,
+            StringComparison.OrdinalIgnoreCase);
+    var showModel = modelSuggestion is not null
+        && !string.IsNullOrWhiteSpace(modelSuggestion.Value)
+        && !string.Equals(modelSuggestion.Value,
+            data?.Vehicle.Model.Confirmed?.Value ?? data?.Vehicle.Model.Fact?.Value,
+            StringComparison.OrdinalIgnoreCase);
+    var showMileage = mileageSuggestion is not null && unitSuggestion is not null
+        && (mileageSuggestion.Value != (data?.Vehicle.Mileage.Confirmed?.Value ?? data?.Vehicle.Mileage.Fact?.Value)
+            || !string.Equals(unitSuggestion.Value,
+                data?.Vehicle.MileageUnit.Confirmed?.Value ?? data?.Vehicle.MileageUnit.Fact?.Value,
+                StringComparison.Ordinal));
+    var mileageText = mileage is { } figure
+        ? string.IsNullOrWhiteSpace(unit) ? figure.ToString("N0") : $"{figure:N0} {unit}"
         : null;
-    var mileageSource = data?.Vehicle.Mileage.Current is { } mileageValue
-        ? OperatorLabels.Provenance(mileageValue.Source).Word
-        : null;
-
-    // The lookup is a case mutation: it needs the edit authority and a
-    // registration to search on. Without a registration the control is drawn
-    // and disabled with its condition named, which is state, not a seam.
-    var canLookUp = !string.IsNullOrWhiteSpace(registration);
-    var observations = evidence?.Observations
-        .OrderByDescending(observation => observation.RecordedAtUtc)
-        .ToArray() ?? [];
+    var mileageSource = (data?.Vehicle.Mileage.Confirmed ?? data?.Vehicle.Mileage.Fact) is { } mileageValue
+        ? OperatorLabels.Provenance(mileageValue.Source).Word : null;
+    var year = details.VehicleEvidence?.LatestObservation?.Vehicle?.ManufactureYear;
 }
 
-<div class="stack">
-    <section class="panel" aria-labelledby="case-vehicle-title">
-        <div class="panel-head"><h2 id="case-vehicle-title">@OperatorLabels.CaseWorkspace.VehicleFactsPanel</h2></div>
-        <div class="panel-body">
-            <div class="overview-facts">
-                <dl><dt>Registration</dt><dd>@Value(registration)</dd></dl>
-                <dl><dt>Make</dt><dd>@Value(data?.Vehicle.Make.Confirmed?.Value)</dd></dl>
-                <dl><dt>Model</dt><dd>@Value(data?.Vehicle.Model.Confirmed?.Value)</dd></dl>
-                <dl><dt>Year</dt><dd>@Value(year?.ToString())</dd></dl>
-                <dl><dt>Mileage</dt><dd>@Value(mileageText)</dd></dl>
-                <dl><dt>Mileage source</dt><dd>@Value(mileageSource)</dd></dl>
-            </div>
-        </div>
-    </section>
-
-    <section class="panel" aria-labelledby="case-vehicle-checks-title">
-        <div class="panel-head"><h2 id="case-vehicle-checks-title">@OperatorLabels.CaseWorkspace.VehicleChecksPanel</h2></div>
-        <div class="panel-body stack">
-            <div class="button-row">
-                @if (mayEdit)
-                {
-                    @* One lookup answers both: it returns the vehicle record and
-                       the MOT observations together (VehicleLookupResult), which
-                       is why the two controls post the same handler. *@
-                    @foreach (var control in new[]
+<section class="panel" aria-labelledby="case-vehicle-title">
+    <div class="panel-head">
+        <h2 id="case-vehicle-title">@OperatorLabels.CaseWorkspace.VehicleFactsPanel</h2>
+        <div class="button-row">
+            @if (mayEdit)
+            {
+                <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="RequestVehicleLookup">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <input type="hidden" name="registration" value="@registration" />
+                    @if (!string.IsNullOrWhiteSpace(registration))
                     {
-                        OperatorLabels.CaseWorkspace.RefreshDvla,
-                        OperatorLabels.CaseWorkspace.RefreshDvsaMot
-                    })
-                    {
-                        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId"
-                              asp-page-handler="RequestVehicleLookup">
-                            <input type="hidden" name="id" value="@workflow.CaseId" />
-                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                            <input type="hidden" name="registration" value="@registration" />
-                            @* The gate is written out only when there is a
-                               condition to state: `.gated::after` renders
-                               `attr(data-condition)` unguarded, so a gate with
-                               an empty condition paints an empty pill
-                               (PLAT-061). *@
-                            @if (canLookUp)
-                            {
-                                <button type="submit" class="btn">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                                    <span>@control</span>
-                                </button>
-                            }
-                            else
-                            {
-                                <span class="gated" data-condition="@OperatorLabels.CaseWorkspace.NoRegistrationCondition">
-                                    <button type="submit" class="btn" disabled aria-disabled="true">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                                        <span>@control</span>
-                                    </button>
-                                </span>
-                            }
-                        </form>
+                        <button type="submit" class="btn btn--small">@CaseWorkspaceLabels.Vehicle.LookupDvlaMot</button>
                     }
-                }
-                @* Uncomposed integration seam, drawn disabled (EPIC-011 D7/D22,
-                   ENG-001). It carries no handler and is never a delivered
-                   capability; the ticket that connects Experian enables it. *@
-                <span class="gated" data-condition="@OperatorLabels.CaseWorkspace.ExperianSeamCondition">
-                    <button type="button" class="btn" disabled aria-disabled="true">
-                        @OperatorLabels.CaseWorkspace.RunExperianCheck
-                    </button>
-                </span>
-            </div>
-
-            @if (observations.Length > 0)
-            {
-                <div class="table-wrap">
-                    <table>
-                        <caption class="sr-only">@OperatorLabels.CaseWorkspace.VehicleChecksHistory</caption>
-                        <thead><tr><th>Recorded</th><th>Registration</th><th>Outcome</th><th>Result</th></tr></thead>
-                        <tbody>
-                            @foreach (var observation in observations)
-                            {
-                                <tr>
-                                    <td>@OperatorLabels.OfficeTime(observation.RecordedAtUtc)</td>
-                                    <td>@observation.Registration</td>
-                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.Humanise(observation.Outcome.ToString())" /></td>
-                                    <td>
-                                        @if (observation.Failure is { } failure)
-                                        {
-                                            @OperatorLabels.Humanise(failure.Code)
-                                        }
-                                        else if (observation.Mileage is { } reading)
-                                        {
-                                            @($"{reading.Value:N0} {OperatorLabels.MileageUnit(reading.Unit)} · {reading.ObservedOn:d MMM yyyy}")
-                                        }
-                                        else if (observation.Vehicle is { } looked)
-                                        {
-                                            @(string.Join(
-                                                " ",
-                                                new[] { looked.Make, looked.Model, looked.ManufactureYear?.ToString() }
-                                                    .Where(part => !string.IsNullOrWhiteSpace(part))))
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                    else
+                    {
+                        <span class="gated" data-condition="@OperatorLabels.CaseWorkspace.NoRegistrationCondition">
+                            <button type="submit" class="btn btn--small" disabled aria-disabled="true">@CaseWorkspaceLabels.Vehicle.LookupDvlaMot</button>
+                        </span>
+                    }
+                </form>
             }
-
-            @if (mayEdit && evidence?.LatestObservation is { Vehicle: not null } suggestion)
-            {
-                @* The lookup's values are a suggestion until a member of staff
-                   accepts them or states the corrected ones; both decisions
-                   post the one existing handler. *@
-                <div class="grid grid-2">
-                    <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId"
-                          asp-page-handler="AcceptVehicleSuggestion" class="stack">
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="lookupObservationId" value="@suggestion.Id" />
-                        <input type="hidden" name="decision" value="@nameof(VehicleSuggestionDecision.Accept)" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <div class="field">
-                            <label class="req" for="vehicle-accept-reason">Reason for action</label>
-                            <input id="vehicle-accept-reason" name="reason" required maxlength="500" />
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" class="btn btn--primary">@OperatorLabels.CaseWorkspace.AcceptSuggestion</button>
-                        </div>
-                    </form>
-                    <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId"
-                          asp-page-handler="AcceptVehicleSuggestion" class="stack">
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="lookupObservationId" value="@suggestion.Id" />
-                        <input type="hidden" name="decision" value="@nameof(VehicleSuggestionDecision.Correct)" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <div class="field">
-                            <label class="req" for="vehicle-correct-registration">Registration</label>
-                            <input id="vehicle-correct-registration" name="registration" required maxlength="20" value="@suggestion.Registration" />
-                        </div>
-                        <div class="field">
-                            <label for="vehicle-correct-make">Make</label>
-                            <input id="vehicle-correct-make" name="make" maxlength="100" value="@suggestion.Vehicle?.Make" />
-                        </div>
-                        <div class="field">
-                            <label for="vehicle-correct-model">Model</label>
-                            <input id="vehicle-correct-model" name="model" maxlength="100" value="@suggestion.Vehicle?.Model" />
-                        </div>
-                        <div class="field">
-                            <label for="vehicle-correct-mileage">Mileage</label>
-                            <input id="vehicle-correct-mileage" name="mileage" type="number" min="0" value="@suggestion.Mileage?.Value" />
-                        </div>
-                        <div class="field">
-                            <label for="vehicle-correct-mileage-unit">Mileage unit</label>
-                            <select id="vehicle-correct-mileage-unit" name="mileageUnit">
-                                @foreach (var unit in Enum.GetValues<VehicleMileageUnit>())
-                                {
-                                    <option value="@unit" selected="@(suggestion.Mileage?.Unit == unit)">@OperatorLabels.MileageUnit(unit)</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="req" for="vehicle-correct-reason">Reason for action</label>
-                            <input id="vehicle-correct-reason" name="reason" required maxlength="500" />
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" class="btn">@OperatorLabels.CaseWorkspace.CorrectSuggestion</button>
-                        </div>
-                    </form>
-                </div>
-            }
+            <span class="gated" data-condition="@OperatorLabels.CaseWorkspace.ExperianSeamCondition">
+                <button type="button" class="btn btn--small" disabled aria-disabled="true">@OperatorLabels.CaseWorkspace.RunExperianCheck</button>
+            </span>
         </div>
-    </section>
-</div>
+    </div>
+    <div class="panel-body">
+        <div class="overview-facts">
+            <dl><dt>Registration</dt><dd>@Value(registration)</dd></dl>
+            <dl><dt>Make</dt><dd>@Value(make)</dd>@if (mayEdit && showMake){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@makeSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Make" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(makeSuggestion.Value)</button></form>}</dl>
+            <dl><dt>Model</dt><dd>@Value(model)</dd>@if (mayEdit && showModel){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@modelSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Model" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(modelSuggestion.Value)</button></form>}</dl>
+            <dl><dt>Year</dt><dd>@Value(year?.ToString())</dd></dl>
+            <dl><dt>Mileage</dt><dd>@Value(mileageText)</dd>@if (mayEdit && showMileage){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@mileageSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Mileage" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion($"{mileageSuggestion.Value:N0} {unitSuggestion!.Value}")</button></form>}</dl>
+            <dl><dt>Mileage source</dt><dd>@Value(mileageSource)</dd></dl>
+        </div>
+    </div>
+</section>
