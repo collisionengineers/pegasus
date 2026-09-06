@@ -172,3 +172,9 @@ Build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port integra
 - C05 READY_FOR_TESTS at `11a306580` (4 commits; drafts' padding-dependent rules rewritten; `ProcessIntake` optional caller; DI = C01's four registrations, now present via A's patch; one frozen-contract change requested to A: `ThirdPartyReportValuation.Adjustments`). C branch `2b6b5ed37` merged into the slice → `d0daa2340`; wave 12 (build/core/corpus/web/architecture with pack root) running; independent review dispatched against `11a306580`, consuming wave 12.
 - Small C edit batch running on the C branch: pinned-MSG correction (exact CaseCreated + route/classification/extraction predicate evidence) and Triage note gate removal.
 - A's retention auth rule received: RequestLink actor subject = `RequestUploadLinkEntity.Id`; C07 caller brief bound to it; dispatches when the small batch frees its slot. C06 resumed (active).
+
+## Checkpoint 16:05Z
+
+- Wave 12 (C05 at `d0daa2340`): build, Core 24/24, corpus 8/8 (pack present), web 7/7 + 5 genuine-corpus skips, architecture 100/100 — all PASS. C05 review in progress against `11a306580`.
+- C06 READY_FOR_TESTS at `0f3bec931` (10 commits, 5 assumptions on `c06-notes`, one pre-existing test updated for the changed page shape); C head merged → `7c7f724dd`; wave 13 running. Its web tests resolve C06 adapters through DI that A has not registered — expected DI failures; correction round will compose the C-owned adapters test-side (as C08/StaffCorrespondence did) so the slice proves itself before A's patch. DI list posted to A.
+- C07 retention caller dispatched (Opus) in `v1-intake-c07b` (`c07-retention-caller` off `2b6b5ed37`) with A's exact RequestLink rule. Small C batch (MSG correction + Triage note gate) still running on the C branch. Editors: 2.

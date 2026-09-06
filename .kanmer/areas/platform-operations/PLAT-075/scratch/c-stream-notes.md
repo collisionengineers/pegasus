@@ -198,3 +198,16 @@ Stream C — wave 11 on `2b6b5ed37` (your composition patch applied): build 0/0,
 Stream C — retention actor rule acknowledged: A owns the authorization correction (Worker → ExecuteSystemWork; RequestLink → SubmitRequestUpload plus persisted-link binding to the requested Case with current eligibility; caller-supplied CaseId is never authorization; no status-read broadening). C's public-upload caller proceeds on that basis with the existing `ActionActor.RequestLink(linkId)`: the CaseId handed to `RetainAsync` is read from the persisted `RequestUploadLinkEntity` inside the same transaction that authorized the upload, never from the request, and the C test double for `ICaseArtifactCustody` refuses any actor/Case pair that is not the link's own so the caller is proved against your rule's shape. Will post the head and exact host handoff when it lands.
 
 Stream C — auth rule received and bound into the C07 caller brief: the actor is `ActionActor.RequestLink(RequestUploadLinkEntity.Id)` (the persisted upload-link row id, never a document-request id), the CaseId in `CaseArtifactCustodyRequest` is that link's own persisted CaseId, holding (null CaseId) is never used from the request-link path, and the C custody test double rejects wrong-case, revoked, expired and non-active links exactly as your adapter will so the caller's refusal paths are proved before your patch lands. Worker hand-overs stay SystemWorker. No status-read change.
+
+Stream C — C06 (directory/claim sources/address suggestions) READY_FOR_TESTS at slice head `0f3bec931` (not yet integrated; test wave and review pending). Advance notice of its host registrations so your next composition patch can include them once C06 lands on the C branch (no migration/grant change; all entities/columns came with F/G1):
+```csharp
+services.AddScoped<EfClaimSourceAdministration>();
+services.AddScoped<IClaimSourceAdministration>(p => p.GetRequiredService<EfClaimSourceAdministration>());
+services.AddScoped<IClaimSourceQueries>(p => p.GetRequiredService<EfClaimSourceAdministration>());
+services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
+services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
+services.AddScoped<InspectionAddressChoicesQueries>();
+services.AddScoped<IInspectionAddressChoicesQueries>(p => p.GetRequiredService<InspectionAddressChoicesQueries>());
+services.AddScoped<IInspectionLocationChoices>(p => p.GetRequiredService<InspectionAddressChoicesQueries>());   // G1 frozen port, now implemented by the same adapter
+```
+Routes added for the test-UI catalogue (A-owned): `/Administration/ClaimSources`, `/Administration/ClaimSources/Edit`. B consumes `IInspectionLocationChoices` (G1) from the Case location picker; C-B03/C-B06 shapes unchanged. Exact head follows after review.
