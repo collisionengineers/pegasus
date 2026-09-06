@@ -390,6 +390,48 @@ public static class EstimatePolicy
     public const string CopySuffix = " copy";
 
     /// <summary>
+    /// Amendment attribution for one saved estimate line. An editor replaces
+    /// the whole line collection on save, so a line that came back unchanged
+    /// keeps the attribution it already carried, while a line whose editable
+    /// values moved names the operator who moved them and when. The caller
+    /// supplies the actor and the server's time; this policy decides.
+    /// </summary>
+    public static (string? AmendedBy, DateTimeOffset? AmendedAtUtc) StampAmendment(
+        EstimateLineInput saved,
+        CaseEstimateLineRecord loaded,
+        string actor,
+        DateTimeOffset amendedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(loaded);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        return IsAmendmentUnchanged(saved, loaded)
+            ? (loaded.AmendedBy, loaded.AmendedAtUtc)
+            : (actor, amendedAtUtc);
+    }
+
+    /// <summary>
+    /// The eight values an operator can change on a line. The operation is
+    /// compared in the editor's vocabulary, because no editor offers a finer
+    /// choice than <see cref="EstimateOperation"/>: an imported
+    /// <c>paint_new</c> line the operator never touched comes back as
+    /// <c>paint_repair</c>, and that is not an amendment.
+    /// </summary>
+    public static bool IsAmendmentUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(loaded);
+        return EstimateOperations.FromLineType(saved.Type) == EstimateOperations.FromLineType(loaded.Type)
+            && string.Equals(saved.Description, loaded.Description, StringComparison.Ordinal)
+            && string.Equals(saved.PartNumber, loaded.PartNumber, StringComparison.Ordinal)
+            && saved.Quantity == loaded.Quantity
+            && saved.WorkUnits == loaded.WorkUnits
+            && saved.PaintWorkUnits == loaded.PaintWorkUnits
+            && saved.Materials == loaded.Materials
+            && saved.Price == loaded.Price;
+    }
+
+    /// <summary>
     /// The precision an estimate line's hours are kept to. A provider states
     /// time in its own unit — Glass's in sixtieths of an hour, Audatex to two
     /// places — so B04 retains the figure the document printed instead of
