@@ -321,8 +321,16 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
             }
 
             Assert.Equal(code, row.NormalizedValue);
-            Assert.False(string.IsNullOrWhiteSpace(row.RawValue));
-            Assert.False(string.IsNullOrWhiteSpace(row.SourceLabel));
+
+            // Both messages name the pair. An assertion inside this loop that
+            // says only "Expected: False" leaves the next reader to work out
+            // which of eleven rows was wrong.
+            Assert.False(
+                string.IsNullOrWhiteSpace(row.RawValue),
+                $"{file}: the {code} row states nothing.");
+            Assert.False(
+                string.IsNullOrWhiteSpace(row.SourceLabel),
+                $"{file}: the {code} row names no source.");
             Assert.Equal(ThirdPartyReportValidation.PolicyVersion, row.PolicyVersion);
 
             // Never Usable and never Missing: a finding is not a value, and it
@@ -410,6 +418,88 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
 
             Assert.Empty(codes);
         }
+    }
+
+    /// <summary>
+    /// The two scan-only originals reach the production recording gate instead
+    /// of being discarded at it. They match no document signature — their text
+    /// could not be read — but "a person must check these pages against the
+    /// original" is a positive statement about the retained bytes, not silence
+    /// about them, and every row of it is carried into the recorded candidates
+    /// (C05-R-11). The gate is asked here, over the real PDFs, because it is
+    /// the boundary at which the previous round's rows were computed and then
+    /// thrown away.
+    /// </summary>
+    [ReferencePackFact]
+    public async Task AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate()
+    {
+        var read = await Corpus.Value;
+
+        foreach (var name in new[] { "JohnRBell1.pdf", "TonBridgeAccidentRepair1.pdf" })
+        {
+            var result = read[name];
+            Assert.Empty(result.Selection.Matches);
+            Assert.True(
+                ThirdPartyReportAnalysis.IsRecordable(result),
+                $"{name}: this reading would be discarded before it is written.");
+
+            var recorded = ThirdPartyReportAnalysis.ToCandidates(
+                result,
+                "intake_source_reader",
+                "1");
+            Assert.Contains(
+                recorded,
+                row => ThirdPartyReportFields.IsFinding(row.Field));
+            Assert.All(
+                recorded,
+                row => Assert.False(
+                    string.IsNullOrWhiteSpace(row.SourceLabel),
+                    $"{name}: a {row.Field} row names no source."));
+        }
+
+        // John R Bell is the worked case: its per-page rows and both findings
+        // about the unread text are exactly what has to survive the gate.
+        var johnRBell = ThirdPartyReportAnalysis.ToCandidates(
+            read["JohnRBell1.pdf"],
+            "intake_source_reader",
+            "1");
+        Assert.Contains(
+            johnRBell,
+            row => row.Field == ThirdPartyReportFields.PageRequiresHumanVerification);
+        Assert.Contains(
+            johnRBell,
+            row => row.Field == ThirdPartyReportFields.Finding(
+                ThirdPartyFindingCodes.SourceRequiresOcr));
+        Assert.Contains(
+            johnRBell,
+            row => row.Field == ThirdPartyReportFields.Finding(
+                ThirdPartyFindingCodes.PageRequiresHumanVerification));
+    }
+
+    /// <summary>
+    /// Every row of one original has its own identifier. They are derived
+    /// rather than generated, and the whole analysis is written in one
+    /// statement, so a collision does not lose the duplicate — it loses every
+    /// candidate for that source (C05-R-12).
+    /// </summary>
+    [ReferencePackFact]
+    public async Task NoTwoRecordedRowsOfOneOriginalShareAnIdentifier()
+    {
+        var read = await Corpus.Value;
+
+        var collided = new List<string>();
+        foreach (var (name, result) in read)
+        {
+            var ids = result.Candidates.Select(row => row.Id).ToList();
+            Assert.DoesNotContain(Guid.Empty, ids);
+            if (ids.Distinct().Count() != ids.Count)
+            {
+                collided.Add($"{name}: {ids.Count - ids.Distinct().Count()} of {ids.Count} rows collide");
+            }
+        }
+
+        Report("identifiers", collided.Count == 0 ? ["all distinct"] : collided);
+        Assert.Empty(collided);
     }
 
     [ReferencePackFact]
