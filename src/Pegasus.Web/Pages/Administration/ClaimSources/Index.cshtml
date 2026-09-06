@@ -22,21 +22,10 @@
     <div class="status-card" role="status">@status</div>
 }
 
-@* A Claim Source is a linked but distinct record: it is not the principal,
-   sender, insurer or third-party engineer, and a later edit here never
-   rewrites a Case that already copied its accepted snapshot. *@
-<aside class="notice">
-    <p>A Claim Source is a contact directory entry only. Editing one does not change any Case that already copied its details.</p>
-</aside>
-
 <div class="split-main">
     <section aria-labelledby="current-claim-sources-heading">
         <h2 id="current-claim-sources-heading" class="section-label">Current claim sources</h2>
-        @if (Model.ClaimSources.Count == 0)
-        {
-            <div class="panel empty-state">No claim sources are available.</div>
-        }
-        else
+        @if (Model.ClaimSources.Count > 0)
         {
             <div class="table-wrap">
                 <table>
