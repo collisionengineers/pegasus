@@ -388,3 +388,7 @@ All seven C02 items; OCR persistence on F's `IntakeOcrOperations` (no new table)
 ## C06 cleanup integrated — C head `92f98b749`
 
 Review `pass` at `fea0c0e78` (zero open findings; R-24/R-25 accepted-risk). Merged `--no-ff`, build 0/0, pushed, reported on PR 673. C06 now proves its bindings on the real host. Remaining C06 residual: R-24 needs an A migration; B's picker consumption; catalogue routes (A).
+
+## Wave 31 (C08 `86e8659f5`): 159/160
+
+Build/core 59/browser 82/architecture PASS; the one failure is round 3's own round-trip assertion: with `sort=oldest` active the sort toggle omits `sort` (`Index.cshtml:120`) and row links exist only when `search=vehicle` matches a subject/sender (the seed text is body/excerpt), so `unread=true&amp;sort=oldest` is never rendered. C08 round 4 (assert tokens where the page actually emits them) queued behind the two active editors (C07b r4, C03 b1). Wave 32 (C02 `ca3ec9abb`) launched.
