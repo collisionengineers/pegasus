@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 
@@ -23,6 +24,8 @@ public sealed class DetailsModel(
 
     public IReadOnlyList<ImageIntakeCaseCandidate> AssociationCandidates { get; private set; } = [];
 
+    public IReadOnlyList<Principal> PrincipalOptions { get; private set; } = [];
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         var detail = await imageIntakeStore.GetAsync(id, cancellationToken);
@@ -42,7 +45,50 @@ public sealed class DetailsModel(
                 detail.Record.NormalizedVehicleRegistration,
                 cancellationToken)
             : [];
+        PrincipalOptions = await imageIntakeStore.ListActivePrincipalsAsync(cancellationToken);
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostPrincipalAsync(
+        Guid id,
+        Guid? principalId,
+        long expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return await OnGetAsync(id, cancellationToken);
+        }
+
+        try
+        {
+            await imageIntakeStore.SetPrincipalAsync(
+                new(id, principalId, actor, expectedVersion),
+                cancellationToken);
+            return RedirectToPage(new { id });
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError("principalId", exception.Message);
+            return await OnGetAsync(id, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "This Image Intake changed while you were working. Reload and try again.");
+            return await OnGetAsync(id, cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await OnGetAsync(id, cancellationToken);
+        }
     }
 
     public async Task<IActionResult> OnPostCloseAsync(
@@ -77,7 +123,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Image-initiated Case changed while you were working. Reload and try again.");
+                "This Image Intake changed while you were working. Reload and try again.");
             return await OnGetAsync(id, cancellationToken);
         }
         catch (InvalidOperationException exception)

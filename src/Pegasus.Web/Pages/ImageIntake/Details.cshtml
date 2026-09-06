@@ -84,6 +84,10 @@
                             <dd>@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</dd>
                         </dl>
                         <dl class="definition">
+                            <dt>@OperatorLabels.Principal</dt>
+                            <dd>@(Model.Detail.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</dd>
+                        </dl>
+                        <dl class="definition">
                             <dt>Case association</dt>
                             <dd>
                                 @if (Model.Detail.AssociatedCaseId is { } caseId)
@@ -104,6 +108,32 @@
                             </dl>
                         }
                     </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="image-intake-principal-title">
+                <div class="panel-head"><h2 id="image-intake-principal-title">@OperatorLabels.Principal</h2></div>
+                <div class="panel-body">
+                    <form method="post" asp-page-handler="Principal" asp-route-id="@Model.Detail.Record.Id">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label for="image-intake-principal">@OperatorLabels.Principal</label>
+                                @* The empty option is a real, selectable state
+                                   (`Not known`), not a disabled placeholder:
+                                   clearing a recorded principal is a legitimate
+                                   staff decision. *@
+                                <select id="image-intake-principal" name="principalId">
+                                    <option value="" selected="@(Model.Detail.Record.PrincipalId is null ? "selected" : null)">@OperatorLabels.PrincipalNotKnown</option>
+                                    @foreach (var principal in Model.PrincipalOptions)
+                                    {
+                                        <option value="@principal.Id" selected="@(Model.Detail.Record.PrincipalId == principal.Id ? "selected" : null)">@principal.Code</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
+                        <button type="submit" class="btn btn--primary">Save</button>
+                    </form>
                 </div>
             </section>
 
