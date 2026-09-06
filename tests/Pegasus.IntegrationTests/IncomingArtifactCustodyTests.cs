@@ -114,6 +114,47 @@ public sealed class IncomingArtifactCustodyTests
         Assert.Null(found.BoxVersionId);
     }
 
+    /// <summary>
+    /// An arrival that has been committed but never offered to custody reports
+    /// no retention at all, so the bytes are handed over for the first time
+    /// rather than asked about — and, because it is not a custody answer, it is
+    /// never mistaken for the Pending one custody gives.
+    /// </summary>
+    [Fact]
+    public async Task AnArrivalNotYetOfferedToCustodyReportsNoRetention()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedSessionAsync(factory.Services);
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var store = new EfPublicUploadRetentionStore(contextFactory);
+
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+                .SingleAsync(item => item.Id == seeded.FirstOccurrenceId);
+            occurrence.CustodyState = EfPublicUploadRetentionStore.ArrivedCode;
+            await context.SaveChangesAsync();
+        }
+
+        Assert.Null(await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None));
+
+        // The first disposition custody gives replaces it, and from then on the
+        // occurrence answers as the retention it is.
+        await store.RecordAsync(
+            new(
+                seeded.FirstOccurrenceId,
+                seeded.FirstOperationKey,
+                IncomingArtifactCustodyState.Pending,
+                seeded.CaseId,
+                seeded.DocumentId,
+                seeded.DocumentVersionId),
+            CancellationToken.None);
+
+        var found = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+        Assert.NotNull(found);
+        Assert.Equal(IncomingArtifactCustodyState.Pending, found.State);
+    }
+
     private static async Task<(string? BoxFileId, string? BoxVersionId)> ReadIdentitiesAsync(
         IServiceProvider services,
         Guid versionId)

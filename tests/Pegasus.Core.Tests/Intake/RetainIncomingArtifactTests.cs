@@ -179,6 +179,47 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
+    /// A Pending hand-over is asked about under the same operation key, exactly
+    /// as an uncertain one is. It is the only way a Pending ever moves —
+    /// re-offering the bytes would duplicate a file custody already holds — and
+    /// only a confirmation carries a remote identity back.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseArtifactCustodyDisposition.Confirmed, IncomingArtifactCustodyState.Confirmed)]
+    [InlineData(CaseArtifactCustodyDisposition.Failed, IncomingArtifactCustodyState.Failed)]
+    [InlineData(CaseArtifactCustodyDisposition.Pending, IncomingArtifactCustodyState.Pending)]
+    public async Task APendingHandOverIsReconciledUnderTheSameOperationKeyAndNeverResubmitted(
+        CaseArtifactCustodyDisposition reconciledAs,
+        IncomingArtifactCustodyState expected)
+    {
+        var custody = new RecordingCustody(Confirmed() with
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending
+        });
+        var store = new RecordingStore();
+        var status = new RecordingCustodyStatus(Confirmed() with { Disposition = reconciledAs });
+        var command = new RetainIncomingArtifact(custody, store, status);
+        var occurrence = Occurrence();
+
+        var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        Assert.Equal(IncomingArtifactCustodyState.Pending, pending.State);
+
+        var reconciled = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+
+        Assert.Equal(expected, reconciled.State);
+        Assert.Equal(occurrence.OperationKey, reconciled.OperationKey);
+
+        // Asked, not repeated: custody saw the bytes exactly once.
+        Assert.Equal(1, custody.Calls);
+        Assert.Equal(1, status.Calls);
+
+        // Only a confirmed reconciliation says where custody holds them.
+        Assert.Equal(
+            expected == IncomingArtifactCustodyState.Confirmed ? "box-file" : null,
+            reconciled.BoxFileId);
+    }
+
+    /// <summary>
     /// A hand-over that throws mid-call is exactly what
     /// <see cref="IncomingArtifactCustodyState.Unknown"/> exists for: custody
     /// may already hold the bytes. It has to be recorded as uncertain rather
