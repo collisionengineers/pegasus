@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -177,7 +178,18 @@ public sealed class StaffCorrespondenceWebTests
                 ["Body"] = "Please find the update below."
             }));
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        if (response.StatusCode != HttpStatusCode.Redirect)
+        {
+            var html = await response.Content.ReadAsStringAsync();
+            var summary = Regex.Match(
+                html,
+                "<div[^>]*class=\"[^\"]*validation-summary[^\"]*\"[^>]*>.*?</div>",
+                RegexOptions.Singleline);
+            Assert.Fail(
+                $"POST /Inbox/Compose?handler=Send returned {(int)response.StatusCode} "
+                + $"{response.StatusCode} instead of a redirect. Validation summary: "
+                + (summary.Success ? summary.Value : "(none found)"));
+        }
         Assert.Equal(1, send.SendCalls);
         var command = Assert.Single(send.Commands);
         Assert.Equal(StaffMailComposeMode.New, command.ComposeMode);
