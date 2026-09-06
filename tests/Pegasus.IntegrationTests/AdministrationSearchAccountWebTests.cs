@@ -304,6 +304,68 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
+    public async Task ActionLogDefaultPagerKeepsItsInitialTimeWindow()
+    {
+        const string actor = "default-window-actor";
+        using var factory = new IntakeWebApplicationFactory();
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(Enumerable.Range(0, 101).Select(index => new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = $"default-window-{index:000}",
+                EventKind = "case_saved",
+                ActorKind = "Staff",
+                ActorSubjectId = actor,
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(-index - 1),
+                Outcome = "Succeeded",
+                CorrelationId = $"default-window-{index:000}"
+            }));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var first = await client.GetStringAsync($"/Administration/ActionLogs?Actor={actor}");
+        var next = Regex.Match(first, "href=\"([^\"]*page=2[^\"]*)\"").Groups[1].Value
+            .Replace("&amp;", "&", StringComparison.Ordinal);
+        Assert.NotEmpty(next);
+        Assert.Matches("(?:[?&]From=)[^&\"]+", next);
+        Assert.Matches("(?:[?&]To=)[^&\"]+", next);
+        Assert.Contains("default-window-000", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("default-window-050", first, StringComparison.Ordinal);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.Add(new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = "default-window-newer",
+                EventKind = "case_saved",
+                ActorKind = "Staff",
+                ActorSubjectId = actor,
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(1),
+                Outcome = "Succeeded",
+                CorrelationId = "default-window-newer"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var second = await client.GetStringAsync(next);
+        Assert.Contains("default-window-050", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("default-window-000", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("default-window-newer", second, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OldCasesSearchLinksRedirectToSearchWithTheirValuesIntact()
     {
         using var factory = new IntakeWebApplicationFactory();
