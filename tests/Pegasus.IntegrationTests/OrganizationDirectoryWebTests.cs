@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -19,7 +20,12 @@ public sealed partial class OrganizationDirectoryWebTests
     public async Task PrincipalSettingsPageSavesDefaultLocationAndManualEvaIndependently()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var host = factory.WithC06Adapters();
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
 
         using var organizationGet = await client.GetAsync("/Administration/Organizations");
         var organizationHtml = await organizationGet.Content.ReadAsStringAsync();
@@ -111,6 +117,31 @@ public sealed partial class OrganizationDirectoryWebTests
         indexGet.EnsureSuccessStatusCode();
         Assert.Contains("Directory Web Caller Yard", indexHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Automatic", indexHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// C06: <see cref="InspectionAddressChoicesQueries"/> resolves
+    /// <c>IOrganizationDirectoryQueries</c> through an optional constructor
+    /// dependency rather than a required one, because this branch does not
+    /// yet carry Stream A's registration for it — and that class is already
+    /// registered for <c>IInspectionAddressChoicesQueries</c>, so a required
+    /// dependency there would fail ASP.NET's startup service-graph
+    /// validation and break every page in the host. This is the bridge
+    /// proof: with none of the C06 registrations present at all (today's
+    /// state on this branch), the host still starts and an ordinary
+    /// administration page still renders, never a failed host.
+    /// </summary>
+    [Fact]
+    public async Task PrincipalsIndexStillRendersWhenNoC06RegistrationsArePresent()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Administration/Principals");
+
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Principals</h1>", html, StringComparison.Ordinal);
     }
 
     private static string InputValue(string html, string name)
