@@ -14,6 +14,7 @@ public sealed partial class SblInstructionExtractionPolicy
     private const char ProtectedRightApostrophe = '\uE000';
     private const string HireDateEngineField = "SBL validated hire commencement";
     private const string HireDatePublicField = "Hire out date";
+    private const string HireDateSourceBoundary = "SBL raw hire date boundary";
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
@@ -50,6 +51,8 @@ public sealed partial class SblInstructionExtractionPolicy
         new("Repairer email", ["Repairer email"], IsRequired: false, PartyRole: "repairer"),
         new("Agreed labour rate", ["Agreed labour rate"], IsRequired: false, PartyRole: "repairer-rate"),
         new("Hire company", ["Hire company"], IsRequired: false, PartyRole: "hire"),
+        new(HireDateSourceBoundary, ["Hire Out Date"], IsRequired: false,
+            AcceptsValue: _ => false, PartyRole: "hire"),
         new(HireDateEngineField, [HireDateEngineField], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "hire")
@@ -81,7 +84,11 @@ public sealed partial class SblInstructionExtractionPolicy
         var scoped = readResult.Content.SelectMany(InstructionFields).ToArray();
         var (extractedFields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
             scoped, Definitions, Cache, processedAtUtc);
-        var fields = extractedFields.Select(NormalizeField).Select(PublicField).ToArray();
+        var fields = extractedFields
+            .Where(field => field.Name != HireDateSourceBoundary)
+            .Select(NormalizeField)
+            .Select(PublicField)
+            .ToArray();
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(
             SupportedPrincipalCode,
@@ -283,7 +290,8 @@ public sealed partial class SblInstructionExtractionPolicy
     private static Dictionary<string, InstructionFieldRole> BuildFieldRoles()
     {
         var roles = Definitions
-            .Where(definition => definition.Name != HireDateEngineField)
+            .Where(definition => definition.Name != HireDateEngineField
+                && definition.Name != HireDateSourceBoundary)
             .ToDictionary(
                 definition => definition.Name,
                 definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole),

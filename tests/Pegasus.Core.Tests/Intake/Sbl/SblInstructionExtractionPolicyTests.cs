@@ -141,7 +141,7 @@ public sealed class SblInstructionExtractionPolicyTests
         Assert.Equal("2026-05-02", Field(result, "Hire out date").SuggestedValue);
         Assert.Equal("hire", new SblInstructionExtractionPolicy().FieldRoles["Hire out date"].PartyRole);
         Assert.DoesNotContain(result.Fields, field =>
-            field.Name.Contains("SBL validated", StringComparison.Ordinal));
+            field.Name.Contains("SBL ", StringComparison.Ordinal));
     }
 
     [Fact]
