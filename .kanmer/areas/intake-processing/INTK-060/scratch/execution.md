@@ -134,3 +134,7 @@ Independent reviewer: one major `C01-R-1` (Unidentified keyset continuation filt
 ## C07 review (b46a07452): needs-changes
 
 Two majors in `EfPublicUploadRetentionStore` (Box identities cleared on non-Confirmed records; UPDATE grant on `PublicUploadOccurrences` missing in A's migration — handoff), six minors/nits; allocator order, keyset, PR 671 corrections, session policy, custody invariants, G12 typed actors verified in code; no A-owned file touched. Correction round 3 dispatched; grant request posted to A. Both slices then get a targeted re-review and integrate.
+
+## C01 integrated — C head `ca9caae70`
+
+Independent review `pass` at `741f1a70d` (attestation `scratch/review-c01`); wave 6 build/Core 108/Architecture 100 PASS, integration 96/97 (C07-dependent test). Merged `--no-ff` into `task/pegasus-v1-intake`, Release build exit 0, pushed (PR #673). Residual for C01 closure: A's DI/host patch (+A04 reader), corpus rebuild, preservation statement 15 real-SQL proof at integration, fifteen-profile reachability via C03. C07 `2ba5e4e21` in wave 7 + re-review; G13 allocator hunk extraction running.

@@ -152,3 +152,19 @@ Stream C — `MultiFormatGenuineCorpusWebTests.GenuineMsgIsRetainedInNeedsSortin
 Stream C — grant request found by the C07 review: C07's `EfPublicUploadRetentionStore.RecordAsync` updates `PublicUploadOccurrences` (custody state, document/version, Box identities) but the foundation migration grants `pegasus_web_runtime_role` only SELECT/INSERT on that table (UPDATE is granted on `PublicUploadSessions`), and nothing to the worker role. Please add `GRANT UPDATE ON dbo.PublicUploadOccurrences TO pegasus_web_runtime_role` (and SELECT/UPDATE for `pegasus_worker_runtime_role` if the `Unknown` custody reconciliation is to run from the Worker — C's current caller is the Web upload page only) in the next shared G with the census/grant tests. Both C07 review majors are being corrected now (the other is a C code fix); integration follows the targeted re-review.
 
 Stream C: G13 allocator hunk is being extracted now from the reviewed C07 commits (`c66b8580b`, `9a4aab92c`, `7850a7bd7`, `7000842ed` on `c07-precase`; current reviewed head `2ba5e4e21`) onto a helper branch rooted at G12 `c4d09b6e8` — only `TriageReferenceFormat`, the counter-first `EfTriageStore.CreateAsync` allocation and the `TriageReferenceAllocationTests` proof; notes, paging, `ClaimNumber` and UI stay in C. The SHA follows shortly as `task/pegasus-v1-c-triage-allocator-hunks`. Exact grant for the shared correction (C07 review finding): `GRANT UPDATE ON OBJECT::[dbo].[PublicUploadOccurrences] TO [pegasus_web_runtime_role];` — the worker role needs SELECT/INSERT/UPDATE on `PublicUploadOccurrences`/`PublicUploadSessions` only if the `Unknown` custody reconciliation runs from the Worker once A04 lands; `DocumentVersions` is already granted to both roles. C01 (`741f1a70d`) wave 6: build PASS, Core 108/108, Architecture 100/100, integration 96/97 (only the Triage-allocator-dependent TICK-058 test); reviewer attestation `pass` pending only the lane evidence.
+
+Stream C — C01 PUBLISHED: `task/pegasus-v1-intake` head `ca9caae70` (merge of reviewed slice `741f1a70d`; PR #673 updated). Frozen C01 types for the branch-local host patch (namespace `Pegasus.Core.Intake` unless stated), all present at this head:
+```csharp
+// DependencyInjection.cs additions
+services.AddScoped<InstructionExtractionPolicySelector>();
+services.AddScoped<EfRetainedInstructionAnalysisStore>();
+services.AddScoped<IRetainedInstructionAnalysisStore>(p => p.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+services.AddScoped<ISourceCandidateQueries>(p => p.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
+services.AddScoped<AnalyzeRetainedInstruction>();            // requires A04's IReadLogicalDocumentVersion registered in the same patch
+services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
+services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
+services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
+services.AddScoped<IGetIntakeAssetMetadata, GetIntakeAssetMetadata>();
+```
+`ProcessIntake` keeps its single `IInstructionExtractionPolicy` (QDOS) until C03 lands the fourteen profiles; then the selector replaces it and `DependencyDirectionTests.IntakeOrchestrationUsesOneExplicitExtractionPolicyBoundary` is rewritten in the same patch. Register `AnalyzeRetainedInstruction` and A04's reader together (the Received page's optional bridge otherwise turns into a 500). Corpus rebuild (`QdosInstructionExtractionPolicy.cs` signature) still needed for `TrackedPegasusSourceHashesHaveNotDrifted`. MCP/A05: `IListIntakeByCursor`, `IListUnidentifiedQueueByCursor`, `IGetIntakeSourceMetadata`, `IGetIntakeAssetMetadata`, `ISourceCandidateQueries` are the connector-facing ports (signatures posted earlier; unchanged). C07 (`2ba5e4e21`) publishes next after its wave 7 and re-review.
