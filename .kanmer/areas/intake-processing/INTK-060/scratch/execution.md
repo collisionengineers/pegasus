@@ -240,3 +240,7 @@ Build/core 61/host 32/browser 2/architecture PASS; integration 34/36 — the Eva
 ## C06 re-review at `8384e28bb`: needs-changes — 1 blocker, 4 minors
 
 C06-R-16 root cause of both 200s: `EvaOperationKey`/`LocationOperationKey` are non-nullable `string` bind properties each posted by one form only; MVC validates the binding result (null), not the initializer, so every POST fails implicit-Required on the other form's key. Minors R-17 (SQL prefix predicate narrower than `NormalizeNamePrefix` for irregular whitespace), R-18 (client-bound `NewClaimSourceId` can overwrite a `Version = 0` claim source), R-19 (Storage-source coverage absent), R-20 (both tests assert only the status code). 12/15 prior findings closed; R-6/R-11/R-15 deferrals accepted. Round 3 queued for the next editor slot (ahead of C08). G14 propagated to c06 → `ab7108c0c`.
+
+## Checkpoint — C07 caller correction round 1 at `6490623c3` (merged `3c0e1931c`)
+
+Four majors + four minors fixed via a pre-custody `arrived` occurrence state, derived accepted totals under a link-row lock, receipt only on Confirmed, Pending reconciled like Unknown, thrown hand-over → `unknown`, `AcceptedPending` decision with its own wording (label constant handed to C08). New residual C07B-R-3a recorded. Wave 21 + targeted re-review running. C06 round 3 dispatched (Sonnet) for blocker R-16 (non-nullable operation keys) and minors R-17–R-20. Editors: C05 r2, C06 r3. C08 correction next.

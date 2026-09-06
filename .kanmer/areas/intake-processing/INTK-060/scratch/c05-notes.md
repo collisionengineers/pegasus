@@ -137,3 +137,34 @@ ASSUMPTIONS 1 and 2 stand, and both are now evidenced rather than reasoned:
   one thing this review graded PASS; (b) report the whole slice BLOCKED over the chip —
   rejected, the major's substance (findings reach storage and the provenance surface) is
   fully deliverable inside C05's files, and stopping would have left it undelivered too.
+
+## C05 correction round 2 (head 868e7a5ea, from 7b632169b)
+
+Two wave-19 failures, both from round 1's own code, plus the two majors the superseding
+attestation added. Two commits, six files, all in "### C05 files"; frozen contract untouched;
+build exit 0 / 0 warnings.
+
+- **C05-R-10** (lane 3, `JohnRBell1.pdf` / `source-requires-ocr`): a finding with no evidence
+  row of its own was filed against `selection.Issuer`, whose `sourceLabel` is
+  `evidence?.SourceLabel ?? string.Empty` for a source that matched no signature — so the row
+  persisted naming no part of its document. The locator is now the first compared row that
+  names its source, then the issuer, then the first row of the document that does.
+- **C05-R-6 open half** (lane 4): `IReevaluateIntake` only queues the work the Worker claims,
+  so the second "pass" re-read nothing and emitted no outcome; the observed
+  `["no_report_signature", "recorded"]` came from other collections' intakes on a
+  process-global `ActivityListener`. The case now dispatches the queued work through the
+  Worker's own processor and keys outcomes to `intake.receipt_id`. The operation key
+  (`third-party-report:{sourceAsset.Id}`) is stable across a re-evaluation because
+  `ReplaceEvaluationAsync` keeps the retained source asset row; what differs is
+  `ExpectedReceiptVersion`, which is what makes the store raise the conflict that names
+  `recorded_reading_stands`.
+- **C05-R-11**: `IsRecordable` now asks the whole reading (a signature match, or a finding
+  about the source itself) rather than the selection alone, so a scan-only source's page rows
+  and OCR findings reach storage. A readable non-report that states nothing about itself is
+  still left alone, and both halves now have a test — the gate had none, which is how it
+  discarded them.
+- **C05-R-12**: the finding's position in the raised order is part of the derived identifier
+  key, so two findings stating the same sentence about the same page cannot collide and lose
+  the whole analysis.
+
+No new assumption was needed this round; no test was run here (controller wave loop).
