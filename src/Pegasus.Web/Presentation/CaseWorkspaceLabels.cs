@@ -21,7 +21,7 @@ public static class CaseWorkspaceLabels
         public const string ReportGenerated = "The report was generated.";
         public const string FeeNoteGenerated = "The fee note was generated.";
         public const string GenerationPending =
-            "The artifact is awaiting custody confirmation. Retry in a moment.";
+            "The artifact is awaiting custody confirmation.";
         public const string GenerationNotReady = "Report not ready";
         public const string CurrentGeneration = "Generated";
         public const string GenerationState = "State";
@@ -36,8 +36,12 @@ public static class CaseWorkspaceLabels
         public const string SendAccepted = "The report send was accepted.";
         public const string SendInProgress = "The report send is in progress.";
         public const string SendCancelled = "The send was cancelled.";
-        public const string SendUnknown =
-            "The send result is not yet known. Check correspondence before retrying.";
-        public const string SendFailed = "The report send failed. Retry the operation.";
+        /// <summary>
+        /// One consequence sentence, no retry advice: an Unknown outcome must
+        /// never be blindly repeated (ENG-024), so the copy cannot invite a
+        /// retry.
+        /// </summary>
+        public const string SendUnknown = "The send result is not yet known.";
+        public const string SendFailed = "The report send failed.";
     }
 }
