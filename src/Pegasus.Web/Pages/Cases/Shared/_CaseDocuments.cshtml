@@ -169,18 +169,25 @@
     <section class="panel" aria-labelledby="case-upload-requests-title">
         <div class="panel-head">
             <h2 id="case-upload-requests-title">@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h2>
-            @if (mayEdit)
+            @if (mayEdit && Model.RequestUploadLimits is { } uploadLimits)
             {
-                <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink">
-                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                        <span>Create upload request</span>
-                    </button>
-                </form>
+                <button type="button" class="btn btn--primary" data-dialog-open="create-upload-request">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                    <span>@CaseWorkspaceLabels.UploadRequest.Create</span>
+                </button>
+                <dialog id="create-upload-request" class="dialog">
+                    <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink" class="stack">
+                        <div class="dialog-head"><h2>@CaseWorkspaceLabels.UploadRequest.Create</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
+                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <div class="field"><label class="req" for="upload-request-recipient">@CaseWorkspaceLabels.UploadRequest.Recipient</label><input id="upload-request-recipient" name="recipient" required maxlength="500" /></div>
+                        <div class="field"><label for="upload-request-reason">@CaseWorkspaceLabels.UploadRequest.Reason</label><textarea id="upload-request-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
+                        <dl class="definition"><dt>@CaseWorkspaceLabels.UploadRequest.Lifetime</dt><dd>@CaseWorkspaceLabels.UploadRequest.Days(uploadLimits.Lifetime)</dd><dt>@CaseWorkspaceLabels.UploadRequest.Files</dt><dd>@uploadLimits.MaximumFileCount</dd><dt>@CaseWorkspaceLabels.UploadRequest.FileSize</dt><dd>@OperatorLabels.FileSize(uploadLimits.MaximumFileBytes)</dd></dl>
+                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create</button></div>
+                    </form>
+                </dialog>
             }
         </div>
         @if (details.RequestUploadLinks.Count > 0)

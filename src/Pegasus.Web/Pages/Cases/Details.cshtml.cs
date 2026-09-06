@@ -66,8 +66,15 @@ public sealed partial class DetailsModel(
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
     ILogger<DetailsModel> logger,
-    ISubmitCaseToEva? submitCaseToEva = null) : CaseMutationPageModel(logger)
+    ISubmitCaseToEva? submitCaseToEva = null,
+    RequestUploadLimits? requestUploadLimits = null) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// The accepted upload-request limits, registered only when the host
+    /// configures them; without them the Files section offers no request.
+    /// </summary>
+    public RequestUploadLimits? RequestUploadLimits => requestUploadLimits;
+
     /// <summary>
     /// The Case's recorded valuation source cards (B01 port/B03): one card
     /// per source with its figures, loaded with the valuation section.

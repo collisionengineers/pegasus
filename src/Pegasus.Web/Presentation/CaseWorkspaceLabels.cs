@@ -58,6 +58,23 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Files section's upload-request dialog (PR 670 port): who the
+    /// request goes to, why, and the accepted limits as values.
+    /// </summary>
+    public static class UploadRequest
+    {
+        public const string Create = "Create upload request";
+        public const string Recipient = "Recipient";
+        public const string Reason = "Reason";
+        public const string Lifetime = "Lifetime";
+        public const string Files = "Files";
+        public const string FileSize = "File size";
+
+        public static string Days(TimeSpan lifetime) =>
+            lifetime.TotalDays == 1 ? "1 day" : $"{lifetime.TotalDays:0.##} days";
+    }
+
+    /// <summary>
     /// The estimate totals block's row labels (B04). The five printed
     /// components, the net and the gross are what the canonical breakdown
     /// carries, so the block names them rather than the flat pre-B04 rows;
