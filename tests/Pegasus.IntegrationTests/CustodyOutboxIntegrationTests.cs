@@ -32,6 +32,136 @@ public sealed class CustodyOutboxIntegrationTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var source = CreateSource();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source,
+            $"reevaluation-retained-source:{Guid.NewGuid():N}",
+            CancellationToken.None);
+        var firstEvaluation = await DrainStagedAsync(
+            services,
+            received.StagedReceiptId,
+            CancellationToken.None);
+        await using (var db = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var stagedStorageKey = await db.IntakeStagedReceipts
+                .Where(item => item.Id == received.StagedReceiptId)
+                .Select(item => item.StorageKey)
+                .SingleAsync();
+            Assert.Null(await services.GetRequiredService<IIntakeArtifactStore>()
+                .GetStagedAsync(stagedStorageKey, CancellationToken.None));
+        }
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            firstEvaluation.ProcessedReceiptId,
+            CancellationToken.None));
+        var originalSource = Assert.Single(original.AssetRecords, asset =>
+            asset.Kind == IntakeAssetKind.Source
+            && asset.Disposition == IntakeAssetDisposition.Source);
+
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
+            new(
+                original.Id,
+                original.Version,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                $"reevaluate-retained-source:{Guid.NewGuid():N}",
+                "Re-evaluate the retained source under the current policy."),
+            CancellationToken.None);
+
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId,
+            now,
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            dispatch.Id,
+            Assert.IsType<string>(dispatch.LeaseToken),
+            now,
+            CancellationToken.None);
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed, outcome);
+        var reevaluated = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id,
+            CancellationToken.None));
+        Assert.True(reevaluated.Version > original.Version);
+        var reevaluatedSource = Assert.Single(reevaluated.AssetRecords, asset =>
+            asset.Kind == IntakeAssetKind.Source
+            && asset.Disposition == IntakeAssetDisposition.Source);
+        Assert.Equal(originalSource.Id, reevaluatedSource.Id);
+        Assert.Equal(originalSource.StorageKey, reevaluatedSource.StorageKey);
+        Assert.Equal(originalSource.ContentHash, reevaluatedSource.ContentHash);
+    }
+
+    [Fact]
+    public async Task ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var source = CreateSource();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source,
+            $"reevaluation-mismatched-source:{Guid.NewGuid():N}",
+            CancellationToken.None);
+        var firstEvaluation = await DrainStagedAsync(
+            services, received.StagedReceiptId, CancellationToken.None);
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            firstEvaluation.ProcessedReceiptId, CancellationToken.None));
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
+            new(
+                original.Id,
+                original.Version,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                $"reevaluate-mismatched-source:{Guid.NewGuid():N}",
+                "Re-evaluate the retained source under the current policy."),
+            CancellationToken.None);
+        var queued = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id, CancellationToken.None));
+
+        await using (var db = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var sourceAsset = await db.IntakeAssets.SingleAsync(asset =>
+                asset.IntakeReceiptId == original.Id
+                && asset.Kind == "source"
+                && asset.Disposition == "source");
+            sourceAsset.ContentHash = new string('F', 64);
+            await db.SaveChangesAsync();
+        }
+
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            dispatch.Id, Assert.IsType<string>(dispatch.LeaseToken), now, CancellationToken.None);
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Failed, outcome);
+        var unchanged = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id, CancellationToken.None));
+        Assert.Equal(queued.Version, unchanged.Version);
+        Assert.Equal("reevaluation_pending", unchanged.FailureCode);
+        var failedWork = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(
+            received.StagedReceiptId, CancellationToken.None));
+        Assert.Equal(IntakeWorkState.Failed, failedWork.State);
+        Assert.Equal("staged_artifact_integrity_failure", failedWork.FailureCode);
+    }
+
+    [Fact]
     public async Task AcceptedOfflineCaseRecoversDispatchLeaseAndRetainsExactSourceReplaySafely()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -2472,7 +2602,8 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
-                services.GetRequiredService<TimeProvider>())
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<IReadLogicalDocumentVersion>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
             await services.GetRequiredService<IIntakeReceiptStore>()
@@ -2492,6 +2623,29 @@ public sealed class CustodyOutboxIntegrationTests
             receipt.Id,
             new CaseCompleteness(false, false, false, false));
         return new(accepted.Identity.CaseId, accepted.CustodyWorkId, receipt.Id, source.Content);
+    }
+
+    private static async Task<IntakeEvaluationRevision> DrainStagedAsync(
+        IServiceProvider services,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+        var dispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(processor),
+            services.GetRequiredService<TimeProvider>());
+        Assert.Equal(1, await dispatcher.ExecuteAsync(1, cancellationToken));
+        return Assert.IsType<IntakeEvaluationRevision>(
+            await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken));
+    }
+
+    private sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
+        : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken) =>
+            processor.ExecuteAsync(stagedReceiptId, cancellationToken);
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(

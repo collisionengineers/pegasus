@@ -17,7 +17,11 @@ internal sealed class LocalLogicalDocumentVersionReader(
         CancellationToken cancellationToken)
     {
         CachedDocumentContentStore.ValidateRequest(request);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        StaffAuthorization.Require(
+            request.Actor,
+            request.Actor.Kind == ActorKind.SystemWorker
+                ? StaffAccessRight.ExecuteSystemWork
+                : StaffAccessRight.PerformCasework);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         if (request.IntakeAssetId is { } assetId)
         {

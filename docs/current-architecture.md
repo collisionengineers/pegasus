@@ -42,6 +42,13 @@ The staged-artifact reconciliation function resumes Pending custody by its
 durable logical version. Box remains the durable content owner; the SQL-indexed
 Azure cache validates hashes and expires after 24 hours idle.
 
+Queued intake re-evaluation resolves the receipt's single retained source asset
+through the same logical content reader after its transient staging copy has
+been deleted. The Worker supplies the exact receipt, current Case, source hash
+and length; both content adapters require its system-work right and preserve
+the source association checks. Re-evaluation reuses the durable source identity
+and does not recreate staging or upload a second source copy.
+
 Request-link custody checks the current upload-link identity and Case binding.
 A short SQL transaction orders revocation against the Pending custody intent;
 provider storage runs after that acceptance commit. Worker retention uses its
