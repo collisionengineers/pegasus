@@ -905,6 +905,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasKey(item => item.Id);
             entity.Property(item => item.EventType).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
@@ -1390,6 +1391,7 @@ internal sealed class TriageHistoryEntity
     public TriageEntity Triage { get; set; } = null!;
     public required string EventType { get; set; }
     public required string Actor { get; set; }
+    public required string ActorKind { get; set; }
     public required string Reason { get; set; }
     public required string OperationKey { get; set; }
     public required string RequestHash { get; set; }

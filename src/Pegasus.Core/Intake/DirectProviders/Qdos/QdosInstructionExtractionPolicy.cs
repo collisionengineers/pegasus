@@ -7,7 +7,8 @@ namespace Pegasus.Core.Intake;
 // `partial` because this policy owns generated regexes; the triage-matcher
 // constructor parameter is gone -- INTK-033 replaced that matcher with
 // classification-derived evidence, and nothing here reads it.
-public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtractionPolicy
+public sealed partial class QdosInstructionExtractionPolicy
+    : IInstructionExtractionPolicy, IInstructionDocumentProfile
 {
     public const string Key = "qdos_instruction";
     // ENG-015 changed three extraction rules -- the bare `Date` label, the
@@ -20,6 +21,36 @@ public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtrac
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
+
+    /// <summary>
+    /// The document-side profile key, kept separate from <see cref="Key"/>: the
+    /// extraction grammar and the "is this a QDOS instruction at all" signature
+    /// change for different reasons and are versioned apart.
+    /// </summary>
+    public const string DocumentProfileKeyValue = "qdos_instruction_document";
+
+    public const int DocumentProfileVersionValue = 1;
+
+    public string DocumentProfileKey => DocumentProfileKeyValue;
+
+    public int DocumentProfileVersion => DocumentProfileVersionValue;
+
+    /// <summary>
+    /// Transcribed from the `collision-profile-qdos` fingerprint in
+    /// <c>reference/workproviders-and-repairers/principal-identification-corpus.v1.json</c>
+    /// (register: Closed; the runtime never loads that file, so the signals are
+    /// carried here as source). Only the required and negative signals take
+    /// part — the fingerprint's optional signals exist to describe a template,
+    /// not to rank one profile above another, and the selector has no ranking
+    /// to give them. The two negative signals are the assessor firms whose
+    /// letters share QDOS's labels but are not QDOS instructions.
+    /// </summary>
+    public static readonly InstructionDocumentSignature DocumentSignature = new(
+        "instruction",
+        ["QDOS", "Registration:", "Our Client’s Vehicle:"],
+        ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"]);
+
+    public InstructionDocumentSignature Signature => DocumentSignature;
 
     // The letters' third-party rows ("TP Vehicle:", "TP Registration:",
     // "TP Representative Name:") must never feed the claimant's fields.

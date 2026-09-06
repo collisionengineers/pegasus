@@ -303,7 +303,7 @@ public static class TriageLifecycleRules
         ValidateOrigin(request.Origin);
         ValidateNormalizedRegistration(request.NormalizedVehicleRegistration);
         ValidateAcceptedMatchEvidence(request.AcceptedMatchEvidence);
-        ValidateActorAndOperation(request.Actor, request.OperationKey);
+        ValidateActorAndOperation(request.Actor, request.OperationKey, allowSystemWorker: true);
     }
 
     public static void ValidateMutation(TriageMutationRequest request)
@@ -412,7 +412,7 @@ public static class TriageLifecycleRules
 
         ArgumentNullException.ThrowIfNull(request.Actor);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        ValidateActorAndOperation(request.Actor.SubjectId, request.OperationKey);
+        ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
         RequireText(
             request.CaseEditLeaseToken,
@@ -539,12 +539,39 @@ public static class TriageLifecycleRules
         }
     }
 
-    private static void ValidateActorAndOperation(string actor, string operationKey)
+    private static void ValidateActorAndOperation(
+        ActionActor actor,
+        string operationKey,
+        bool allowSystemWorker = false)
     {
-        RequireText(actor, "An actor is required.", 200, nameof(actor));
+        RequireActor(actor, allowSystemWorker);
         RequireText(operationKey, "An operation key is required.", 100, nameof(operationKey));
     }
 
+    /// <summary>
+    /// Triage carries the acting identity, not a subject string, so history records
+    /// the kind that made each mutation. Staff and Automation require casework
+    /// authority; the system worker is admitted only by the intake-creation route.
+    /// Nothing infers a kind from a prefix or defaults to Staff.
+    /// </summary>
+    private static void RequireActor(ActionActor actor, bool allowSystemWorker)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind == ActorKind.SystemWorker && allowSystemWorker)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
+        }
+        else if (actor.Kind is ActorKind.Staff or ActorKind.Automation)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        }
+        else
+        {
+            throw new UnauthorizedAccessException("This actor cannot mutate Triage material.");
+        }
+
+        RequireText(actor.SubjectId, "An actor is required.", 200, nameof(actor));
+    }
 
     private static void RequireText(string value, string message, int maximumLength, string parameterName)
     {

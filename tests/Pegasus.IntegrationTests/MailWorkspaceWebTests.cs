@@ -1851,7 +1851,7 @@ public sealed class MailWorkspaceWebTests
         IntakeWebApplicationFactory factory,
         Guid receiptId)
     {
-        await SeedPrincipalAsync(factory.Services, QdosPrincipal.Code);
+        await SeedPrincipalAsync(factory.Services);
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -1879,33 +1879,13 @@ public sealed class MailWorkspaceWebTests
                 CancellationToken.None);
     }
 
-    private static async Task SeedPrincipalAsync(IServiceProvider services, string principalCode)
-    {
-        var organizationId = Guid.NewGuid();
-        var lineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
-        await using var scope = services.CreateAsyncScope();
-        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        // The mail fixtures already register QDOS in some flows and the code is
-        // uniquely indexed, so seeding twice is a duplicate-key failure.
-        if (await context.Set<PrincipalEntity>().AnyAsync(item => item.Code == principalCode))
-        {
-            return;
-        }
-
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Mail unlink provider"}, {0L})");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {NowUtc})");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO Principals
-                (Id, OrganizationId, Code, SequenceLineageId, PredecessorId, SuccessorId, IsActive, Version)
-            VALUES
-                ({principalId}, {organizationId}, {principalCode}, {lineageId}, NULL, NULL, {true}, {0L})
-            """);
-    }
+    /// <summary>
+    /// QDOS is one of the shared foundation migration's seeded principals, so
+    /// this resolves the seed rather than inserting a second one of its own
+    /// (INTK-060).
+    /// </summary>
+    private static async Task SeedPrincipalAsync(IServiceProvider services) =>
+        await SeededPrincipals.QdosAsync(services);
 
     private static async Task<CaseLifecycleState> ReadCaseStateAsync(
         IServiceProvider services,

@@ -50,10 +50,9 @@ public sealed record OperationsSnapshot(
     DateTimeOffset AsOfUtc,
     IntakeQueueCounts Intake,
     int TriageCount,
+    int UnidentifiedCount,
     IReadOnlyList<CaseDueWork> DueWork,
     CaseStageCounts CaseStages,
-    CaseActivityCounts CaseActivity,
-    MailActivityCounts MailActivity,
     IReadOnlyList<NeedsAttentionItem> NeedsAttention);
 
 public interface IGetOperationsSnapshot
@@ -132,19 +131,12 @@ public sealed class GetOperationsSnapshot(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
         var asOfUtc = timeProvider.GetUtcNow();
-        var (dayStartUtc, dayEndUtc, weekStartUtc) =
+        var (_, dayEndUtc, _) =
             LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
 
         var intake = await intakeQueries.GetCountsAsync(cancellationToken);
         var inputs = await FetchAttentionInputsAsync(actor, asOfUtc, cancellationToken);
         var caseStages = await dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-        var caseActivity = await dashboardQueries.GetCaseActivityCountsAsync(
-            dayStartUtc,
-            weekStartUtc,
-            cancellationToken);
-        var mailActivity = await dashboardQueries.GetMailActivityCountsAsync(
-            dayStartUtc,
-            cancellationToken);
 
         var needsAttention = await ComposeNeedsAttentionAsync(
             asOfUtc,
@@ -160,10 +152,9 @@ public sealed class GetOperationsSnapshot(
             asOfUtc,
             intake,
             inputs.TriageTotalCount,
+            inputs.Unidentified.Count,
             inputs.DueWork,
             caseStages,
-            caseActivity,
-            mailActivity,
             needsAttention);
     }
 
