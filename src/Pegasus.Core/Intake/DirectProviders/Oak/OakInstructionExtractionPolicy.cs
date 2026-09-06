@@ -19,6 +19,7 @@ public sealed partial class OakInstructionExtractionPolicy
     private const string SourceField = "Source";
     private const string IntroducerField = "Introducer";
     private const string RequestedWorkField = "Requested work";
+    private const char ProtectedRightApostrophe = '\uE000';
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
@@ -43,7 +44,8 @@ public sealed partial class OakInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: "inspection"),
-        new("Accident circumstances", ["Accident circumstances"], IsRequired: false, PartyRole: "claimant"),
+        new("Accident circumstances", ["Accident circumstances"], IsRequired: false,
+            PartyRole: "claimant", CanonicalValue: RestoreApostrophe),
         new("VAT status", ["VAT status"], IsRequired: false, PartyRole: "claimant"),
         new(SourceField, [SourceField], IsRequired: false, PartyRole: "source"),
         new(IntroducerField, [IntroducerField], IsRequired: false, PartyRole: "introducer"),
@@ -81,7 +83,7 @@ public sealed partial class OakInstructionExtractionPolicy
             Cache,
             processedAtUtc);
         var header = AssertAlignedHeader(readResult.Content);
-        var fields = extracted.Where(field => field.Name != HeaderAlignmentField).ToList();
+        var fields = extracted.Where(field => field.Name != HeaderAlignmentField).Select(RestoreApostrophe).ToList();
         fields.Add(HeaderField("Claim reference", header.Reference, header.Candidate));
         fields.Add(HeaderField("Instruction date", header.Date, header.Candidate));
         var missing = engineMissing.Where(name => name != HeaderAlignmentField).ToList();
@@ -159,7 +161,10 @@ public sealed partial class OakInstructionExtractionPolicy
         foreach (Match match in IntroducerRegex().Matches(instruction))
             yield return Labelled(fragment, IntroducerField, match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(instruction))
-            yield return Labelled(fragment, "Accident circumstances", match.Groups["value"].Value);
+            yield return Labelled(
+                fragment,
+                "Accident circumstances",
+                match.Groups["value"].Value.Replace('\u2019', ProtectedRightApostrophe));
         if (InspectionAddress(instruction) is { } address)
             yield return Labelled(fragment, "Inspection address", address);
         foreach (Match match in MileageRegex().Matches(instruction))
@@ -295,6 +300,24 @@ public sealed partial class OakInstructionExtractionPolicy
         origin with { Text = $"{label}: {Clean(value)}" };
 
     private static string Clean(string value) => WhitespaceRegex().Replace(value, " ").Trim(' ', ':');
+
+    private static string? RestoreApostrophe(string value) =>
+        value.Replace(ProtectedRightApostrophe, '\u2019');
+
+    private static InstructionReviewField RestoreApostrophe(InstructionReviewField field)
+    {
+        if (!string.Equals(field.Name, "Accident circumstances", StringComparison.Ordinal))
+            return field;
+        return field with
+        {
+            SuggestedValue = field.SuggestedValue is null ? null : RestoreApostrophe(field.SuggestedValue),
+            Candidates = field.Candidates.Select(candidate => candidate with
+            {
+                Value = RestoreApostrophe(candidate.Value)!,
+                RawValue = candidate.RawValue is null ? null : RestoreApostrophe(candidate.RawValue)
+            }).ToArray()
+        };
+    }
 
     [GeneratedRegex(@"^(?<reference>\S+)(?:\s+\S+)?\s+(?<date>\d{1,2}/\d{1,2}/\d{2,4})\s*$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex HeaderValuesRegex();

@@ -723,54 +723,57 @@ public sealed class Top15InstructionCorpusTests
         }
     }
 
-    [ReferencePackFact]
-    public async Task OakwoodOriginalsProduceExactAlignedInstructionFields()
+    [ReferencePackTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public async Task OakwoodOriginalsProduceExactAlignedInstructionFields(int sampleIndex)
     {
         var root = PackRoot();
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var policy = new OakInstructionExtractionPolicy();
         var selector = new InstructionExtractionPolicySelector([policy]);
+        var expectation = OakExpectations[sampleIndex];
 
-        foreach (var expectation in OakExpectations)
-        {
-            var absolute = Path.Combine(
-                root,
-                expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            var bytes = await File.ReadAllBytesAsync(absolute);
-            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            Assert.Equal(expectation.Sha256, sha256);
+        var absolute = Path.Combine(
+            root,
+            expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        var bytes = await File.ReadAllBytesAsync(absolute);
+        var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        Assert.Equal(expectation.Sha256, sha256);
 
-            var read = await reader.ReadAsync(
-                Source(bytes, Path.GetFileName(absolute), sha256),
-                CancellationToken.None);
-            Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
-            Assert.False(read.IsIncomplete);
-            var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
-            Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        var read = await reader.ReadAsync(
+            Source(bytes, Path.GetFileName(absolute), sha256),
+            CancellationToken.None);
+        Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
+        Assert.False(read.IsIncomplete);
+        var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
 
-            var result = policy.Extract(
-                read,
-                ProcessedAtUtc,
-                new("OAK", policy.DocumentProfileKey, policy.DocumentProfileVersion));
-            var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-            Assert.Equal(expectation.Claimant, draft.ClaimantName);
-            Assert.Equal(expectation.Reference, draft.ClaimNumber);
-            Assert.Equal(expectation.Registration, draft.VehicleRegistration);
-            Assert.Null(draft.VehicleMake);
-            Assert.Equal(expectation.Model, draft.VehicleModel);
-            Assert.Equal(expectation.IncidentDate, draft.DateOfIncident);
-            Assert.Equal(expectation.InstructionDate, draft.InstructionDate);
-            Assert.Equal(expectation.InspectionAddress, draft.InspectionAddress);
-            Assert.Equal(expectation.Circumstances, draft.AccidentCircumstances);
-            Assert.Equal(expectation.Source, Assert.Single(
-                result.Fields, field => field.Name == "Source").SuggestedValue);
-            Assert.Equal(expectation.Source, Assert.Single(
-                result.Fields, field => field.Name == "Introducer").SuggestedValue);
-            Assert.Equal(IntakeLocatorKind.TableCell, Assert.Single(
-                result.Fields, field => field.Name == "Claim reference").Candidates.Single().Locator!.Kind);
-            Assert.Equal(IntakeLocatorKind.TableCell, Assert.Single(
-                result.Fields, field => field.Name == "Instruction date").Candidates.Single().Locator!.Kind);
-        }
+        var result = policy.Extract(
+            read,
+            ProcessedAtUtc,
+            new("OAK", policy.DocumentProfileKey, policy.DocumentProfileVersion));
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(expectation.Claimant, draft.ClaimantName);
+        Assert.Equal(expectation.Reference, draft.ClaimNumber);
+        Assert.Equal(expectation.Registration, draft.VehicleRegistration);
+        Assert.Null(draft.VehicleMake);
+        Assert.Equal(expectation.Model, draft.VehicleModel);
+        Assert.Equal(expectation.IncidentDate, draft.DateOfIncident);
+        Assert.Equal(expectation.InstructionDate, draft.InstructionDate);
+        Assert.Equal(expectation.InspectionAddress, draft.InspectionAddress);
+        Assert.Equal(expectation.Circumstances, draft.AccidentCircumstances);
+        Assert.Equal(expectation.Source, Assert.Single(
+            result.Fields, field => field.Name == "Source").SuggestedValue);
+        Assert.Equal(expectation.Source, Assert.Single(
+            result.Fields, field => field.Name == "Introducer").SuggestedValue);
+        Assert.Equal(IntakeLocatorKind.TableCell, Assert.Single(
+            result.Fields, field => field.Name == "Claim reference").Candidates.Single().Locator!.Kind);
+        Assert.Equal(IntakeLocatorKind.TableCell, Assert.Single(
+            result.Fields, field => field.Name == "Instruction date").Candidates.Single().Locator!.Kind);
     }
 
     /// <summary>
@@ -1071,5 +1074,14 @@ public sealed class Top15InstructionCorpusTests
             Path.Combine(directory, "top15-instruction-corpus.md"),
             content,
             new UTF8Encoding(false));
+    }
+}
+
+internal sealed class ReferencePackTheoryAttribute : TheoryAttribute
+{
+    public ReferencePackTheoryAttribute()
+    {
+        if (PrincipalSourceManifestTests.ConfiguredPackRoot() is null)
+            Skip = $"{PrincipalSourceManifestTests.PackRootVariable} is absent.";
     }
 }
