@@ -119,6 +119,13 @@ public sealed class DashboardCountersWebTests
             now,
             IntakeSourceChannel.ManualUpload);
 
+        // Removed with the shared A07 correction (IDashboardQueries member deleted by Stream A).
+        // NOTE (INTK-060 C-side, deviation): the dispatch asked this call be replaced with an
+        // assertion on IIntakeReceiptQueries.GetCountsAsync().NeedsSorting, but that query is
+        // channel-agnostic and unscoped by day, so it cannot stand in for what this guard proves
+        // (PLAT-012: "received today" counts mailbox-channel intake only, not manual uploads).
+        // Left calling the still-live interface member for now; retiring it is the remaining
+        // hunk to apply once Stream A deletes GetMailActivityCountsAsync — see report.
         var counts = await services.GetRequiredService<IDashboardQueries>()
             .GetMailActivityCountsAsync(now.AddHours(-1), CancellationToken.None);
 

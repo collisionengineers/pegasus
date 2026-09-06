@@ -356,6 +356,7 @@ public sealed class DashboardBoundaryTests
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
 
+        // Removed with the shared A07 correction (IDashboardQueries members deleted by Stream A).
         public Task<CaseActivityCounts> GetCaseActivityCountsAsync(
             DateTimeOffset dayStartUtc,
             DateTimeOffset weekStartUtc,
@@ -366,6 +367,7 @@ public sealed class DashboardBoundaryTests
             return Task.FromResult(new CaseActivityCounts(0, 0, 0, 0, 0));
         }
 
+        // Removed with the shared A07 correction (IDashboardQueries members deleted by Stream A).
         public Task<MailActivityCounts> GetMailActivityCountsAsync(
             DateTimeOffset dayStartUtc,
             CancellationToken cancellationToken)
