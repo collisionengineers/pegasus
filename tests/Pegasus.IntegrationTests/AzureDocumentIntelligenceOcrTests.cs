@@ -278,6 +278,7 @@ public sealed class AzureDocumentIntelligenceOcrTests
         var result = await provider.AnalyzeAsync(
             Request([2]) with { SourceSha256 = new string('a', 64) },
             new MemoryStream(SourceBytes, writable: false),
+            _ => Task.CompletedTask,
             CancellationToken.None);
 
         Assert.Equal(IntakeOcrState.Failed, result.State);
@@ -330,6 +331,7 @@ public sealed class AzureDocumentIntelligenceOcrTests
         Provider(transport).AnalyzeAsync(
             Request(pages),
             new MemoryStream(SourceBytes, writable: false),
+            _ => Task.CompletedTask,
             CancellationToken.None);
 
     private static AzureDocumentIntelligenceOcr Provider(FakeTransport transport) =>
