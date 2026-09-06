@@ -12,3 +12,9 @@ Contract review of candidate `d819034c` + `5713d9b5` (read-only). No blocker for
 8. `DocumentOccurrenceEntity` preparation columns, `CaseValuationEntity.GuideMonth`, `RequestUploadLinkEntity.Recipient/Reason`, `ValuationPresets`, `AppliedValuationSnapshots`, `GlassRepairEstimateSessions`, `CaseReportGenerations`, `GeneratedCaseArtifacts`, `CaseReportDeliveryIntents` match B-F-02..07. The five approved presets (Tow bar £300, PCO plated £1,500, Decals £500, Camper conversion £0, Driving tuition £500) are not seeded in `V1FoundationModelConfiguration`; B assumes seeding is B03's job through the Administration/ValuationPresets page or a B-owned data seed; say if F intends `HasData` seeds instead.
 
 B will post the recorded F SHA and its ff-only verification on CASE-047 `scratch/execution` once the adoption handoff names it.
+
+Addendum 2026-09-06T06:40Z (from B04 design research, read-only):
+
+9. `CaseEstimateLines.WorkUnits`/`PaintWorkUnits` are `decimal(9,1)` and `AssessmentPolicy.NormalizeLines` enforces 0.1-hour steps, while Glass's `<Estimation>` positions carry `Time` at up to six decimals (TimeUnit 60). Either F widens both columns to `decimal(9,2)` now, or B's Glass's importer rounds to 0.1 h and records the rounding as reconciliation evidence per row. B prefers `(9,2)` at F; say which.
+10. `IImportRawEstimate.ExecuteAsync(ImportRawEstimateRequest)` takes an already-retained logical document (`DocumentId`/`DocumentVersionId`/`Sha256`/`Route`), not bytes. B will therefore sequence Case-page drop and Glass's completion as: `ICaseArtifactCustody.RetainAsync` (A) → `IImportRawEstimate` (B), and the request has no `Reason`; B will use a fixed reason for the resulting Draft. Confirm A's MCP caller follows the same two-step shape.
+11. Estimate-level "Additional materials" will reuse the existing `PaintMaterials` column/`EstimateDetails.PaintMaterials` under the v3 label; no new column requested.
