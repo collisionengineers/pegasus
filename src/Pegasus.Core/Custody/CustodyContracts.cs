@@ -37,7 +37,8 @@ public sealed record CustodyDocumentVersion(
     Guid CaseId,
     string RemoteId,
     string ContentHash,
-    string ETag);
+    string ETag,
+    string? BoxVersionId = null);
 
 /// <summary>
 /// Fail-closed authority carried through a multi-effect custody adapter call.
