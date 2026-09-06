@@ -29,6 +29,28 @@ public sealed class FwInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void QuotedOnlyInstructionCannotPopulateCurrentDraftFacts()
+    {
+        var quoted = Instruction(
+            "29674-01", "Mr Yunus Mohammed Abdul Amin", "RE05XEX", "Honda CIVIC TYPE R",
+            "04 May 2026", "05 May 2026", "Somstar Recovery & Storage, Birmingham B5 6JX",
+            "Our Clients Vehicle Was Parked.", "Asaad", "AP10FBF Toyota VERSO");
+
+        var result = Extract("Please see the earlier correspondence.\n-----Original Message-----\n" + quoted);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+
+        Assert.Null(draft.ClaimantName);
+        Assert.Null(draft.ClaimNumber);
+        Assert.Null(draft.VehicleRegistration);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.DateOfIncident);
+        Assert.Null(draft.InstructionDate);
+        Assert.Null(draft.InspectionAddress);
+        Assert.Null(draft.AccidentCircumstances);
+        Assert.Empty(result.Fields.SelectMany(field => field.Candidates));
+    }
+
+    [Fact]
     public void ThirdPartyAndInspectionLocationRemainSeparateRoles()
     {
         var result = Extract(Instruction(

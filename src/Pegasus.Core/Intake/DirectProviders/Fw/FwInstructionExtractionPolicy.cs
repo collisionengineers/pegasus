@@ -200,7 +200,8 @@ public sealed partial class FwInstructionExtractionPolicy
     {
         var normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         var start = normalized.IndexOf("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase);
-        if (start < 0)
+        var firstQuote = QuotedMessageBoundaryRegex().Match(normalized);
+        if (start < 0 || (firstQuote.Success && firstQuote.Index < start))
             return null;
         var current = normalized[start..];
         var quote = QuotedMessageBoundaryRegex().Match(current);
