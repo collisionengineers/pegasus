@@ -116,6 +116,10 @@ public static class RepairSpecificationPolicy
     public static RepairSpecificationSource ValidateSource(RepairSpecificationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
+        if (!Enum.IsDefined(source.Route))
+        {
+            throw new InvalidOperationException("The repair-specification source names no known route.");
+        }
         if (source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
         {
             throw new InvalidOperationException(

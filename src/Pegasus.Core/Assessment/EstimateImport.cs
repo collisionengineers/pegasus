@@ -1,13 +1,30 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Assessment;
 
+/// <summary>
+/// The case-mutation envelope every estimate write carries, plus the retained
+/// document the import reads: its occurrence on this case, the exact version
+/// and the hash the caller recorded when it retained the file. The reason is
+/// the one import reason (<see cref="ImportRawEstimate.ImportReason"/>).
+/// </summary>
 public sealed record ImportRawEstimateRequest(
-    Pegasus.Core.Identity.ActionActor Actor, Guid CaseId, long ExpectedCaseVersion,
-    string LeaseToken, Guid DocumentId, Guid DocumentVersionId, string Sha256,
-    RepairSpecificationSourceRoute Route, string OperationKey, string Name);
+    ActionActor Actor,
+    Guid CaseId,
+    long ExpectedVersion,
+    string EditLeaseToken,
+    Guid OccurrenceId,
+    Guid DocumentVersionId,
+    string Sha256,
+    RepairSpecificationSourceRoute Route,
+    string OperationKey,
+    string Name)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, ImportRawEstimate.ImportReason, EditLeaseToken);
 
 public interface IImportRawEstimate
 {
@@ -82,16 +99,20 @@ public interface IEstimateDocumentParser
 /// document first and then calls this with the retained version's identity,
 /// so the import never re-reads an external system.
 ///
-/// The bytes are opened through the document reader at the exact hash the
-/// caller recorded and re-hashed here; the format is auto-detected across
-/// the registered parsers, and zero or more than one match fails closed
-/// rather than guessing. The parse lands as one new source-labelled Draft
-/// beside the existing estimates — importing never touches Current — and
-/// the same Case with the same source hash replays to the estimate that
+/// The mutation envelope, the Engineer authorization and the named route are
+/// proven before anything is read, so a replay is never a way to read an
+/// estimate the same call could not have created. The bytes are opened at
+/// the document and length the case's own record states and at the exact
+/// hash the caller recorded, then re-hashed here; the format is auto-detected
+/// across the registered parsers, and zero or more than one match fails
+/// closed rather than guessing. The parse lands as one new source-labelled
+/// Draft beside the existing estimates — importing never touches Current —
+/// and the same Case with the same source hash replays to the estimate that
 /// import already created.
 /// </summary>
 public sealed class ImportRawEstimate(
     IEnumerable<IEstimateDocumentParser> parsers,
+    IGetCaseDocumentMetadata metadata,
     IReadLogicalDocumentVersion documents,
     IListCaseEstimates estimates,
     ISaveEstimate save) : IImportRawEstimate
@@ -104,7 +125,13 @@ public sealed class ImportRawEstimate(
 
     public async Task<Guid> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        CaseLifecycleRules.ValidateMutation(request);
+        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        if (!Enum.IsDefined(request.Route))
+        {
+            throw new EstimateParseRejectedException(
+                "The import names no known estimate source, so nothing was imported.");
+        }
         var sha256 = NormalizedHash(request.Sha256);
         var existing = await estimates.ExecuteAsync(request.CaseId, cancellationToken);
         if (existing.FirstOrDefault(estimate =>
@@ -117,11 +144,11 @@ public sealed class ImportRawEstimate(
         var artifactIdentity = $"estimate-import:{request.OperationKey}";
         var saved = await save.ExecuteAsync(
             new(request.CaseId,
-                request.ExpectedCaseVersion,
+                request.ExpectedVersion,
                 request.Actor,
                 request.OperationKey,
-                ImportReason,
-                request.LeaseToken,
+                request.Reason,
+                request.EditLeaseToken,
                 EstimateId: null,
                 new EstimateDetails(
                     string.IsNullOrWhiteSpace(request.Name)
@@ -140,9 +167,14 @@ public sealed class ImportRawEstimate(
     private async Task<(IEstimateDocumentParser Parser, ParsedEstimate Parsed)> ParseAsync(
         ImportRawEstimateRequest request, string sha256, CancellationToken cancellationToken)
     {
+        var retained = await metadata.ExecuteAsync(
+            new(request.CaseId, request.OccurrenceId, request.DocumentVersionId, request.Actor),
+            cancellationToken)
+            ?? throw new EstimateParseRejectedException(
+                "The case does not hold the document version the import names, so nothing was imported.");
         await using var document = await documents.OpenAsync(
-            new(request.Actor, request.DocumentId, request.DocumentVersionId, IntakeAssetId: null,
-                request.CaseId, IntakeReceiptId: null, sha256, ExpectedContentLength: 0),
+            new(request.Actor, retained.DocumentId, retained.VersionId, IntakeAssetId: null,
+                request.CaseId, IntakeReceiptId: null, sha256, retained.ContentLength),
             cancellationToken);
         var content = await ReadAsync(document, cancellationToken);
         var actual = Convert.ToHexStringLower(SHA256.HashData(content.Span));
