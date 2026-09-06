@@ -46,6 +46,13 @@ internal sealed class EfDocumentRequestStore(
     /// is checked before custody so an over-long key cannot fail the write
     /// that follows a hand-over.
     /// </summary>
+    /// <remarks>
+    /// The server-issued key a second, different file is given is longer than
+    /// what a sender may send - a root and a digest,
+    /// <see cref="RequestUploadOperationKey.MaximumLength"/> - and is bounded
+    /// by its own shape rather than by this. Both fit the receipt's 256 and the
+    /// occurrence's 450 with the link scope on top.
+    /// </remarks>
     private const int MaximumOperationKeyLength = 100;
 
     async Task<CreateRequestUploadLinkResult> ICreateRequestUploadLink.ExecuteAsync(
@@ -394,11 +401,43 @@ internal sealed class EfDocumentRequestStore(
         var scopedOperationKey = EfPublicUploadRetentionStore.ScopeOperationKey(
             linkId,
             senderOperationKey);
-        var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
-            .SingleOrDefaultAsync(
-                value => value.SessionId == session.Id
-                    && value.OperationKey == scopedOperationKey,
+        var occurrence = await FindOccurrenceAsync(
+            context,
+            session.Id,
+            scopedOperationKey,
+            cancellationToken);
+        if (occurrence is not null
+            && !string.Equals(
+                occurrence.Sha256,
+                authorization.ContentHash,
+                StringComparison.Ordinal))
+        {
+            // The same key, carrying a different file. While the arrival it
+            // names is still unresolved that key belongs to the first file and
+            // has to keep belonging to it, so this is neither a replacement
+            // nor a conflict: it is the second deliberate submission plan
+            // item 6 allows until finalization, and it gets its own
+            // server-issued key derived from this one and these bytes. The
+            // derivation is what keeps its own retry a retry. A key whose
+            // arrival custody has already answered is closed, and a different
+            // file sent under it stays the conflict it was.
+            if (!EfPublicUploadRetentionStore.UnresolvedCodes.Contains(occurrence.CustodyState))
+            {
+                return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
+            }
+
+            senderOperationKey = RequestUploadOperationKey.ForContent(
+                senderOperationKey,
+                authorization.ContentHash!);
+            scopedOperationKey = EfPublicUploadRetentionStore.ScopeOperationKey(
+                linkId,
+                senderOperationKey);
+            occurrence = await FindOccurrenceAsync(
+                context,
+                session.Id,
+                scopedOperationKey,
                 cancellationToken);
+        }
         if (occurrence is null)
         {
             occurrence = new()
@@ -422,9 +461,9 @@ internal sealed class EfDocumentRequestStore(
             authorization.ContentHash,
             StringComparison.Ordinal))
         {
-            // The slot is addressed by its server-issued occurrence, so the
-            // same key carrying different bytes is a conflict rather than a
-            // silent replacement.
+            // A derived key names these exact bytes, so a row under it that
+            // holds other bytes cannot arise from this path. Refused rather
+            // than trusted: whatever wrote it, the slot is not this file's.
             return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
         }
 
@@ -442,6 +481,22 @@ internal sealed class EfDocumentRequestStore(
             occurrence.Size,
             occurrence.Sha256));
     }
+
+    /// <summary>
+    /// The arrival one session-scoped operation key already has, if any. The
+    /// pair is uniquely indexed, so this is the slot itself and not a guess at
+    /// it.
+    /// </summary>
+    private static Task<PublicUploadOccurrenceEntity?> FindOccurrenceAsync(
+        PegasusDbContext context,
+        Guid sessionId,
+        string scopedOperationKey,
+        CancellationToken cancellationToken) =>
+        context.Set<PublicUploadOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.SessionId == sessionId
+                    && value.OperationKey == scopedOperationKey,
+                cancellationToken);
 
     /// <summary>
     /// Records what an accepted hand-over changed: the link's accepted totals,
@@ -987,6 +1042,10 @@ internal sealed class EfPublicUploadRetentionStore(
                 occurrence.CustodyState,
                 occurrence.DocumentId,
                 occurrence.DocumentVersionId,
+                // What this arrival was committed with. A retry under the same
+                // key re-offers these exact bytes or is refused.
+                occurrence.Sha256,
+                occurrence.Size,
                 CaseId = context.Set<PublicUploadSessionEntity>()
                     .Where(session => session.Id == occurrence.SessionId)
                     .Join(
@@ -1020,7 +1079,9 @@ internal sealed class EfPublicUploadRetentionStore(
             row.DocumentId,
             row.DocumentVersionId,
             row.Remote?.BoxFileId,
-            row.Remote?.BoxVersionId);
+            row.Remote?.BoxVersionId,
+            Sha256: row.Sha256,
+            ContentLength: row.Size);
     }
 
     /// <summary>
@@ -1050,56 +1111,122 @@ internal sealed class EfPublicUploadRetentionStore(
         return claimed == 1;
     }
 
+    /// <summary>
+    /// The states each custody answer may be recorded <em>from</em>: the
+    /// forward-only rule of
+    /// <see cref="IncomingArtifactCustodyProgress.MovesForward"/>, expressed
+    /// as the set a conditional update names in its WHERE clause.
+    /// </summary>
+    /// <remarks>
+    /// Derived from that rule rather than restated beside it, so there is
+    /// still one place the rule lives. <see cref="ArrivedCode"/> is in every
+    /// set because custody has said nothing about an arrival, so any answer it
+    /// gives is the first one. Two things follow from what is <em>not</em>
+    /// here: nothing transitions to arrived - it is the state a row is created
+    /// in and only the claim leaves it - and nothing transitions out of
+    /// confirmed or failed, because both are answers custody has given.
+    /// </remarks>
+    private static readonly Dictionary<IncomingArtifactCustodyState, string[]> ForwardSourceCodes =
+        Enum.GetValues<IncomingArtifactCustodyState>()
+            .ToDictionary(target => target, ForwardSourceCodesOf);
+
+    private static string[] ForwardSourceCodesOf(IncomingArtifactCustodyState target) =>
+        [ArrivedCode, .. Enum.GetValues<IncomingArtifactCustodyState>()
+            .Where(source => IncomingArtifactCustodyProgress.MovesForward(source, target))
+            .Select(ToCode)];
+
     public async Task RecordAsync(
         RetainedIncomingArtifact artifact,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(artifact);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
-            .SingleOrDefaultAsync(item => item.Id == artifact.OccurrenceId, cancellationToken)
-            ?? throw new KeyNotFoundException(
-                $"Public upload occurrence '{artifact.OccurrenceId}' was not found.");
+        var occurrences = context.Set<PublicUploadOccurrenceEntity>();
+        var target = ToCode(artifact.State);
+        var sources = ForwardSourceCodes[artifact.State];
+        var documentId = artifact.DocumentId;
+        var documentVersionId = artifact.DocumentVersionId;
 
-        // Forward only. A recorder that arrives after custody has answered
-        // knows less than the row does, so it leaves the answer and its
-        // identities alone: a late Pending or Unknown cannot pull a Confirmed
-        // back, and a Failed never displaces a Confirmed. The pre-custody
-        // arrival is behind every custody answer, so any of them may claim it.
-        if (string.Equals(occurrence.CustodyState, ArrivedCode, StringComparison.Ordinal)
-            || IncomingArtifactCustodyProgress.MovesForward(
-                ParseCustodyState(occurrence.CustodyState),
-                artifact.State))
+        // Forward only, and decided by the database rather than by a state
+        // this process read a moment ago. One conditional statement names the
+        // states this answer may be recorded from, so a recorder that knows
+        // less than the row does cannot pass a test in memory and then win the
+        // write: a late Pending or Unknown never pulls a Confirmed back, a
+        // Failed never displaces a Confirmed, and a claim loser reconciling
+        // while the winner is still inside custody cannot undo what the winner
+        // committed. Rows affected is the whole of the answer - one is the
+        // transition, none is a row already at or past this answer, which is a
+        // no-op and not a failure. Identities move in the same statement,
+        // because they are only ever filled where they are missing.
+        var moved = await occurrences
+            .Where(item => item.Id == artifact.OccurrenceId
+                && sources.Contains(item.CustodyState))
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(item => item.CustodyState, target)
+                    .SetProperty(item => item.DocumentId, item => item.DocumentId ?? documentId)
+                    .SetProperty(
+                        item => item.DocumentVersionId,
+                        item => item.DocumentVersionId ?? documentVersionId),
+                cancellationToken);
+        if (moved == 0 && (documentId is not null || documentVersionId is not null))
         {
-            occurrence.CustodyState = ToCode(artifact.State);
+            // The answer stands, but identities this recorder recovered are
+            // still true of it - the lost response asked custody by its
+            // operation key and learned which document it holds. Filling a
+            // null column is monotonic whatever the state, and this statement
+            // cannot touch the state, so learning them is not a reason to
+            // reopen a transition the row has refused.
+            await occurrences
+                .Where(item => item.Id == artifact.OccurrenceId
+                    && (item.DocumentId == null || item.DocumentVersionId == null))
+                .ExecuteUpdateAsync(
+                    update => update
+                        .SetProperty(item => item.DocumentId, item => item.DocumentId ?? documentId)
+                        .SetProperty(
+                            item => item.DocumentVersionId,
+                            item => item.DocumentVersionId ?? documentVersionId),
+                    cancellationToken);
         }
 
-        // Identities are learned once and never unlearned. A reconciliation
-        // that recovers them writes them in; a later record that never knew
-        // them does not erase them.
-        occurrence.DocumentId ??= artifact.DocumentId;
-        occurrence.DocumentVersionId ??= artifact.DocumentVersionId;
+        // What the row says now, which is what decides the rest. A conditional
+        // write reports how many rows it changed and not why, so the state a
+        // remote identity may be written against is read back rather than
+        // assumed, and a missing occurrence - a caller recording against
+        // something that was never committed - is still the error it was.
+        var recorded = await occurrences
+            .AsNoTracking()
+            .Where(item => item.Id == artifact.OccurrenceId)
+            .Select(item => new { item.CustodyState, item.DocumentVersionId })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException(
+                $"Public upload occurrence '{artifact.OccurrenceId}' was not found.");
 
         // Only a confirmed retention says anything about where custody holds
         // the bytes, so only a confirmed retention writes the remote
         // identities — and it never writes null. A version can back more than
         // one occurrence (two arrivals of the same file are two occurrences),
         // so clearing on a later Pending or Failed record would erase an
-        // earlier confirmed identity that is still true.
+        // earlier confirmed identity that is still true. The row's own state,
+        // not this recorder's, is what permits the write: a Pending that was
+        // refused the transition must not land a Box identity either.
+        var boxFileId = artifact.BoxFileId;
+        var boxVersionId = artifact.BoxVersionId;
         if (artifact.State == IncomingArtifactCustodyState.Confirmed
-            && string.Equals(occurrence.CustodyState, ConfirmedCode, StringComparison.Ordinal)
-            && occurrence.DocumentVersionId is { } versionId)
+            && string.Equals(recorded.CustodyState, ConfirmedCode, StringComparison.Ordinal)
+            && recorded.DocumentVersionId is { } versionId
+            && (boxFileId is not null || boxVersionId is not null))
         {
-            var version = await context.Set<DocumentVersionEntity>()
-                .SingleOrDefaultAsync(item => item.Id == versionId, cancellationToken);
-            if (version is not null)
-            {
-                version.BoxFileId = artifact.BoxFileId ?? version.BoxFileId;
-                version.BoxVersionId = artifact.BoxVersionId ?? version.BoxVersionId;
-            }
+            await context.Set<DocumentVersionEntity>()
+                .Where(item => item.Id == versionId)
+                .ExecuteUpdateAsync(
+                    update => update
+                        .SetProperty(item => item.BoxFileId, item => boxFileId ?? item.BoxFileId)
+                        .SetProperty(
+                            item => item.BoxVersionId,
+                            item => boxVersionId ?? item.BoxVersionId),
+                    cancellationToken);
         }
-
-        await context.SaveChangesAsync(cancellationToken);
     }
 
     internal static string ToCode(IncomingArtifactCustodyState state) => state switch
