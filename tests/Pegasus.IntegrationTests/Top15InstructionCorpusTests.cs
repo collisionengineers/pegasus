@@ -446,6 +446,11 @@ public sealed class Top15InstructionCorpusTests
             "436db268cf7cb824ef089e08399879b4f7f78a65bf3c2b0f515d043c44bb3e00",
             new("Mr Yoni Sherer", "SBL-B0484837", "VX71YDO", new(2026, 4, 13), new(2026, 4, 28)),
             [new("Claimant name", "Parkhouse Assist", "Introducer, not policyholder."), new("Inspection address", "Unit 1, Leo Industrial Estate, Mosley Rd, Trafford Park, Stretford, Manchester M17 1JS", "Repairer address has its own role.")])
+        ,new("RJS", $"{CorpusRoot}/RJS 01.DOC", "2df5be4f88b9830b456169601b01baf73cd8a3a514304507db4d87f09989f467", new("Mr Maheswaran Ratnam", "119986AA.001/LDB/LDB", "BU16AYT", new(2026, 4, 28), new(2026, 5, 6)), [new("Inspection address", "35 Leicester Road Luton Bedfordshire LU4 8SF", "Claimant contact address has its own role.")])
+        ,new("RJS", $"{CorpusRoot}/RJS 02.DOC", "20a755f5fa2d5b8229665e3bee136b0148bf1aa218eda5c976403cd669cb3e8d", new("Mr Haroon Ahmed Mahroof", "101805.002/LDB/BN", "YH15CVF", new(2026, 4, 30), new(2026, 5, 1)), [new("Inspection address", "27 Dale Road Luton LU1 1LJ", "Claimant contact address has its own role.")])
+        ,new("RJS", $"{CorpusRoot}/RJS 03.DOC", "a8718e95523dd99230583153d03236984d95a5b12cd63f02b1cc78320ccd215d", new("Mr Mohamad Rizaf Mohamad Ilyas", "126170.001/LG/LG", "SF16EFM", new(2026, 4, 29), new(2026, 4, 30)), [new("Inspection address", "14 St. Edmunds Close Crawley RH11 7SR", "Claimant contact address has its own role.")])
+        ,new("RJS", $"{CorpusRoot}/RJS 04.DOC", "bd1b55ea9ea8861665e252697a78fd04113f5032efc5c2127e372ebf51c4d118", new("Mr Abdul Malik", "126068.001/LG/LDB", "EA21YFN", new(2026, 4, 21), new(2026, 4, 28)), [new("Inspection address", "113 Dallow Road Luton LU1 1NP", "Claimant contact address has its own role.")])
+        ,new("RJS", $"{CorpusRoot}/RJS 05.DOC", "4e789343422d0d79c4fa1b021b06ba2acdf318e72018e2732384bef31a220b26", new("Mrs Amna Ali", "125950.001/BN/BN", "YG67SZR", new(2026, 4, 21), new(2026, 4, 27)), [new("Inspection address", "250 Selbourne Road LU4 8LU", "Claimant contact address has its own role.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -536,7 +541,8 @@ public sealed class Top15InstructionCorpusTests
             new QclInstructionExtractionPolicy(),
             new OakInstructionExtractionPolicy(),
             new SblInstructionExtractionPolicy(),
-            new BlackInstructionExtractionPolicy()
+            new BlackInstructionExtractionPolicy(),
+            new RjsInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
