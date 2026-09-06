@@ -343,6 +343,20 @@ public sealed class AnalyzeRetainedInstructionTests
         var (_, _, quotedLocator) = AnalyzeRetainedInstruction.ReadLocator(
             AnalyzeRetainedInstruction.LocatorJson("message, quoted history", null, quoted));
         Assert.Equal(quoted, quotedLocator);
+
+        var quotedJson = AnalyzeRetainedInstruction.LocatorJson(
+            "message, quoted history",
+            null,
+            quoted);
+        Assert.Contains("\"Kind\":\"MessagePart\"", quotedJson, StringComparison.Ordinal);
+        Assert.Contains("\"MessagePart\":\"QuotedHistory\"", quotedJson, StringComparison.Ordinal);
+
+        var (_, _, legacyNumericLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            "{\"Version\":2,\"SourceLabel\":\"legacy\",\"Page\":null,\"Kind\":5,"
+            + "\"MessagePart\":3,\"Occurrence\":0}");
+        Assert.Equal(quoted with { Region = null }, legacyNumericLocator);
+        Assert.Throws<InvalidDataException>(() => AnalyzeRetainedInstruction.ReadLocator(
+            "{\"Version\":3,\"SourceLabel\":\"future\",\"Page\":null}"));
     }
 
     private sealed class Harness
