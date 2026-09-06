@@ -98,14 +98,27 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
             await Assert.ThrowsAsync<IOException>(
                 () => custody.RetainAsync(request, CancellationToken.None));
+            Guid pendingDocumentId;
             Guid pendingVersionId;
             await using (var db = await database.CreateContextAsync())
             {
                 var pending = await db.Set<DocumentVersionEntity>().SingleAsync();
+                pendingDocumentId = pending.DocumentId;
                 pendingVersionId = pending.Id;
                 Assert.Equal(DocumentCustodyStatus.Pending, pending.CustodyStatus);
                 Assert.Single(await db.Set<DocumentOccurrenceEntity>().ToArrayAsync());
             }
+
+            // The provider result was lost, but the accepted Pending intent is
+            // discoverable by the caller's original key without re-offering bytes.
+            var recoveredPending = await custody.FindByOperationKeyAsync(
+                actor, caseId, request.OperationKey, CancellationToken.None);
+            Assert.NotNull(recoveredPending);
+            Assert.Equal(CaseArtifactCustodyDisposition.Pending, recoveredPending!.Disposition);
+            Assert.Equal(pendingVersionId, recoveredPending.VersionId);
+            Assert.Equal(pendingDocumentId, recoveredPending.DocumentId);
+            Assert.Equal(hash, recoveredPending.Sha256, ignoreCase: true);
+            Assert.Equal(content.LongLength, recoveredPending.ContentLength);
 
             var restarted = new ReconcilePendingArtifactCustody(factory, store, intake);
             var replay = await restarted.ExecuteAsync(10, CancellationToken.None);
@@ -267,10 +280,11 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var caseId = await SeedCaseAsync(database);
         var otherCaseId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
+        var otherRequestId = Guid.NewGuid();
         var requestActor = ActionActor.RequestLink(requestId);
         await using (var db = await database.CreateContextAsync())
         {
-            db.Add(new RequestUploadLinkEntity
+            db.AddRange(new RequestUploadLinkEntity
             {
                 Id = requestId,
                 CaseId = caseId,
@@ -281,6 +295,17 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 LimitsVersion = "test",
                 Version = 1,
                 CreateOperationKey = $"request:{requestId:N}"
+            }, new RequestUploadLinkEntity
+            {
+                Id = otherRequestId,
+                CaseId = caseId,
+                TokenDigest = new string('B', 64),
+                Status = RequestUploadStatus.Active,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
+                LimitsVersion = "test",
+                Version = 1,
+                CreateOperationKey = $"request:{otherRequestId:N}"
             });
             await db.SaveChangesAsync();
         }
@@ -293,15 +318,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var bytes = "request evidence"u8.ToArray();
         var request = ArtifactRequest(requestActor, caseId, bytes);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             ArtifactRequest(ActionActor.RequestLink(Guid.NewGuid()), caseId, bytes), default));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             request with
             {
                 CaseId = otherCaseId,
                 Content = new MemoryStream(bytes, writable: false)
             }, default));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             request with
             {
                 CaseId = null,
@@ -313,6 +338,29 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var retained = await custody.RetainAsync(request, default);
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, retained.Disposition);
         Assert.Equal(1, contentStore.WriteCount);
+        var status = await custody.GetAsync(
+            requestActor, caseId, retained.DocumentId!.Value, retained.VersionId!.Value, default);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, status.Disposition);
+        var recovered = await custody.FindByOperationKeyAsync(
+            requestActor, caseId, request.OperationKey, default);
+        Assert.NotNull(recovered);
+        Assert.Equal(retained.DocumentId, recovered!.DocumentId);
+        Assert.Equal(retained.VersionId, recovered.VersionId);
+        Assert.Equal(retained.Disposition, recovered.Disposition);
+        Assert.Equal(retained.Sha256, recovered.Sha256);
+        Assert.Equal(retained.ContentLength, recovered.ContentLength);
+        Assert.Null(await custody.FindByOperationKeyAsync(
+            requestActor, caseId, "missing-operation", default));
+        Assert.Null(await custody.FindByOperationKeyAsync(
+            ActionActor.RequestLink(otherRequestId), caseId, request.OperationKey, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.FindByOperationKeyAsync(
+            ActionActor.Provider(Guid.NewGuid()), caseId, request.OperationKey, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.GetAsync(
+            requestActor, otherCaseId,
+            retained.DocumentId.Value, retained.VersionId.Value, default));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => custody.GetAsync(
+            ActionActor.RequestLink(otherRequestId), caseId,
+            retained.DocumentId.Value, retained.VersionId.Value, default));
 
         await using (var db = await database.CreateContextAsync())
         {
@@ -321,8 +369,12 @@ public sealed class CaseArtifactCustodyRecoveryTests
             link.Status = RequestUploadStatus.Revoked;
             await db.SaveChangesAsync();
         }
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             ArtifactRequest(requestActor, caseId, bytes), default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.GetAsync(
+            requestActor, caseId, retained.DocumentId.Value, retained.VersionId.Value, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.FindByOperationKeyAsync(
+            requestActor, caseId, request.OperationKey, default));
         Assert.Equal(1, contentStore.WriteCount);
     }
 
@@ -360,7 +412,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System);
         var bytes = "request evidence"u8.ToArray();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             ArtifactRequest(ActionActor.RequestLink(requestId), caseId, bytes), default));
     }
 
@@ -410,7 +462,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         }
         stream.ReleaseRead.SetResult();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => retain);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => retain);
         Assert.Equal(0, artifacts.StoreCount);
         Assert.Equal(0, contentStore.WriteCount);
         await using var verify = await database.CreateContextAsync();
@@ -454,7 +506,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             factory, contentStore, artifacts, TimeProvider.System);
         var bytes = "staged request evidence"u8.ToArray();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => custody.RetainAsync(
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             ArtifactRequest(ActionActor.RequestLink(requestId), caseId, bytes), default));
 
         Assert.Equal(1, artifacts.StoreCount);
