@@ -372,3 +372,7 @@ A's three items (atomic claim, original key, refusal mapping) verified fixed. Ne
 ## Checkpoint — C08 round 3 at `86e8659f5` (merged `2c1a9d8a1` → `e1f8850ee`)
 
 Test query `sort=oldest` (page vocabulary), unread token verified, round-trip assertion added; no production change. Wave 31 + review after wave 30 releases LocalDB. C07 caller round 4 dispatched (Opus): R-24 conditional-update transitions, R-25 same fence on both status reads, R-26 same-bytes reuse vs new-file new key, R-27, R-28. Editors: C02 (resumed), C07b r4.
+
+## A INTK-027 coordination (PR 673 5561022593 / C ack 5561054246)
+
+A's re-evaluation fix makes `IReadLogicalDocumentVersion` a required `ProcessQueuedIntake` dependency; A adapts the two direct constructions in `QdosAllocationRecoveryTests.cs` (near 603 and 749) on its branch, assertions preserved; C takes the same two-argument change when the fix arrives via composition/G and edits nothing there meanwhile. C05 tripwire retarget remains C's after publication.
