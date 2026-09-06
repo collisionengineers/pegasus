@@ -14,9 +14,9 @@ namespace Pegasus.IntegrationTests;
 /// The command's own invariants are proved without a database in
 /// <c>Pegasus.Core.Tests/Intake/RetainIncomingArtifactTests.cs</c>. What needs
 /// SQL is what the store writes and reads back, which is what these cover. The
-/// end-to-end custody flow waits on A04's <c>ICaseArtifactCustody</c> adapter
-/// and the DI registration of this port; the store is exercised directly here
-/// because nothing composes it yet.
+/// store is exercised directly because these are its own invariants; the
+/// accept path that composes it — the public upload page — is proved end to
+/// end in <see cref="PublicUploadRetentionWebTests"/>.
 /// </remarks>
 [Trait("Category", "SqlServer")]
 public sealed class IncomingArtifactCustodyTests
@@ -114,6 +114,219 @@ public sealed class IncomingArtifactCustodyTests
         Assert.Null(found.BoxVersionId);
     }
 
+    /// <summary>
+    /// A committed arrival is visible as the uncertain thing it is, and it can
+    /// be claimed exactly once. The claim is the whole of what decides which
+    /// caller offers the bytes, so a second caller of the same arrival is told
+    /// no and has an arrival to reconcile instead of a null to hand over
+    /// against.
+    /// </summary>
+    [Fact]
+    public async Task AnArrivalIsReportedAsUncertainAndClaimedExactlyOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedSessionAsync(factory.Services);
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var store = new EfPublicUploadRetentionStore(contextFactory);
+
+        // Custody has said nothing about it, which is exactly Unknown - not
+        // the Pending custody gives, and not nothing at all.
+        var arrived = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+        Assert.NotNull(arrived);
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, arrived.State);
+        Assert.Equal(seeded.FirstOccurrenceId, arrived.OccurrenceId);
+
+        Assert.True(await store.TryClaimHandOverAsync(
+            seeded.FirstOccurrenceId,
+            CancellationToken.None));
+
+        // Committed before the hand-over, so a crash from here on leaves an
+        // arrival to ask about rather than one to offer again.
+        Assert.Equal(
+            EfPublicUploadRetentionStore.UnknownCode,
+            await ReadCustodyStateAsync(factory.Services, seeded.FirstOccurrenceId));
+
+        // Everyone else, whenever they ask.
+        Assert.False(await store.TryClaimHandOverAsync(
+            seeded.FirstOccurrenceId,
+            CancellationToken.None));
+
+        await store.RecordAsync(
+            new(
+                seeded.FirstOccurrenceId,
+                seeded.FirstOperationKey,
+                IncomingArtifactCustodyState.Pending,
+                seeded.CaseId,
+                seeded.DocumentId,
+                seeded.DocumentVersionId),
+            CancellationToken.None);
+
+        var found = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+        Assert.NotNull(found);
+        Assert.Equal(IncomingArtifactCustodyState.Pending, found.State);
+        Assert.False(await store.TryClaimHandOverAsync(
+            seeded.FirstOccurrenceId,
+            CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Confirmation only moves forward. A recorder that arrives after custody
+    /// has answered knows less than the row does - the lost response, the
+    /// retry that could not read status - and must not be able to pull a
+    /// confirmed retention back to uncertain, or to failed, or to strip the
+    /// identities that say where the bytes are.
+    /// </summary>
+    [Theory]
+    [InlineData(IncomingArtifactCustodyState.Unknown)]
+    [InlineData(IncomingArtifactCustodyState.Pending)]
+    [InlineData(IncomingArtifactCustodyState.Failed)]
+    public async Task ALateRecorderNeverPullsAConfirmedRetentionBack(
+        IncomingArtifactCustodyState late)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedSessionAsync(factory.Services);
+        var store = new EfPublicUploadRetentionStore(
+            factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>());
+
+        await store.RecordAsync(
+            new(
+                seeded.FirstOccurrenceId,
+                seeded.FirstOperationKey,
+                IncomingArtifactCustodyState.Confirmed,
+                seeded.CaseId,
+                seeded.DocumentId,
+                seeded.DocumentVersionId,
+                "box-file-1",
+                "box-version-1"),
+            CancellationToken.None);
+
+        await store.RecordAsync(
+            new(
+                seeded.FirstOccurrenceId,
+                seeded.FirstOperationKey,
+                late,
+                seeded.CaseId),
+            CancellationToken.None);
+
+        var found = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+        Assert.NotNull(found);
+        Assert.True(found.IsConfirmed);
+        Assert.Equal(seeded.DocumentId, found.DocumentId);
+        Assert.Equal(seeded.DocumentVersionId, found.DocumentVersionId);
+        Assert.Equal(
+            ("box-file-1", "box-version-1"),
+            await ReadIdentitiesAsync(factory.Services, seeded.DocumentVersionId));
+    }
+
+    /// <summary>
+    /// The same rule under the concurrency it exists for. A caller that lost
+    /// the claim reconciles to Pending while the winner is still inside
+    /// custody, so two recorders are on one occurrence and each reads the row
+    /// for itself: the rule has to be the database's and not each caller's,
+    /// because a read-modify-write loses the winner's Confirmed to whichever
+    /// UPDATE happens to land second.
+    /// </summary>
+    /// <remarks>
+    /// Rounds, because which recorder lands first is the race's to decide, and
+    /// the invariant holds either way: a Pending that arrives first is
+    /// overtaken by the confirmation, and one that arrives second is refused.
+    /// Two stores, each opening its own context per call, exactly as two
+    /// requests do.
+    /// </remarks>
+    [Fact]
+    public async Task ALatePendingWriteAgainstAConfirmedRowIsANoOpUnderConcurrency()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedSessionAsync(factory.Services);
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var winner = new EfPublicUploadRetentionStore(contextFactory);
+        var loser = new EfPublicUploadRetentionStore(contextFactory);
+        var confirmed = new RetainedIncomingArtifact(
+            seeded.FirstOccurrenceId,
+            seeded.FirstOperationKey,
+            IncomingArtifactCustodyState.Confirmed,
+            seeded.CaseId,
+            seeded.DocumentId,
+            seeded.DocumentVersionId,
+            "box-file-1",
+            "box-version-1");
+
+        // What a reconciliation carries: the same document, the state custody
+        // had not finished, and no remote identity of its own.
+        var pending = confirmed with
+        {
+            State = IncomingArtifactCustodyState.Pending,
+            BoxFileId = null,
+            BoxVersionId = null
+        };
+
+        for (var round = 0; round < 25; round++)
+        {
+            await ResetToArrivedAsync(factory.Services, seeded);
+            using var start = new Barrier(2);
+            var confirming = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                await winner.RecordAsync(confirmed, CancellationToken.None);
+            });
+            var reconciling = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                await loser.RecordAsync(pending, CancellationToken.None);
+            });
+
+            await Task.WhenAll(confirming, reconciling);
+
+            var found = await winner.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+            Assert.NotNull(found);
+            Assert.True(
+                found.IsConfirmed,
+                $"round {round}: a confirmed retention was pulled back to '{found.State}'.");
+            Assert.Equal(seeded.DocumentId, found.DocumentId);
+            Assert.Equal(seeded.DocumentVersionId, found.DocumentVersionId);
+            Assert.Equal(
+                ("box-file-1", "box-version-1"),
+                await ReadIdentitiesAsync(factory.Services, seeded.DocumentVersionId));
+        }
+    }
+
+    /// <summary>
+    /// Puts the occurrence and the version it points at back to the state a
+    /// committed arrival starts in, so each round of the race is run against
+    /// an unanswered arrival rather than the previous round's answer.
+    /// </summary>
+    private static async Task ResetToArrivedAsync(
+        IServiceProvider services,
+        SeededSession seeded)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Set<PublicUploadOccurrenceEntity>()
+            .Where(item => item.Id == seeded.FirstOccurrenceId)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(item => item.CustodyState, EfPublicUploadRetentionStore.ArrivedCode)
+                .SetProperty(item => item.DocumentId, (Guid?)null)
+                .SetProperty(item => item.DocumentVersionId, (Guid?)null));
+        await context.Set<DocumentVersionEntity>()
+            .Where(item => item.Id == seeded.DocumentVersionId)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(item => item.BoxFileId, (string?)null)
+                .SetProperty(item => item.BoxVersionId, (string?)null));
+    }
+
+    private static async Task<string> ReadCustodyStateAsync(
+        IServiceProvider services,
+        Guid occurrenceId)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == occurrenceId)
+            .Select(item => item.CustodyState)
+            .SingleAsync();
+    }
+
     private static async Task<(string? BoxFileId, string? BoxVersionId)> ReadIdentitiesAsync(
         IServiceProvider services,
         Guid versionId)
@@ -206,9 +419,9 @@ public sealed class IncomingArtifactCustodyTests
         });
 
         // The port is addressed globally, so each occurrence's key is scoped by
-        // its session exactly as the accept path must scope it.
-        var firstKey = EfPublicUploadRetentionStore.ScopeOperationKey(sessionId, "upload-1");
-        var secondKey = EfPublicUploadRetentionStore.ScopeOperationKey(sessionId, "upload-2");
+        // its upload link exactly as the accept path scopes it.
+        var firstKey = EfPublicUploadRetentionStore.ScopeOperationKey(linkId, "upload-1");
+        var secondKey = EfPublicUploadRetentionStore.ScopeOperationKey(linkId, "upload-2");
         foreach (var (id, key) in new[] { (firstOccurrenceId, firstKey), (secondOccurrenceId, secondKey) })
         {
             context.Set<PublicUploadOccurrenceEntity>().Add(new()
@@ -223,8 +436,9 @@ public sealed class IncomingArtifactCustodyTests
                 MediaType = "application/pdf",
                 Size = 1024,
                 Sha256 = new string('b', 64),
-                CustodyState = EfPublicUploadRetentionStore.ToCode(
-                    IncomingArtifactCustodyState.Pending)
+                // The state an arrival actually starts in: committed, offered
+                // to nobody yet, and claimable exactly once.
+                CustodyState = EfPublicUploadRetentionStore.ArrivedCode
             });
         }
 

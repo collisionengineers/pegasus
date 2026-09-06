@@ -31,7 +31,37 @@ public enum RequestUploadDecision
     /// recoverable state of a long-lived link — the sender did nothing wrong
     /// and the case owner can reissue.
     /// </summary>
-    LimitsVersionMismatch
+    LimitsVersionMismatch,
+
+    /// <summary>
+    /// Custody did not take the bytes: it refused them, or the hand-over
+    /// neither confirmed nor refused. Nothing was kept, so this is never
+    /// rendered as a success, and the sender may send the same file again
+    /// under the same operation key — that key reconciles an uncertain
+    /// hand-over instead of offering the bytes twice.
+    /// </summary>
+    /// <remarks>
+    /// None of the other members says this. <see cref="Unavailable"/> means
+    /// the link itself is gone and hides the Case, <see cref="RateLimited"/>
+    /// would name a limit that was not reached, and
+    /// <see cref="InvalidFile"/> / <see cref="LimitExceeded"/> would blame a
+    /// file that policy had already accepted.
+    /// </remarks>
+    NotRetained,
+
+    /// <summary>
+    /// Custody took the bytes durably but has not confirmed them yet. The
+    /// submission stands and must not be sent again, so this is not a refusal;
+    /// it is also not <see cref="Accepted"/>, because nothing may tell the
+    /// sender their document is retained before custody has said it is.
+    /// </summary>
+    /// <remarks>
+    /// The store, not the policy, decides this: it is what a Pending custody
+    /// disposition becomes. Keeping it out of <see cref="Accepted"/> is what
+    /// stops the one surface that speaks to the sender making a claim about
+    /// custody that custody has not made.
+    /// </remarks>
+    AcceptedPending
 }
 
 public sealed class RequestUploadLimits
@@ -313,9 +343,146 @@ public sealed record UploadToRequestResult(
     Guid? ReceiptId,
     bool IsReplay);
 
+/// <summary>
+/// The operation key one public submission is addressed by, and the single
+/// server-issued variant of it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A sender's key is the identity of one deliberate submission of one exact
+/// file: the page mints one per load, re-presents an outstanding one rather
+/// than replacing it, and a retry under it is that same submission. A second,
+/// <em>different</em> file sent while the first is still outstanding is not
+/// that. The outstanding key still names the first file and has to keep naming
+/// it, so the second file is a new deliberate submission and needs a key of
+/// its own.
+/// </para>
+/// <para>
+/// That key is derived rather than minted at random, so a retry of the second
+/// file is still a retry: one root and one set of bytes always name the same
+/// submission. The digest is in the key only to tell one file from another
+/// under the same root - the root remains the intent identity, and nothing
+/// here substitutes a link-and-hash identity for it across two deliberate
+/// submissions (Stream A, PR 673 comment 5560737585).
+/// </para>
+/// <para>
+/// Derivation is always from the root, never from an already-derived key, so
+/// the shape is exactly two: a root, or a root and one digest. That bounds the
+/// key at <see cref="MaximumLength"/> however many different files are sent
+/// through one link.
+/// </para>
+/// </remarks>
+public static class RequestUploadOperationKey
+{
+    /// <summary>
+    /// What separates the root from the digest. Outside the hexadecimal both
+    /// halves are, so it can never be mistaken for part of either.
+    /// </summary>
+    private const char ContentSeparator = '~';
+
+    private const int RootLength = 32;
+    private const int DigestLength = 64;
+
+    /// <summary>
+    /// The longest key this shape produces: a root, the separator and one
+    /// digest. Every column that carries the key, scoped or not, holds it.
+    /// </summary>
+    public const int MaximumLength = RootLength + 1 + DigestLength;
+
+    /// <summary>
+    /// The key as it is stored and compared, or false when it is not a key
+    /// this server issued. Normalizing is a lowercasing and a trim only: a
+    /// sender that sends back something else entirely is refused rather than
+    /// corrected.
+    /// </summary>
+    public static bool TryNormalize(string? value, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var candidate = value.Trim().ToLowerInvariant();
+        var separator = candidate.IndexOf(ContentSeparator, StringComparison.Ordinal);
+        if (separator < 0)
+        {
+            if (!IsDigits(candidate, RootLength))
+            {
+                return false;
+            }
+
+            normalized = candidate;
+            return true;
+        }
+        if (!IsDigits(candidate.AsSpan(0, separator), RootLength)
+            || !IsDigits(candidate.AsSpan(separator + 1), DigestLength))
+        {
+            return false;
+        }
+
+        normalized = candidate;
+        return true;
+    }
+
+    /// <summary>
+    /// The intent identity a key belongs to: itself, or the root it was
+    /// derived from. Every derivation starts here, so no key ever carries two
+    /// digests.
+    /// </summary>
+    public static string Root(string operationKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        var separator = operationKey.IndexOf(ContentSeparator, StringComparison.Ordinal);
+        return separator < 0 ? operationKey : operationKey[..separator];
+    }
+
+    /// <summary>
+    /// The key one deliberate submission of these exact bytes is addressed by
+    /// under this root. The same bytes always give the same key, which is what
+    /// makes the second file's own retry a retry rather than a third file.
+    /// </summary>
+    public static string ForContent(string operationKey, string sha256)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
+        return $"{Root(operationKey)}{ContentSeparator}{sha256.Trim().ToLowerInvariant()}";
+    }
+
+    private static bool IsDigits(ReadOnlySpan<char> value, int length)
+    {
+        if (value.Length != length)
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            if (!char.IsAsciiHexDigitLower(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+/// <summary>
+/// Everything the public page may know. It carries no request reference, no
+/// expiry and no Case identity - only the two limits the sender needs, and the
+/// operation key their next submission must use.
+/// </summary>
+/// <param name="UnresolvedOperationKey">
+/// The key of a submission this link has already taken that has not resolved -
+/// arrived, uncertain, or accepted and not yet confirmed - or null when the
+/// link has nothing outstanding. While one stands, the page presents that key
+/// again instead of a new one, so a retry reconciles the submission custody
+/// may already hold rather than becoming a second one.
+/// </param>
 public sealed record RequestUploadPublicView(
     IReadOnlySet<string> AllowedMediaTypes,
-    long MaximumFileBytes);
+    long MaximumFileBytes,
+    string? UnresolvedOperationKey = null);
 
 /// <summary>
 /// The one submission session a public link may have. The window is fixed, not

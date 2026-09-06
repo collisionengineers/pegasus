@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Web.Pages.Uploads;
 
@@ -27,6 +28,39 @@ public sealed partial class RequestModel(
     public string? StatusMessage { get; private set; }
     private const string CompletionStatusKey = "RequestUploadCompletion";
 
+    /// <summary>
+    /// What a confirmed submission is allowed to say. Custody holds the exact
+    /// bytes under a known identity, so the claim is true.
+    /// </summary>
+    private const string RetainedCompletionMessage =
+        "Your document was received and retained securely.";
+
+    /// <summary>
+    /// What a durable but unconfirmed submission is allowed to say. It states
+    /// only what is true — the document arrived and is being stored — and makes
+    /// no claim about custody, because custody has not made one.
+    /// </summary>
+    /// <remarks>
+    /// This belongs beside the other sender-facing strings in
+    /// <c>OperatorLabels</c> and moves there with C08's labels batch; that file
+    /// is not this slice's to edit.
+    /// </remarks>
+    private const string StoringCompletionMessage =
+        "Your document was received and is being stored. You do not need to send it again.";
+
+    /// <summary>
+    /// What a refused submission is allowed to say. Custody declined this
+    /// submission outright, so it is not "try the same operation again" - the
+    /// next page load carries a new one - and it discloses nothing about the
+    /// Case, the link or the reason.
+    /// </summary>
+    /// <remarks>
+    /// Belongs beside the other sender-facing strings in <c>OperatorLabels</c>
+    /// and moves there with C08's labels batch, like the two above it.
+    /// </remarks>
+    private const string RefusedMessage =
+        "This document was not accepted. Reload the link and try again.";
+
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -36,7 +70,7 @@ public sealed partial class RequestModel(
             StatusMessage = completionStatus;
             if (UploadPolicy is not null)
             {
-                OperationKey = StaffPageModel.NewOperationKey();
+                OperationKey = NextOperationKey(UploadPolicy);
             }
             return Page();
         }
@@ -45,9 +79,19 @@ public sealed partial class RequestModel(
             return NotFound();
         }
 
-        OperationKey = StaffPageModel.NewOperationKey();
+        OperationKey = NextOperationKey(UploadPolicy);
         return Page();
     }
+
+    /// <summary>
+    /// The operation key this page hands the sender. A submission the link has
+    /// already taken and not resolved keeps its own key, so the sender's retry
+    /// is the same submission and reconciles; a new key is minted only when
+    /// the link has nothing outstanding, which is what makes it a new
+    /// deliberate submission rather than a duplicate of one custody may hold.
+    /// </summary>
+    private static string NextOperationKey(RequestUploadPublicView view) =>
+        view.UnresolvedOperationKey ?? StaffPageModel.NewOperationKey();
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
@@ -57,7 +101,11 @@ public sealed partial class RequestModel(
             return NotFound();
         }
 
-        if (!Guid.TryParseExact(OperationKey, "N", out var operationId))
+        // Either shape this server issues: the key minted for a new
+        // submission, or the derived key a second file sent while the first
+        // was outstanding was given. A key of any other shape is not one of
+        // ours and is refused rather than handed on.
+        if (!RequestUploadOperationKey.TryNormalize(OperationKey, out var operationKey))
         {
             ModelState.AddModelError(string.Empty, "The upload operation is invalid. Reload the link and try again.");
         }
@@ -101,7 +149,7 @@ public sealed partial class RequestModel(
                             ? "application/octet-stream"
                             : Upload.ContentType,
                         content.ToArray(),
-                        operationId.ToString("N")),
+                        operationKey),
                     attemptsInCurrentWindow),
                 cancellationToken);
 
@@ -109,7 +157,14 @@ public sealed partial class RequestModel(
             {
                 case RequestUploadDecision.Accepted:
                 case RequestUploadDecision.Replay:
-                    TempData[CompletionStatusKey] = "Your document was received and retained securely.";
+                    TempData[CompletionStatusKey] = RetainedCompletionMessage;
+                    return RedirectToPage("/Uploads/Request", new { token = Token });
+                case RequestUploadDecision.AcceptedPending:
+                    // Custody took the bytes durably but has not confirmed
+                    // them. The submission stands and must not be sent again,
+                    // and nothing here says "retained securely" before custody
+                    // has said so.
+                    TempData[CompletionStatusKey] = StoringCompletionMessage;
                     return RedirectToPage("/Uploads/Request", new { token = Token });
                 case RequestUploadDecision.RateLimited:
                     Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -130,6 +185,12 @@ public sealed partial class RequestModel(
                     // they need a new link from whoever sent this one.
                     ModelState.AddModelError(string.Empty, "This link is no longer valid. Ask for a new one.");
                     break;
+                case RequestUploadDecision.NotRetained:
+                    // Custody did not take the file, or did not say whether it
+                    // did. Nothing was kept and nothing about the Case is
+                    // disclosed; the same upload operation is the safe retry.
+                    ModelState.AddModelError(string.Empty, "The document could not be retained. Try again using the same upload operation.");
+                    break;
                 case RequestUploadDecision.Unavailable:
                     return NotFound();
                 default:
@@ -138,10 +199,28 @@ public sealed partial class RequestModel(
 
             return Page();
         }
+        // Custody declined the authority this link carries. That is a refusal
+        // of this submission and not an uncertainty: the arrival is already
+        // recorded refused, so the next page load carries a new operation key,
+        // and what the sender sees is a plain sentence rather than the 500 an
+        // unhandled authorization fault would put on a public page.
+        catch (StaffAuthorizationException exception)
+        {
+            LogPublicRequestUploadFailure(logger, exception);
+            ModelState.AddModelError(string.Empty, RefusedMessage);
+            return Page();
+        }
+        // The submission path now puts a remote custody adapter behind this
+        // call, so its transport faults belong here too: a dropped connection
+        // or a timed-out request is the plain retry message, never a 500 on a
+        // page a member of the public is looking at.
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or IOException
             or UnauthorizedAccessException
+            or HttpRequestException
+            or TimeoutException
+            or System.Net.Sockets.SocketException
             or Microsoft.EntityFrameworkCore.DbUpdateException)
         {
             LogPublicRequestUploadFailure(logger, exception);
