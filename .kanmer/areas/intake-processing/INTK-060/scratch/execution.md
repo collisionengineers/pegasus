@@ -232,3 +232,7 @@ Both blockers, three majors and 7/10 minors fixed (R-6/R-11/R-15 dispositioned o
 ## Wave 20 (C06 at `0be584782`): host DI fixed, two form POSTs still 200
 
 Build/core 61/host 32/browser 2/architecture PASS; integration 34/36 — the EvaSubmission page's `UpdateEva` (shared A/B test, previously passing) and `UpdateLocation` POSTs both return `Page()` instead of 302 after round 2's ModelState change. Reviewer asked to name the branch from source; round 3 queued (editor slots: C05 r2, C07 caller correction) and will make both tests print the validation summary on a non-redirect.
+
+## G14 merged — C head `fa564c0a7`
+
+`2a20adbed` (approved-mailbox StaffSend enum, Generation, VerifiedEncodedMessageSizeLimit) merged `--no-ff` as the identical object; build 0/0; pushed. Propagated to c06 (idle). c05/c07b receive it after their active correction rounds; c08 with its correction round.

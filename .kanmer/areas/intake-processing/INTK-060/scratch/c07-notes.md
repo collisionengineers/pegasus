@@ -351,3 +351,178 @@ constructor parameter, so no change is needed where `AddScoped<EfDocumentRequest
 already stands. Until those three registrations land, every public submission
 returns `Unavailable` / 404 and writes nothing — proved by
 `PublicUploadRetentionWebTests.WithoutTheRetentionCommandTheSubmissionRefusesAndWritesNothing`.
+
+## C07b correction round 1 — review dispositions (branch `c07-retention-caller`)
+
+Independent review at `6c8b945bd` returned needs-changes: four majors, four
+minors, three notes. All four majors are fixed, all four minors are fixed, and
+the three notes are dispositioned below. Commits `05d9a0e49`, `dbdfab107`,
+`6490623c3`.
+
+### The shape of the fix
+
+The review found one defect wearing four faces: **the receipt was load-bearing
+for three things it cannot carry**. It was the replay guard for the link's
+accounting (R-1), the thing that decided whether a Pending could ever be asked
+about again (R-2), and — with a thrown hand-over recorded as nothing at all
+(R-3) — the only durable trace of an arrival. The corrections move each job to
+the row that can actually hold it:
+
+1. **The arrival has its own pre-custody state.** A `PublicUploadOccurrenceEntity`
+   committed before the hand-over now carries `EfPublicUploadRetentionStore.ArrivedCode`
+   (`"arrived"`), not `"pending"`. That single change is what makes the rest
+   possible: "we have not asked yet" and "custody answered Pending" were the
+   same stored value, and no rule could tell them apart.
+   `EfPublicUploadRetentionStore.FindAsync` reports **no retention** for an
+   `arrived` row, so the bytes are handed over exactly as before.
+2. **The link's accepted totals are derived, not incremented** (R-1).
+   `ApplyAcceptedTotalsAsync` sets `AcceptedFileCount`/`AcceptedByteCount` from
+   the session's occurrences in `confirmed` or `pending`, inside the accept
+   transaction, with the link row read `WITH (UPDLOCK, HOLDLOCK)` first (the
+   `EfTriageStore.AllocateSequenceAsync` idiom). An occurrence therefore counts
+   exactly once however many times its key arrives, whether or not a receipt
+   exists — which is precisely the branch the review named. A replay that
+   changes nothing bumps nothing: no `link.Version`, no workflow completion.
+3. **The receipt is a confirmed file's record only** (R-2). Writing one for a
+   Pending refused every later submission of that key as `Replay`, so nothing
+   could ever reach the command that owns Pending recovery.
+4. **Pending is reconciled, not repeated** (R-2). `RetainIncomingArtifact` now
+   sends `Pending` through `ReconcileAsync` exactly as it already sent
+   `Unknown`: `ICaseArtifactCustodyStatus` under the same operation key,
+   Confirmed → identities recorded, Failed → failure recorded, still Pending →
+   stays Pending. The bytes are never offered a second time for a Pending or
+   Unknown occurrence. Only `Failed` — custody said no, and said so — is
+   offered again. A reconciliation that comes back anything but Confirmed now
+   also carries no remote identity, the same rule `Project` already applied to
+   a first hand-over.
+5. **A thrown hand-over is recorded `unknown`** (R-3), from inside the command,
+   before returning — so the retry asks instead of re-offering bytes custody
+   may hold. "Uncertain" is defined narrowly (`IsUncertainHandOver`:
+   `HttpRequestException` or `IntakeExceptionPolicy.IsTransientFailure`,
+   recursing through inner exceptions), so an authorization refusal or a
+   malformed request still surfaces rather than being buried.
+6. **Pending has its own sentence** (R-4). A Pending disposition returns the new
+   `RequestUploadDecision.AcceptedPending`, and `Request.cshtml.cs` renders
+   "Your document was received and is being stored. You do not need to send it
+   again." Nothing says "retained securely" before custody has said it.
+
+### HANDOFF for C08 — the Pending completion sentence moves to `OperatorLabels`
+
+`RequestModel.StoringCompletionMessage` and `RequestModel.RetainedCompletionMessage`
+are `private const` in `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs`.
+`src/Pegasus.Web/Presentation/OperatorLabels.cs` is C08-owned and was **not**
+edited. Both belong beside the other sender-facing strings and move there with
+C08's labels batch; the doc comment on `StoringCompletionMessage` says so.
+
+### ASSUMPTION 5 corrected (C07b implementer, correction round 1)
+
+The review is right that ASSUMPTION 5 was honest about the foreign key and not
+honest about what else the receipt carried. The corrected statement: the receipt
+is written **only for a confirmed hand-over**, from the document occurrence
+custody created for that version; when an adapter creates none, no receipt is
+written and `UploadToRequestResult.ReceiptId` is null. Replay safety and the
+link's accounting rest on the `PublicUploadOccurrenceEntity` alone — which is
+now true of the accounting as well as of custody, because the totals are derived
+from those rows. `EfOperationsStore`'s `lastReceiptAtUtc` staff projection is
+still the only outside reader, and it now shows the last *confirmed* upload
+rather than the last accepted one, which is the more honest reading of the
+column.
+
+### ASSUMPTION 6 stands, with its cost stated plainly
+
+A Pending still consumes one file and its bytes from the link's totals. A later
+Failed reconciliation does not hand the allowance back at the moment of the
+refusal: the totals are recomputed only when an arrival is accepted, and a
+refusal is not one, so they converge at the next accepted arrival. This is
+asserted, not glossed, in
+`APendingArrivalIsReconciledToFailedByTheNextArrivalWithTheSameKey`. The
+alternative — recomputing on the refusal path too — is a second transaction and
+a second lock on a link the sender has just been told to retry, and buys
+nothing the next arrival does not.
+
+### Minor dispositions
+
+**C07B-R-5 (fixed, differently from the suggestion).** The second transaction
+does not re-assert `ArchivedCaseGuard.RequireMutable` as a *refusal*, because
+custody already holds the bytes and refusing to record them would lose a durable
+custody fact. It asks instead: `ApplyAcceptedTotalsAsync` calls
+`CaseMutationGuard.Complete(workflow)` only when `IsMutable(workflow)` is true.
+So a Case archived or moved terminal during the hand-over still gets its arrival
+recorded, and no longer has its workflow version bumped and its edit lease
+cleared by an upload it would now refuse. The reason is in the method's remarks.
+
+**C07B-R-6 (fixed).** `Request.cshtml.cs`'s recoverable filter gained
+`HttpRequestException`, `TimeoutException` and `System.Net.Sockets.SocketException`,
+with a comment saying why the list grew. Most transport faults no longer reach
+it at all — R-3 turns them into a typed `NotRetained` — but the ones that are not
+uncertain (a fault after custody answered, say) still land on the plain retry
+message rather than a 500 on a page a member of the public is looking at.
+
+**C07B-R-7 (fixed).** `wave1/c07b-report.md` now carries a `## Simplification
+pass` section, covering both the original slice and this correction round, with
+the four lenses and honest dispositions.
+
+**C07B-R-8 (fixed).** The `Refuses` helper is now generic and asserts by exact
+type: `StaffAuthorizationException` for every wrong authority,
+`InvalidOperationException` for holding — so the holding case is proved to be
+refused *for being holding* rather than for the validation the fake receipt was
+injected to get past. A fifth link (`PUBUP5`) is seeded `Exhausted` with no
+revocation, so the double's `Status != Active` branch is reached on its own.
+
+### Note dispositions
+
+**C07B-R-9 (accepted, unchanged).** `EfPublicUploadRetentionStore.FindAsync` is
+still a global `SingleOrDefaultAsync` on `OperationKey` against an index of
+`(SessionId, OperationKey)`, so every hand-over scans `PublicUploadOccurrences`.
+The correction round makes it *more* used, not less — a Pending or Unknown
+retry now reaches it too — but the shape of the fix is an index on
+`OperationKey`, which is an A-owned migration and outside C's file scope. The
+table is empty-to-small in v1 (one row per file per public link) and the port is
+still unregistered, so this is a cost that does not exist yet. Recorded for A
+alongside the worker-role grant question rather than worked around here.
+
+**C07B-R-10 (accepted, unchanged).** `DocumentVersionEntity.BoxFileId`/
+`BoxVersionId` still has two writers: A04's adapter and
+`EfPublicUploadRetentionStore.RecordAsync`. The write is idempotent
+(`?? version.BoxFileId`, and only on `Confirmed`), and the correction round adds
+no third writer — a reconciliation routes through the same `RecordAsync`. The
+clean shape is for the adapter to own the column outright and for the retention
+store to record only the occurrence, which is an A04 decision about what its
+`GetAsync` guarantees; the C07b test double already behaves that way (its status
+port moves the version out of Pending itself), so the seam is proved to work
+when A04 owns it. No behaviour defect at this head, and none introduced.
+
+**C07B-R-11 (no action, correctly rejected).** The controller's compile-only
+accommodation `6c8b945bd` to `DocumentCustodyDurabilityTests.cs` stands
+untouched. That file is A-owned by explicit user ruling and this correction
+round did not open it: `git log --oneline 6c8b945bd..HEAD -- tests/Pegasus.IntegrationTests/DocumentCustodyDurabilityTests.cs`
+is empty.
+
+### RESIDUAL (C07B-R-3a) — an Unknown that named no document cannot be reconciled
+
+- [ ] A thrown hand-over records `unknown` with no `DocumentId`/`DocumentVersionId`,
+  because custody threw before naming them. `ICaseArtifactCustodyStatus.GetAsync`
+  is addressed by `(caseId, documentId, versionId)`, so there is nothing to ask
+  with, and the retention honestly stays Unknown for ever: the sender is told to
+  retry and the retry stays refused. This is the safe direction — the bytes are
+  never offered twice — but it is a dead end for that one file.
+
+The fix is a status read addressed by the operation key, which is A's frozen
+`CustodyContracts.cs` and not this slice's to change. Recorded rather than
+worked around: inventing a second hand-over here is exactly the duplicate the
+command exists to prevent. Proved as it stands in
+`AThrownHandOverIsRecordedUnknownAndTheNextArrivalNeverRepeatsIt` and in
+`RetainIncomingArtifactTests.AThrownHandOverIsRecordedUncertainAndTheBytesAreNeverOfferedAgain`.
+
+### Still open for A (unchanged from the first round)
+
+- [ ] `[pegasus_worker_runtime_role]` holds nothing on `PublicUploadSessions` or
+  `PublicUploadOccurrences`. It needs `SELECT,INSERT,UPDATE` on both if and only
+  if the reconciliation sweep runs from the Worker. The Web accept path's grants
+  are complete (C07-R-1 closed).
+- [ ] Host registration: `RetainIncomingArtifact`,
+  `IIncomingArtifactRetentionStore → EfPublicUploadRetentionStore`, and
+  **both** `ICaseArtifactCustody` and `ICaseArtifactCustodyStatus` resolving to
+  A04's adapter. The status port is now load-bearing for Pending as well as
+  Unknown: without it a Pending arrival stays Pending for ever, which is the
+  defect R-2 named in a different costume.

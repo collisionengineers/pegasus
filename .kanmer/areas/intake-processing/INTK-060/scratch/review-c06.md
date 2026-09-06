@@ -385,3 +385,346 @@ rather than as a new defect.
 - Assumptions 1-7 are all recorded on `scratch/c06-notes`, each with a reason
   and rejected alternatives, and none of them compounds into a second undecided
   dependent decision.
+
+---
+verdict: needs-changes
+supersedes: C06 review attestation — head 556a26b1a
+ticket: INTK-060
+slice: C06 — current principal, organization and address directory
+head: 8384e28bb
+reviewed_in_worktree_at: 0be584782 (merge; C06 files byte-identical to 8384e28bb)
+correction_diff: git diff c94e3dddc..8384e28bb (8 commits: 6614b8de9, 010f8131b,
+  b5b1a2de3, d2440dcae, 2192f1b49, db953ffca, 0d3d76e70, 8384e28bb)
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c06
+branch: c06-directory
+review_round: 2 (targeted re-review of C06-R-1…R-15)
+independent: true
+ownership: PASS
+frozen_signatures: PASS
+stop_conditions: none tripped
+lanes_seen:
+  - {lane: 1-build, exit: 0, result: PASS, summary: "Build succeeded. 0 Warning(s), 0 Error(s)"}
+  - {lane: 2-core, exit: 0, result: PASS, summary: "Failed 0, Passed 61, Total 61"}
+  - {lane: 3-integration, exit: 1, result: FAIL, summary: "Failed 2, Passed 34, Total 36"}
+  - {lane: 4-host, exit: 0, result: PASS, summary: "Failed 0, Passed 32, Total 32"}
+  - {lane: 5-browser, exit: 0, result: PASS, summary: "Failed 0, Passed 2, Total 2"}
+  - {lane: 6-architecture, exit: 0, result: PASS, summary: "Failed 0, Passed 100, Total 100"}
+findings: 1 blocker, 0 major, 4 minor (open); 12 of 15 prior findings closed
+---
+
+# C06 review attestation (round 2, superseding) — head 8384e28bb
+
+Verdict is `needs-changes`. Twelve of the fifteen prior findings are genuinely
+closed and the three deferrals are acceptable as recorded. But wave 20 lane 3
+still fails 2 of 36, and both failures are the *same* defect C06-R-2 named: the
+blocker was only half fixed. The residual root cause is identified below with
+file and line so round 3 is not blind. Nothing else in the correction round
+reads unsound; the four other open findings are minor.
+
+## Ownership — PASS
+
+The eight commits touch exactly 14 files, every one inside "### C06 files" or a
+C06 test file already in the map: Core `Cases/ClaimSourceAdministration.cs`,
+`Cases/OrganizationDirectory.cs`; Infrastructure `EfOrganizationAdministration.cs`,
+`EfOrganizationDirectory.cs`, `InspectionAddressChoicesQueries.cs`; Web
+`Administration/ClaimSources/Index.cshtml(.cs)`,
+`Administration/Principals/EvaSubmission.cshtml(.cs)`; tests
+`Pegasus.Core.Tests/Cases/OrganizationAdministrationTests.cs`, Integration
+`ClaimSourceAdministrationTests.cs`, `InspectionAddressSuggestionTests.cs`,
+`OrganizationAdministrationWebTests.cs`, `OrganizationDirectoryWebTests.cs`.
+
+Verified by explicit probe that no A-owned path is in the range:
+`DependencyInjection.cs`, `Migrations/*`, `*ModelSnapshot*`,
+`V1FoundationEntities.cs`, `V1FoundationModelConfiguration.cs`, any `.csproj`,
+`Pegasus.slnx` and `Program.cs` are all untouched. No package change;
+`.worktrees/kanmer` and `kanmer-board` untouched.
+
+## Frozen signatures — PASS
+
+`OrganizationDirectory.cs` gains only `InspectionLocationMatchPolicy.IsExactMatch`;
+`OrganizationDirectoryRecord`, `OrganizationDirectoryQuery` and
+`IOrganizationDirectoryQueries` are byte-identical. `ClaimSourceAdministration.cs`
+gains only a doc comment above `RequireFound`; `ClaimSourceRecord`,
+`IClaimSourceAdministration` and `IClaimSourceQueries` are untouched.
+`Address/InspectionAddressResolution.cs` is not modified at all. The 20-row cap
+still lives once, in `MaximumResultLimit`, clamped by `ClampLimit`.
+
+## Prior findings — per-finding disposition
+
+| Finding | Claimed | Verified | Verdict |
+|---|---|---|---|
+| C06-R-1 | Fixed `6614b8de9` | Yes | **CLOSED** |
+| C06-R-2 | Fixed `6614b8de9` | **No — half fixed** | **OPEN → C06-R-16** |
+| C06-R-3 | Fixed `010f8131b` | Yes | **CLOSED** |
+| C06-R-4 | Fixed `2192f1b49` | Yes | **CLOSED** |
+| C06-R-5 | Fixed `b5b1a2de3` | Yes, with a new narrowing | **CLOSED**, see C06-R-17 |
+| C06-R-6 | Deferred | Deferral sound | **ACCEPTED (deferred)** |
+| C06-R-7 | Fixed `db953ffca` | Yes | **CLOSED** |
+| C06-R-8 | Partly fixed `db953ffca` | Repairer deferral sound; Storage not | **PARTIAL → C06-R-19** |
+| C06-R-9 | Fixed `b5b1a2de3` | Yes | **CLOSED** |
+| C06-R-10 | Fixed `8384e28bb` | Yes | **CLOSED** |
+| C06-R-11 | Deferred + handoff | Handoff recorded verbatim | **ACCEPTED (deferred)** |
+| C06-R-12 | Documented `d2440dcae` | Yes | **CLOSED** |
+| C06-R-13 | Fixed `0d3d76e70` | Yes | **CLOSED** |
+| C06-R-14 | Fixed `d2440dcae` | Yes, with a new exposure | **CLOSED**, see C06-R-18 |
+| C06-R-15 | Carried | Acknowledged | **ACCEPTED (carried)** |
+
+### What was checked, not just read
+
+- **C06-R-1 (closed).** The third constructor parameter is now
+  `IUpdatePrincipalDefaultInspectionLocation? … = null` (`EvaSubmission.cshtml.cs:42`);
+  the view wraps the default-location panel in `@if (Model.DefaultLocationAvailable)`;
+  `OnPostUpdateLocationAsync` answers `NotFound()` first when the dependency is
+  absent (`:174-183`) — a 404, never a faked save. The bridge proof really is a
+  bare host: `EvaSubmissionPageRendersWithoutDefaultLocationFormWhenNoC06RegistrationsArePresent`
+  uses a plain `IntakeWebApplicationFactory` with no `WithC06Adapters`, and
+  `DependencyInjection.cs` at this head registers exactly one C06-adjacent line
+  (`IInspectionAddressChoicesQueries`, `:346`) — `IUpdatePrincipalDefaultInspectionLocation`
+  is genuinely unregistered, so the null path is exercised for real. It asserts
+  200, the manual-EVA panel present, and both "Default inspection location" and
+  `name="LocationOperationKey"` absent. Lane 3's `OrganizationAdministrationWebTests`
+  failure has moved from line 107 (the GET) to line 135 (a POST) — independent
+  confirmation the 500 is gone.
+- **C06-R-3 (closed).** `EfOrganizationAdministration.cs:473-480`: the allocated
+  count is hoisted above the mutation and `var before = ToSummary(entity, allocatedCaseCount);`
+  is taken before the first assignment. `ToSummary` materialises a new
+  `PrincipalAdministrationSummary` from the entity's current field values
+  (`:790-812`), so `before` is a real prior-fact snapshot, not a live view.
+  `AddHistory(..., before, result)` now matches both sibling commands. Reusing one
+  count for both snapshots is correct — this command touches only `Default*` and
+  `Version`.
+- **C06-R-4 (closed).** Five Core tests cover the
+  `Normalize(UpdatePrincipalDefaultInspectionLocationRequest)` overload (IBA clears
+  label/address/postcode and the whole source triple; a physical address is
+  trimmed; a physical choice without an address throws; a blank reason throws; an
+  undefined `Kind` throws `ArgumentOutOfRangeException`), plus two command tests
+  asserting the non-Administrator denial leaves `DefaultInspectionLocationUpdates`
+  empty and that the store receives normalized values. The handoff's named output
+  is asserted through the read model:
+  `QdosPrincipalDefaultsToImageBasedAssessmentOnThePrincipalsIndex` slices the
+  seeded QDOS `<tr>` out of the rendered Principals index and asserts it says
+  "Image Based Assessment" — the right level, since that is exactly the
+  null-columns ambiguity the prior finding named.
+- **C06-R-5 (closed).** `InspectionAddressChoicesQueries.cs:157-173`: the prefix
+  predicate is in the `Where`, `OrderByDescending(field => field.ConfirmedAtUtc)`
+  precedes `Take(500)`, and the exact normalized comparison in `AddIfMatches` still
+  runs afterwards. Union and dedupe rules intact and unchanged —
+  `DistinctBy(choice => choice.Id)`, then exact-first, normalized name, normalized
+  postcode, id, then `Take(MaximumResultLimit)` (`:212-222`). One new narrowing is
+  C06-R-17.
+- **C06-R-9 (closed).** The `nameQualifies` parameter is gone from `AddIfMatches`
+  and all four call sites; the prefix test is unconditional (`:251-256`).
+- **C06-R-10 (closed).** `InspectionLocationMatchPolicy.IsExactMatch` is the one
+  owner (`OrganizationDirectory.cs:47-63`), called by both adapters, and the same
+  predicate is now the first `OrderByDescending` key in SQL, before
+  `Take(limit * 4)` (`EfOrganizationDirectory.cs:55-61`). The single inline
+  repetition is in the SQL `ORDER BY`, documented, and safe in the direction that
+  matters — the database's case-insensitive collation makes the SQL predicate a
+  superset of the ordinal in-memory one, so no ordinal-exact row can be cut.
+  Asserted end-to-end through `IInspectionLocationChoices` by
+  `SearchRanksAnExactMatchBeforeAPrefixMatchAndCarriesTheSourceRecordIdentity`,
+  which also pins item 5's `SourceRecordId`/`SourceVersion` for the directory
+  fallback (`SourceRecordId ?? Id`) and the claimant identity.
+- **C06-R-7 (closed).** `SearchWithNoDirectoryStillReturnsTheOtherSourcesAndInventsNoDirectoryRow`
+  constructs `new InspectionAddressChoicesQueries(contextFactory)` with no directory
+  and asserts a claimant row, a prior-principal row, and no `Directory` row.
+- **C06-R-13 (closed).** `EditRefusesAStalePostedExpectedVersion` genuinely
+  reproduces a stale write: it keeps the version the *first* GET rendered, advances
+  the record through a real edit, re-GETs only for a fresh antiforgery token and
+  operation key, posts the stale version, and asserts 200 with "changed after this
+  page was loaded" plus a SQL check that the first edit's `Notes` and `Version = 1`
+  survived.
+- **C06-R-14 (closed).** `NewClaimSourceId` is minted alongside `OperationKey`,
+  bound as a hidden field (`Index.cshtml:80`), passed to `SaveAsync` in place of
+  `Guid.NewGuid()` (`Index.cshtml.cs:88`) and re-minted on redisplay. A replayed
+  POST now carries the same `Id`, so the request hash matches and
+  `FindReceiptAsync`/`ReadReplay` returns the original create. New exposure is
+  C06-R-18.
+
+### Deferrals — judged acceptable, and what each hands to whom
+
+- **C06-R-6 (accepted).** The command, policy and store carry the full source
+  triple correctly and a hardcoded `"manual"` is an honest claim, never a faked
+  source link — a missing feature, not a defect, and no file for a suggestion
+  picker is in this ticket's map. **Hands to:** a follow-up ticket owning the
+  settings-page suggestion picker wired to `IInspectionLocationChoices` /
+  `IOrganizationDirectoryQueries`. **Carry forward on acceptance:** the plan's
+  expected output "reasoned repairer override … remains source-linked" is *not*
+  demonstrable end-to-end in this slice and must not be signed off as delivered.
+- **C06-R-11 (accepted).** `CaseContracts.cs` is B-owned and outside "### C06
+  files"; the field is dead, not dangerous. The handoff is recorded verbatim on
+  `scratch/c06-notes` and in the report's DI/handoff section. **Hands to:** B,
+  after C06 lands — remove `EvaAutomaticSubmission` from `CreatePrincipalRequest`
+  and `UpdatePrincipalEvaSubmissionRequest`.
+- **C06-R-15 (accepted, carried).** Unchanged and honestly acknowledged; it is
+  assumption 4, not a new defect. **Hands to:** a new ticket for an
+  Administrator-maintained directory writer owning `NormalizedName`/
+  `NormalizedPostcode` production values. **Consequence to carry:** the Directory
+  source — including C06-R-10's ranking fix — contributes nothing in production
+  until that writer exists, so it is proved by tests only.
+
+## Open findings
+
+### C06-R-16 — BLOCKER — C06-R-2 is only half fixed: the two OperationKey properties still implicitly-Required each other
+
+`src/Pegasus.Web/Pages/Administration/Principals/EvaSubmission.cshtml.cs:66`
+(`EvaOperationKey`) and `:89` (`LocationOperationKey`)
+
+Wave 20 lane 3, both failures, both `Expected: Found, Actual: OK` — a 200 from
+`return Page()` where a 302 was due:
+`OrganizationAdministrationWebTests.AdministratorRoutesAreDiscoverableAndPostThroughCoreEfCallers:135`
+(the `?handler=UpdateEva` POST) and
+`OrganizationDirectoryWebTests.PrincipalSettingsPageSavesDefaultLocationAndManualEvaIndependently:89`
+(the `?handler=UpdateLocation` POST).
+
+**Root cause.** ASSUMPTION 9 on `scratch/c06-notes` fixed `EvaReason` and
+`LocationReason` on a premise that is false for the other half of the pair:
+"`EvaOperationKey`/`LocationOperationKey` were NOT affected — their defaults are a
+freshly-generated non-empty GUID (`NewOperationKey()`), which passes the
+implicit-required check even when unposted."
+
+MVC does not validate the property's current value. In
+`ParameterBinder.EnforceBindRequiredAndValidate`, when a top-level bound property
+produced no binding result and its `ModelMetadata.IsRequired` is true, the
+validator runs against `model: null` — the property initializer never enters the
+picture. `EvaOperationKey` and `LocationOperationKey` are non-nullable `string`
+`[BindProperty]` properties, so with `<Nullable>enable</Nullable>` and no
+`SuppressImplicitRequiredAttributeForNonNullableReferenceTypes` in `Program.cs`
+(`:306-312` adds no such option) each carries an inferred `RequiredAttribute` and
+`IsRequired = true`. Each form in `EvaSubmission.cshtml` posts only its own key
+(`:32` renders `EvaOperationKey`, `:69` renders `LocationOperationKey`), so on
+every POST the *other* key is unbound, validates as null, and adds a "field is
+required" error. `ModelState.IsValid` is therefore false in both handlers (`:127`,
+`:198`) before either handler's own checks matter, and both fall through to
+`Page()`.
+
+Symmetric, and exactly what lane 3 shows: `UpdateEva` fails on the absent
+`LocationOperationKey`, `UpdateLocation` on the absent `EvaOperationKey`. It is
+not a regression introduced by `6614b8de9`; `6614b8de9` fixed the GET 500
+(C06-R-1) and thereby let the second test reach a POST that would always have
+failed. Not DI, not the store, not `ExpectedVersion`.
+
+**Ruled out, with reasons** (so round 3 does not re-litigate them):
+
+- *The "form has expired" operation-key parse* (`:122`, `:191`). Each handler
+  checks only its own key, and the tests post the exact `Guid.ToString("N")` value
+  the page rendered, which `IsOperationKeyValid` accepts
+  (`AdministrationPageModel.cs:5`).
+- *`[StringLength]` on the nullable reasons.* Both permit null and the posted
+  reasons are far under `MaximumReasonLength`.
+- *An `ExpectedVersion` mismatch surfacing as the mutation-error branch, or the
+  C06-R-3 change bumping the version before the compare.* In both failing tests
+  the principal is freshly created (version 0) and the failing POST is its first
+  mutation, so there is no drift. C06-R-3 moved a `COUNT` query and added a
+  `before` snapshot; it did not touch
+  `entity.Version = changed ? checked(entity.Version + 1) : entity.Version`.
+- *Non-nullable value types.* `EvaManualSubmission` and
+  `LocationIsImageBasedAssessment` are `bool` and are also unposted by the other
+  form, but the inferred `RequiredAttribute` is added for non-nullable *reference*
+  types only. The repo proves this in place:
+  `AutomationAdministrationWebTests.StoppingAutomationDisablesTheClientRegistrationThroughTheReasonDialog:79-88`
+  posts `?handler=SetEnabled` with only `TargetEnabled`, `OperationKey` and
+  `Reason` — omitting the non-nullable `bool SendToAiEnabled` — and gets its 302.
+  That page's design is the tell: its only two non-nullable reference-typed bound
+  properties are `Reason` and `OperationKey`, and all three of its forms post both.
+
+**Fix (pick one, and keep the keys per form).** Idempotency must stay per form —
+the two keys must remain two properties so neither handler can consume the
+other's key, which the current view already guarantees.
+
+1. Declare both `string?` (keeping the `= NewOperationKey()` initializers so the
+   GET still renders a fresh key), and widen
+   `AdministrationPageModel.IsOperationKeyValid` to `string?` so a null key falls
+   into the existing "form has expired" branch on its own handler. Smallest diff,
+   consistent with how `EvaReason`/`LocationReason` were just fixed.
+2. `ModelState.Remove(nameof(LocationOperationKey))` at the top of
+   `OnPostUpdateEvaAsync` and `ModelState.Remove(nameof(EvaOperationKey))` at the
+   top of `OnPostUpdateLocationAsync` — the repo's existing idiom
+   (`Roles/Index.cshtml.cs:121`, `Access/Index.cshtml.cs:88`,
+   `Accounts/Edit.cshtml.cs:70`).
+3. The `Mailboxes.cshtml.cs` shape ASSUMPTION 9 already identified: one nullable
+   complex `[BindProperty]` per form. Largest diff; the most durable.
+
+Whichever is chosen, sweep *every* non-nullable reference-typed `[BindProperty]`
+on this page model, not just the two named here — that is the general rule this
+page has now broken twice.
+
+### C06-R-17 — MINOR — the new prior-location SQL predicate is narrower than the normalized rule, not coarser
+
+`src/Pegasus.Infrastructure/Persistence/InspectionAddressChoicesQueries.cs:147-163`
+
+The C06-R-5 fix pushes `field.Value.StartsWith(rawPrefix)` into SQL, where
+`rawPrefix` is `query.Prefix.Trim()`. The comment calls it "a coarse … prefix
+predicate … AddIfMatches below still applies the exact normalized comparison as
+the real filter". It is coarser only on case. On whitespace it is *narrower* than
+the rule it pre-filters for: `NormalizeNamePrefix` collapses every interior
+whitespace run to one space and trims (`OrganizationDirectory.cs:31-34`,
+`:69-97`), so a stored `"12  High Street"` normalizes to `"12 HIGH STREET"` and
+prefix-matches a query of `"12 High"` — but `"12  High Street".StartsWith("12 High")`
+is false in SQL, so the row is filtered out before `AddIfMatches` ever sees it.
+The same holds symmetrically for a query with irregular whitespace, and for a
+stored value with leading whitespace or a tab. Free-text case addresses are
+exactly where such values occur.
+
+Fix: normalize the stored value in the predicate the same way (a computed or
+persisted normalized column is the clean answer, and would also serve the
+directory's `NormalizedName`), or widen the SQL predicate to the
+whitespace-insensitive form, or state honestly in the comment that irregular
+whitespace is not matched and record it as a known limit.
+
+### C06-R-18 — MINOR — the client now supplies the new claim source's id, and a version-0 row can be overwritten by the create form
+
+`src/Pegasus.Web/Pages/Administration/ClaimSources/Index.cshtml.cs:54, :88` and
+`Index.cshtml:80`
+
+C06-R-14's fix is correct for replay, but it moves the new row's identity into a
+client-controlled hidden field, and `SaveAsync` is a single create-or-update
+(assumption 1). `OnPostCreateAsync` always sends `ExpectedVersion: 0`. A claim
+source created and never edited is still at `Version = 0`
+(`EfClaimSourceAdministration.cs:94`), so a create POST carrying that row's id
+passes `RequireCurrentVersion(0, 0)`, takes the *update* branch, and silently
+overwrites the existing record while the page reports a create. No privilege
+boundary is crossed — the page is Administrator-only and antiforgery-protected,
+and an Administrator can already edit claim sources — so this is data integrity
+and audit clarity, not escalation.
+
+Fix: have `OnPostCreateAsync` reject a posted id that already exists (or pass a
+create-only intent), or derive the id from the operation key so it is not
+caller-chosen, or keep the hidden field and add a test that a create POST naming
+an existing version-0 id is refused.
+
+### C06-R-19 — MINOR — Storage-source coverage is still missing, and only the Repairer half of the deferral is justified
+
+`tests/Pegasus.IntegrationTests/InspectionAddressSuggestionTests.cs`;
+`src/Pegasus.Infrastructure/Persistence/InspectionAddressChoicesQueries.cs:134-146`
+
+C06-R-8 asked for a repairer *and* a storage address in the union test. The
+correction added the ordering/source-identity test and deferred "repairer" with a
+sound reason — `EfCaseDataStore` never populates
+`CaseDataProjection.Inspection.RepairerAddress`, so there is no path to seed it.
+That reason does not extend to Storage: `EfCaseDataStore` does write
+`CaseDataFieldNames.StorageLocation` (`:366`) and maps it back (`:450`, `:646`),
+so `InspectionLocationSourceKind.Storage` is seedable and remains the one union
+source with no coverage at all. Fix: seed a storage location in the union test and
+assert its row, source kind and source triple; narrow the deferral note to
+Repairer only.
+
+### C06-R-20 — MINOR — the two failing tests still assert only a status code
+
+`tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs:135`,
+`tests/Pegasus.IntegrationTests/OrganizationDirectoryWebTests.cs:89`
+
+C06-R-2 asked for the redisplayed validation text to be asserted so the next
+failure names its own cause. It was not done, and the consequence is exactly what
+this round cost: two runs of a 56-second lane whose entire message was
+`Expected: Found, Actual: OK`. Fix: on a non-redirect, read the response body and
+include the `validation-summary` / `status-card--error` text in the assertion
+message (or assert it directly), for both the EVA and the Location POST.
+
+## Confirmed unchanged from round 1
+
+Stop conditions still none tripped: no import path or spreadsheet seed assumption,
+no merged role types, no second principal catalog, no external address provider or
+new package, and automatic EVA is not reintroduced anywhere on C's surfaces. The
+frozen seeded-principal assertions and the seeded-estate fixes are untouched by
+these eight commits.
