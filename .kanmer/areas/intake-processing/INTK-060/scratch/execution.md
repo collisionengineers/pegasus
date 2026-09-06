@@ -93,3 +93,7 @@ Items 1,2,3,5,7,8 delivered; item 4 dropped (A07 hunk branch instead); item 6 pa
 - A07 hunk branch (`2855d4a97`): build PASS, integration 38/38 (+5 corpus skips), Core 7/9 — the two day/week boundary tests lost their source; handed to A for G11.
 - C01 (`abfc219aa`): build PASS, Core 108/108, Architecture 100/100, integration 168/173: 2 × `UnidentifiedReconciliationTests` fail in A-owned `EfCaseWorkflowStore.Map` (`'not_ready'` enum parse — baseline pending); `ProviderApiSubmissionTests.ADeclaredTriageOpensATriageAndAllocatesNoCase` (Triage `Sequence = 0` on this slice; clears with C07); `AnAmbiguousExistingCaseMatchIsRejectedOnTheSamePath` (expected Failed, got Complete — C01 defect to investigate); `RetainedInstructionAnalysisTests.ARetainedQdosLetterIsAnalysedFromTheDocumentAndAllocatesNothing` (assertion mismatch on the receipt — C01 to investigate). C01 correction round queued behind C07 round 2 (two-editor rule; C05 running, C06 paused before any edit).
 - Baseline whole-solution lane on `e5c9b1f43` running.
+
+## 13:10Z — G11 merged (`b06a71b96`)
+
+G11 retires the dashboard activity projections (carrying C's A07 hunks and the corpus-locator correction) and adds `UnidentifiedCount` from the open-Unidentified query. C08 (`c64d9cf83`) must merge the C branch and reconcile `OperationsSnapshot.cs`/`Index.cshtml(.cs)` before its wave; the A07 helper branch is superseded by G11 and stays as evidence. Editors: C07 round 2 + C05.
