@@ -324,3 +324,7 @@ Exact-link `GetAsync` and `FindByOperationKeyAsync` include live-link authority 
 ## Wave 26 (C06 `f1519a2f9`): all six lanes PASS
 
 Build 0/0, core 61, integration 38, host 118, browser 2, architecture 100. C06 re-review binds on it. Wave 27 (C08 `df03ccd4e`) launched.
+
+## C06 integrated — C head `aa3202746`
+
+Review `pass` at `f1519a2f9` (`scratch/review-c06`, four rounds; open minors R-24/R-25 accepted-risk with reasons). Merged `--no-ff`, build 0/0, pushed; DI list + routes posted to A/B on PR 673. Residual for C06 closure: A's real registrations (then bridges revert to required), catalogue routes, R-24 (needs an A migration), B's picker consumption.

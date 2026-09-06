@@ -168,3 +168,62 @@ build exit 0 / 0 warnings.
   the whole analysis.
 
 No new assumption was needed this round; no test was run here (controller wave loop).
+
+## C05 correction round 3 (implementer, attempt 3) — dispositions
+
+- [ ] ASSUMPTION 8 (implementer, attempt 3): the web case
+  `ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates` is
+  replaced by `AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas`,
+  which asserts the observed outcome sequence `["recorded"]` rather than
+  `["recorded", "recorded_reading_stands"]` — because a queued re-evaluation of
+  a completed receipt cannot re-read anything at all. `ProcessQueuedIntake`
+  deletes the staged copy once the evaluation is durably recorded
+  (`TryDeleteCompletedStagingAsync`), and `IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync`
+  states the consequence in its own doc comment: a completed work item must
+  never be made claimable again, because that "would force a re-claim through
+  the artifact-reading path, whose staged copy is already deleted". The
+  staff-facing `ReevaluateIntake` command does exactly that, so the re-claimed
+  pass throws `IntakeArtifactIntegrityException`, fails terminally as
+  `staged_artifact_integrity_failure`, and never reaches `ProcessIntake` — which
+  is why round 2 saw one outcome where two were expected. Alternatives: (a) fix
+  the re-evaluation path to read the durable artifact — `DurableIntake.cs` is
+  not a C05 file and the change belongs to the durable-intake owner; (b) drive
+  `ProcessIntake.ExecuteRetainedAsync` directly — it is `internal` and visible
+  only to `Pegasus.Core.Tests`, and `ProcessIntakeTests.cs` is not a C05 file;
+  (c) narrow the case to nothing and stay silent — rejected, the pass's stopping
+  point is now asserted from the durable work item. The
+  `recorded_reading_stands` mechanism is proved instead where it is reachable,
+  against SQL Server: `RecordingTheSameReadingAgainReplaysItAndAMovedVersionIsRefused`
+  records the identical request (replay, nothing written) and the same request
+  at a moved receipt version (refused), which is the conflict `ProcessIntake`
+  reports.
+- HANDOFF (durable intake, not C05): a staff re-evaluation of any completed
+  receipt fails as `staged_artifact_integrity_failure` rather than re-reading
+  the retained source. Pre-existing, outside this slice's file map, discovered
+  by C05's web case and now asserted by it.
+- C05-R-16 (major) — fixed. `ThirdPartyReportSourceContext` gained an optional
+  `SourceLabel` (the retained file's own name, a locator and never evidence);
+  `ThirdPartyReportProfiles.Verdict` falls back to it when no signature evidence
+  exists, so the scan-only issuer row names its document. Corpus case asserts the
+  label, the `Missing` disposition and the absent value on both scan-only originals.
+- C05-R-6 (major) — root-caused and closed by ASSUMPTION 8 above; the three
+  untagged early returns in `RecordThirdPartyReportSourceAsync` are now tagged
+  (`not_composed`, `source_not_readable`, `no_single_source_asset`), so no path
+  through the report reader is silent.
+- C05-R-17 (minor) — fixed. `AReadingWithNoPageAtAllStillNamesTheSourceOnEveryRowItRecords`
+  builds the `RequiresOcr` reading with no scan-only page that no production
+  reader emits today, and asserts every recorded row names the source.
+- C05-R-18 (minor) — fixed. The conflict catch reads the stored row back and
+  tags `recorded_reading_stands` only when it names this receipt and asset;
+  otherwise `analysis_key_bound_elsewhere`, or `recorded_reading_unverified`
+  when the probe itself fails.
+- C05-R-13 (note) — already corrected in the round-2 report section; no further
+  change.
+- C05-R-14 (note) — not repeated: `git diff` for this round contains no BOM
+  bytes; every edit preserved each file's existing encoding and CRLF endings.
+- C05-R-19 (note) — fixed. The operation-key comment now says the conflict, not
+  the replay, is the ordinary outcome of a second pass over one asset.
+- C05-R-20 (note) — fixed. The `DeterministicId` comment records that a
+  finding's ordinal is its position in the raised order, so inserting a rule
+  renumbers later findings — the same version boundary a changed raw value
+  crosses.
