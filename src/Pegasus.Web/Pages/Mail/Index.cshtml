@@ -243,7 +243,7 @@
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
                            asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                           asp-route-sort="@Model.SortOrder"
                            asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
                            asp-route-selected="@item.Id"
                            data-mail-preview-trigger
