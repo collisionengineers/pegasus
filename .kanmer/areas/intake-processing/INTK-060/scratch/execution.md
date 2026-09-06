@@ -380,3 +380,7 @@ A's re-evaluation fix makes `IReadLogicalDocumentVersion` a required `ProcessQue
 ## Wave 30 (C06 cleanup `fea0c0e78`): all six lanes PASS on production DI
 
 Build 0/0, core 61, integration 35, host 131, browser 2, architecture 100. Cleanup review binds; on pass, integrate and publish. Wave 31 (C08 `86e8659f5`) launched.
+
+## Checkpoint — C02 READY at `494767d30` (merged `ca3ec9abb`)
+
+All seven C02 items; OCR persistence on F's `IntakeOcrOperations` (no new table), `LocatorJson` v2 envelope, `EfIntakeOcrOperationStore.cs` disclosed deviation; `intake_ocr` enqueue deliberately not built (kind must come from A's `ExternalWorkKinds`) — exact A hunks in the report; INCONCLUSIVE: provider correctness (no genuine DI response), AcroForm locators. Review dispatched; wave 32 queued behind wave 31 (C08). C03 worktree `v1-intake-c03` (`c03-profiles`) created on the C02 merged head so profiles build on the structured extraction; batch 1 (QDOS extension + PCH) dispatches next. Editors: C07b r4 + C03 b1.
