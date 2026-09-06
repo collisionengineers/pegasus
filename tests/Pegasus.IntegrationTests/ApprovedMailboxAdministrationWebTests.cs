@@ -404,6 +404,10 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<dt>Generation</dt><dd>1</dd>", page, StringComparison.Ordinal);
         Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", page, StringComparison.Ordinal);
         Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", page, StringComparison.Ordinal);
+        var health = await client.GetStringAsync("/Administration/Health");
+        Assert.Contains("Last successful poll:", health, StringComparison.Ordinal);
+        Assert.Contains("<td>graph_unavailable</td>", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th>Latest evidence</th>", health, StringComparison.Ordinal);
         Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", page, StringComparison.Ordinal);
         Assert.Contains("<dt>Subscription expiry</dt><dd>02 Sep 2026 10:05</dd>", page, StringComparison.Ordinal);
         Assert.Contains(

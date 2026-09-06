@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Access denied · Pegasus</title>
+    <title>Health · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -70,23 +70,270 @@
   <symbol id="icon-arrow-up-down" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
 </svg>
 
-    <div class="external-shell">
-        <main id="main-content" tabindex="-1">
-            <section class="auth-card">
-                <div class="auth-brand">
-                    <img src="../../../../src/Pegasus.Web/wwwroot/images/logo_no_margin.png" alt="" />
-                    <strong>PEGASUS</strong>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-shell" data-app-shell>
+        <header class="app-rail">
+            <a class="brand" aria-label="Pegasus home" href="dashboard--default.html">
+                <img src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                <span class="brand-copy"><strong>PEGASUS</strong><span>Case management</span></span>
+            </a>
+            <nav class="primary-nav" aria-label="Primary">
+                <div class="nav-label">Work</div>
+                <a class="nav-link" href="dashboard--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                    <a class="nav-link" href="inbox--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <span>Inbox</span>
+                    </a>
+                    <a class="nav-link" href="upload--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <span>Upload</span>
+                    </a>
+                <a class="nav-link" href="queues--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <span>Cases</span>
+                        <span class="nav-count" aria-label="0 outstanding">0</span>
+                </a>
+                <a class="nav-link" href="cases--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <span>Search</span>
+                </a>
+                    <a class="nav-link" href="operations--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                        <span>Operations</span>
+                    </a>
+                    <div class="nav-label">Manage</div>
+                    <a class="nav-link" aria-current="page" href="administration--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="rail-spacer"></div>
+            <div class="rail-health">
+                <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
+            </div>
+                <div class="rail-user" role="group" aria-label="User">
+                    <span class="avatar" aria-hidden="true">DO</span>
+                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
+                    <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                    </button>
                 </div>
-
-<h1>Access denied</h1>
-<p>Your account does not have access to this page.</p>
-    <div class="button-row">
-        <a class="btn" href="dashboard--default.html">Return to Work Centre</a>
-    </div>
-
+        </header>
+        <div class="app-column">
+            <section class="utility-bar" aria-label="Utility bar">
+                <div class="utility-freshness"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
+                <form class="utility-search" role="search" method="get" action="cases--default.html">
+                    <label class="sr-only" for="global-search">Search Pegasus</label>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <input id="global-search" type="search" name="query" data-command-input aria-label="Search Pegasus" autocomplete="off" />
+                    <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
+                </form>
+                <div class="utility-actions">
+                    <button type="button" class="btn btn--primary" data-dialog-open="add-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add</span>
+                    </button>
+                    <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                    </button>
+                </div>
             </section>
-        </main>
+            <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
+                <a class="workspace-tab" href="dashboard--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                <button type="button" class="workspace-tab" data-dialog-open="command-dialog" data-workspace-open aria-label="Open another record">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Open</span>
+                </button>
+            </nav>
+            <main id="main-content" class="app-main" tabindex="-1"
+                  data-workspace-record=""
+                  data-workspace-href=""
+                  data-workspace-label="">
+                <div class="content">
+                    <header class="page-header">
+    <div class="page-title">
+            <p class="eyebrow">Administration</p>
+        <h1>Health</h1>
     </div>
+</header>
+
+<div class="admin-layout"><nav class="admin-nav panel" aria-label="Administration areas">
+    <a href="administration-accounts--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+    </a>
+    <a href="administration-principals--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Principals</span>
+    </a>
+    <a href="administration-configuration--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+    </a>
+    <a href="administration-mailboxes--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+    </a>
+</nav>
+<div class="stack">
+        <section class="panel"><div class="panel-head"><h2>Recorded counts</h2></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Mailbox failures</th><th>Mailbox freshness</th><th>Failed intake</th><th>Oldest pending intake due</th><th>Oldest pending custody</th><th>Poisoned inbox messages</th><th>Unknown sends</th><th>Oldest pending AI job</th><th>Cache entries</th><th>Cache bytes</th><th>Next cache expiry</th><th>Active cache reads</th><th>Cache cleanup failures</th><th>Cache hits since Web start</th><th>Cache misses since Web start</th></tr></thead><tbody><tr><td>0</td><td>Current (06/05/2031 10:20:00 &#x2B;00:00)</td><td>0</td><td></td><td></td><td>0</td><td>0</td><td></td><td>0</td><td>0</td><td></td><td>0</td><td>0</td><td>0</td><td>0</td></tr></tbody></table></div></div></section>
+    <section class="panel">
+        <div class="panel-head"><h2>Service health</h2></div>
+        <div class="panel-body"><div class="table-wrap"><table>
+            <thead><tr><th>Area</th><th>Service</th><th>State</th><th>Recorded time</th><th>Failure code</th><th>Dependency</th></tr></thead>
+            <tbody>
+                <tr><td>Mail</td><td>instructions@collisionengineers.co.uk</td><td>Failed</td><td> <span>Last successful poll: </span> 06 May 2031 11:20</td><td>graph_unavailable</td><td>Microsoft Graph</td></tr>
+                <tr><td>Receiving</td><td>Intake dispatch</td><td>Configured</td><td></td><td></td><td>Worker</td></tr>
+                <tr><td>Custody</td><td>External work</td><td>Configured</td><td></td><td></td><td>Worker</td></tr>
+                <tr><td>EVA</td><td>EVA submissions</td><td>Configured</td><td></td><td></td><td>EVA API</td></tr>
+                <tr><td>AI</td><td>AI jobs</td><td>Configured</td><td></td><td></td><td>AI</td></tr>
+                <tr><td>Automation</td><td>Automation ingress</td><td>Configured</td><td></td><td></td><td>Automation client</td></tr>
+            </tbody>
+        </table></div></div>
+    </section>
+</div></div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+<div class="dialog-backdrop" data-dialog="account-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+        <div class="dialog-head">
+            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
+                <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
+                <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+            <a class="btn" href="password-change--default.html">
+                <svg class="icon" aria-hidden="true"><use href="#icon-key" /></svg>
+                <span>Change password</span>
+            </a>
+            <form method="post" action="#">
+                <button type="submit" class="btn btn--danger">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-log-out" /></svg>
+                    <span>Sign out</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="add-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="add-dialog-title">
+        <div class="dialog-head">
+            <h2 id="add-dialog-title" tabindex="-1">Add</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="grid grid-2">
+                    <a class="admin-card" href="upload--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <h2>Upload files</h2>
+                    </a>
+                <a class="admin-card" href="case-create--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <h2>Create Case</h2>
+                </a>
+                    <a class="admin-card" href="inbox--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <h2>Review Inbox</h2>
+                    </a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="notifications-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
+        <div class="dialog-head">
+            <h2 id="notifications-dialog-title" tabindex="-1">Notifications</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="empty">
+                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                <h3>No notifications</h3>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="command-dialog" hidden>
+    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
+        <div class="dialog-head">
+            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="command-search">
+            <label class="sr-only" for="command-input">Search</label>
+            <input id="command-input" type="search" autocomplete="off" data-command-palette-input aria-controls="command-results" />
+        </div>
+        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/">
+                <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                <span><strong>Work Centre</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                    <span><strong>Inbox</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span><strong>Upload</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
+                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                <span><strong>Cases</strong></span>
+            </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                <span><strong>Search</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Operations">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                    <span><strong>Operations</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                    <span><strong>Administration</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback>
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                <span><strong>Search Cases for <span data-command-fallback-term></span></strong></span>
+                <span class="kbd" aria-hidden="true">Enter</span>
+            </button>
+        </div>
+    </section>
+</div>
+
+    <div class="toast-region" aria-live="polite" data-toast-region></div>
+
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
 
 </body>

@@ -13,11 +13,11 @@
     <section class="panel">
         <div class="panel-head"><h2>Service health</h2></div>
         <div class="panel-body"><div class="table-wrap"><table>
-            <thead><tr><th>Area</th><th>Service</th><th>State</th><th>Latest evidence</th><th>Dependency</th></tr></thead>
+            <thead><tr><th>Area</th><th>Service</th><th>State</th><th>Recorded time</th><th>Failure code</th><th>Dependency</th></tr></thead>
             <tbody>
             @foreach (var row in snapshot.Rows)
             {
-                <tr><td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td><td>@row.Service</td><td>@OperatorLabels.ServiceHealthStateName(row.State)</td><td>@row.LatestEvidenceAtUtc</td><td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td></tr>
+                <tr><td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td><td>@row.Service</td><td>@OperatorLabels.ServiceHealthStateName(row.State)</td><td>@if (row.Area == Pegasus.Core.Operations.ServiceHealthArea.Mail) { <span>Last successful poll: </span> }@OperatorLabels.OfficeTime(row.LatestEvidenceAtUtc, "")</td><td>@row.FailureCode</td><td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td></tr>
             }
             </tbody>
         </table></div></div>

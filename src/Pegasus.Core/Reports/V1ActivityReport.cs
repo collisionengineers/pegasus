@@ -46,7 +46,7 @@ public interface IV1ActivityReportQueries
 public static class PrincipalReportActivityCsv
 {
     public const string Header =
-        "Principal,Generation events,Generated artifacts,Pending or failed,Sent,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types";
+        "Principal,Generation events,Generated artifacts,Pending or failed,Sent,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to generated artifact,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types";
 
     public static string ToCsv(IReadOnlyList<PrincipalReportActivity> rows)
     {
@@ -65,6 +65,7 @@ public static class PrincipalReportActivityCsv
                 .Append(row.MissingOriginForSentTurnaround).Append(',')
                 .Append(row.MissingSentActor).Append(',')
                 .Append(Format(row.AverageReceivedToGeneration)).Append(',')
+                .Append(Format(row.AverageReceivedToGeneratedArtifact)).Append(',')
                 .Append(Format(row.AverageReceivedToReady)).Append(',')
                 .Append(Format(row.AverageReceivedToSent)).Append(',')
                 .Append(row.CurrentTriage).Append(',')
