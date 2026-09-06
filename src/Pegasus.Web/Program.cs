@@ -239,6 +239,7 @@ else
     intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
     allowLocalQueueCreation = true;
 }
+builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
