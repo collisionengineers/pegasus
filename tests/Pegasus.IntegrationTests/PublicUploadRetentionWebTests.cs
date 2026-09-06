@@ -74,6 +74,53 @@ public sealed partial class PublicUploadRetentionWebTests
         "This upload operation was already used for different content.";
 
     [Fact]
+    public async Task RequestCreationPersistsAndReplaysOmittedOptionalMetadata()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedLinkAsync(factory.Services, "REQNULL");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(seeded.CaseId, CancellationToken.None));
+        var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(
+                    seeded.CaseId,
+                    workflow.Version,
+                    actor,
+                    $"request-null-metadata-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+        var operationKey = $"request-null-metadata:{Guid.NewGuid():N}";
+        var command = new CreateRequestUploadLinkCommand(
+            seeded.CaseId,
+            actor,
+            operationKey,
+            lease.Version,
+            lease.Token);
+        var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
+
+        var created = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.Null(created.Link.Recipient);
+        Assert.Null(created.Link.Reason);
+        var replay = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.True(replay.IsReplay);
+        Assert.Equal(created.Link, replay.Link);
+
+        await using var context = await CreateContextAsync(scope.ServiceProvider);
+        var stored = await context.Set<RequestUploadLinkEntity>()
+            .SingleAsync(item => item.Id == created.Link.Id);
+        Assert.Null(stored.Recipient);
+        Assert.Null(stored.Reason);
+        var history = await context.ActionHistory.SingleAsync(item =>
+            item.AggregateType == "request_upload_link"
+            && item.CorrelationId == operationKey);
+        var snapshot = JsonNode.Parse(history.AfterJson!)!.AsObject();
+        Assert.Null(snapshot["Recipient"]);
+        Assert.Null(snapshot["Reason"]);
+    }
+
+    [Fact]
     public async Task RequestCreationNormalizesPersistsAndReplaysRecipientAndReasonExactly()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -104,6 +151,8 @@ public sealed partial class PublicUploadRetentionWebTests
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             create.ExecuteAsync(command with { Recipient = " " }, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            create.ExecuteAsync(command with { Reason = " " }, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             create.ExecuteAsync(command with { Recipient = new string('r', 501) }, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
