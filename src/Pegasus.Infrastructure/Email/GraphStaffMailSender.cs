@@ -22,10 +22,11 @@ internal sealed class GraphStaffMailSender(
         StaffMailSendCommand command,
         IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken)
     {
-        var message = BuildMimeMessage(operation.Id, operation.PayloadHash, command);
+        var message = BuildMimeMessage(operation, command);
         if (attachments.Count > 0)
         {
             var multipart = new Multipart("mixed") { message.Body! };
+            multipart.ContentType.Boundary = $"pegasus-{operation.Id:N}";
             foreach (var attachment in attachments)
             {
                 if (!attachment.Content.CanSeek)
@@ -106,7 +107,7 @@ internal sealed class GraphStaffMailSender(
     }
 
     public async Task<StaffMailDraftResult> CreateDraftAsync(
-        ApprovedStaffSendMailbox mailbox, Guid operationId, string payloadHash,
+        ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
         StaffMailSendCommand command,
         CancellationToken cancellationToken)
     {
@@ -118,7 +119,7 @@ internal sealed class GraphStaffMailSender(
             StaffMailComposeMode.Forward => $"messages/{Escape(command.OriginalMessage!.ImmutableMessageId)}/createForward",
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
-        var message = BuildMimeMessage(operationId, payloadHash, command);
+        var message = BuildMimeMessage(operation, command);
         await using var mime = new MemoryStream();
         await message.WriteToAsync(mime, cancellationToken);
         var payload = Convert.ToBase64String(mime.ToArray());
@@ -136,9 +137,14 @@ internal sealed class GraphStaffMailSender(
     }
 
     private static MimeMessage BuildMimeMessage(
-        Guid operationId, string? payloadHash, StaffMailSendCommand command)
+        StaffMailOperation operation, StaffMailSendCommand command)
     {
-        var message = new MimeMessage { Subject = command.Subject };
+        var message = new MimeMessage
+        {
+            Subject = command.Subject,
+            Date = operation.PreparedAtUtc,
+            MessageId = $"{operation.Id:N}@pegasus.invalid"
+        };
         foreach (var recipient in command.To)
         {
             message.To.Add(new MailboxAddress(recipient.DisplayName ?? string.Empty, recipient.Address));
@@ -147,13 +153,13 @@ internal sealed class GraphStaffMailSender(
         {
             message.Cc.Add(new MailboxAddress(recipient.DisplayName ?? string.Empty, recipient.Address));
         }
-        if (operationId != Guid.Empty)
+        if (operation.Id != Guid.Empty)
         {
-            message.Headers.Add(StaffMailCorrelationHeaders.OperationId, operationId.ToString("D"));
+            message.Headers.Add(StaffMailCorrelationHeaders.OperationId, operation.Id.ToString("D"));
             message.Headers.Add(StaffMailCorrelationHeaders.MailboxId, command.ApprovedMailboxId.ToString("D"));
             message.Headers.Add(StaffMailCorrelationHeaders.MailboxGeneration,
                 command.ExpectedMailboxGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            message.Headers.Add(StaffMailCorrelationHeaders.PayloadSha256, payloadHash!);
+            message.Headers.Add(StaffMailCorrelationHeaders.PayloadSha256, operation.PayloadHash);
         }
         if (command.OriginalMessage?.InternetMessageId is { Length: > 0 } replyTo)
         {

@@ -34,8 +34,7 @@ public sealed class ProductionGraphSourceTests
 
         var result = await sender.CreateDraftAsync(
             new(mailboxId, "mailbox-id", 4, 10_000_000),
-            operationId,
-            "PAYLOAD-HASH",
+            Operation(operationId) with { PayloadHash = "PAYLOAD-HASH" },
             StaffCommand(operationId) with
             {
                 ApprovedMailboxId = mailboxId,
@@ -77,8 +76,7 @@ public sealed class ProductionGraphSourceTests
         await Assert.ThrowsAsync<StaffMailTransportRejectedException>(() =>
             sender.CreateDraftAsync(
                 new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
-                Guid.NewGuid(),
-                "PAYLOAD-HASH",
+                Operation(Guid.NewGuid()) with { PayloadHash = "PAYLOAD-HASH" },
                 StaffCommand(Guid.NewGuid()),
                 CancellationToken.None));
 
@@ -224,8 +222,8 @@ public sealed class ProductionGraphSourceTests
             new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
             new UploadProgressFake());
         await measuringSender.CreateDraftAsync(
-            new(mailboxId, "mailbox-id", 7, int.MaxValue), operationId,
-            operation.PayloadHash, command, CancellationToken.None);
+            new(mailboxId, "mailbox-id", 7, int.MaxValue), operation,
+            command, CancellationToken.None);
         var exactMimeLength = Convert.FromBase64String(createdPayload!).LongLength;
 
         var validationGraphWrites = 0;
