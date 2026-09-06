@@ -1,4 +1,6 @@
+using System.Globalization;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -774,6 +776,18 @@ public interface IListCaseEstimates
     Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The keyset-paged sibling of <see cref="IListCaseEstimates"/> (CASE-047,
+/// requested by Stream A's MCP adapters): newest version first, then
+/// estimate id.
+/// </summary>
+public interface IListCaseEstimatesByCursor
+{
+    Task<CursorPage<RepairSpecificationVersion>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken);
+}
+
 public sealed class SaveEstimate(
     IRepairSpecificationStore store,
     IAiJobStore jobs,
@@ -870,5 +884,49 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
         return store.ListEstimatesAsync(caseId, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Applies the same actor boundary <see cref="Pegasus.Core.Cases.GetCase"/>
+/// applies before reading a case's estimates, newest version first then
+/// estimate id.
+/// </summary>
+public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store) : IListCaseEstimatesByCursor
+{
+    public async Task<CursorPage<RepairSpecificationVersion>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var fingerprint = CaseListCursorFingerprint.For(query.Actor, query.CaseId);
+
+        int? afterVersion = null;
+        Guid? afterId = null;
+        if (CursorToken.DecodePosition(query.Cursor, fingerprint) is { } position)
+        {
+            if (!int.TryParse(position.SortKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version))
+            {
+                throw new CursorRejectedException("The cursor is malformed.");
+            }
+            afterVersion = version;
+            afterId = position.Id;
+        }
+
+        var rows = await store.ListByCursorAsync(
+            query.CaseId, afterVersion, afterId, limit + 1, cancellationToken);
+
+        return CursorPageBuilder.Build(
+            rows,
+            limit,
+            fingerprint,
+            estimate => estimate.Version.ToString(CultureInfo.InvariantCulture),
+            estimate => estimate.SpecificationId);
     }
 }

@@ -316,4 +316,17 @@ public interface IRepairSpecificationStore
     Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
+    /// (CASE-047): newest version first, then estimate id. The after-values
+    /// are the decoded cursor's sort position, both null on the first page;
+    /// <paramref name="fetchCount"/> is the caller's limit plus one.
+    /// </summary>
+    Task<IReadOnlyList<RepairSpecificationVersion>> ListByCursorAsync(
+        Guid caseId,
+        int? afterVersion,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken);
 }
