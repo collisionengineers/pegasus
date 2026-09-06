@@ -312,3 +312,7 @@ G15 `9297cee60` (`ICaseArtifactCustodyStatus.FindByOperationKeyAsync`, null = no
 ## A blocker on C07 caller (PR 673 comment 5560753915) — accepted
 
 `arrived` is not a durable hand-over claim: `FindAsync` returns null for it and simultaneous same-key callers both reach custody; a Confirmed return followed by a `RecordAsync` failure leaves `arrived` and re-offers. Disposition posted (comment): atomic CAS claim `arrived → unknown` before `RetainAsync` (one winner; losers reconcile the original key via G15), claim persisted before the call, monotonic confirmation (no downgrade of Confirmed), `FindAsync` returns arrived/unknown honestly, refusal → `failed`, four regression tests. Folded into the C07 caller round 3 brief with the G15 double implementations (c07b at `4e3d3c803` currently fails to build on the two doubles). Round 3 starts at the next editor slot.
+
+## Checkpoint — C08 round 2 at `6690a33cc` (merged G15 → `df03ccd4e`)
+
+Compose test posts the rendered OperationKey; preview 404 root cause was the test's own `queue=all` (invalid queue value → Index 404 before Preview), fixed with a real queue key; B's `case-workspace.css` link in `_Layout.cshtml`; `OperatorLabels.CaseWorkspace.{Recipient,Reason,Content,RecordChase}`. Wave 27 queued behind wave 26 (C06). C07 caller round 3 dispatched (Opus): G15 doubles, atomic arrived→unknown claim, monotonic confirmation, original-key reconciliation, refusal mapping, R-18, six regression tests. Editors: C05 r3, C07b r3.
