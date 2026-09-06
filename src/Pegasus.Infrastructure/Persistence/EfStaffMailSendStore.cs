@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 
@@ -40,6 +41,9 @@ internal sealed class EfStaffMailSendStore(
             IsolationLevel.Serializable, cancellationToken);
         if (command.OriginalMessage is { } original)
         {
+            await AcquireOriginalMessagePrepareLockAsync(
+                db, transaction, command.ApprovedMailboxId, original.RetainedMessageId,
+                cancellationToken);
             var retained = await db.Set<RetainedMailboxMessageEntity>().AsNoTracking()
                 .SingleOrDefaultAsync(value => value.Id == original.RetainedMessageId
                     && value.MailboxId == command.ApprovedMailboxId,
@@ -69,6 +73,19 @@ internal sealed class EfStaffMailSendStore(
                     "The staff mail operation key was already used for different content.");
             }
             return Map(existing);
+        }
+
+        if (command.OriginalMessage is { } activeOriginal
+            && await rows.AnyAsync(value =>
+                value.MailboxId == command.ApprovedMailboxId
+                && value.OriginalRetainedMessageId == activeOriginal.RetainedMessageId
+                && value.State != StaffMailState.Sent
+                && value.State != StaffMailState.Failed
+                && value.State != StaffMailState.Cancelled,
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "The retained message already has an active staff mail operation.");
         }
 
         var entity = new StaffMailSendOperationEntity
@@ -109,6 +126,48 @@ internal sealed class EfStaffMailSendStore(
         return Map(entity);
     }
 
+    private static async Task AcquireOriginalMessagePrepareLockAsync(
+        PegasusDbContext db,
+        IDbContextTransaction transaction,
+        Guid mailboxId,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken)
+    {
+        var connection = db.Database.GetDbConnection();
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction.GetDbTransaction();
+        command.CommandTimeout = db.Database.GetCommandTimeout() ?? command.CommandTimeout;
+        command.CommandText = """
+            DECLARE @result int;
+            EXEC @result = sp_getapplock
+                @Resource = @resource,
+                @LockMode = 'Exclusive',
+                @LockOwner = 'Transaction',
+                @LockTimeout = @lockTimeout;
+            SELECT @result;
+            """;
+        AddParameter(command, "@resource",
+            $"staff-mail-original:{mailboxId:N}:{retainedMessageId:N}");
+        AddParameter(command, "@lockTimeout", checked(command.CommandTimeout * 1000));
+        var result = Convert.ToInt32(
+            await command.ExecuteScalarAsync(cancellationToken),
+            System.Globalization.CultureInfo.InvariantCulture);
+        if (result < 0)
+        {
+            throw new InvalidOperationException(
+                "The retained message send could not be serialized.");
+        }
+    }
+
+    private static void AddParameter(
+        System.Data.Common.DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
     public async Task<StaffMailOperation?> GetAsync(
         string actorSubjectId, Guid operationId, CancellationToken cancellationToken)
     {
@@ -116,6 +175,22 @@ internal sealed class EfStaffMailSendStore(
         var entity = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .SingleOrDefaultAsync(value => value.Id == operationId
                 && value.ActorSubjectId == actorSubjectId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    public async Task<StaffMailOperation?> GetLatestForOriginalAsync(
+        string actorSubjectId, Guid retainedMessageId, CancellationToken cancellationToken)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .Where(value => value.ActorSubjectId == actorSubjectId
+                && value.OriginalRetainedMessageId == retainedMessageId)
+            .OrderBy(value => value.State == StaffMailState.Sent
+                || value.State == StaffMailState.Failed
+                || value.State == StaffMailState.Cancelled)
+            .ThenByDescending(value => value.CreatedAtUtc)
+            .ThenByDescending(value => value.Id)
+            .FirstOrDefaultAsync(cancellationToken);
         return entity is null ? null : Map(entity);
     }
 

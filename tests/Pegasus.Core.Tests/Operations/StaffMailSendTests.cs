@@ -17,6 +17,17 @@ public sealed class StaffMailSendTests
     }
 
     [Fact]
+    public async Task AutomationCannotReadAStaffMailOperationForAnOriginal()
+    {
+        var send = new StaffMailSend(
+            null!, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            send.GetLatestForOriginalAsync(
+                ActionActor.Automation("automation"), Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task GenericSendCannotBypassCaseReportReadiness()
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -137,6 +148,40 @@ public sealed class StaffMailSendTests
 
         Assert.Equal(0, transport.SendCount);
         Assert.Null(store.Operation);
+    }
+
+    [Fact]
+    public async Task LatestOriginalRequiresCurrentStaffBeforeReadingTheOperation()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var retainedMessageId = Guid.NewGuid();
+        var store = new Store();
+        var expected = await store.PrepareAsync(
+            Command(actor), new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+        var send = new StaffMailSend(
+            store, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+
+        var result = await send.GetLatestForOriginalAsync(
+            actor, retainedMessageId, CancellationToken.None);
+
+        Assert.Equal(expected, result);
+        Assert.Equal(1, store.CurrentStaffChecks);
+        Assert.Equal(retainedMessageId, store.LatestOriginalMessageId);
+        Assert.Equal(1, store.LatestOriginalReads);
+    }
+
+    [Fact]
+    public async Task DisabledStaffCannotReadTheLatestOriginalOperation()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var store = new Store { RejectCurrentStaff = true };
+        var send = new StaffMailSend(
+            store, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            send.GetLatestForOriginalAsync(actor, Guid.NewGuid(), CancellationToken.None));
+
+        Assert.Equal(0, store.LatestOriginalReads);
     }
 
     [Fact]
@@ -286,6 +331,8 @@ public sealed class StaffMailSendTests
         public StaffMailOperation? Operation => operation;
         public bool RejectCurrentStaff { get; init; }
         public int CurrentStaffChecks { get; private set; }
+        public int LatestOriginalReads { get; private set; }
+        public Guid? LatestOriginalMessageId { get; private set; }
         public Task<StaffMailOperation> PrepareAsync(StaffMailSendCommand command, string payloadHash, DateTimeOffset nowUtc, CancellationToken cancellationToken)
         {
             operation ??= new(Guid.NewGuid(), StaffMailState.Prepared, null, 1, nowUtc,
@@ -294,6 +341,12 @@ public sealed class StaffMailSendTests
             return Task.FromResult(operation);
         }
         public Task<StaffMailOperation?> GetAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) => Task.FromResult(operation);
+        public Task<StaffMailOperation?> GetLatestForOriginalAsync(string actorSubjectId, Guid retainedMessageId, CancellationToken cancellationToken)
+        {
+            LatestOriginalReads++;
+            LatestOriginalMessageId = retainedMessageId;
+            return Task.FromResult(operation);
+        }
         public Task<StaffMailExecution?> GetExecutionAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) =>
             Task.FromResult<StaffMailExecution?>(operation is null ? null : new(
                 actorSubjectId, operation, operation.State is StaffMailState.DraftReady or StaffMailState.Sending ? "draft" : null,
