@@ -140,9 +140,20 @@ public sealed class MailWorkspaceWebTests
         // returning NotFound. The unfiltered scope is the absent parameter,
         // not a literal "all"; a real queue key exercises the same
         // round-trip without hitting that 404.
-        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=receiving-work&unread=true&sort=asc";
+        // "sort" has no "asc"/"desc" sentinel either: TryParseSort accepts
+        // only the absent value (newest) or "oldest" — the same two states
+        // the sort toggle link itself draws (Index.cshtml.cs OldestFirst /
+        // RefreshFields), so "oldest" is the value that exercises the
+        // round-trip instead of hitting that same 404.
+        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=receiving-work&unread=true&sort=oldest";
         await GetHtmlAsync(client, "/Inbox");
-        await GetHtmlAsync(client, $"/Inbox?{query}");
+        var listHtml = await GetHtmlAsync(client, $"/Inbox?{query}");
+
+        // The list page's own row links carry the filter state forward using
+        // the exact tokens above ("unread=true", "sort=oldest") — proving the
+        // query string this test drives with matches the vocabulary the page
+        // itself emits, not a guessed one.
+        Assert.Contains("unread=true&amp;sort=oldest", listHtml, StringComparison.Ordinal);
 
         // Diagnostic for a non-OK preview: confirm whether the seeded row is
         // still present (rules out a seeding/dedup gap) before asserting, so a
