@@ -204,13 +204,15 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task TriageRowRendersReferenceRegistrationProviderAndAssignee()
+    public async Task TriageRowRendersTheTriageReferenceRegistrationProviderAndAssignee()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        const string reference = "TRIAGE-032";
+        // The provider's claim number, which used to be what the row called
+        // the reference. The row's reference is now the Triage's own.
+        const string claimNumber = "TRIAGE-032";
         const string registration = "TR32AGE";
         const string provider = "QDOS";
         var sourceIdentity = new IntakeSourceIdentity(
@@ -231,7 +233,7 @@ public sealed class TriageQueuesWebTests
             new InstructionDraft(
                 SuggestedPrincipalCode: provider,
                 ClaimantName: null,
-                ClaimNumber: reference,
+                ClaimNumber: claimNumber,
                 VehicleRegistration: registration,
                 VehicleMake: null,
                 VehicleModel: null,
@@ -266,13 +268,22 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(reference, html, StringComparison.Ordinal);
+        const string triageReference = "T-00001";
+        Assert.Equal(triageReference, triage.Reference);
+        Assert.Contains(triageReference, html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);
         Assert.Contains(provider, html, StringComparison.Ordinal);
         Assert.Contains(
             $"{provider} · {DevelopmentOfflineIdentity.UserName}",
             WebUtility.HtmlDecode(html),
             StringComparison.Ordinal);
+        // The claim number is retained on the summary as its own member, and
+        // is no longer what the row calls the reference.
+        var summary = Assert.Single(
+            await services.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        Assert.Equal(claimNumber, summary.ClaimNumber);
+        Assert.Equal(triageReference, summary.Reference);
     }
 
     [Fact]
