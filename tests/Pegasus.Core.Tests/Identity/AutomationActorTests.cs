@@ -122,6 +122,10 @@ public sealed class AutomationActorTests
             GetCaseQuery query,
             CancellationToken cancellationToken) => Task.FromResult<CaseDetails?>(null);
 
+        public Task<CaseHeader?> GetHeaderAsync(
+            GetCaseHeaderQuery query,
+            CancellationToken cancellationToken) => Task.FromResult<CaseHeader?>(null);
+
         public Task<IReadOnlyList<CaseSearchItem>> SearchByCursorAsync(
             CaseSearchFilters filters, CaseSearchOrder order, DateTimeOffset? afterReceivedAtUtc,
             string? afterSortText, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>

@@ -1,6 +1,3 @@
-using System.Buffers.Text;
-using System.Text;
-using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -9,10 +6,14 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Cases;
 
 /// <summary>
-/// CASE-047: the stable-cursor primitives (<see cref="CursorPaging"/>, the
-/// internal <c>CursorToken</c> codec) and the fingerprint rule every cursor
-/// query shares — a cursor minted for one actor, filter set, order, or case
-/// is refused everywhere else.
+/// CASE-047: the Case cursor use cases (<see cref="SearchCasesByCursor"/>,
+/// <see cref="ListCaseDocumentsByCursor"/>) bound to the shared G9 <see
+/// cref="ICursorProtector"/> primitive instead of an internal codec — a
+/// cursor minted for one actor, filter set, order, or case is refused
+/// everywhere else, because the scope the use case passes to the protector
+/// binds all four; any malformed cursor the protector itself refuses
+/// surfaces as <see cref="CursorRejectedException"/>, never a raw parse
+/// exception.
 /// </summary>
 public sealed class CursorPagingTests
 {
@@ -35,53 +36,25 @@ public sealed class CursorPagingTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CursorPaging.NormalizeLimit(limit));
 
     [Fact]
-    public void ATokenRoundTripsItsSortKeyAndId()
+    public async Task ANextCursorIsMintedThroughTheSharedProtector()
     {
-        var id = Guid.NewGuid();
+        var protector = new FakeCursorProtector();
+        var search = new SearchCasesByCursor(new FakeCaseQueryStore(), protector);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
-        var token = CursorToken.Encode("2031-05-06T10:00:00", id, "fingerprint-a");
-        var (sortKey, decodedId) = CursorToken.Decode(token, "fingerprint-a");
+        var page = await search.ExecuteAsync(new(actor, new CaseSearchFilters(), Limit: 1), CancellationToken.None);
 
-        Assert.Equal("2031-05-06T10:00:00", sortKey);
-        Assert.Equal(id, decodedId);
-    }
-
-    [Fact]
-    public void TicksRoundTripThroughTheDateTimeOffsetSortKeyHelpers()
-    {
-        var value = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
-
-        Assert.Equal(value, CursorToken.DecodeTicks(CursorToken.EncodeTicks(value)));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("not-a-cursor")]
-    [InlineData("!!!not-base64url!!!")]
-    public void AMalformedCursorIsRefused(string cursor) =>
-        Assert.Throws<CursorRejectedException>(() => CursorToken.Decode(cursor, "fingerprint-a"));
-
-    [Fact]
-    public void ACursorWithAForeignFingerprintIsRefused()
-    {
-        var token = CursorToken.Encode("k", Guid.NewGuid(), "fingerprint-a");
-
-        Assert.Throws<CursorRejectedException>(() => CursorToken.Decode(token, "fingerprint-b"));
-    }
-
-    [Fact]
-    public void AStaleTokenVersionIsRefusedRegardlessOfFingerprint()
-    {
-        var payload = JsonSerializer.Serialize(new { v = 2, k = "k", id = Guid.NewGuid(), f = "fingerprint-a" });
-        var token = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(payload));
-
-        Assert.Throws<CursorRejectedException>(() => CursorToken.Decode(token, "fingerprint-a"));
+        Assert.NotNull(page.NextCursor);
+        var minted = Assert.Single(protector.Protected);
+        Assert.Equal(page.NextCursor, minted.Cursor);
+        Assert.NotEqual(Guid.Empty, minted.Id);
+        Assert.False(string.IsNullOrEmpty(minted.SortKey));
     }
 
     [Fact]
     public async Task ACursorMintedForOneActorIsRefusedForAnother()
     {
-        var search = new SearchCasesByCursor(new FakeCaseQueryStore());
+        var search = new SearchCasesByCursor(new FakeCaseQueryStore(), new FakeCursorProtector());
         var actorA = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var actorB = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var filters = new CaseSearchFilters();
@@ -96,7 +69,7 @@ public sealed class CursorPagingTests
     [Fact]
     public async Task ACursorMintedForOneFilterSetIsRefusedForAnother()
     {
-        var search = new SearchCasesByCursor(new FakeCaseQueryStore());
+        var search = new SearchCasesByCursor(new FakeCaseQueryStore(), new FakeCursorProtector());
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
         var firstPage = await search.ExecuteAsync(
@@ -111,7 +84,7 @@ public sealed class CursorPagingTests
     [Fact]
     public async Task ACursorMintedForOneOrderIsRefusedForAnother()
     {
-        var search = new SearchCasesByCursor(new FakeCaseQueryStore());
+        var search = new SearchCasesByCursor(new FakeCaseQueryStore(), new FakeCursorProtector());
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var filters = new CaseSearchFilters();
 
@@ -126,7 +99,7 @@ public sealed class CursorPagingTests
     [Fact]
     public async Task ACursorMintedForOneCaseIsRefusedForAnother()
     {
-        var list = new ListCaseDocumentsByCursor(new FakeCaseQueryStore());
+        var list = new ListCaseDocumentsByCursor(new FakeCaseQueryStore(), new FakeCursorProtector());
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var caseA = Guid.NewGuid();
         var caseB = Guid.NewGuid();
@@ -139,8 +112,19 @@ public sealed class CursorPagingTests
     }
 
     [Fact]
+    public async Task AMalformedCursorIsRefused()
+    {
+        var search = new SearchCasesByCursor(new FakeCaseQueryStore(), new FakeCursorProtector());
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        await Assert.ThrowsAsync<CursorRejectedException>(() => search.ExecuteAsync(
+            new(actor, new CaseSearchFilters(), Cursor: "not-a-cursor", Limit: 1), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task SearchByCursorRequiresAuthorizedStaffBeforeCallingStore() =>
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => new SearchCasesByCursor(new FakeCaseQueryStore())
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => new SearchCasesByCursor(
+                new FakeCaseQueryStore(), new FakeCursorProtector())
             .ExecuteAsync(
                 new(ActionActor.SystemWorker("cursor-test"), new CaseSearchFilters()),
                 CancellationToken.None));
@@ -148,8 +132,8 @@ public sealed class CursorPagingTests
     /// <summary>
     /// Returns exactly <c>fetchCount</c> synthetic rows regardless of what
     /// was asked for, so every call to a <c>*ByCursorAsync</c> method looks
-    /// like it has another page — these tests are about the cursor's own
-    /// fingerprint/version rules, not the store's keyset SQL (that is
+    /// like it has another page — these tests are about the use case's own
+    /// scope/protector rules, not the store's keyset SQL (that is
     /// <c>CaseCursorQueryPersistenceTests</c>'s job).
     /// </summary>
     private sealed class FakeCaseQueryStore : ICaseQueryStore
@@ -158,6 +142,9 @@ public sealed class CursorPagingTests
             throw new NotSupportedException();
 
         public Task<CaseDetails?> GetAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseHeader?> GetHeaderAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<CaseSearchItem>> SearchByCursorAsync(
@@ -199,5 +186,39 @@ public sealed class CursorPagingTests
             int fetchCount,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// A minimal <see cref="ICursorProtector"/> fake that records every
+    /// minted scope/sortKey/id and encodes the scope into the cursor itself,
+    /// so <see cref="Unprotect"/> can enforce the one rule these tests care
+    /// about — a cursor decodes only against the exact scope it was minted
+    /// for — the same rule the real <c>DataProtectionCursorProtector</c>
+    /// enforces through Data Protection's own purpose string
+    /// (<c>DataProtectionCursorTests</c> proves that one).
+    /// </summary>
+    private sealed class FakeCursorProtector : ICursorProtector
+    {
+        private const char Separator = '|';
+
+        public List<(string Scope, string SortKey, Guid Id, string Cursor)> Protected { get; } = [];
+
+        public string Protect(string scope, string sortKey, Guid id)
+        {
+            var cursor = string.Join(Separator, scope, sortKey, id);
+            Protected.Add((scope, sortKey, id, cursor));
+            return cursor;
+        }
+
+        public (string SortKey, Guid Id) Unprotect(string cursor, string scope)
+        {
+            var parts = cursor.Split(Separator);
+            if (parts.Length != 3 || !string.Equals(parts[0], scope, StringComparison.Ordinal)
+                || !Guid.TryParse(parts[2], out var id))
+            {
+                throw new CursorRejectedException();
+            }
+            return (parts[1], id);
+        }
     }
 }

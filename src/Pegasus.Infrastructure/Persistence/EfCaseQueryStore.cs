@@ -380,17 +380,7 @@ public sealed class EfCaseQueryStore(
             .Take(200)
             .ToArrayAsync(cancellationToken);
         var history = historyEntities.Select(MapHistoryEntry).ToArray();
-        var activeLease = workflow.EditLeaseHolder is { } holder
-            && workflow.EditLeaseExpiresAtUtc is { } expiresAtUtc
-            && workflow.EditLeaseOperationKey is { Length: > 0 } operationKey
-            && CaseEditAuthority.IsHeld(expiresAtUtc, timeProvider.GetUtcNow())
-                ? new CaseEditLeaseSnapshot(
-                    holder,
-                    CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
-                    expiresAtUtc,
-                    operationKey,
-                    workflow.EditLeaseGeneration)
-                : null;
+        var activeLease = ResolveActiveLease(workflow, timeProvider.GetUtcNow());
 
         return new CaseDetails(
             MapSearchItem(summaryRow),
@@ -406,6 +396,73 @@ public sealed class EfCaseQueryStore(
             QueryEmails = queryEmails
         };
     }
+
+    /// <summary>
+    /// The bounded sibling of <see cref="GetAsync"/> (CASE-047, Stream A
+    /// review): the same summary, workflow and active-lease facts, with the
+    /// document, history and open-task lists reduced to a single count query
+    /// each instead of materializing every row.
+    /// </summary>
+    public async Task<CaseHeader?> GetHeaderAsync(
+        GetCaseHeaderQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Include(item => item.Case)
+                .ThenInclude(item => item.Principal)
+            .Include(item => item.ReportApproval)
+            .Include(item => item.ReportSentEvidence)
+            .Include(item => item.DueWork)
+            .SingleOrDefaultAsync(item => item.CaseId == query.CaseId, cancellationToken);
+        if (workflow is null)
+        {
+            return null;
+        }
+
+        var summaryRow = await SearchRows(context)
+            .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
+        var documentCount = await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .CountAsync(item => item.CaseId == query.CaseId, cancellationToken);
+        var historyCount = await context.CaseWorkflowEvents
+            .AsNoTracking()
+            .CountAsync(item => item.CaseId == query.CaseId, cancellationToken);
+        var openTaskCount = await context.Set<CaseTaskEntity>()
+            .AsNoTracking()
+            .CountAsync(
+                item => item.CaseId == query.CaseId && item.State == nameof(CaseTaskState.Open),
+                cancellationToken);
+
+        return new CaseHeader(
+            MapSearchItem(summaryRow),
+            MapWorkflow(workflow),
+            ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
+            documentCount,
+            historyCount,
+            openTaskCount);
+    }
+
+    /// <summary>
+    /// The one rule for whether a case's edit lease is live, shared by
+    /// <see cref="GetAsync"/> and <see cref="GetHeaderAsync"/> (CASE-047,
+    /// Stream A review) so the two reads can never disagree about who — if
+    /// anyone — currently holds it.
+    /// </summary>
+    private static CaseEditLeaseSnapshot? ResolveActiveLease(CaseWorkflowEntity workflow, DateTimeOffset now) =>
+        workflow.EditLeaseHolder is { } holder
+            && workflow.EditLeaseExpiresAtUtc is { } expiresAtUtc
+            && workflow.EditLeaseOperationKey is { Length: > 0 } operationKey
+            && CaseEditAuthority.IsHeld(expiresAtUtc, now)
+                ? new CaseEditLeaseSnapshot(
+                    holder,
+                    CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                    expiresAtUtc,
+                    operationKey,
+                    workflow.EditLeaseGeneration)
+                : null;
 
     private static CaseCustodyState ParseCustodyState(string value) => value switch
     {
@@ -471,7 +528,13 @@ public sealed class EfCaseQueryStore(
     /// with no occurrence sorts as though its newest occurrence were
     /// <see cref="DateTimeOffset.MinValue"/> — every document a case can
     /// carry gets at least one when it is added, so this only guards against
-    /// a row this store never itself writes.
+    /// a row this store never itself writes. Each returned <see
+    /// cref="CaseDocument"/> carries only its current occurrence and current
+    /// version (Stream A review, D-bounded-pages) — never the full history
+    /// <see cref="ReadDocumentsAsync"/> reads — so a page can never grow
+    /// unboundedly with a document's occurrence/version count; a caller
+    /// wanting every occurrence or version reads the case's full document
+    /// list instead.
     /// </summary>
     public async Task<IReadOnlyList<CaseDocument>> ListDocumentsByCursorAsync(
         Guid caseId,
@@ -505,7 +568,7 @@ public sealed class EfCaseQueryStore(
             .ThenByDescending(item => item.Document.Id)
             .Take(fetchCount)
             .ToArrayAsync(cancellationToken);
-        return await MapDocumentsAsync(
+        return await MapCursorDocumentsAsync(
             context,
             caseId,
             page.Select(item => item.Document).ToArray(),
@@ -514,10 +577,10 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// The shared document-projection tail of <see cref="ReadDocumentsAsync"/>
-    /// and <see cref="ListDocumentsByCursorAsync"/> (CASE-047): given the
-    /// case's document rows in the caller's own order, reads their
-    /// occurrences and versions and maps them into <see cref="CaseDocument"/>
-    /// without re-choosing which documents or what order.
+    /// (CASE-047): given the case's document rows in the caller's own order,
+    /// reads their occurrences and versions and maps them into <see
+    /// cref="CaseDocument"/> without re-choosing which documents or what
+    /// order.
     /// </summary>
     private static async Task<IReadOnlyList<CaseDocument>> MapDocumentsAsync(
         PegasusDbContext context,
@@ -547,39 +610,79 @@ public sealed class EfCaseQueryStore(
         return documentEntities.Select(document => new CaseDocument(
                 document.Id,
                 caseId,
-                occurrences
-                    .Where(item => item.DocumentId == document.Id)
-                    .Select(item => new DocumentOccurrence(
-                        item.Id,
-                        item.CaseId,
-                        item.DocumentId,
-                        item.VersionId,
-                        item.SemanticRole,
-                        item.Source,
-                        item.SourceOccurrenceIdentity,
-                        item.RecordedAtUtc,
-                        item.ThirdPartyVehicleConfirmedAtUtc,
-                        item.ThirdPartyVehicleConfirmationReason))
-                    .ToArray(),
-                versions
-                    .Where(item => item.DocumentId == document.Id)
-                    .Select(item => new DocumentVersion(
-                        item.Id,
-                        item.DocumentId,
-                        item.Version,
-                        item.FileName,
-                        item.MediaType,
-                        item.ContentLength,
-                        item.Sha256,
-                        item.CustodyStatus,
-                        item.CreatedAtUtc,
-                        item.CreatedBy,
-                        item.IsCurrent,
-                        item.IsLogicallyRemoved,
-                        item.RemovalReason))
-                    .ToArray()))
+                occurrences.Where(item => item.DocumentId == document.Id).Select(MapOccurrence).ToArray(),
+                versions.Where(item => item.DocumentId == document.Id).Select(MapVersion).ToArray()))
             .ToArray();
     }
+
+    /// <summary>
+    /// The bounded cursor-page tail of <see cref="ListDocumentsByCursorAsync"/>
+    /// (CASE-047, Stream A review): each document carries at most one
+    /// occurrence (the most recent — the same row its sort key came from)
+    /// and at most one version (the current one), instead of every occurrence
+    /// and version <see cref="MapDocumentsAsync"/> reads for the full list.
+    /// </summary>
+    private static async Task<IReadOnlyList<CaseDocument>> MapCursorDocumentsAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseDocumentEntity[] documentEntities,
+        CancellationToken cancellationToken)
+    {
+        if (documentEntities.Length == 0)
+        {
+            return [];
+        }
+
+        var documentIds = documentEntities.Select(item => item.Id).ToArray();
+        var occurrences = await context.Set<DocumentOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && documentIds.Contains(item.DocumentId))
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .ToArrayAsync(cancellationToken);
+        var currentVersions = await context.Set<DocumentVersionEntity>()
+            .AsNoTracking()
+            .Where(item => documentIds.Contains(item.DocumentId) && item.IsCurrent)
+            .ToArrayAsync(cancellationToken);
+
+        return documentEntities.Select(document =>
+        {
+            var occurrence = occurrences.FirstOrDefault(item => item.DocumentId == document.Id);
+            var version = currentVersions.FirstOrDefault(item => item.DocumentId == document.Id);
+            return new CaseDocument(
+                document.Id,
+                caseId,
+                occurrence is null ? [] : [MapOccurrence(occurrence)],
+                version is null ? [] : [MapVersion(version)]);
+        }).ToArray();
+    }
+
+    private static DocumentOccurrence MapOccurrence(DocumentOccurrenceEntity item) => new(
+        item.Id,
+        item.CaseId,
+        item.DocumentId,
+        item.VersionId,
+        item.SemanticRole,
+        item.Source,
+        item.SourceOccurrenceIdentity,
+        item.RecordedAtUtc,
+        item.ThirdPartyVehicleConfirmedAtUtc,
+        item.ThirdPartyVehicleConfirmationReason);
+
+    private static DocumentVersion MapVersion(DocumentVersionEntity item) => new(
+        item.Id,
+        item.DocumentId,
+        item.Version,
+        item.FileName,
+        item.MediaType,
+        item.ContentLength,
+        item.Sha256,
+        item.CustodyStatus,
+        item.CreatedAtUtc,
+        item.CreatedBy,
+        item.IsCurrent,
+        item.IsLogicallyRemoved,
+        item.RemovalReason);
 
     /// <summary>
     /// The keyset-paged sibling of the history read in <see cref="GetAsync"/>

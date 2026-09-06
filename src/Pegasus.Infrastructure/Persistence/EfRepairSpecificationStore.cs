@@ -405,9 +405,13 @@ public sealed class EfRepairSpecificationStore(
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
-    /// (CASE-047): newest version first, then estimate id.
+    /// (CASE-047): newest version first, then estimate id. Projects the
+    /// bounded <see cref="CaseEstimatePageItem"/> header (Stream A review)
+    /// and never includes <see cref="CaseRepairSpecificationEntity.Lines"/> —
+    /// a case can carry many superseded versions, each with an unbounded
+    /// line list a keyset page never needs.
     /// </summary>
-    public async Task<IReadOnlyList<RepairSpecificationVersion>> ListByCursorAsync(
+    public async Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
         Guid caseId,
         int? afterVersion,
         Guid? afterId,
@@ -415,7 +419,7 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
+        var rows = context.CaseRepairSpecifications.AsNoTracking()
             .Where(item => item.CaseId == caseId);
         if (afterId is { } id)
         {
@@ -430,7 +434,7 @@ public sealed class EfRepairSpecificationStore(
             .ThenByDescending(item => item.Id)
             .Take(fetchCount)
             .ToArrayAsync(cancellationToken);
-        return entities.Select(Map).ToArray();
+        return entities.Select(MapPageItem).ToArray();
     }
 
     public async Task<RepairSpecificationVersion?> GetVersionAsync(
@@ -633,6 +637,24 @@ public sealed class EfRepairSpecificationStore(
         new(entity.Name, entity.RepairDays, entity.LabourRate, entity.PaintLabourRate,
             entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes),
         entity.IsCurrent, entity.AiJobId, entity.DiscardReason);
+
+    /// <summary>
+    /// The bounded <see cref="CaseEstimatePageItem"/> sibling of <see
+    /// cref="Map"/> (CASE-047, Stream A review), read without
+    /// <c>entity.Lines</c> ever being included.
+    /// </summary>
+    internal static CaseEstimatePageItem MapPageItem(CaseRepairSpecificationEntity entity) => new(
+        entity.Id, entity.CaseId, entity.Version,
+        Enum.Parse<RepairSpecificationState>(entity.State),
+        new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
+            entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
+        entity.Name,
+        entity.IsCurrent,
+        entity.CalculationLabour is { } labour ? new(
+            labour, entity.CalculationParts!.Value, entity.CalculationPaintMaterials!.Value,
+            entity.CalculationSpecialistOther!.Value, entity.RepairerVatRegistered!.Value,
+            entity.CalculationVat!.Value, entity.CalculationTotal!.Value,
+            entity.CalculationPolicyVersion!) : null);
 
     private static void AddHistory(
         PegasusDbContext context, CaseWorkflowEntity workflow, ActionActor actor,

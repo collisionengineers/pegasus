@@ -777,13 +777,33 @@ public interface IListCaseEstimates
 }
 
 /// <summary>
+/// The bounded cursor-page projection of a <see
+/// cref="RepairSpecificationVersion"/> (CASE-047, Stream A review): the
+/// header fields a list surface needs, without embedding the
+/// specification's <see cref="RepairSpecificationVersion.Lines"/> — a case
+/// can carry many superseded versions and each an unbounded line list, so a
+/// keyset page never grows with a specification's line count. A caller
+/// wanting the lines reads the version directly
+/// (<see cref="IRepairSpecificationStore.GetVersionAsync"/>).
+/// </summary>
+public sealed record CaseEstimatePageItem(
+    Guid SpecificationId,
+    Guid CaseId,
+    int Version,
+    RepairSpecificationState State,
+    RepairSpecificationSource Source,
+    string Name,
+    bool IsCurrent,
+    RepairCalculationBasis? CalculationBasis);
+
+/// <summary>
 /// The keyset-paged sibling of <see cref="IListCaseEstimates"/> (CASE-047,
 /// requested by Stream A's MCP adapters): newest version first, then
 /// estimate id.
 /// </summary>
 public interface IListCaseEstimatesByCursor
 {
-    Task<CursorPage<RepairSpecificationVersion>> ExecuteAsync(
+    Task<CursorPage<CaseEstimatePageItem>> ExecuteAsync(
         CaseListCursorQuery query,
         CancellationToken cancellationToken);
 }
@@ -892,9 +912,10 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
 /// applies before reading a case's estimates, newest version first then
 /// estimate id.
 /// </summary>
-public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store) : IListCaseEstimatesByCursor
+public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store, ICursorProtector protector)
+    : IListCaseEstimatesByCursor
 {
-    public async Task<CursorPage<RepairSpecificationVersion>> ExecuteAsync(
+    public async Task<CursorPage<CaseEstimatePageItem>> ExecuteAsync(
         CaseListCursorQuery query,
         CancellationToken cancellationToken)
     {
@@ -905,12 +926,13 @@ public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store) :
             throw new ArgumentException("A case identifier is required.", nameof(query));
         }
         var limit = CursorPaging.NormalizeLimit(query.Limit);
-        var fingerprint = CaseListCursorFingerprint.For(query.Actor, query.CaseId);
+        var scope = CaseListCursorScope.For("ListCaseEstimates", query.Actor, query.CaseId);
 
         int? afterVersion = null;
         Guid? afterId = null;
-        if (CursorToken.DecodePosition(query.Cursor, fingerprint) is { } position)
+        if (query.Cursor is { Length: > 0 } cursor)
         {
+            var position = protector.Unprotect(cursor, scope);
             if (!int.TryParse(position.SortKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version))
             {
                 throw new CursorRejectedException("The cursor is malformed.");
@@ -925,7 +947,8 @@ public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store) :
         return CursorPageBuilder.Build(
             rows,
             limit,
-            fingerprint,
+            protector,
+            scope,
             estimate => estimate.Version.ToString(CultureInfo.InvariantCulture),
             estimate => estimate.SpecificationId);
     }

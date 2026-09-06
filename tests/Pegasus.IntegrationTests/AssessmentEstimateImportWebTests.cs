@@ -787,7 +787,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 new[] { CurrentAccepted, CurrentDraft }.Where(item => item is not null).ToArray()!);
 
-        public Task<IReadOnlyList<RepairSpecificationVersion>> ListByCursorAsync(
+        public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid ownerCaseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
