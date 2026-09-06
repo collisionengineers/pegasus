@@ -220,3 +220,7 @@ R-1 replay can double-count link counters when no receipt is written; R-2 Pendin
 ## Checkpoint — C05 correction round 1 at `7b632169b`
 
 R-1…R-9 fixed (findings persisted as `finding.<code>` source rows; printed labels kept; catches named; dead members removed; one classification-table owner; negatives extended). "Finding" chip deferred to C04 (`Intake/Details.cshtml`) + C08 (`OperatorLabels`) — recorded. Wave 19 + targeted re-review running. C07 caller correction round 1 dispatched (Opus) for the four majors. Editors: C06 round 2, C07b correction. C08 correction still queued.
+
+## Wave 19 (C05 at `7b632169b`): 2 failures in the new correction code
+
+Build/core 27/architecture PASS; corpus 10/11 — `EveryRecordedFindingIsPersistedAsItsOwnSourceRow` fails at line 325 (a finding row has an empty `RawValue` or `SourceLabel`); web 9/15 — `ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates` observed outcomes `[no_report_signature, recorded]`, expected `recorded_reading_stands` on the re-evaluation (the reevaluate path is not recognising the report signature it recorded the first time — behaviour, not assertion). C05 round 2 queued behind the two-editor limit (C06 round 2, C07 caller correction active); re-review will bind to the next head.
