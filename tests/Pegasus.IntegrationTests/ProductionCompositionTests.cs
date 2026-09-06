@@ -8,6 +8,9 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Assessment;
@@ -25,6 +28,37 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class ProductionCompositionTests
 {
+    [Fact]
+    public async Task DevelopmentOfflineComposesAFailClosedReportSendWithoutMailTransport()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var sender = services.GetRequiredService<IStaffReportSend>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var generationId = Guid.NewGuid();
+        var attachments = Array.Empty<StaffMailAttachment>();
+        var command = new StaffReportSendCommand(
+            new StaffMailSendCommand(
+                actor, Guid.NewGuid(), 1, StaffMailPurpose.CaseReport, generationId, 1,
+                StaffMailComposeMode.New, null, [new("operator@example.test", null)], [],
+                "Case report", "Body", attachments, "offline-report-send"),
+            new ReportSendReadinessRequest(
+                actor, Guid.NewGuid(), 1, generationId, 1, Guid.NewGuid(), 1, attachments));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sender.SendAsync(command, CancellationToken.None));
+
+        Assert.Equal(
+            "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
+            error.Message);
+        Assert.Null(services.GetService<IStaffMailSend>());
+        // A's patch also asserted IStaffMailTransport is unregistered; that
+        // interface lives in A's StaffMailSendEngine.cs, which this branch
+        // does not carry yet - the assertion returns with A's domain/G.
+        Assert.Null(services.GetService<GraphMailClient>());
+    }
+
     [Fact]
     public void CasePageAndCanonicalImportResolveTheirSelectedEstimateParsers()
     {

@@ -551,7 +551,24 @@ public static class DependencyInjection
     {
         services.AddSingleton<IAssessmentReportRenderer, PlaywrightAssessmentReportRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
-        services.AddScoped<IAssessmentReportProjectionSource, EfAssessmentReportProjectionSource>();
+        services.AddScoped<EfAssessmentReportProjectionSource>();
+        services.AddScoped<IAssessmentReportProjectionSource>(provider =>
+            provider.GetRequiredService<EfAssessmentReportProjectionSource>());
+        services.AddScoped<ICaseReportSnapshotSource>(provider =>
+            provider.GetRequiredService<EfAssessmentReportProjectionSource>());
+        services.AddScoped<EfCaseReportGenerationStore>();
+        services.AddScoped<ICaseReportGenerationStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<ICaseReportGenerationQueries>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<IGeneratedCaseArtifactStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
+        services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
+        services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
+        services.AddScoped<IPrepareCaseReportDelivery, PrepareCaseReportDelivery>();
+        services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
+        services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
         return services;
     }
