@@ -22,6 +22,10 @@ public sealed partial class TestUiSnapshotTests
             ["sign-in--signed-out"] = new("You are signed out"),
             ["administration-accounts--empty"] = new("No staff accounts are available."),
             ["administration-configuration--default"] = new("Workflow configuration"),
+            ["administration-claim-sources--empty"] = new(
+                "Create claim source", "Current claim sources"),
+            ["administration-claim-source-edit--default"] = new(
+                "Edit Web Caller Claim Source</h1>", "Renamed"),
             ["administration-account-confirm--disable"] = new("Disable account"),
             ["administration-account-confirm--enable"] = new("Enable account"),
             ["administration-account-confirm--delete"] = new("Delete account"),
@@ -48,6 +52,7 @@ public sealed partial class TestUiSnapshotTests
                 "<p>No mail has been received.</p>", "status--red\">Unavailable<"),
             ["inbox--unavailable"] = new(">Unavailable<"),
             ["inbox--default"] = new("<h1>Inbox</h1>"),
+            ["mail-compose--default"] = new("<h1>Compose</h1>", "validation-summary-errors"),
             ["operations--partial-data"] = new(">Partial data</strong>"),
             ["operations--empty"] = new(">No retryable external work<"),
             ["queues--empty"] = new("class=\"muted\">0 items</span>"),
