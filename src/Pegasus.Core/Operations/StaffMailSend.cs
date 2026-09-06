@@ -15,6 +15,13 @@ public sealed record StaffMailOriginalMessage(
 public sealed record StaffMailAttachment(
     Guid DocumentId, Guid VersionId, string Sha256, long ContentLength,
     string FileName, string MediaType);
+public static class StaffMailCorrelationHeaders
+{
+    public const string OperationId = "X-Pegasus-Operation-Id";
+    public const string MailboxId = "X-Pegasus-Mailbox-Id";
+    public const string MailboxGeneration = "X-Pegasus-Mailbox-Generation";
+    public const string PayloadSha256 = "X-Pegasus-Payload-Sha256";
+}
 public sealed record StaffMailSendCommand(
     ActionActor Actor, Guid ApprovedMailboxId, long ExpectedMailboxGeneration,
     StaffMailPurpose Purpose, Guid ContextId, long ExpectedContextVersion,
@@ -29,7 +36,9 @@ public sealed record StaffMailOperation(
     DateTimeOffset PreparedAtUtc, DateTimeOffset? SubmittedAtUtc,
     DateTimeOffset? ObservedSentAtUtc, string? FailureCode,
     Guid ApprovedMailboxId, long MailboxGeneration, string PayloadHash,
-    DateTimeOffset? AttemptRequestedAtUtc, DateTimeOffset? UploadSessionExpiresAtUtc);
+    DateTimeOffset? AttemptRequestedAtUtc, DateTimeOffset? UploadSessionExpiresAtUtc,
+    string? ReconciliationContinuation = null,
+    string? DraftImmutableId = null);
 
 public interface IStaffMailSend
 {

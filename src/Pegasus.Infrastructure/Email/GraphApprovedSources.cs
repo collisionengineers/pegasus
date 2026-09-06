@@ -1190,17 +1190,36 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
                 .Where(value => value != Guid.Empty)
                 .Distinct()
                 .ToArray();
-            var operationMarkers = message.Headers
-                .Where(header => header.Field.Equals("X-Pegasus-Operation-Id", StringComparison.OrdinalIgnoreCase))
-                .Select(header => header.Value.Trim())
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
+            var operationMarkers = HeaderValues(message, StaffMailCorrelationHeaders.OperationId);
             if (operationMarkers.Length > 1
                 || operationMarkers.Length == 1 && !Guid.TryParse(operationMarkers[0], out _))
             {
                 return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_operation_marker_invalid", nextCursor);
             }
             var operationId = operationMarkers.Length == 0 ? (Guid?)null : Guid.Parse(operationMarkers[0]);
+            Guid? markerMailboxId = null;
+            long? markerGeneration = null;
+            string? markerPayloadHash = null;
+            if (operationId is not null)
+            {
+                var mailboxMarkers = HeaderValues(message, StaffMailCorrelationHeaders.MailboxId);
+                var generationMarkers = HeaderValues(message, StaffMailCorrelationHeaders.MailboxGeneration);
+                var payloadMarkers = HeaderValues(message, StaffMailCorrelationHeaders.PayloadSha256);
+                if (mailboxMarkers.Length != 1 || !Guid.TryParse(mailboxMarkers[0], out var parsedMailboxId)
+                    || generationMarkers.Length != 1 || !long.TryParse(generationMarkers[0],
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out var parsedGeneration)
+                    || parsedGeneration <= 0
+                    || payloadMarkers.Length != 1 || payloadMarkers[0].Length != 64
+                    || !payloadMarkers[0].All(Uri.IsHexDigit))
+                {
+                    return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash,
+                        "graph_sent_frozen_marker_invalid", nextCursor);
+                }
+                markerMailboxId = parsedMailboxId;
+                markerGeneration = parsedGeneration;
+                markerPayloadHash = payloadMarkers[0].ToUpperInvariant();
+            }
             var attachmentHashes = new List<string>();
             foreach (var attachment in message.Attachments)
             {
@@ -1230,7 +1249,10 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
                     sentAtUtc,
                     sourceHash,
                     operationId,
-                    attachmentHashes),
+                    attachmentHashes,
+                    markerMailboxId,
+                    markerGeneration,
+                    markerPayloadHash),
                 null,
                 nextCursor);
         }
@@ -1239,6 +1261,13 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
             return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_mime_invalid", nextCursor);
         }
     }
+
+    private static string[] HeaderValues(MimeMessage message, string name) =>
+        message.Headers
+            .Where(header => header.Field.Equals(name, StringComparison.OrdinalIgnoreCase))
+            .Select(header => header.Value.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
     private static ApprovedSentItem DeletedItem(string mailboxId, GraphDeltaItem item, string nextCursor)
     {

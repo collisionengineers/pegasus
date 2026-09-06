@@ -494,7 +494,10 @@ public sealed class PollSentEvidenceTests
             Provenance = Item("staff-mismatch", "sent-items", "cursor", [], []).Provenance! with
             {
                 StaffMailOperationId = operationId,
-                AttachmentSha256 = [new string('E', 64)]
+                AttachmentSha256 = [new string('E', 64)],
+                StaffMailMailboxId = lease.ApprovedMailboxId,
+                StaffMailMailboxGeneration = lease.Generation,
+                StaffMailPayloadHash = new string('F', 64)
             }
         };
         var pollStore = new RecordingPollStore(lease);
@@ -534,7 +537,10 @@ public sealed class PollSentEvidenceTests
             Provenance = template.Provenance! with
             {
                 StaffMailOperationId = operationId,
-                AttachmentSha256 = [hash]
+                AttachmentSha256 = [hash],
+                StaffMailMailboxId = lease.ApprovedMailboxId,
+                StaffMailMailboxGeneration = lease.Generation,
+                StaffMailPayloadHash = operation.PayloadHash
             }
         };
         var poll = CreateUseCase(
@@ -859,5 +865,6 @@ public sealed class PollSentEvidenceTests
         public Task<StaffMailExecution?> GetExecutionAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RequireCurrentStaffAsync(string actorSubjectId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<StaffMailOperation> TransitionAsync(string actorSubjectId, Guid operationId, long expectedVersion, StaffMailState state, StaffMailAttemptStage? stage, string? draftImmutableId, DateTimeOffset? submittedAtUtc, DateTimeOffset? observedSentAtUtc, string? failureCode, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffMailOperation> SetReconciliationContinuationAsync(string actorSubjectId, Guid operationId, long expectedVersion, string? continuation, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

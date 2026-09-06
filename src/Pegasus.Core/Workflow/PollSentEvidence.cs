@@ -49,7 +49,10 @@ public sealed record ApprovedSentItemProvenance(
     DateTimeOffset SentAtUtc,
     string MimeSha256,
     Guid? StaffMailOperationId = null,
-    IReadOnlyList<string>? AttachmentSha256 = null);
+    IReadOnlyList<string>? AttachmentSha256 = null,
+    Guid? StaffMailMailboxId = null,
+    long? StaffMailMailboxGeneration = null,
+    string? StaffMailPayloadHash = null);
 
 public sealed record ApprovedSentItem(
     string SourceOccurrenceIdentity,
@@ -508,6 +511,10 @@ public sealed class PollSentEvidence(
             if (staffExecution is null
                 || staffExecution.Operation.ApprovedMailboxId != lease.ApprovedMailboxId
                 || staffExecution.Operation.MailboxGeneration != lease.Generation
+                || provenance.StaffMailMailboxId != staffExecution.Operation.ApprovedMailboxId
+                || provenance.StaffMailMailboxGeneration != staffExecution.Operation.MailboxGeneration
+                || !string.Equals(provenance.StaffMailPayloadHash,
+                    staffExecution.Operation.PayloadHash, StringComparison.Ordinal)
                 || staffExecution.Operation.State is not (StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown or StaffMailState.Sent)
                 || staffExecution.ContextId == Guid.Empty
                 || staffExecution.Purpose == StaffMailPurpose.CaseReport && staffExecution.CaseId is null
